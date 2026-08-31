@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  linux:
+    name: Linux packages (deb + AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches app version
+        run: |
+          VERSION="$(python3 -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('backend/app/__init__.py').read()).group(1))")"
+          if [[ "refs/tags/v$VERSION" != "$GITHUB_REF" ]]; then
+            echo "Tag $GITHUB_REF does not match app version v$VERSION" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          # gdk-pixbuf tools package name differs across releases:
+          # Ubuntu <= 24.04 / Debian <= 12 ship libgdk-pixbuf2.0-bin,
+          # Debian 13+ / newer Ubuntu ship libgdk-pixbuf-2.0-bin.
+          if apt-cache show libgdk-pixbuf2.0-bin >/dev/null 2>&1; then
+            PIXBUF_BIN=libgdk-pixbuf2.0-bin
+          else
+            PIXBUF_BIN=libgdk-pixbuf-2.0-bin
+          fi
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-0 libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 file "$PIXBUF_BIN"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Install backend build dependencies
+        working-directory: backend
+        run: |
+          python -m venv venv
+          ./venv/bin/pip install -r requirements.txt aiosqlite pywebview pyinstaller
+
+      - name: Download appimagetool
+        run: |
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          echo "APPIMAGETOOL=$PWD/appimagetool" >> "$GITHUB_ENV"
+
+      - name: Build packages (deb + AppImage)
+        run: ./packaging/build-linux.sh all "$VERSION"
+
+      - name: Smoke test frozen bundle (headless web mode)
+        run: |
+          DATA_DIR="$PWD/packaging/_smoke" MJA_SKIP_SEED=1 API_PORT=8199 \
+            timeout 30 backend/dist/careerassistant/careerassistant web > smoke.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8199/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8199/health | grep '"status": *"ok"'
+          curl -fsS http://127.0.0.1:8199/ | grep -q "<div id=\"root\">"
+          # Unknown /api/v1 routes must be JSON 404s, not SPA fallbacks.
+          # No curl -f here: the 404 is the expected outcome.
+          resp="$(curl -sS -o notfound.json -w '%{http_code} %{content_type}' \
+            http://127.0.0.1:8199/api/v1/definitely-not-a-route)"
+          [[ "$resp" == "404 application/json"* ]]
+          grep -q "Not Found" notfound.json
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            packaging/*.deb
+            packaging/*.AppImage
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            packaging/*.deb
+            packaging/*.AppImage
+          generate_release_notes: true
+
+  docker:
+    name: Docker image (GHCR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

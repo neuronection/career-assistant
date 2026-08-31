@@ -1,0 +1,48 @@
+name: matchjob
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: matchjob-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-matchjob}
+      POSTGRES_USER: ${POSTGRES_USER:-matchjob}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matchjob_dev_pw}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_TEST_DB:-matchjob_test}
+    volumes:
+      - matchjob_postgres_data:/var/lib/postgresql/data
+      - ./init-test-db.sh:/docker-entrypoint-initdb.d/01-init-test-db.sh:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-matchjob} -d ${POSTGRES_DB:-matchjob}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matchjob-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: matchjob-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    volumes:
+      - matchjob_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matchjob-net
+
+volumes:
+  matchjob_postgres_data:
+  matchjob_redis_data:
+
+networks:
+  matchjob-net:
+    driver: bridge

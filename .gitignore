@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Node
+node_modules/
+frontend/dist/
+*.local
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Uploads / runtime
+backend/uploads/
+backend/tests/_uploads/
+backend/celerybeat-schedule*
+logging/
+*.log
+
+# Local planning notes
+dev/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Test runner artifacts (read-only /tmp fallbacks, local caches)
+pytest-of-*/
+.tmp/
+
+# Playwright
+.playwright-mcp/
+test-results/
+
+# Packaging build artifacts
+packaging/_build/
+packaging/_deb/
+packaging/_appimage/
+packaging/_smoke-*/
+packaging/*.deb
+packaging/*.AppImage
+backend/dist/
+.opencode

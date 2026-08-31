@@ -1,0 +1,97 @@
+# Career Assistant — production stack (app + Postgres, optional Caddy proxy).
+#
+#   cp docker/.env.production.example docker/.env   # then edit secrets
+#   docker compose -f docker/docker-compose.prod.yml up -d --build
+#
+# TLS reverse proxy (automatic HTTPS): add --profile proxy and set CA_DOMAIN.
+
+name: career-assistant
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-career}
+      POSTGRES_USER: ${POSTGRES_USER:-career}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-career} -d ${POSTGRES_DB:-career}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: career-assistant:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-career}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-career}
+      JWT_SECRET: ${JWT_SECRET:?Set a long random JWT_SECRET in docker/.env}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      # Same-origin SPA + API → CORS stays empty; add origins only for split
+      # deployments (e.g. "https://app.example.com").
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    ports:
+      - "${API_PORT:-8100}:8100"
+    volumes:
+      - uploads_data:/app/uploads
+
+  backup:
+    # Scheduled instance backups (database dump + uploads) written to the
+    # ./backups bind mount. Enable with --profile backup.
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-career}
+      POSTGRES_USER: ${POSTGRES_USER:-career}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ./backups:/backups
+    command: >
+      sh -c 'while true; do
+        ts=$$(date -u +%Y%m%d-%H%M%S);
+        pg_dump -U $$POSTGRES_USER -Fc $$POSTGRES_DB > /backups/db-$$ts.dump;
+        find /backups -name "db-*.dump" | sort | head -n -$$BACKUP_KEEP | xargs -r rm --;
+        sleep $$((BACKUP_INTERVAL_HOURS * 3600));
+      done'
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["proxy"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # Only consumed by the proxy profile; a placeholder keeps `compose
+      # config` valid without the profile enabled. Set CA_DOMAIN in
+      # docker/.env for automatic HTTPS when using the proxy.
+      CA_DOMAIN: ${CA_DOMAIN:-career.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  db_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:

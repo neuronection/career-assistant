@@ -1,0 +1,9 @@
+# Desktop profile extras (python -m careerassistant).
+# System packages needed on Linux: libgtk-3, libwebkit2gtk-4.1 (see docs/deploy.md).
+-r requirements.txt
+
+aiosqlite>=0.20
+pywebview>=5.3
+pygobject>=3.50 ; sys_platform == 'linux'
+pystray>=0.19
+Pillow>=10.0

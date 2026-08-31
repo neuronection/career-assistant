@@ -1,0 +1,40 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#F1F5F9" />
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6" stop-opacity="0.35" />
+      <stop offset="1" stop-color="#8B5CF6" stop-opacity="0.15" />
+    </linearGradient>
+    <linearGradient id="routeGrad" x1="90" y1="124" x2="137" y2="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6" />
+      <stop offset="1" stop-color="#8B5CF6" />
+    </linearGradient>
+    <linearGradient id="caseGrad" x1="34" y1="152" x2="86" y2="106" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6" />
+      <stop offset="1" stop-color="#8B5CF6" />
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect x="2" y="2" width="188" height="188" rx="44" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="3" />
+
+  <path d="M90 124 C112 116 120 94 137 62"
+        stroke="url(#routeGrad)" stroke-width="7.5" stroke-linecap="round" stroke-dasharray="14 14" stroke-dashoffset="-9.71"
+        fill="none" filter="url(#glow)" opacity="0.9" />
+
+  <path d="M49 120 v-4 a6.5 6.5 0 0 1 6.5-6.5 h9 a6.5 6.5 0 0 1 6.5 6.5 v4"
+        stroke="url(#caseGrad)" stroke-width="6" stroke-linecap="round" fill="none" />
+  <rect x="34" y="120" width="52" height="32" rx="9" fill="url(#caseGrad)" />
+  <path d="M37 128 H83" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="3" stroke-linecap="round" />
+  <rect x="54" y="123.5" width="12" height="9" rx="3" fill="#FFFFFF" fill-opacity="0.9" />
+
+  <path d="M54 39 Q55.6 46.4 62 48 Q55.6 49.6 54 57 Q52.4 49.6 46 48 Q52.4 46.4 54 39 Z" fill="#8B5CF6" fill-opacity="0.65" />
+
+  <path d="M146 30 Q149.5 44.5 164 48 Q149.5 51.5 146 66 Q142.5 51.5 128 48 Q142.5 44.5 146 30 Z" fill="#10B981" />
+</svg>
