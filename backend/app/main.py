@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 import sys
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,17 +25,21 @@ from app.core.errors import (
 
 logger = logging.getLogger(__name__)
 
-SECURITY_HEADERS = (
-    ("x-content-type-options", "nosniff"),
-    ("x-frame-options", "DENY"),
-    ("referrer-policy", "strict-origin-when-cross-origin"),
-    (
-        "content-security-policy",
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
-        " script-src 'self'; connect-src 'self'; font-src 'self' data:; object-src 'none';"
-        " frame-ancestors 'none'; base-uri 'self'",
-    ),
+_X_CONTENT_TYPE = ("x-content-type-options", "nosniff")
+_X_FRAME = ("x-frame-options", "DENY")
+_REFERRER = ("referrer-policy", "strict-origin-when-cross-origin")
+_CSP_BODY = (
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
+    " script-src {script}; connect-src 'self'; font-src 'self' data:; object-src 'none';"
+    " frame-ancestors 'none'; base-uri 'self'"
 )
+# Web deployment: no eval, no inline scripts.
+WEB_CSP = _CSP_BODY.format(script="'self'")
+# Desktop shell only: pywebview's evaluate_js (the plan-36 bridge push and
+# the toast-activation focus) runs through the page JS context, and
+# WebKitGTK/WebView2 apply the page CSP to it. Gated per request by the
+# per-boot shell token (app.desktop.shell_token) — browsers never see it.
+DESKTOP_CSP = _CSP_BODY.format(script="'self' 'unsafe-eval'")
 
 
 class SecurityHeadersMiddleware:
@@ -48,11 +53,26 @@ class SecurityHeadersMiddleware:
             await self.app(scope, receive, send)
             return
 
+        from app.desktop.shell_token import QUERY_PARAM, matches
+
+        desktop_request = matches(
+            parse_qs(scope.get("query_string", b"").decode("latin-1")).get(
+                QUERY_PARAM, [None]
+            )[0]
+        )
+        csp = DESKTOP_CSP if desktop_request else WEB_CSP
+        headers = (
+            _X_CONTENT_TYPE,
+            _X_FRAME,
+            _REFERRER,
+            ("content-security-policy", csp),
+        )
+
         async def send_with_headers(message):
             if message["type"] == "http.response.start":
-                headers = MutableHeaders(scope=message)
-                for name, value in SECURITY_HEADERS:
-                    headers.append(name, value)
+                response_headers = MutableHeaders(scope=message)
+                for name, value in headers:
+                    response_headers.append(name, value)
             await send(message)
 
         await self.app(scope, receive, send_with_headers)

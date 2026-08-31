@@ -273,6 +273,19 @@ All notable changes to **Career Assistant** are documented here.
   application code — matching operates on ids and stable keys only.
 
 ### Fixed
+- **Desktop toasts and focus actually reach the window on Linux**: the
+  shell's own strict CSP (`script-src 'self'`) made WebKitGTK (and
+  WebView2) refuse pywebview's `evaluate_js`, so notification pushes into
+  the app window and the toast-activation focus silently failed. The
+  shell now loads the SPA with a per-boot random `?shell=` token and the
+  security headers middleware serves that document a desktop CSP variant
+  (`'unsafe-eval'` on `script-src` only); browser and self-hosted web
+  deployments keep the strict CSP unchanged.
+- **Tray menu failed to build with real pystray**: menu actions carried a
+  third parameter (pystray accepts at most two) and submenu construction
+  used a non-existent `pystray.Submenu` class (submenus are a `Menu`
+  passed as the item's action), so `app --tray` degraded to window-only
+  mode with a `Tray init failed` warning.
 - **Docker image waits for the database before migrating**: the entrypoint
   ran `alembic upgrade head` immediately, so a raw `docker run` beside a
   freshly started Postgres crashed with `ConnectionRefused` while Postgres
@@ -298,6 +311,15 @@ All notable changes to **Career Assistant** are documented here.
   `gdk-pixbuf-query-loaders` from its multiarch libdir — Ubuntu does not put
   it on `PATH` — so AppImage pixbuf-loader vendoring no longer silently
   skips.
+- **SQLite (desktop) profile passes the full backend suite**: datetime
+  columns now round-trip timezone-aware UTC values on every dialect
+  (SQLite returned naive datetimes, crashing any `now - posted_at`
+  comparison in the scheduler, postings fit and growth check-ins), the
+  notification-kind seed inserts real UUID objects (SQLAlchemy's generic
+  `Uuid` bind rejects raw strings), and archetype resolution orders
+  families deterministically (`level, key`) instead of relying on
+  Postgres' unspecified tie ordering. CI's new "Backend on SQLite
+  (desktop profile)" job is green.
 
 ## [0.2.0] - 2026-08-30
 

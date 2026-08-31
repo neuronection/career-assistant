@@ -270,6 +270,7 @@ def run(tray_only: bool = False) -> None:
     """
     import webview
 
+    from app.desktop import shell_token
     from app.desktop import notifier
     from app.desktop.bridge import DesktopApi, DesktopBridge
     from app.desktop.single_instance import SingleInstance
@@ -309,10 +310,14 @@ def run(tray_only: bool = False) -> None:
     # misfired schedules (asap) surface as toasts, not a silent backlog.
     notifier.register_desktop_channel(bridge)
 
+    # Marks the shell's document requests so the security headers middleware
+    # can serve the desktop CSP variant (pywebview's evaluate_js needs it).
+    shell_query = shell_token.issue()
+
     state = load_window_state(data_dir, webview.screens)
     window = webview.create_window(
         settings.APP_NAME,
-        f"http://127.0.0.1:{port}",
+        f"http://127.0.0.1:{port}/?shell={shell_query}",
         width=state["width"],
         height=state["height"],
         x=state.get("x"),
@@ -372,6 +377,7 @@ def run(tray_only: bool = False) -> None:
     # Window gone (quit or real close): same shutdown order as plan 10 —
     # stop uvicorn last (lifespan cancels the scheduler, drains the queue).
     bridge.detach()
+    shell_token.reset()
     if tray is not None:
         tray.stop()
     unregister_dispatcher()

@@ -165,6 +165,42 @@ async def test_security_headers_present(client):
     assert "frame-ancestors 'none'" in headers["content-security-policy"]
 
 
+async def test_web_csp_stays_strict(client):
+    """No eval anywhere on the web deployment — even with a shell-shaped query."""
+    from app.desktop import shell_token
+
+    shell_token.issue()
+    try:
+        for query in ("", "?shell=not-the-token"):
+            response = await client.get(f"/health{query}")
+            csp = response.headers["content-security-policy"]
+            assert "script-src 'self';" in csp
+            assert "unsafe-eval" not in csp
+    finally:
+        shell_token.reset()
+
+
+async def test_desktop_shell_query_gets_eval_csp(client):
+    """The per-boot shell token unlocks the desktop CSP variant; old tokens
+    die with the next issue() (token rotates per boot)."""
+    from app.desktop import shell_token
+
+    token = shell_token.issue()
+    try:
+        response = await client.get(f"/health?shell={token}")
+        csp = response.headers["content-security-policy"]
+        assert "script-src 'self' 'unsafe-eval';" in csp
+
+        rotated = shell_token.issue()
+        stale = await client.get(f"/health?shell={token}")
+        assert "unsafe-eval" not in stale.headers["content-security-policy"]
+
+        fresh = await client.get(f"/health?shell={rotated}")
+        assert "unsafe-eval" in fresh.headers["content-security-policy"]
+    finally:
+        shell_token.reset()
+
+
 async def test_password_minimum_length_enforced(client):
     response = await _register(client, "shortpw@example.com", "short12")
     assert response.status_code == 422
