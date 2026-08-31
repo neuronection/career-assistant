@@ -13,7 +13,6 @@ from typing import Optional
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -24,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
+    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
@@ -70,12 +70,8 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     payload: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    next_run_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_run_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    next_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
     last_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     last_job_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
     consecutive_failures: Mapped[int] = mapped_column(

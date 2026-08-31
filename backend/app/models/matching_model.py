@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -14,7 +13,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.base import (
+    Base,
+    StructuredJSON,
+    TZDateTime,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+)
 
 
 class MatchInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -44,7 +49,7 @@ class MatchInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     ai_model: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     ai_generated_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        TZDateTime(), nullable=True
     )
 
     # Deterministic fit layer (Phase 22) — no AI cost, recomputed on save.
@@ -58,12 +63,6 @@ class MatchInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     # Feed state (Phase 24): status stays semantic ("not for me, because…"),
     # these are pure curation/impression marks. Unread = seen_at IS NULL.
-    seen_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    saved_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    hidden_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    seen_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    saved_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    hidden_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)

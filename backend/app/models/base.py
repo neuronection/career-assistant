@@ -4,10 +4,38 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, JSON, MetaData, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 # Structured JSON payloads (jobs.attributes, profile sections, AI outputs…).
 # JSONB on PostgreSQL, JSON on SQLite (desktop profile) — one Python type.
 StructuredJSON = JSONB().with_variant(JSON(), "sqlite")
+
+
+class TZDateTime(TypeDecorator):
+    """Timezone-aware UTC datetimes on every dialect.
+
+    PostgreSQL timestamptz round-trips aware datetimes, SQLite DATETIME
+    returns naive ones (desktop profile). Values are normalized to UTC on
+    write and re-attached on read so `datetime` comparisons never mix
+    offset-naive and offset-aware objects.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            else:
+                value = value.astimezone(timezone.utc)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -33,13 +61,13 @@ class TimestampMixin:
     """
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        TZDateTime(),
         default=lambda: datetime.now(timezone.utc),
         server_default=func.now(),
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        TZDateTime(),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         server_default=func.now(),

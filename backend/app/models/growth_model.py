@@ -11,7 +11,6 @@ from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -21,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
+    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
@@ -46,7 +46,7 @@ class GrowthPlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(20), nullable=False, default="active", index=True
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        TZDateTime(), nullable=True
     )
 
     steps: Mapped[list["GrowthPlanStep"]] = relationship(

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import uuid
 
 from sqlalchemy import select
 
@@ -310,7 +311,7 @@ async def seed_notification_kinds(db) -> int:
             .first()
         )
         if exists is None:
-            db.add(NotificationKind(**spec))
+            db.add(NotificationKind(**{**spec, "id": uuid.UUID(spec["id"])}))
             added += 1
     await db.commit()
     return added

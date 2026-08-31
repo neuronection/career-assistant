@@ -4,7 +4,6 @@ from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
-    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -15,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
+    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
@@ -38,7 +38,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Integer, nullable=False, default=0
     )
     locked_until: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        TZDateTime(), nullable=True
     )
     # Bumped to invalidate every outstanding JWT ("sign out everywhere").
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

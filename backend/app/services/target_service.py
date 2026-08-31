@@ -72,7 +72,9 @@ async def resolve_query(db: AsyncSession, user_id, query: str) -> dict:
 
     lowered = query.lower()
     families = (
-        (await db.execute(select(JobFamily).order_by(JobFamily.level))).scalars().all()
+        (await db.execute(select(JobFamily).order_by(JobFamily.level, JobFamily.key)))
+        .scalars()
+        .all()
     )
     skills = (
         (await db.execute(select(Skill).where(Skill.status == "active")))

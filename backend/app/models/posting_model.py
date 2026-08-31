@@ -10,7 +10,6 @@ from typing import Optional
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -23,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
+    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
@@ -60,9 +60,7 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     connector_key: Mapped[str] = mapped_column(String(80), nullable=False)
     config: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    last_run_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
     # Connector sync state: etag / last_modified / cursor / watermark.
     sync_state: Mapped[dict] = mapped_column(
         StructuredJSON, nullable=False, default=dict
@@ -125,12 +123,8 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     salary_min: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     salary_max: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     salary_period: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    posted_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    expires_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    posted_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
     # Canonical-JSON sha256 of the normalized content — re-sync dedup.
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     raw: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
@@ -209,18 +203,10 @@ class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     posting_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False
     )
-    seen_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    saved_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    hidden_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    applied_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    seen_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    saved_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    hidden_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    applied_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
     applied_via_url: Mapped[str] = mapped_column(
         String(1000), nullable=False, default=""
     )

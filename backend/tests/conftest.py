@@ -3,7 +3,7 @@ from typing import AsyncGenerator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.connectors.base import (
@@ -16,13 +16,17 @@ from app.connectors.registry import register_connector, reset_registry
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, sqlite_pragmas
 from app.main import app
 
 TEST_DB_URL = settings.DATABASE_URL
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
 
 _engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True)
+if IS_SQLITE:
+    # Same pragmas as the app engine — the WAL switch must happen before a
+    # second engine connects, or the first exclusive-lock attempt races.
+    event.listens_for(_engine.sync_engine, "connect")(sqlite_pragmas)
 _session_factory = async_sessionmaker(
     bind=_engine, class_=AsyncSession, expire_on_commit=False
 )

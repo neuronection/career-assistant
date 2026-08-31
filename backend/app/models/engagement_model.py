@@ -12,7 +12,6 @@ from typing import Optional
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -24,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
+    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
@@ -119,11 +119,9 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Emit-time collapse: same key while the TTL is live ⇒ no new row.
     dedup_key: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
     dedup_expires_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        TZDateTime(), nullable=True
     )
-    read_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    read_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
 
 
 class NotificationRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):

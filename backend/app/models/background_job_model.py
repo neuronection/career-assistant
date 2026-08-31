@@ -2,10 +2,16 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.base import (
+    Base,
+    StructuredJSON,
+    TZDateTime,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+)
 
 
 class BackgroundJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -34,12 +40,8 @@ class BackgroundJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     cancel_requested: Mapped[bool] = mapped_column(default=False, nullable=False)
-    claimed_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
     heartbeat_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        TZDateTime(), nullable=True
     )
-    finished_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)

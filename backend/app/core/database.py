@@ -52,17 +52,25 @@ if settings.DATABASE_URL.startswith("sqlite"):
 
 engine: AsyncEngine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 
+
+def sqlite_pragmas(dbapi_connection, _record=None):
+    """FK cascades + durability pragmas (SQLite ignores them by default).
+
+    Shared with the test engine: switching a fresh file into WAL needs
+    exclusive access, so every engine touching the database must run
+    this on connect or the later switch races an open peer connection.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
+
+
 if settings.DATABASE_URL.startswith("sqlite"):
     from sqlalchemy import event
 
-    @event.listens_for(engine.sync_engine, "connect")
-    def _sqlite_pragmas(dbapi_connection, _record):
-        """FK cascades + durability pragmas (SQLite ignores them by default)."""
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.close()
+    event.listens_for(engine.sync_engine, "connect")(sqlite_pragmas)
 
 
 AsyncSessionLocal = async_sessionmaker(
