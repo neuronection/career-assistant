@@ -1,0 +1,13 @@
+# Career Assistant — version manager config (family-unified script)
+# Family-unified script — do not fork; keep in sync with the internal standards distribution
+
+[project]
+name = "Career Assistant"
+
+[version]
+file = "backend/app/__init__.py"
+pattern = '__version__\s*=\s*"(?P<version>[^"]+)"'
+
+[release]
+docs = ["CHANGELOG.md"]
+tag_prefix = "v"
