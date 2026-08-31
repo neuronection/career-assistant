@@ -181,7 +181,7 @@ export function ProfileEdit() {
         </div>
         {p.stage_source === "derived" && (
           <p className="text-xs text-slate-400 mt-1">
-            Auto-detected — correct it above if it's off.
+            Auto-detected — correct it above if it&apos;s off.
           </p>
         )}
       </Section>

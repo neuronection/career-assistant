@@ -45,7 +45,7 @@ export function Growth() {
           <Route className="w-6 h-6 text-primary-600" /> Growth
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Where next, what's missing, how's your market — private by design.
+          Where next, what&apos;s missing, how&apos;s your market — private by design.
         </p>
       </div>
 
@@ -144,7 +144,7 @@ export function Growth() {
           <Radar className="w-4 h-4 text-primary-600" /> Near-miss radar
         </h2>
         <p className="text-xs text-slate-400 mb-3">
-          You're closer than you think — adjacent roles a few skills away.
+          You&apos;re closer than you think — adjacent roles a few skills away.
         </p>
         {radar.length === 0 ? (
           <p className="text-sm text-slate-400">
