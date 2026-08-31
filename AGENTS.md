@@ -1,7 +1,6 @@
-# AGENTS.md — Career Assistant (MatchJobAssistant repo)
+# AGENTS.md — Career Assistant
 
-**Career Assistant** (product name; repo/folder keeps the codename
-`MatchJobAssistant`) — part of an assistant family: Health Assistant,
+**Career Assistant** — part of an assistant family: Health Assistant,
 Course Assistant, Career Assistant.
 
 Career-discovery platform for students: AI-generated/curated job catalog in a
@@ -46,7 +45,7 @@ rules:
 ```bash
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once
 ./scripts/run-dev.sh                                       # backend :8100 + frontend :3100
-cd backend && ./venv/bin/pytest tests/                     # tests (uses matchjob_test DB)
+cd backend && ./venv/bin/pytest tests/                     # tests (uses career_test DB)
 cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
 cd frontend && npm run build && npm run test -- --run
 ```

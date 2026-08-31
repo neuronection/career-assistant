@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const TOKEN_KEY = "mja_token";
+export const TOKEN_KEY = "career_token";
 
 export const api = axios.create({ baseURL: "/api/v1" });
 

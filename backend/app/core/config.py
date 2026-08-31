@@ -12,12 +12,12 @@ APP_NAME: str = "Career Assistant"
 
 
 def _resolve_env_file() -> Optional[str]:
-    """Locate the .env file: explicit MJA_ENV_FILE, else nearest walk-up hit.
+    """Locate the .env file: explicit CAREER_ENV_FILE, else nearest walk-up hit.
 
     OS environment variables always override file values. Production boot
     guards (app.core.boot) enforce safe settings regardless of the source.
     """
-    explicit = os.getenv("MJA_ENV_FILE")
+    explicit = os.getenv("CAREER_ENV_FILE")
     if explicit:
         return explicit
     here = Path(__file__).resolve().parent
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3100,http://127.0.0.1:3100"
 
     DATABASE_URL: str = (
-        "postgresql+asyncpg://matchjob:matchjob_dev_pw@127.0.0.1:5433/matchjob"
+        "postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career"
     )
     REDIS_URL: str = "redis://127.0.0.1:6380/0"
 

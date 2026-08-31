@@ -34,7 +34,7 @@ def clean_env(monkeypatch):
         "DATABASE_URL",
         "UPLOAD_DIR",
         "JWT_SECRET",
-        "MJA_ENV_FILE",
+        "CAREER_ENV_FILE",
         "APPDATA",
         "XDG_DATA_HOME",
     ):
@@ -77,7 +77,7 @@ def test_bootstrap_environment_sets_sqlite_defaults(clean_env, tmp_path):
     assert (tmp_path / "uploads").is_dir()
     assert (tmp_path / "logs").is_dir()
     assert (tmp_path / SECRET_FILE).is_file()
-    assert env["MJA_ENV_FILE"] == str(tmp_path / "env")
+    assert env["CAREER_ENV_FILE"] == str(tmp_path / "env")
 
 
 def test_bootstrap_environment_never_overrides_real_env(clean_env, tmp_path):

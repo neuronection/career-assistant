@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Internal identifier rebrand** — environment variables
+  (`CAREER_SKIP_SEED`, `CAREER_ENV_FILE`), the browser session-storage
+  key, and the local dev-database identifiers (compose project
+  `career`, DBs `career`/`career_test`, user/password defaults) now follow
+  the product name. Self-hosters with custom env files or pinned dev
+  databases: rename the variables and recreate the dev DB (a dump/restore
+  preserves data). Browser sessions start fresh (re-login required).
+
 ### Added
 - **Postings Explore, detail & chat tools (Phase 32)** — live vacancies
   become a first-class, explorable surface. The **Explore page** filters
@@ -378,7 +387,7 @@ All notable changes to **Career Assistant** are documented here.
   platform data dir (`~/.local/share/CareerAssistant` on Linux): a **SQLite**
   database (`aiosqlite`), uploads, logs and a generated strong `secret.key`
   (never silently rewritten — it decrypts stored AI keys). Startup applies
-  migrations and seeds the starter catalog automatically (`MJA_SKIP_SEED=1`
+  migrations and seeds the starter catalog automatically (`CAREER_SKIP_SEED=1`
   to opt out). Extras in `backend/requirements-desktop.txt`; the web/Docker
   stack is unchanged and still Postgres-first.
 - **Cross-dialect database layer** — structured JSON columns now render as
@@ -417,14 +426,14 @@ All notable changes to **Career Assistant** are documented here.
   installs answer AI calls with 503 until an admin configures a provider;
   development auto-provisions a dev-only mock provider.
 - **`APP_ENV` now defaults to `production`** (fail-safe). The `.env` file is
-  always discovered (explicit `MJA_ENV_FILE` or nearest walk-up hit);
+  always discovered (explicit `CAREER_ENV_FILE` or nearest walk-up hit);
   production boot guards (strong `JWT_SECRET`, `DEBUG=false`) enforce
   regardless of where configuration came from.
 
 ### Changed
 - **Product naming + branding**: the app is now **Career Assistant** (part of
-  the Health/Course/Career assistant family; repo keeps the codename
-  MatchJobAssistant). New logo (career-path constellation SVG, light + dark
+  the Health/Course/Career assistant family). New logo (career-path
+  constellation SVG, light + dark
   variants), favicon, rebranded header/auth screens, page titles and
   package/health-endpoint names.
 

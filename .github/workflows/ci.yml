@@ -16,19 +16,19 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: matchjob_test
-          POSTGRES_USER: matchjob
-          POSTGRES_PASSWORD: matchjob_dev_pw
+          POSTGRES_DB: career_test
+          POSTGRES_USER: career
+          POSTGRES_PASSWORD: career_dev_pw
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U matchjob -d matchjob_test"
+          --health-cmd "pg_isready -U career -d career_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
       APP_ENV: test
-      DATABASE_URL: postgresql+asyncpg://matchjob:matchjob_dev_pw@127.0.0.1:5433/matchjob_test
+      DATABASE_URL: postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_test
       JWT_SECRET: test-secret-not-for-production-0123456789abcdef0123456789
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +59,7 @@ jobs:
         working-directory: backend
     env:
       APP_ENV: test
-      DATABASE_URL: sqlite+aiosqlite:///./matchjob_test.db
+      DATABASE_URL: sqlite+aiosqlite:///./career_test.db
       JWT_SECRET: test-secret-not-for-production-0123456789abcdef0123456789
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +133,7 @@ jobs:
       - name: Smoke test frozen bundle (headless web mode)
         run: |
           trap 'echo "=== smoke.log ==="; cat smoke.log; echo "=== bundle SPA dist ==="; ls -la backend/dist/careerassistant/_internal/frontend/dist/ || true' EXIT
-          DATA_DIR="$PWD/packaging/_smoke" MJA_SKIP_SEED=1 API_PORT=8199 \
+          DATA_DIR="$PWD/packaging/_smoke" CAREER_SKIP_SEED=1 API_PORT=8199 \
             timeout 30 backend/dist/careerassistant/careerassistant web > smoke.log 2>&1 &
           ok=""
           for i in $(seq 1 30); do

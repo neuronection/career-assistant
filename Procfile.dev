@@ -1,3 +1,3 @@
-# MatchJobAssistant — development Procfile (honcho)
+# Career Assistant — development Procfile (honcho)
 backend:  cd backend && PYTHONPATH=$(pwd) ./venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8100
 frontend: cd frontend && npm run dev -- --host 0.0.0.0 --port 3100

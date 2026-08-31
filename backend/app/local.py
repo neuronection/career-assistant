@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 SECRET_FILE = "secret.key"
 ENV_FILE = "env"
-SKIP_SEED_VAR = "MJA_SKIP_SEED"
+SKIP_SEED_VAR = "CAREER_SKIP_SEED"
 
 
 def default_data_dir(environ: MutableMapping[str, str] | None = None) -> Path:
@@ -70,7 +70,7 @@ def bootstrap_environment(
     )
     env.setdefault("UPLOAD_DIR", str(data_dir / "uploads"))
     env.setdefault(
-        "MJA_ENV_FILE", str(data_dir / ENV_FILE)
+        "CAREER_ENV_FILE", str(data_dir / ENV_FILE)
     )  # optional user overrides file
     if not env.get("JWT_SECRET"):
         env["JWT_SECRET"] = ensure_secret_file(data_dir / SECRET_FILE)

@@ -54,7 +54,7 @@ These are enforced in review — they are what keeps the codebase coherent:
 ## Repository layout
 
 ```
-backend/    FastAPI app (app/), alembic/, tests/ (pytest, uses matchjob_test DB)
+backend/    FastAPI app (app/), alembic/, tests/ (pytest, uses career_test DB)
 frontend/   React 18 + Vite + TypeScript SPA (src/)
 docker/     dev database compose file
 scripts/    run-dev.sh, run-tests.sh, seed.sh

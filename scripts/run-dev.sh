@@ -1,5 +1,5 @@
 #!/bin/bash
-# MatchJobAssistant — start backend + frontend as one process group (honcho).
+# Career Assistant — start backend + frontend as one process group (honcho).
 # Requires the dev DB: docker compose -f docker/docker-compose.dev-db.yml up -d
 set -euo pipefail
 cd "$(dirname "$0")/.."

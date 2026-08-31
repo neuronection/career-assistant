@@ -27,7 +27,7 @@ Worth knowing before you audit or deploy:
   or default `JWT_SECRET` or with `DEBUG=true`.
 - **Known dev-only defaults** (`.env.example`, `backend/.env.test`,
   `docker/docker-compose.dev-db.yml`) intentionally ship weak values like
-  `matchjob_dev_pw` and `dev-only-change-me`. They are valid only for
+  `career_dev_pw` and `dev-only-change-me`. They are valid only for
   localhost Docker (ports bound to `127.0.0.1`) and are rejected by the
   production boot guards. Do not reuse them in any real deployment.
 

@@ -1,48 +1,48 @@
-name: matchjob
+name: career
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: matchjob-postgres
+    container_name: career-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-matchjob}
-      POSTGRES_USER: ${POSTGRES_USER:-matchjob}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matchjob_dev_pw}
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_TEST_DB:-matchjob_test}
+      POSTGRES_DB: ${POSTGRES_DB:-career}
+      POSTGRES_USER: ${POSTGRES_USER:-career}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-career_dev_pw}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_TEST_DB:-career_test}
     volumes:
-      - matchjob_postgres_data:/var/lib/postgresql/data
+      - career_postgres_data:/var/lib/postgresql/data
       - ./init-test-db.sh:/docker-entrypoint-initdb.d/01-init-test-db.sh:ro
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-matchjob} -d ${POSTGRES_DB:-matchjob}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-career} -d ${POSTGRES_DB:-career}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - matchjob-net
+      - career-net
 
   redis:
     image: redis:7-alpine
-    container_name: matchjob-redis
+    container_name: career-redis
     restart: unless-stopped
     ports:
       - "127.0.0.1:${REDIS_PORT:-6380}:6379"
     volumes:
-      - matchjob_redis_data:/data
+      - career_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - matchjob-net
+      - career-net
 
 volumes:
-  matchjob_postgres_data:
-  matchjob_redis_data:
+  career_postgres_data:
+  career_redis_data:
 
 networks:
-  matchjob-net:
+  career-net:
     driver: bridge

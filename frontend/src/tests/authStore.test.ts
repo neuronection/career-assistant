@@ -37,7 +37,7 @@ describe("authStore", () => {
   });
 
   it("loadUser clears token on 401", async () => {
-    localStorage.setItem("mja_token", "bad");
+    localStorage.setItem("career_token", "bad");
     useAuthStore.setState({ token: "bad" });
     mocked.fetchMe.mockRejectedValue(new Error("401"));
     await useAuthStore.getState().loadUser();

@@ -167,7 +167,7 @@ background, native toasts arrive through the desktop notification
 channel, and quitting happens from the tray menu. A second launch focuses
 the running window; auto-start on login is opt-in from the tray menu.
 
-First launch creates a strong `secret.key`, applies migrations and seeds the starter catalog automatically (opt out with `MJA_SKIP_SEED=1`). AI providers are configured in-app (Settings → AI Configuration) — for a fully local setup point a provider at Ollama (`http://localhost:11434/v1`) or LM Studio. Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (tray degrades gracefully without one).
+First launch creates a strong `secret.key`, applies migrations and seeds the starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI providers are configured in-app (Settings → AI Configuration) — for a fully local setup point a provider at Ollama (`http://localhost:11434/v1`) or LM Studio. Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (tray degrades gracefully without one).
 
 ### Prerequisites
 

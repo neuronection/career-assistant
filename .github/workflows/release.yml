@@ -72,7 +72,7 @@ jobs:
 
       - name: Smoke test frozen bundle (headless web mode)
         run: |
-          DATA_DIR="$PWD/packaging/_smoke" MJA_SKIP_SEED=1 API_PORT=8199 \
+          DATA_DIR="$PWD/packaging/_smoke" CAREER_SKIP_SEED=1 API_PORT=8199 \
             timeout 30 backend/dist/careerassistant/careerassistant web > smoke.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8199/health; then break; fi
