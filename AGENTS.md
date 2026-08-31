@@ -8,6 +8,12 @@ family tree + relation graph, deep structured student profiles, university
 PDF intake with admission baselines, AI + human job scoring, filtered
 rankings, chatbot + contextual "Ask AI" buttons.
 
+**Dual-mode product** (both first-class, both CI-covered): web/self-host
+(Postgres + JSONB, Docker, `run-dev.sh`) and desktop (pywebview shell, SQLite
+local profile, tray/background scheduler, `python -m careerassistant`, PyInstaller
+packaging). Keep the schema dialect-aware (Postgres + SQLite verified) and
+never break one mode while working on the other.
+
 Stack mirrors Health-Assistant/core: FastAPI (async SQLAlchemy + Postgres
 JSONB + Alembic), React 18 + Vite + TS + Tailwind + Zustand, pytest/vitest,
 ruff. Plans live in `dev/plans/` (local-only: `dev/` is gitignored — read
