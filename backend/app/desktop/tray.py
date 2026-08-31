@@ -331,12 +331,15 @@ class TrayIcon:
 
         def entry(item: dict):
             if item.get("items"):
-                return pystray.Submenu(
-                    item["label"], *[entry(child) for child in item["items"]]
+                # pystray has no Submenu class: a Menu used as the action
+                # *is* the submenu.
+                return pystray.MenuItem(
+                    item["label"],
+                    pystray.Menu(*[entry(child) for child in item["items"]]),
                 )
 
-            def action(_icon=None, _item=None, menu_id=item["id"]):
-                self._handle(menu_id)
+            def action(_icon=None, _item=None):
+                self._handle(item["id"])
 
             checked = item.get("checked")
             return pystray.MenuItem(
