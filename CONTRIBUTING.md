@@ -49,25 +49,38 @@ These are enforced in review — they are what keeps the codebase coherent:
 - **Migrations**: schema changes require an Alembic revision
   (`alembic revision --autogenerate`), reviewed by hand.
 - **Changelog**: user-visible changes add an entry under `## [Unreleased]`
-  in `CHANGELOG.md`.
+  in `CHANGELOG.md`. CI enforces this on PRs (`scripts/check-changelog.sh`).
+
+## Docs pointers
+
+- [Architecture](docs/ARCHITECTURE.md) — modes, runtime topology, registries,
+  AI pipeline. Keep it truthful when architecture changes.
+- [Deployment](docs/deploy.md) — compose stacks, nginx/TLS, upgrades,
+  backups. Changes under `docker/` or the ops scripts must update it.
+- Family standards (deployment, packaging, testing, security) live in the
+  sibling `dev/` repo: `../dev/guidelines/`.
 
 ## Repository layout
 
 ```
 backend/    FastAPI app (app/), alembic/, tests/ (pytest, uses career_test DB)
 frontend/   React 18 + Vite + TypeScript SPA (src/)
-docker/     dev database compose file
-scripts/    run-dev.sh, run-tests.sh, seed.sh
-dev/plans/  phase plans written before implementation
+docker/     compose taxonomy: dev-db, prod, standalone (nginx); Dockerfile; nginx confs
+packaging/  PyInstaller spec + deb/AppImage build scripts (Windows exe via CI)
+scripts/    run-dev.sh, run-docker.sh, update-docker.sh, check-changelog.sh,
+            run-tests.sh, seed.sh, sync-dev-lib.sh (family dev lib: scripts/lib/)
 ```
+
+Note: `dev/plans/` is local-only (gitignored) — planning material, not
+public docs; link tracked docs from the README, never plan files.
 
 ## Submitting
 
-1. Fork / branch from `master`.
+1. Fork / branch from `main`.
 2. Keep PRs focused — one feature or fix each.
 3. Include tests for behavior changes (backend pytest, frontend vitest).
-4. Update `CHANGELOG.md` if the change is user-visible.
-5. Open the PR against `master` and make sure CI is green.
+4. Update `CHANGELOG.md` if the change is user-visible (CI checks this).
+5. Open the PR against `main` and make sure CI is green.
 
 ## Security issues
 
