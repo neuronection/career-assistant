@@ -10,6 +10,8 @@ user-correctable.
 
 from datetime import datetime
 
+from sqlalchemy import select
+
 from app.models.enums import CareerStage
 
 # Birth-year ceiling for profile validation: nobody younger than 14.
@@ -135,8 +137,31 @@ def is_student_stage(stage: CareerStage) -> bool:
 
 
 async def stage_for_user(db, user_id) -> tuple[CareerStage, str]:
-    """Effective stage for a user id (profile fetched on demand)."""
-    from app.services.deps import get_profile_for_user
+    """Effective stage for a user; years derive from active experience
+    items when they exist (plan 40 — never self-typed), else the legacy
+    JSONB list."""
+    from app.models.experience_model import ExperienceItem
 
-    profile = await get_profile_for_user(db, user_id)
-    return effective_stage(profile.basics or {}, profile.experience or [])
+    from app.services.profile_service import ProfileService
+
+    profile = await ProfileService(db).get(user_id)
+    rows = await db.execute(
+        select(ExperienceItem).where(
+            ExperienceItem.user_id == user_id,
+            ExperienceItem.status == "active",
+        )
+    )
+    items = rows.scalars().all()
+    if items:
+        experience = [
+            {
+                "kind": item.kind,
+                "start_year": item.start.year,
+                "end_year": item.end.year if item.end else None,
+                "hours_per_week": item.hours_per_week,
+            }
+            for item in items
+        ]
+    else:
+        experience = profile.experience or []
+    return effective_stage(profile.basics or {}, experience)

@@ -5,6 +5,29 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Structured experience profile (plan 40)** — the profile's JSONB
+  experience list is promoted to first-class tables: `experience_items`
+  (kind/title/org/period/hours/links, draft→active review flow),
+  `experience_skills` (role-in-item primary/secondary/exposure, optional
+  self-claimed level, derived months — never hand-entered) and
+  `experience_achievements` (metric-bearing outcomes as data).
+  - **Deterministic evidence derivation**: weighted months (kind × role ×
+    hours × recency) with calendar-overlap dedup map to anchored 1–10
+    levels + confidence; a live preview page exposes the derivation and an
+    explicit apply step writes `user_skills` (source=experience) —
+    conflicts >2 levels are recorded, never silently overwritten.
+  - New `skill_evidence` ledger (plan 42.A, exactly one source per row via
+    CHECK) with a per-skill trace endpoint.
+  - Minimal `organizations` entity (skills-parity lifecycle) with
+    find-or-propose on experience entries and a posting-org backfill;
+    plan 39 adds matcher/merge machinery.
+  - **Fit `experience` dimension v2** (FIT_VERSION 2): per-skill derived
+    evidence months scored against the job's `job_skills` relevance,
+    replacing the blunt years-vs-band formula; stage derivation now reads
+    active items (never self-typed years).
+  - New `/me/experience` CRUD + `/derivation` (preview / apply) +
+    `/me/skills/{id}/evidence` endpoints and an Experience page with a
+    guided editor, timeline list and derivation panel.
 - **Notification center (plan 36)** — the plan-24 single-table store is
   reshaped into the unified three-concern stack: immutable `notifications`
   events, per-user `notification_recipients` inbox state (unread / read /

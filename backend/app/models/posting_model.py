@@ -104,7 +104,11 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=lambda: generate_posting_ref(),
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
+    # Raw org label (audit); the normalized entity is `org_id` (plan 40).
     org: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     location: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # Plan-42.C hot fields as columns (postings is the high-volume table).

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Briefcase, Building2, ClipboardList, Globe, Info, LayoutDashboard, Route, Search, Settings2, Sparkles, Trophy, UserRound } from "lucide-react";
+import { Briefcase, Building2, CalendarRange, ClipboardList, Globe, Info, LayoutDashboard, Route, Search, Settings2, Sparkles, Trophy, UserRound } from "lucide-react";
 
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
@@ -20,6 +20,7 @@ const NAV = [
   { to: "/assessment", label: "Assessment", icon: ClipboardList, studentOnly: false },
   { to: "/universities", label: "Universities", icon: Building2, studentOnly: true },
   { to: "/profile", label: "Profile", icon: UserRound, studentOnly: false },
+  { to: "/experience", label: "Experience", icon: CalendarRange, studentOnly: false },
   { to: "/about", label: "About", icon: Info, studentOnly: false },
   { to: "/settings/ai", label: "Settings", icon: Settings2, studentOnly: false },
 ];

@@ -26,6 +26,13 @@ from app.models.engagement_model import (
     NotificationSubscription,
     SearchHistory,
 )
+from app.models.experience_model import (
+    ExperienceAchievement,
+    ExperienceItem,
+    ExperienceSkill,
+    Organization,
+    SkillEvidence,
+)
 from app.models.job_model import Job, JobFamily, JobRelation, JobSkill, JobTag
 from app.models.matching_model import MatchInsight
 from app.models.schedule_model import Schedule
@@ -79,6 +86,11 @@ __all__ = [
     "NotificationPreference",
     "NotificationRule",
     "AppSetting",
+    "Organization",
+    "ExperienceItem",
+    "ExperienceSkill",
+    "ExperienceAchievement",
+    "SkillEvidence",
     "MatchInsight",
     "Schedule",
     "GrowthPlan",
