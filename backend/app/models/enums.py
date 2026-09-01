@@ -375,6 +375,29 @@ class NotificationSeverity(str, Enum):
     CRITICAL = "critical"
 
 
+class NotificationStatus(str, Enum):
+    """Inbox state of one (notification, recipient) pair (plan 36)."""
+
+    UNREAD = "unread"
+    READ = "read"
+    DISMISSED = "dismissed"
+
+
+class NotificationChannel(str, Enum):
+    """Delivery channels; the registry leaves email/sms slots open."""
+
+    IN_APP = "in_app"
+    DESKTOP = "desktop"
+    BROWSER = "browser"
+
+
+class DeliveryStatus(str, Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
 class BackgroundJobType(str, Enum):
     DOCUMENT_PARSE = "document_parse"
     JOB_GENERATE = "job_generate"

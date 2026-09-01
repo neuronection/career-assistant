@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarClock, Cpu, ListTree, ScrollText, UserRound, Users } from "lucide-react";
+import {
+  Bell,
+  CalendarClock,
+  Cpu,
+  ListTree,
+  ScrollText,
+  UserRound,
+  Users,
+} from "lucide-react";
 
 export interface SettingsNavItem {
   to: string;
@@ -23,6 +31,12 @@ export const settingsNav: SettingsNavItem[] = [
     icon: CalendarClock,
     label: "Scheduler",
     description: "Scheduled searches, digests and system rhythm",
+  },
+  {
+    to: "/settings/notifications",
+    icon: Bell,
+    label: "Notifications",
+    description: "Kinds, channels and quiet hours",
   },
   {
     to: "/settings/taxonomy",

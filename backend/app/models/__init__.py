@@ -17,13 +17,19 @@ from app.models.growth_model import (
 )
 from app.models.engagement_model import (
     Notification,
+    NotificationDelivery,
     NotificationKind,
+    NotificationKindPref,
+    NotificationPreference,
+    NotificationRecipient,
     NotificationRule,
+    NotificationSubscription,
     SearchHistory,
 )
 from app.models.job_model import Job, JobFamily, JobRelation, JobSkill, JobTag
 from app.models.matching_model import MatchInsight
 from app.models.schedule_model import Schedule
+from app.models.settings_model import AppSetting
 from app.models.posting_model import (
     JobPosting,
     JobSource,
@@ -66,7 +72,13 @@ __all__ = [
     "SearchHistory",
     "NotificationKind",
     "Notification",
+    "NotificationRecipient",
+    "NotificationDelivery",
+    "NotificationSubscription",
+    "NotificationKindPref",
+    "NotificationPreference",
     "NotificationRule",
+    "AppSetting",
     "MatchInsight",
     "Schedule",
     "GrowthPlan",

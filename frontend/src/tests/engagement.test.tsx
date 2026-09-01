@@ -11,7 +11,9 @@ import {
   fetchSearches,
   markSeen,
   fetchNotifications,
+  fetchUnreadCount,
   markNotificationsRead,
+  dismissNotifications,
   fetchNotificationPreferences,
   fetchRules,
   updateNotificationPreferences,
@@ -26,7 +28,9 @@ vi.mock("@/api/engagement", async (importOriginal) => {
     fetchFeed: vi.fn(),
     markSeen: vi.fn().mockResolvedValue({ marked: 1 }),
     fetchNotifications: vi.fn(),
+    fetchUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
     markNotificationsRead: vi.fn().mockResolvedValue({ marked: 1 }),
+    dismissNotifications: vi.fn().mockResolvedValue({ marked: 1 }),
     fetchRules: vi.fn(),
     updateRule: vi.fn(),
     fetchSearches: vi.fn(),
@@ -35,6 +39,12 @@ vi.mock("@/api/engagement", async (importOriginal) => {
     updateNotificationPreferences: vi.fn(),
   };
 });
+
+vi.mock("@/api/notificationStream", () => ({
+  streamNotifications: vi
+    .fn()
+    .mockResolvedValue(undefined),
+}));
 
 vi.mock("@/api/stages", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/stages")>();
@@ -165,18 +175,24 @@ describe("NotificationBell", () => {
     mockFetchNotifications.mockResolvedValue({
       items: [
         {
-          id: "n1",
+          id: "r1",
+          notification_id: "n1",
           kind: "fit_threshold",
           severity: "info",
+          status: "unread",
           title: "Strong fit: Software Developer",
           body: "Your fit score reached 8.0/10.",
           payload: { job_code: "software-developer", link: "/jobs/software-developer" },
+          source_ref: {},
+          thread_key: null,
           read_at: null,
+          dismissed_at: null,
           created_at: "2026-08-31T00:00:00Z",
         } satisfies NotificationItem,
       ],
       unread_count: 1,
     });
+    vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 1 });
     mockFetchRules.mockResolvedValue({
       items: [
         {
@@ -206,7 +222,18 @@ describe("NotificationBell", () => {
     expect(await screen.findByText("Strong fit: Software Developer")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("notification-item"));
-    await waitFor(() => expect(markNotificationsRead).toHaveBeenCalledWith(["n1"]));
+    await waitFor(() => expect(markNotificationsRead).toHaveBeenCalledWith(["r1"]));
+  });
+
+  it("dismisses an item from the inbox", async () => {
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByTestId("notification-bell"));
+    fireEvent.click(await screen.findByTestId("notification-dismiss"));
+    await waitFor(() => expect(dismissNotifications).toHaveBeenCalledWith(["r1"]));
   });
 
   it("saves an updated fit threshold rule", async () => {

@@ -32,6 +32,11 @@ _session_factory = async_sessionmaker(
 )
 
 TABLES = [
+    "notification_deliveries",
+    "notification_kind_prefs",
+    "notification_recipients",
+    "notification_subscriptions",
+    "app_settings",
     "schedules",
     "learning_resources",
     "growth_plan_steps",

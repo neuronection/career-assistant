@@ -594,8 +594,10 @@ export interface AlertRule {
 
 export interface NotificationItem {
   id: string;
+  notification_id: string;
   kind: string;
   severity: "info" | "success" | "warning" | "critical";
+  status: "unread" | "read" | "dismissed";
   title: string;
   body: string;
   payload: {
@@ -606,13 +608,66 @@ export interface NotificationItem {
     link?: string;
     [key: string]: unknown;
   };
+  source_ref: Record<string, string>;
+  thread_key: string | null;
   read_at: string | null;
+  dismissed_at: string | null;
   created_at: string;
 }
 
 export interface NotificationsResponse {
   items: NotificationItem[];
   unread_count: number;
+}
+
+export interface NotificationThread {
+  thread_key: string;
+  kind: string;
+  severity: "info" | "success" | "warning" | "critical";
+  title: string;
+  payload: NotificationItem["payload"];
+  source_ref: Record<string, string>;
+  unread_count: number;
+  items: NotificationItem[];
+  created_at: string;
+}
+
+export interface ThreadsResponse {
+  threads: NotificationThread[];
+  unread_count: number;
+}
+
+export interface NotificationKindPref {
+  key: string;
+  label: string;
+  group: string;
+  severity: "info" | "success" | "warning" | "critical";
+  manage_url: string | null;
+  mutable: boolean;
+  default_channels: NotificationChannelKey[];
+  enabled: boolean;
+  channels: NotificationChannelKey[];
+  overridden: boolean;
+}
+
+export type NotificationChannelKey = "in_app" | "desktop" | "browser";
+
+export interface PreferencesMatrix {
+  channels: NotificationChannelKey[];
+  quiet_hours: { start: string; end: string } | null;
+  desktop_channel_enabled: boolean;
+  kinds: NotificationKindPref[];
+}
+
+export interface PushSubscriptionRecord {
+  device_id: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface NotificationPreferences {
+  desktop_channel_enabled: boolean;
+  quiet_hours: { start: string; end: string } | null;
 }
 
 export interface PostingMatchBreakdown {

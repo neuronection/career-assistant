@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import (
     CareerStage,
@@ -16,7 +16,11 @@ WeightedTag = Field(ge=1, le=5)
 
 
 class BasicSection(BaseModel):
-    """Stage-aware basics: grade/years fields are student-only (plan 25)."""
+    """Stage-aware basics: grade/years fields are student-only (plan 25).
+
+    `timezone` is the IANA zone quiet hours (36), digests/check-ins (29)
+    and misfire scheduling resolve against — never a UTC offset string.
+    """
 
     birth_year: Optional[int] = Field(default=None, ge=1950, le=max_birth_year())
     education_level: EducationLevel = EducationLevel.HIGH_SCHOOL
@@ -24,6 +28,18 @@ class BasicSection(BaseModel):
     career_stage: Optional[CareerStage] = None
     country: str = Field(default="", max_length=80)
     city: str = Field(default="", max_length=80)
+    timezone: str = Field(default="UTC", max_length=60)
+
+    @field_validator("timezone")
+    @classmethod
+    def _valid_iana_zone(cls, value: str) -> str:
+        from zoneinfo import ZoneInfo
+
+        try:
+            ZoneInfo(value)
+        except Exception as exc:
+            raise ValueError(f"unknown IANA timezone: {value!r}") from exc
+        return value
 
 
 class FavoriteSubject(BaseModel):

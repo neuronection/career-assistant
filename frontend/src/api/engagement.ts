@@ -7,8 +7,11 @@ import type {
   NotificationItem,
   NotificationPreferences,
   NotificationsResponse,
+  PreferencesMatrix,
+  PushSubscriptionRecord,
   SearchRecord,
   SearchScope,
+  ThreadsResponse,
 } from "@/types";
 
 export async function recordSearch(body: {
@@ -79,6 +82,72 @@ export async function markNotificationsRead(
     ids,
   });
   return data;
+}
+
+export async function dismissNotifications(
+  ids: string[] = []
+): Promise<{ marked: number }> {
+  const { data } = await api.post<{ marked: number }>("/notifications/dismiss", {
+    ids,
+  });
+  return data;
+}
+
+export async function fetchUnreadCount(): Promise<{ unread_count: number }> {
+  const { data } = await api.get<{ unread_count: number }>(
+    "/notifications/unread-count"
+  );
+  return data;
+}
+
+export async function fetchThreads(
+  params: { group?: string; limit?: number } = {}
+): Promise<ThreadsResponse> {
+  const { data } = await api.get<ThreadsResponse>("/notifications/threads", {
+    params,
+  });
+  return data;
+}
+
+export async function fetchPreferencesMatrix(): Promise<PreferencesMatrix> {
+  const { data } = await api.get<PreferencesMatrix>("/notifications/preferences");
+  return data;
+}
+
+export async function setKindPreference(
+  kindKey: string,
+  body: { enabled?: boolean | null; channels?: string[] | null }
+): Promise<{ key: string; enabled: boolean; channels: string[] }> {
+  const { data } = await api.put(
+    `/notifications/preferences/${kindKey}`,
+    body
+  );
+  return data;
+}
+
+export async function fetchVapidPublicKey(): Promise<string> {
+  const { data } = await api.get<{ public_key: string }>(
+    "/notifications/vapid-key"
+  );
+  return data.public_key;
+}
+
+export async function subscribePush(body: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  device_id?: string;
+  user_agent?: string;
+}): Promise<PushSubscriptionRecord> {
+  const { data } = await api.post<PushSubscriptionRecord>(
+    "/notifications/subscriptions",
+    body
+  );
+  return data;
+}
+
+export async function unsubscribePush(deviceId: string): Promise<void> {
+  await api.delete(`/notifications/subscriptions/${deviceId}`);
 }
 
 export async function fetchRules(): Promise<{ items: AlertRule[] }> {

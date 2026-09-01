@@ -146,6 +146,13 @@ OPEN_ROLE_KEYWORDS = {
     "real jobs",
     "open roles",
 }
+NOTIFICATION_KEYWORDS = {
+    "notification",
+    "notifications",
+    "unread",
+    "inbox",
+    "mute",
+}
 SENIORITY_WORDS = {
     "internship": "intern",
     "intern": "intern",
@@ -420,6 +427,51 @@ async def similar_postings_tool(db: AsyncSession, ref: str) -> dict:
     return {"results": results}
 
 
+# --------------------------------------------- notification tools (plan 36)
+
+
+async def my_notifications_tool(
+    db: AsyncSession, user_id, message: str
+) -> Optional[dict]:
+    """Inbox summary or a "mute this kind" conversational action."""
+    from sqlalchemy import select
+
+    from app.models.engagement_model import NotificationKind
+    from app.services.notification_service import NotificationService
+
+    service = NotificationService(db)
+    lowered = message.lower()
+    mute = "mute" in lowered or "turn off" in lowered
+    if mute:
+        kinds = (await db.execute(select(NotificationKind))).scalars().all()
+        target = next(
+            (
+                kind
+                for kind in kinds
+                if kind.key.replace("_", " ") in lowered
+                or kind.label.lower() in lowered
+            ),
+            None,
+        )
+        if target is None:
+            return {"error": "no matching notification kind to mute"}
+        await service.set_kind_pref(user_id, target.key, enabled=False)
+        return {"muted": target.key, "label": target.label}
+    inbox = await service.list_inbox(user_id, limit=5)
+    return {
+        "unread_count": inbox["unread_count"],
+        "recent": [
+            {
+                "kind": item["kind"],
+                "title": item["title"],
+                "status": item["status"],
+                "link": (item["payload"] or {}).get("link", ""),
+            }
+            for item in inbox["items"]
+        ],
+    }
+
+
 def _mock_chat_reply(schema: type, user_prompt: str) -> dict:
     ctx = parse_context(user_prompt)
     tools = ctx.get("tool_results", {})
@@ -522,6 +574,14 @@ async def prepare_chat_prompt(
         metadata_tools.append({"name": "get_posting", "results": [ref]})
 
     lowered = f" {message.lower()} "
+    if (
+        any(keyword in lowered for keyword in NOTIFICATION_KEYWORDS)
+        and user_id is not None
+    ):
+        tool_result = await my_notifications_tool(db, user_id, message)
+        if tool_result is not None:
+            tool_results["my_notifications"] = tool_result
+            metadata_tools.append({"name": "my_notifications", "results": ["inbox"]})
     if any(keyword in lowered for keyword in OPEN_ROLE_KEYWORDS):
         sources = (await db.execute(select(JobSource))).scalars().all()
         source_cards = [{"key": s.key, "title": s.connector_key} for s in sources]
