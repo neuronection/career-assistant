@@ -5,6 +5,53 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Structured experience profile (plan 40)** — the profile's JSONB
+  experience list is promoted to first-class tables: `experience_items`
+  (kind/title/org/period/hours/links, draft→active review flow),
+  `experience_skills` (role-in-item primary/secondary/exposure, optional
+  self-claimed level, derived months — never hand-entered) and
+  `experience_achievements` (metric-bearing outcomes as data).
+  - **Deterministic evidence derivation**: weighted months (kind × role ×
+    hours × recency) with calendar-overlap dedup map to anchored 1–10
+    levels + confidence; a live preview page exposes the derivation and an
+    explicit apply step writes `user_skills` (source=experience) —
+    conflicts >2 levels are recorded, never silently overwritten.
+  - New `skill_evidence` ledger (plan 42.A, exactly one source per row via
+    CHECK) with a per-skill trace endpoint.
+  - Minimal `organizations` entity (skills-parity lifecycle) with
+    find-or-propose on experience entries and a posting-org backfill;
+    plan 39 adds matcher/merge machinery.
+  - **Fit `experience` dimension v2** (FIT_VERSION 2): per-skill derived
+    evidence months scored against the job's `job_skills` relevance,
+    replacing the blunt years-vs-band formula; stage derivation now reads
+    active items (never self-typed years).
+  - New `/me/experience` CRUD + `/derivation` (preview / apply) +
+    `/me/skills/{id}/evidence` endpoints and an Experience page with a
+    guided editor, timeline list and derivation panel.
+- **Notification center (plan 36)** — the plan-24 single-table store is
+  reshaped into the unified three-concern stack: immutable `notifications`
+  events, per-user `notification_recipients` inbox state (unread / read /
+  dismissed) and a per-channel `notification_deliveries` dispatch log.
+  - **Channel registry** (`career_assistant.notification_channels` entry
+    points, admin allowlist) replacing the single desktop dispatcher:
+    built-in `in_app` (always on), `desktop` (tray bridge, in-process) and
+    `browser` (VAPID web push; keys generated lazily and Fernet-encrypted
+    in `app_settings`).
+  - Guardrails moved to dispatch: quiet hours and max/day now suppress
+    *toasts only* — the inbox always receives the event. Disabling a kind
+    (new per-kind × per-channel preferences matrix) stops it at emit.
+  - New API surface: `/notifications/threads` (source_ref threading — one
+    career item, one row), `/dismiss`, `/unread-count`, `/stream` (SSE with
+    last-event-id reconnect), `/preferences` (full kind matrix + global
+    quiet hours), `/preferences/{kind}`, `/subscriptions` + `/vapid-key`,
+    and admin-only `POST /admin/notifications/broadcast`.
+  - Chatbot tools: `my_notifications` (inbox summary) and conversational
+    "mute this kind".
+  - Frontend: live bell badge via the new `useNotificationStream` hook,
+    per-item dismiss, and a Notifications settings page (channel toggles,
+    browser push with service worker `sw.js`, per-kind matrix).
+  - Profile `basics` gains an IANA `timezone` (plan-42 policy) powering
+    quiet hours and future digests/check-ins.
 - **Windows desktop builds** — the release workflow now produces a PyInstaller
   onefile `CareerAssistant-<version>-windows-x64.exe` (headless smoke-tested)
   alongside the Linux deb/AppImage.

@@ -7,12 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.matching_model import MatchInsight
 from app.models.user_model import Profile, UserInterest, UserSkill
+from app.services.experience_derivation import derive_skill_months
 from app.services.fit.dimensions import (
     FitResult,
     DEFAULT_WEIGHTS,
     FIT_VERSION,
     compute_fit,
-    evidence_years_from_experience,
 )
 from app.services.job_service import JobService
 
@@ -48,12 +48,11 @@ class FitService:
         basics = profile.basics or {}
         constraints = profile.constraints or {}
         work_prefs = profile.work_preferences or {}
-        years, instances = evidence_years_from_experience(profile.experience or [])
+        skill_months = await self._experience_months(profile.user_id)
         return {
             "skill_levels": {skill_id: int(level) for skill_id, level in skill_rows},
             "education_level": basics.get("education_level") or "high_school",
-            "experience_years": years,
-            "experience_instances": instances,
+            "skill_months": skill_months,
             "city": basics.get("city") or None,
             "country": basics.get("country") or None,
             "remote_ok": bool(work_prefs.get("remote_ok", True)),
@@ -63,6 +62,32 @@ class FitService:
             "interest_ids": {str(i) for i in interest_ids},
             "work_style": {k: work_prefs.get(k, 3) for k in WORK_STYLE_SLIDERS},
         }
+
+    async def _experience_months(self, user_id: UUID) -> dict[str, float]:
+        """Derived per-skill evidence months (plan 40; empty before items exist)."""
+        from app.models.experience_model import ExperienceItem
+        from sqlalchemy.orm import selectinload
+
+        rows = await self.db.execute(
+            select(ExperienceItem)
+            .options(selectinload(ExperienceItem.skills))
+            .where(
+                ExperienceItem.user_id == user_id,
+                ExperienceItem.status == "active",
+            )
+        )
+        items = rows.scalars().unique().all()
+        participations = [
+            {
+                "item": item,
+                "skill_id": link.skill_id,
+                "role_in_item": link.role_in_item,
+            }
+            for item in items
+            for link in item.skills
+        ]
+        derived = derive_skill_months(participations)
+        return {sid: d.months for sid, d in derived.items()}
 
     async def job_context(self, job) -> dict:
         """Structured job snapshot (links must be loaded — JOB_LOAD_OPTIONS)."""

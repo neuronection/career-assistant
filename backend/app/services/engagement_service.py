@@ -12,13 +12,12 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.errors import NotFoundError, ValidationError
 from app.models.engagement_model import (
     Notification,
     NotificationKind,
-    NotificationPreference,
+    NotificationRecipient,
     NotificationRule,
     SearchHistory,
 )
@@ -26,6 +25,7 @@ from app.models.enums import NotificationRuleKind, SearchScope
 from app.models.job_model import Job, JobFamily
 from app.models.matching_model import MatchInsight
 from app.services.job_service import JobService
+from app.services.notification_service import NotificationService
 
 DEBOUNCE_WINDOW = timedelta(minutes=30)
 SEARCH_CAP = 200
@@ -336,56 +336,16 @@ class EngagementService:
         kind: Optional[str] = None,
         limit: int = 50,
     ) -> dict:
-        from app.models.enums import NotificationSeverity
-
-        query = (
-            select(Notification, NotificationKind.key)
-            .join(NotificationKind, NotificationKind.id == Notification.kind_id)
-            .where(Notification.user_id == user_id)
-            .order_by(Notification.created_at.desc())
-            .limit(min(limit, 200))
+        """Delegate to the plan-36 funnel (inbox shape)."""
+        return await NotificationService(self.db).list_inbox(
+            user_id, unread_only=unread_only, kind=kind, limit=limit
         )
-        if unread_only:
-            query = query.where(Notification.read_at.is_(None))
-        if kind:
-            query = query.where(NotificationKind.key == kind)
-        rows = (await self.db.execute(query)).all()
-        unread = await self.unread_notification_count(user_id)
-        items = [
-            {
-                "id": notification.id,
-                "kind": kind_key,
-                "severity": NotificationSeverity(notification.severity).value,
-                "title": notification.title,
-                "body": notification.body,
-                "payload": notification.payload or {},
-                "read_at": notification.read_at,
-                "created_at": notification.created_at,
-            }
-            for notification, kind_key in rows
-        ]
-        return {"items": items, "unread_count": unread}
 
     async def unread_notification_count(self, user_id: UUID) -> int:
-        rows = await self.db.execute(
-            select(Notification.id).where(
-                Notification.user_id == user_id, Notification.read_at.is_(None)
-            )
-        )
-        return len(rows.scalars().all())
+        return await NotificationService(self.db).unread_count(user_id)
 
     async def mark_read(self, user_id: UUID, ids: list[UUID]) -> int:
-        query = select(Notification).where(
-            Notification.user_id == user_id, Notification.read_at.is_(None)
-        )
-        if ids:
-            query = query.where(Notification.id.in_(ids))
-        rows = (await self.db.execute(query)).scalars().all()
-        now = _utcnow()
-        for row in rows:
-            row.read_at = now
-        await self.db.commit()
-        return len(rows)
+        return await NotificationService(self.db).mark_read(user_id, ids)
 
     # ----------------------------------------------------------------- rules
 
@@ -496,77 +456,30 @@ class EngagementService:
         max_per_day: Optional[int] = None,
         severity: Optional[str] = None,
     ) -> Optional[Notification]:
-        """Single funnel: dedup collapse + per-day cap, then insert.
+        """Single funnel (plan 36): delegates to NotificationService.emit.
 
-        Returns the row, or None when suppressed (dedup/cap) or the kind is
-        not registered (fresh databases before seeding — fail soft).
+        Kept on EngagementService so plan-24 rule triggers and every
+        existing emitter keep one call shape; storage and dispatch live
+        in NotificationService.
         """
-        kind_row = await self._kind_row(kind_key)
-        if kind_row is None:
-            return None
-        if dedup_key is not None:
-            rows = await self.db.execute(
-                select(Notification).where(
-                    Notification.user_id == user_id,
-                    Notification.dedup_key == dedup_key,
-                    Notification.dedup_expires_at > _utcnow(),
-                )
-            )
-            if rows.scalars().first() is not None:
-                return None
-        if max_per_day is not None:
-            rows = await self.db.execute(
-                select(Notification.id).where(
-                    Notification.user_id == user_id,
-                    Notification.kind_id == kind_row.id,
-                    Notification.created_at >= _start_of_day(),
-                )
-            )
-            if len(rows.scalars().all()) >= max_per_day:
-                return None
-        notification = Notification(
-            user_id=user_id,
-            kind_id=kind_row.id,
-            severity=severity or kind_row.severity,
-            title=title[:200],
+        return await NotificationService(self.db).emit(
+            kind_key,
+            [user_id],
+            title=title,
             body=body,
-            payload=payload or {},
+            payload=payload,
             dedup_key=dedup_key,
-            dedup_expires_at=(
-                _utcnow() + timedelta(days=dedup_ttl_days or DEDUP_TTL_DAYS)
-                if dedup_key
-                else None
-            ),
+            dedup_ttl_days=dedup_ttl_days,
+            max_per_day=max_per_day,
+            severity=severity,
         )
-        self.db.add(notification)
-        await self.db.flush()
-        # Channel dispatch (plan 30's seam, plan 36's registry): the inbox
-        # row is authoritative; consumers (desktop shell) are offered the
-        # event after the row exists. Fail-soft, guards live in the channel.
-        from app.services.notification_channels import dispatch_notification
-
-        await dispatch_notification(
-            user_id,
-            kind_row.key,
-            notification.title,
-            notification.body,
-            notification.payload or {},
-            notification.severity,
-        )
-        return notification
 
     # ---------------------------------------------------------- preferences
 
     async def get_preferences(self, user_id: UUID) -> dict:
-        """Stored channel preferences, or computed defaults (plan 36 will
-        extend this to per-kind × per-channel; shape carries over)."""
-        row = await self._preference_row(user_id)
-        if row is None:
-            return {"desktop_channel_enabled": True, "quiet_hours": None}
-        return {
-            "desktop_channel_enabled": row.desktop_channel_enabled,
-            "quiet_hours": dict(row.quiet_hours) if row.quiet_hours else None,
-        }
+        """Global channel preferences (plan 36 keeps this row; the full
+        per-kind × per-channel matrix lives in NotificationService)."""
+        return await NotificationService(self.db).global_prefs(user_id)
 
     async def upsert_preferences(
         self,
@@ -576,32 +489,11 @@ class EngagementService:
         quiet_hours: Optional[dict] = None,
     ) -> dict:
         """Full-replace upsert (single row per user; PUT semantics)."""
-        row = await self._preference_row(user_id)
-        if row is None:
-            row = NotificationPreference(
-                user_id=user_id,
-                desktop_channel_enabled=desktop_channel_enabled,
-                quiet_hours=quiet_hours,
-            )
-            self.db.add(row)
-        else:
-            row.desktop_channel_enabled = desktop_channel_enabled
-            row.quiet_hours = quiet_hours
-            flag_modified(row, "quiet_hours")
-        await self.db.commit()
-        await self.db.refresh(row)
-        return {
-            "desktop_channel_enabled": row.desktop_channel_enabled,
-            "quiet_hours": dict(row.quiet_hours) if row.quiet_hours else None,
-        }
-
-    async def _preference_row(self, user_id: UUID) -> Optional[NotificationPreference]:
-        rows = await self.db.execute(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id == user_id
-            )
+        return await NotificationService(self.db).set_global_prefs(
+            user_id,
+            desktop_channel_enabled=desktop_channel_enabled,
+            quiet_hours=quiet_hours,
         )
-        return rows.scalars().first()
 
     # -------------------------------------------------------------- triggers
 
@@ -702,9 +594,13 @@ class EngagementService:
     ) -> Optional[Notification]:
         rows = await self.db.execute(
             select(Notification)
+            .join(
+                NotificationRecipient,
+                NotificationRecipient.notification_id == Notification.id,
+            )
             .join(NotificationKind, NotificationKind.id == Notification.kind_id)
             .where(
-                Notification.user_id == user_id,
+                NotificationRecipient.user_id == user_id,
                 NotificationKind.key == kind_key,
             )
             .order_by(Notification.created_at.desc())

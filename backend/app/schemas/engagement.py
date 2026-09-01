@@ -112,17 +112,43 @@ class RulesOut(BaseModel):
 
 class NotificationOut(BaseModel):
     id: UUID
+    notification_id: UUID
     kind: str
     severity: str
+    status: str
     title: str
     body: str
     payload: dict
+    source_ref: dict = Field(default_factory=dict)
+    thread_key: Optional[str] = None
     read_at: Optional[datetime] = None
+    dismissed_at: Optional[datetime] = None
     created_at: datetime
 
 
 class NotificationsOut(BaseModel):
     items: list[NotificationOut]
+    unread_count: int
+
+
+class ThreadItemOut(NotificationOut):
+    pass
+
+
+class ThreadOut(BaseModel):
+    thread_key: str
+    kind: str
+    severity: str
+    title: str
+    payload: dict
+    source_ref: dict
+    unread_count: int
+    items: list[ThreadItemOut]
+    created_at: datetime
+
+
+class ThreadsOut(BaseModel):
+    threads: list[ThreadOut]
     unread_count: int
 
 
@@ -145,7 +171,7 @@ class QuietHoursIn(BaseModel):
 
 
 class NotificationPreferencesIn(BaseModel):
-    """Channel preferences (Phase 30); plan 36 extends per-kind."""
+    """Global channel preferences (Phase 30 shape, plan 36 matrix above)."""
 
     desktop_channel_enabled: bool = True
     quiet_hours: Optional[QuietHoursIn] = None
@@ -154,6 +180,80 @@ class NotificationPreferencesIn(BaseModel):
 class NotificationPreferencesOut(BaseModel):
     desktop_channel_enabled: bool
     quiet_hours: Optional[QuietHoursIn] = None
+
+
+class KindPrefOut(BaseModel):
+    key: str
+    label: str
+    group: str
+    severity: str
+    manage_url: Optional[str] = None
+    mutable: bool
+    default_channels: list[str]
+    enabled: bool
+    channels: list[str]
+    overridden: bool = False
+
+
+class PreferencesMatrixOut(BaseModel):
+    """The full per-kind × per-channel matrix (plan 36 preferences)."""
+
+    channels: list[str]
+    quiet_hours: Optional[QuietHoursIn] = None
+    desktop_channel_enabled: bool = True
+    kinds: list[KindPrefOut]
+
+
+class KindPrefIn(BaseModel):
+    enabled: Optional[bool] = None
+    channels: Optional[list[str]] = Field(default=None, max_length=6)
+
+    @field_validator("channels")
+    @classmethod
+    def _known_channels(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        if value is None:
+            return None
+        allowed = {"in_app", "desktop", "browser"}
+        unknown = [c for c in value if c not in allowed]
+        if unknown:
+            raise ValueError(f"unknown channels: {', '.join(unknown)}")
+        return value
+
+
+class KindPrefUpdateOut(BaseModel):
+    """Compact response for a single kind preference update."""
+
+    key: str
+    enabled: bool
+    channels: list[str]
+
+
+class SubscriptionIn(BaseModel):
+    """A browser PushSubscription (endpoint + keys) for VAPID delivery."""
+
+    endpoint: str = Field(min_length=1, max_length=1000)
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=200)
+    device_id: str = Field(default="web", max_length=120)
+    user_agent: Optional[str] = Field(default=None, max_length=300)
+
+
+class SubscriptionOut(BaseModel):
+    device_id: str
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class VapidKeyOut(BaseModel):
+    public_key: str
+
+
+class BroadcastIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(default="", max_length=2000)
+    link: Optional[str] = Field(default=None, max_length=300)
 
 
 class UnseenCountOut(BaseModel):

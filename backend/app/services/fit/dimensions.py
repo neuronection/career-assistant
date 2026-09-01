@@ -15,7 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 # Bump when any formula changes ⇒ stored fits become stale (refit on demand).
-FIT_VERSION = 1
+# 2: experience dimension scores per-skill derived evidence months (plan 40).
+FIT_VERSION = 2
 
 # Neutral score for "no signal on either side" — never 0, never 10.
 NEUTRAL = 7.0
@@ -156,30 +157,50 @@ def education_dimension(
 
 def experience_dimension(
     band: tuple[float, float] | None,
-    evidence_years: float,
-    evidence_instances: int,
-) -> tuple[float, str]:
-    """Relevance-weighted evidence vs the job's typical-years band.
+    required: list[dict],
+    skill_months: dict[str, float],
+) -> tuple[float, str, bool]:
+    """Per-skill evidence months vs the job's required skills (plan 40).
 
-    `band` is `attributes.experience_typical_years` (min, max). No band or
-    no evidence ⇒ neutral 7 ("no signal") — experience is never punished
-    for being absent from a student profile.
+    Relevance of a required skill = min(1, derived months / target), where
+    target = the band's low end in months (min 12). Months are kind/role/
+    hours/recency weighted with overlap dedup (experience_derivation), so
+    primary use counts most. No band, no evidence, or evidence that matches
+    none of the required skills ⇒ neutral (fairness rule 3) — experience is
+    never punished for being absent from a student profile.
+    Third element: True when the dimension has real signal.
     """
     if band is None:
-        return NEUTRAL, "no typical-experience band on this job"
-    if evidence_years <= 0 and evidence_instances <= 0:
-        return NEUTRAL, "no experience recorded yet — that's fine for students"
-    low, high = band
-    if evidence_years >= low:
+        return NEUTRAL, "no typical-experience band on this job", False
+    low, _high = band
+    target_months = max(12.0, 12.0 * float(low))
+    if not required:
+        return NEUTRAL, "no skill requirements to match evidence against", False
+    total_weight = 0.0
+    covered = 0.0
+    matched = 0
+    for s in required:
+        weight = IMPORTANCE_WEIGHT.get(s["importance"], 1.0)
+        total_weight += weight
+        months = float(skill_months.get(s["skill_id"]) or 0.0)
+        if months <= 0:
+            continue
+        matched += 1
+        covered += weight * min(1.0, months / target_months)
+    if matched == 0:
         return (
-            10.0,
-            f"~{evidence_years:.1f}y of relevant experience meets the typical band",
+            NEUTRAL,
+            "experience recorded but none matches this job's skills — no signal",
+            False,
         )
-    ratio = evidence_years / max(low, 1.0)
-    score = 4.0 + 6.0 * ratio
-    return round(score, 2), (
-        f"~{evidence_years:.1f}y relevant (typical: {low:g}–{high:g}y)"
-        + (f" across {evidence_instances} item(s)" if evidence_instances else "")
+    score = 10.0 * covered / total_weight if total_weight > 0 else NEUTRAL
+    return (
+        round(score, 2),
+        (
+            f"{matched}/{len(required)} required skills have evidence "
+            f"(target ~{target_months / 12:.0f}y relevant use)"
+        ),
+        True,
     )
 
 
@@ -299,9 +320,9 @@ def compute_fit(
     education_level, experience_band, job_city, job_country, job_remote,
     interest_ids, work_style, physical_requirements.
     `user` keys: skill_levels {skill_id: level}, education_level,
-    experience_years, experience_instances, city, country, remote_ok,
-    willing_to_relocate, physical_conditions, max_education_years,
-    interest_ids, work_style.
+    skill_months {skill_id: derived evidence months (plan 40)}, city,
+    country, remote_ok, willing_to_relocate, physical_conditions,
+    max_education_years, interest_ids, work_style.
     """
     weights = {**DEFAULT_WEIGHTS, **(weights or {})}
     breakdown: dict = {}
@@ -325,17 +346,13 @@ def compute_fit(
     breakdown["education"] = {"score": edu_score, "detail": edu_detail}
     effective["education"] = weights["education"] * DIMENSION_CONFIDENCE["education"]
 
-    exp_score, exp_detail = experience_dimension(
+    exp_score, exp_detail, exp_signalled = experience_dimension(
         job.get("experience_band"),
-        float(user.get("experience_years") or 0.0),
-        int(user.get("experience_instances") or 0),
+        job.get("skill_links") or [],
+        user.get("skill_months") or {},
     )
     breakdown["experience"] = {"score": exp_score, "detail": exp_detail}
-    experience_signalled = job.get("experience_band") is not None and (
-        float(user.get("experience_years") or 0.0) > 0
-        or int(user.get("experience_instances") or 0) > 0
-    )
-    if experience_signalled:
+    if exp_signalled:
         effective["experience"] = (
             weights["experience"] * DIMENSION_CONFIDENCE["experience"]
         )

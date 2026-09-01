@@ -417,19 +417,40 @@ async def test_fit_threshold_trigger_math(
 async def test_fit_threshold_max_per_day_cap(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds
 ):
-    user_id = _user_id(client, auth_headers)
-    await client.put(
-        "/api/v1/notifications/rules",
-        json={"kind": "fit_threshold", "params": {"min_fit": 5, "max_per_day": 2}},
-        headers=auth_headers,
-    )
-    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()[:3]
-    fit = FitService(db)
-    for j in jobs:
-        job = await JobService(db).get_by_code_or_id(UUID(j["id"]))
-        await fit.upsert_fit(user_id, job, FitResult(score=8.0, breakdown={}, gates=[]))
-    rows = (await db.execute(select(Notification))).scalars().all()
-    assert len(rows) == 2
+    """Plan 36: the cap governs toasty-channel dispatch; the inbox always
+    receives the event (dedup still collapses at emit)."""
+    from app.desktop.notifier import DesktopChannel
+    from app.services import notification_channels
+
+    class _Bridge:
+        def notify(self, **_kwargs):
+            return True
+
+    notification_channels.register_channel(DesktopChannel(_Bridge()))
+    try:
+        user_id = _user_id(client, auth_headers)
+        await client.put(
+            "/api/v1/notifications/rules",
+            json={"kind": "fit_threshold", "params": {"min_fit": 5, "max_per_day": 2}},
+            headers=auth_headers,
+        )
+        jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()[:3]
+        fit = FitService(db)
+        for j in jobs:
+            job = await JobService(db).get_by_code_or_id(UUID(j["id"]))
+            await fit.upsert_fit(
+                user_id, job, FitResult(score=8.0, breakdown={}, gates=[])
+            )
+        rows = (await db.execute(select(Notification))).scalars().all()
+        assert len(rows) == 3
+        from app.models.engagement_model import NotificationDelivery
+
+        deliveries = (await db.execute(select(NotificationDelivery))).scalars().all()
+        desktop = [d for d in deliveries if d.channel == "desktop"]
+        assert len(desktop) == 2
+        assert all(d.status == "delivered" for d in deliveries)
+    finally:
+        notification_channels.unregister_channel("desktop")
 
 
 async def test_fit_threshold_default_rule_and_mute(

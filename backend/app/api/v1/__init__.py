@@ -9,10 +9,12 @@ from app.api.v1 import (
     chat,
     documents,
     engagement,
+    experience,
     growth,
     jobs,
     matching,
     me,
+    notifications,
     onboarding,
     paths,
     postings,
@@ -37,6 +39,8 @@ api_router.include_router(universities.router)
 api_router.include_router(documents.router)
 api_router.include_router(matching.router)
 api_router.include_router(engagement.router)
+api_router.include_router(experience.router)
+api_router.include_router(notifications.router)
 api_router.include_router(growth.router)
 api_router.include_router(postings.router)
 api_router.include_router(scheduler.router)

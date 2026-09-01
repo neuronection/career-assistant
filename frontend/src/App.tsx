@@ -8,6 +8,8 @@ import { AIAudit } from "@/pages/settings/AIAudit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
 import { Users } from "@/pages/settings/Users";
 import { SchedulerSettings } from "@/pages/settings/SchedulerSettings";
+import { Notifications } from "@/pages/settings/Notifications";
+import { Experience } from "@/pages/Experience";
 import { Catalog } from "@/pages/Catalog";
 import { Dashboard } from "@/pages/Dashboard";
 import { Generate } from "@/pages/Generate";
@@ -52,6 +54,7 @@ export function App() {
           <Route path="/universities" element={<Universities />} />
           <Route path="/universities/:id" element={<UniversityDetail />} />
           <Route path="/profile" element={<ProfileEdit />} />
+          <Route path="/experience" element={<Experience />} />
           <Route path="/about" element={<About />} />
           <Route path="/settings" element={<SettingsShell />}>
             <Route index element={<Navigate to="/settings/ai" replace />} />
@@ -59,6 +62,7 @@ export function App() {
             <Route path="taxonomy" element={<Taxonomy />} />
             <Route path="users" element={<Users />} />
             <Route path="scheduler" element={<SchedulerSettings />} />
+            <Route path="notifications" element={<Notifications />} />
             <Route path="audit" element={<AIAudit />} />
           </Route>
         </Route>

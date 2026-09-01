@@ -274,7 +274,7 @@ def run(tray_only: bool = False) -> None:
     from app.desktop import notifier
     from app.desktop.bridge import DesktopApi, DesktopBridge
     from app.desktop.single_instance import SingleInstance
-    from app.services.notification_channels import unregister_dispatcher
+    from app.services.notification_channels import unregister_channel
 
     sanitize_environment()
     data_dir = settings.data_dir_path
@@ -380,7 +380,7 @@ def run(tray_only: bool = False) -> None:
     shell_token.reset()
     if tray is not None:
         tray.stop()
-    unregister_dispatcher()
+    unregister_channel("desktop")
     _bridge_holder["bridge"] = None
     _settings_holder["settings"] = None
     server.should_exit = True

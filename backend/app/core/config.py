@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # an empty list means built-ins only (desktop ships this default).
     CONNECTOR_PLUGINS_ALLOWLIST: list[str] = []
 
+    # Entry-point notification-channel plugins are admin-opt-in (plan 36):
+    # an empty list means built-ins only (in_app, desktop, browser).
+    NOTIFICATION_CHANNELS_ALLOWLIST: list[str] = []
+
     # Rate limiting (in-process sliding window; see app/core/ratelimit.py).
     # Units: requests per minute. 0 disables a bucket.
     RATE_LIMIT_ENABLED: bool = True

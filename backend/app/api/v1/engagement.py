@@ -9,10 +9,6 @@ from app.schemas.engagement import (
     FeedItemOut,
     FeedOut,
     HideIn,
-    NotificationPreferencesIn,
-    NotificationPreferencesOut,
-    NotificationsOut,
-    ReadIn,
     RuleIn,
     RuleOut,
     RulesOut,
@@ -160,30 +156,6 @@ async def hide_job(
     }
 
 
-@router.get("/notifications", response_model=NotificationsOut)
-async def list_notifications(
-    unread_only: bool = Query(default=False, alias="unread"),
-    kind: str | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
-    user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> NotificationsOut:
-    """The caller's notifications (newest first) + unread counter."""
-    result = await EngagementService(db).list_notifications(
-        user.id, unread_only=unread_only, kind=kind, limit=limit
-    )
-    return NotificationsOut.model_validate(result)
-
-
-@router.post("/notifications/read")
-async def mark_notifications_read(
-    data: ReadIn, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Batch mark-read; empty ids = mark everything read."""
-    marked = await EngagementService(db).mark_read(user.id, data.ids)
-    return {"marked": marked}
-
-
 @router.get("/notifications/rules", response_model=RulesOut)
 async def get_rules(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -203,35 +175,3 @@ async def put_rule(
     )
     rules = await EngagementService(db).get_rules(user.id)
     return RulesOut(items=[RuleOut.model_validate(rule) for rule in rules])
-
-
-@router.get("/notifications/preferences", response_model=NotificationPreferencesOut)
-async def get_notification_preferences(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> NotificationPreferencesOut:
-    """Channel preferences; defaults computed when never edited."""
-    prefs = await EngagementService(db).get_preferences(user.id)
-    return NotificationPreferencesOut(
-        desktop_channel_enabled=prefs["desktop_channel_enabled"],
-        quiet_hours=prefs["quiet_hours"],
-    )
-
-
-@router.put("/notifications/preferences", response_model=NotificationPreferencesOut)
-async def put_notification_preferences(
-    data: NotificationPreferencesIn,
-    user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> NotificationPreferencesOut:
-    """Upsert channel preferences (desktop channel toggle + quiet hours)."""
-    prefs = await EngagementService(db).upsert_preferences(
-        user.id,
-        desktop_channel_enabled=data.desktop_channel_enabled,
-        quiet_hours=(
-            data.quiet_hours.model_dump() if data.quiet_hours is not None else None
-        ),
-    )
-    return NotificationPreferencesOut(
-        desktop_channel_enabled=prefs["desktop_channel_enabled"],
-        quiet_hours=prefs["quiet_hours"],
-    )

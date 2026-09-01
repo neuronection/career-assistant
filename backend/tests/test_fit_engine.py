@@ -50,14 +50,23 @@ def test_education_in_progress_counts():
 
 def test_experience_never_zero_for_missing_signal():
     band = (1, 3)
-    # no band or no evidence ⇒ neutral 7 with a "no signal" detail
-    assert experience_dimension(None, 0.0, 0)[0] == 7.0
-    no_evidence = experience_dimension(band, 0.0, 0)
-    assert no_evidence[0] == 7.0 and "no experience" in no_evidence[1]
-    # partial evidence scales between 4 and 10
-    partial = experience_dimension(band, 0.5, 1)
-    assert 4.0 < partial[0] < 10.0
-    assert experience_dimension(band, 1.5, 2)[0] == 10.0
+    required = [{"skill_id": "s1", "importance": "core", "required_level": 5}]
+    # no band ⇒ neutral (no signal on the job side)
+    score, _detail, signalled = experience_dimension(None, required, {})
+    assert score == 7.0 and signalled is False
+    # band but no evidence ⇒ neutral, not zero
+    score, detail, signalled = experience_dimension(band, required, {})
+    assert score == 7.0 and signalled is False
+    # evidence that matches none of the required skills ⇒ neutral
+    score, _detail, signalled = experience_dimension(
+        band, required, {"other-skill": 24.0}
+    )
+    assert score == 7.0 and signalled is False
+    # partial evidence scales up to full coverage at the band's low end
+    partial = experience_dimension(band, required, {"s1": 6.0})
+    assert 0 < partial[0] < 10.0
+    full = experience_dimension(band, required, {"s1": 12.0})
+    assert full[0] == 10.0 and full[2] is True
 
 
 def test_evidence_years_kind_weighted_and_fractional_projects():

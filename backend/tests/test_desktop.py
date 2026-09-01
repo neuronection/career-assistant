@@ -119,24 +119,28 @@ def test_autostart_written_and_removed(tmp_path: Path):
 
 
 async def test_emit_dispatches_to_registered_channel(db, kinds):
+    from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
     from app.services.engagement_service import EngagementService
 
     seen: list[dict] = []
+    bridge = _FakeBridge()
 
-    async def _dispatcher(user_id, kind, title, body, payload, severity):
-        seen.append(
-            {
-                "user_id": user_id,
-                "kind": kind,
-                "title": title,
-                "body": body,
-                "payload": payload,
-                "severity": severity,
-            }
-        )
+    class _RecordingChannel(DesktopChannel):
+        async def send(self, ctx):
+            seen.append(
+                {
+                    "user_id": ctx.user_id,
+                    "kind": ctx.kind,
+                    "title": ctx.title,
+                    "body": ctx.body,
+                    "payload": ctx.payload,
+                    "severity": ctx.severity,
+                }
+            )
+            return "delivered", None
 
-    notification_channels.register_dispatcher(_dispatcher)
+    notification_channels.register_channel(_RecordingChannel(bridge))
     try:
         user_id = await _make_user(db, "dispatch@example.com")
         notification = await EngagementService(db).emit(
@@ -155,17 +159,25 @@ async def test_emit_dispatches_to_registered_channel(db, kinds):
         assert seen[0]["payload"]["link"] == "/jobs/ENG-1"
         await db.rollback()  # release row locks (clean_db TRUNCATEs next)
     finally:
-        notification_channels.unregister_dispatcher()
-    assert notification_channels.has_dispatcher() is False
+        notification_channels.unregister_channel("desktop")
+    assert notification_channels.get_channel("desktop") is None
 
 
 async def test_dispatch_dedup_suppressed_means_no_toast(db, kinds):
     """Dedup collapse ⇒ no inbox row ⇒ no toast (single funnel)."""
+    from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
     from app.services.engagement_service import EngagementService
 
     calls: list[int] = []
-    notification_channels.register_dispatcher(_counting_dispatcher(calls))
+    bridge = _FakeBridge()
+
+    class _CountingChannel(DesktopChannel):
+        async def send(self, ctx):
+            calls.append(1)
+            return "delivered", None
+
+    notification_channels.register_channel(_CountingChannel(bridge))
     try:
         user_id = await _make_user(db, "dedup@example.com")
         service = EngagementService(db)
@@ -185,14 +197,7 @@ async def test_dispatch_dedup_suppressed_means_no_toast(db, kinds):
         assert len(calls) == 1
         await db.rollback()
     finally:
-        notification_channels.unregister_dispatcher()
-
-
-def _counting_dispatcher(calls):
-    async def _dispatch(*_args):
-        calls.append(1)
-
-    return _dispatch
+        notification_channels.unregister_channel("desktop")
 
 
 async def _make_user(db, email: str) -> uuid.UUID:
@@ -222,14 +227,14 @@ class _FakeBridge:
 
 
 async def test_quiet_hours_suppress_toast_but_inbox_filled(db, kinds):
-    """Dispatch guard (desktop channel): quiet hours kill the toast, never
-    the inbox row."""
-    from app.desktop import notifier
+    """Dispatch guard (plan 36: quiet hours kill the toast, never
+    the inbox row)."""
+    from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
     from app.services.engagement_service import EngagementService
 
     bridge = _FakeBridge()
-    notifier.register_desktop_channel(bridge)
+    notification_channels.register_channel(DesktopChannel(bridge))
     try:
         user_id = await _make_user(db, "quiet@example.com")
         await EngagementService(db).upsert_preferences(
@@ -251,16 +256,16 @@ async def test_quiet_hours_suppress_toast_but_inbox_filled(db, kinds):
         assert bridge.toasts[0]["link"] == ""
         await db.rollback()
     finally:
-        notification_channels.unregister_dispatcher()
+        notification_channels.unregister_channel("desktop")
 
 
 async def test_channel_disabled_means_no_dispatch(db, kinds):
-    from app.desktop import notifier
+    from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
     from app.services.engagement_service import EngagementService
 
     bridge = _FakeBridge()
-    notifier.register_desktop_channel(bridge)
+    notification_channels.register_channel(DesktopChannel(bridge))
     try:
         user_id = await _make_user(db, "disabled@example.com")
         await EngagementService(db).upsert_preferences(
@@ -273,17 +278,19 @@ async def test_channel_disabled_means_no_dispatch(db, kinds):
         assert bridge.toasts == []
         await db.rollback()
     finally:
-        notification_channels.unregister_dispatcher()
+        notification_channels.unregister_channel("desktop")
 
 
 async def test_dispatcher_failure_does_not_break_emit(db, kinds):
+    from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
     from app.services.engagement_service import EngagementService
 
-    async def _broken(*_args):
-        raise RuntimeError("channel down")
+    class _BrokenChannel(DesktopChannel):
+        async def send(self, ctx):
+            raise RuntimeError("channel down")
 
-    notification_channels.register_dispatcher(_broken)
+    notification_channels.register_channel(_BrokenChannel(_FakeBridge()))
     try:
         user_id = await _make_user(db, "broken@example.com")
         row = await EngagementService(db).emit(
@@ -292,7 +299,7 @@ async def test_dispatcher_failure_does_not_break_emit(db, kinds):
         assert row is not None
         await db.rollback()
     finally:
-        notification_channels.unregister_dispatcher()
+        notification_channels.unregister_channel("desktop")
 
 
 def test_within_quiet_hours_overnight_window():
@@ -314,12 +321,32 @@ def test_within_quiet_hours_overnight_window():
 # ------------------------------------------------------- preferences endpoints
 
 
-async def test_preferences_default_then_update(client, auth_headers):
+async def test_preferences_default_then_update(client, auth_headers, kinds):
+    """The preferences endpoint returns the full plan-36 kind matrix."""
     response = await client.get(
         "/api/v1/notifications/preferences", headers=auth_headers
     )
     assert response.status_code == 200
-    assert response.json() == {"desktop_channel_enabled": True, "quiet_hours": None}
+    body = response.json()
+    assert body["desktop_channel_enabled"] is True
+    assert body["quiet_hours"] is None
+    assert body["channels"] == ["in_app", "browser"]
+    kind_keys = {kind["key"]: kind for kind in body["kinds"]}
+    assert "fit_threshold" in kind_keys
+    assert kind_keys["fit_threshold"]["enabled"] is True
+    assert kind_keys["fit_threshold"]["overridden"] is False
+
+    mute = await client.put(
+        "/api/v1/notifications/preferences/fit_threshold",
+        json={"enabled": False},
+        headers=auth_headers,
+    )
+    assert mute.status_code == 200
+    assert mute.json() == {
+        "key": "fit_threshold",
+        "enabled": False,
+        "channels": ["in_app", "desktop", "browser"],
+    }
 
     updated = await client.put(
         "/api/v1/notifications/preferences",
@@ -335,6 +362,10 @@ async def test_preferences_default_then_update(client, auth_headers):
         "quiet_hours": {"start": "22:00", "end": "07:00"},
     }
 
+    matrix = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
+    kinds = {kind["key"]: kind for kind in matrix.json()["kinds"]}
+    assert kinds["fit_threshold"]["overridden"] is True
+
     cleared = await client.put(
         "/api/v1/notifications/preferences",
         json={"desktop_channel_enabled": True, "quiet_hours": None},
@@ -342,6 +373,15 @@ async def test_preferences_default_then_update(client, auth_headers):
     )
     assert cleared.status_code == 200
     assert cleared.json()["quiet_hours"] is None
+
+
+async def test_kind_pref_unknown_kind_404(client, auth_headers):
+    response = await client.put(
+        "/api/v1/notifications/preferences/no_such_kind",
+        json={"enabled": False},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
 
 
 async def test_preferences_reject_bad_quiet_hours(client, auth_headers):
@@ -370,12 +410,25 @@ async def test_bootstrap_declares_web_channels(client, auth_headers):
 
 async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeypatch):
     from app.core.config import settings
+    from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
 
-    monkeypatch.setattr(settings, "DESKTOP_MODE", True)
-    assert notification_channels.available_channels() == ["in_app", "desktop"]
-    response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
-    assert response.json()["notification_channels"] == ["in_app", "desktop"]
+    notification_channels.register_channel(DesktopChannel(_FakeBridge()))
+    try:
+        monkeypatch.setattr(settings, "DESKTOP_MODE", True)
+        assert set(notification_channels.available_channels()) == {
+            "in_app",
+            "browser",
+            "desktop",
+        }
+        response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
+        assert response.json()["notification_channels"] == [
+            "in_app",
+            "browser",
+            "desktop",
+        ]
+    finally:
+        notification_channels.unregister_channel("desktop")
 
 
 # -------------------------------------------------------------- tray pure math

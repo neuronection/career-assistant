@@ -209,13 +209,16 @@ export function ProfileEdit() {
       <SkillsSection />
       <WeightsSection initial={p.preferences?.scoring_weights} onChanged={reload} />
       <Section title="Experience">
-        <InlineEdit
-          initial={JSON.stringify(p.experience ?? [], null, 0)}
-          onSave={async (v) => {
-            await saveSection({ experience: JSON.parse(v) });
-            setSaved(true);
-          }}
-        />
+        <p className="text-sm text-slate-500">
+          Experience is structured data now — edit it on the dedicated page.
+        </p>
+        <a
+          href="/experience"
+          className="text-sm text-primary-700 hover:underline"
+          data-testid="experience-link"
+        >
+          Open the experience editor →
+        </a>
       </Section>
       <Section title={`Aspirations (${p.aspirations.length})`}>
         <ul className="text-sm text-slate-600 space-y-1">

@@ -1,73 +1,69 @@
-"""The `desktop` notification channel (plan 36's registry consumer).
+"""The `desktop` notification channel (plan 36 registry consumer).
 
-Registered once by the desktop shell; every `EngagementService.emit`
-offered here afterwards. Guards run at dispatch — the inbox always
-receives the event:
-- per-user channel preference (PUT /notifications/preferences),
-- quiet hours (enforced server-side here, client-side in the SPA too),
-then the toast is pushed via the pywebview bridge; with no live window
-the OS fallback (notify-send on Linux) is attempted — degrade, never
-crash, never drop below the inbox.
+Registered once by the desktop shell; the service runs the guardrails
+(kind enabled, quiet hours, max/day) *before* calling `send`, so this
+class only transports: pywebview bridge push with an OS fallback when no
+live window can take it. Degrade, never crash, never drop below the
+inbox.
 """
 
 import logging
 import shutil
 import subprocess
-from uuid import UUID
+from typing import Optional
 
-from app.core.database import AsyncSessionLocal
 from app.desktop.bridge import DesktopBridge
-from app.services.engagement_service import EngagementService
-from app.services.notification_channels import register_dispatcher, within_quiet_hours
+from app.models.enums import DeliveryStatus
+from app.services.notification_channels import BaseChannel, DeliveryContext
 
 logger = logging.getLogger(__name__)
 
 
-def register_desktop_channel(bridge: DesktopBridge) -> None:
-    """Install the funnel dispatcher (shell startup only)."""
+class DesktopChannel(BaseChannel):
+    """OS toasts through the pywebview bridge (in-process server)."""
 
-    async def _dispatch(
-        user_id: UUID,
-        kind: str,
-        title: str,
-        body: str,
-        payload: dict,
-        severity: str,
-    ) -> None:
-        prefs = await _load_preferences(user_id)
-        if not prefs.get("desktop_channel_enabled", True):
-            return
-        if within_quiet_hours(prefs.get("quiet_hours")):
-            return
-        link = payload.get("link") if isinstance(payload, dict) else ""
-        delivered = bridge.notify(
-            title=title,
-            body=body,
-            kind=kind,
-            severity=severity,
+    key = "desktop"
+
+    def __init__(self, bridge: DesktopBridge):
+        self._bridge = bridge
+
+    def available(self) -> bool:
+        return self._bridge is not None
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+        link = ctx.payload.get("link") if isinstance(ctx.payload, dict) else ""
+        delivered = self._bridge.notify(
+            title=ctx.title,
+            body=ctx.body,
+            kind=ctx.kind,
+            severity=ctx.severity,
             link=str(link or ""),
         )
-        if not delivered:
-            _os_fallback(title, body)
-
-    register_dispatcher(_dispatch)
-
-
-async def _load_preferences(user_id: UUID) -> dict:
-    """Fresh prefs per dispatch (own session; cheap single-row read)."""
-    async with AsyncSessionLocal() as db:
-        return await EngagementService(db).get_preferences(user_id)
+        if delivered:
+            return DeliveryStatus.DELIVERED.value, None
+        if _os_fallback(ctx.title, ctx.body):
+            return DeliveryStatus.SENT.value, None
+        return DeliveryStatus.FAILED.value, "no_window_or_os_fallback"
 
 
-def _os_fallback(title: str, body: str) -> None:
+def _os_fallback(title: str, body: str) -> bool:
     """Last-resort OS toast when no webview window can take the push."""
     if shutil.which("notify-send") is None:
-        return
+        return False
     try:
         subprocess.run(  # noqa: S603 — fixed argv, no shell
             ["notify-send", "-a", "Career Assistant", title[:100], body[:200]],
             timeout=5,
             check=False,
         )
+        return True
     except (OSError, subprocess.SubprocessError):
         logger.warning("OS notification fallback failed", exc_info=True)
+        return False
+
+
+def register_desktop_channel(bridge: DesktopBridge) -> None:
+    """Install the channel (shell startup only)."""
+    from app.services.notification_channels import register_channel
+
+    register_channel(DesktopChannel(bridge))

@@ -230,12 +230,12 @@ class TrayActions:
         async with self._session_factory() as db:
             owners = await self.owner_ids()
             if owners:
-                from app.models.engagement_model import Notification
+                from app.models.engagement_model import NotificationRecipient
 
                 rows = await db.execute(
-                    select(Notification.user_id).where(
-                        Notification.user_id.in_(owners),
-                        Notification.read_at.is_(None),
+                    select(NotificationRecipient.id).where(
+                        NotificationRecipient.user_id.in_(owners),
+                        NotificationRecipient.status == "unread",
                     )
                 )
                 unread = len(rows.scalars().all())

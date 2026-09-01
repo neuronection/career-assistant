@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, X } from "lucide-react";
 import {
+  dismissNotifications,
   fetchNotificationPreferences,
   fetchNotifications,
   fetchRules,
@@ -12,6 +13,7 @@ import {
 } from "@/api/engagement";
 import { hasChannel } from "@/lib/desktop";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import type {
   AlertRule,
@@ -21,23 +23,22 @@ import type {
 
 export function NotificationBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
-  const [unread, setUnread] = useState(0);
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const bootstrap = useBootstrapStore((s) => s.bootstrap);
   const desktopChannel = hasChannel(bootstrap?.notification_channels, "desktop");
+  const { unreadCount: unread, refresh } = useNotificationStream();
 
   const load = () => {
     void fetchNotifications({ limit: 20 })
       .then((r) => {
         setItems(r.items);
-        setUnread(r.unread_count);
+        void refresh();
       })
       .catch(() => {
         setItems([]);
-        setUnread(0);
       });
   };
 
@@ -56,11 +57,12 @@ export function NotificationBell() {
   }, [open]);
 
   const openItem = (item: NotificationItem) => {
+    const wasUnread = item.status === "unread";
     void markNotificationsRead([item.id]).then(() => {
-      setUnread((n) => Math.max(0, n - 1));
+      if (wasUnread) void refresh();
       setItems((prev) =>
         prev.map((x) =>
-          x.id === item.id ? { ...x, read_at: new Date().toISOString() } : x
+          x.id === item.id ? { ...x, status: "read", read_at: new Date().toISOString() } : x
         )
       );
       const link = notificationLink(item);
@@ -71,14 +73,23 @@ export function NotificationBell() {
     });
   };
 
+  const dismissItem = (item: NotificationItem) => {
+    void dismissNotifications([item.id]).then(() => {
+      setItems((prev) => prev.filter((x) => x.id !== item.id));
+      void refresh();
+    });
+  };
+
   const markAll = () => {
     void markNotificationsRead([]).then(() => {
-      setUnread(0);
       setItems((prev) =>
         prev.map((x) =>
-          x.read_at ? x : { ...x, read_at: new Date().toISOString() }
+          x.status === "unread"
+            ? { ...x, status: "read", read_at: new Date().toISOString() }
+            : x
         )
       );
+      void refresh();
     });
   };
 
@@ -151,24 +162,39 @@ export function NotificationBell() {
             </p>
           ) : (
             items.map((item) => (
-              <button
+              <div
                 key={item.id}
-                onClick={() => openItem(item)}
-                className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 ${
-                  item.read_at ? "opacity-60" : ""
+                className={`flex items-start gap-1 border-b border-slate-50 ${
+                  item.status === "read" || item.status === "dismissed"
+                    ? "opacity-60"
+                    : ""
                 }`}
-                data-testid="notification-item"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-slate-900">{item.title}</span>
-                  {!item.read_at && (
-                    <span className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />
+                <button
+                  onClick={() => openItem(item)}
+                  className="flex-1 w-full text-left px-4 py-3 hover:bg-slate-50"
+                  data-testid="notification-item"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-slate-900">{item.title}</span>
+                    {item.status === "unread" && (
+                      <span className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />
+                    )}
+                  </div>
+                  {item.body && (
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.body}</p>
                   )}
-                </div>
-                {item.body && (
-                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.body}</p>
-                )}
-              </button>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dismiss notification"
+                  data-testid="notification-dismiss"
+                  onClick={() => dismissItem(item)}
+                  className="p-2 mr-1 mt-2 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             ))
           )}
         </div>

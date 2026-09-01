@@ -375,6 +375,74 @@ class NotificationSeverity(str, Enum):
     CRITICAL = "critical"
 
 
+class NotificationStatus(str, Enum):
+    """Inbox state of one (notification, recipient) pair (plan 36)."""
+
+    UNREAD = "unread"
+    READ = "read"
+    DISMISSED = "dismissed"
+
+
+class NotificationChannel(str, Enum):
+    """Delivery channels; the registry leaves email/sms slots open."""
+
+    IN_APP = "in_app"
+    DESKTOP = "desktop"
+    BROWSER = "browser"
+
+
+class DeliveryStatus(str, Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
+class ExperienceKind(str, Enum):
+    """Experience item kinds (plan 40); legacy JSONB `part_time` maps to job."""
+
+    JOB = "job"
+    PROJECT = "project"
+    INTERNSHIP = "internship"
+    VOLUNTEER = "volunteer"
+    FREELANCE = "freelance"
+
+
+class ExperienceItemSource(str, Enum):
+    SELF_REPORT = "self_report"
+    CV_PARSE = "cv_parse"
+    ASSESSMENT = "assessment"
+    IMPORT = "import"
+
+
+class ExperienceItemStatus(str, Enum):
+    DRAFT = "draft"
+    ACTIVE = "active"
+
+
+class RoleInItem(str, Enum):
+    """The skill's role inside one experience item (plan 40)."""
+
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+    EXPOSURE = "exposure"
+
+
+class OrgStatus(str, Enum):
+    """Organization lifecycle (plan 39 machinery; table lands with 40)."""
+
+    PROPOSED = "proposed"
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+
+
+class AchievementMetricKind(str, Enum):
+    TIME_SAVED = "time_saved"
+    SCALE = "scale"
+    REVENUE = "revenue"
+    QUALITY = "quality"
+
+
 class BackgroundJobType(str, Enum):
     DOCUMENT_PARSE = "document_parse"
     JOB_GENERATE = "job_generate"
