@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AIConfig } from "@/pages/settings/AIConfig";
 import { useAuthStore } from "@/stores/authStore";
-import type { AIProvider } from "@/api/ai";
+import type { AIModel, AIProvider } from "@/api/ai";
 
 vi.mock("@/api/ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/ai")>();
@@ -15,11 +15,14 @@ vi.mock("@/api/ai", async (importOriginal) => {
     fetchAssignments: vi.fn().mockResolvedValue([]),
     fetchModels: vi.fn().mockResolvedValue([]),
     fetchAllModels: vi.fn().mockResolvedValue([]),
+    fetchExternalModels: vi.fn().mockResolvedValue([]),
     fetchTasks: vi.fn().mockResolvedValue([
       { value: "match_score", label: "match score" },
       { value: "default", label: "default" },
     ]),
     setAssignment: vi.fn(),
+    addModel: vi.fn(),
+    deleteModel: vi.fn(),
   };
 });
 
@@ -36,6 +39,16 @@ const provider: AIProvider = {
   is_active: true,
   is_mine: true,
   created_at: "2026-01-01T00:00:00Z",
+};
+
+const model: AIModel = {
+  id: "m1",
+  provider_id: "p1",
+  name: "GPT 4o Mini",
+  model_name: "gpt-4o-mini",
+  is_active: true,
+  temperature: null,
+  max_tokens: null,
 };
 
 function renderPage(initialEntries = ["/settings/ai"]) {
@@ -70,6 +83,7 @@ describe("AIConfig (settings > AI)", () => {
     mocked.fetchAssignments.mockResolvedValue([]);
     mocked.fetchModels.mockResolvedValue([]);
     mocked.fetchAllModels.mockResolvedValue([]);
+    mocked.fetchExternalModels.mockResolvedValue([]);
   });
 
   it("defaults to the providers tab and lists providers", async () => {
@@ -79,15 +93,81 @@ describe("AIConfig (settings > AI)", () => {
     expect(screen.getByText("Global providers")).toBeInTheDocument();
   });
 
-  it("models tab: provider cards expand and lazily load their models", async () => {
+  it("models tab: fetches every provider's models and expands a provider card", async () => {
     renderPage(["/settings/ai?tab=models"]);
     await waitFor(() => expect(screen.getByTestId("models-tab")).toBeInTheDocument());
-    expect(screen.getByText("Models per Provider")).toBeInTheDocument();
-    expect(mocked.fetchModels).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText("Org OpenAI"));
     await waitFor(() => expect(mocked.fetchModels).toHaveBeenCalledWith("p1"));
-    expect(screen.getByText("Models for Org OpenAI")).toBeInTheDocument();
-    expect(screen.getByText("Add Model")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Org OpenAI/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument());
+  });
+
+  it("models tab: adds a model from the provider catalog", async () => {
+    mocked.fetchModels.mockResolvedValue([model]);
+    mocked.fetchExternalModels.mockResolvedValue([
+      { id: "gpt-4o-mini", name: "GPT 4o mini", owned_by: "openai" },
+    ]);
+    renderPage(["/settings/ai?tab=models"]);
+    fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.keyDown(within(dialog).getByRole("combobox", { name: "Model" }), { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: /gpt-4o-mini/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add model" }));
+    await waitFor(() =>
+      expect(mocked.addModel).toHaveBeenCalledWith("p1", {
+        name: "GPT 4o Mini",
+        model_name: "gpt-4o-mini",
+        temperature: null,
+        max_tokens: null,
+      }),
+    );
+  });
+
+  it("models tab: supports manual model ids in the add modal", async () => {
+    renderPage(["/settings/ai?tab=models"]);
+    fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /manual/i }));
+    const idInput = within(dialog).getByLabelText("Model");
+    fireEvent.change(idInput, { target: { value: "custom-model" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add model" }));
+    await waitFor(() =>
+      expect(mocked.addModel).toHaveBeenCalledWith(
+        "p1",
+        expect.objectContaining({ name: "Custom Model", model_name: "custom-model" }),
+      ),
+    );
+  });
+
+  it("models tab: deletes a model through a confirm dialog", async () => {
+    mocked.fetchModels.mockResolvedValue([model]);
+    renderPage(["/settings/ai?tab=models"]);
+    fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove gpt-4o-mini" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Delete model gpt-4o-mini\?/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete model" }));
+    await waitFor(() => expect(mocked.deleteModel).toHaveBeenCalledWith("m1"));
+  });
+
+  it("models tab: system providers are read-only without global rights", async () => {
+    useAuthStore.setState({
+      token: "t",
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: false },
+    });
+    mocked.fetchConfigSummary.mockResolvedValue({
+      can_manage_global: false,
+      mock_allowed: false,
+      tasks: [],
+    });
+    mocked.fetchModels.mockResolvedValue([model]);
+    renderPage(["/settings/ai?tab=models"]);
+    fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
+    await waitFor(() => expect(screen.getByText("gpt-4o-mini")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit gpt-4o-mini" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove gpt-4o-mini" })).not.toBeInTheDocument();
   });
 
   it("tasks tab renders assignment cards with fallback note", async () => {

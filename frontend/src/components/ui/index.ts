@@ -30,4 +30,5 @@ export { ProviderForm } from "@neuronection/assistant-ui";
 export { ModelPicker } from "@neuronection/assistant-ui";
 export { TaskAssignmentPicker } from "@neuronection/assistant-ui";
 export { ConnectionTestRow } from "@neuronection/assistant-ui";
+export { ModelRegistry } from "./ModelRegistry";
 export { AiButton } from "@neuronection/assistant-ui";

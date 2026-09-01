@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Plus, X, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AudioLines, Database, Eye, FileText, Wrench } from "lucide-react";
 import * as aiApi from "@/api/ai";
-import type { AIModel, AIProvider, ExternalModel } from "@/api/ai";
-import { Button, EmptyState, ModelPicker } from "@/components/ui";
+import type { AIProvider } from "@/api/ai";
 import { apiDetail } from "@/api/client";
+import { ConfirmationModal, ModelRegistry } from "@/components/ui";
+import type {
+  ModelRegistryDraft,
+  ModelRegistryModel,
+  ModelRegistryPatch,
+  ModelRegistryProvider,
+} from "@/components/ui/ModelRegistry";
+import type { CapabilityDescriptor } from "@neuronection/assistant-ui";
+import { beautifyId } from "@neuronection/assistant-ui/fuzzy";
+import { AI_CAPS, guessCaps } from "@/lib/aiCaps";
 
 interface ModelsTabProps {
   providers: AIProvider[];
@@ -11,184 +20,88 @@ interface ModelsTabProps {
   onChanged: () => void;
 }
 
-/**
- * Models-per-provider registry: expandable provider cards; each expanded
- * card renders a ModelManager (list + add via external catalog or manual).
- * Mirrors Health-Assistant ModelsPage/ModelManager.
- */
+const NO_CATALOG_HINT =
+  "This provider type doesn't expose a model catalog — enter the model id manually.";
+const EDIT_UNSUPPORTED_HINT =
+  "Editing a registered model isn't supported by the API yet — delete it and re-add with the new settings.";
+
+const CAP_ICONS = {
+  text: FileText,
+  vision: Eye,
+  tools: Wrench,
+  embeddings: Database,
+  audio: AudioLines,
+} as const;
+
+const ADD_BATCH = 10;
+
 export function ModelsTab({ providers, canManageGlobal, onChanged }: ModelsTabProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  if (providers.length === 0) {
-    return (
-      <EmptyState
-        compact
-        title="No providers configured yet"
-        description="Go to the Providers tab to add a provider first — then register its models here."
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-4" data-testid="models-tab">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-900">Models per Provider</h3>
-        <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-full">
-          {providers.length} Providers
-        </span>
-      </div>
-
-      <div className="space-y-4">
-        {providers.map((provider) => {
-          const isExpanded = expandedId === provider.id;
-          const canEdit = provider.scope === "user" ? provider.is_mine : canManageGlobal;
-          return (
-            <div
-              key={provider.id}
-              className={`bg-white rounded-xl border transition-all ${
-                isExpanded ? "border-primary-200 shadow-sm" : "border-slate-100"
-              }`}
-            >
-              <div
-                className="p-4 flex items-center justify-between cursor-pointer group"
-                onClick={() => setExpandedId(isExpanded ? null : provider.id)}
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`p-2 rounded-lg transition-colors ${
-                      isExpanded
-                        ? "bg-primary-600 text-white"
-                        : "bg-slate-100 text-slate-500 group-hover:bg-primary-50"
-                    }`}
-                  >
-                    {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h4 className="text-md font-bold text-slate-900 flex items-center gap-2">
-                      {provider.name}
-                      <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">
-                        {provider.provider_type}
-                      </span>
-                    </h4>
-                    <p className="text-xs text-slate-400 font-medium font-mono truncate max-w-md">{provider.api_base}</p>
-                  </div>
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="px-4 pb-4">
-                  <div className="border-t border-slate-100 pt-4">
-                    <ModelManager provider={provider} canEdit={canEdit} onChanged={onChanged} />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function beautifyModelId(modelId: string): string {
-  return modelId
-    .replace(/[-:]/g, " ")
-    .replace(/(?<!\d)\.|\.(?!\d)/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => {
-      if (["gpt", "nlp", "ocr", "llm", "ai"].includes(word.toLowerCase())) {
-        return word.toUpperCase();
-      }
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(" ");
-}
-
-function ModelManager({
-  provider,
-  canEdit,
-  onChanged,
-}: {
-  provider: AIProvider;
-  canEdit: boolean;
-  onChanged: () => void;
-}) {
-  const [models, setModels] = useState<AIModel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({ name: "", model_name: "" });
+  const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
+  const [models, setModels] = useState<aiApi.AIModel[]>([]);
+  const [remote, setRemote] = useState<{
+    state: "loading" | "error" | "ready";
+    error: string | null;
+    models: { id: string; caps: string[] }[];
+    retryable: boolean;
+  }>({ state: "ready", error: null, models: [], retryable: true });
+  const [retryTick, setRetryTick] = useState(0);
   const [error, setError] = useState("");
-
-  const [externalModels, setExternalModels] = useState<ExternalModel[]>([]);
-  const [isFetchingExternal, setIsFetchingExternal] = useState(false);
-  const [fetchError, setFetchError] = useState("");
-
-  const supportsCatalog = provider.provider_type !== "mock";
+  const [deleting, setDeleting] = useState<ModelRegistryModel | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const loadModels = useCallback(async () => {
-    try {
-      setModels(await aiApi.fetchModels(provider.id));
-    } catch (err) {
-      setError(apiDetail(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [provider.id]);
+    const lists = await Promise.all(
+      providers.map((provider) => aiApi.fetchModels(provider.id).catch(() => [] as aiApi.AIModel[])),
+    );
+    setModels(lists.flat());
+  }, [providers]);
 
   useEffect(() => {
     void loadModels();
   }, [loadModels]);
 
-  const loadExternal = useCallback(async () => {
-    if (!supportsCatalog || externalModels.length > 0 || isFetchingExternal) return;
-    setIsFetchingExternal(true);
-    setFetchError("");
-    try {
-      setExternalModels(await aiApi.fetchExternalModels(provider.id));
-    } catch (err) {
-      setFetchError(apiDetail(err));
-    } finally {
-      setIsFetchingExternal(false);
-    }
-  }, [supportsCatalog, provider.id, externalModels.length, isFetchingExternal]);
+  const expandedProvider = providers.find((p) => p.id === expandedProviderId) ?? null;
+  const supportsCatalog =
+    expandedProvider !== null && ["openai", "openai_compatible"].includes(expandedProvider.provider_type);
 
   useEffect(() => {
-    if (isCreating && supportsCatalog) {
-      void loadExternal();
+    if (expandedProviderId === null || expandedProvider === null) return;
+    if (!supportsCatalog) {
+      setRemote({ state: "error", error: NO_CATALOG_HINT, models: [], retryable: false });
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCreating]);
-
-  const selectExternalModel = (modelId: string) => {
-    setFormData((prev) => ({
-      model_name: modelId,
-      name: prev.name === "" || prev.name === prev.model_name ? beautifyModelId(modelId) : prev.name,
-    }));
-  };
-
-  const handleCreate = async () => {
-    if (!formData.name.trim() || !formData.model_name.trim()) return;
-    setError("");
-    try {
-      await aiApi.addModel(provider.id, {
-        name: formData.name.trim(),
-        model_name: formData.model_name.trim(),
+    let cancelled = false;
+    setRemote({ state: "loading", error: null, models: [], retryable: true });
+    aiApi
+      .fetchExternalModels(expandedProviderId)
+      .then((rows) => {
+        if (cancelled) return;
+        setRemote({
+          state: "ready",
+          error: null,
+          models: rows.map((entry) => ({ id: entry.id, caps: guessCaps(entry.id) })),
+          retryable: true,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setRemote({ state: "error", error: apiDetail(err), models: [], retryable: true });
       });
-      setIsCreating(false);
-      setFormData({ name: "", model_name: "" });
-      setExternalModels([]);
-      await loadModels();
-      onChanged();
-    } catch (err) {
-      setError(apiDetail(err));
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedProviderId, supportsCatalog, retryTick]);
 
-  const handleDelete = async (id: string) => {
+  const handleAdd = async (providerId: string, draft: ModelRegistryDraft) => {
     setError("");
     try {
-      await aiApi.deleteModel(id);
+      await aiApi.addModel(providerId, {
+        name: draft.label?.trim() || beautifyId(draft.externalId),
+        model_name: draft.externalId,
+        temperature: draft.temperature ?? null,
+        max_tokens: draft.maxTokens ?? null,
+      });
       await loadModels();
       onChanged();
     } catch (err) {
@@ -196,175 +109,147 @@ function ModelManager({
     }
   };
 
-  const handleTest = async (modelId: string) => {
-    const result = await aiApi.testConnection(provider.id, modelId);
-    return result.ok ? `OK — replied: ${result.reply}` : `Failed: ${result.error}`;
+  const handleAddAll = async (providerId: string, drafts: ModelRegistryDraft[]) => {
+    setError("");
+    try {
+      for (let offset = 0; offset < drafts.length; offset += ADD_BATCH) {
+        await Promise.all(
+          drafts.slice(offset, offset + ADD_BATCH).map((draft) =>
+            aiApi.addModel(providerId, {
+              name: beautifyId(draft.externalId),
+              model_name: draft.externalId,
+              temperature: draft.temperature ?? null,
+              max_tokens: draft.maxTokens ?? null,
+            }),
+          ),
+        );
+      }
+      await loadModels();
+      onChanged();
+    } catch (err) {
+      setError(apiDetail(err));
+      await loadModels();
+    }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-md font-bold text-slate-900">Models for {provider.name}</h3>
-        {canEdit && !isCreating && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setIsCreating(true);
-              if (supportsCatalog) void loadExternal();
-            }}
-          >
-            <Plus className="w-4 h-4" /> Add Model
-          </Button>
-        )}
-      </div>
+  const handleUpdate = (_model: ModelRegistryModel, _patch: ModelRegistryPatch) => {
+    setError(EDIT_UNSUPPORTED_HINT);
+  };
 
-      {(error || fetchError) && (
-        <div className="p-3 bg-rose-50 text-rose-700 rounded-lg flex items-center justify-between border border-rose-100">
-          <span className="text-sm">{error || fetchError}</span>
-          <button
-            onClick={() => {
-              setError("");
-              setFetchError("");
-            }}
-            className="text-xs underline font-bold px-2 py-1"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setError("");
+    setDeleteBusy(true);
+    try {
+      await aiApi.deleteModel(deleting.id);
+      setDeleting(null);
+      await loadModels();
+      onChanged();
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
-      {isCreating && (
-        <div className="p-6 bg-white rounded-xl border-2 border-primary-500 shadow-xl relative">
-          <div className="flex items-center justify-between mb-5">
-            <h4 className="text-md font-black text-slate-900 uppercase tracking-tight">Define New Model</h4>
-            <button
-              onClick={() => setIsCreating(false)}
-              aria-label="Cancel"
-              className="p-2 text-slate-400 hover:text-rose-500 rounded-full hover:bg-slate-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block">
-                Display Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                autoFocus
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500/30"
-                placeholder="e.g. GPT-4o Mini"
-              />
-            </div>
-            <div className="space-y-2 relative">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 block">
-                API Identifier <span className="text-rose-500">*</span>
-              </label>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={formData.model_name}
-                  onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500/30"
-                  placeholder="e.g. gpt-4o-mini"
-                />
-                {supportsCatalog && (
-                  <ModelPicker
-                    providers={[
-                      {
-                        id: provider.id,
-                        name: provider.name,
-                        models: externalModels.map((m) => ({
-                          id: m.id,
-                          name: m.id,
-                          capability: m.owned_by ?? undefined,
-                        })),
-                      },
-                    ]}
-                    value={formData.model_name}
-                    onChange={selectExternalModel}
-                    loading={isFetchingExternal}
-                    label="Browse provider catalog"
-                    searchPlaceholder="Search model catalog…"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-6">
-            <Button variant="secondary" size="sm" onClick={() => setIsCreating(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={() => void handleCreate()} disabled={!formData.name.trim() || !formData.model_name.trim()}>
-              Create Model
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-sm text-slate-400">Loading models…</p>
-      ) : models.length === 0 && !isCreating ? (
-        <p className="text-sm text-slate-400 italic">No models registered yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {models.map((m) => (
-            <ModelRow key={m.id} model={m} canEdit={canEdit} onDelete={() => void handleDelete(m.id)} onTest={handleTest} />
-          ))}
-        </div>
-      )}
-    </div>
+  const registryProviders: ModelRegistryProvider[] = useMemo(
+    () =>
+      providers.map((provider) => ({
+        id: provider.id,
+        name: provider.name,
+        type: provider.provider_type,
+        baseUrl: provider.api_base,
+        readOnly: !(provider.scope === "user" ? provider.is_mine : canManageGlobal),
+      })),
+    [providers, canManageGlobal],
   );
-}
 
-function ModelRow({
-  model,
-  canEdit,
-  onDelete,
-  onTest,
-}: {
-  model: AIModel;
-  canEdit: boolean;
-  onDelete: () => void;
-  onTest: (modelId: string) => Promise<string>;
-}) {
-  const [testState, setTestState] = useState<{ ok: boolean; message: string } | null>(null);
-  const [testing, setTesting] = useState(false);
+  const registryModels: ModelRegistryModel[] = useMemo(
+    () =>
+      models.map((model) => ({
+        id: model.id,
+        providerId: model.provider_id,
+        externalId: model.model_name,
+        label: model.name || undefined,
+        caps: guessCaps(model.model_name),
+        enabled: model.is_active,
+        temperature: model.temperature,
+        maxTokens: model.max_tokens,
+      })),
+    [models],
+  );
+
+  const capDescriptors: CapabilityDescriptor[] = AI_CAPS.map((cap) => ({
+    value: cap,
+    label: cap.charAt(0).toUpperCase() + cap.slice(1),
+    icon: CAP_ICONS[cap],
+  }));
 
   return (
-    <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-800">{model.name}</p>
-        <p className="text-xs text-slate-400 font-mono">{model.model_name}</p>
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        {testState && (
-          <span className={`text-xs ${testState.ok ? "text-emerald-600" : "text-rose-600"}`}>{testState.message}</span>
-        )}
-        <button
-          disabled={testing}
-          onClick={async () => {
-            setTesting(true);
-            try {
-              const message = await onTest(model.id);
-              setTestState({ ok: message.startsWith("OK"), message });
-            } finally {
-              setTesting(false);
-            }
-          }}
-          className="text-xs text-primary-700 hover:underline disabled:opacity-50"
-        >
-          {testing ? "testing…" : "test"}
-        </button>
-        {canEdit && (
-          <button aria-label={`Delete model ${model.name}`} onClick={onDelete} className="text-slate-300 hover:text-rose-600">
-            <XCircle className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+    <div className="space-y-4" data-testid="models-tab">
+      <p className="text-sm text-slate-500">
+        Register the models each provider serves — add them from the provider&rsquo;s live catalog
+        or by typing the model id.
+      </p>
+      <ModelRegistry
+        providers={registryProviders}
+        models={registryModels}
+        caps={capDescriptors}
+        expandedProviderId={expandedProviderId}
+        onExpandedProviderChange={setExpandedProviderId}
+        remoteModels={remote.models}
+        remoteState={remote.state}
+        remoteError={remote.error}
+        onRetryRemote={remote.retryable ? () => setRetryTick((tick) => tick + 1) : undefined}
+        onAddModel={(providerId, draft) => void handleAdd(providerId, draft)}
+        onAddAll={(providerId, drafts) => void handleAddAll(providerId, drafts)}
+        onUpdateModel={handleUpdate}
+        onDeleteModel={setDeleting}
+        capsLabel="Capabilities"
+        capsHint="Guessed from the model id — toggle what the model can do."
+        addLabel="Add model"
+        addAllLabel="Add all"
+        addTitle="Add model"
+        editTitle="Edit model"
+        selectModelLabel="Model"
+        manualIdToggleLabel="Enter the model id manually"
+        editLabel="Edit"
+        removeLabel="Remove"
+        missingLabel="Missing"
+        searchPlaceholder="Search model catalog…"
+        searchLabel="Search model catalog"
+        emptyProviderLabel="No models registered yet — use Add model to pick from the catalog or enter an id manually."
+        externalIdRequiredLabel="The model id is required."
+        remoteEmptyLabel="The provider listed no models."
+        remoteLoadingLabel="Loading model catalog…"
+        retryLabel="Retry"
+        customOptionLabel="Custom…"
+        temperatureLabel="Temperature"
+        maxTokensLabel="Max tokens"
+        labelLabel="Display name"
+        saveLabel="Save"
+        cancelLabel="Cancel"
+        addDraftLabel="Add model"
+        providersEmptyLabel="No providers configured yet — add one in the Providers tab first, then register its models here."
+      />
+      {error ? (
+        <div className="p-3 bg-rose-50 text-rose-700 rounded-lg border border-rose-100 text-sm" role="alert">
+          {error}
+        </div>
+      ) : null}
+      <ConfirmationModal
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        title={`Delete model ${deleting?.externalId ?? ""}?`}
+        description="Tasks that used this model fall back to their scope default."
+        confirmLabel="Delete model"
+        cancelLabel="Cancel"
+        destructive
+        busy={deleteBusy}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

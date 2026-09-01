@@ -5,6 +5,16 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **AI settings rebuilt on the family UI library, part 1 of 3 (Models tab)** —
+  the Models tab is now the family's `ModelRegistry` module: provider cards
+  with chevron tiles and enabled/total pills, registered-model rows with
+  capability chips (guessed from the model id and toggleable), a searchable
+  catalog modal with manual-id entry and add-all, and clearable
+  temperature/max-tokens fields at add time. Reading is unchanged; editing an
+  existing model is still pending a backend per-model update endpoint and
+  reports an explanatory note. `@neuronection/assistant-ui` moves to
+  `^0.13.1` (pending library release carries the read-only provider flag —
+  see the release note in the final adoption report).
 - **Internal identifier rebrand** — environment variables
   (`CAREER_SKIP_SEED`, `CAREER_ENV_FILE`), the browser session-storage
   key, and the local dev-database identifiers (compose project
