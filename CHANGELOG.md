@@ -5,6 +5,15 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **AI settings rebuilt on the family UI library, part 3 of 3 (Tasks tab)** —
+  task→model assignments move onto the family's `TaskAssignmentPicker`:
+  career's `default` task type renders as the scope's **fallback model**
+  (fallback-only row with an explanatory info popup), every other AI task is
+  its own assignment row with a searchable provider→model picker, per-row
+  clear buttons and an "unassigned — falls back" note. Task rows are labelled
+  (career names) with icons; new task types beautify automatically. Requires
+  a library change adopted upstream (`TaskAssignmentTask.secondaryOnly`,
+  unpublished at commit time — see the release note in the final report).
 - **AI settings rebuilt on the family UI library, part 2 of 3 (Providers tab)** —
   provider cards now carry the family's inline `ConnectionTestRow`: a
   Test button pings the provider with its first registered model and shows

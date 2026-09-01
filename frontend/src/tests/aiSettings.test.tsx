@@ -201,13 +201,74 @@ describe("AIConfig (settings > AI)", () => {
     await waitFor(() => expect(mocked.deleteProvider).toHaveBeenCalledWith("p1"));
   });
 
-  it("tasks tab renders assignment cards with fallback note", async () => {
+  it("tasks tab: renders the fallback section and per-task assignment rows", async () => {
+    mocked.fetchTasks.mockResolvedValue([
+      { value: "match_score", label: "match score" },
+      { value: "default", label: "default (all tasks)" },
+    ]);
+    mocked.fetchAllModels.mockResolvedValue([
+      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+    ]);
+    mocked.fetchAssignments.mockResolvedValue([
+      { id: "a1", task_type: "default", scope: "system", model_id: "m1", is_active: true },
+    ]);
     renderPage(["/settings/ai?tab=tasks"]);
-    await waitFor(() => expect(screen.getByTestId("tasks-tab")).toBeInTheDocument());
-    expect(screen.getByText("Task Assignments")).toBeInTheDocument();
-    expect(screen.getByText("Global Default Fallback")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Fallback model")).toBeInTheDocument());
+    expect(screen.getByText("All tasks")).toBeInTheDocument();
+    expect(screen.getByText("Fallback")).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Fallback — All tasks" })).toHaveTextContent(
+      "GPT 4o Mini"
+    );
     expect(screen.getByText("Job Match Scoring")).toBeInTheDocument();
-    expect(screen.getAllByText(/Not assigned/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Unassigned — falls back/)).toBeInTheDocument();
     expect(mocked.fetchAllModels).toHaveBeenCalled();
+  });
+
+  it("tasks tab: assigns a model to a task from its picker", async () => {
+    mocked.fetchTasks.mockResolvedValue([
+      { value: "match_score", label: "match score" },
+      { value: "default", label: "default (all tasks)" },
+    ]);
+    mocked.fetchAllModels.mockResolvedValue([
+      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+    ]);
+    mocked.setAssignment.mockResolvedValue({
+      id: "a2",
+      task_type: "match_score",
+      scope: "system",
+      model_id: "m1",
+      is_active: true,
+    });
+    renderPage(["/settings/ai?tab=tasks"]);
+    const picker = await screen.findByRole("combobox", { name: "Job Match Scoring" });
+    fireEvent.keyDown(picker, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: /GPT 4o Mini/ }));
+    await waitFor(() =>
+      expect(mocked.setAssignment).toHaveBeenCalledWith("match_score", {
+        scope: "system",
+        model_id: "m1",
+      }),
+    );
+  });
+
+  it("tasks tab: clears an assignment with the row button", async () => {
+    mocked.fetchTasks.mockResolvedValue([
+      { value: "match_score", label: "match score" },
+      { value: "default", label: "default (all tasks)" },
+    ]);
+    mocked.fetchAllModels.mockResolvedValue([
+      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+    ]);
+    mocked.fetchAssignments.mockResolvedValue([
+      { id: "a2", task_type: "match_score", scope: "system", model_id: "m1", is_active: true },
+    ]);
+    renderPage(["/settings/ai?tab=tasks"]);
+    fireEvent.click(await screen.findByRole("button", { name: "Clear assignment — Job Match Scoring" }));
+    await waitFor(() =>
+      expect(mocked.setAssignment).toHaveBeenCalledWith("match_score", {
+        scope: "system",
+        model_id: null,
+      }),
+    );
   });
 });

@@ -1,19 +1,48 @@
 import { useEffect, useMemo, useState } from "react";
-import { Cpu, Globe, Search, User, X } from "lucide-react";
+import {
+  Anchor,
+  Briefcase,
+  Crosshair,
+  FileSearch,
+  Globe,
+  GraduationCap,
+  ListChecks,
+  Map as MapIcon,
+  MessageSquare,
+  Network,
+  Route,
+  Sparkles,
+  Target,
+  User,
+  UserSearch,
+  type LucideIcon,
+} from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { ProviderModelInfo } from "@/api/ai";
 import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
+import { TaskAssignmentPicker } from "@/components/ui";
+import type { ModelPickerProvider, TaskAssignmentSection } from "@neuronection/assistant-ui";
+import { beautifyId } from "@neuronection/assistant-ui/fuzzy";
+import { guessCaps } from "@/lib/aiCaps";
 
-interface TasksTabProps {
-  canManageGlobal: boolean;
-  onChanged: () => void;
-}
-
-type Scope = "system" | "user";
+const STRINGS = {
+  title: "Task Assignments",
+  global: "Global",
+  personal: "Personal",
+  fallbackSection: "Fallback model",
+  fallbackSectionHint: "Used by every task without its own assignment in this scope.",
+  fallbackRow: "All tasks",
+  fallbackInfo: "This model serves every task that has no assignment in this scope.",
+  tasksSection: "Per-task assignments",
+  tasksSectionHint: "Overrides the fallback model above for that task.",
+  unassignedMeta: "Unassigned — falls back to the fallback model above.",
+  clearLabel: "Clear assignment",
+  nonAdminNote:
+    "Global assignments are managed by an administrator; set personal overrides to customize your own AI models.",
+};
 
 const TASK_LABELS: Record<string, string> = {
-  default: "Global Default Fallback",
   profile_analyze: "Profile Analysis & Guidance",
   job_generate: "Job Generation",
   relation_suggest: "Job Relation Suggestions",
@@ -23,37 +52,40 @@ const TASK_LABELS: Record<string, string> = {
   assist: "Contextual Ask-AI Buttons",
 };
 
-function fuzzy(text: string, query: string): boolean {
-  const cleanText = text.toLowerCase();
-  const cleanQuery = query.toLowerCase().trim();
-  if (!cleanQuery) return true;
-  if (cleanText.includes(cleanQuery)) return true;
-  const flatText = cleanText.replace(/[^a-z0-9]/g, "");
-  const flatQuery = cleanQuery.replace(/[^a-z0-9]/g, "");
-  if (flatText.includes(flatQuery)) return true;
-  let textIdx = 0;
-  let queryIdx = 0;
-  while (textIdx < cleanText.length && queryIdx < flatQuery.length) {
-    if (cleanText[textIdx] === flatQuery[queryIdx]) queryIdx++;
-    textIdx++;
-  }
-  return queryIdx === flatQuery.length;
+const TASK_ICONS: Record<string, LucideIcon> = {
+  assessment_generate: ListChecks,
+  profile_analyze: UserSearch,
+  job_generate: Briefcase,
+  relation_suggest: Network,
+  match_score: Target,
+  university_parse: GraduationCap,
+  chat: MessageSquare,
+  assist: Sparkles,
+  path_suggest: Route,
+  posting_map: MapIcon,
+  posting_extract: FileSearch,
+  target_resolve: Crosshair,
+  default: Anchor,
+};
+
+type Scope = "system" | "user";
+
+interface TasksTabProps {
+  canManageGlobal: boolean;
+  onChanged: () => void;
 }
 
-/**
- * Task → model assignment cards. Mirrors Health-Assistant TaskAssignment:
- * each task shows "Provider / Model" (or the fallback note); clicking opens
- * an inline grouped, fuzzy-searchable provider→models picker.
- */
+/** Task → model assignments on the family TaskAssignmentPicker:
+ * the `default` task type is the scope's fallback model (fallback-only row),
+ * every other task type gets its own assignment row. */
 export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
   const user = useAuthStore((s) => s.user);
   const [scope, setScope] = useState<Scope>(canManageGlobal ? "system" : "user");
   const [tasks, setTasks] = useState<string[]>([]);
   const [allModels, setAllModels] = useState<ProviderModelInfo[]>([]);
   const [assignments, setAssignments] = useState<aiApi.StoredAssignment[]>([]);
-  const [openPicker, setOpenPicker] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setScope(canManageGlobal ? "system" : "user");
@@ -80,55 +112,78 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
-  const modelsForScope = useMemo(
-    () => allModels.filter((m) => m.provider_scope === scope),
-    [allModels, scope]
-  );
-
-  const grouped = useMemo(() => {
-    const groups: Record<string, { providerName: string; models: ProviderModelInfo[] }> = {};
-    for (const m of modelsForScope) {
-      groups[m.provider_id] = groups[m.provider_id] ?? { providerName: m.provider_name, models: [] };
-      groups[m.provider_id].models.push(m);
-    }
-    return Object.entries(groups).map(([providerId, g]) => ({ providerId, ...g }));
-  }, [modelsForScope]);
-
-  const filteredGroups = useMemo(() => {
-    if (!search) return grouped;
-    return grouped
-      .map((g) => ({
-        ...g,
-        models: g.models.filter(
-          (m) => fuzzy(m.name, search) || fuzzy(m.model_name, search) || fuzzy(g.providerName, search)
-        ),
-      }))
-      .filter((g) => g.models.length > 0);
-  }, [grouped, search]);
-
-  const assignmentFor = (taskType: string) =>
-    assignments.find((a) => a.task_type === taskType && a.is_active);
-
-  const modelById = (modelId?: string | null) =>
-    allModels.find((m) => m.id === modelId);
-
   const assign = async (taskType: string, modelId: string | null) => {
     setError("");
+    setBusy(true);
     try {
       await aiApi.setAssignment(taskType, { scope, model_id: modelId });
-      setOpenPicker(null);
-      setSearch("");
       await refresh();
       onChanged();
     } catch (err) {
       setError(apiDetail(err));
+    } finally {
+      setBusy(false);
     }
   };
+
+  const modelsForScope = useMemo(
+    () => allModels.filter((m) => m.provider_scope === scope),
+    [allModels, scope],
+  );
+
+  const catalog: ModelPickerProvider[] = useMemo(() => {
+    const groups = new Map<string, ModelPickerProvider>();
+    for (const m of modelsForScope) {
+      const provider = groups.get(m.provider_id) ?? { id: m.provider_id, name: m.provider_name, models: [] };
+      provider.models.push({
+        id: m.id,
+        name: m.name || beautifyId(m.model_name),
+        capabilities: guessCaps(m.model_name),
+      });
+      groups.set(m.provider_id, provider);
+    }
+    return [...groups.values()];
+  }, [modelsForScope]);
+
+  const assignmentFor = (taskType: string) =>
+    assignments.find((a) => a.task_type === taskType && a.is_active);
+
+  const value: Record<string, string | null> = {};
+  const secondaryValue: Record<string, string | null> = {};
+  for (const taskType of tasks) {
+    value[taskType] = assignmentFor(taskType)?.model_id ?? null;
+  }
+  secondaryValue.default = value.default;
+
+  const sections: TaskAssignmentSection[] = useMemo(() => {
+    const fallbackTask = tasks.find((t) => t === "default");
+    const rest = tasks.filter((t) => t !== "default");
+    return [
+      {
+        id: "fallback",
+        label: STRINGS.fallbackSection,
+        description: STRINGS.fallbackSectionHint,
+        tasks: fallbackTask
+          ? [{ id: fallbackTask, label: STRINGS.fallbackRow, secondaryOnly: true, icon: TASK_ICONS.default }]
+          : [],
+      },
+      {
+        id: "tasks",
+        label: STRINGS.tasksSection,
+        description: STRINGS.tasksSectionHint,
+        tasks: rest.map((taskType) => ({
+          id: taskType,
+          label: TASK_LABELS[taskType] ?? beautifyId(taskType.replace(/_/g, " ")),
+          icon: TASK_ICONS[taskType],
+        })),
+      },
+    ];
+  }, [tasks]);
 
   return (
     <div className="space-y-4" data-testid="tasks-tab">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-900">Task Assignments</h3>
+        <h3 className="text-lg font-bold text-slate-900">{STRINGS.title}</h3>
         <div className="flex rounded-lg border border-slate-200 overflow-hidden">
           {(["system", "user"] as Scope[]).map((s) => (
             <button
@@ -140,147 +195,32 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
               }`}
             >
               {s === "system" ? <Globe className="w-3 h-3" /> : <User className="w-3 h-3" />}
-              {s === "system" ? "Global" : "Personal"}
+              {s === "system" ? STRINGS.global : STRINGS.personal}
             </button>
           ))}
         </div>
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      <div className="grid grid-cols-1 gap-4">
-        {tasks.map((taskType) => {
-          const assignment = assignmentFor(taskType);
-          const model = modelById(assignment?.model_id);
-          const isDefault = taskType === "default";
-          const isOpen = openPicker === taskType;
-          const canConfigure = scope === "user" || canManageGlobal;
+      <TaskAssignmentPicker
+        sections={sections}
+        providers={catalog}
+        value={value}
+        secondaryValue={secondaryValue}
+        onAssign={(taskType, modelId) => void assign(taskType, modelId)}
+        onAssignSecondary={(taskType, modelId) => void assign(taskType, modelId)}
+        fallbackInfo={STRINGS.fallbackInfo}
+        clearLabel={STRINGS.clearLabel}
+        disabled={busy}
+        renderMeta={(task) =>
+          task.id !== "default" && !value[task.id] ? (
+            <p className="text-[11px] text-slate-400">{STRINGS.unassignedMeta}</p>
+          ) : null
+        }
+      />
 
-          return (
-            <div
-              key={taskType}
-              className={`p-4 rounded-xl border transition-all group ${
-                isDefault
-                  ? "bg-primary-50/40 border-primary-200 shadow-sm"
-                  : "bg-white border-slate-200 hover:border-primary-300"
-              } ${isOpen ? "border-primary-500 ring-1 ring-primary-500/20" : ""}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`p-2 rounded-lg shrink-0 ${
-                      isDefault
-                        ? "bg-primary-600 text-white"
-                        : "bg-primary-50 text-primary-600 group-hover:bg-primary-100"
-                    }`}
-                  >
-                    <Cpu className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className={`text-md font-bold flex items-center gap-2 ${isDefault ? "text-primary-900" : "text-slate-900"}`}>
-                      <span className="truncate">{TASK_LABELS[taskType] ?? taskType.replace(/_/g, " ")}</span>
-                      {isDefault && (
-                        <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-[9px] font-black uppercase tracking-tighter rounded shrink-0">
-                          System Fallback
-                        </span>
-                      )}
-                      {assignment?.scope === "user" && (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-tighter rounded shrink-0">
-                          <User className="w-2 h-2" /> Mine
-                        </span>
-                      )}
-                    </h4>
-                    {assignment && model ? (
-                      <p className={`text-sm font-medium ${isDefault ? "text-primary-600" : "text-primary-600"}`}>
-                        {model.provider_name} / {model.name}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-slate-500 italic">
-                        Not assigned — will use built-in env default
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {assignment && canConfigure && (
-                    <button
-                      aria-label={`Clear assignment for ${taskType}`}
-                      onClick={() => void assign(taskType, null)}
-                      className="p-1.5 text-slate-300 hover:text-rose-600"
-                      title="Clear assignment (inherit)"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                  {canConfigure && (
-                    <button
-                      onClick={() => {
-                        setOpenPicker(isOpen ? null : taskType);
-                        setSearch("");
-                      }}
-                      className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg font-bold uppercase tracking-wider text-slate-600"
-                    >
-                      {assignment ? "Change" : "Assign"}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {isOpen && (
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  <div className="relative mb-2">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      autoFocus
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search models…"
-                      className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500/20"
-                    />
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {filteredGroups.length === 0 ? (
-                      <p className="text-sm text-slate-400 italic text-center py-6">
-                        No models in this scope yet — add one in the Models tab.
-                      </p>
-                    ) : (
-                      filteredGroups.map((g) => (
-                        <div key={g.providerId} className="mb-2">
-                          <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            {g.providerName}
-                          </div>
-                          {g.models.map((m) => (
-                            <button
-                              key={m.id}
-                              onClick={() => void assign(taskType, m.id)}
-                              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary-50 rounded-lg m-0.5 flex items-center justify-between ${
-                                assignment?.model_id === m.id ? "bg-primary-50" : ""
-                              }`}
-                            >
-                              <span className="flex flex-col">
-                                <span className="font-bold text-slate-700">{m.name}</span>
-                                <span className="text-[10px] text-slate-400 uppercase tracking-tighter font-mono">
-                                  {m.model_name}
-                                </span>
-                              </span>
-                              {assignment?.model_id === m.id && (
-                                <span className="text-[9px] font-black uppercase text-primary-600">assigned</span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
       {!user?.is_admin && (
-        <p className="text-xs text-slate-400">
-          Global assignments are managed by an administrator; set personal overrides to customize your own AI models.
-        </p>
+        <p className="text-xs text-slate-400">{STRINGS.nonAdminNote}</p>
       )}
     </div>
   );
