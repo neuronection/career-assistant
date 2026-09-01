@@ -22,7 +22,10 @@ docker compose -f docker/docker-compose.prod.yml up -d --build
 ```
 
 The app is on `http://<host>:8100`. Migrations run automatically on every
-start.
+start. For a single-host stack with bundled nginx (TLS-ready) use
+`docker/docker-compose.standalone.yml` instead — see *TLS with the bundled
+nginx* below. First-time deploys can also use `./scripts/run-docker.sh`;
+existing installs refresh via `./scripts/update-docker.sh`.
 
 ### First boot walkthrough
 
@@ -46,27 +49,34 @@ start.
 | `API_PORT` | no | `8100` | Host port the app publishes on. |
 | `MAX_UPLOAD_MB` | no | `25` | University PDF upload cap. |
 | `CORS_ORIGINS` | no | *(empty)* | Only needed if you serve the SPA from a different origin than the API. |
-| `CA_DOMAIN` | with proxy | — | Public hostname for the Caddy TLS proxy. |
+| `CAREER_IMAGE` | no | `career-assistant:local` | Deploy a pre-built registry image (e.g. `ghcr.io/neuronection/career-assistant:vX.Y.Z`) instead of building. |
+| `HTTP_PORT` | standalone | `80` | Host port the bundled nginx publishes on (standalone flavor). |
 
-### TLS with the bundled Caddy (optional)
+### TLS with the bundled nginx (standalone flavor)
 
-Point a DNS A/AAAA record at the host, set `CA_DOMAIN` in `docker/.env`, then:
+Point a DNS A/AAAA record at the host, then use the standalone stack:
 
 ```bash
-docker compose -f docker/docker-compose.prod.yml --profile proxy up -d
+docker compose -f docker/docker-compose.standalone.yml up -d --build
 ```
 
-Caddy terminates TLS (automatic Let's Encrypt), streams SSE without
-buffering, and enforces a 64 MB body cap (keep it ≥ `MAX_UPLOAD_MB`).
+By default it serves HTTP on port 80 — fine for VPN/loopback only. For
+internet-facing TLS: set `SERVER_NAME` in `docker/nginx-TLS.conf`, provide
+certs at `docker/certs/{fullchain,privkey}.pem` (certbot webroot renewals
+answer on port 80), uncomment the TLS volumes and the `443:443` mapping in
+the compose file, and swap the mounted conf to `nginx-TLS.conf`. nginx
+streams SSE without buffering and enforces a 64 MB body cap (keep it ≥
+`MAX_UPLOAD_MB`).
 
 ## Upgrades
 
 ```bash
 cd career-assistant
-git pull
-# back up first (see Backups)
-docker compose -f docker/docker-compose.prod.yml up -d --build
+./scripts/update-docker.sh     # git pull + rebuild + restart + health-wait
 ```
+
+Or manually: `git pull`, back up first (see Backups), then
+`docker compose -f docker/docker-compose.prod.yml up -d --build`.
 
 The container runs `alembic upgrade head` on start, so schema migrations
 apply automatically. Pre-1.0 there is **no downgrade path** — pin a version

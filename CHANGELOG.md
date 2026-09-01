@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Windows desktop builds** — the release workflow now produces a PyInstaller
+  onefile `CareerAssistant-<version>-windows-x64.exe` (headless smoke-tested)
+  alongside the Linux deb/AppImage.
+- **Standalone self-hosted stack** — `docker/docker-compose.standalone.yml`
+  (app + Postgres + bundled nginx, TLS-ready) with `docker/nginx.conf` and
+  `docker/nginx-TLS.conf`; ops scripts `scripts/run-docker.sh` and
+  `scripts/update-docker.sh` (build/pull, restart, health-wait).
+- Registry-image deploys: set `CAREER_IMAGE=ghcr.io/…:<tag>` on either
+  compose stack instead of building locally.
+
+### Changed
+- **Caddy retired in favor of nginx** (family standard, matching Health
+  Assistant): the prod compose `proxy` profile is gone; the standalone stack
+  ships the nginx flavor instead. For public deployments switch to the
+  standalone stack (see `docs/deploy.md`).
+
 ### Fixed
 - **Provider connection test on modern OpenAI models** — the test ping sent
   `max_tokens`, which newer OpenAI models reject

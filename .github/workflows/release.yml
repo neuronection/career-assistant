@@ -103,6 +103,82 @@ jobs:
             packaging/*.AppImage
           generate_release_notes: true
 
+  windows:
+    name: Windows executable (PyInstaller onefile)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="$(python3 -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('backend/app/__init__.py').read()).group(1))")"
+          if [[ "refs/tags/v$VERSION" != "$GITHUB_REF" ]]; then
+            echo "Tag $GITHUB_REF does not match app version v$VERSION" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Install backend build dependencies
+        working-directory: backend
+        run: |
+          python -m venv venv
+          ./venv/Scripts/pip install -r requirements.txt aiosqlite pywebview pyinstaller
+
+      - name: Build PyInstaller onefile exe
+        env:
+          CA_ONEFILE: "1"
+        run: backend/venv/Scripts/pyinstaller --clean --noconfirm --distpath backend/dist packaging/career-assistant.spec
+
+      - name: Smoke test frozen bundle (headless web mode)
+        env:
+          DATA_DIR: ${{ runner.temp }}\ca-data
+        shell: pwsh
+        run: |
+          $env:CAREER_SKIP_SEED = "1"
+          $env:API_PORT = "8199"
+          $p = Start-Process -FilePath "backend/dist/CareerAssistant.exe" -ArgumentList "web" -PassThru -NoNewWindow
+          $ok = $false
+          foreach ($i in 1..90) {
+            Start-Sleep -Seconds 2
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8199/health" -TimeoutSec 2
+              if ($health.status -eq "ok") { $ok = $true; break }
+            } catch {}
+          }
+          taskkill /PID $p.Id /T /F 2>$null
+          if (-not $ok) { throw "health check timed out" }
+
+      - name: Rename artifact
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: Copy-Item "backend/dist/CareerAssistant.exe" "packaging/CareerAssistant-$env:VERSION-windows-x64.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-executable
+          path: packaging/CareerAssistant-*-windows-x64.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/CareerAssistant-*-windows-x64.exe
+
   docker:
     name: Docker image (GHCR)
     runs-on: ubuntu-latest
