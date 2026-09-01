@@ -8,7 +8,7 @@
 [![Version](https://img.shields.io/badge/version-v0.1.0-blue.svg)](https://github.com/neuronection/career-assistant/releases)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#scope--limitations)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker%20%7C%20Self--Hosted-lightgrey.svg)](#quick-start)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Docker%20%7C%20Self--Hosted-lightgrey.svg)](#quick-start)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
@@ -161,6 +161,11 @@ python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
 ./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
 ```
 
+**Prebuilt packages** (no Python needed) are published on the
+[Releases](https://github.com/neuronection/career-assistant/releases) page
+for every tagged version: `.deb` + AppImage (Linux) and a portable
+`CareerAssistant-<version>-windows-x64.exe` (Windows).
+
 Closing the window keeps the app running in the tray (after a first-run
 opt-in prompt) — scheduled searches, syncs and alerts continue in the
 background, native toasts arrive through the desktop notification
@@ -204,25 +209,24 @@ flowchart LR
 
 The frontend talks to **domain endpoints** optimized for the UI: catalog (tree + graph), profile, matching, universities, chat and AI settings. All AI work runs through a single structured-output pipeline (`ainvoke_structured`): the resolved provider/model is called, the response is pydantic-validated, and the generation is audited — there is no side door around it.
 
-PDF parsing and AI generation run as FastAPI background tasks; Redis ships in the compose file for a later worker split (no Celery in v1). Deep dive: [dev/plans/00-master-plan.md](dev/plans/00-master-plan.md).
+PDF parsing and AI generation run as FastAPI background tasks; Redis ships in the compose file for a later worker split (no Celery in v1). Deep dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Documentation
 
 **Getting started**
+- [Architecture](docs/ARCHITECTURE.md) — modes, runtime topology, registries, AI pipeline
 - [Deployment](docs/deploy.md) — self-hosting with the production compose stack, TLS, upgrades, backups
 - [Contributing](CONTRIBUTING.md) — dev setup, conventions, PR checklist
-- [Master Plan](dev/plans/00-master-plan.md) — mission, product pillars, domain model, phase plans
-
-**Core systems**
-- [Catalog & Taxonomy](dev/plans/03-catalog.md) — job families, structured attributes, typed relations
-- [AI System](dev/plans/04-ai.md) — provider registry, agents, audit trail
-- [Universities & PDF intake](dev/plans/05-universities.md) — parse → review → apply pipeline
-- [Matching & Rankings](dev/plans/06-matching-rankings.md) — AI + human scoring, filters
-- [Chat & Ask AI](dev/plans/07-chat.md) — tool-calling chatbot, quick-assist
+**Core systems** (deep dives live in local `dev/plans/*.md` — gitignored,
+not part of the public docs)
+- Catalog & Taxonomy — job families, structured attributes, typed relations
+- AI System — provider registry, agents, audit trail
+- Universities & PDF intake — parse → review → apply pipeline
+- Matching & Rankings — AI + human scoring, filters
+- Chat & Ask AI — tool-calling chatbot, quick-assist
 
 **Project status**
 - [Changelog](CHANGELOG.md) — notable changes per release
-- [Phase plans](dev/plans/) — one plan per phase, written before implementation
 
 Interactive API docs are also available at `/docs` on a running backend.
 
