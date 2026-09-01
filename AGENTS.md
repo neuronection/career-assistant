@@ -25,7 +25,9 @@ on tracked plan files).
 ├── backend/    # FastAPI app (app/), alembic/, tests/, venv/
 ├── frontend/   # React SPA (src/)
 ├── docker/     # dev-db compose (:5433/:6380), prod + standalone (nginx) compose, Dockerfile, nginx confs
-├── scripts/    # run-dev.sh, run-tests.sh, seed.sh, sync-brand.sh, sync-dev-lib.sh (canonical family dev lib: scripts/lib/dev-common.sh)
+├── scripts/    # run-dev.sh, run-docker.sh, update-docker.sh, check-changelog.sh,
+│               # run-tests.sh, seed.sh, sync-brand.sh, sync-dev-lib.sh, lib-docker.sh
+│               # (canonical family dev lib: scripts/lib/dev-common.sh)
 ├── assets/     # canonical brand assets (icon.svg, icon-light.svg)
 └── dev/plans/  # phase plans (local-only, gitignored)
 ```
@@ -76,6 +78,7 @@ cd frontend && npm run build && npm run test -- --run
   keeps the funnel).
 - `SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
   tests; drive `SchedulerService(db).tick()` directly.
-- Update `CHANGELOG.md` under `## [Unreleased]` for user-visible changes.
+- Update `CHANGELOG.md` under `## [Unreleased]` for user-visible changes
+  (CI-enforced on PRs via `scripts/check-changelog.sh`).
 - Always test before commit: backend pytest + ruff, frontend build + vitest.
 - Never push to a remote unless explicitly asked.
