@@ -144,7 +144,7 @@ export function ProvidersTab({ providers, canManageGlobal, onChanged, onAdd, onE
           {items.length === 0 ? (
             <EmptyState icon={Zap} compact title={empty} />
           ) : (
-            <div className="grid md:grid-cols-2 gap-3">
+            <div className="grid gap-3">
               {items.map((p) => {
                 const editable = scope === "user" || canManageGlobal;
                 const testModel = testModelFor(p.id);
