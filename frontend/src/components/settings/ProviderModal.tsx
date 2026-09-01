@@ -25,21 +25,22 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
   const save = async () => {
     setBusy(true);
     setError("");
+    const trimmedKey = apiKey.trim();
     try {
       if (provider) {
         await aiApi.updateProvider(provider.id, {
           name,
           provider_type: providerType as AIProvider["provider_type"],
           api_base: apiBase,
-          api_key: apiKey || "***",
           scope: scope as AIProvider["scope"],
+          ...(trimmedKey ? { api_key: trimmedKey } : {}),
         });
       } else {
         await aiApi.createProvider({
           name,
           provider_type: providerType as AIProvider["provider_type"],
           api_base: apiBase,
-          api_key: apiKey || null,
+          api_key: trimmedKey || null,
           scope: scope as AIProvider["scope"],
         });
       }

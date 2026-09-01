@@ -5,6 +5,16 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **AI settings rebuilt on the family UI library, part 2 of 3 (Providers tab)** —
+  provider cards now carry the family's inline `ConnectionTestRow`: a
+  Test button pings the provider with its first registered model and shows
+  Connected/Failed with the error detail (cards without a registered model
+  say so instead of offering a test). Provider deletion goes through the
+  family confirm dialog. The provider modal keeps the write-only API key
+  contract — an empty key field no longer resends the stored-key marker.
+  Career's `/ai/test` endpoint needs both a provider and a model id, so the
+  test always runs through a registered model; per-provider keyless pings
+  remain a backend gap.
 - **AI settings rebuilt on the family UI library, part 1 of 3 (Models tab)** —
   the Models tab is now the family's `ModelRegistry` module: provider cards
   with chevron tiles and enabled/total pills, registered-model rows with

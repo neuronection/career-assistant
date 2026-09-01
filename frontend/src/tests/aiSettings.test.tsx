@@ -23,6 +23,8 @@ vi.mock("@/api/ai", async (importOriginal) => {
     setAssignment: vi.fn(),
     addModel: vi.fn(),
     deleteModel: vi.fn(),
+    testConnection: vi.fn(),
+    deleteProvider: vi.fn(),
   };
 });
 
@@ -168,6 +170,35 @@ describe("AIConfig (settings > AI)", () => {
     expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit gpt-4o-mini" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove gpt-4o-mini" })).not.toBeInTheDocument();
+  });
+
+  it("providers tab: tests a connection through the first active model", async () => {
+    mocked.fetchAllModels.mockResolvedValue([
+      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+    ]);
+    mocked.testConnection.mockResolvedValue({ ok: true, reply: "OK" });
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("1 models")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    await waitFor(() => expect(mocked.testConnection).toHaveBeenCalledWith("p1", "m1"));
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
+  });
+
+  it("providers tab: connection test is unavailable without a registered model", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
+    expect(screen.getByText(/Register a model first/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Test" })).not.toBeInTheDocument();
+  });
+
+  it("providers tab: deletes a provider through a confirm dialog", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Org OpenAI" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Delete Org OpenAI?")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mocked.deleteProvider).toHaveBeenCalledWith("p1"));
   });
 
   it("tasks tab renders assignment cards with fallback note", async () => {
