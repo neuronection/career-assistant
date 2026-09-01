@@ -1,3 +1,4 @@
+import pytest
 from app.core.encryption import (
     decrypt_secret,
     encrypt_secret,
@@ -5,6 +6,7 @@ from app.core.encryption import (
     mask_secret,
 )
 from app.ai.providers.resolution import resolve_task_model
+from app.ai.providers.service import AIProviderService
 from app.core.security import hash_password
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.enums import AITaskType
@@ -322,3 +324,61 @@ async def test_test_connection_endpoint(client, auth_headers):
     )
     assert result.status_code == 200
     assert result.json()["ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "expected_param"),
+    [
+        ("openai", "max_completion_tokens"),
+        ("openai_compatible", "max_tokens"),
+    ],
+)
+async def test_run_test_sends_cap_param_per_provider_type(
+    db, provider_type, expected_param, monkeypatch
+):
+    """Modern OpenAI models reject `max_tokens`; compatible endpoints don't
+    know `max_completion_tokens` — the test ping adapts per provider type."""
+
+    import openai
+
+    user = await _mk_user(db, f"testconn-{provider_type}@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type=provider_type
+    )
+    captured = {}
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            captured.update(kwargs)
+
+            class _Message:
+                content = "OK"
+
+            class _Choice:
+                message = _Message()
+
+            class _Response:
+                choices = [_Choice()]
+                usage = None
+
+            return _Response()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        def __init__(self, **kwargs):
+            self.chat = _FakeChat()
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", _FakeClient)
+    result = await AIProviderService(db).run_test(
+        user, provider_id=provider.id, model_id=model.id
+    )
+    assert result["ok"] is True
+    assert expected_param in captured
+    unexpected = (
+        "max_tokens"
+        if expected_param == "max_completion_tokens"
+        else "max_completion_tokens"
+    )
+    assert unexpected not in captured

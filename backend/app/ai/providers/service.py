@@ -300,12 +300,17 @@ class AIProviderService:
                 base_url=provider.api_base,
                 timeout=20,
             )
+            cap_param: dict[str, int] = (
+                {"max_completion_tokens": 5}
+                if provider.provider_type == "openai"
+                else {"max_tokens": 5}
+            )
             response = await client.chat.completions.create(
                 model=model.model_name,
                 messages=[
                     {"role": "user", "content": "Reply with the single word: OK"}
                 ],
-                max_tokens=5,
+                **cap_param,
                 temperature=0,
             )
             reply = (response.choices[0].message.content or "").strip()

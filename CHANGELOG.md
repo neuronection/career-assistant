@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Provider connection test on modern OpenAI models** — the test ping sent
+  `max_tokens`, which newer OpenAI models reject
+  (`unsupported_parameter`); `openai`-type providers now send
+  `max_completion_tokens`, OpenAI-compatible endpoints keep `max_tokens`.
+  Long provider API errors wrap onto multiple lines on the provider cards
+  instead of being clipped (library `ConnectionTestRow` fix, pending
+  assistant-ui release).
+
 ### Changed
 - **AI settings rebuilt on the family UI library, part 3 of 3 (Tasks tab)** —
   task→model assignments move onto the family's `TaskAssignmentPicker`:
