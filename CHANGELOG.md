@@ -4,13 +4,40 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Dev DX in `run-dev.sh`** — the dev DB (Postgres/Redis) now starts
+  automatically when it is not running, backend Alembic migrations are
+  applied on every startup (opt out with `--no-migrate`), and the
+  idempotent seed (taxonomy + starter catalog) runs on every startup so a
+  fresh/reset DB is immediately usable. New `--reset [--yes]` flow wipes
+  the dev DB volume, re-migrates, re-seeds, and starts the dev group.
+- **ChipInput pending affordance** (upstream `@neuronection/assistant-ui`
+  changeset, pending release) — while typing, the draft renders as a
+  dashed pending chip so each entry is visibly its own separate item, plus
+  an optional `hint` helper line wired via `aria-describedby`.
+
 ### Changed
+
+- **User menu on the shared library primitive** — the header sign-out
+  button is now `UserMenu` from `@neuronection/assistant-ui` (avatar
+  initials disc, identity header, Profile/Settings/Sign out items with
+  keyboard menu semantics). Part of the family nav primitives program
+  (ADR-0007).
 - **Onboarding wizard polish** — the work-style sliders are modernized
   (filled track, larger thumb, readable end labels), the
   "How do you like to work?" step explains the people/things/data/ideas
   focus areas with icons and descriptions, multi-entry lists (likes,
   dislikes, hobbies, aspirations) show an explicit Add button with
-  per-entry hints, and the wizard now uses the full available height
+  per-entry hints, the interests step now fills the available card height
+  (its grid grows instead of capping at a fixed 18rem), the wizard card has
+  an explicit minimum height with step content scrolling internally, a
+  sticky action bar keeps Back/Save (and the saved/error state) reachable
+  at all sizes, completed wizard steps are clickable to jump back with
+  check markers (labels collapse to the active step on phones), the wizard
+  fills the dynamic viewport height on mobile with a full-bleed surface
+  (no card box or page gutters on phones; compact search and interest
+  tiles), and the wizard now
+  uses the full available height
   (needs `@neuronection/assistant-ui` ≥ the release containing the
   ScaleSlider/ChipInput changes).
 

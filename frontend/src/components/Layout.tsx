@@ -1,29 +1,15 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Briefcase, Building2, CalendarRange, ClipboardList, Globe, Info, LayoutDashboard, Route, Search, Settings2, Sparkles, Trophy, UserRound } from "lucide-react";
+import { LogOut, Settings2, UserRound } from "lucide-react";
 
+import { UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { ChatWidget } from "@/components/ChatWidget";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ToastHost } from "@/components/ToastHost";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
-
-const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, studentOnly: false },
-  { to: "/catalog", label: "Catalog", icon: Briefcase, studentOnly: false },
-  { to: "/generate", label: "Generate", icon: Sparkles, studentOnly: false },
-  { to: "/rankings", label: "Rankings", icon: Trophy, studentOnly: false },
-  { to: "/postings", label: "Live", icon: Globe, studentOnly: false },
-  { to: "/explore", label: "Explore", icon: Search, studentOnly: false },
-  { to: "/growth", label: "Growth", icon: Route, studentOnly: false },
-  { to: "/assessment", label: "Assessment", icon: ClipboardList, studentOnly: false },
-  { to: "/universities", label: "Universities", icon: Building2, studentOnly: true },
-  { to: "/profile", label: "Profile", icon: UserRound, studentOnly: false },
-  { to: "/experience", label: "Experience", icon: CalendarRange, studentOnly: false },
-  { to: "/about", label: "About", icon: Info, studentOnly: false },
-  { to: "/settings/ai", label: "Settings", icon: Settings2, studentOnly: false },
-];
+import { NAV } from "@/config/nav";
 
 export function Layout() {
   const { user, loadUser, logout } = useAuthStore();
@@ -71,15 +57,22 @@ export function Layout() {
           <div className="flex items-center gap-2">
             {user && <NotificationBell />}
             {user && (
-              <button
-                onClick={() => {
-                  logout();
-                  navigate("/login");
+              <UserMenu
+                email={user.email}
+                items={[
+                  { id: "/profile", label: "Profile", icon: UserRound },
+                  { id: "/settings/ai", label: "Settings", icon: Settings2 },
+                  { id: "signout", label: "Sign out", icon: LogOut, tone: "danger" },
+                ]}
+                onItemSelect={(id) => {
+                  if (id === "signout") {
+                    logout();
+                    navigate("/login");
+                    return;
+                  }
+                  navigate(id);
                 }}
-                className="text-sm text-slate-500 hover:text-slate-800"
-              >
-                {user.email} · Sign out
-              </button>
+              />
             )}
           </div>
         </div>
