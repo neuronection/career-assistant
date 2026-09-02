@@ -17,11 +17,10 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Added
 - **Compact sidebar on short viewports** — at ≤720px window height the
-  nav drops to the library's new `SidebarNav` `compact` density and the
-  footer drops to a compact variant (Neuronection mark + wordmark link,
-  smaller Fund/About pills, version; the family panel hides) so every
-  nav entry stays reachable (library change pending the next
-  `@neuronection/assistant-ui` release).
+  nav drops to the library's new `SidebarNav` `compact` density (shipped in
+  `@neuronection/assistant-ui` 0.17.0) and the footer drops to a compact
+  variant (Neuronection mark + wordmark link, smaller Fund/About pills,
+  version; the family panel hides) so every nav entry stays reachable.
 
 ## [0.4.1] - 2026-09-02
 
