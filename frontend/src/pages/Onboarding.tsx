@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, Lightbulb, Rocket, Sparkles, Users, Wrench } from "lucide-react";
+import { BarChart3, Check, Lightbulb, Rocket, Sparkles, Users, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useProfileStore } from "@/stores/profileStore";
 import { apiDetail } from "@/api/client";
@@ -67,6 +67,11 @@ export function Onboarding() {
   const [error, setError] = useState("");
   const { profile, interests, load, loadTaxonomy, saveSection, analyze } = useProfileStore();
   const navigate = useNavigate();
+  const stepRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    stepRef.current?.scrollTo({ top: 0 });
+  }, [step]);
 
   useEffect(() => {
     void load();
@@ -107,26 +112,45 @@ export function Onboarding() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col min-h-[calc(100vh-8.5rem)]" data-testid="onboarding">
+    <div className="max-w-3xl flex flex-col h-[calc(100dvh-6.5rem)] min-h-0 -mx-4 -mt-6 -mb-6 sm:mx-auto sm:mt-0 sm:mb-0" data-testid="onboarding">
       <Link
         to="/onboarding/express"
-        className="mb-4 flex items-center gap-2 text-sm bg-primary-50 border border-primary-100 text-primary-800 rounded-xl px-4 py-2.5 hover:border-primary-300"
+        className="mb-2 sm:mb-4 flex items-center gap-2 text-xs sm:text-sm bg-primary-50 border border-primary-100 text-primary-800 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 hover:border-primary-300"
         data-testid="express-entry"
       >
-        <Rocket className="w-4 h-4" />
+        <Rocket className="w-4 h-4 shrink-0" />
         Already know your target job? Express start — 2 minutes, no profiling.
       </Link>
-      <div className="flex items-center gap-2 mb-6">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex-1">
-            <div className={`h-1.5 rounded-full ${i <= step ? "bg-primary-600" : "bg-slate-200"}`} />
-            <p className={`text-xs mt-1 ${i === step ? "text-primary-700 font-medium" : "text-slate-400"}`}>{label}</p>
-          </div>
-        ))}
+      <div className="flex items-start gap-1.5 sm:gap-2 mb-3 sm:mb-6">
+        {STEPS.map((label, i) => {
+          const done = i < step;
+          const active = i === step;
+          return (
+            <button
+              key={label}
+              type="button"
+              disabled={!done}
+              aria-current={active ? "step" : undefined}
+              aria-label={label}
+              onClick={() => {
+                setSaved(false);
+                setError("");
+                setStep(i);
+              }}
+              className={`flex-1 text-left ${done ? "cursor-pointer" : "cursor-default"}`}
+            >
+              <div className={`h-1.5 rounded-full transition-colors ${i <= step ? "bg-primary-600" : "bg-slate-200"}`} />
+              <p className={`text-xs mt-1 items-center gap-1 ${active ? "flex text-primary-700 font-medium" : done ? "hidden sm:flex text-slate-500 hover:text-primary-700" : "hidden sm:flex text-slate-400"}`}>
+                {done && <Check className="w-3 h-3 shrink-0" aria-hidden />}
+                {label}
+              </p>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 flex flex-1 flex-col">
-        <div className="flex-1">
+      <div className="bg-white border-0 sm:border sm:border-slate-200 sm:rounded-2xl p-4 sm:p-6 md:p-8 flex flex-1 flex-col min-h-0">
+        <div ref={stepRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col pr-1" data-testid="step-content">
           {step === 0 && <BasicsStep profile={profile} draft={draft} setDraft={setDraft} />}
           {step === 1 && <AcademicsStep profile={profile} draft={draft} setDraft={setDraft} />}
           {step === 2 && <InterestsStep profile={profile} draft={draft} setDraft={setDraft} interests={interests} />}
@@ -136,29 +160,33 @@ export function Onboarding() {
           {step === 6 && <ConstraintsStep profile={profile} draft={draft} setDraft={setDraft} />}
         </div>
 
-        {error && <p className="text-sm text-rose-600 mt-3">{error}</p>}
-        {saved && step < STEPS.length - 1 && <p className="text-sm text-emerald-600 mt-3">Saved ✓</p>}
-        <div className="flex justify-between mt-8">
-          <button
-            onClick={() => setStep(Math.max(0, step - 1))}
-            disabled={step === 0}
-            className="text-sm px-4 py-2 rounded-lg border border-slate-200 disabled:opacity-40"
-          >
-            Back
-          </button>
-          <button
-            onClick={() => void next()}
-            disabled={analyzing}
-            className="text-sm px-5 py-2 rounded-lg bg-primary-600 text-white font-medium disabled:opacity-50 flex items-center gap-1"
-          >
-            {step === STEPS.length - 1 ? (
-              <>
-                <Sparkles className="w-4 h-4" /> {analyzing ? "Analyzing…" : "Finish & analyze"}
-              </>
-            ) : (
-              "Save & continue"
-            )}
-          </button>
+        <div className="sticky bottom-0 -mx-4 -mb-4 mt-3 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:rounded-b-2xl sm:px-6 sm:py-4 md:-mx-8 md:-mb-8 md:px-8">
+          {error && <p className="text-sm text-rose-600">{error}</p>}
+          {saved && step < STEPS.length - 1 && <p className="text-sm text-emerald-600">Saved ✓</p>}
+          <div className="flex justify-between">
+            <button
+              type="button"
+              onClick={() => setStep(Math.max(0, step - 1))}
+              disabled={step === 0}
+              className="text-sm px-4 py-2 rounded-lg border border-slate-200 disabled:opacity-40"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => void next()}
+              disabled={analyzing}
+              className="text-sm px-5 py-2 rounded-lg bg-primary-600 text-white font-medium disabled:opacity-50 flex items-center gap-1"
+            >
+              {step === STEPS.length - 1 ? (
+                <>
+                  <Sparkles className="w-4 h-4" /> {analyzing ? "Analyzing…" : "Finish & analyze"}
+                </>
+              ) : (
+                "Save & continue"
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -323,15 +351,15 @@ function InterestsStep({
     (t) => !query || t.label.toLowerCase().includes(query.toLowerCase()) || t.key.includes(query.toLowerCase())
   );
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 min-h-0 flex-col space-y-4">
       <h2 className="font-semibold">Pick your interests — this powers your matches</h2>
       <input
         placeholder="Search interests…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+        className="w-full h-8 border border-slate-200 rounded-lg px-2.5 text-xs sm:h-9 sm:px-3 sm:text-sm"
       />
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 sm:gap-2 content-start flex-1 min-h-0 overflow-y-auto pr-1">
         {filtered.map((tag) => {
           const found = current.find((i) => i.tag_key === tag.key);
           return (
@@ -344,12 +372,12 @@ function InterestsStep({
                   : [...current, { tag_key: tag.key, weight: 3, source: "self" }];
                 setDraft({ ...draft, interests: next });
               }}
-              className={`text-sm text-left px-3 py-2 rounded-lg border ${
+              className={`text-left px-2 py-1.5 rounded-lg border text-xs sm:px-3 sm:py-2 sm:text-sm ${
                 found ? "bg-primary-600 text-white border-primary-600" : "border-slate-200 hover:border-primary-500"
               }`}
             >
               {tag.label}
-              <span className="block text-xs opacity-60">{tag.category}</span>
+              <span className="hidden sm:block text-xs opacity-60">{tag.category}</span>
             </button>
           );
         })}
