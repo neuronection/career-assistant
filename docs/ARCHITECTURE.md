@@ -62,8 +62,8 @@ resolved provider → pydantic-validated response → audited row in
 - **Periodic work** only via the scheduler (`app/services/scheduler/`;
   triggers via `career_assistant.scheduler_triggers`). The scheduler decides
   WHEN and only enqueues jobs.
-- **Notifications** always flow through `EngagementService.emit` (single
-  funnel).
+- **Notifications** always flow through `NotificationService.emit` (single
+  funnel; alert rules and their triggers live on `EngagementService`).
 
 PDF parsing and AI generation run as FastAPI background tasks; Redis ships
 in the compose file for a later worker split (no Celery in v1).

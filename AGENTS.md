@@ -74,7 +74,7 @@ cd frontend && npm run build && npm run test -- --run
   work only via the scheduler (`app/services/scheduler/`, triggers via
   `career_assistant.scheduler_triggers`) — the scheduler decides WHEN and
   only enqueues plan-12 jobs; notifications always emit through
-  `EngagementService.emit` (single funnel; plan 36 replaces storage,
+  `NotificationService.emit` (single funnel; plan 36 replaces storage,
   keeps the funnel).
 - `SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
   tests; drive `SchedulerService(db).tick()` directly.
