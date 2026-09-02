@@ -18,6 +18,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **Sidebar navigation replaces the top nav** — the 13-link header row is
+  now `SidebarNav` from `@neuronection/assistant-ui` (sectioned flat list:
+  Dashboard / Job hunt / Account / General, collapsed icon rail on
+  desktop, off-canvas drawer + hamburger on mobile — career's first
+  mobile navigation story). Header keeps bell + user menu; the page
+  footer moved into the sidebar footer; skip-to-content link added.
 - **User menu on the shared library primitive** — the header sign-out
   button is now `UserMenu` from `@neuronection/assistant-ui` (avatar
   initials disc, identity header, Profile/Settings/Sign out items with
