@@ -4,6 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Release build fixed** — bump `@neuronection/assistant-ui` to `^0.16.0`
+  (0.15.0 was pinned and, for `0.x`, caret does not cross minors, so CI
+  installed a version whose `SponsorCard` lacked the `columns` prop used by
+  the sidebar footer support popup, failing `tsc`).
+
 ### Changed
 - **Version manager propagates the app version** — `set`/`bump` now also
   update the README version badge and `frontend/package.json` +
