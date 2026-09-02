@@ -104,3 +104,129 @@ async def generate_question_set(
         ),
         user_id=user_id,
     )
+
+
+# ---------------------------------------------- template drafting (plan 37)
+
+
+def _mock_template_content(schema: type, user_prompt: str) -> dict:
+    ctx = parse_context(user_prompt)
+    skills = ctx.get("skill_taxonomy") or ["problem-solving"]
+    brief = ctx.get("brief") or {}
+    length = int(brief.get("question_count") or 2)
+    skill_a = skills[0]
+    skill_b = skills[1 % len(skills)]
+    questions = []
+    for index in range(max(1, min(length, 5))):
+        if index % 2 == 0:
+            questions.append(
+                {
+                    "kind": "scenario_mcq",
+                    "prompt": (
+                        f"{brief.get('title') or 'A work scenario'}: the deadline "
+                        "moves up by a week. What is your first move?"
+                    ),
+                    "help": "Pick the closest option.",
+                    "options": [
+                        {
+                            "id": "o1",
+                            "label": "Re-plan the work with the team",
+                            "scores": {
+                                "skill_levels": {skill_a: 3},
+                                "interest_keys": [],
+                            },
+                        },
+                        {
+                            "id": "o2",
+                            "label": "Shield the team and renegotiate scope",
+                            "scores": {
+                                "skill_levels": {skill_b: 3},
+                                "interest_keys": [],
+                            },
+                        },
+                    ],
+                }
+            )
+        else:
+            questions.append(
+                {
+                    "kind": "slider",
+                    "prompt": f"How confident are you with {skill_a.replace('-', ' ')}?",
+                    "help": "1 = new to it, 10 = teach it.",
+                    "skill_key": skill_a,
+                }
+            )
+    return {
+        "schema_version": 1,
+        "phases": [
+            {"title": brief.get("title") or "Draft template", "questions": questions}
+        ],
+        "normalization": {
+            "multiplier": 1.0,
+            "clamp_min": 1.0,
+            "clamp_max": 10.0,
+            "bands": [
+                {
+                    "min": 0.0,
+                    "max": 5.0,
+                    "label": "Exploring",
+                    "summary": "Early signal — try more scenarios.",
+                    "suggested_levels": {skill_a: 3},
+                    "next_actions": [],
+                },
+                {
+                    "min": 5.0,
+                    "max": 10.0,
+                    "label": "Building",
+                    "summary": "Solid foundation — deepen your practice.",
+                    "suggested_levels": {skill_a: 6},
+                    "next_actions": [],
+                },
+            ],
+        },
+    }
+
+
+register_mock_fixture(AITaskType.TEMPLATE_DESIGN, _mock_template_content)
+
+
+async def generate_template_draft(
+    db: AsyncSession,
+    user_id,
+    *,
+    brief: dict,
+    skill_keys: list[str],
+    extend_of: dict | None = None,
+):
+    """Draft (or extend) a full template from a brief; output validates
+    like any write — the author reviews before publish (plan 37)."""
+    from app.schemas.assessment_template import TemplateContent
+
+    mode = "extend" if extend_of else "draft"
+    return await ainvoke_structured(
+        db,
+        AITaskType.TEMPLATE_DESIGN,
+        TemplateContent,
+        system=(
+            "You design career self-assessment templates as structured "
+            "content. Use only the provided skill taxonomy keys in deltas. "
+            "Options must be concrete and non-judgmental; keep the tone "
+            f"{brief.get('tone') or 'encouraging'}. Produce a complete, "
+            "runnable template."
+            + (
+                " You are EXTENDING an existing template — match its style "
+                "and only add questions."
+                if extend_of
+                else ""
+            )
+        ),
+        user=context_json(
+            {
+                "brief": brief,
+                "skill_taxonomy": skill_keys,
+                "mode": mode,
+                "existing_template": extend_of or {},
+            }
+        ),
+        user_id=user_id,
+    )

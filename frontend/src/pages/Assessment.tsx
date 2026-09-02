@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { FileDown, FileUp, Library } from "lucide-react";
 import { ScaleSlider } from "@/components/ui";
 import { apiDetail } from "@/api/client";
 import {
@@ -7,11 +8,16 @@ import {
   assistQuestion,
   cancelAssessment,
   createAssessment,
+  exportTemplate,
   fetchAssessment,
   fetchAssessmentResults,
+  fetchTemplates,
+  importTemplate,
+  runTemplate,
   submitAnswers,
   type AssessmentQuestion,
   type AssessmentState,
+  type AssessmentTemplate,
 } from "@/api/assessments";
 import type { AssessmentResults } from "@/api/assessments";
 
@@ -24,6 +30,9 @@ export function Assessment() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [effects, setEffects] = useState<Record<string, unknown> | null>(null);
+  const [templates, setTemplates] = useState<AssessmentTemplate[]>([]);
+  const [templateNote, setTemplateNote] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const start = useCallback(async (kind: string, context: Record<string, unknown> = {}) => {
     setBusy(true);
@@ -53,7 +62,48 @@ export function Assessment() {
         setBusy(false);
       }
     })();
+    void fetchTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
   }, []);
+
+  const startTemplate = async (template: AssessmentTemplate) => {
+    setBusy(true);
+    setError("");
+    try {
+      const fresh = await runTemplate(template.id);
+      setState(fresh);
+      setResults(null);
+      setEffects(null);
+      setDraft({});
+      setTemplateNote(`Running template: ${template.title}`);
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importFromFile = async (file: File) => {
+    setError("");
+    try {
+      const pkg = JSON.parse(await file.text());
+      const imported = await importTemplate(pkg);
+      const proposed = imported.import_report?.proposed ?? [];
+      setTemplateNote(
+        proposed.length > 0
+          ? `Imported "${imported.title}" — ${proposed.length} new skill(s) proposed for moderation.`
+          : `Imported "${imported.title}".`
+      );
+      const fresh = await runTemplate(imported.id);
+      setState(fresh);
+      setResults(null);
+      setEffects(null);
+      setDraft({});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : apiDetail(err));
+    }
+  };
 
   const setAnswer = (questionId: string, answer: Record<string, unknown> | null) => {
     setDraft((d) => ({ ...d, [questionId]: answer }));
@@ -177,6 +227,78 @@ export function Assessment() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto" data-testid="assessment">
+      <section
+        className="rounded-xl border border-slate-200 bg-white p-4"
+        data-testid="templates-panel"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+            <Library className="w-4 h-4" /> Test library
+          </h2>
+          <div className="flex items-center gap-2">
+            {templateNote && (
+              <span className="text-xs text-emerald-700" data-testid="template-note">
+                {templateNote}
+              </span>
+            )}
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importFromFile(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
+              data-testid="import-template"
+            >
+              <FileUp className="w-3.5 h-3.5" /> Import
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {templates.length === 0 && (
+            <p className="text-xs text-slate-400">
+              No templates yet — bank templates and imports appear here.
+            </p>
+          )}
+          {templates.map((t) => (
+            <div
+              key={t.id}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5"
+              data-testid="template-chip"
+            >
+              <button
+                type="button"
+                onClick={() => void startTemplate(t)}
+                className="text-xs text-slate-800 hover:text-primary-700"
+                title={t.description || t.title}
+              >
+                {t.title}
+                <span className="ml-1 text-slate-400">
+                  v{t.version}
+                  {t.is_bank ? " · bank" : ""}
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Export ${t.title}`}
+                onClick={() => void exportTemplate(t.id)}
+                className="text-slate-300 hover:text-slate-600"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900 capitalize">{state.kind} assessment</h1>
         <button
