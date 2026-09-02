@@ -36,7 +36,8 @@ jobs:
             PIXBUF_BIN=libgdk-pixbuf-2.0-bin
           fi
           sudo apt-get install -y --no-install-recommends \
-            libgtk-3-0 libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 file "$PIXBUF_BIN"
+            libgtk-3-0 libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 \
+            libgirepository1.0-dev libcairo2-dev pkg-config file xvfb "$PIXBUF_BIN"
 
       - uses: actions/setup-python@v5
         with:
@@ -58,7 +59,7 @@ jobs:
         working-directory: backend
         run: |
           python -m venv venv
-          ./venv/bin/pip install -r requirements.txt aiosqlite pywebview pyinstaller
+          ./venv/bin/pip install -r requirements.txt aiosqlite pywebview pygobject pyinstaller
 
       - name: Download appimagetool
         run: |
@@ -86,6 +87,23 @@ jobs:
             http://127.0.0.1:8199/api/v1/definitely-not-a-route)"
           [[ "$resp" == "404 application/json"* ]]
           grep -q "Not Found" notfound.json
+
+      - name: Smoke test desktop launch under xvfb (stripped deb stage)
+        run: |
+          set +e
+          DATA_DIR="$PWD/packaging/_smoke-desktop" CAREER_SKIP_SEED=1 \
+            WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 \
+            timeout 30 xvfb-run -a \
+            packaging/_deb/usr/lib/careerassistant/careerassistant \
+            > desktop-smoke.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 124 ]; then
+            echo "desktop launch exited with $code (expected 124 = survived):" >&2
+            cat desktop-smoke.log >&2
+            exit 1
+          fi
+          echo "desktop launch survived 30s"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

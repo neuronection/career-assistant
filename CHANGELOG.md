@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Linux desktop packages fixed** — the CI build env now installs
+  PyGObject, so the deb/AppImage bundle ships the `gi` module (0.4.0/0.4.1
+  packages failed on launch: pywebview found neither GTK nor QT and exited).
+  Release and CI packaging additionally install the GTK/WebKit system deps
+  they were silently missing, both jobs now smoke-test a real desktop launch
+  under xvfb (exit-after-30s = pass), and the deb declares
+  `libglib2.0-0` + `libgirepository-1.0-1`.
+
+### Added
+- **Compact sidebar on short viewports** — at ≤720px window height the
+  nav drops to the library's new `SidebarNav` `compact` density and the
+  footer drops to a compact variant (Neuronection mark + wordmark link,
+  smaller Fund/About pills, version; the family panel hides) so every
+  nav entry stays reachable (library change pending the next
+  `@neuronection/assistant-ui` release).
+
 ## [0.4.1] - 2026-09-02
 
 ### Fixed

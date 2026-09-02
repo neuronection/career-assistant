@@ -82,7 +82,7 @@ Section: education
 Priority: optional
 Architecture: amd64
 Maintainer: Neuronection <dev@neuronection.com>
-Depends: libgtk-3-0, libwebkit2gtk-4.1-0
+Depends: libgtk-3-0, libwebkit2gtk-4.1-0, libglib2.0-0, libgirepository-1.0-1
 Description: AI-guided career discovery for students
  Self-hosted career-discovery platform: structured job catalog, deep student
  profiles, AI + human matching and university pathway intake. Runs fully

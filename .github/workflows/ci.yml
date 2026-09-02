@@ -110,9 +110,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-0 libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 \
+            libgirepository1.0-dev libcairo2-dev pkg-config file xvfb
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-python@v5
@@ -127,7 +133,7 @@ jobs:
         working-directory: backend
         run: |
           python -m venv venv
-          ./venv/bin/pip install -r requirements.txt aiosqlite pywebview pyinstaller
+          ./venv/bin/pip install -r requirements.txt aiosqlite pywebview pygobject pyinstaller
       - name: Build bundle
         run: ./packaging/build-linux.sh bundle
       - name: Smoke test frozen bundle (headless web mode)
@@ -149,6 +155,22 @@ jobs:
             http://127.0.0.1:8199/api/v1/definitely-not-a-route)"
           [[ "$resp" == "404 application/json"* ]]
           grep -q "Not Found" notfound.json
+      - name: Smoke test desktop launch under xvfb (frozen bundle)
+        run: |
+          set +e
+          DATA_DIR="$PWD/packaging/_smoke-desktop" CAREER_SKIP_SEED=1 \
+            WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 \
+            timeout 30 xvfb-run -a \
+            backend/dist/careerassistant/careerassistant \
+            > desktop-smoke.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 124 ]; then
+            echo "desktop launch exited with $code (expected 124 = survived):" >&2
+            cat desktop-smoke.log >&2
+            exit 1
+          fi
+          echo "desktop launch survived 30s"
 
   docker:
     name: Docker (build image + validate compose)
