@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-02
+
 ### Added
 - **Dev DX in `run-dev.sh`** — the dev DB (Postgres/Redis) now starts
   automatically when it is not running, backend Alembic migrations are
@@ -209,6 +211,10 @@ All notable changes to **Career Assistant** are documented here.
   reports an explanatory note. `@neuronection/assistant-ui` moves to
   `^0.13.1` (pending library release carries the read-only provider flag —
   see the release note in the final adoption report).
+
+## [0.3.0] - 2026-09-01
+
+### Changed
 - **Internal identifier rebrand** — environment variables
   (`CAREER_SKIP_SEED`, `CAREER_ENV_FILE`), the browser session-storage
   key, and the local dev-database identifiers (compose project
