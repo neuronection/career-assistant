@@ -32,6 +32,7 @@ logging/
 
 # Local planning notes
 dev/
+dev
 
 # Editors / OS
 .idea/
