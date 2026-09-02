@@ -13,7 +13,10 @@ All notable changes to **Career Assistant** are documented here.
   Release and CI packaging additionally install the GTK/WebKit system deps
   they were silently missing, both jobs now smoke-test a real desktop launch
   under xvfb (exit-after-30s = pass), and the deb declares
-  `libglib2.0-0` + `libgirepository-1.0-1`.
+  `libglib2.0-0` + `libgirepository-1.0-1`. The build env also installs
+  `libgirepository-2.0-dev` where available, since PyGObject 3.58+ no
+  longer builds against the 1.0 API (source-only install had started
+  failing mid-release).
 
 ### Added
 - **Compact sidebar on short viewports** — at ≤720px window height the

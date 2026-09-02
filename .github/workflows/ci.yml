@@ -116,6 +116,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-0 libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 \
             libgirepository1.0-dev libcairo2-dev pkg-config file xvfb
+          # pygobject >= 3.58 builds against girepository-2.0 (Ubuntu 24.04+)
+          if apt-cache show libgirepository-2.0-dev >/dev/null 2>&1; then
+            sudo apt-get install -y --no-install-recommends libgirepository-2.0-dev
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
