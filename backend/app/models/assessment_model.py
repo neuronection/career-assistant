@@ -17,8 +17,9 @@ class AssessmentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="full")
     # Set when a run executes a plan-37 template; built-ins run template-less.
-    # UUID today — plan 37 adds the table + real FK.
-    template_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    template_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("assessment_templates.id", ondelete="SET NULL"), nullable=True
+    )
     phase_order: Mapped[list] = mapped_column(
         StructuredJSON, nullable=False, default=list
     )

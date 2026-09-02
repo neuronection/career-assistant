@@ -1,6 +1,7 @@
 from app.models.ai_model import AIGeneration
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.background_job_model import BackgroundJob
+from app.models.assessment_template_model import AssessmentTemplate
 from app.models.assessment_model import (
     AssessmentAnswer,
     AssessmentQuestion,
@@ -57,6 +58,7 @@ __all__ = [
     "AssessmentRun",
     "AssessmentQuestion",
     "AssessmentAnswer",
+    "AssessmentTemplate",
     "BackgroundJob",
     "User",
     "Profile",

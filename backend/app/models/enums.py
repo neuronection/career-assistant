@@ -187,6 +187,7 @@ class AssessmentKind(str, Enum):
     ONBOARDING = "onboarding"
     FULL = "full"
     CUSTOM = "custom"
+    TEMPLATE = "template"
 
 
 class AssessmentStatus(str, Enum):
@@ -214,6 +215,7 @@ class QuestionStatus(str, Enum):
 
 class AITaskType(str, Enum):
     ASSESSMENT_GENERATE = "assessment_generate"
+    TEMPLATE_DESIGN = "template_design"
     PROFILE_ANALYZE = "profile_analyze"
     JOB_GENERATE = "job_generate"
     RELATION_SUGGEST = "relation_suggest"
@@ -441,6 +443,30 @@ class AchievementMetricKind(str, Enum):
     SCALE = "scale"
     REVENUE = "revenue"
     QUALITY = "quality"
+
+
+class TemplateSource(str, Enum):
+    """Where a plan-37 template came from."""
+
+    BANK = "bank"
+    AI = "ai"
+    USER = "user"
+    IMPORTED = "imported"
+
+
+class TemplateVisibility(str, Enum):
+    """Visibility ladder; `public` stays unreachable until community
+    sharing ships (plan 15 moderation flips it on)."""
+
+    PRIVATE = "private"
+    UNLISTED = "unlisted"
+    PUBLIC = "public"
+
+
+class TemplateStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    RETIRED = "retired"
 
 
 class BackgroundJobType(str, Enum):

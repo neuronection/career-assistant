@@ -197,6 +197,84 @@ class AIScenarios(Phase):
         return created
 
 
+class TemplateQuestions(Phase):
+    """Plan-37 phases — template content materialized as ordinary
+    questions. Engine phase numbers 5+ map to template phase index n−5;
+    scoring rides the shared kind handlers exactly like phase 2."""
+
+    def __init__(self, template_index: int):
+        self.template_index = template_index
+        self.phase_number = 5 + template_index
+
+    def _questions(self, ctx: dict) -> list[dict]:
+        content = (ctx or {}).get("template_content") or {}
+        phases = content.get("phases") or []
+        if self.template_index >= len(phases):
+            return []
+        return phases[self.template_index].get("questions") or []
+
+    async def build_questions(
+        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+    ) -> list[AssessmentQuestion]:
+        from app.models.enums import QuestionSource
+
+        created: list[AssessmentQuestion] = []
+        for index, spec in enumerate(self._questions(ctx)[:MAX_QUESTIONS_PER_PHASE]):
+            config = {
+                key: spec[key]
+                for key in (
+                    "statements",
+                    "min_select",
+                    "max_select",
+                    "numeric_min",
+                    "numeric_max",
+                    "numeric_unit",
+                    "skill_key",
+                    "per_unit",
+                    "cap",
+                    "constraint_key",
+                )
+                if spec.get(key) is not None
+            }
+            question = AssessmentQuestion(
+                run_id=run.id,
+                phase=self.phase_number,
+                kind=spec.get("kind") or "scenario_mcq",
+                prompt=spec.get("prompt") or "",
+                help=spec.get("help") or "",
+                options=spec.get("options") or [],
+                time_split=config,
+                source=QuestionSource.BANK.value,
+                sort_index=index,
+            )
+            db.add(question)
+            created.append(question)
+        if created:
+            await db.flush()
+        return created
+
+    def phase_title(self, ctx: dict) -> str:
+        titles = (ctx or {}).get("phase_titles") or {}
+        return titles.get(str(self.phase_number)) or "Template phase"
+
+
+def resolve_phase(phase_number: int, ctx: dict | None = None) -> Phase:
+    """Registry lookup; plan-37 template phases (5+) compile on demand."""
+    if phase_number in PHASE_REGISTRY:
+        return PHASE_REGISTRY[phase_number]()
+    if phase_number >= 5:
+        return TemplateQuestions(phase_number - 5)
+    raise KeyError(f"unknown phase: {phase_number}")
+
+
+def phase_title_for(run: "AssessmentRun", phase_number: int) -> str:
+    """Title lookup: engine phases by number, template phases by context."""
+    if phase_number >= 5:
+        titles = (run.context or {}).get("phase_titles") or {}
+        return titles.get(str(phase_number), "Template phase")
+    return PHASE_TITLES.get(phase_number, "")
+
+
 class PersonalizedSelection(Phase):
     """Phase 4 — user picks categories + specific jobs to target."""
 

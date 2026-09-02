@@ -3,9 +3,16 @@ import type { FitBreakdown } from "@/types";
 
 export type AssessmentQuestionKind =
   | "scenario_mcq"
+  | "single_select"
+  | "multi_select"
   | "time_allocation"
   | "ranking"
-  | "slider";
+  | "slider"
+  | "forced_choice"
+  | "likert_matrix"
+  | "numeric_input"
+  | "eligibility_gate"
+  | "short_text";
 
 export interface AssessmentQuestion {
   id: string;
@@ -118,3 +125,62 @@ export async function fetchAssessmentResults(
 }
 
 export type { FitBreakdown };
+
+
+// -------------------------------------------- template library (plan 37)
+
+export interface AssessmentTemplate {
+  id: string;
+  key: string;
+  version: number;
+  title: string;
+  description: string;
+  source: "bank" | "ai" | "user" | "imported";
+  visibility: "private" | "unlisted" | "public";
+  status: "draft" | "published" | "retired";
+  audience_stages: string[];
+  language: string;
+  ref: string | null;
+  content_hash: string;
+  is_bank: boolean;
+  created_at: string;
+  content?: Record<string, unknown>;
+  import_report?: { proposed: string[]; resolved: number };
+}
+
+export async function fetchTemplates(): Promise<AssessmentTemplate[]> {
+  const { data } = await api.get<AssessmentTemplate[]>("/assessments/templates");
+  return data;
+}
+
+export async function runTemplate(templateId: string): Promise<AssessmentState> {
+  const { data } = await api.post<AssessmentState>(
+    `/assessments/templates/${templateId}/run`
+  );
+  return data;
+}
+
+export async function exportTemplate(templateId: string): Promise<void> {
+  const { data } = await api.get<Record<string, unknown>>(
+    `/assessments/templates/${templateId}/export`
+  );
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${data.metadata && typeof data.metadata === "object" && "key" in data.metadata ? String((data.metadata as { key: string }).key) : "template"}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function importTemplate(
+  pkg: Record<string, unknown>
+): Promise<AssessmentTemplate> {
+  const { data } = await api.post<AssessmentTemplate>(
+    "/assessments/templates/import",
+    { package: pkg }
+  );
+  return data;
+}

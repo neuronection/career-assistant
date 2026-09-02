@@ -18,6 +18,10 @@ vi.mock("@/api/assessments", async (importOriginal) => {
     submitAnswers: (...args: unknown[]) => submitAnswers(...args),
     advanceAssessment: (...args: unknown[]) => advanceAssessment(...args),
     cancelAssessment: vi.fn(),
+    fetchTemplates: vi.fn().mockResolvedValue([]),
+    runTemplate: vi.fn(),
+    importTemplate: vi.fn(),
+    exportTemplate: vi.fn().mockResolvedValue(undefined),
     assistQuestion: vi.fn().mockResolvedValue({ answer: "Think about a week in the job." }),
     fetchAssessmentResults: vi.fn().mockResolvedValue({
       run_id: "r1",
@@ -134,5 +138,52 @@ describe("Assessment wizard", () => {
       expect(screen.getByTestId("assessment-results")).toBeInTheDocument()
     );
     expect(screen.getByText(/programming/)).toBeInTheDocument();
+  });
+});
+
+describe("Assessment templates (plan 37)", () => {
+  beforeEach(() => {
+    createAssessment.mockResolvedValue(phaseTwoState());
+  });
+
+  it("lists templates and starts a template run", async () => {
+    const { fetchTemplates, runTemplate } = await import("@/api/assessments");
+    vi.mocked(fetchTemplates).mockResolvedValue([
+      {
+        id: "t1",
+        key: "team-style",
+        version: 1,
+        title: "Team style",
+        description: "",
+        source: "bank",
+        visibility: "private",
+        status: "published",
+        audience_stages: [],
+        language: "en",
+        ref: "ABCD1234",
+        content_hash: "h",
+        is_bank: true,
+        created_at: "2026-09-02T00:00:00Z",
+      },
+    ]);
+    const templateState: AssessmentState = {
+      ...phaseTwoState(),
+      kind: "template",
+      phase_order: [5],
+      current_phase: 5,
+      phase_title: "Core",
+    };
+    vi.mocked(runTemplate).mockResolvedValue(templateState);
+    render(
+      <MemoryRouter>
+        <Assessment />
+      </MemoryRouter>
+    );
+    const chip = await screen.findByTestId("template-chip");
+    fireEvent.click(chip.querySelector("button:not([aria-label])") as HTMLElement);
+    await waitFor(() => expect(runTemplate).toHaveBeenCalledWith("t1"));
+    expect(await screen.findByTestId("template-note")).toHaveTextContent(
+      "Running template: Team style"
+    );
   });
 });

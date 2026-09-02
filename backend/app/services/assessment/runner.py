@@ -15,8 +15,8 @@ from app.models.assessment_model import (
 )
 from app.models.enums import AssessmentKind, AssessmentStatus
 from app.services.assessment.phases import (
-    PHASE_REGISTRY,
-    PHASE_TITLES,
+    phase_title_for,
+    resolve_phase,
 )
 from app.services.assessment.question_kinds import handler_for
 from app.services.fit.service import FitService
@@ -46,6 +46,20 @@ class AssessmentService:
             if not order:
                 order = list(CUSTOM_ORDER)
             context.setdefault("source_run_id", None)
+        elif kind == AssessmentKind.TEMPLATE.value:
+            # Plan 37: template phases are engine slots 5+ (one per content
+            # phase); the materializer reads context.template_content.
+            order = [
+                p
+                for p in (context.get("phase_order") or [])
+                if isinstance(p, int) and p >= 5
+            ]
+            if not order:
+                raise ValidationError(
+                    "A template run needs a phase_order of engine slots 5+"
+                )
+            if not context.get("template_content"):
+                raise ValidationError("A template run needs template_content")
         else:
             order = list(DEFAULT_ORDER)
         existing = (
@@ -113,7 +127,7 @@ class AssessmentService:
             "status": run.status,
             "phase_order": run.phase_order,
             "current_phase": run.current_phase,
-            "phase_title": PHASE_TITLES.get(run.current_phase, ""),
+            "phase_title": phase_title_for(run, run.current_phase),
             "progress": progress,
             "context": run.context,
             "phase_one_form": run.current_phase == 1,
@@ -142,7 +156,7 @@ class AssessmentService:
             progress[str(phase)] = {
                 "answered": len(answered),
                 "total": len(questions),
-                "title": PHASE_TITLES.get(phase, ""),
+                "title": phase_title_for(run, phase),
             }
         return progress
 
@@ -218,7 +232,7 @@ class AssessmentService:
             for q in run.questions
             if q.phase == run.current_phase and self._answer_of(run, q) is not None
         ]
-        phase = PHASE_REGISTRY[run.current_phase]()
+        phase = resolve_phase(run.current_phase, run.context)
         derived = await self._derived_map(run)
         derived = await phase.score(self.db, run, phase_answers, derived)
         # Phase outputs are run-scoped state (plan 23: context stores state;
@@ -285,7 +299,7 @@ class AssessmentService:
         ).scalar()
         if existing:
             return
-        phase = PHASE_REGISTRY[phase_number]()
+        phase = resolve_phase(phase_number, run.context)
         built = await phase.build_questions(self.db, run, run.context or {})
         for question in built:
             self.db.add(question)
@@ -293,17 +307,34 @@ class AssessmentService:
 
     async def _apply_results(self, run: AssessmentRun, derived: dict) -> dict:
         """Completion effects: skills upsert (conflict-aware), interests,
-        shortlist enqueue (fit already exists — refresh + AI rationale)."""
+        shortlist enqueue (fit already exists — refresh + AI rationale).
+
+        Plan-37 template runs normalize their accumulated raw deltas
+        through the template's own block first; every applied skill gains
+        a `skill_evidence` row linking the run (plan-42.A ledger)."""
         from app.models.enums import BackgroundJobType
         from app.models.user_model import UserSkill
         from app.services.job_worker import enqueue
 
         applied_skills = 0
         conflicts = []
-        interest_keys = sorted(set(derived.get("interest_keys") or []))
         selection = derived.get("selection") or {}
+        band = None
+
+        if run.kind == AssessmentKind.TEMPLATE.value and run.template_id:
+            from app.services.assessment_templates import TemplateService
+
+            compiled = await TemplateService(self.db).compile_results(run)
+            band = compiled["band"]
+            derived = {
+                **derived,
+                "skill_levels": compiled["levels"],
+                "interest_keys": compiled["interest_keys"],
+            }
+        interest_keys = sorted(set(derived.get("interest_keys") or []))
 
         skill_levels = derived.get("skill_levels") or {}
+        evidence_linked = run.template_id is not None
         if skill_levels:
             from app.models.taxonomy_model import Skill
 
@@ -356,6 +387,21 @@ class AssessmentService:
                         )
                     )
                     applied_skills += 1
+                if evidence_linked:
+                    from app.models.experience_model import SkillEvidence
+                    from datetime import datetime, timezone as tz
+
+                    self.db.add(
+                        SkillEvidence(
+                            user_id=run.user_id,
+                            skill_id=skill.id,
+                            assessment_run_id=run.id,
+                            note="template run",
+                            level_value=float(level),
+                            confidence=0.8,
+                            claimed_at=datetime.now(tz.utc),
+                        )
+                    )
 
         if interest_keys:
             from app.services.profile_service import ProfileService
@@ -386,6 +432,7 @@ class AssessmentService:
             "interest_keys": interest_keys,
             "selection": selection,
             "rationale_job_id": str(queued.id),
+            "band": band,
         }
 
     async def results(self, run: AssessmentRun) -> dict:

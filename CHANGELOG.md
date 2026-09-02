@@ -5,6 +5,36 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Assessment template library (plan 37)** — tests are content, not code:
+  versioned, portable template packages (`bank` / AI-drafted / user-authored
+  / importable) that compile onto the plan-23 engine — runs gain
+  `template_id`, phases materialize as ordinary questions, and scoring
+  rides the existing kind handlers.
+  - **Question-kind registry v2** (entry-point extensible via
+    `career_assistant.question_kinds`, contract kit on load): new built-in
+    kinds `multi_select` (k-of-n bounds), `forced_choice` (2–4 blocks,
+    bias-resistant), `likert_matrix` (agreement 1–5 with reverse-score
+    flags), `numeric_input` (bounded, scaled deltas), `eligibility_gate`
+    (feeds plan-22 constraints, never skill deltas) and `short_text`
+    (evidence-only). `single_select` aliases `scenario_mcq`.
+  - **Validator**: every referenced skill key must resolve at save/import
+    time — authoring hard-rejects unknowns, imports auto-propose them
+    (plan-21 lifecycle) and succeed with a report; evidence-only kinds
+    cannot carry deltas; deltas are bounded ±10.
+  - **Immutable versions** (plan 42.B): edits publish version n+1; the
+    share `ref` identifies the template family and resolves to the latest
+    version; `content_hash` (canonical JSON) verified on import.
+  - **Visibility ladder**: `public` exists in the enum but is rejected at
+    write time until plan-15 moderation flips it on; imports land private.
+  - Template runs normalize accumulated deltas through the template's own
+    block (clamp/multiplier → levels + result band with summary, suggested
+    levels and next actions); applied skills gain `skill_evidence` rows
+    linking the run.
+  - AI drafting (`template_design` task, mock-provisioned for dev/test):
+    full drafts and style-matched extensions — always review-first, saved
+    as drafts until the author publishes.
+  - UI: a test library panel on the Assessment page (start, import from
+    file, export to JSON).
 - **Structured experience profile (plan 40)** — the profile's JSONB
   experience list is promoted to first-class tables: `experience_items`
   (kind/title/org/period/hours/links, draft→active review flow),
