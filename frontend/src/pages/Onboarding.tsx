@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Rocket, Sparkles } from "lucide-react";
+import { BarChart3, Lightbulb, Rocket, Sparkles, Users, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useProfileStore } from "@/stores/profileStore";
 import { apiDetail } from "@/api/client";
@@ -107,7 +107,7 @@ export function Onboarding() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto" data-testid="onboarding">
+    <div className="max-w-3xl mx-auto flex flex-col min-h-[calc(100vh-8.5rem)]" data-testid="onboarding">
       <Link
         to="/onboarding/express"
         className="mb-4 flex items-center gap-2 text-sm bg-primary-50 border border-primary-100 text-primary-800 rounded-xl px-4 py-2.5 hover:border-primary-300"
@@ -125,18 +125,20 @@ export function Onboarding() {
         ))}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6">
-        {step === 0 && <BasicsStep profile={profile} draft={draft} setDraft={setDraft} />}
-        {step === 1 && <AcademicsStep profile={profile} draft={draft} setDraft={setDraft} />}
-        {step === 2 && <InterestsStep profile={profile} draft={draft} setDraft={setDraft} interests={interests} />}
-        {step === 3 && <LikesStep profile={profile} draft={draft} setDraft={setDraft} />}
-        {step === 4 && <AspirationsStep profile={profile} draft={draft} setDraft={setDraft} />}
-        {step === 5 && <WorkStyleStep profile={profile} draft={draft} setDraft={setDraft} />}
-        {step === 6 && <ConstraintsStep profile={profile} draft={draft} setDraft={setDraft} />}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 flex flex-1 flex-col">
+        <div className="flex-1">
+          {step === 0 && <BasicsStep profile={profile} draft={draft} setDraft={setDraft} />}
+          {step === 1 && <AcademicsStep profile={profile} draft={draft} setDraft={setDraft} />}
+          {step === 2 && <InterestsStep profile={profile} draft={draft} setDraft={setDraft} interests={interests} />}
+          {step === 3 && <LikesStep profile={profile} draft={draft} setDraft={setDraft} />}
+          {step === 4 && <AspirationsStep profile={profile} draft={draft} setDraft={setDraft} />}
+          {step === 5 && <WorkStyleStep profile={profile} draft={draft} setDraft={setDraft} />}
+          {step === 6 && <ConstraintsStep profile={profile} draft={draft} setDraft={setDraft} />}
+        </div>
 
         {error && <p className="text-sm text-rose-600 mt-3">{error}</p>}
         {saved && step < STEPS.length - 1 && <p className="text-sm text-emerald-600 mt-3">Saved ✓</p>}
-        <div className="flex justify-between mt-6">
+        <div className="flex justify-between mt-8">
           <button
             onClick={() => setStep(Math.max(0, step - 1))}
             disabled={step === 0}
@@ -372,6 +374,9 @@ function LikesStep({ profile, draft, setDraft }: StepProps) {
 
   return (
     <div className="space-y-5">
+      <p className="text-sm text-slate-500">
+        Each list takes as many entries as you like — type one, press <b>Add</b> (or Enter), repeat.
+      </p>
       <div>
         <h2 className="font-semibold mb-2">Things you like</h2>
         <ChipInput
@@ -386,7 +391,9 @@ function LikesStep({ profile, draft, setDraft }: StepProps) {
               })),
             })
           }
-          placeholder="e.g. building PCs — press Enter to add"
+          inputLabel="New like"
+          addLabel="Add"
+          placeholder="e.g. building PCs"
         />
       </div>
       <div>
@@ -403,6 +410,8 @@ function LikesStep({ profile, draft, setDraft }: StepProps) {
               })),
             })
           }
+          inputLabel="New dislike"
+          addLabel="Add"
           placeholder="e.g. cold calling"
         />
       </div>
@@ -420,6 +429,8 @@ function LikesStep({ profile, draft, setDraft }: StepProps) {
               })),
             })
           }
+          inputLabel="New hobby"
+          addLabel="Add"
           placeholder="e.g. chess, sketching"
         />
       </div>
@@ -431,10 +442,12 @@ function AspirationsStep({ profile, draft, setDraft }: StepProps) {
   const aspirations = draft.aspirations ?? profile?.aspirations ?? [];
   return (
     <div className="space-y-4">
-      <h2 className="font-semibold">Things you imagine yourself doing</h2>
-      <p className="text-sm text-slate-500">
-        Dream scenarios count — &ldquo;working outdoors&rdquo;, &ldquo;building a robot&rdquo;, &ldquo;helping my town&rdquo;.
-      </p>
+      <div>
+        <h2 className="font-semibold">Things you imagine yourself doing</h2>
+        <p className="text-sm text-slate-500 mt-1">
+          Dream scenarios count — &ldquo;working outdoors&rdquo;, &ldquo;building a robot&rdquo;, &ldquo;helping my town&rdquo;. Add as many as you like.
+        </p>
+      </div>
       <ChipInput
         value={aspirations.map((a) => a.label)}
         onChange={(labels) =>
@@ -447,67 +460,99 @@ function AspirationsStep({ profile, draft, setDraft }: StepProps) {
             })),
           })
         }
+        inputLabel="New aspiration"
+        addLabel="Add"
         placeholder="e.g. designing my own game"
       />
     </div>
   );
 }
 
-const SCALES: [keyof Profile["work_preferences"], string, string][] = [
-  ["teamwork", "solo", "team"],
-  ["environment", "indoors", "outdoors"],
-  ["structure", "routine", "variety"],
-  ["pace", "calm", "fast"],
-  ["leadership", "follow", "lead"],
-  ["salary_priority", "low", "high"],
-  ["stability_priority", "risky", "secure"],
-  ["creativity_priority", "conventional", "creative"],
+const SCALES: [keyof Profile["work_preferences"], string, string, string][] = [
+  ["teamwork", "Teamwork", "solo", "team"],
+  ["environment", "Environment", "indoors", "outdoors"],
+  ["structure", "Structure", "routine", "variety"],
+  ["pace", "Pace", "calm", "fast"],
+  ["leadership", "Leadership", "follow", "lead"],
+  ["salary_priority", "Salary priority", "low", "high"],
+  ["stability_priority", "Stability priority", "risky", "secure"],
+  ["creativity_priority", "Creativity priority", "conventional", "creative"],
+];
+
+const FOCUS_AREAS: {
+  key: string;
+  label: string;
+  hint: string;
+  icon: typeof Users;
+}[] = [
+  { key: "people", label: "People", hint: "teaching, selling, caring, leading teams", icon: Users },
+  { key: "things", label: "Things", hint: "tools, machines, building and fixing", icon: Wrench },
+  { key: "data", label: "Data", hint: "numbers, code, patterns, analysis", icon: BarChart3 },
+  { key: "ideas", label: "Ideas", hint: "design, writing, inventing, storytelling", icon: Lightbulb },
 ];
 
 function WorkStyleStep({ profile, draft, setDraft }: StepProps) {
   const current = { ...DEFAULT_WORK, ...profile?.work_preferences, ...draft.work_preferences };
   return (
-    <div className="space-y-4">
-      <h2 className="font-semibold">How do you like to work?</h2>
-      {SCALES.map(([key, low, high]) => (
-        <div key={key} className="text-sm">
-          <p className="font-medium mb-1">
-            {String(key).replace(/_/g, " ")}
-          </p>
-          <ScaleSlider
-            min={1}
-            max={5}
-            value={current[key] as number}
-            lowLabel={low}
-            highLabel={high}
-            showInput={false}
-            onChange={(v) =>
-              setDraft({ ...draft, work_preferences: { ...current, [key]: Number(v) || (current[key] as number) } })
-            }
-          />
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-semibold">How do you like to work?</h2>
+        <p className="text-sm text-slate-500 mt-1">
+          Slide each one — the ends name the two extremes, there is no wrong answer.
+        </p>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5">
+        {SCALES.map(([key, label, low, high]) => (
+          <div key={key} className="text-sm">
+            <p className="font-medium mb-1">{label}</p>
+            <ScaleSlider
+              min={1}
+              max={5}
+              value={current[key] as number}
+              lowLabel={low}
+              highLabel={high}
+              showInput={false}
+              onChange={(v) =>
+                setDraft({ ...draft, work_preferences: { ...current, [key]: Number(v) || (current[key] as number) } })
+              }
+            />
+          </div>
+        ))}
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold">What do you want to work with?</h3>
+        <p className="text-sm text-slate-500 mt-0.5 mb-2">
+          Pick any — they steer which jobs and skills we surface for you.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-2" data-testid="focus-areas">
+          {FOCUS_AREAS.map(({ key, label, hint, icon: Icon }) => {
+            const active = current.focus_areas.includes(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  const next = active
+                    ? current.focus_areas.filter((a) => a !== key)
+                    : [...current.focus_areas, key];
+                  setDraft({ ...draft, work_preferences: { ...current, focus_areas: next } });
+                }}
+                className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
+                  active
+                    ? "bg-primary-600 text-white border-primary-600"
+                    : "border-slate-200 hover:border-primary-500"
+                }`}
+              >
+                <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${active ? "" : "text-primary-600"}`} aria-hidden />
+                <span className="block">
+                  <span className="block text-sm font-medium">{label}</span>
+                  <span className={`block text-xs mt-0.5 ${active ? "text-white/80" : "text-slate-500"}`}>{hint}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
-      ))}
-      <div className="flex flex-wrap gap-2">
-        {["people", "things", "data", "ideas"].map((area) => {
-          const active = current.focus_areas.includes(area);
-          return (
-            <button
-              key={area}
-              type="button"
-              onClick={() => {
-                const next = active
-                  ? current.focus_areas.filter((a) => a !== area)
-                  : [...current.focus_areas, area];
-                setDraft({ ...draft, work_preferences: { ...current, focus_areas: next } });
-              }}
-              className={`text-sm px-3 py-1.5 rounded-full border ${
-                active ? "bg-primary-600 text-white border-primary-600" : "border-slate-200"
-              }`}
-            >
-              {area}
-            </button>
-          );
-        })}
       </div>
     </div>
   );

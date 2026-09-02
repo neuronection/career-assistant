@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Onboarding wizard polish** — the work-style sliders are modernized
+  (filled track, larger thumb, readable end labels), the
+  "How do you like to work?" step explains the people/things/data/ideas
+  focus areas with icons and descriptions, multi-entry lists (likes,
+  dislikes, hobbies, aspirations) show an explicit Add button with
+  per-entry hints, and the wizard now uses the full available height
+  (needs `@neuronection/assistant-ui` ≥ the release containing the
+  ScaleSlider/ChipInput changes).
+
 ### Added
 - **Assessment template library (plan 37)** — tests are content, not code:
   versioned, portable template packages (`bank` / AI-drafted / user-authored
