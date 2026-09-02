@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-02
+
 ### Fixed
 - **Linux desktop packages fixed** — the CI build env now installs
   PyGObject, so the deb/AppImage bundle ships the `gi` module (0.4.0/0.4.1
