@@ -4,6 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Version manager propagates the app version** — `set`/`bump` now also
+  update the README version badge and `frontend/package.json` +
+  `package-lock.json` (family-unified script fixed to preserve non-ASCII
+  JSON text such as the em-dash in the package description).
+
 ## [0.4.0] - 2026-09-02
 
 ### Added

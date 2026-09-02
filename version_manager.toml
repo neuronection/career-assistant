@@ -8,6 +8,25 @@ name = "Career Assistant"
 file = "backend/app/__init__.py"
 pattern = '__version__\s*=\s*"(?P<version>[^"]+)"'
 
+[[propagate]]
+name = "Frontend package.json"
+file = "frontend/package.json"
+type = "json"
+field = "version"
+
+[[propagate]]
+name = "Frontend package-lock.json"
+file = "frontend/package-lock.json"
+type = "npm-lock"
+
+[[propagate]]
+name = "README version badge"
+file = "README.md"
+type = "regex"
+pattern = '(img\.shields\.io/badge/version-v)([^-\)]+)(--?[^-\)]*)?(-blue\.svg)'
+template = '\g<1>{version}\g<4>'
+dash_escape = true
+
 [release]
 docs = ["CHANGELOG.md"]
 tag_prefix = "v"
