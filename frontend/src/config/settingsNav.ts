@@ -5,7 +5,6 @@ import {
   Cpu,
   ListTree,
   ScrollText,
-  UserRound,
   Users,
 } from "lucide-react";
 
@@ -58,11 +57,5 @@ export const settingsNav: SettingsNavItem[] = [
     label: "AI Audit",
     description: "Every AI call, with tokens and latency",
     adminOnly: true,
-  },
-  {
-    to: "/profile",
-    icon: UserRound,
-    label: "Profile",
-    description: "Your structured student profile",
   },
 ];

@@ -1,6 +1,6 @@
 :root {
-  --as-accent: oklch(0.546 0.245 262.881);
-  --as-accent-strong: oklch(0.488 0.217 264.376);
+  /* Accent inherits the family default (muted oklch blue) — re-tint here
+     only if career needs a deliberate identity divergence. */
   --as-focus-ring: var(--as-accent);
   --as-radius: 0.75rem;
 }

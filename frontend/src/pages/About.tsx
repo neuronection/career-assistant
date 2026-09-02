@@ -1,6 +1,7 @@
 import { Github, Linkedin, Mail } from "lucide-react";
 import { AboutPanel } from "@neuronection/assistant-ui";
 import packageJson from "../../package.json";
+import { SPONSOR_CHANNELS } from "@/config/funding";
 
 export function About() {
   return (
@@ -38,6 +39,10 @@ export function About() {
           "pytest + vitest",
           "Apache-2.0",
         ]}
+        sponsor={{
+          channels: SPONSOR_CHANNELS,
+          title: "Help this project grow",
+        }}
         copyright="© 2026 Neuronection"
       />
     </div>

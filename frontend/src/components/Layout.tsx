@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Menu, Settings2, UserRound } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 
 import { SidebarNav, UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { ChatWidget } from "@/components/ChatWidget";
 import { NotificationBell } from "@/components/NotificationBell";
+import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
 import { NAV, resolveActiveId } from "@/config/nav";
@@ -34,14 +35,16 @@ export function Layout() {
     setMobileOpen(false);
   }, [location.pathname, location.search]);
 
-  const items = NAV.filter(
-    (item) => !(item.studentOnly && bootstrap && !bootstrap.features.universities),
-  ).map(({ to, label, icon, section }) => ({
+  const enabled = (item: (typeof NAV)[number]) =>
+    !(item.studentOnly && bootstrap && !bootstrap.features.universities);
+  const toNavItem = ({ to, label, icon, section }: (typeof NAV)[number]) => ({
     id: to,
     label,
     icon,
     ...(section ? { section } : {}),
-  }));
+  });
+
+  const items = NAV.filter(enabled).map(toNavItem);
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
@@ -86,21 +89,7 @@ export function Layout() {
               )}
             </div>
           }
-          footer={
-            <div className="space-y-1 text-xs text-slate-400">
-              <a
-                href="https://neuronection.com"
-                target="_blank"
-                rel="noreferrer"
-                className="block hover:text-primary-600"
-              >
-                Part of <span className="font-medium text-slate-500 hover:text-primary-600">Neuronection</span>
-              </a>
-              <a href="https://health-assistant.io" className="block hover:text-primary-600">
-                Health Assistant
-              </a>
-            </div>
-          }
+          footer={<SidebarFooter collapsed={collapsed} />}
         />
       </div>
 
@@ -121,12 +110,9 @@ export function Layout() {
             {user && <NotificationBell />}
             {user && (
               <UserMenu
+                name={user.full_name || undefined}
                 email={user.email}
-                items={[
-                  { id: "/profile", label: "Profile", icon: UserRound },
-                  { id: "/settings/ai", label: "Settings", icon: Settings2 },
-                  { id: "signout", label: "Sign out", icon: LogOut, tone: "danger" },
-                ]}
+                items={[{ id: "signout", label: "Sign out", icon: LogOut, tone: "danger" }]}
                 onItemSelect={(id) => {
                   if (id === "signout") {
                     logout();

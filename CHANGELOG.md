@@ -18,6 +18,30 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **Calmer accent palette** — the app no longer overrides the family
+  accent with saturated Tailwind blue-600; it inherits the muted family
+  default (buttons, active nav tint, focus rings). The sponsor highlight
+  row (upstream `SponsorCard`) is now a soft primary tint instead of a
+  solid blue block, and the support popup keeps the card's inner padding
+  (it had rendered flush against the modal edge).
+- **Sidebar footer is now a project block** — "Part of Neuronection" (logo
+  + wordmark link), the three family assistants (Health / Career / Study,
+  each linking to its website, current app emphasized, names aligned on
+  the shared "Assistant" column), an About button (the About nav
+  entry is gone; the `/about` page remains, now also carrying the sponsor
+  card) and a Fund button opening a support popup (Buy Me a Coffee +
+  GitHub star via the library `SponsorCard`, redesigned compact: no glow
+  blob or tinted highlight block — primary border + "Recommended" badge
+  instead); the app version is shown
+  and the block collapses to icons in the collapsed rail. Funding
+  channels live in `config/funding.ts`.
+- **Sidebar nav structure** — Settings sits last in the main nav list
+  (About was removed from the nav; it lives in the sidebar footer block),
+  the duplicate Profile entry is removed from Settings (it
+  already lives in the nav + account menu), and the account dropdown is
+  slimmed to Sign out only (Profile + Settings stay in the sidebar); the
+  dropdown trigger now shows the user's name when set (identity header
+  already showed it in the panel).
 - **Sidebar navigation replaces the top nav** — the 13-link header row is
   now `SidebarNav` from `@neuronection/assistant-ui` (sectioned flat list:
   Dashboard / Job hunt / Account / General, collapsed icon rail on

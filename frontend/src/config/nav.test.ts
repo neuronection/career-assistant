@@ -33,11 +33,16 @@ describe("resolveActiveId", () => {
     expect(resolveActiveId("/nowhere")).toBeNull();
   });
 
+  it("resolves the Settings entry and its matchPrefix", () => {
+    expect(resolveActiveId("/settings/users")).toBe("/settings/ai");
+  });
+
   it("registry keeps its shape", () => {
-    expect(NAV).toHaveLength(13);
+    expect(NAV).toHaveLength(12);
     expect(NAV.filter((item) => item.studentOnly).map((item) => item.to)).toEqual([
       "/universities",
     ]);
     expect(NAV.filter((item) => item.section).length).toBeGreaterThan(0);
+    expect(NAV[NAV.length - 1].to).toBe("/settings/ai");
   });
 });

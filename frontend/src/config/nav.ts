@@ -5,7 +5,6 @@ import {
   CalendarRange,
   ClipboardList,
   Globe,
-  Info,
   LayoutDashboard,
   Route,
   Search,
@@ -29,6 +28,7 @@ export interface AppNavItem {
 /**
  * Primary sidebar registry — single source for the app shell. Sections
  * group the list visually; every destination stays one click away.
+ * About lives in the sidebar footer promo block.
  */
 export const NAV: AppNavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, studentOnly: false },
@@ -42,8 +42,7 @@ export const NAV: AppNavItem[] = [
   { to: "/universities", label: "Universities", icon: Building2, studentOnly: true },
   { to: "/profile", label: "Profile", icon: UserRound, studentOnly: false, section: "Account" },
   { to: "/experience", label: "Experience", icon: CalendarRange, studentOnly: false },
-  { to: "/settings/ai", label: "Settings", icon: Settings2, studentOnly: false, section: "General", matchPrefix: "/settings" },
-  { to: "/about", label: "About", icon: Info, studentOnly: false },
+  { to: "/settings/ai", label: "Settings", icon: Settings2, studentOnly: false, matchPrefix: "/settings" },
 ];
 
 /**
