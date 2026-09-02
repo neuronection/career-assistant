@@ -6,13 +6,20 @@
 # backend :8100 (uvicorn --reload) + frontend :3100 (vite). A single Ctrl+C
 # stops everything; if any process dies honcho exits loud.
 #
-# Requires the dev DB: docker compose -f docker/docker-compose.dev-db.yml up -d
+# Starts the dev DB (docker compose) automatically if it is not running, and
+# applies backend Alembic migrations before startup (unless --no-migrate).
 #
 # Usage:
 #   ./scripts/run-dev.sh                  # bootstrap + start the honcho group
 #   ./scripts/run-dev.sh --force          # free backend/frontend ports first
 #   ./scripts/run-dev.sh --force-stop     # stop all career dev processes, exit
+#   ./scripts/run-dev.sh --reset [--yes]
+#                                         # wipe the dev DB volume, re-migrate
+#                                         # and re-seed before starting;
+#                                         # destructive — confirmation prompt,
+#                                         # --yes to skip it
 #   ./scripts/run-dev.sh --no-bootstrap   # skip venv/deps bootstrap, just start
+#   ./scripts/run-dev.sh --no-migrate     # skip the alembic upgrade step
 #   ./scripts/run-dev.sh backend          # extra args pass through to honcho
 #   ./scripts/run-dev.sh -h | --help      # print this help and exit
 #
@@ -29,7 +36,12 @@ BACKEND_PORT=8100
 FRONTEND_PORT=3100
 DB_PORT=5433
 
+DEV_DB_COMPOSE="docker/docker-compose.dev-db.yml"
+
+RESET=0
+RESET_ARGS=()
 NO_BOOTSTRAP=false
+NO_MIGRATE=false
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --force-stop)
@@ -45,12 +57,19 @@ while [[ "$#" -gt 0 ]]; do
       dc_kill_port "$BACKEND_PORT"
       dc_kill_port "$FRONTEND_PORT"
       ;;
+    --reset) RESET=1 ;;
+    --yes) RESET_ARGS+=(--yes) ;;
     --no-bootstrap) NO_BOOTSTRAP=true ;;
+    --no-migrate) NO_MIGRATE=true ;;
     -h|--help) dc_help "$SCRIPT_PATH" ;;
     *) break ;;
   esac
   shift
 done
+
+if [[ "$RESET" -eq 0 && ${#RESET_ARGS[@]} -gt 0 ]]; then
+  dc_die "--yes only makes sense together with --reset"
+fi
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
@@ -64,12 +83,55 @@ if [[ "$NO_BOOTSTRAP" = false ]]; then
 fi
 export PATH="$PWD/$VENV_DIR/bin:$PATH"
 
+dc_start_dev_db() {
+  if dc_port_in_use "$DB_PORT"; then
+    return 0
+  fi
+  dc_step "starting dev DB (postgres :$DB_PORT, redis :6380)"
+  docker compose -f "$DEV_DB_COMPOSE" up -d
+  for _ in $(seq 1 30); do
+    if docker ps --filter "name=career-postgres" --filter "health=healthy" --format '{{.Names}}' | grep -q career-postgres; then
+      dc_ok "Dev DB is healthy."
+      return 0
+    fi
+    sleep 1
+  done
+  dc_die "dev DB did not become healthy within 30s — check: docker compose -f $DEV_DB_COMPOSE logs postgres"
+}
+
+dc_migrate() {
+  if [[ "$NO_MIGRATE" = true ]]; then
+    dc_warn "skipping alembic upgrade (--no-migrate)"
+    return 0
+  fi
+  dc_step "applying backend migrations"
+  (cd backend && PYTHONPATH="$(pwd)" alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
+}
+
+dc_reset_db() {
+  dc_kill_port "$BACKEND_PORT"
+  dc_kill_port "$FRONTEND_PORT"
+  if [[ ${RESET_ARGS[*]} != *--yes* ]]; then
+    dc_warn "This will DELETE the dev database volume (career_postgres_data) and all local dev data."
+    read -r -p "Type 'reset' to continue: " reply
+    [[ "$reply" == "reset" ]] || dc_die "aborted"
+  fi
+  dc_step "stopping dev DB containers and removing volumes"
+  docker compose -f "$DEV_DB_COMPOSE" down -v
+}
+
+if [[ "$RESET" -eq 1 ]]; then
+  dc_reset_db
+fi
+
+dc_start_dev_db
+dc_migrate
+
+dc_step "seeding taxonomy + starter job catalog (idempotent)"
+bash scripts/seed.sh || dc_die "seeding failed — see output above"
+
 dc_check_port_free "$BACKEND_PORT" "backend"
 dc_check_port_free "$FRONTEND_PORT" "frontend"
-if ! dc_port_in_use "$DB_PORT"; then
-  dc_warn "Postgres (port $DB_PORT) is not running; the backend will fail to connect."
-  dc_warn "Start it via: docker compose -f docker/docker-compose.dev-db.yml up -d"
-fi
 
 dc_info "Starting Career Assistant dev group (backend :$BACKEND_PORT, frontend :$FRONTEND_PORT)"
 dc_info "Press Ctrl+C to stop all services."
