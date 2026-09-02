@@ -5,7 +5,7 @@
 # Career Assistant
 ### AI-guided career discovery for students
 
-[![Version](https://img.shields.io/badge/version-v0.4.0-blue.svg)](https://github.com/neuronection/career-assistant/releases)
+[![Version](https://img.shields.io/badge/version-v0.4.1-blue.svg)](https://github.com/neuronection/career-assistant/releases)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#scope--limitations)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Docker%20%7C%20Self--Hosted-lightgrey.svg)](#quick-start)

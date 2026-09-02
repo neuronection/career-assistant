@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-02
+
 ### Fixed
 - **Release build fixed** — bump `@neuronection/assistant-ui` to `^0.16.0`
   (0.15.0 was pinned and, for `0.x`, caret does not cross minors, so CI
