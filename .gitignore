@@ -56,3 +56,6 @@ packaging/*.deb
 packaging/*.AppImage
 backend/dist/
 .opencode
+
+# assistant-ui dev-link state (never commit)
+.assistant-ui-dev-link.json
