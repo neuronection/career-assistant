@@ -89,6 +89,23 @@ TABLES = [
 ]
 
 
+@pytest.fixture(scope="session", autouse=True)
+async def warm_vapid_keys():
+    """Boot-equivalent VAPID cache warm-up (lifespan does this in prod).
+
+    Dispatch must never generate keys mid-transaction — the own-session
+    write deadlocks SQLite behind the caller's write lock — so tests
+    populate the cache once up front, like the app lifespan does.
+    """
+    from app.services.webpush_service import get_or_create_vapid_keys
+
+    try:
+        await get_or_create_vapid_keys()
+    except Exception:  # noqa: BLE001 — browser push stays fail-soft
+        pass
+    yield
+
+
 @pytest.fixture(autouse=True)
 async def clean_db() -> AsyncGenerator:
     """Wipe all tables before each test for full isolation."""

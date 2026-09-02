@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Notification dispatch no longer stalls or deadlocks SQLite** (desktop
+  profile) — browser-push VAPID keys are now generated once at boot
+  instead of lazily inside a notification emit, which wrote on a second
+  connection while the caller's transaction held the SQLite write lock
+  (every dispatch stalled ~30s and the browser channel silently failed;
+  it could hang indefinitely). Dispatch now fail-softs with
+  `vapid_keys_missing` when keys are absent.
+
 ## [0.5.0] - 2026-09-02
 
 ### Fixed

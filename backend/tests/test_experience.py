@@ -1,7 +1,7 @@
 """Experience profile (plan 40): derivation math, CRUD, apply, evidence."""
 
 from datetime import date, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -236,7 +236,7 @@ async def test_conflicting_self_report_not_overwritten(
         "/api/v1/me/experience", json=body, headers=auth_headers
     )
     assert created.status_code == 201
-    skill_id = created.json()["skills"][0]["skill_id"]
+    skill_id = UUID(created.json()["skills"][0]["skill_id"])
     db.add(
         UserSkill(
             user_id=auth_user.id,

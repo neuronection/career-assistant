@@ -150,8 +150,11 @@ class BrowserPushChannel(BaseChannel):
         return self._keys or {}
 
     async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
-        keys = self._keys or await get_or_create_vapid_keys()
-        if not keys.get("private_key"):
+        # Cache or injected keys only — generating here would open a second
+        # connection mid-dispatch, deadlocking SQLite behind the caller's
+        # write transaction. Boot (lifespan) warms the cache instead.
+        keys = self._keys or _keys_cache
+        if not keys or not keys.get("private_key"):
             return DeliveryStatus.FAILED.value, "vapid_keys_missing"
         subs = (await self._subscriptions(ctx.user_id)).scalars().all()
         if not subs:

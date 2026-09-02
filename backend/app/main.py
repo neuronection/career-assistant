@@ -161,6 +161,22 @@ async def lifespan(app: FastAPI):
     from app.services.job_worker import drain_queue, start_workers
     from app.services.scheduler.runner import start_scheduler
 
+    # Warm VAPID keys before any dispatch can run: generating them lazily
+    # inside a notification emit would write on a second connection while
+    # the caller's transaction holds the SQLite write lock.
+    from app.services.notification_channels import get_channel
+
+    channel = get_channel("browser")
+    if channel is not None and channel.available():
+        from app.services.webpush_service import get_or_create_vapid_keys
+
+        try:
+            await get_or_create_vapid_keys()
+        except Exception:  # noqa: BLE001 — push degrades fail-soft, boot must not hinge
+            logger.warning(
+                "VAPID key warm-up failed; browser push degraded", exc_info=True
+            )
+
     workers = await start_workers(settings.JOBS_WORKERS)
     scheduler_task = await start_scheduler()
     try:
