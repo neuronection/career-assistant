@@ -5,6 +5,7 @@ import { LogOut, Menu } from "lucide-react";
 import { SidebarNav, UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
+import { useIsShortViewport } from "@/hooks/useMediaQuery";
 import { ChatWidget } from "@/components/ChatWidget";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SidebarFooter } from "@/components/SidebarFooter";
@@ -20,6 +21,7 @@ export function Layout() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const isShort = useIsShortViewport();
 
   useEffect(() => {
     void loadUser();
@@ -78,6 +80,7 @@ export function Layout() {
           collapsed={collapsed}
           onCollapsedChange={setCollapsed}
           collapsible
+          compact={isShort}
           className="h-full border-slate-200 bg-white shadow-lg lg:shadow-none"
           header={
             <div className={`flex h-14 items-center border-b border-slate-100 ${collapsed ? "justify-center px-2" : "gap-2.5 px-4"}`}>
@@ -89,7 +92,7 @@ export function Layout() {
               )}
             </div>
           }
-          footer={<SidebarFooter collapsed={collapsed} />}
+          footer={<SidebarFooter collapsed={collapsed} compact={isShort} />}
         />
       </div>
 
