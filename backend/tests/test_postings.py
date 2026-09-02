@@ -344,15 +344,14 @@ async def test_new_posting_match_alert_and_cooldown(
         headers=auth_headers,
     )
     await sync_source(db, source)
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
-    engagement = EngagementService(db)
     user_id = uuid_mod.UUID(_user_id(auth_headers))
-    assert await engagement.unread_notification_count(user_id) == 1
+    assert await NotificationService(db).unread_count(user_id) == 1
 
     # Re-sync: unchanged content → no new notification (dedup).
     await sync_source(db, source)
-    assert await engagement.unread_notification_count(user_id) == 1
+    assert await NotificationService(db).unread_count(user_id) == 1
 
 
 # ---------------------------------------------------------------- expiry

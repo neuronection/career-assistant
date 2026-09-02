@@ -29,13 +29,16 @@ async def _bootstrap_payload(db, profile) -> dict:
     from app.models.engagement_model import NotificationRule
     from app.models.enums import NotificationRuleKind
     from app.services.notification_channels import available_channels
+    from app.services.experience_service import ExperienceService
     from app.services.stages_service import (
         effective_stage,
         feature_flags,
         stage_preset,
     )
 
-    stage, source = effective_stage(profile.basics or {}, profile.experience or [])
+    stage, source = effective_stage(
+        profile.basics or {}, await ExperienceService(db).stage_dicts(profile.user_id)
+    )
     stored = (profile.preferences or {}).get("scoring_weights")
     target_families: list[str] = []
     rules = (
@@ -101,7 +104,7 @@ async def put_stage(
     else:
         basics["career_stage"] = body.career_stage.value
     profile.basics = basics
-    ProfileService._strip_student_fields(profile)
+    await ProfileService(db).strip_student_fields(profile)
     db.add(profile)
     await db.commit()
     refitted = await FitService(db).refit_user(user.id, profile)

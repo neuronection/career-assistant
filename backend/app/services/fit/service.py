@@ -130,10 +130,12 @@ class FitService:
                 for dim in DEFAULT_WEIGHTS
             }
         else:
+            from app.services.experience_service import ExperienceService
             from app.services.stages_service import effective_stage, stage_preset
 
             stage, _source = effective_stage(
-                profile.basics or {}, profile.experience or []
+                profile.basics or {},
+                await ExperienceService(self.db).stage_dicts(profile.user_id),
             )
             base = stage_preset(stage)
         return {dim: min(5, max(1, base[dim])) for dim in DEFAULT_WEIGHTS}

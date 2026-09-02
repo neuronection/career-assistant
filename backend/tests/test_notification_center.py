@@ -13,7 +13,6 @@ from app.models.engagement_model import (
     NotificationRecipient,
     NotificationSubscription,
 )
-from app.services.engagement_service import EngagementService
 from app.services.notification_channels import (
     BaseChannel,
     register_channel,
@@ -427,16 +426,3 @@ async def test_non_mutable_kind_rejected(client, auth_headers, kinds):
         headers=auth_headers,
     )
     assert response.status_code == 400
-
-
-async def test_engagement_emit_delegates_to_funnel(db, kinds):
-    """Regression: the plan-24 call shape still lands in the plan-36 stack."""
-    user = await _make_user(db, "delegate36@example.com")
-    event = await EngagementService(db).emit(
-        user.id, "fit_threshold", title="Strong fit", max_per_day=3
-    )
-    await db.commit()
-    assert event is not None
-    recipient = (await db.execute(select(NotificationRecipient))).scalars().first()
-    assert recipient is not None
-    assert recipient.user_id == user.id

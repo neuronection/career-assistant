@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.models.engagement_model import Notification
 from app.models.matching_model import MatchInsight
 from app.seeds.run import seed_notification_kinds
+from app.services.notification_service import NotificationService
 from app.services.engagement_service import (
     EngagementService,
     with_exploration_slot,
@@ -384,7 +385,6 @@ async def test_fit_threshold_trigger_math(
         headers=auth_headers,
     )
     job = await JobService(db).get_by_code_or_id("software-developer")
-    service = EngagementService(db)
     fit = FitService(db)
 
     async def emit_at(score):
@@ -393,19 +393,19 @@ async def test_fit_threshold_trigger_math(
         )
 
     await emit_at(4.0)
-    assert await service.unread_notification_count(user_id) == 0
+    assert await NotificationService(db).unread_count(user_id) == 0
 
     await emit_at(5.0)
-    assert await service.unread_notification_count(user_id) == 1
+    assert await NotificationService(db).unread_count(user_id) == 1
 
     await emit_at(5.4)
-    assert await service.unread_notification_count(user_id) == 1
+    assert await NotificationService(db).unread_count(user_id) == 1
 
     await emit_at(5.6)
-    assert await service.unread_notification_count(user_id) == 2
+    assert await NotificationService(db).unread_count(user_id) == 2
 
     await emit_at(5.6)
-    assert await service.unread_notification_count(user_id) == 2
+    assert await NotificationService(db).unread_count(user_id) == 2
 
     rows = (await db.execute(select(Notification))).scalars().all()
     payloads = sorted(r.payload["score"] for r in rows)
@@ -459,13 +459,12 @@ async def test_fit_threshold_default_rule_and_mute(
     user_id = _user_id(client, auth_headers)
     job = await JobService(db).get_by_code_or_id("software-developer")
     fit = FitService(db)
-    service = EngagementService(db)
 
     await fit.upsert_fit(user_id, job, FitResult(score=6.5, breakdown={}, gates=[]))
-    assert await service.unread_notification_count(user_id) == 0
+    assert await NotificationService(db).unread_count(user_id) == 0
 
     await fit.upsert_fit(user_id, job, FitResult(score=8.0, breakdown={}, gates=[]))
-    assert await service.unread_notification_count(user_id) == 1
+    assert await NotificationService(db).unread_count(user_id) == 1
 
     await client.put(
         "/api/v1/notifications/rules",
@@ -477,13 +476,13 @@ async def test_fit_threshold_default_rule_and_mute(
     )
     other = await JobService(db).get_by_code_or_id("data-scientist")
     await fit.upsert_fit(user_id, other, FitResult(score=9.0, breakdown={}, gates=[]))
-    assert await service.unread_notification_count(user_id) == 2
+    assert await NotificationService(db).unread_count(user_id) == 2
 
     muted_job = await JobService(db).get_by_code_or_id("game-developer")
     await fit.upsert_fit(
         user_id, muted_job, FitResult(score=8.5, breakdown={}, gates=[])
     )
-    assert await service.unread_notification_count(user_id) == 2
+    assert await NotificationService(db).unread_count(user_id) == 2
 
 
 async def test_new_in_family_trigger_on_publish(
@@ -548,11 +547,10 @@ async def test_notifications_mark_read_flow(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds
 ):
     user_id = _user_id(client, auth_headers)
-    service = EngagementService(db)
     for i in range(3):
-        await service.emit(
-            user_id,
+        await NotificationService(db).emit(
             "fit_threshold",
+            [user_id],
             title=f"Note {i}",
             payload={"job_id": str(i)},
         )

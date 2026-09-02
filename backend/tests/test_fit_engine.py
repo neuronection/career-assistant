@@ -4,7 +4,6 @@ from app.services.fit.dimensions import (
     FIT_VERSION,
     compute_fit,
     education_dimension,
-    evidence_years_from_experience,
     experience_dimension,
     interests_dimension,
     location_dimension,
@@ -67,30 +66,6 @@ def test_experience_never_zero_for_missing_signal():
     assert 0 < partial[0] < 10.0
     full = experience_dimension(band, required, {"s1": 12.0})
     assert full[0] == 10.0 and full[2] is True
-
-
-def test_evidence_years_kind_weighted_and_fractional_projects():
-    years, instances = evidence_years_from_experience(
-        [
-            {
-                "title": "P",
-                "kind": "project",
-                "start_year": 2024,
-                "end_year": 2026,
-                "skill_keys": ["programming"],
-            },
-            {
-                "title": "I",
-                "kind": "internship",
-                "start_year": 2025,
-                "end_year": 2026,
-                "hours_per_week": 20,
-            },
-        ]
-    )
-    assert instances == 2
-    # project: 2y × 0.4 × 1.0 ; internship: 1y × 0.75 × (20/40)
-    assert years == round(2 * 0.4 + 1 * 0.75 * 0.5, 2)
 
 
 def test_location_remote_and_relocation():

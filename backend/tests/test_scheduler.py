@@ -261,7 +261,7 @@ async def test_failure_alerts_admin_after_threshold(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds
 ):
     from app.models.user_model import User
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     user = (await db.execute(select(User).limit(1))).scalars().first()
     user.is_admin = True
@@ -297,8 +297,7 @@ async def test_failure_alerts_admin_after_threshold(
     await db.commit()
     await service._handle_due(schedule, _now())
 
-    engagement = EngagementService(db)
-    assert await engagement.unread_notification_count(user.id) >= 1
+    assert await NotificationService(db).unread_count(user.id) >= 1
     notifications = (
         await client.get("/api/v1/notifications", headers=auth_headers)
     ).json()

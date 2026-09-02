@@ -771,9 +771,10 @@ async def check_new_posting_alerts(db: AsyncSession, posting: JobPosting) -> lis
     if posting.status != "mapped" or posting.catalog_job_id is None:
         return []
     from app.models.engagement_model import NotificationRule
-    from app.services.engagement_service import EngagementService
 
-    engagement = EngagementService(db)
+    from app.services.notification_channels import within_quiet_hours
+    from app.services.notification_service import NotificationService
+
     rules = (
         (
             await db.execute(
@@ -794,15 +795,15 @@ async def check_new_posting_alerts(db: AsyncSession, posting: JobPosting) -> lis
             "max_per_day": 5,
             **(rule.params or {}),
         }
-        if engagement._quiet_suppressed(params):
+        if within_quiet_hours(params.get("quiet_hours")):
             continue
         fit = await posting_fit(db, rule.user_id, posting)
         if fit < float(params["min_fit"]):
             continue
         recipients.append(rule.user_id)
-        await engagement.emit(
-            rule.user_id,
+        await NotificationService(db).emit(
             NotificationRuleKind.NEW_POSTING_MATCH.value,
+            [rule.user_id],
             title=f"New match: {posting.title}",
             body=f"{posting.org or 'A company'} posted a role mapping to your catalog — fit {fit:.1f}/10.",
             payload={

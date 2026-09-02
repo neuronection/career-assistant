@@ -64,7 +64,7 @@ def test_derivation_early_career_from_short_evidence():
 def test_derivation_returning_after_gap():
     experience = [
         {
-            "kind": "part_time",
+            "kind": "job",
             "start_year": 2015,
             "end_year": 2022,
             "hours_per_week": 30,

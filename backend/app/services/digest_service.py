@@ -76,10 +76,9 @@ async def build_and_emit_digest(
     db: AsyncSession, user_id: UUID, *, now: datetime
 ) -> dict:
     """Weekly digest: new postings in target families + radar headline."""
-    from app.services.engagement_service import EngagementService
     from app.services.growth_service import near_miss_radar
+    from app.services.notification_service import NotificationService
 
-    engagement = EngagementService(db)
     unseen = await _unseen_target_postings(db, user_id)
     radar = await near_miss_radar(db, user_id, limit=3)
     body_parts = []
@@ -89,9 +88,9 @@ async def build_and_emit_digest(
         )
     if radar:
         body_parts.append(f"close to: {radar[0]['headline']}")
-    emitted = await engagement.emit(
-        user_id,
+    emitted = await NotificationService(db).emit(
         "digest_ready",
+        [user_id],
         title="Your weekly career digest",
         body=". ".join(body_parts)
         if body_parts
@@ -184,12 +183,12 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
     if new_matches == 0:
         return {"new_matches": 0}
 
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     week = _utcnow().strftime("%G-W%V")
-    emitted = await EngagementService(db).emit(
-        user_id,
+    emitted = await NotificationService(db).emit(
         "new_posting_match",
+        [user_id],
         title=f"Your search found {new_matches} new match{'es' if new_matches != 1 else ''}",
         body=f"“{search.query or 'filters only'}” — {new_matches} unseen posting(s) match.",
         payload={

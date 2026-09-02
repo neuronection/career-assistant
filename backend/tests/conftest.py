@@ -32,6 +32,10 @@ _session_factory = async_sessionmaker(
 )
 
 TABLES = [
+    "skill_evidence",
+    "experience_skills",
+    "experience_achievements",
+    "experience_items",
     "notification_deliveries",
     "notification_kind_prefs",
     "notification_recipients",
@@ -45,6 +49,7 @@ TABLES = [
     "posting_skills",
     "posting_fits",
     "job_postings",
+    "organizations",
     "job_sources",
     "notifications",
     "notification_rules",
@@ -54,6 +59,7 @@ TABLES = [
     "assessment_answers",
     "assessment_questions",
     "assessment_runs",
+    "assessment_templates",
     "background_jobs",
     "ai_task_assignments",
     "ai_models",
@@ -62,9 +68,9 @@ TABLES = [
     "chat_sessions",
     "ai_generations",
     "match_insights",
-    "documents",
     "job_department_links",
     "department_admissions",
+    "documents",
     "departments",
     "universities",
     "career_path_steps",

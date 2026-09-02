@@ -19,13 +19,14 @@ async def _profile_out(db, profile) -> dict:
         PreferencesSection,
         WorkPreferencesSection,
     )
+    from app.services.experience_service import ExperienceService
     from app.services.profile_service import ProfileService
     from app.services.stages_service import effective_stage
 
     service = ProfileService(db)
     interests = await service.interest_rows(profile.user_id)
     stage, stage_source = effective_stage(
-        profile.basics or {}, profile.experience or []
+        profile.basics or {}, await ExperienceService(db).stage_dicts(profile.user_id)
     )
     return {
         "basics": BasicSection.model_validate(profile.basics or {}),
@@ -40,7 +41,6 @@ async def _profile_out(db, profile) -> dict:
         "work_preferences": WorkPreferencesSection.model_validate(
             profile.work_preferences or {}
         ),
-        "experience": profile.experience or [],
         "preferences": PreferencesSection.model_validate(
             profile.preferences or {}
         ).model_dump(mode="json"),

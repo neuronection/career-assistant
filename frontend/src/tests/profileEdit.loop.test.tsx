@@ -39,7 +39,6 @@ function makeProfile(): Profile {
       remote_ok: true, focus_areas: ["ideas"], salary_priority: 3,
       stability_priority: 3, physical_activity: "light", creativity_priority: 3,
     },
-    experience: [],
     preferences: { scoring_weights: { skills: 3, location: 3, experience: 3, education: 3, interests: 3 } },
     constraints: { physical_conditions: [], max_education_years: null, willing_to_relocate: true, hours_available_per_week: null },
     ai_summary: null,

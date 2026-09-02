@@ -555,6 +555,7 @@ async def complete_checkin(
     """5-minute flow: confirm stage, micro self-report with conflict
     surfacing (23 reconciliation), or skip (+90 days)."""
     from app.services.deps import get_profile_for_user
+    from app.services.experience_service import ExperienceService
     from app.services.stages_service import effective_stage
 
     profile = await get_profile_for_user(db, user_id)
@@ -609,13 +610,11 @@ async def complete_checkin(
             from app.services.fit.service import FitService
 
             await FitService(db).refit_user(user_id)
-        current_stage, _source = effective_stage(
-            profile.basics or {}, profile.experience or []
-        )
-    else:
-        current_stage, _source = effective_stage(
-            profile.basics or {}, profile.experience or []
-        )
+
+    current_stage, _source = effective_stage(
+        profile.basics or {},
+        await ExperienceService(db).stage_dicts(user_id),
+    )
 
     from app.models.enums import ScheduleKind
     from app.services.scheduler import triggers as trigger_registry

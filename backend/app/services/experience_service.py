@@ -282,6 +282,62 @@ class ExperienceService:
         await self.db.flush()
         return org
 
+    # ------------------------------------------------------- stage input
+
+    async def stage_dicts(self, user_id: UUID) -> list[dict]:
+        """Active items as the dict shape the stage heuristic consumes
+        (plan 25 derive_career_stage): {kind, start_year, end_year,
+        hours_per_week}. Years derive from tables — never self-typed."""
+        rows = await self.db.execute(
+            select(ExperienceItem).where(
+                ExperienceItem.user_id == user_id,
+                ExperienceItem.status == "active",
+            )
+        )
+        return [
+            {
+                "kind": item.kind,
+                "start_year": item.start.year,
+                "end_year": item.end.year if item.end else None,
+                "hours_per_week": item.hours_per_week,
+            }
+            for item in rows.scalars().all()
+        ]
+
+    async def has_items(self, user_id: UUID) -> bool:
+        rows = await self.db.execute(
+            select(ExperienceItem.id).where(ExperienceItem.user_id == user_id).limit(1)
+        )
+        return rows.scalars().first() is not None
+
+    async def summary_rows(self, user_id: UUID) -> list[dict]:
+        """Light summary for the profile snapshot (title/kind/years/skills)."""
+        rows = await self.db.execute(
+            select(ExperienceItem)
+            .options(
+                selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill)
+            )
+            .where(
+                ExperienceItem.user_id == user_id,
+                ExperienceItem.status == "active",
+            )
+            .order_by(ExperienceItem.start.desc())
+        )
+        items = rows.scalars().unique().all()
+        return [
+            {
+                "title": item.title,
+                "kind": item.kind,
+                "years": max(
+                    0,
+                    (item.end.year if item.end else date.today().year)
+                    - item.start.year,
+                ),
+                "skills": [link.skill.key for link in item.skills],
+            }
+            for item in items
+        ]
+
     # -------------------------------------------------------- derivation
 
     async def _participations(self, user_id: UUID) -> list[dict]:

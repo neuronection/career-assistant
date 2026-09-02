@@ -198,14 +198,14 @@ class TrayActions:
             await SchedulerService(db).set_enabled(UUID(schedule_id), enabled)
 
     async def notifications(self, limit: int = 5) -> tuple[list[dict], int]:
-        from app.services.engagement_service import EngagementService
+        from app.services.notification_service import NotificationService
 
         items: list[dict] = []
         unread = 0
         async with self._session_factory() as db:
-            service = EngagementService(db)
+            service = NotificationService(db)
             for owner in await self.owner_ids():
-                result = await service.list_notifications(owner, limit=limit)
+                result = await service.list_inbox(owner, limit=limit)
                 for row in result["items"][:limit]:
                     items.append({"id": str(row["id"]), "title": row["title"]})
                 unread += result["unread_count"]
@@ -213,11 +213,11 @@ class TrayActions:
         return items[:limit], unread
 
     async def mark_all_read(self) -> int:
-        from app.services.engagement_service import EngagementService
+        from app.services.notification_service import NotificationService
 
         marked = 0
         async with self._session_factory() as db:
-            service = EngagementService(db)
+            service = NotificationService(db)
             for owner in await self.owner_ids():
                 marked += await service.mark_read(owner, [])
         return marked

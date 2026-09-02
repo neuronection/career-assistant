@@ -72,11 +72,7 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     work_preferences: Mapped[dict] = mapped_column(
         StructuredJSON, nullable=False, default=dict
     )
-    # Experience items (22; promoted to tables by plan 40) + scoring weight
-    # preferences live as structured sections until their phases promote them.
-    experience: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    # Scoring-weight preferences (22) live as a structured section.
     preferences: Mapped[dict] = mapped_column(
         StructuredJSON, nullable=False, default=dict
     )

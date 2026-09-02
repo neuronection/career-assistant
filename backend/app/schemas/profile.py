@@ -112,21 +112,6 @@ class ConstraintsSection(BaseModel):
     hours_available_per_week: Optional[int] = Field(default=None, ge=0, le=100)
 
 
-class ExperienceItem(BaseModel):
-    """An experience evidence item (promoted to tables by plan 40)."""
-
-    title: str = Field(min_length=1, max_length=160)
-    org: str = Field(default="", max_length=160)
-    kind: Literal["internship", "part_time", "volunteer", "project", "freelance"] = (
-        "project"
-    )
-    start_year: int = Field(ge=1990, le=2030)
-    end_year: Optional[int] = Field(default=None, ge=1990, le=2030)
-    hours_per_week: Optional[int] = Field(default=None, ge=1, le=80)
-    skill_keys: list[str] = Field(default_factory=list, max_length=15)
-    description: str = Field(default="", max_length=1000)
-
-
 class ScoringWeights(BaseModel):
     """Per-dimension importance sliders (1–5) for the fit engine (22)."""
 
@@ -164,7 +149,6 @@ class ProfileSectionUpdate(BaseModel):
     dislikes: Optional[list[LikeDislikeItem]] = Field(default=None, max_length=30)
     aspirations: Optional[list[AspirationItem]] = Field(default=None, max_length=20)
     work_preferences: Optional[WorkPreferencesSection] = None
-    experience: Optional[list[ExperienceItem]] = Field(default=None, max_length=30)
     preferences: Optional[PreferencesSection] = None
     constraints: Optional[ConstraintsSection] = None
 

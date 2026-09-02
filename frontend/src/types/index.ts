@@ -293,16 +293,6 @@ export interface Profile {
     physical_activity: PhysicalActivity;
     creativity_priority: number;
   };
-  experience: {
-    title: string;
-    org: string;
-    kind: "internship" | "part_time" | "volunteer" | "project" | "freelance";
-    start_year: number;
-    end_year: number | null;
-    hours_per_week: number | null;
-    skill_keys: string[];
-    description: string;
-  }[];
   preferences: {
     scoring_weights: {
       skills: number;

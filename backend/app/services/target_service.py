@@ -27,6 +27,7 @@ from app.models.posting_model import JobPosting, PostingInteraction
 from app.models.taxonomy_model import Skill
 from app.models.user_model import Profile, UserInterest
 from app.services.engagement_service import EngagementService
+from app.services.experience_service import ExperienceService
 
 NUDGE_COOLDOWN_DAYS = 3
 NUDGE_TYPES = ("skills_micro_run", "interests_micro_run", "experience_micro_run")
@@ -364,7 +365,7 @@ async def completeness_ring(db: AsyncSession, user_id: UUID) -> dict:
         {
             "key": "experience",
             "label": "Experience",
-            "filled": bool(profile.experience),
+            "filled": await ExperienceService(db).has_items(user_id),
             "hint": "Add projects or jobs — evidence beats guesses",
             "href": "/profile",
         },
@@ -430,7 +431,7 @@ async def get_nudges(db: AsyncSession, user_id: UUID) -> list[dict]:
             "Tell us what you're aiming for — suggestions get closer",
         ),
         "experience_micro_run": (
-            not (profile.experience or []),
+            not await ExperienceService(db).has_items(user_id),
             "Add one project or job — evidence beats guesses",
         ),
     }
@@ -480,10 +481,13 @@ async def dismiss_nudge(db: AsyncSession, user_id: UUID, nudge_type: str) -> dic
 async def target_dashboard(db: AsyncSession, user_id: UUID) -> dict:
     """The target-mode dashboard aggregate: open jobs, adjacent targets,
     market snapshot, nudges (plan 27)."""
+    from app.services.experience_service import ExperienceService
     from app.services.stages_service import effective_stage
 
     profile = await _profile(db, user_id)
-    _stage, _source = effective_stage(profile.basics or {}, profile.experience or [])
+    _stage, _source = effective_stage(
+        profile.basics or {}, await ExperienceService(db).stage_dicts(user_id)
+    )
 
     rules = (
         (

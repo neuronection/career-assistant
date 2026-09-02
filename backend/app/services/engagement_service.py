@@ -326,27 +326,6 @@ class EngagementService:
         await self.db.refresh(insight)
         return insight
 
-    # ---------------------------------------------------------- notifications
-
-    async def list_notifications(
-        self,
-        user_id: UUID,
-        *,
-        unread_only: bool = False,
-        kind: Optional[str] = None,
-        limit: int = 50,
-    ) -> dict:
-        """Delegate to the plan-36 funnel (inbox shape)."""
-        return await NotificationService(self.db).list_inbox(
-            user_id, unread_only=unread_only, kind=kind, limit=limit
-        )
-
-    async def unread_notification_count(self, user_id: UUID) -> int:
-        return await NotificationService(self.db).unread_count(user_id)
-
-    async def mark_read(self, user_id: UUID, ids: list[UUID]) -> int:
-        return await NotificationService(self.db).mark_read(user_id, ids)
-
     # ----------------------------------------------------------------- rules
 
     async def get_rules(self, user_id: UUID) -> list[dict]:
@@ -443,57 +422,7 @@ class EngagementService:
         )
         return rows.scalars().first()
 
-    async def emit(
-        self,
-        user_id: UUID,
-        kind_key: str,
-        *,
-        title: str,
-        body: str = "",
-        payload: Optional[dict] = None,
-        dedup_key: Optional[str] = None,
-        dedup_ttl_days: Optional[int] = None,
-        max_per_day: Optional[int] = None,
-        severity: Optional[str] = None,
-    ) -> Optional[Notification]:
-        """Single funnel (plan 36): delegates to NotificationService.emit.
-
-        Kept on EngagementService so plan-24 rule triggers and every
-        existing emitter keep one call shape; storage and dispatch live
-        in NotificationService.
-        """
-        return await NotificationService(self.db).emit(
-            kind_key,
-            [user_id],
-            title=title,
-            body=body,
-            payload=payload,
-            dedup_key=dedup_key,
-            dedup_ttl_days=dedup_ttl_days,
-            max_per_day=max_per_day,
-            severity=severity,
-        )
-
     # ---------------------------------------------------------- preferences
-
-    async def get_preferences(self, user_id: UUID) -> dict:
-        """Global channel preferences (plan 36 keeps this row; the full
-        per-kind × per-channel matrix lives in NotificationService)."""
-        return await NotificationService(self.db).global_prefs(user_id)
-
-    async def upsert_preferences(
-        self,
-        user_id: UUID,
-        *,
-        desktop_channel_enabled: bool = True,
-        quiet_hours: Optional[dict] = None,
-    ) -> dict:
-        """Full-replace upsert (single row per user; PUT semantics)."""
-        return await NotificationService(self.db).set_global_prefs(
-            user_id,
-            desktop_channel_enabled=desktop_channel_enabled,
-            quiet_hours=quiet_hours,
-        )
 
     # -------------------------------------------------------------- triggers
 
@@ -531,9 +460,9 @@ class EngagementService:
             if score - last_score < SCORE_CHANGE_STEP:
                 return
         bucket = int(score * 2)
-        await self.emit(
-            user_id,
+        await NotificationService(self.db).emit(
             NotificationRuleKind.FIT_THRESHOLD.value,
+            [user_id],
             title=f"Strong fit: {job.title}",
             body=(
                 f"Your fit score for {job.title} reached {score:.1f}/10"
@@ -571,9 +500,9 @@ class EngagementService:
                 continue
             if self._quiet_suppressed(rule.params):
                 continue
-            notification = await self.emit(
-                rule.user_id,
+            notification = await NotificationService(self.db).emit(
                 NotificationRuleKind.NEW_IN_FAMILY.value,
+                [rule.user_id],
                 title=f"New in {job.family.key.replace('-', ' ')}: {job.title}",
                 body=job.short_description[:500],
                 payload={

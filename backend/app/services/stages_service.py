@@ -10,9 +10,17 @@ user-correctable.
 
 from datetime import datetime
 
-from sqlalchemy import select
-
 from app.models.enums import CareerStage
+
+# Evidence weight per experience kind for the stage heuristic — the
+# plan-25 calibration (projects count fractionally); 'job' is full-strength.
+STAGE_KIND_WEIGHT = {
+    "job": 1.0,
+    "internship": 0.75,
+    "freelance": 0.75,
+    "volunteer": 0.5,
+    "project": 0.4,
+}
 
 # Birth-year ceiling for profile validation: nobody younger than 14.
 MIN_AGE = 14
@@ -69,11 +77,26 @@ def max_birth_year() -> int:
 
 
 def _experience_years(experience: list[dict]) -> float:
-    """Kind-weighted evidence years (shared formula with the fit engine)."""
-    from app.services.fit.dimensions import evidence_years_from_experience
+    """Kind-weighted evidence years over the `stage_dicts` dict shape.
 
-    years, _instances = evidence_years_from_experience(experience or [])
-    return years
+    Items are {kind, start_year, end_year?, hours_per_week?}; spans sum
+    (evidence, not a timeline) with STAGE_KIND_WEIGHT and part-time
+    intensity capped at the 40h full-time reference.
+    """
+    years = 0.0
+    for item in experience or []:
+        start = item.get("start_year")
+        if not start:
+            continue
+        end = item.get("end_year") or datetime.now().year
+        span = max(0, int(end) - int(start))
+        if span <= 0:
+            continue
+        hours = item.get("hours_per_week")
+        intensity = min(1.0, float(hours) / 40.0) if hours else 1.0
+        kind = str(item.get("kind") or "project")
+        years += span * STAGE_KIND_WEIGHT.get(kind, 0.4) * intensity
+    return round(years, 2)
 
 
 def _experience_gap_years(experience: list[dict]) -> float:
@@ -137,31 +160,11 @@ def is_student_stage(stage: CareerStage) -> bool:
 
 
 async def stage_for_user(db, user_id) -> tuple[CareerStage, str]:
-    """Effective stage for a user; years derive from active experience
-    items when they exist (plan 40 — never self-typed), else the legacy
-    JSONB list."""
-    from app.models.experience_model import ExperienceItem
-
+    """Effective stage; years derive from active experience items only
+    (plan 40 — never self-typed)."""
+    from app.services.experience_service import ExperienceService
     from app.services.profile_service import ProfileService
 
     profile = await ProfileService(db).get(user_id)
-    rows = await db.execute(
-        select(ExperienceItem).where(
-            ExperienceItem.user_id == user_id,
-            ExperienceItem.status == "active",
-        )
-    )
-    items = rows.scalars().all()
-    if items:
-        experience = [
-            {
-                "kind": item.kind,
-                "start_year": item.start.year,
-                "end_year": item.end.year if item.end else None,
-                "hours_per_week": item.hours_per_week,
-            }
-            for item in items
-        ]
-    else:
-        experience = profile.experience or []
+    experience = await ExperienceService(db).stage_dicts(user_id)
     return effective_stage(profile.basics or {}, experience)

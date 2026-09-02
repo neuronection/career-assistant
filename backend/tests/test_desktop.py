@@ -121,7 +121,7 @@ def test_autostart_written_and_removed(tmp_path: Path):
 async def test_emit_dispatches_to_registered_channel(db, kinds):
     from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     seen: list[dict] = []
     bridge = _FakeBridge()
@@ -143,9 +143,9 @@ async def test_emit_dispatches_to_registered_channel(db, kinds):
     notification_channels.register_channel(_RecordingChannel(bridge))
     try:
         user_id = await _make_user(db, "dispatch@example.com")
-        notification = await EngagementService(db).emit(
-            user_id,
+        notification = await NotificationService(db).emit(
             "fit_threshold",
+            [user_id],
             title="Strong fit",
             body=" reached 8/10",
             payload={"link": "/jobs/ENG-1"},
@@ -167,7 +167,7 @@ async def test_dispatch_dedup_suppressed_means_no_toast(db, kinds):
     """Dedup collapse ⇒ no inbox row ⇒ no toast (single funnel)."""
     from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     calls: list[int] = []
     bridge = _FakeBridge()
@@ -180,16 +180,15 @@ async def test_dispatch_dedup_suppressed_means_no_toast(db, kinds):
     notification_channels.register_channel(_CountingChannel(bridge))
     try:
         user_id = await _make_user(db, "dedup@example.com")
-        service = EngagementService(db)
-        first = await service.emit(
-            user_id,
+        first = await NotificationService(db).emit(
             "digest_ready",
+            [user_id],
             title="Weekly digest",
             dedup_key=f"digest:{user_id}",
         )
-        second = await service.emit(
-            user_id,
+        second = await NotificationService(db).emit(
             "digest_ready",
+            [user_id],
             title="Weekly digest",
             dedup_key=f"digest:{user_id}",
         )
@@ -231,27 +230,29 @@ async def test_quiet_hours_suppress_toast_but_inbox_filled(db, kinds):
     the inbox row)."""
     from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     bridge = _FakeBridge()
     notification_channels.register_channel(DesktopChannel(bridge))
     try:
         user_id = await _make_user(db, "quiet@example.com")
-        await EngagementService(db).upsert_preferences(
+        await NotificationService(db).set_global_prefs(
             user_id,
             desktop_channel_enabled=True,
             quiet_hours={"start": "00:00", "end": "23:59"},
         )
-        row = await EngagementService(db).emit(
-            user_id, "fit_threshold", title="Strong fit"
+        row = await NotificationService(db).emit(
+            "fit_threshold", [user_id], title="Strong fit"
         )
         assert row is not None  # inbox filled
         assert bridge.toasts == []  # toast suppressed at dispatch
 
-        await EngagementService(db).upsert_preferences(
+        await NotificationService(db).set_global_prefs(
             user_id, desktop_channel_enabled=True, quiet_hours=None
         )
-        await EngagementService(db).emit(user_id, "fit_threshold", title="Strong fit 2")
+        await NotificationService(db).emit(
+            "fit_threshold", [user_id], title="Strong fit 2"
+        )
         assert len(bridge.toasts) == 1
         assert bridge.toasts[0]["link"] == ""
         await db.rollback()
@@ -262,17 +263,17 @@ async def test_quiet_hours_suppress_toast_but_inbox_filled(db, kinds):
 async def test_channel_disabled_means_no_dispatch(db, kinds):
     from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     bridge = _FakeBridge()
     notification_channels.register_channel(DesktopChannel(bridge))
     try:
         user_id = await _make_user(db, "disabled@example.com")
-        await EngagementService(db).upsert_preferences(
+        await NotificationService(db).set_global_prefs(
             user_id, desktop_channel_enabled=False
         )
-        row = await EngagementService(db).emit(
-            user_id, "fit_threshold", title="Strong fit"
+        row = await NotificationService(db).emit(
+            "fit_threshold", [user_id], title="Strong fit"
         )
         assert row is not None
         assert bridge.toasts == []
@@ -284,7 +285,7 @@ async def test_channel_disabled_means_no_dispatch(db, kinds):
 async def test_dispatcher_failure_does_not_break_emit(db, kinds):
     from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     class _BrokenChannel(DesktopChannel):
         async def send(self, ctx):
@@ -293,8 +294,8 @@ async def test_dispatcher_failure_does_not_break_emit(db, kinds):
     notification_channels.register_channel(_BrokenChannel(_FakeBridge()))
     try:
         user_id = await _make_user(db, "broken@example.com")
-        row = await EngagementService(db).emit(
-            user_id, "fit_threshold", title="Strong fit"
+        row = await NotificationService(db).emit(
+            "fit_threshold", [user_id], title="Strong fit"
         )
         assert row is not None
         await db.rollback()
@@ -507,12 +508,12 @@ async def _first_admin_id():
 
 async def test_tray_actions_use_admin_inbox(db, client, auth_headers, kinds):
     """First registered user is admin ⇒ the tray reads their inbox."""
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     other_id = await _make_user(db, "other@example.com")
-    await EngagementService(db).emit(other_id, "fit_threshold", title="other")
+    await NotificationService(db).emit("fit_threshold", [other_id], title="other")
     admin_id = await _first_admin_id()
-    await EngagementService(db).emit(admin_id, "fit_threshold", title="yours")
+    await NotificationService(db).emit("fit_threshold", [admin_id], title="yours")
     await db.commit()
 
     actions = _tray_actions()
@@ -562,10 +563,10 @@ async def test_tray_sync_now_and_saved_search(db, client, auth_headers, kinds):
 
 async def test_tray_status_counts(db, client, auth_headers, kinds):
     from app.desktop.tray import TrayActions
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
 
     admin_id = await _first_admin_id()
-    await EngagementService(db).emit(admin_id, "fit_threshold", title="yours")
+    await NotificationService(db).emit("fit_threshold", [admin_id], title="yours")
     await db.commit()
 
     factory = async_sessionmaker(

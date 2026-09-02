@@ -49,7 +49,7 @@ class SearchHistory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_search_history_user_saved", "user_id", "saved"),
         CheckConstraint(
-            "scope IN ('catalog', 'rankings', 'universities')",
+            "scope IN ('catalog', 'rankings', 'universities', 'postings')",
             name="scope_allowed",
         ),
     )
@@ -277,7 +277,7 @@ class NotificationRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("user_id", "kind", name="uq_notification_rules_user_kind"),
         CheckConstraint(
-            "kind IN ('fit_threshold', 'new_in_family')",
+            "kind IN ('fit_threshold', 'new_in_family', 'new_posting_match')",
             name="kind_supported",
         ),
     )

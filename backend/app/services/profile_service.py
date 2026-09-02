@@ -53,7 +53,6 @@ class ProfileService:
             "dislikes",
             "aspirations",
             "work_preferences",
-            "experience",
             "preferences",
             "constraints",
         ):
@@ -61,7 +60,7 @@ class ProfileService:
                 setattr(profile, section, payload[section])
                 if section != "hobbies":
                     fit_relevant = True
-        self._strip_student_fields(profile)
+        await self.strip_student_fields(profile)
         self.db.add(profile)
         await self.db.commit()
         await self.db.refresh(profile)
@@ -71,19 +70,28 @@ class ProfileService:
             await FitService(self.db).refit_user(user_id, profile)
         return profile
 
-    @staticmethod
-    def _strip_student_fields(profile: Profile) -> None:
+    async def strip_student_fields(self, profile: Profile) -> None:
         """grade/gpa are student-only — non-student stages never carry them."""
         from app.models.enums import CareerStage
-        from app.services.stages_service import effective_stage
 
-        stage, _source = effective_stage(profile.basics or {}, profile.experience or [])
+        stage, _source = await self._stage(profile)
         if stage == CareerStage.STUDENT:
             return
         if (profile.basics or {}).get("grade") is not None:
             profile.basics = {**profile.basics, "grade": None}
         if (profile.academics or {}).get("gpa_band") is not None:
             profile.academics = {**profile.academics, "gpa_band": None}
+
+    async def _stage(self, profile: Profile) -> tuple:
+        """Effective stage from basics + table-derived experience (plan 40)."""
+        from app.services.experience_service import ExperienceService
+        from app.services.stages_service import effective_stage
+
+        stage, source = effective_stage(
+            profile.basics or {},
+            await ExperienceService(self.db).stage_dicts(profile.user_id),
+        )
+        return stage, source
 
     async def _write_interests(self, user_id: UUID, items: list[dict]) -> None:
         """Replace the user's interest links (taxonomy keys, weights 1–5)."""
@@ -138,20 +146,10 @@ class ProfileService:
 
     async def snapshot(self, profile: Profile) -> dict:
         """Serialise the profile for prompts/candidates."""
+        from app.services.experience_service import ExperienceService
+
         rows = await self.interest_rows(profile.user_id)
-        experience = [
-            {
-                "title": item.get("title"),
-                "kind": item.get("kind"),
-                "years": max(
-                    0,
-                    int(item.get("end_year") or 2026)
-                    - int(item.get("start_year") or 0),
-                ),
-                "skills": item.get("skill_keys") or [],
-            }
-            for item in (profile.experience or [])
-        ]
+        experience = await ExperienceService(self.db).summary_rows(profile.user_id)
         return {
             "user_id": str(profile.user_id),
             "basics": profile.basics or {},

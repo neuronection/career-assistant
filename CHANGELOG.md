@@ -93,6 +93,11 @@ All notable changes to **Career Assistant** are documented here.
   compose stack instead of building locally.
 
 ### Changed
+- **Schema baseline squashed to a single migration; profile JSONB experience
+  section removed in favor of the plan-40 tables; EngagementService
+  notification delegates removed — NotificationService is the only
+  notification API. Dev/test databases must be recreated
+  (`alembic upgrade head` + seed).**
 - **Caddy retired in favor of nginx** (family standard, matching Health
   Assistant): the prod compose `proxy` profile is gone; the standalone stack
   ships the nginx flavor instead. For public deployments switch to the

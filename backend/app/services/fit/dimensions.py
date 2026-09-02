@@ -409,30 +409,3 @@ def compute_fit(
         gates=gates,
         specialist_dimension=specialist,
     )
-
-
-def evidence_years_from_experience(items: list[dict]) -> tuple[float, int]:
-    """Derived experience years (kind-weighted) + instance count.
-
-    Each item: {kind, start_year, end_year?, hours_per_week?, skill_keys[]}.
-    Relevance weighting (per-skill matching against a job) happens in the
-    service layer; this is the kind-weighted raw derivation. Overlapping
-    items are summed — evidence, not a timeline.
-    """
-    years = 0.0
-    instances = 0
-    for item in items or []:
-        start = item.get("start_year")
-        if not start:
-            continue
-        end = item.get("end_year") or 2026
-        span = max(0, int(end) - int(start))
-        if span <= 0:
-            continue
-        kind = str(item.get("kind") or "project")
-        kind_weight = EXPERIENCE_KIND_WEIGHT.get(kind, 0.4)
-        hours = item.get("hours_per_week")
-        intensity = min(1.0, float(hours) / 40.0) if hours else 1.0
-        years += span * kind_weight * intensity
-        instances += 1
-    return round(years, 2), instances

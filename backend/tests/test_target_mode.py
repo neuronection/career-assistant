@@ -128,7 +128,7 @@ async def test_express_end_to_end(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds, synthetic
 ):
     from app.models.posting_model import JobSource
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
     from app.services.postings_service import sync_source
 
     response = await client.post(
@@ -174,8 +174,7 @@ async def test_express_end_to_end(
     assert feed["total"] == 1
     assert feed["items"][0]["catalog_job_id"] is not None
 
-    engagement = EngagementService(db)
-    assert await engagement.unread_notification_count(_user_id(auth_headers)) >= 1
+    assert await NotificationService(db).unread_count(_user_id(auth_headers)) >= 1
     notifications = (
         await client.get("/api/v1/notifications", headers=auth_headers)
     ).json()

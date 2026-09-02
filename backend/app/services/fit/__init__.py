@@ -6,7 +6,6 @@ from app.services.fit.dimensions import (
     FIT_VERSION,
     FitResult,
     compute_fit,
-    evidence_years_from_experience,
     evaluate_gates,
 )
 from app.services.fit.service import FitService
@@ -18,6 +17,5 @@ __all__ = [
     "FitResult",
     "FitService",
     "compute_fit",
-    "evidence_years_from_experience",
     "evaluate_gates",
 ]

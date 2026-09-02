@@ -386,7 +386,7 @@ async def test_snapshot_sufficient_sample_shows_band(
 async def test_quiet_hours_suppress_pings(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds
 ):
-    from app.services.engagement_service import EngagementService
+    from app.services.notification_service import NotificationService
     from app.services.fit.service import FitService
     from app.services.fit.dimensions import FitResult
     from app.services.job_service import JobService
@@ -403,8 +403,7 @@ async def test_quiet_hours_suppress_pings(
     job = await JobService(db).get_by_code_or_id("software-developer")
     fit = FitService(db)
     await fit.upsert_fit(user_id, job, FitResult(score=8.0, breakdown={}, gates=[]))
-    engagement = EngagementService(db)
-    assert await engagement.unread_notification_count(user_id) == 0
+    assert await NotificationService(db).unread_count(user_id) == 0
 
     bad_window = await client.put(
         "/api/v1/notifications/rules",

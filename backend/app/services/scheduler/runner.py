@@ -385,9 +385,8 @@ class SchedulerService:
 
     async def _alert_failure(self, schedule: Schedule, job: BackgroundJob) -> None:
         """System schedules alert admins; user schedules alert the owner."""
-        from app.services.engagement_service import EngagementService
+        from app.services.notification_service import NotificationService
 
-        engagement = EngagementService(self.db)
         title = f"Scheduled task failing: {schedule.kind}"
         body = f"{schedule.consecutive_failures} consecutive failures — last error: {(job.error or 'unknown')[:300]}"
         payload = {
@@ -407,9 +406,9 @@ class SchedulerService:
         else:
             recipients = [schedule.owner_user_id]
         for user_id in recipients[:20]:
-            await engagement.emit(
-                user_id,
+            await NotificationService(self.db).emit(
                 "background_failed",
+                [user_id],
                 title=title,
                 body=body,
                 payload=payload,
