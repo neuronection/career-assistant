@@ -13,17 +13,22 @@
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
 
-<!-- NEURONECTION:BADGE:START -->
-[![Neuronection](https://img.shields.io/badge/part_of_the-Neuronection_family-4F46E5)](https://neuronection.com)
-<!-- NEURONECTION:BADGE:END -->
-
-<br>
+  <p>
+    <small>Part of</small><br>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://neuronection.com/logos/neuronection-dark.svg">
+      <img src="https://neuronection.com/logos/neuronection.svg" height="30" alt="">
+    </picture>&nbsp;&nbsp;&nbsp;<picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://neuronection.com/logos/neuronection-wordmark-dark.svg">
+      <img src="https://neuronection.com/logos/neuronection-wordmark.svg" height="30" alt="Neuronection — one ecosystem, four guides">
+    </picture>
+  </p>
 
 **Website**: [neuronection.com](https://neuronection.com) · **Repository**: [neuronection/career-assistant](https://github.com/neuronection/career-assistant)
 
 </div>
 
-> Part of the Neuronection assistant family — explore all projects at [neuronection.com](https://neuronection.com).
+> **Your data stays on your own server.** Self-hosted by design — no managed cloud.
 
 ---
 
@@ -34,12 +39,17 @@
 - [Features](#features)
 - [Structured by design](#structured-by-design)
 - [Quick start](#quick-start)
+  - [Install from the latest release](#install-from-the-latest-release)
+  - [Run from source (developers)](#run-from-source-developers)
+  - [Desktop app](#desktop-app)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Documentation](#documentation)
 - [Tech stack](#tech-stack)
 - [Scope & limitations](#scope--limitations)
 - [Status & roadmap](#status--roadmap)
+- [Community & support](#community--support)
 - [Contributing](#contributing)
+- [Security](#security)
 - [License](#license)
 - [Disclaimer](#disclaimer)
 
@@ -132,7 +142,12 @@ Career Assistant is a student tool today, but the foundation is the same one the
 
 ## Quick start
 
-### Development (recommended)
+### Install from the latest release
+
+Linux installers (`.deb` / `.AppImage`) and the Windows executable are
+published on the [Releases page](https://github.com/neuronection/career-assistant/releases).
+
+### Run from source (developers)
 
 From a fresh clone to a running instance:
 
@@ -174,7 +189,7 @@ python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
 **Prebuilt packages** (no Python needed) are published on the
 [Releases](https://github.com/neuronection/career-assistant/releases) page
 for every tagged version: `.deb` + AppImage (Linux) and a portable
-`CareerAssistant-<version>-windows-x64.exe` (Windows).
+`CareerAssistant-windows-x64.exe` (Windows).
 
 Closing the window keeps the app running in the tray (after a first-run
 opt-in prompt) — scheduled searches, syncs and alerts continue in the
@@ -297,11 +312,22 @@ Career Assistant is in **public beta** (`0.7.x`). The points below are honest bo
 - Notification-center library unification and health-assistant adoption — shared work in the assistant-ui and health repos.
 - Pending rescope: match staleness/bulk re-score, E2E + typing gates, broader i18n coverage, demand-history trends; sustainability model.
 
+## Community & support
+
+Questions: [Discord](https://discord.com/invite/SZCXNTwv) ·
+Bugs & feature requests: [Issues](https://github.com/neuronection/career-assistant/issues) ·
+Support development: [Buy Me a Coffee](https://buymeacoffee.com/neuronection)
+
 ## Contributing
 
 Contributions are welcome. To set up a working dev environment, follow [Quick start](#quick-start) and read [CONTRIBUTING.md](CONTRIBUTING.md) for code style, testing and the PR checklist.
 
 For backend changes, run `ruff check` / `ruff format --check` and the pytest suite before submitting. For frontend changes, `npm run build`, `npm run test -- --run` and `npm run lint` must pass. Security issues go through [SECURITY.md](SECURITY.md), never public issues.
+
+## Security
+
+Found a vulnerability? Do not open a public issue — see
+[SECURITY.md](SECURITY.md) for the private disclosure process.
 
 <!-- NEURONECTION:ECOSYSTEM:START -->
 ---
