@@ -1,0 +1,178 @@
+/* CV Studio motion system — CSS only, reduced-motion aware.
+   Import order: styles.css (library) → index.css → motion.css → theme.css. */
+
+/* Respect users who opt out of motion — applied globally. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Pane / page transition: fade + slight rise, fast and intentional. */
+@keyframes cv-pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cv-pane-enter {
+  animation: cv-pane-in 180ms ease-out both;
+}
+
+/* Onboarding hero: staggered path-tile entrance — the delay
+   comes from an inline animation-delay per tile index. */
+@keyframes path-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.path-card-in {
+  animation: path-card-in 240ms ease-out both;
+}
+
+/* Height animation without JS measuring (grid-template-rows 0fr/1fr). */
+.cv-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease-out;
+}
+
+.cv-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.cv-collapse > * {
+  overflow: hidden;
+  min-height: 0;
+  visibility: hidden;
+  transition: visibility 0s 200ms;
+}
+
+.cv-collapse[data-open="true"] > * {
+  visibility: visible;
+  transition: visibility 0s;
+}
+
+/* Drag-and-drop: drop-slot highlight (outline + quick background fade). */
+.cv-drop-slot {
+  outline: 2px dashed var(--as-accent);
+  outline-offset: -2px;
+  background-color: color-mix(in srgb, var(--as-accent) 8%, transparent);
+  transition: background-color 120ms ease-out;
+}
+
+/* Skeleton shimmer for preview loading. */
+@keyframes cv-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.cv-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--as-muted) 40%,
+    color-mix(in srgb, var(--as-muted) 55%, var(--as-surface-raised)) 50%,
+    var(--as-muted) 60%
+  );
+  background-size: 200% 100%;
+  animation: cv-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Toast slide-in from the bottom-right stack. */
+@keyframes cv-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.cv-toast-in {
+  animation: cv-toast-in 200ms ease-out both;
+}
+
+/* Slide-over panel entering from the right edge. */
+@keyframes cv-slideover-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.cv-slideover-in {
+  animation: cv-slideover-in 200ms ease-out both;
+}
+
+/* Animated toggle switch rendered from a native checkbox. */
+.as-switch {
+  appearance: none;
+  width: 28px;
+  height: 16px;
+  border-radius: 9999px;
+  background-color: var(--as-muted);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 160ms ease-out;
+  flex-shrink: 0;
+}
+
+.as-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background-color: var(--as-surface-raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  transition: transform 160ms ease-out;
+}
+
+.as-switch:checked {
+  background-color: var(--as-accent);
+}
+
+.as-switch:checked::after {
+  transform: translateX(12px);
+}
+
+.as-switch:indeterminate {
+  background-color: color-mix(in srgb, var(--as-accent) 45%, var(--as-muted));
+}
+
+.as-switch:indeterminate::after {
+  transform: translateX(6px);
+}
+
+.as-switch:focus-visible {
+  outline: 2px solid var(--as-focus-ring);
+  outline-offset: 2px;
+}

@@ -1,0 +1,198 @@
+from datetime import datetime
+from enum import Enum
+import re
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.enums import (
+    CareerStage,
+    EducationLevel,
+    OnboardingPath,
+    PhysicalActivity,
+    PhysicalCondition,
+    TagSource,
+)
+from app.services.stages_service import max_birth_year
+
+WeightedTag = Field(ge=1, le=5)
+
+
+class ProfileLink(BaseModel):
+    """A contact/profile link: shared shape with 40's links."""
+
+    kind: Literal["linkedin", "github", "portfolio", "other"] = "other"
+    url: str = Field(min_length=1, max_length=500)
+    label: str = Field(default="", max_length=120)
+
+    @field_validator("url")
+    @classmethod
+    def _http_scheme(cls, value: str) -> str:
+        value = value.strip()
+        if not re.match(r"^https?://", value, re.IGNORECASE):
+            raise ValueError("link url must use an http(s) scheme")
+        return value
+
+
+class BasicSection(BaseModel):
+    """Stage-aware basics: grade/years fields are student-only.
+
+    `timezone` is the IANA zone quiet hours (36), digests/check-ins (29)
+    and misfire scheduling resolve against — never a UTC offset string.
+    Contact fields (email/phone/headline/links) land with.
+    """
+
+    birth_year: Optional[int] = Field(default=None, ge=1950, le=max_birth_year())
+    education_level: EducationLevel = EducationLevel.HIGH_SCHOOL
+    grade: Optional[str] = Field(default=None, max_length=30)
+    career_stage: Optional[CareerStage] = None
+    onboarding_path: Optional[OnboardingPath] = None
+    country: str = Field(default="", max_length=80)
+    city: str = Field(default="", max_length=80)
+    timezone: str = Field(default="UTC", max_length=60)
+    email: str = Field(default="", max_length=200)
+    phone: str = Field(default="", max_length=40)
+    headline: str = Field(default="", max_length=120)
+    links: list[ProfileLink] = Field(default_factory=list, max_length=8)
+
+    @field_validator("timezone")
+    @classmethod
+    def _valid_iana_zone(cls, value: str) -> str:
+        from zoneinfo import ZoneInfo
+
+        try:
+            ZoneInfo(value)
+        except Exception as exc:
+            raise ValueError(f"unknown IANA timezone: {value!r}") from exc
+        return value
+
+
+class FavoriteSubject(BaseModel):
+    key: str = Field(max_length=80)
+    weight: int = WeightedTag
+
+
+class LanguageSkill(BaseModel):
+    code: str = Field(max_length=10)
+    level: Literal["basic", "intermediate", "advanced", "native"] = "intermediate"
+
+
+class AcademicsSection(BaseModel):
+    favorite_subjects: list[FavoriteSubject] = Field(
+        default_factory=list, max_length=20
+    )
+    languages: list[LanguageSkill] = Field(default_factory=list, max_length=10)
+
+
+class InterestItem(BaseModel):
+    tag_key: str = Field(max_length=80)
+    weight: int = WeightedTag
+    source: TagSource = TagSource.SELF
+
+
+class HobbyItem(BaseModel):
+    key: Optional[str] = Field(default=None, max_length=80)
+    label: str = Field(min_length=1, max_length=120)
+    weight: int = WeightedTag
+
+
+class LikeDislikeItem(BaseModel):
+    tag_key: Optional[str] = Field(default=None, max_length=80)
+    label: str = Field(min_length=1, max_length=200)
+    weight: int = WeightedTag
+
+
+class AspirationItem(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    tag_keys: list[str] = Field(default_factory=list, max_length=10)
+    notes: str = Field(default="", max_length=500)
+
+
+class WorkPreferencesSection(BaseModel):
+    teamwork: Literal[1, 2, 3, 4, 5] = 3
+    environment: Literal[1, 2, 3, 4, 5] = 3
+    structure: Literal[1, 2, 3, 4, 5] = 3
+    pace: Literal[1, 2, 3, 4, 5] = 3
+    leadership: Literal[1, 2, 3, 4, 5] = 3
+    remote_ok: bool = True
+    focus_areas: list[Literal["people", "things", "data", "ideas"]] = Field(
+        default_factory=list, max_length=4
+    )
+    salary_priority: Literal[1, 2, 3, 4, 5] = 3
+    stability_priority: Literal[1, 2, 3, 4, 5] = 3
+    physical_activity: PhysicalActivity = PhysicalActivity.LIGHT
+    creativity_priority: Literal[1, 2, 3, 4, 5] = 3
+
+
+class ShiftTolerance(str, Enum):
+    """On-call/shift tolerance levels."""
+
+    NONE = "none"
+    OCCASIONAL = "occasional"
+    REGULAR = "regular"
+
+
+class ConstraintsSection(BaseModel):
+    physical_conditions: list[PhysicalCondition] = Field(
+        default_factory=list, max_length=6
+    )
+    max_education_years: Optional[int] = Field(default=None, ge=0, le=12)
+    willing_to_relocate: bool = True
+    hours_available_per_week: Optional[int] = Field(default=None, ge=0, le=100)
+    # Lifestyle constraints — consumed as gates
+    # (stretch tab, never silent exclusion); travel/shift/commute gates
+    # fire once the job side carries those signals.
+    salary_min: Optional[int] = Field(default=None, ge=0, le=1_000_000)
+    salary_negotiable: bool = False
+    travel_days_per_month: Optional[int] = Field(default=None, ge=0, le=30)
+    shift_tolerance: Optional[ShiftTolerance] = None
+    commute_radius_km: Optional[int] = Field(default=None, ge=0, le=500)
+
+
+class ScoringWeights(BaseModel):
+    """Per-dimension importance sliders (1–5) for the fit engine (22+38)."""
+
+    skills: int = Field(default=3, ge=1, le=5)
+    location: int = Field(default=3, ge=1, le=5)
+    experience: int = Field(default=3, ge=1, le=5)
+    education: int = Field(default=3, ge=1, le=5)
+    interests: int = Field(default=3, ge=1, le=5)
+    values: int = Field(default=3, ge=1, le=5)
+
+
+class PreferencesSection(BaseModel):
+    """Fit-engine preferences; hard constraints stay in `constraints`."""
+
+    scoring_weights: ScoringWeights = Field(default_factory=ScoringWeights)
+
+
+class ProfileAISummary(BaseModel):
+    summary: str
+    strengths: list[str] = Field(default_factory=list, max_length=10)
+    watchouts: list[str] = Field(default_factory=list, max_length=10)
+    suggested_interest_keys: list[str] = Field(default_factory=list, max_length=15)
+    suggested_skill_keys: list[str] = Field(default_factory=list, max_length=15)
+    model: str = ""
+    generated_at: Optional[datetime] = None
+
+
+class ProfileSectionUpdate(BaseModel):
+    """Partial profile update — each section is optional."""
+
+    basics: Optional[BasicSection] = None
+    academics: Optional[AcademicsSection] = None
+    interests: Optional[list[InterestItem]] = Field(default=None, max_length=40)
+    hobbies: Optional[list[HobbyItem]] = Field(default=None, max_length=30)
+    likes: Optional[list[LikeDislikeItem]] = Field(default=None, max_length=30)
+    dislikes: Optional[list[LikeDislikeItem]] = Field(default=None, max_length=30)
+    aspirations: Optional[list[AspirationItem]] = Field(default=None, max_length=20)
+    work_preferences: Optional[WorkPreferencesSection] = None
+    preferences: Optional[PreferencesSection] = None
+    constraints: Optional[ConstraintsSection] = None
+
+
+DEFAULT_BASICS: dict = BasicSection().model_dump(mode="json")
+DEFAULT_ACADEMICS: dict = AcademicsSection().model_dump(mode="json")
+DEFAULT_WORK_PREFERENCES: dict = WorkPreferencesSection().model_dump(mode="json")
+DEFAULT_CONSTRAINTS: dict = ConstraintsSection().model_dump(mode="json")
+DEFAULT_PREFERENCES: dict = PreferencesSection().model_dump(mode="json")

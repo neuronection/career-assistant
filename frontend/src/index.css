@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply text-slate-900 antialiased;
+}
+
+/* CV-intake review pills: extraction-confidence tone. */
+.cv-intake-pill {
+  @apply shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+}
+.cv-intake-pill-high {
+  @apply bg-emerald-100 text-emerald-700;
+}
+.cv-intake-pill-medium {
+  @apply bg-amber-100 text-amber-700;
+}
+.cv-intake-pill-low {
+  @apply bg-slate-200 text-slate-600;
+}

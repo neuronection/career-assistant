@@ -1,0 +1,6 @@
+:root {
+  /* Accent inherits the family default (muted oklch blue) — re-tint here
+     only if career needs a deliberate identity divergence. */
+  --as-focus-ring: var(--as-accent);
+  --as-radius: 0.75rem;
+}

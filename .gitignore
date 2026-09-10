@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+venv
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Node
+node_modules/
+node_modules
+frontend/dist/
+*.local
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# Uploads / runtime
+backend/uploads/
+backend/tests/_uploads/
+backend/celerybeat-schedule*
+logging/
+*.log
+
+# Local planning notes
+dev/
+dev
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local SQLite dev/desktop databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Test runner artifacts (read-only /tmp fallbacks, local caches)
+pytest-of-*/
+.tmp/
+
+# Playwright
+.playwright-mcp/
+test-results/
+
+# Packaging build artifacts
+/build/
+/dist/
+packaging/_build/
+packaging/_deb/
+packaging/_appimage/
+packaging/_smoke-*/
+packaging/*.deb
+packaging/*.AppImage
+backend/dist/
+.opencode
+
+# assistant-ui dev-link state (never commit)
+.assistant-ui-dev-link.json
+*.tsbuildinfo
+frontend/coverage/
+*.bak
+*.bak.*
+*.orig
+*.rej

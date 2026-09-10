@@ -1,0 +1,884 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
+import {
+  ArrowLeft,
+  Award,
+  BookOpen,
+  GraduationCap,
+  Medal,
+  Plus,
+  School,
+  Trash2,
+  Users,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { Button, ConfirmationModal } from "@/components/ui";
+import { UndoNotice } from "@neuronection/assistant-ui";
+import { apiDetail } from "@/api/client";
+import { fetchUniversity, fetchUniversities } from "@/api/universities";
+import {
+  createAchievement,
+  createCertification,
+  createEducationItem,
+  deleteAchievement,
+  deleteCertification,
+  deleteEducationItem,
+  fetchAchievements,
+  fetchCertifications,
+  fetchEducation,
+  updateAchievement,
+  updateCertification,
+  updateEducationItem,
+} from "@/api/education";
+import type {
+  AchievementOut,
+  CertificationOut,
+  EducationItemOut,
+  EducationLevel,
+} from "@/types/education";
+import type { Department, University } from "@/types";
+import { EDUCATION_LEVEL_ORDER } from "@/components/profile/sections/options";
+import {
+  EMPTY_ACHIEVEMENT_FORM,
+  EMPTY_CERTIFICATION_FORM,
+  EMPTY_EDUCATION_FORM,
+  AchievementEditor,
+  CertificationEditor,
+  EducationEditor,
+  achievementFormFromItem,
+  achievementToIn,
+  certificationFormFromItem,
+  certificationToIn,
+  educationFormFromItem,
+  educationToIn,
+  type AchievementEditorForm,
+  type CertificationEditorForm,
+  type EducationEditorForm,
+} from "@/components/education/EducationEditor";
+
+const LEVEL_ICONS: Record<string, LucideIcon> = {
+  no_formal: School,
+  middle_school: School,
+  high_school: School,
+  vocational: Wrench,
+  bachelor: GraduationCap,
+  master: GraduationCap,
+  doctorate: GraduationCap,
+};
+
+const ACHIEVEMENT_KIND_ICONS: Record<string, LucideIcon> = {
+  award: Award,
+  honor: Medal,
+  publication: BookOpen,
+  extracurricular: Users,
+};
+
+type Entity = "education" | "certifications" | "achievements";
+
+type Deleted =
+  | { entity: "education"; item: EducationItemOut }
+  | { entity: "certifications"; item: CertificationOut }
+  | { entity: "achievements"; item: AchievementOut };
+
+function levelRank(level: string): number {
+  const idx = EDUCATION_LEVEL_ORDER.indexOf(level as EducationLevel);
+  return idx === -1 ? -1 : idx;
+}
+
+function formatPeriod(start: string | null, end: string | null): string {
+  const from = (start ?? "").slice(0, 7);
+  const to = end ? end.slice(0, 7) : i18next.t("education.present");
+  return `${from || "?"} → ${to}`;
+}
+
+function expiryState(expires: string | null): "expired" | "soon" | null {
+  if (!expires) return null;
+  const days = (new Date(expires).getTime() - Date.now()) / 86400000;
+  if (days < 0) return "expired";
+  if (days <= 90) return "soon";
+  return null;
+}
+
+/** Education workspace: full-bleed master-detail over the
+ * education/certification entities, nested under Profile. */
+export function Education() {
+  const { t } = useTranslation();
+  const [entity, setEntity] = useState<Entity>("education");
+  const [items, setItems] = useState<EducationItemOut[]>([]);
+  const [certs, setCerts] = useState<CertificationOut[]>([]);
+  const [achievements, setAchievements] = useState<AchievementOut[]>([]);
+  const [universities, setUniversities] = useState<University[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [isNew, setIsNew] = useState(false);
+  const [eduForm, setEduForm] = useState<EducationEditorForm>({
+    ...EMPTY_EDUCATION_FORM,
+  });
+  const [certForm, setCertForm] = useState<CertificationEditorForm>({
+    ...EMPTY_CERTIFICATION_FORM,
+  });
+  const [achForm, setAchForm] = useState<AchievementEditorForm>({
+    ...EMPTY_ACHIEVEMENT_FORM,
+  });
+  const [dirty, setDirty] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [deleted, setDeleted] = useState<Deleted | null>(null);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [activePane, setActivePane] = useState<"list" | "editor">("list");
+  const railRef = useRef<HTMLDivElement>(null);
+  const editorPaneRef = useRef<HTMLDivElement>(null);
+
+  const switchPane = (pane: "list" | "editor") => {
+    setActivePane(pane);
+    requestAnimationFrame(() => {
+      (pane === "list" ? railRef.current : editorPaneRef.current)?.focus();
+    });
+  };
+
+  const load = useCallback(async () => {
+    const [education, certifications, achievements, catalog] = await Promise.all([
+      fetchEducation(),
+      fetchCertifications(),
+      fetchAchievements(),
+      fetchUniversities().catch(() => [] as University[]),
+    ]);
+    setItems(education);
+    setCerts(certifications);
+    setAchievements(achievements);
+    setUniversities(catalog);
+  }, []);
+
+  useEffect(() => {
+    void load().catch((err) => setError(apiDetail(err)));
+  }, [load]);
+
+  useEffect(() => {
+    const uniId = eduForm.university_id;
+    if (!uniId || !universities.some((u) => u.id === uniId)) {
+      setDepartments([]);
+      return;
+    }
+    let alive = true;
+    void fetchUniversity(uniId)
+      .then((detail) => alive && setDepartments(detail.departments))
+      .catch(() => alive && setDepartments([]));
+    return () => {
+      alive = false;
+    };
+  }, [eduForm.university_id, universities]);
+
+  const highestLevel = useMemo(() => {
+    let best: EducationLevel | null = null;
+    let rank = -1;
+    for (const item of items) {
+      if (item.status !== "active") continue;
+      const r = levelRank(item.level);
+      if (r > rank) {
+        rank = r;
+        best = item.level as EducationLevel;
+      }
+    }
+    return best;
+  }, [items]);
+
+  const inProgressCount = items.filter(
+    (i) => i.in_progress && i.status === "active"
+  ).length;
+
+  const guard = (action: () => void) => {
+    if (dirty) setConfirmAction(() => action);
+    else action();
+  };
+
+  const discardAnd = (action: () => void) => {
+    setConfirmAction(null);
+    action();
+  };
+
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setSelectedId(null);
+    setIsNew(false);
+    setDirty(false);
+    setShowErrors(false);
+  };
+
+  const openCreate = () => {
+    if (entity === "education") setEduForm({ ...EMPTY_EDUCATION_FORM });
+    else if (entity === "certifications")
+      setCertForm({ ...EMPTY_CERTIFICATION_FORM });
+    else setAchForm({ ...EMPTY_ACHIEVEMENT_FORM });
+    setSelectedId(null);
+    setIsNew(true);
+    setEditorOpen(true);
+    setDirty(false);
+    setShowErrors(false);
+    setDepartments([]);
+    setActivePane("editor");
+  };
+
+  const openEdit = (id: string) => {
+    if (entity === "education") {
+      const item = items.find((i) => i.id === id);
+      if (item) setEduForm(educationFormFromItem(item));
+    } else if (entity === "certifications") {
+      const cert = certs.find((c) => c.id === id);
+      if (cert) setCertForm(certificationFormFromItem(cert));
+    } else {
+      const achievement = achievements.find((a) => a.id === id);
+      if (achievement) setAchForm(achievementFormFromItem(achievement));
+    }
+    setSelectedId(id);
+    setIsNew(false);
+    setEditorOpen(true);
+    setDirty(false);
+    setShowErrors(false);
+    setActivePane("editor");
+  };
+
+  const patchForm = (
+    partial: Partial<
+      EducationEditorForm & CertificationEditorForm & AchievementEditorForm
+    >
+  ) => {
+    if (entity === "education")
+      setEduForm((prev) => ({ ...prev, ...partial }));
+    else if (entity === "certifications")
+      setCertForm((prev) => ({ ...prev, ...partial }));
+    else setAchForm((prev) => ({ ...prev, ...partial }));
+    setDirty(true);
+    setShowErrors(false);
+  };
+
+  const switchEntity = (next: Entity) => {
+    if (next === entity) return;
+    guard(() => {
+      closeEditor();
+      setEntity(next);
+    });
+  };
+
+  const save = async () => {
+    setShowErrors(true);
+    setError("");
+    if (entity === "education") {
+      const payload = educationToIn(eduForm);
+      if (!payload.institution) return;
+      setSaving(true);
+      try {
+        if (isNew) {
+          const created = await createEducationItem(payload);
+          setItems((prev) => [created, ...prev]);
+          setSelectedId(created.id);
+          setEduForm(educationFormFromItem(created));
+          setIsNew(false);
+        } else if (selectedId) {
+          const updated = await updateEducationItem(selectedId, payload);
+          setItems((prev) =>
+            prev.map((i) => (i.id === selectedId ? updated : i))
+          );
+          setEduForm(educationFormFromItem(updated));
+        }
+        setDirty(false);
+        setShowErrors(false);
+      } catch (err) {
+        setError(apiDetail(err));
+      } finally {
+        setSaving(false);
+      }
+    } else if (entity === "certifications") {
+      const payload = certificationToIn(certForm);
+      if (!payload.name) return;
+      setSaving(true);
+      try {
+        if (isNew) {
+          const created = await createCertification(payload);
+          setCerts((prev) => [created, ...prev]);
+          setSelectedId(created.id);
+          setCertForm(certificationFormFromItem(created));
+          setIsNew(false);
+        } else if (selectedId) {
+          const updated = await updateCertification(selectedId, payload);
+          setCerts((prev) =>
+            prev.map((c) => (c.id === selectedId ? updated : c))
+          );
+          setCertForm(certificationFormFromItem(updated));
+        }
+        setDirty(false);
+        setShowErrors(false);
+      } catch (err) {
+        setError(apiDetail(err));
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      const payload = achievementToIn(achForm);
+      if (!payload.title) return;
+      setSaving(true);
+      try {
+        if (isNew) {
+          const created = await createAchievement(payload);
+          setAchievements((prev) => [created, ...prev]);
+          setSelectedId(created.id);
+          setAchForm(achievementFormFromItem(created));
+          setIsNew(false);
+        } else if (selectedId) {
+          const updated = await updateAchievement(selectedId, payload);
+          setAchievements((prev) =>
+            prev.map((a) => (a.id === selectedId ? updated : a))
+          );
+          setAchForm(achievementFormFromItem(updated));
+        }
+        setDirty(false);
+        setShowErrors(false);
+      } catch (err) {
+        setError(apiDetail(err));
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const remove = async (id: string) => {
+    setError("");
+    try {
+      if (entity === "education") {
+        const item = items.find((i) => i.id === id);
+        if (!item) return;
+        await deleteEducationItem(item.id);
+        setItems((prev) => prev.filter((i) => i.id !== id));
+        if (selectedId === id) closeEditor();
+        setDeleted({ entity: "education", item });
+      } else if (entity === "certifications") {
+        const cert = certs.find((c) => c.id === id);
+        if (!cert) return;
+        await deleteCertification(cert.id);
+        setCerts((prev) => prev.filter((c) => c.id !== id));
+        if (selectedId === id) closeEditor();
+        setDeleted({ entity: "certifications", item: cert });
+      } else {
+        const achievement = achievements.find((a) => a.id === id);
+        if (!achievement) return;
+        await deleteAchievement(achievement.id);
+        setAchievements((prev) => prev.filter((a) => a.id !== id));
+        if (selectedId === id) closeEditor();
+        setDeleted({ entity: "achievements", item: achievement });
+      }
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  const undoDelete = async () => {
+    if (!deleted) return;
+    setError("");
+    try {
+      if (deleted.entity === "education") {
+        const restored = await createEducationItem(
+          educationToIn(educationFormFromItem(deleted.item))
+        );
+        setItems((prev) => [restored, ...prev]);
+      } else if (deleted.entity === "certifications") {
+        const restored = await createCertification(
+          certificationToIn(certificationFormFromItem(deleted.item))
+        );
+        setCerts((prev) => [restored, ...prev]);
+      } else {
+        const restored = await createAchievement(
+          achievementToIn(achievementFormFromItem(deleted.item))
+        );
+        setAchievements((prev) => [restored, ...prev]);
+      }
+      setDeleted(null);
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  return (
+    <div className="flex min-h-0 flex-col gap-3 lg:h-full" data-testid="education-page">
+      <div
+        className="flex shrink-0 flex-wrap items-center justify-between gap-3"
+        data-testid="education-toolbar"
+      >
+        <div>
+          <Link
+            to="/profile"
+            className="inline-flex items-center gap-1 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
+            data-testid="education-back"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {t("nav.profile")}
+          </Link>
+          <h1 className="flex items-center gap-2 text-lg font-semibold text-[var(--as-fg)]">
+            <GraduationCap className="h-5 w-5" aria-hidden /> {t("education.title")}
+          </h1>
+          <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
+            {t("education.subtitle")}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {entity === "education" && highestLevel && (
+            <span
+              className="text-sm text-[var(--as-muted-fg)]"
+              data-testid="education-derived"
+            >
+              {t(`education.level.${highestLevel}`, {
+                defaultValue: highestLevel,
+              })}
+              {inProgressCount > 0
+                ? ` · ${t("education.inProgressCount", { count: inProgressCount })}`
+                : ""}
+            </span>
+          )}
+          <div
+            className="flex gap-1 rounded-lg border border-[var(--as-border)] p-0.5"
+            role="group"
+            aria-label={t("education.entryTypeAria")}
+            data-testid="education-entity-toggle"
+          >
+            {(
+              [
+                ["education", "education.entity.education"],
+                ["certifications", "education.entity.certifications"],
+                ["achievements", "education.entity.achievements"],
+              ] as const
+            ).map(([value, labelKey]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={entity === value}
+                onClick={() => switchEntity(value)}
+                data-testid={`education-entity-${value}`}
+                className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 ${
+                  entity === value
+                    ? "bg-[var(--as-surface-raised)] text-[var(--as-fg)]"
+                    : "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                }`}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+          <Button variant="default" onClick={openCreate} data-testid="add-education">
+            <Plus className="mr-1 h-4 w-4" aria-hidden /> {t("education.addEntry")}
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="shrink-0 text-sm text-[var(--as-danger)]">
+          {error}
+        </p>
+      )}
+
+      <div
+        className="mb-2 flex shrink-0 gap-1 lg:hidden"
+        role="group"
+        aria-label={t("education.panesAria")}
+        data-testid="pane-switcher"
+      >
+        {(
+          [
+            ["list", t("education.pane.list")],
+            ["editor", t("education.pane.editor")],
+          ] as const
+        ).map(([paneId, label]) => (
+          <button
+            key={paneId}
+            type="button"
+            aria-pressed={activePane === paneId}
+            onClick={() => switchPane(paneId)}
+            data-testid={`pane-${paneId}`}
+            className={`flex-1 cursor-pointer rounded-lg border border-[var(--as-border)] px-2 py-1.5 text-xs font-medium transition-colors duration-150 ${
+              activePane === paneId
+                ? "bg-[var(--as-surface-raised)] text-[var(--as-fg)]"
+                : "bg-[var(--as-surface)] text-[var(--as-muted-fg)]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:gap-4">
+        <div
+          ref={railRef}
+          tabIndex={-1}
+          className={`${
+            activePane === "list" ? "flex" : "hidden"
+          } cv-pane-enter min-h-0 flex-col gap-3 overflow-y-auto outline-none lg:flex`}
+          data-testid="education-rail"
+        >
+          {entity === "education" && items.length > 0 && (
+            <section
+              className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid="education-overview"
+            >
+              <p className="text-xs font-semibold text-[var(--as-fg)]">
+                {t("education.entriesCount", { count: items.length })}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
+                {highestLevel
+                  ? t("education.highest", {
+                      level: t(`education.level.${highestLevel}`, {
+                        defaultValue: highestLevel,
+                      }),
+                    })
+                  : t("education.nothingYet")}
+                {inProgressCount > 0
+                  ? ` · ${t("education.inProgressCount", { count: inProgressCount })}`
+                  : ""}
+              </p>
+            </section>
+          )}
+
+          <section className="space-y-2.5" data-testid="education-list">
+            {entity === "education" ? (
+              items.length === 0 ? (
+                <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
+                  {t("education.emptyEducation")}
+                </p>
+              ) : (
+                items.map((item) => (
+                  <RailCard
+                    key={item.id}
+                    id={item.id}
+                    icon={
+                      LEVEL_ICONS[item.level] ?? GraduationCap
+                    }
+                    title={item.program || item.institution}
+                    subtitle={[
+                      item.institution,
+                      formatPeriod(item.start, item.in_progress ? null : item.end),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    active={item.id === selectedId && editorOpen}
+                    onOpen={() => guard(() => openEdit(item.id))}
+                    onDelete={() => void remove(item.id)}
+                    badges={
+                      <>
+                        {item.in_progress && (
+                          <Badge tone="accent">{t("education.inProgressBadge")}</Badge>
+                        )}
+                        {item.status === "draft" && (
+                          <Badge tone="warn">{t("education.draftBadge")}</Badge>
+                        )}
+                        {item.source !== "self_report" && (
+                          <Badge tone="muted">
+                            {item.source === "cv_parse"
+                              ? t("education.fromCv")
+                              : item.source}
+                          </Badge>
+                        )}
+                      </>
+                    }
+                  />
+                ))
+              )
+            ) : entity === "certifications" ? (
+              certs.length === 0 ? (
+                <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
+                  {t("education.emptyCertifications")}
+                </p>
+              ) : (
+                certs.map((cert) => {
+                  const expiry = expiryState(cert.expires);
+                  return (
+                    <RailCard
+                      key={cert.id}
+                      id={cert.id}
+                      icon={Award}
+                      title={cert.name}
+                      subtitle={[
+                        cert.issuer,
+                        cert.issued
+                          ? t("education.issuedTag", {
+                              date: cert.issued.slice(0, 7),
+                            })
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      active={cert.id === selectedId && editorOpen}
+                      onOpen={() => guard(() => openEdit(cert.id))}
+                      onDelete={() => void remove(cert.id)}
+                      badges={
+                        <>
+                          {expiry === "expired" && (
+                            <Badge tone="danger">{t("education.expired")}</Badge>
+                          )}
+                          {expiry === "soon" && (
+                            <Badge tone="warn">{t("education.expiringSoon")}</Badge>
+                          )}
+                          {cert.status === "draft" && (
+                            <Badge tone="warn">{t("education.draftBadge")}</Badge>
+                          )}
+                          {cert.source !== "self_report" && (
+                            <Badge tone="muted">
+                              {cert.source === "cv_parse"
+                                ? t("education.fromCv")
+                                : cert.source}
+                            </Badge>
+                          )}
+                        </>
+                      }
+                     />
+                   );
+                 })
+               )
+            ) : achievements.length === 0 ? (
+              <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
+                {t("education.emptyAchievements")}
+              </p>
+            ) : (
+              achievements.map((achievement) => (
+                <RailCard
+                  key={achievement.id}
+                  id={achievement.id}
+                  icon={ACHIEVEMENT_KIND_ICONS[achievement.kind] ?? Award}
+                  title={achievement.title}
+                  subtitle={[
+                    achievement.issuer,
+                    achievement.date
+                      ? achievement.date.slice(0, 7)
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  active={achievement.id === selectedId && editorOpen}
+                  onOpen={() => guard(() => openEdit(achievement.id))}
+                  onDelete={() => void remove(achievement.id)}
+                  badges={
+                    <>
+                      {achievement.status === "draft" && (
+                        <Badge tone="warn">{t("education.draftBadge")}</Badge>
+                      )}
+                      {achievement.source !== "self_report" && (
+                        <Badge tone="muted">
+                          {achievement.source === "cv_parse"
+                            ? t("education.fromCv")
+                            : achievement.source}
+                        </Badge>
+                      )}
+                    </>
+                  }
+                />
+              ))
+            )}
+          </section>
+        </div>
+
+        <div
+          ref={editorPaneRef}
+          tabIndex={-1}
+          className={`${
+            activePane === "editor" ? "flex" : "hidden"
+          } cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none lg:flex`}
+        >
+          {editorOpen ? (
+            entity === "education" ? (
+              <EducationEditor
+                form={eduForm}
+                onChange={patchForm}
+                onSave={() => void save()}
+                onCancel={() => guard(closeEditor)}
+                onDismissErrors={() => setShowErrors(false)}
+                showErrors={showErrors}
+                saving={saving}
+                isNew={isNew}
+                universities={universities}
+                departments={departments}
+                onUniversityCreated={(university) =>
+                  setUniversities((prev) =>
+                    prev.some((u) => u.id === university.id)
+                      ? prev
+                      : [university, ...prev]
+                  )
+                }
+                onDepartmentsChanged={(universityId) => {
+                  void fetchUniversity(universityId)
+                    .then((detail) => setDepartments(detail.departments))
+                    .catch(() => undefined);
+                }}
+              />
+            ) : entity === "certifications" ? (
+              <CertificationEditor
+                form={certForm}
+                onChange={patchForm}
+                onSave={() => void save()}
+                onCancel={() => guard(closeEditor)}
+                onDismissErrors={() => setShowErrors(false)}
+                showErrors={showErrors}
+                saving={saving}
+                isNew={isNew}
+              />
+            ) : (
+              <AchievementEditor
+                form={achForm}
+                onChange={patchForm}
+                onSave={() => void save()}
+                onCancel={() => guard(closeEditor)}
+                onDismissErrors={() => setShowErrors(false)}
+                showErrors={showErrors}
+                saving={saving}
+                isNew={isNew}
+              />
+            )
+          ) : (
+            <div
+              className="flex min-h-0 flex-1 items-center justify-center p-6"
+              data-testid="education-editor-empty"
+            >
+              <div className="text-center">
+                <p className="text-sm font-medium text-[var(--as-fg)]">
+                  {t("education.nothingSelected")}
+                </p>
+                <p className="mt-1 text-xs text-[var(--as-muted-fg)]">
+                  {t("education.emptyBody")}
+                </p>
+                <Button
+                  variant="default"
+                  className="mt-3"
+                  onClick={openCreate}
+                >
+                  {t("education.addEntry")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {deleted && (
+        <div
+          className="fixed bottom-6 left-6 z-[var(--as-z-modal)]"
+          data-testid="undo-education"
+        >
+          <UndoNotice
+            message={t("education.deletedNotice", {
+              title:
+                deleted.entity === "education"
+                  ? deleted.item.program || deleted.item.institution
+                  : deleted.entity === "achievements"
+                    ? deleted.item.title
+                    : deleted.item.name,
+            })}
+            actionLabel={t("common.undo")}
+            duration={8000}
+            onUndo={() => void undoDelete()}
+            onDismiss={() => setDeleted(null)}
+          />
+        </div>
+      )}
+
+      <ConfirmationModal
+        open={confirmAction !== null}
+        onOpenChange={(open) => !open && setConfirmAction(null)}
+        title={t("education.discardTitle")}
+        description={t("education.discardBody")}
+        confirmLabel={t("education.discard")}
+        destructive
+        onConfirm={() => confirmAction && discardAnd(confirmAction)}
+      />
+    </div>
+  );
+}
+
+function Badge({
+  tone,
+  children,
+}: {
+  tone: "accent" | "warn" | "muted" | "danger";
+  children: React.ReactNode;
+}) {
+  const tones = {
+    accent: "bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)] text-[var(--as-accent)]",
+    warn: "bg-amber-100 text-amber-800",
+    muted: "bg-[var(--as-muted)] text-[var(--as-muted-fg)]",
+    danger: "bg-red-100 text-red-700",
+  } as const;
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] ${tones[tone]}`}>
+      {children}
+    </span>
+  );
+}
+
+function RailCard({
+  id,
+  icon: Icon,
+  title,
+  subtitle,
+  badges,
+  active,
+  onOpen,
+  onDelete,
+}: {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  badges: React.ReactNode;
+  active: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <article
+      className={`group relative cursor-pointer rounded-xl border p-3 transition-colors duration-150 ${
+        active
+          ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
+          : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
+      }`}
+      data-testid={`education-item-${id}`}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full cursor-pointer items-start justify-between gap-2 pr-8 text-left"
+        data-testid="education-item"
+        aria-current={active ? "true" : undefined}
+      >
+        <span className="flex min-w-0 items-start gap-2.5">
+          <span
+            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+              active
+                ? "bg-[color-mix(in_srgb,var(--as-accent)_15%,transparent)] text-[var(--as-accent)]"
+                : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
+            }`}
+          >
+            <Icon className="h-4 w-4" aria-hidden />
+          </span>
+          <span className="block min-w-0">
+            <span className="block truncate text-sm font-medium text-[var(--as-fg)]">
+              {title}
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
+              {subtitle}
+            </span>
+            {(badges !== null) && (
+              <span className="mt-1 flex flex-wrap gap-1">{badges}</span>
+            )}
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        aria-label={t("education.deleteAria", { title })}
+        className="absolute right-2 top-2 cursor-pointer rounded p-1 text-slate-300 transition-colors hover:text-[var(--as-danger)] group-hover:text-slate-400"
+        data-testid={`delete-education-${id}`}
+        onClick={onDelete}
+      >
+        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+      </button>
+    </article>
+  );
+}
