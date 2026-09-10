@@ -118,7 +118,7 @@ def _google_model(
                 retry_options=google_types.HttpRetryOptions(attempts=1),
                 httpx_client=httpx.Client(
                     transport=cast(httpx.BaseTransport, transport),
-                    timeout=settings.AI_TIMEOUT
+                    timeout=settings.AI_TIMEOUT,
                 ),
                 httpx_async_client=httpx.AsyncClient(
                     transport=transport, timeout=settings.AI_TIMEOUT

@@ -27,6 +27,8 @@ All notable changes to **Career Assistant** are documented here.
   that family (previously silently ignored).
 
 ### Fixed
+- Red `ruff format --check` CI gate — a missing trailing comma in
+  `backend/app/ai/chat_models.py` failed the lint job.
 - Stray "everyone" text rendered after the review-queue heading on the
   job-generation page; hardcoded "Review details" / "Publish all" labels
   are localized now.
