@@ -51,7 +51,7 @@ A self-hosted web app that helps students discover which jobs actually exist, un
 
 Under the hood it's a **structured knowledge platform**: a job catalog organized as a family tree plus a typed relation graph, deep structured student profiles, and university admissions data — all referenced by stable keys, never loose labels. AI generates jobs, suggests relations, and scores matches, but every output is validated into typed structures and audited.
 
-It is **Alpha** software, built for students and technical self-hosters first.
+It is **beta** software, built for students and technical self-hosters first.
 
 ## What's different
 
@@ -360,7 +360,7 @@ Created and maintained by [Ilias Chatzopoulos](https://github.com/constLiakos)
 · [info@neuronection.com](mailto:info@neuronection.com)
 
 [neuronection.com](https://neuronection.com) — one ecosystem, four guides
-· [♥ Sponsor development](https://github.com/sponsors/constLiakos) · star what you use
+· [♥ Support development](https://buymeacoffee.com/neuronection) · star what you use
 
 </div>
 <!-- NEURONECTION:ECOSYSTEM:END -->
