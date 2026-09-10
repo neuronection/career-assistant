@@ -121,6 +121,12 @@ jobs:
             packaging/*.deb
             packaging/*.AppImage
 
+      - name: Create stable-name download aliases
+        working-directory: packaging
+        run: |
+          cp CareerAssistant-*-x86_64.AppImage CareerAssistant-x86_64.AppImage
+          cp careerassistant_*_amd64.deb careerassistant_amd64.deb
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -199,11 +205,19 @@ jobs:
           path: packaging/CareerAssistant-*-windows-x64.exe
           if-no-files-found: error
 
+      - name: Create stable-name download alias
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: packaging
+        shell: pwsh
+        run: Copy-Item "CareerAssistant-*-windows-x64.exe" "CareerAssistant-windows-x64.exe"
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: packaging/CareerAssistant-*-windows-x64.exe
+          files: |
+            packaging/CareerAssistant-*-windows-x64.exe
+            packaging/CareerAssistant-windows-x64.exe
 
   docker:
     name: Docker image (GHCR)
