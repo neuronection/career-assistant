@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.7.1] - 2026-09-10
+
 ### Changed
 - **Sidebar reconciliation** — the shell drops from 14 to 11
   items around one rule: surfaces that write the profile nest under
