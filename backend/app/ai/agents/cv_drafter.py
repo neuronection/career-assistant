@@ -174,11 +174,11 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
         return {"sections": sections}
     if schema is CvDraftTexts:
         section: dict = ctx.get("section") or {}
-        items: list = ctx.get("items") or []
+        section_items: list = ctx.get("items") or []
         kind = str(section.get("kind") or "")
         if kind == "summary":
             summary = ""
-            for item in items:
+            for item in section_items:
                 summary = str((item.get("payload") or {}).get("summary") or "")
                 if summary:
                     break
@@ -188,7 +188,7 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
                 ]
             }
         drafted = []
-        for item in items:
+        for item in section_items:
             payload = item.get("payload") or {}
             text = str(payload.get("description") or "").strip()
             if not text:

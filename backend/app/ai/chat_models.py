@@ -7,7 +7,7 @@ model; retries stay in the gateway funnel (``max_retries=0``) and tests
 inject an ``httpx`` transport instead of touching the network.
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 from urllib.parse import urlsplit
 
 import httpx
@@ -117,7 +117,8 @@ def _google_model(
                 timeout=int(settings.AI_TIMEOUT),
                 retry_options=google_types.HttpRetryOptions(attempts=1),
                 httpx_client=httpx.Client(
-                    transport=transport, timeout=settings.AI_TIMEOUT
+                    transport=cast(httpx.BaseTransport, transport),
+                    timeout=settings.AI_TIMEOUT
                 ),
                 httpx_async_client=httpx.AsyncClient(
                     transport=transport, timeout=settings.AI_TIMEOUT

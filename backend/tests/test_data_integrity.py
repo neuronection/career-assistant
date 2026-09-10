@@ -181,7 +181,7 @@ async def test_explore_filters_are_index_backed_on_sqlite(db):
     query = select(JobPosting).where(JobPosting.salary_min >= Decimal(32000))
     sql = _compiled(query, sqlite)
     plan = "\n".join(
-        row[0]
+        str(row[-1])
         for row in (await db.execute(text(f"EXPLAIN QUERY PLAN {sql}"))).fetchall()
     )
     assert "SEARCH job_postings USING INDEX ix_postings_salary_min" in plan, plan

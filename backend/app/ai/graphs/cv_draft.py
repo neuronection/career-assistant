@@ -375,7 +375,7 @@ def make_draft_node(deps: GraphDeps):
                     break
                 retry_note = "the previous draft cited no known item ids or was empty"
             usable = _section_payload(clamped, kind)
-            if _section_usable(usable, kind):
+            if usable is not None and _section_usable(usable, kind):
                 texts.append(usable)
             else:
                 fallback.append(kind)

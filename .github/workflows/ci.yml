@@ -256,6 +256,9 @@ jobs:
         run: |
           pip install -r requirements.txt -r requirements-dev.txt aiosqlite
           playwright install --with-deps chromium
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
       - name: Run E2E smoke
         run: bash scripts/run-e2e.sh
       - name: Upload failure artifacts
