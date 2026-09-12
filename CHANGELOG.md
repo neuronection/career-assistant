@@ -4,8 +4,10 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.8.3] - 2026-09-12
+
 ### Fixed
-- **Linux packages run on older distros (v0.8.2)**: the bundled
+- **Linux packages run on older distros**: the bundled
   Linux libraries were built on glibc 2.38+ (Ubuntu 24.04) and refused to
   load on Ubuntu 22.04 / Debian 12 (and older) with
   `libm.so.6: version 'GLIBC_2.38' not found`. Linux packaging and CI
@@ -14,8 +16,14 @@ All notable changes to **Career Assistant** are documented here.
   initialize on the default display (VMs, no-GPU machines), the desktop
   shell falls back to software rendering, then to browser mode — instead
   of showing a dead window. Forced GPU via `CA_WEBKIT_GPU=1`.
+- **pygobject pinned to the girepository-1.0 era** (`<3.51`): 3.58 only
+  builds against girepository-2.0, absent from the glibc-2.35-compat
+  runner.
 
 ## [v0.8.1] - 2026-09-12
+
+### Fixed
+- **Desktop installs migrate cleanly again (v0.8.1)**: two database
 - **Desktop installs migrate cleanly again (v0.8.1)**: two database
   migrations assumed Postgres dialect and crashed a fresh desktop profile
   (SQLite) mid-setup — the CV-document cascade update and the optional
