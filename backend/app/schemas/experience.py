@@ -47,11 +47,7 @@ class ExperienceItemIn(BaseModel):
             raise ValueError("start is required")
         if self.end is None and not self.open_ended:
             raise ValueError("end is required unless open_ended")
-        if (
-            self.start is not None
-            and self.end is not None
-            and self.end < self.start
-        ):
+        if self.start is not None and self.end is not None and self.end < self.start:
             raise ValueError("end cannot precede start")
         return self
 

@@ -59,9 +59,9 @@ SYSTEM = (
     "- set_context {mode, include[], exclude[], synth_mode?, synth_pins?} "
     "— select which profile items the CV uses; refs are {source_key, "
     "item_id} pairs from `sources`. Exclusions always win. Optionally "
-    "set the synth behavior: synth_mode \"prefer\" applies the best "
+    'set the synth behavior: synth_mode "prefer" applies the best '
     "matching synthesized variant inside each item, and synth_pins "
-    "({\"source_key:item_id\": synth_id} — omit or pass \"\" to unpin) "
+    '({"source_key:item_id": synth_id} — omit or pass "" to unpin) '
     "stars one variant as that item's default; a pinned variant applies "
     "even with synth_mode off. Omit both keys to keep the current "
     "setting.\n"
@@ -369,12 +369,9 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
             current = CvContextSelection.model_validate(cv.context or {})
             for ref_key in op.synth_pins or {}:
                 if ref_key not in {
-                    f"{source_key}:{item_id}"
-                    for source_key, item_id in known
+                    f"{source_key}:{item_id}" for source_key, item_id in known
                 }:
-                    raise ValidationError(
-                        f"Unknown synth pin target {ref_key}"
-                    )
+                    raise ValidationError(f"Unknown synth pin target {ref_key}")
             if op.synth_pins:
                 from app.services.cv_synth_service import CvSynthService
 
@@ -386,9 +383,7 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                 include=[ref.model_dump(mode="json") for ref in op.include],
                 exclude=[ref.model_dump(mode="json") for ref in op.exclude],
                 synth_mode=(
-                    op.synth_mode
-                    if op.synth_mode is not None
-                    else current.synth_mode
+                    op.synth_mode if op.synth_mode is not None else current.synth_mode
                 ),
                 synth_pins=(
                     {key: value for key, value in op.synth_pins.items() if value}

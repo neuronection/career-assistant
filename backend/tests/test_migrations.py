@@ -112,9 +112,7 @@ def test_0031_user_skill_hidden_roundtrip():
     config = _configured()
 
     command.upgrade(config, "head")
-    assert _column_present("user_skills", "hidden"), (
-        "user_skills.hidden exists at head"
-    )
+    assert _column_present("user_skills", "hidden"), "user_skills.hidden exists at head"
 
     command.downgrade(config, "0030")
     assert not _column_present("user_skills", "hidden"), (
@@ -122,9 +120,7 @@ def test_0031_user_skill_hidden_roundtrip():
     )
 
     command.upgrade(config, "head")
-    assert _column_present("user_skills", "hidden"), (
-        "re-upgrade restores the column"
-    )
+    assert _column_present("user_skills", "hidden"), "re-upgrade restores the column"
 
 
 def test_0029_run_linkage_roundtrip():
@@ -172,7 +168,6 @@ def test_0030_derive_enabled_roundtrip():
     assert _column_present("ai_generations", "run_stage"), (
         "re-upgrade restores the run columns"
     )
-
 
 
 def _start_nullable() -> bool:

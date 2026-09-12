@@ -97,7 +97,9 @@ class CvBuilderService:
             resolved.snapshot["synth"] = entries
         return resolved
 
-    async def _synth_snapshot(self, cv: CvDocument, resolved, pins: dict | None = None) -> list[dict]:
+    async def _synth_snapshot(
+        self, cv: CvDocument, resolved, pins: dict | None = None
+    ) -> list[dict]:
         """Applying synthesized variants for this CV (plan 72, 72.1).
 
         Winner per resolved ref (`match_for_user` precedence: active →

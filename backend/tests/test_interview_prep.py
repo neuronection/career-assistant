@@ -392,8 +392,10 @@ async def test_debrief_aggregate_resources_and_retry(
         if item["kind"] == "technical" and item.get("skill_key")
     )
     plan_skill = (
-        await db.execute(select(Skill).where(Skill.key == plan_skill_key))
-    ).scalars().one()
+        (await db.execute(select(Skill).where(Skill.key == plan_skill_key)))
+        .scalars()
+        .one()
+    )
     db.add(
         LearningResource(
             skill_id=plan_skill.id,

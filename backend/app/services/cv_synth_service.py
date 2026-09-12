@@ -597,14 +597,16 @@ class CvSynthService:
         for ref in keys:
             pinned = str(pins.get(f"{ref[0]}:{ref[1]}", "")) if pins else ""
             if pinned:
-                pinned_row = next(
-                    (row for row in rows if str(row.id) == pinned), None
-                )
+                pinned_row = next((row for row in rows if str(row.id) == pinned), None)
                 if pinned_row is not None:
-                    if pinned_row.target_posting_id in (
-                        None,
-                        target_posting_id,
-                    ) and pinned_row.voice.get("language") == language:
+                    if (
+                        pinned_row.target_posting_id
+                        in (
+                            None,
+                            target_posting_id,
+                        )
+                        and pinned_row.voice.get("language") == language
+                    ):
                         applying[ref] = pinned_row
                         continue
             candidates = [
@@ -632,7 +634,9 @@ class CvSynthService:
 
     # ------------------------- resolution overlay -------------------------
 
-    async def apply_to_resolution(self, cv, resolution, mode: str, pins: dict | None = None) -> dict:
+    async def apply_to_resolution(
+        self, cv, resolution, mode: str, pins: dict | None = None
+    ) -> dict:
         """Plan-62 overlay for a stored CV; delegates to `apply_to_items`."""
         return await self.apply_to_items(
             cv.user_id,
