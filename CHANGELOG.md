@@ -5,6 +5,17 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **Linux packages run on older distros (v0.8.2)**: the bundled
+  Linux libraries were built on glibc 2.38+ (Ubuntu 24.04) and refused to
+  load on Ubuntu 22.04 / Debian 12 (and older) with
+  `libm.so.6: version 'GLIBC_2.38' not found`. Linux packaging and CI
+  packaging now build on Ubuntu 22.04, like study-assistant.
+- **GPU-less machines get WebKit in software rendering**: if EGL can't
+  initialize on the default display (VMs, no-GPU machines), the desktop
+  shell falls back to software rendering, then to browser mode — instead
+  of showing a dead window. Forced GPU via `CA_WEBKIT_GPU=1`.
+
+## [v0.8.1] - 2026-09-12
 - **Desktop installs migrate cleanly again (v0.8.1)**: two database
   migrations assumed Postgres dialect and crashed a fresh desktop profile
   (SQLite) mid-setup — the CV-document cascade update and the optional

@@ -28973,6 +28973,21 @@
         ]
       }
     },
+    "/api/v1/shell/rendered": {
+      "post": {
+        "description": "The web shell's WebKit-sentinel beacon: SPA finished rendering.",
+        "operationId": "shell_rendered_api_v1_shell_rendered_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Shell Rendered",
+        "tags": [
+          "health"
+        ]
+      }
+    },
     "/api/v1/skills": {
       "get": {
         "description": "Browse the active ontology (flat; parent_id gives the tree shape).",

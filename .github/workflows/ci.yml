@@ -111,7 +111,9 @@ jobs:
 
   packaging:
     name: Packaging (PyInstaller bundle + smoke)
-    runs-on: ubuntu-latest
+    # 22.04 keeps the bundled libpython loadable on glibc 2.35 hosts —
+    # mirrors the release job (see the comment there).
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies

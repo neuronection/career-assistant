@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { RenderBeacon } from "./components/RenderBeacon";
 import { initI18n } from "./lib/i18n";
 import "@neuronection/assistant-ui/styles.css";
 import "./index.css";
@@ -11,6 +12,7 @@ void initI18n();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <RenderBeacon />
     <App />
   </React.StrictMode>
 );

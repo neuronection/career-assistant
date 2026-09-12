@@ -5,13 +5,16 @@ same FastAPI process (see app.main), so the window points at a loopback
 URL — the frontend needs no desktop-specific code.
 """
 
+import ctypes
 import json
 import logging
 import os
 import socket
+import sys
 import threading
+import time
 import webbrowser
-from collections.abc import MutableMapping, Sequence
+from collections.abc import Callable, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -36,6 +39,110 @@ _SNAP_POLLUTED_VARS = (
 WINDOW_STATE_FILE = "window-state.json"
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
+
+_RENDERED_SENTINEL_SEC = 10.0
+
+_MODE_WORDS = {"app", "web", "seed", "backup", "restore"}
+
+
+def _egl_probe() -> bool:
+    """GPU-capable EGL init succeeds on the default display."""
+    try:
+        egl = ctypes.CDLL("libEGL.so.1")
+        egl.eglGetDisplay.restype = ctypes.c_void_p
+        egl.eglGetDisplay.argtypes = [ctypes.c_void_p]
+        display = egl.eglGetDisplay(ctypes.c_void_p(0))
+        if not display:
+            return False
+        egl.eglInitialize.restype = ctypes.c_uint32
+        egl.eglInitialize.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        initialized = egl.eglInitialize(display, None, None)
+        egl.eglTerminate(display)
+        return bool(initialized)
+    except Exception:
+        return False
+
+
+def _software_render_env(env: MutableMapping[str, str]) -> None:
+    env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+    env["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1"
+    env["WEBKIT_DISABLE_COMPOSITING_MODE"] = "1"
+
+
+def apply_webkit_compat_env(
+    environ: MutableMapping[str, str] | None = None,
+) -> MutableMapping[str, str]:
+    """Force software WebKit rendering when the machine has no usable GPU.
+
+    Skipped when the GPU path is forced with `CA_WEBKIT_GPU=1`; the probe
+    is skipped when a previous relaunch already marked the soft fallback
+    (`CA_WEBKIT_SOFT_FALLBACK=1`).
+    """
+    env: MutableMapping[str, str] = os.environ if environ is None else environ
+    if sys.platform != "linux" or env.get("CA_WEBKIT_GPU") == "1":
+        return env
+    if env.get("CA_WEBKIT_SOFT_FALLBACK") != "1" and _egl_probe():
+        return env
+    _software_render_env(env)
+    return env
+
+
+def _relaunch_argv(mode: str) -> list[str]:
+    extra = [arg for arg in sys.argv[1:] if arg not in _MODE_WORDS]
+    if getattr(sys, "frozen", False):
+        return [sys.executable, *extra, mode]
+    return [sys.executable, "-m", "careerassistant", *extra, mode]
+
+
+def _plan_fallback(env: MutableMapping[str, str]) -> tuple[str, str]:
+    if env.get("CA_WEBKIT_SOFT_FALLBACK") == "1":
+        env["CA_WEBKIT_BROWSER_FALLBACK"] = "1"
+        return "web", "webkit_still_dead_relaunching_browser_mode"
+    env["CA_WEBKIT_SOFT_FALLBACK"] = "1"
+    return "app", "webkit_renderer_dead_relaunching_software"
+
+
+def _relaunch_self() -> None:
+    mode, event = _plan_fallback(os.environ)
+    argv = _relaunch_argv(mode)
+    logger.warning(event, argv=argv)
+    os.execv(argv[0], argv)
+
+
+def _watch_renderer(
+    app, cancel: threading.Event, timeout_sec: float, relaunch: Callable[[], None]
+) -> None:
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        if getattr(app.state, "spa_rendered", False) or cancel.is_set():
+            return
+        time.sleep(0.25)
+    if cancel.is_set() or getattr(app.state, "spa_rendered", False):
+        return
+    relaunch()
+
+
+def _start_renderer_sentinel(app) -> None:
+    gpu_forced = os.environ.get("CA_WEBKIT_GPU") == "1"
+    render_mode = (
+        "forced-gpu"
+        if gpu_forced
+        else (
+            "software"
+            if os.environ.get("WEBKIT_DISABLE_DMABUF_RENDERER") == "1"
+            else "gpu"
+        )
+    )
+    logger.info("webkit_render_mode", mode=render_mode)
+    if sys.platform == "linux" and not gpu_forced:
+        threading.Thread(
+            target=_watch_renderer,
+            args=(app, threading.Event(), _RENDERED_SENTINEL_SEC, _relaunch_self),
+            name="webkit-sentinel",
+            daemon=True,
+        ).start()
+
+
 MIN_WINDOW_WIDTH = 640
 MIN_WINDOW_HEIGHT = 480
 VISIBLE_MARGIN = 80
@@ -215,6 +322,7 @@ def run_browser() -> None:
             probe.bind(("127.0.0.1", port))
     except OSError:
         port = find_free_port()
+    apply_webkit_compat_env()
     url = f"http://127.0.0.1:{port}"
     threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
@@ -296,11 +404,13 @@ def run(tray_only: bool = False) -> None:
 
     app = create_app()
     port = find_free_port()
+    apply_webkit_compat_env()
     server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
     )
     thread = threading.Thread(target=server.run, name="uvicorn", daemon=True)
     thread.start()
+    _start_renderer_sentinel(app)
 
     from app.core.database import AsyncSessionLocal
 

@@ -11,7 +11,11 @@ permissions:
 jobs:
   linux:
     name: Linux packages (deb + AppImage)
-    runs-on: ubuntu-latest
+    # 22.04, not ubuntu-latest: the bundled libpython3.12 must load on
+    # machines still on glibc 2.35 (Ubuntu 22.04 / Debian 12) — pinned
+    # by the same reason study-assistant pins its packaging job 22.04
+    # (the 2.38+ requirement shows up only on end-user machines).
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from urllib.parse import parse_qs
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -269,6 +269,15 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         """Liveness probe."""
         return {"status": "ok", "app": settings.APP_NAME, "version": settings.VERSION}
+
+    shell_router = APIRouter(tags=["health"])
+
+    @shell_router.post("/shell/rendered", status_code=204)
+    async def shell_rendered(request: Request) -> None:
+        """The web shell's WebKit-sentinel beacon: SPA finished rendering."""
+        request.app.state.spa_rendered = True
+
+    application.include_router(shell_router, prefix="/api/v1")
 
     @application.api_route(
         "/api/v1/{rest:path}",

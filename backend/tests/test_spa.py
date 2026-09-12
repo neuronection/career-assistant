@@ -107,3 +107,12 @@ async def test_without_dist_api_only_mode(no_local_dist, monkeypatch):
         response = await client.get("/")
         assert response.status_code == 404
         assert "application/json" in response.headers["content-type"]
+
+
+async def test_shell_rendered_beacon_sets_state(spa_dist, monkeypatch):
+    app = _make_app(monkeypatch, spa_dist)
+    assert getattr(app.state, "spa_rendered", False) is False
+    async with await _client(app) as client:
+        response = await client.post("/api/v1/shell/rendered")
+    assert response.status_code == 204
+    assert app.state.spa_rendered is True
