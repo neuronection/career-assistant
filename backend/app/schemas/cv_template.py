@@ -51,6 +51,12 @@ class DesignTokens(BaseModel):
     sidebar_color: str = Field(default="#16324f", pattern=HEX_COLOR)
     sidebar_text_color: str = Field(default="#ffffff", pattern=HEX_COLOR)
     sidebar_width_pct: int = Field(default=34, ge=25, le=45)
+    # Per-area padding (plan 70): inner padding of the main flow and the
+    # sidebar column. None = legacy renderer defaults (sidebar 4mm/4.5mm,
+    # main unpadded). Sidebar templates typically pair these with
+    # margin_mm=0 so the areas own the spacing instead of the page.
+    main_padding_mm: Optional[int] = Field(default=None, ge=0, le=25)
+    sidebar_padding_mm: Optional[int] = Field(default=None, ge=0, le=25)
 
 
 class PagesConfig(BaseModel):

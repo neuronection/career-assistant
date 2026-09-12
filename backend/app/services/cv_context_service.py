@@ -11,6 +11,7 @@ cannot leak into a CV.
 """
 
 import uuid
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
@@ -29,7 +30,8 @@ from app.models.profile_entities_model import (
 )
 from app.models.user_model import Profile, User, UserInterest, UserSkill
 from app.models.university_model import Department
-from app.schemas.cv import CvContextSelection
+from app.schemas.cv import CvContextSelection, CvCoverageMatrix, CvCoverageRef
+from app.services.cv_languages import cefr_of, language_name
 
 SCALAR_KEYS = {"basics", "summary"}
 
@@ -163,40 +165,99 @@ async def _resolve_summary(db: AsyncSession, user_id: uuid.UUID) -> list[CvConte
     ]
 
 
+WORK_EXPERIENCE_KINDS = ("job", "internship", "freelance")
+
+
 async def _resolve_experience(
     db: AsyncSession, user_id: uuid.UUID
 ) -> list[CvContextItem]:
+    """Paid work only: jobs, internships, freelance (plan-70 source split)."""
     rows = await db.execute(
         select(ExperienceItem)
-        .where(ExperienceItem.user_id == user_id, ExperienceItem.status == "active")
+        .where(
+            ExperienceItem.user_id == user_id,
+            ExperienceItem.status == "active",
+            ExperienceItem.kind.in_(WORK_EXPERIENCE_KINDS),
+        )
         .options(
             selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill),
             selectinload(ExperienceItem.achievements),
         )
-        .order_by(ExperienceItem.start.desc(), ExperienceItem.created_at.desc())
-    )
-    return [
-        CvContextItem(
-            item_id=str(row.id),
-            label=row.title,
-            detail=row.org_name,
-            payload={
-                "title": row.title,
-                "org": row.org_name,
-                "start": _ym(row.start),
-                "end": "" if row.open_ended else _ym(row.end),
-                "description": row.description,
-                "skills": [
-                    link.skill.label for link in row.skills if link.skill is not None
-                ],
-                "achievements": [
-                    {"text": achievement.text} for achievement in row.achievements
-                ],
-            },
-            updated_at=row.updated_at,
+        .order_by(
+            ExperienceItem.start.desc().nullslast(),
+            ExperienceItem.created_at.desc(),
         )
-        for row in rows.scalars().all()
-    ]
+    )
+    return [_experience_item_of(row) for row in rows.scalars().all()]
+
+
+async def _resolve_projects(
+    db: AsyncSession, user_id: uuid.UUID
+) -> list[CvContextItem]:
+    """Projects as their own CV section source (kind=project)."""
+    rows = await db.execute(
+        select(ExperienceItem)
+        .where(
+            ExperienceItem.user_id == user_id,
+            ExperienceItem.status == "active",
+            ExperienceItem.kind == "project",
+        )
+        .options(
+            selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill),
+            selectinload(ExperienceItem.achievements),
+        )
+        .order_by(
+            ExperienceItem.start.desc().nullslast(),
+            ExperienceItem.created_at.desc(),
+        )
+    )
+    return [_experience_item_of(row) for row in rows.scalars().all()]
+
+
+async def _resolve_volunteer(
+    db: AsyncSession, user_id: uuid.UUID
+) -> list[CvContextItem]:
+    """Volunteering as its own CV section source (kind=volunteer)."""
+    rows = await db.execute(
+        select(ExperienceItem)
+        .where(
+            ExperienceItem.user_id == user_id,
+            ExperienceItem.status == "active",
+            ExperienceItem.kind == "volunteer",
+        )
+        .options(
+            selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill),
+            selectinload(ExperienceItem.achievements),
+        )
+        .order_by(
+            ExperienceItem.start.desc().nullslast(),
+            ExperienceItem.created_at.desc(),
+        )
+    )
+    return [_experience_item_of(row) for row in rows.scalars().all()]
+
+
+def _experience_item_of(row: ExperienceItem) -> CvContextItem:
+    return CvContextItem(
+        item_id=str(row.id),
+        label=row.title,
+        detail=row.org_name,
+        payload={
+            "kind": row.kind,
+            "title": row.title,
+            "org": row.org_name,
+            "start": _ym(row.start),
+            "end": "" if row.open_ended else _ym(row.end),
+            "description": row.description,
+            "skills": [
+                link.skill.label for link in row.skills if link.skill is not None
+            ],
+            "achievements": [
+                {"text": achievement.text} for achievement in row.achievements
+            ],
+        },
+        updated_at=row.updated_at,
+    )
 
 
 async def _resolve_education(
@@ -253,6 +314,7 @@ async def _resolve_certifications(
                 "start": _ym(row.issued),
                 "end": _ym(row.expires),
                 "description": "",
+                "language_code": row.language_code or "",
             },
             updated_at=row.updated_at,
         )
@@ -291,7 +353,7 @@ async def _resolve_achievements(
 async def _resolve_skills(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     rows = await db.execute(
         select(UserSkill)
-        .where(UserSkill.user_id == user_id)
+        .where(UserSkill.user_id == user_id, UserSkill.derive_enabled)
         .options(selectinload(UserSkill.skill))
         .order_by(UserSkill.level.desc(), UserSkill.created_at.asc())
     )
@@ -304,6 +366,9 @@ async def _resolve_skills(db: AsyncSession, user_id: uuid.UUID) -> list[CvContex
                 "label": row.skill.label,
                 "level": row.level,
                 "category": row.skill.category,
+                # Per-item selection target: block `props.selected`
+                # carries context item ids (plan 68).
+                "id": str(row.skill_id),
             },
             updated_at=row.updated_at,
         )
@@ -327,14 +392,18 @@ async def _resolve_languages(
         code = str(language.get("code") or "").strip()
         if not code:
             continue
+        level = str(language.get("level") or "").strip()
+        name = language_name(code)
         items.append(
             CvContextItem(
                 item_id=code,
-                label=code.upper(),
-                detail=str(language.get("level") or ""),
+                label=name,
+                detail=level or code.upper(),
                 payload={
-                    "label": code.upper(),
-                    "level": language.get("level") or "",
+                    "label": name,
+                    "code": code,
+                    "level": level,
+                    "cefr": cefr_of(level),
                 },
                 updated_at=profile.updated_at,
             )
@@ -380,9 +449,21 @@ CV_CONTEXT_SOURCES: dict[str, CvContextSourceDef] = {
         ),
         CvContextSourceDef(
             "experience",
-            "Experience",
-            "Roles, internships, projects, volunteering",
+            "Work Experience",
+            "Paid work: jobs, internships, freelance — not projects or volunteering",
             _resolve_experience,
+        ),
+        CvContextSourceDef(
+            "projects",
+            "Projects",
+            "Projects (kind=project) — their own CV section",
+            _resolve_projects,
+        ),
+        CvContextSourceDef(
+            "volunteer",
+            "Volunteering",
+            "Volunteer roles (kind=volunteer) — their own CV section",
+            _resolve_volunteer,
         ),
         CvContextSourceDef(
             "education",
@@ -439,6 +520,12 @@ class CvResolution:
     snapshot_index: dict[str, list[str]]
     items: list[CvContextItem]
     resolved_at: datetime
+    # Ref → synth row id when the per-CV synth overlay applied (plan 62).
+    synth_applied: dict = None  # type: ignore[assignment]
+
+    def __post_init__(self):
+        if self.synth_applied is None:
+            self.synth_applied = {}
 
     def item_refs(self) -> list[dict]:
         """Flat `{source_key, item_id, label, updated_at}` trace list."""
@@ -539,6 +626,42 @@ async def resolve(
         snapshot_index=snapshot_index,
         items=items,
         resolved_at=datetime.now(timezone.utc),
+    )
+
+
+def build_coverage_matrix(
+    snapshot_items: dict[str, list[CvContextItem]],
+    included_ids: Iterable[str],
+    dropped: Mapping[str, str] | None = None,
+) -> CvCoverageMatrix:
+    """Deterministic content-coverage audit over the selected context.
+
+    `snapshot_items` maps source key → the selection's resolved items;
+    `included_ids` are the ids that actually landed in the document;
+    `dropped` maps excluded ids to the plan's consciously-carried
+    rationale (unmapped and non-included ids surface as `missing`).
+    No AI — the matrix feeds the build reviewer and the stop gate.
+    """
+    included = set(included_ids)
+    reasons = dict(dropped or {})
+    matrix_included: list[CvCoverageRef] = []
+    matrix_dropped: list[CvCoverageRef] = []
+    matrix_missing: list[CvCoverageRef] = []
+    for source_key, items in snapshot_items.items():
+        for item in items:
+            ref = CvCoverageRef(
+                source_key=source_key, item_id=item.item_id, label=item.label
+            )
+            if item.item_id in included:
+                matrix_included.append(ref)
+            elif item.item_id in reasons:
+                matrix_dropped.append(ref)
+            else:
+                matrix_missing.append(ref)
+    return CvCoverageMatrix(
+        included=matrix_included,
+        dropped=matrix_dropped,
+        missing=matrix_missing,
     )
 
 

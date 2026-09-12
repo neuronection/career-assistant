@@ -1,4 +1,3 @@
-import { TOKEN_KEY } from "./client";
 import type { ChatFlowEvent } from "@/lib/chatFlow";
 
 export interface ChatStreamCallbacks {
@@ -41,12 +40,10 @@ export async function streamChatRequest(
   callbacks: ChatStreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const token = localStorage.getItem(TOKEN_KEY);
   const response = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
     signal,

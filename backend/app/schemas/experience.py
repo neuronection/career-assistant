@@ -43,11 +43,15 @@ class ExperienceItemIn(BaseModel):
 
     @model_validator(mode="after")
     def _period_sane(self):
-        if self.start is None:
+        if self.start is None and self.kind != "project":
             raise ValueError("start is required")
         if self.end is None and not self.open_ended:
             raise ValueError("end is required unless open_ended")
-        if self.end is not None and self.end < self.start:
+        if (
+            self.start is not None
+            and self.end is not None
+            and self.end < self.start
+        ):
             raise ValueError("end cannot precede start")
         return self
 
@@ -91,7 +95,7 @@ class ExperienceItemOut(BaseModel):
     title: str
     org_name: str
     org_id: Optional[UUID] = None
-    start: date
+    start: Optional[date] = None
     end: Optional[date] = None
     open_ended: bool
     hours_per_week: Optional[int] = None
@@ -117,6 +121,8 @@ class DerivedSkillOut(BaseModel):
     level: float
     confidence: float
     supporting_items: list[str]
+    claimed_level: Optional[int] = None
+    claim_status: Optional[str] = None
 
 
 class DerivationOut(BaseModel):
@@ -127,6 +133,7 @@ class DerivationOut(BaseModel):
 class DerivationApplyOut(BaseModel):
     applied: int
     conflicts: list[dict]
+    skipped_disabled: int = 0
     derived: list[DerivedSkillOut]
 
 

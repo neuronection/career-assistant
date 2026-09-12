@@ -19,6 +19,7 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import AITaskType, BackgroundJobType
 from app.models.experience_model import ExperienceItem
 from app.models.posting_model import JobPosting
+from app.schemas.cv import CvContextSelection
 from app.models.profile_entities_model import EducationItem
 from app.models.user_model import Profile, UserSkill
 from app.schemas.cv_generate import CvGenerateRequest
@@ -101,6 +102,31 @@ async def enqueue_generation(
     )
 
 
+async def enqueue_polish(
+    db: AsyncSession, user_id: UUID, cv_id: UUID, *, resumed_from: str = ""
+) -> BackgroundJob:
+    """Queue a polish-only run over a committed CV (plan 64 §3).
+
+    Answers 404 through the API for a foreign/missing resume and 503
+    when no AI provider is configured."""
+    from app.models.cv_model import CvDocument
+
+    cv = await db.get(CvDocument, cv_id)
+    if cv is None or cv.kind != "resume" or cv.user_id != user_id:
+        raise NotFoundError("CV not found")
+    resolved = await resolve_task_model(db, AITaskType.CV_BUILD_REVIEW.value, user_id)
+    if resolved is None:
+        raise AINotConfiguredError(
+            "AI is not configured — ask an administrator to set up a provider"
+        )
+    return await enqueue(
+        db,
+        BackgroundJobType.CV_POLISH.value,
+        {"cv_id": str(cv_id), "resumed_from": resumed_from},
+        user_id=user_id,
+    )
+
+
 class CvGenerateService:
     """Drives one checkpointed cv_draft run (queue handler entry point)."""
 
@@ -145,4 +171,58 @@ class CvGenerateService:
                 "status": abort_reason,
                 "error": final.get("error") or "",
             }
+        return {"status": "completed", **(final.get("result") or {})}
+
+    async def polish(
+        self,
+        user_id: UUID,
+        cv_id: UUID,
+        *,
+        run_id: UUID,
+        progress=None,
+        cancelled=None,
+        resumed_from: str = "",
+    ) -> dict:
+        """Re-enter the flow at review for a committed CV (user-directed).
+
+        The context selection, language and page budget come from the
+        document; the polish loop then runs over the committed state and
+        finalize compiles a fresh `ai_apply` version carrying the updated
+        trace (`run.resumed_from` links it to the earlier run)."""
+        from app.ai.graphs.cv_draft import (
+            GraphDeps,
+            build_cv_polish_graph,
+            polish_entry_state,
+        )
+        from app.models.cv_model import CvDocument
+
+        cv = await self.db.get(CvDocument, cv_id)
+        if cv is None or cv.kind != "resume":
+            raise ValidationError("CV not found")
+        request = CvGenerateRequest(
+            language=cv.language or "en",
+            max_pages=cv.max_pages or 1,
+            target_posting_id=cv.target_posting_id,
+            context=CvContextSelection.model_validate(cv.context or {}),
+        )
+        deps = GraphDeps(db=self.db, progress=progress, cancelled=cancelled)
+        checkpointer = self._checkpointer
+        if checkpointer is None:
+            checkpointer = await get_checkpointer()
+        graph = build_cv_polish_graph(deps, checkpointer)
+        config = {"configurable": {"thread_id": str(run_id)}}
+        final = await graph.ainvoke(
+            polish_entry_state(
+                user_id=user_id,
+                run_id=run_id,
+                request=request.model_dump(mode="json"),
+                cv_id=cv_id,
+                resumed_from=resumed_from,
+            ),
+            config,
+        )
+        await self.db.commit()
+        abort_reason = final.get("abort_reason")
+        if abort_reason:
+            return {"status": abort_reason, "error": final.get("error") or ""}
         return {"status": "completed", **(final.get("result") or {})}

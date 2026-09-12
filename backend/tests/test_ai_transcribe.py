@@ -105,7 +105,7 @@ async def test_transcribe_unsupported_provider_maps_to_422(
 
 
 @pytest.mark.parametrize("path", ["/api/v1/ai/transcribe"])
-async def test_transcribe_requires_auth(client, path):
+async def test_transcribe_requires_auth(client, path, multi_user_mode):
     response = await client.post(path, files=_audio_file())
     assert response.status_code in (401, 403)
 

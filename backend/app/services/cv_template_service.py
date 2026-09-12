@@ -350,6 +350,70 @@ class CvTemplateService:
                 return False
         return True
 
+    # ----------------------------------------------------------- suggest
+
+    async def suggest(
+        self,
+        user_id: uuid.UUID,
+        language: str = "en",
+        posting=None,
+    ) -> dict:
+        """Rank readable templates for a new CV (deterministic + AI).
+
+        Signal scores (language match, sidebar layout, ATS-safety)
+        form the baseline; the CV_TEMPLATE_PICK call may only reorder
+        and explain — its output is validated against the candidate
+        refs, never a substitute template.
+        """
+        from app.ai.agents.cv_template_advisor import (
+            TemplateCandidate,
+            rank_templates,
+        )
+
+        rows = await self.list_templates(user_id)
+        if not rows:
+            return {"picks": [], "candidates_considered": 0}
+        scored: list[tuple[float, int, CvTemplate]] = []
+        for index, row in enumerate(rows):
+            score = 5.0
+            if str(row.language) == language:
+                score += 2.0
+            content = TemplateContent.model_validate(row.content)
+            if content.design.layout == "sidebar":
+                score += 0.8
+            if row.ats_safe:
+                score += 1.2
+            scored.append((-score, index, row))
+        scored.sort(key=lambda entry: (entry[0], entry[1]))
+        ordered = [entry[2] for entry in scored]
+        candidates = [
+            TemplateCandidate(
+                ref=f"t{index}",
+                template_id=str(row.id),
+                title=row.title,
+                source=str(row.source),
+                language=str(row.language),
+                page_size=str(row.page_size),
+                ats_safe=bool(row.ats_safe),
+                layout=TemplateContent.model_validate(row.content).design.layout,
+                score=-scored[index][0],
+            )
+            for index, row in enumerate(ordered)
+        ]
+        target: dict = {}
+        if posting is not None:
+            target = {"title": posting.title, "org": posting.org or ""}
+        ranking = await rank_templates(self.db, user_id, candidates, target or None)
+        by_ref = {f"t{index}": row for index, row in enumerate(ordered)}
+        picks = [
+            {"template_id": str(row.id), "title": row.title, "reason": pick.reason}
+            for pick in ranking.ranking
+            if (row := by_ref.get(pick.template_ref)) is not None
+        ]
+        return {"picks": picks, "candidates_considered": len(ordered)}
+
+    # ------------------------------------------------------ visual review
+
     # ------------------------------------------------------ visual review
 
     def lint(self, template: CvTemplate, max_pages: int | None = None) -> dict:

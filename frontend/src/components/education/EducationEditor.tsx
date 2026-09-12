@@ -142,6 +142,7 @@ export interface CertificationEditorForm {
   expires: string;
   credential_id: string;
   link: string;
+  language_code: string;
   status: "draft" | "active";
 }
 
@@ -152,6 +153,7 @@ export const EMPTY_CERTIFICATION_FORM: CertificationEditorForm = {
   expires: "",
   credential_id: "",
   link: "",
+  language_code: "",
   status: "active",
 };
 
@@ -165,6 +167,7 @@ export function certificationFormFromItem(
     expires: item.expires ?? "",
     credential_id: item.credential_id,
     link: item.link,
+    language_code: item.language_code ?? "",
     status: item.status,
   };
 }
@@ -179,6 +182,7 @@ export function certificationToIn(
     expires: form.expires || null,
     credential_id: form.credential_id,
     link: form.link,
+    language_code: form.language_code || null,
     status: form.status,
   };
 }
@@ -641,16 +645,26 @@ export function CertificationEditor({
           maxLength={120}
           testId="certification-credential"
         />
-        <TextField
-          label={t("education.linkLabel")}
-          type="url"
-          value={form.link}
-          onChange={(v) => patch({ link: v })}
-          maxLength={500}
-          placeholder="https://…"
-          testId="certification-link"
+        <SelectField
+          label={t("education.languageProofLabel")}
+          value={form.language_code}
+          onChange={(v) => patch({ language_code: v })}
+          options={[
+            { value: "", label: t("education.languageProofNone") },
+            ...LANGUAGE_CODE_OPTIONS,
+          ]}
+          testId="certification-language"
         />
       </div>
+      <TextField
+        label={t("education.linkLabel")}
+        type="url"
+        value={form.link}
+        onChange={(v) => patch({ link: v })}
+        maxLength={500}
+        placeholder="https://…"
+        testId="certification-link"
+      />
     </EditorFrame>
   );
 }

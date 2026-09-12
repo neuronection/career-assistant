@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Float,
     ForeignKey,
@@ -10,6 +11,8 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    false,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -135,5 +138,16 @@ class UserSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(20), nullable=False, default="self_report"
     )
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    # When False the user opted out: apply_derivation never touches or
+    # re-creates this row (self_report rows ignore it — always owned).
+    derive_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    # Tombstone: the user deleted this row. apply_derivation never
+    # re-creates it and no surface renders it (re-adding the skill via
+    # the profiles pages makes a fresh row).
+    hidden: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     skill = relationship("Skill")

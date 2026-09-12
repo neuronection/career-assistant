@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, Search, Wand2 } from "lucide-react";
-import type { CvContextSourceOut } from "@/types/cv";
+import { Pencil, Plus, ChevronDown, Search, Star, Wand2 } from "lucide-react";
+import type { CvContextSourceOut, CvSynthItem } from "@/types/cv";
 
 interface ContextPanelProps {
   sources: CvContextSourceOut[];
@@ -8,10 +8,150 @@ interface ContextPanelProps {
   onToggle: (sourceKey: string, itemId: string) => void;
   onToggleGroup: (source: CvContextSourceOut, includeAll: boolean) => void;
   onBullet: (sourceKey: string, itemId: string, label: string) => void;
+  /** Plan 62: per-CV "prefer synthesized items" preference. */
+  synthMode?: "off" | "prefer";
+  onSynthModeChange?: (mode: "off" | "prefer") => void;
+  /** Plan 72: the caller's ACTIVE variants, nested under their items. */
+  variants?: CvSynthItem[];
+  onAddVariant?: (sourceKey: string) => void;
+  /** Plan 72 follow-up: per-item variant pinning (`context.synth_pins`). */
+  synthPins?: Record<string, string>;
+  onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  onEditVariant?: (variant: CvSynthItem) => void;
+  busy?: boolean;
 }
 
 function refKeyOf(sourceKey: string, itemId: string): string {
   return `${sourceKey}:${itemId}`;
+}
+
+function variantText(variant: CvSynthItem): string {
+  const payload = variant.payload || {};
+  return payload.description || payload.summary || "";
+}
+
+function PinStar({
+  pinned,
+  variant,
+  sourceKey,
+  itemId,
+  onPin,
+}: {
+  pinned: boolean;
+  variant: CvSynthItem;
+  sourceKey: string;
+  itemId: string;
+  onPin?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pinned}
+      aria-label={
+        pinned
+          ? `Unpin variant ${variant.variant_key} for this item`
+          : `Make variant ${variant.variant_key} the default for this item`
+      }
+      title={
+        pinned
+          ? "Unpin — the best matching variant applies again"
+          : "Make default for this item"
+      }
+      data-testid={`context-pin-star-${variant.id}`}
+      onClick={() => onPin?.(sourceKey, itemId, pinned ? null : variant.id)}
+      className="shrink-0 cursor-pointer rounded p-0.5 transition-colors hover:bg-[var(--as-muted)]"
+    >
+      <Star
+        className={`h-3.5 w-3.5 ${pinned ? "fill-[var(--as-accent)] text-[var(--as-accent)]" : "text-[var(--as-muted-fg)]"}`}
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+function AmberBadge({ children, testId }: { children: string; testId: string }) {
+  return (
+    <span
+      className="shrink-0 rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-800"
+      data-testid={testId}
+    >
+      {children}
+    </span>
+  );
+}
+
+function VariantsForItem({
+  sourceKey,
+  itemId,
+  variants,
+  pinnedId,
+  onPinVariant,
+  onEditVariant,
+}: {
+  sourceKey: string;
+  itemId: string;
+  variants: CvSynthItem[];
+  pinnedId: string | undefined;
+  onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  onEditVariant?: (variant: CvSynthItem) => void;
+}) {
+  const rows = variants.filter((variant) =>
+    variant.source_refs.some(
+      (ref) => ref.source_key === sourceKey && ref.item_id === itemId,
+    ),
+  );
+  if (rows.length === 0) return null;
+  return (
+    <ul className="ml-5 space-y-0.5 border-l border-dashed border-[var(--as-border)] pl-2">
+      {rows.map((variant) => (
+        <li
+          key={`${sourceKey}-${itemId}-${variant.id}`}
+          className="flex items-center gap-1.5 rounded px-0.5 py-1 text-xs hover:bg-[var(--as-muted)]"
+          data-testid={`context-variant-${variant.id}`}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1">
+              <span
+                className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)] px-1.5 text-[10px] font-medium text-[var(--as-accent)]"
+                data-testid="context-variant-badge"
+              >
+                variant
+              </span>
+              <span className="truncate text-[var(--as-muted-fg)]">
+                {variant.variant_key}
+              </span>
+              {variant.stale && <AmberBadge testId="context-variant-stale">stale</AmberBadge>}
+              {variant.orphaned && <AmberBadge testId="context-variant-orphan">gone</AmberBadge>}
+            </span>
+            {variantText(variant) && (
+              <span className="line-clamp-2 text-[var(--as-muted-fg)]">
+                {variantText(variant)}
+              </span>
+            )}
+          </span>
+          <PinStar
+            pinned={pinnedId === variant.id}
+            variant={variant}
+            sourceKey={sourceKey}
+            itemId={itemId}
+            onPin={onPinVariant}
+          />
+          {onEditVariant && (
+            <button
+              type="button"
+              className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--as-accent)] transition-colors hover:bg-[var(--as-muted)]"
+              aria-label={`Edit variant ${variant.variant_key}`}
+              title="Edit text"
+              data-testid={`context-variant-edit-${variant.id}`}
+              onClick={() => onEditVariant(variant)}
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function GroupRow({
@@ -20,6 +160,11 @@ function GroupRow({
   onToggle,
   onToggleGroup,
   onBullet,
+  variants,
+  onAddVariant,
+  synthPins,
+  onPinVariant,
+  onEditVariant,
   open,
   onOpenChange,
 }: {
@@ -28,6 +173,11 @@ function GroupRow({
   onToggle: (sourceKey: string, itemId: string) => void;
   onToggleGroup: (source: CvContextSourceOut, includeAll: boolean) => void;
   onBullet: (sourceKey: string, itemId: string, label: string) => void;
+  variants: CvSynthItem[];
+  onAddVariant?: (sourceKey: string) => void;
+  synthPins: Record<string, string>;
+  onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  onEditVariant?: (variant: CvSynthItem) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -80,35 +230,63 @@ function GroupRow({
             )}
             {items.map((item) => {
               const key = refKeyOf(source.key, item.item_id);
+              const writable =
+                source.key === "experience" ||
+                source.key === "projects" ||
+                source.key === "volunteer";
               return (
-                <label key={key} className="flex items-center gap-2 rounded px-0.5 py-1 text-sm hover:bg-[var(--as-muted)]">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={selected.has(key)}
-                    onChange={() => onToggle(source.key, item.item_id)}
-                    data-testid={`context-toggle-${key}`}
-                    className="as-switch shrink-0"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{item.label}</span>
-                    {item.detail && (
-                      <span className="block truncate text-xs text-[var(--as-muted-fg)]">{item.detail}</span>
+                <div key={key}>
+                  <label className="flex items-center gap-2 rounded px-0.5 py-1 text-sm hover:bg-[var(--as-muted)]">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={selected.has(key)}
+                      onChange={() => onToggle(source.key, item.item_id)}
+                      data-testid={`context-toggle-${key}`}
+                      className="as-switch shrink-0"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2">{item.label}</span>
+                      {item.detail && (
+                        <span className="line-clamp-2 text-xs text-[var(--as-muted-fg)]">{item.detail}</span>
+                      )}
+                    </span>
+                    {writable && (
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        {onAddVariant && (
+                          <button
+                            type="button"
+                            className="rounded p-1 text-[var(--as-accent)] hover:bg-[var(--as-muted)]"
+                            aria-label={`Write a variant for ${item.label}`}
+                            title="Add variant"
+                            data-testid={`ai-add-variant-${item.item_id}`}
+                            onClick={() => onAddVariant(source.key)}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="rounded p-1 text-[var(--as-accent)] hover:bg-[var(--as-muted)]"
+                          aria-label={`Improve bullet for ${item.label}`}
+                          title="Improve with AI"
+                          data-testid={`ai-bullet-${item.item_id}`}
+                          onClick={() => onBullet(source.key, item.item_id, item.label)}
+                        >
+                          <Wand2 className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
                     )}
-                  </span>
-                  {source.key === "experience" && (
-                    <button
-                      type="button"
-                      className="shrink-0 rounded p-1 text-[var(--as-accent)] hover:bg-[var(--as-muted)]"
-                      aria-label={`Improve bullet for ${item.label}`}
-                      title="Improve with AI"
-                      data-testid={`ai-bullet-${item.item_id}`}
-                      onClick={() => onBullet(source.key, item.item_id, item.label)}
-                    >
-                      <Wand2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </label>
+                  </label>
+                  <VariantsForItem
+                    sourceKey={source.key}
+                    itemId={item.item_id}
+                    variants={variants}
+                    pinnedId={synthPins[key]}
+                    onPinVariant={onPinVariant}
+                    onEditVariant={onEditVariant}
+                  />
+                </div>
               );
             })}
           </div>
@@ -118,7 +296,21 @@ function GroupRow({
   );
 }
 
-export function ContextPanel({ sources, selected, onToggle, onToggleGroup, onBullet }: ContextPanelProps) {
+export function ContextPanel({
+  sources,
+  selected,
+  onToggle,
+  onToggleGroup,
+  onBullet,
+  synthMode,
+  onSynthModeChange,
+  variants = [],
+  onAddVariant,
+  synthPins = {},
+  onPinVariant,
+  onEditVariant,
+  busy,
+}: ContextPanelProps) {
   const [query, setQuery] = useState("");
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
 
@@ -162,6 +354,11 @@ export function ContextPanel({ sources, selected, onToggle, onToggleGroup, onBul
             onToggle={onToggle}
             onToggleGroup={onToggleGroup}
             onBullet={onBullet}
+            variants={variants}
+            onAddVariant={onAddVariant}
+            synthPins={synthPins}
+            onPinVariant={onPinVariant}
+            onEditVariant={onEditVariant}
             open={query.trim() !== "" ? true : !closedGroups.has(source.key) && !isEmpty(source)}
             onOpenChange={(open) =>
               setClosedGroups((previous) => {
@@ -179,6 +376,31 @@ export function ContextPanel({ sources, selected, onToggle, onToggleGroup, onBul
           </p>
         )}
       </div>
+      {synthMode !== undefined && onSynthModeChange && (
+        <label
+          className="mt-2 flex shrink-0 items-center gap-2 border-t border-[var(--as-border)] pt-2 text-xs text-[var(--as-fg)]"
+          title={synthTitle(synthMode)}
+          data-testid="context-synth-toggle"
+        >
+          <input
+            type="checkbox"
+            role="switch"
+            checked={synthMode === "prefer"}
+            onChange={(event) => onSynthModeChange(event.target.checked ? "prefer" : "off")}
+            disabled={busy}
+            className="h-3.5 w-3.5 accent-[var(--as-accent)]"
+            data-testid="context-synth-prefer"
+          />
+          <Wand2 className="h-3.5 w-3.5 text-[var(--as-muted-fg)]" />
+          Prefer synthesized items
+        </label>
+      )}
     </div>
   );
+}
+
+function synthTitle(mode: "off" | "prefer"): string {
+  return mode === "prefer"
+    ? "Active synthesized variants replace this CV's verbatim item text (manual edits still win)."
+    : "Render verbatim profile text; matching variants exist but stay unapplied.";
 }

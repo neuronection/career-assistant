@@ -57,6 +57,23 @@ class DerivedSkill:
     level: float
     confidence: float
     supporting_items: list[str] = field(default_factory=list)
+    # Mean of the user's explicit 1–10 claims across participations,
+    # rounded; None when no participation carries a claim.
+    claimed_level: int | None = None
+
+    def claim_status(self, target: float | int | None = None) -> str | None:
+        """Calibration verdict of the claim vs the derived level.
+
+        Agrees within ±2 → "confirmed" (raises confidence in apply);
+        beyond that → "conflict" (the claim never overrides the
+        months curve silently); no claim → None.
+        """
+        if self.claimed_level is None:
+            return None
+        reference = self.level if target is None else target
+        if abs(self.claimed_level - reference) <= 2:
+            return "confirmed"
+        return "conflict"
 
 
 def _month_index(d: date) -> int:
@@ -161,6 +178,7 @@ def derive_skill_months(
     today = today or date.today()
     month_maps: dict[str, dict[int, float]] = {}
     supporters: dict[str, set[str]] = {}
+    claims: dict[str, list[int]] = {}
     for part in participations or []:
         item = part["item"]
         skill_id = str(part["skill_id"])
@@ -174,15 +192,24 @@ def derive_skill_months(
             if rate > month_map.get(index, 0.0):
                 month_map[index] = rate
         supporters.setdefault(skill_id, set()).add(str(item.id))
+        claim = part.get("level_claim")
+        if claim is not None:
+            claims.setdefault(skill_id, []).append(int(claim))
     derived: dict[str, DerivedSkill] = {}
     for skill_id, month_map in month_maps.items():
         months = round(sum(month_map.values()), 2)
+        skill_claims = claims.get(skill_id)
         derived[skill_id] = DerivedSkill(
             skill_id=skill_id,
             months=months,
             level=months_to_level(months),
             confidence=months_to_confidence(months),
             supporting_items=sorted(supporters.get(skill_id, set())),
+            claimed_level=(
+                int(round(sum(skill_claims) / len(skill_claims)))
+                if skill_claims
+                else None
+            ),
         )
     return derived
 
@@ -196,6 +223,8 @@ def derivation_summary(derived: DerivedSkill, skill_label: str = "") -> dict:
         "level": derived.level,
         "confidence": derived.confidence,
         "supporting_items": derived.supporting_items,
+        "claimed_level": derived.claimed_level,
+        "claim_status": derived.claim_status(),
     }
 
 

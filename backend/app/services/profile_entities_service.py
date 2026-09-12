@@ -39,7 +39,7 @@ _EDUCATION_CLEARABLE = frozenset(
     {"university_id", "department_id", "grade_band", "start", "end"}
 )
 
-_CERTIFICATION_CLEARABLE = frozenset({"issued", "expires"})
+_CERTIFICATION_CLEARABLE = frozenset({"issued", "expires", "language_code"})
 
 
 async def effective_education_level(

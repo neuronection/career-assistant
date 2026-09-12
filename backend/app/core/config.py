@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
 
+    # Transitory single-user mode: unauthenticated requests resolve to a
+    # lazily-created default user instead of requiring a login. Tokens
+    # (e.g. the MCP server token) are still validated when presented.
+    SINGLE_USER_MODE: bool = True
+    DEFAULT_USER_EMAIL: str = "default@local.app"
+
     # AI providers/models/assignments are configured exclusively through the
     # UI (Settings → AI Configuration) and stored in the database. There are
     # deliberately NO AI_* env vars. AI_TIMEOUT is an infra knob, not config.

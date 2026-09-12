@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { LogOut, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 
 import { SidebarNav, UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
@@ -18,7 +18,7 @@ import { NAV, resolveActiveId } from "@/config/nav";
 
 export function Layout() {
   const { t } = useTranslation();
-  const { user, loadUser, logout } = useAuthStore();
+  const { user, loadUser } = useAuthStore();
   const { bootstrap, load: loadBootstrap } = useBootstrapStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -131,15 +131,8 @@ export function Layout() {
               <UserMenu
                 name={user.full_name || undefined}
                 email={user.email}
-                items={[{ id: "signout", label: t("shell.signOut"), icon: LogOut, tone: "danger" }]}
-                onItemSelect={(id) => {
-                  if (id === "signout") {
-                    logout();
-                    navigate("/login");
-                    return;
-                  }
-                  navigate(id);
-                }}
+                items={[]}
+                onItemSelect={() => {}}
               />
             )}
           </div>

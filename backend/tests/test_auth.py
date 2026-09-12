@@ -48,6 +48,28 @@ async def test_login_success_and_failure(client):
     assert bad.status_code == 401
 
 
-async def test_me_requires_auth(client):
+async def test_me_resolves_default_user_without_token(client):
+    from app.core.config import settings
+
+    response = await client.get("/api/v1/auth/me")
+    assert response.status_code == 200
+    assert response.json()["email"] == settings.DEFAULT_USER_EMAIL
+    assert response.json()["is_admin"] is True
+
+
+async def test_me_requires_auth_when_single_user_mode_off(client, multi_user_mode):
     response = await client.get("/api/v1/auth/me")
     assert response.status_code == 401
+
+
+async def test_default_user_is_created_once(client, db):
+    from sqlalchemy import func, select
+
+    from app.models.user_model import User
+    from app.services.auth_service import get_or_create_default_user
+
+    first = await get_or_create_default_user(db)
+    second = await get_or_create_default_user(db)
+    assert first.id == second.id
+    count = (await db.execute(select(func.count(User.id)))).scalar()
+    assert count == 1

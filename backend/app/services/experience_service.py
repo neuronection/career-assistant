@@ -37,6 +37,9 @@ from app.services.experience_derivation import (
 
 CONFLICT_STEP = 2.0
 
+# Confidence lift when the user's explicit claim agrees with the curve.
+CLAIM_CONFIRM_BOOST = 0.2
+
 
 def slugify_org(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
@@ -88,13 +91,13 @@ class ExperienceService:
         if kind not in ExperienceKind._value2member_map_:
             raise ValidationError(f"Unknown experience kind: {kind}")
         start = _parse_date(payload.get("start"))
-        if start is None:
+        if start is None and kind != ExperienceKind.PROJECT.value:
             raise ValidationError("start (YYYY-MM-DD) is required")
         end = _parse_date(payload.get("end"))
         open_ended = bool(payload.get("open_ended"))
         if end is None and not open_ended:
             raise ValidationError("end is required unless the item is open-ended")
-        if end is not None and end < start:
+        if start is not None and end is not None and end < start:
             raise ValidationError("end cannot precede start")
         org = await self._resolve_org(payload.get("org_name") or "")
         item = ExperienceItem(
@@ -135,7 +138,7 @@ class ExperienceService:
             item.org_name = payload.get("org_name") or ""
         if "start" in payload:
             start = _parse_date(payload.get("start"))
-            if start is None:
+            if start is None and item.kind != "project":
                 raise ValidationError("start must be YYYY-MM-DD")
             item.start = start
         if "end" in payload or "open_ended" in payload:
@@ -383,6 +386,7 @@ class ExperienceService:
                         "item": item,
                         "skill_id": link.skill_id,
                         "role_in_item": link.role_in_item,
+                        "level_claim": link.level_claim,
                     }
                 )
         return participations
@@ -404,9 +408,13 @@ class ExperienceService:
     async def apply_derivation(self, user_id: UUID) -> dict:
         """Write derived levels + evidence rows (review-first contract).
 
-        Existing levels: |existing − derived| ≤ 2 updates (source=
-        experience, confidence attached); larger gaps record a conflict
-        and leave the row untouched.
+        The ±2 rule protects what the USER owns: existing self_report
+        rows only move within ±2 of the curve (larger gaps → conflict,
+        row untouched). Machine-sourced rows (document, cv_parse,
+        experience) are estimates — they always follow the fresh
+        derivation. An explicit claim (level_claim) calibrates:
+        within ±2 of the curve it confirms the derivation and raises
+        confidence; beyond that it records its own conflict.
         """
         participations = await self._participations(user_id)
         derived = derive_skill_months(participations)
@@ -423,11 +431,28 @@ class ExperienceService:
         }
         applied = 0
         conflicts: list[dict] = []
+        skipped = 0
         for skill_id, derived_skill in derived.items():
             sid = UUID(skill_id)
             existing = existing_rows.get(sid)
+            if existing is not None and (
+                not existing.derive_enabled or existing.hidden
+            ):
+                skipped += 1
+                continue
             target = int(round(derived_skill.level))
+            claim = derived_skill.claimed_level
             await self._write_evidence(user_id, sid, derived_skill, participations)
+            if claim is not None and abs(claim - target) > CONFLICT_STEP:
+                conflicts.append(
+                    {
+                        "key": labels.get(skill_id, skill_id),
+                        "self_level": existing.level if existing else None,
+                        "derived_level": derived_skill.level,
+                        "claimed_level": claim,
+                    }
+                )
+                continue
             if existing is None:
                 self.db.add(
                     UserSkill(
@@ -435,27 +460,43 @@ class ExperienceService:
                         skill_id=sid,
                         level=max(1, target),
                         source="experience",
-                        confidence=derived_skill.confidence,
+                        confidence=(
+                            min(
+                                1.0,
+                                derived_skill.confidence + CLAIM_CONFIRM_BOOST,
+                            )
+                            if claim is not None
+                            else derived_skill.confidence
+                        ),
                     )
                 )
                 applied += 1
-            elif abs(existing.level - derived_skill.level) > CONFLICT_STEP:
+            elif (
+                existing.source == "self_report"
+                and abs(existing.level - derived_skill.level) > CONFLICT_STEP
+            ):
                 conflicts.append(
                     {
                         "key": labels.get(skill_id, skill_id),
                         "self_level": existing.level,
                         "derived_level": derived_skill.level,
+                        "claimed_level": claim,
                     }
                 )
             else:
                 existing.level = target
                 existing.source = "experience"
-                existing.confidence = derived_skill.confidence
+                existing.confidence = (
+                    min(1.0, derived_skill.confidence + CLAIM_CONFIRM_BOOST)
+                    if claim is not None
+                    else derived_skill.confidence
+                )
                 applied += 1
         await self.db.commit()
         return {
             "applied": applied,
             "conflicts": conflicts,
+            "skipped_disabled": skipped,
             "derived": [
                 derivation_summary(derived[key], labels.get(key, ""))
                 for key in sorted(derived, key=lambda k: -derived[k].months)

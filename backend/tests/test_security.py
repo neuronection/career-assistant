@@ -93,12 +93,12 @@ async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
 
 
 async def test_lockout_after_threshold_then_expiry(
-    client, auth_headers, db, monkeypatch
+    client, db, monkeypatch, multi_user_mode
 ):
+    await _register(client, "lockout@example.com")
+    email = "lockout@example.com"
     monkeypatch.setattr(settings, "LOCKOUT_THRESHOLD", 3)
     monkeypatch.setattr(settings, "LOCKOUT_MINUTES", 15)
-    me = (await client.get("/api/v1/auth/me", headers=auth_headers)).json()
-    email = me["email"]
 
     for _ in range(3):
         response = await client.post(
@@ -122,9 +122,9 @@ async def test_lockout_after_threshold_then_expiry(
     assert ok.status_code == 200
 
 
-async def test_successful_login_resets_failure_counter(client, auth_headers, db):
-    me = (await client.get("/api/v1/auth/me", headers=auth_headers)).json()
-    email = me["email"]
+async def test_successful_login_resets_failure_counter(client, db, multi_user_mode):
+    await _register(client, "reset@example.com")
+    email = "reset@example.com"
     for _ in range(2):
         await client.post(
             "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
@@ -138,20 +138,18 @@ async def test_successful_login_resets_failure_counter(client, auth_headers, db)
     assert user.locked_until is None
 
 
-async def test_revoke_sessions_invalidates_old_token(client, auth_headers, db):
-    me = (await client.get("/api/v1/auth/me", headers=auth_headers)).json()
-    user = (
-        (await db.execute(select(User).where(User.email == me["email"])))
-        .scalars()
-        .first()
-    )
+async def test_revoke_sessions_invalidates_old_token(client, db, multi_user_mode):
+    registered = await _register(client, "revoke@example.com")
+    email = "revoke@example.com"
+    headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+    user = (await db.execute(select(User).where(User.email == email))).scalars().first()
     old_version = user.token_version
 
-    revoked = await client.post("/api/v1/auth/revoke-sessions", headers=auth_headers)
+    revoked = await client.post("/api/v1/auth/revoke-sessions", headers=headers)
     assert revoked.status_code == 200
     assert revoked.json()["token_version"] == old_version + 1
 
-    stale = await client.get("/api/v1/auth/me", headers=auth_headers)
+    stale = await client.get("/api/v1/auth/me", headers=headers)
     assert stale.status_code == 401
 
 

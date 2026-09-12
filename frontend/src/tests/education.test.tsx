@@ -122,6 +122,7 @@ const CERT1 = {
   expires: null,
   credential_id: "AWS-1",
   link: "",
+  language_code: null,
   source: "self_report" as const,
   status: "active" as const,
   created_at: "2026-09-07T00:00:00Z",
@@ -391,6 +392,26 @@ describe("Education workspace", () => {
     expect(deleteEducationItem).not.toHaveBeenCalled();
   });
 
+  it("links a certification to a language it proves", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("education-item-ed1");
+    await user.click(screen.getByTestId("education-entity-certifications"));
+    await openItem("c1");
+    const editor = await screen.findByTestId("certification-editor");
+    fireEvent.change(
+      within(editor).getByTestId("certification-language"),
+      { target: { value: "en" } }
+    );
+    await user.click(within(editor).getByTestId("save-certification"));
+    await waitFor(() =>
+      expect(updateCertification).toHaveBeenCalledWith(
+        "c1",
+        expect.objectContaining({ language_code: "en" })
+      )
+    );
+  });
+
   it("switches to achievements and edits one on the same skeleton", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -570,6 +591,110 @@ describe("Education workspace", () => {
       expect(updateEducationItem).toHaveBeenCalledWith(
         "ed1",
         expect.objectContaining({ department_id: "d-new" })
+      )
+    );
+  });
+});
+
+describe("Education workspace — selection, bulk and filters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fetchEducation).mockResolvedValue([EDU1, EDU2]);
+    vi.mocked(fetchCertifications).mockResolvedValue([CERT1]);
+    vi.mocked(fetchAchievements).mockResolvedValue([ACH1]);
+    vi.mocked(fetchUniversities).mockResolvedValue([] as never);
+    vi.mocked(updateEducationItem).mockImplementation(
+      async (id, body) =>
+        ({ ...(id === "ed1" ? EDU1 : EDU2), ...body }) as never
+    );
+    vi.mocked(deleteEducationItem).mockResolvedValue(undefined);
+    vi.mocked(createEducationItem).mockImplementation(
+      async (body) => ({ ...EDU1, id: "new-1", ...body }) as never
+    );
+  });
+
+  function renderPage() {
+    return render(
+      <MemoryRouter>
+        <Education />
+      </MemoryRouter>
+    );
+  }
+
+  it("selects education entries and bulk-sets drafts", async () => {
+    renderPage();
+    fireEvent.click(
+      within(await screen.findByTestId("education-item-ed1")).getByRole("checkbox")
+    );
+    fireEvent.click(
+      within(screen.getByTestId("education-item-ed2")).getByRole("checkbox")
+    );
+    const bar = await screen.findByTestId("bulk-bar");
+    expect(bar).toHaveTextContent("2 selected");
+    await userEvent.setup().click(screen.getByTestId("bulk-set-draft"));
+    await waitFor(() =>
+      expect(updateEducationItem).toHaveBeenCalledWith(
+        "ed1",
+        expect.objectContaining({ status: "draft" })
+      )
+    );
+    expect(updateEducationItem).toHaveBeenCalledWith(
+      "ed2",
+      expect.objectContaining({ status: "draft" })
+    );
+    expect(screen.getByTestId("education-item-ed1")).toHaveTextContent("Draft");
+    expect(screen.queryByTestId("bulk-bar")).not.toBeInTheDocument();
+  });
+
+  it("bulk-deletes education entries with undo restoring both", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("education-item-ed1");
+    fireEvent.click(within(screen.getByTestId("education-item-ed1")).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByTestId("education-item-ed2")).getByRole("checkbox"));
+    fireEvent.click(screen.getByTestId("bulk-delete"));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteEducationItem).toHaveBeenCalledWith("ed1"));
+    expect(deleteEducationItem).toHaveBeenCalledWith("ed2");
+    const notice = await screen.findByTestId("undo-education");
+    expect(notice).toHaveTextContent("2 entries deleted");
+    await waitFor(() =>
+      expect(document.body.dataset.scrollLocked).toBeUndefined()
+    );
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(createEducationItem).toHaveBeenCalledTimes(2));
+    expect((await screen.findAllByTestId("education-item-new-1")).length).toBe(2);
+  });
+
+  it("filters education entries by search and level", async () => {
+    renderPage();
+    await screen.findByTestId("education-item-ed2");
+
+    fireEvent.click(screen.getByTestId("education-filter-draft"));
+    expect(screen.getByText("No entries match these filters."));
+    fireEvent.click(screen.getByTestId("education-filter-all"));
+
+    fireEvent.change(screen.getByTestId("education-search"), {
+      target: { value: "Sample High" },
+    });
+    expect(screen.queryByTestId("education-item-ed1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("education-item-ed2")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("education-search"), { target: { value: "" } });
+
+    fireEvent.click(screen.getByTestId("education-kind-master"));
+    expect(screen.getByTestId("education-item-ed1")).toBeInTheDocument();
+    expect(screen.queryByTestId("education-item-ed2")).not.toBeInTheDocument();
+  });
+
+  it("duplicates an education entry via create", async () => {
+    renderPage();
+    await screen.findByTestId("education-item-ed1");
+    fireEvent.click(screen.getByTestId("duplicate-education-ed1"));
+    await waitFor(() =>
+      expect(createEducationItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          program: "MSc Computer Science (copy)",
+        })
       )
     );
   });

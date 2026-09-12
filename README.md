@@ -135,7 +135,7 @@ Career Assistant is a student tool today, but the foundation is the same one the
 - **Typed relation graph** — job relations carry weight, rationale and source; the graph is first-class data, not UI decoration.
 - **Rich university link model** — per-year admissions rows and job↔department links with relevance, required subjects, salary band and employment rate.
 - **Audited AI pipeline** — every structured output is pydantic-validated on write and attributed in `ai_generations`; invalid AI output never lands in the database.
-- **CV Studio** — upload a CV (byte-preserved original, OCR text layer) or start from scratch, build it block-by-block against a per-CV context selection you control (every rendered line traces to a profile item), pick from versioned templates with a deterministic renderer, get grounded AI writing help (summaries, bullet rewrites, tailoring with must-have coverage), and draft **cover letters per posting** from a structured brief — every paragraph cites your evidence, unbacked claims are flagged before they can be applied. An **Ask AI copilot side panel** operates the builder for you: templates, themes/styling, context selection, sections, per-item rewrites and document options — applied as validated operations, self-reviewed against rendered page screenshots, with an automatic restorable snapshot per turn. Exports to PDF/DOCX/Markdown/JSON/ATS text.
+- **CV Studio** — upload a CV (byte-preserved original, OCR text layer) or start from scratch, build it block-by-block against a per-CV context selection you control (every rendered line traces to a profile item), pick from versioned templates with a deterministic renderer, get grounded AI writing help (summaries, bullet rewrites, tailoring with must-have coverage), and draft **cover letters per posting** from a structured brief — every paragraph cites your evidence, unbacked claims are flagged before they can be applied. A variant library (`/cv/synth`) holds AI-written or manual item variants (summarized, expanded, restyled, aimed at a posting, translated) that any CV can prefer over verbatim profile text — override > variant > source, staleness detected when the source changes. An **Ask AI copilot side panel** operates the builder for you: templates, themes/styling, context selection, sections, per-item rewrites and document options — applied as validated operations, self-reviewed against rendered page screenshots, with an automatic restorable snapshot per turn. Exports to PDF/DOCX/Markdown/JSON/ATS text.
 - **One metric language** — beyond skills, a dimension registry (RIASEC interest affinities, work values, work style) stores what assessments, profile sections and behavior measure, with provenance; the fit engine, filters and weight sliders all speak it, and skill transferability ("your SQL transfers to 12 of 20 families") derives from the catalog join graph.
 - **Organizations are entities, not labels** — postings resolve onto a normalized organization through a matcher that folds legal-suffix and spelling variants into aliases; duplicates merge under admin review, and "top hiring orgs" aggregates by entity, never by label matching.
 - **Family-compatible conventions** — same stack, settings architecture and AI configuration patterns as Health Assistant, which keeps the family's knowledge model portable.
@@ -144,8 +144,16 @@ Career Assistant is a student tool today, but the foundation is the same one the
 
 ### Install from the latest release
 
-Linux installers (`.deb` / `.AppImage`) and the Windows executable are
-published on the [Releases page](https://github.com/neuronection/career-assistant/releases).
+Download the installer for your platform — the links always fetch the
+latest build:
+
+| Platform | File | Link |
+|---|---|---|
+| Windows | `CareerAssistant-windows-x64.exe` | [download](https://github.com/neuronection/career-assistant/releases/latest/download/CareerAssistant-windows-x64.exe) |
+| Linux (AppImage) | `CareerAssistant-x86_64.AppImage` | [download](https://github.com/neuronection/career-assistant/releases/latest/download/CareerAssistant-x86_64.AppImage) |
+| Linux (deb) | `careerassistant_amd64.deb` | [download](https://github.com/neuronection/career-assistant/releases/latest/download/careerassistant_amd64.deb) |
+
+All installers and older versions: [Releases](https://github.com/neuronection/career-assistant/releases/latest).
 
 ### Run from source (developers)
 

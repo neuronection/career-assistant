@@ -1,9 +1,13 @@
 name: career
 
+# Container names and ports are env-overridable so concurrent git-worktree
+# sessions can each run their own isolated project (scripts/worktree.sh sets
+# COMPOSE_PROJECT_NAME + *_CONTAINER + ports via .env.wt.local). Defaults
+# match the primary checkout: career-postgres / career-redis on :5433/:6380.
 services:
   postgres:
     image: pgvector/pgvector:pg16 #: pgvector provisioned; the app degrades gracefully without it
-    container_name: career-postgres
+    container_name: ${POSTGRES_CONTAINER:-career-postgres}
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-career}

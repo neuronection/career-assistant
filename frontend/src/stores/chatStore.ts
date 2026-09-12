@@ -4,6 +4,18 @@ import type { ChatMessage, ChatSession } from "@/types";
 
 export type ChatMode = "bubble" | "docked";
 
+const CHAT_MODE_KEY = "ca:chat:mode";
+
+function loadPersistedChatMode(): ChatMode {
+  if (typeof localStorage === "undefined") return "docked";
+  return localStorage.getItem(CHAT_MODE_KEY) === "bubble" ? "bubble" : "docked";
+}
+
+function persistChatMode(mode: ChatMode) {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(CHAT_MODE_KEY, mode);
+}
+
 interface ChatState {
   sessions: ChatSession[];
   activeSessionId: string | null;
@@ -34,7 +46,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   messages: [],
-  chatMode: "bubble",
+  chatMode: loadPersistedChatMode(),
   pinnedAsks: {},
 
   loadSessions: async () => {
@@ -82,7 +94,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ pinnedAsks: { ...get().pinnedAsks, [key]: sessionId } });
   },
 
-  setChatMode: (mode) => set({ chatMode: mode }),
+  setChatMode: (mode) => {
+    persistChatMode(mode);
+    set({ chatMode: mode });
+  },
 
   refresh: async (sessionId) => {
     const [messages, sessions] = await Promise.all([
@@ -93,12 +108,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   reset: () => {
+    persistChatMode("docked");
     set({
       sessions: [],
       activeSessionId: null,
       messages: [],
       pinnedAsks: {},
-      chatMode: "bubble",
+      chatMode: "docked",
     });
   },
 }));

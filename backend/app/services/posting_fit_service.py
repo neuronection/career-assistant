@@ -68,7 +68,9 @@ def _canonical_hash(payload: dict) -> str:
 
 async def _user_skills(db: AsyncSession, user_id: UUID) -> dict[UUID, int]:
     rows = await db.execute(
-        select(UserSkill.skill_id, UserSkill.level).where(UserSkill.user_id == user_id)
+        select(UserSkill.skill_id, UserSkill.level).where(
+            UserSkill.user_id == user_id, UserSkill.derive_enabled
+        )
     )
     return {skill_id: level for skill_id, level in rows.all()}
 

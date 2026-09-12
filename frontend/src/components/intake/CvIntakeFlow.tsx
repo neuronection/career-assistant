@@ -27,11 +27,15 @@ import {
 } from "@/api/cvIntake";
 import { fetchBackgroundJob, isTerminal } from "@/api/backgroundJobs";
 import { apiDetail } from "@/api/client";
+import { LandedLinks } from "./CvDraftViewer";
+import { isStatusSection } from "./CvStatus";
 import { SuggestionReviewList, sectionViews } from "./SuggestionReviewList";
 import type { SectionCardHandle } from "@/components/profile/sections/shared";
 import type {
+  CvAppliedEntity,
   CvApplyReport,
   CvDraft,
+  CvIntakeSection,
   CvSelections,
 } from "@/types/cvIntake";
 
@@ -109,7 +113,12 @@ export const CvIntakeFlow = forwardRef<
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CvDraft | null>(null);
   const [selected, setSelected] = useState<CvSelections>({});
+  const [draftAll, setDraftAll] = useState(false);
+  const [draftItems, setDraftItems] = useState<
+    Partial<Record<CvIntakeSection, number[]>>
+  >({});
   const [applied, setApplied] = useState<CvApplyReport | null>(null);
+  const [appliedEntities, setAppliedEntities] = useState<CvAppliedEntity[]>([]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { t } = useTranslation();
@@ -253,13 +262,50 @@ export const CvIntakeFlow = forwardRef<
     return payload;
   }, [draft, selected]);
 
+  const draftsPayload = useMemo(() => {
+    const payload: CvSelections = {};
+    if (!draft) return payload;
+    for (const view of sectionViews(draft.payload)) {
+      if (!isStatusSection(view.key)) continue;
+      if (draftAll) payload[view.key] = true;
+      else {
+        const list = draftItems[view.key] ?? [];
+        if (list.length) payload[view.key] = list;
+      }
+    }
+    return payload;
+  }, [draft, draftAll, draftItems]);
+
+  const toggleItemDraft = useCallback(
+    (section: CvIntakeSection, index: number) => {
+      setDraftItems((prev) => {
+        const list = prev[section] ?? [];
+        const next = list.includes(index)
+          ? list.filter((i) => i !== index)
+          : [...list, index];
+        return { ...prev, [section]: next };
+      });
+    },
+    []
+  );
+
+  const flipDraftAll = useCallback((all: boolean) => {
+    setDraftAll(all);
+    if (all) setDraftItems({});
+  }, []);
+
   const apply = async () => {
     if (!draft || !documentId) return;
     setSubmitting(true);
     setError("");
     try {
-      const { report } = await applyCvDraft(documentId, selectionsPayload);
+      const { report, applied } = await applyCvDraft(
+        documentId,
+        selectionsPayload,
+        draftsPayload
+      );
       setApplied(report);
+      setAppliedEntities(applied ?? []);
       setPhase("applied");
       appliedRef.current?.();
     } catch (err) {
@@ -334,9 +380,12 @@ export const CvIntakeFlow = forwardRef<
             selected={selected}
             onChange={setSelected}
             documentId={documentId ?? undefined}
+            draftItems={draftItems}
+            onDraftToggle={toggleItemDraft}
+            draftAll={draftAll}
           />
           {error && <p className="text-sm text-rose-600">{error}</p>}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setConfirmDiscard(true)}
@@ -345,17 +394,40 @@ export const CvIntakeFlow = forwardRef<
             >
               {t("intake.discard")}
             </button>
-            <button
-              type="button"
-              onClick={() => void apply()}
-              disabled={submitting || itemCount === 0}
-              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
-              data-testid="cv-intake-apply"
-            >
-              {submitting
-                ? t("intake.importing")
-                : t("intake.importCount", { count: itemCount })}
-            </button>
+            <div className="flex items-center gap-3">
+              <div
+                className="inline-flex rounded-lg border border-[var(--as-border)] p-0.5"
+                data-testid="cv-intake-apply-mode"
+              >
+                {(["active", "draft"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => flipDraftAll(mode === "draft")}
+                    aria-pressed={(mode === "draft") === draftAll}
+                    className={`rounded-md px-3 py-1.5 text-sm ${
+                      (mode === "draft") === draftAll
+                        ? "bg-[var(--as-muted)] text-[var(--as-fg)]"
+                        : "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                    }`}
+                    data-testid={`cv-intake-apply-mode-${mode}`}
+                  >
+                    {t(mode === "active" ? "intake.applyActive" : "intake.applyDraft")}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => void apply()}
+                disabled={submitting || itemCount === 0}
+                className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
+                data-testid="cv-intake-apply"
+              >
+                {submitting
+                  ? t("intake.importing")
+                  : t("intake.importCount", { count: itemCount })}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -387,6 +459,9 @@ export const CvIntakeFlow = forwardRef<
             title={t("intake.importedTitle")}
             description={appliedSummary(applied)}
           />
+          <div className="mx-auto max-w-xl" data-testid="cv-intake-landed">
+            <LandedLinks applied={appliedEntities} />
+          </div>
           <div className="flex justify-center">
             {onExit ? (
               <Button variant="outline" size="sm" onClick={onExit} data-testid="cv-intake-done">

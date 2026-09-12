@@ -184,3 +184,26 @@ export async function importTemplate(
   );
   return data;
 }
+
+export async function draftTemplateAi(brief: {
+  topic?: string;
+  audience?: string;
+  dimensions?: string[];
+  question_count?: number;
+  language?: string;
+  extend?: boolean;
+}): Promise<{ content: Record<string, unknown>; status: string }> {
+  const { data } = await api.post("/assessments/templates/draft-ai", {
+    brief,
+  });
+  return data;
+}
+
+export async function createTemplate(body: {
+  title: string;
+  description: string;
+  content: Record<string, unknown>;
+}): Promise<AssessmentTemplate> {
+  const { data } = await api.post<AssessmentTemplate>("/assessments/templates", body);
+  return data;
+}

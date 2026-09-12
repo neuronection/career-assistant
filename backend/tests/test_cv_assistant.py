@@ -216,6 +216,20 @@ async def test_block_ops_apply_and_validate(client, db, auth_headers):
     assert patched.ok, patched.detail
     assert cv.working_content["blocks"][skills_index]["props"]["show_levels"] is True
 
+    sidebar_add = await apply_operation(
+        db,
+        cv,
+        AddBlockOp(
+            op="add_block",
+            kind="languages",
+            props={"title": "Languages"},
+            area="sidebar",
+        ),
+    )
+    assert sidebar_add.ok, sidebar_add.detail
+    last = cv.working_content["blocks"][-1]
+    assert last["kind"] == "languages" and last["area"] == "sidebar"
+
 
 async def test_set_override_requires_selected_item(
     client, db, auth_headers, profile_ready
@@ -296,6 +310,12 @@ async def test_assistant_turn_stream_applies_ops(
     tool_calls = [payload for name, payload in events if name == "tool_call"]
     assert any(call["name"] == "cv_set_template" for call in tool_calls)
     assert all(call["status"] == "done" for call in tool_calls)
+    read_state = next(call for call in tool_calls if call["name"] == "cv_read_state")
+    assert read_state["title"] == "Reading the builder state"
+    assert isinstance(read_state["duration_ms"], int)
+    assert "blocks" in read_state["result"]
+    assert all("duration_ms" in call for call in tool_calls)
+    assert all("durationMs" not in call for call in tool_calls)
 
     state = next(payload for name, payload in events if name == "builder_state")
     assert state["document"]["id"] == cv_json["id"]
@@ -318,8 +338,70 @@ async def test_assistant_turn_stream_applies_ops(
     )
     rows = history.json()
     assert [row["role"] for row in rows] == ["user", "assistant"]
-    assert rows[1]["metadata_json"]["surface"] == "cv_builder"
-    assert rows[1]["metadata_json"]["operations"]
+    meta = rows[1]["metadata_json"]
+    assert meta["surface"] == "cv_builder"
+    assert meta["operations"]
+    assert meta["version"] is not None
+    tool_names = [tool["name"] for tool in meta["tools"]]
+    assert "cv_read_state" in tool_names
+    assert "cv_set_template" in tool_names
+    assert all(isinstance(tool["start_ms"], int) for tool in meta["tools"])
+    assert all(isinstance(tool["duration_ms"], int) for tool in meta["tools"])
+    assert all(len(tool["args_summary"]) <= 160 for tool in meta["tools"])
+    assert all(len(tool["result_summary"]) <= 160 for tool in meta["tools"])
+    assert [node["id"] for node in meta["nodes"]] == ["ground", "plan", "apply"]
+    assert all(node["status"] == "done" for node in meta["nodes"])
+    assert all(
+        isinstance(node["start_ms"], int) and isinstance(node["duration_ms"], int)
+        for node in meta["nodes"]
+    )
+    assert meta["nodes"][0]["start_ms"] == 0
+
+
+async def test_builder_turn_failure_persists_partial_trace(
+    client, db, auth_headers, profile_ready, monkeypatch
+):
+    """A turn that dies mid-`plan` still persists what ran: the
+    exception path closes the open node windows and saves the trace
+    gathered so far."""
+    from app.ai.gateway import StructuredStream
+    from app.core.errors import DomainError
+
+    await _seed_bank(db)
+    _cv, cv_json = await _owned_cv(db, client, auth_headers)
+    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+
+    async def _explode(self, *args, **kwargs):
+        raise DomainError("plan exploded")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(StructuredStream, "chunks", _explode)
+    response = await client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        json={"content": "switch template"},
+        params={"stream": "true"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    events = _parse_sse(response.text)
+    names = [name for name, _payload in events]
+    assert "flow_failed" in names
+    assert "builder_state" not in names
+    assert "done" not in names
+
+    rows = (
+        await client.get(
+            f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers
+        )
+    ).json()
+    assert rows[-1]["role"] == "assistant"
+    meta = rows[-1]["metadata_json"]
+    assert meta["stream_interrupted"] is True
+    assert meta["surface"] == "cv_builder"
+    assert [node["id"] for node in meta["nodes"]] == ["ground", "plan"]
+    assert meta["nodes"][0]["status"] == "done"
+    assert meta["nodes"][1]["status"] == "failed"
+    assert [tool["name"] for tool in meta["tools"]] == ["cv_read_state"]
 
 
 async def test_regular_session_untouched_by_builder_flow(
@@ -464,3 +546,83 @@ async def _second_user(client) -> dict:
     )
     assert response.status_code == 201, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+# ------------------------------------------------------- ops endpoint (71.1)
+
+
+async def test_ops_endpoint_applies_design_and_resyncs_template(
+    client, db, auth_headers
+):
+    """UI restyling rides the same audited apply_operation path; the
+    response template_id reflects the private-copy re-pointing."""
+    await _seed_bank(db)
+    cv, created = await _owned_cv(db, client, auth_headers)
+    before = (
+        await client.get(f"/api/v1/cv/{cv.id}/design", headers=auth_headers)
+    ).json()
+    assert before["design"]["accent_color"]
+    assert before["template"]["owned"] is False
+
+    response = await client.post(
+        f"/api/v1/cv/{created['id']}/ops",
+        json={
+            "ops": [
+                {
+                    "op": "update_design",
+                    "design": {"accent_color": "#b91c1c", "line_height": 1.5},
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["results"][0]["ok"] is True
+    state = body["state"]
+    assert state["document"]["template_id"], "a private copy was created"
+    assert state["document"]["template_id"] != before["template"]["id"]
+    assert state["critique"] is None
+
+    design = (
+        await client.get(f"/api/v1/cv/{cv.id}/design", headers=auth_headers)
+    ).json()
+    assert design["design"]["accent_color"] == "#b91c1c"
+    assert design["design"]["line_height"] == 1.5
+    assert design["template"]["owned"] is True
+
+
+async def test_ops_endpoint_rejects_unknown_cv_and_bad_ops(client, db, auth_headers):
+    response = await client.post(
+        f"/api/v1/cv/{uuid.uuid4()}/ops",
+        json={"ops": [{"op": "set_doc_options", "page_size": "a4"}]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+    cv, created = await _owned_cv(db, client, auth_headers)
+    response = await client.post(
+        f"/api/v1/cv/{created['id']}/ops",
+        json={"ops": [{"op": "update_design", "design": {"accent_color": "red"}}]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422, response.text
+
+    response = await client.post(
+        f"/api/v1/cv/{created['id']}/ops",
+        json={"ops": [{"op": "set_doc_options", "page_size": "a4"}]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["results"][0]["ok"] is True
+
+
+async def test_ops_endpoint_is_owner_scoped(client, db, auth_headers):
+    cv, created = await _owned_cv(db, client, auth_headers)
+    other = await _second_user(client)
+    response = await client.post(
+        f"/api/v1/cv/{created['id']}/ops",
+        json={"ops": [{"op": "set_doc_options", "page_size": "letter"}]},
+        headers=other,
+    )
+    assert response.status_code == 404, response.text

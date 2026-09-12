@@ -98,6 +98,7 @@ class Certification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     expires: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
     credential_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     link: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    language_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     source: Mapped[str] = mapped_column(
         String(20), nullable=False, default="self_report"
     )

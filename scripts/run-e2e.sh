@@ -14,6 +14,10 @@ export DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://career:career_dev_pw@1
 export E2E_BASE_URL="http://127.0.0.1:${PORT}"
 export APP_ENV=test
 export SCHEDULER_ENABLED=false
+# The e2e server loads `.env` (not `.env.test`), so the unit suite's
+# RATE_LIMIT_ENABLED=false never applies and back-to-back registrations
+# can 429. Disable it here to keep the smoke suite deterministic.
+export RATE_LIMIT_ENABLED=false
 
 cd "$ROOT"
 

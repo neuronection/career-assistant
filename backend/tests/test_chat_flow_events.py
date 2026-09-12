@@ -139,7 +139,8 @@ async def test_stream_emits_tool_call_trace_events(
     assert first["name"] == "search_jobs"
     assert first["title"] == "Searching the job catalog"
     assert first["status"] == "done"
-    assert isinstance(first["durationMs"], int)
+    assert isinstance(first["duration_ms"], int)
+    assert "durationMs" not in first
     assert len(first["args"]) <= 300
     assert len(first["result"]) <= 300
 

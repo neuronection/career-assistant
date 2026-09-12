@@ -29,7 +29,11 @@ existing installs refresh via `./scripts/update-docker.sh`.
 
 ### First boot walkthrough
 
-1. **Register the first user** — it automatically becomes the instance admin.
+1. **No registration needed (single-user mode)** — by default the app never
+   asks to log in or register: a single default user (instance admin) is
+   created automatically on first use. To run a classic multi-user instance
+   instead, set `SINGLE_USER_MODE=false` in `docker/.env` and register the
+   first user through the app (it automatically becomes the admin).
 2. **Load the starter catalog** (optional, recommended):
    `./scripts/seed.sh` against the compose database (see *Bare metal access*
    below), or leave it empty and generate everything with AI.
@@ -44,6 +48,8 @@ existing installs refresh via `./scripts/update-docker.sh`.
 | Variable | Required | Default | Notes |
 |---|---|---|---|
 | `JWT_SECRET` | yes | — | Long random string. **Never** reuse the dev default. |
+| `SINGLE_USER_MODE` | no | `true` | `false` restores the JWT login/register flow (multi-user). |
+| `DEFAULT_USER_EMAIL` | no | `default@local.app` | Email of the auto-created default user (single-user mode). |
 | `POSTGRES_PASSWORD` | yes | — | Password for the bundled Postgres. |
 | `POSTGRES_DB` / `POSTGRES_USER` | no | `career` | Database name/user. |
 | `API_PORT` | no | `8100` | Host port the app publishes on. |

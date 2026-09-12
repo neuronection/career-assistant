@@ -9,7 +9,7 @@ from app.services.job_worker import JobWorker
 
 
 @pytest.fixture
-async def _admin_and_user(client, db):
+async def _admin_and_user(client, db, multi_user_mode):
     """First user = admin, second = regular. Returns (admin_headers, user_headers)."""
     first = await client.post(
         "/api/v1/auth/register",

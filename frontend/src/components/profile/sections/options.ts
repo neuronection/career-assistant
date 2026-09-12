@@ -99,11 +99,30 @@ export const LANGUAGE_CODE_OPTIONS: {
   { value: "fr", label: "French", labelKey: "profile.options.french" },
   { value: "es", label: "Spanish", labelKey: "profile.options.spanish" },
   { value: "it", label: "Italian", labelKey: "profile.options.italian" },
+  { value: "pt", label: "Portuguese", labelKey: "profile.options.portuguese" },
+  { value: "nl", label: "Dutch", labelKey: "profile.options.dutch" },
+  { value: "sv", label: "Swedish", labelKey: "profile.options.swedish" },
+  { value: "pl", label: "Polish", labelKey: "profile.options.polish" },
   { value: "tr", label: "Turkish", labelKey: "profile.options.turkish" },
   { value: "ru", label: "Russian", labelKey: "profile.options.russian" },
   { value: "ar", label: "Arabic", labelKey: "profile.options.arabic" },
+  { value: "ja", label: "Japanese", labelKey: "profile.options.japanese" },
+  { value: "ko", label: "Korean", labelKey: "profile.options.korean" },
   { value: "zh", label: "Chinese", labelKey: "profile.options.chinese" },
-];
+  { value: "hi", label: "Hindi", labelKey: "profile.options.hindi" },
+  { value: "ur", label: "Urdu", labelKey: "profile.options.urdu" },
+  { value: "fa", label: "Persian", labelKey: "profile.options.persian" },
+  { value: "ro", label: "Romanian", labelKey: "profile.options.romanian" },
+  { value: "hu", label: "Hungarian", labelKey: "profile.options.hungarian" },
+  { value: "cs", label: "Czech", labelKey: "profile.options.czech" },
+  { value: "sk", label: "Slovak", labelKey: "profile.options.slovak" },
+  { value: "uk", label: "Ukrainian", labelKey: "profile.options.ukrainian" },
+  { value: "he", label: "Hebrew", labelKey: "profile.options.hebrew" },
+  { value: "bn", label: "Bengali", labelKey: "profile.options.bengali" },
+  { value: "id", label: "Indonesian", labelKey: "profile.options.indonesian" },
+  { value: "ms", label: "Malay", labelKey: "profile.options.malay" },
+  { value: "th", label: "Thai", labelKey: "profile.options.thai" },
+  { value: "vi", label: "Vietnamese", labelKey: "profile.options.vietnamese" },];
 
 export const LANGUAGE_LEVELS: {
   value: string;

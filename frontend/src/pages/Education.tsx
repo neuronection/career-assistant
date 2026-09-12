@@ -6,10 +6,12 @@ import {
   ArrowLeft,
   Award,
   BookOpen,
+  Copy,
   GraduationCap,
   Medal,
   Plus,
   School,
+  Search,
   Trash2,
   Users,
   Wrench,
@@ -41,6 +43,11 @@ import type {
 } from "@/types/education";
 import type { Department, University } from "@/types";
 import { EDUCATION_LEVEL_ORDER } from "@/components/profile/sections/options";
+import {
+  BulkBar,
+  FilterChips,
+  SelectionToggle,
+} from "@/components/profile/BulkTools";
 import {
   EMPTY_ACHIEVEMENT_FORM,
   EMPTY_CERTIFICATION_FORM,
@@ -103,7 +110,9 @@ function expiryState(expires: string | null): "expired" | "soon" | null {
 }
 
 /** Education workspace: full-bleed master-detail over the
- * education/certification entities, nested under Profile. */
+ * education/certification entities, nested under Profile — with
+ * per-item + bulk selection (set status / delete), duplicates and
+ * search/status/type filters. */
 export function Education() {
   const { t } = useTranslation();
   const [entity, setEntity] = useState<Entity>("education");
@@ -115,6 +124,14 @@ export function Education() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [isNew, setIsNew] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [filters, setFilters] = useState<{
+    query: string;
+    statuses: string[];
+    aspects: string[];
+  }>({ query: "", statuses: [], aspects: [] });
   const [eduForm, setEduForm] = useState<EducationEditorForm>({
     ...EMPTY_EDUCATION_FORM,
   });
@@ -128,7 +145,7 @@ export function Education() {
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [deleted, setDeleted] = useState<Deleted | null>(null);
+  const [deleted, setDeleted] = useState<Deleted[] | null>(null);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [activePane, setActivePane] = useState<"list" | "editor">("list");
   const railRef = useRef<HTMLDivElement>(null);
@@ -261,8 +278,55 @@ export function Education() {
     guard(() => {
       closeEditor();
       setEntity(next);
+      setSelectedIds([]);
+      setFilters((prev) => ({ ...prev, aspects: [], statuses: [] }));
     });
   };
+
+  const matchesFilters = useCallback(
+    (title: string, status: string): boolean => {
+      const q = filters.query.trim().toLowerCase();
+      if (q && !title.toLowerCase().includes(q)) return false;
+      if (filters.statuses.length && !filters.statuses.includes(status)) {
+        return false;
+      }
+      return true;
+    },
+    [filters.query, filters.statuses]
+  );
+
+  const visEdu = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          matchesFilters(
+            `${item.program} ${item.institution}`,
+            item.status
+          ) &&
+          (filters.aspects.length === 0 || filters.aspects.includes(item.level))
+      ),
+    [items, filters, matchesFilters]
+  );
+  const visCerts = useMemo(
+    () =>
+      certs.filter((cert) =>
+        matchesFilters(`${cert.name} ${cert.issuer}`, cert.status)
+      ),
+    [certs, matchesFilters]
+  );
+  const visAch = useMemo(
+    () =>
+      achievements.filter(
+        (achievement) =>
+          matchesFilters(
+            `${achievement.title} ${achievement.issuer}`,
+            achievement.status
+          ) &&
+          (filters.aspects.length === 0 ||
+            filters.aspects.includes(achievement.kind))
+      ),
+    [achievements, filters, matchesFilters]
+  );
 
   const save = async () => {
     setShowErrors(true);
@@ -354,22 +418,23 @@ export function Education() {
         await deleteEducationItem(item.id);
         setItems((prev) => prev.filter((i) => i.id !== id));
         if (selectedId === id) closeEditor();
-        setDeleted({ entity: "education", item });
+        setDeleted([{ entity: "education", item }]);
       } else if (entity === "certifications") {
         const cert = certs.find((c) => c.id === id);
         if (!cert) return;
         await deleteCertification(cert.id);
         setCerts((prev) => prev.filter((c) => c.id !== id));
         if (selectedId === id) closeEditor();
-        setDeleted({ entity: "certifications", item: cert });
+        setDeleted([{ entity: "certifications", item: cert }]);
       } else {
         const achievement = achievements.find((a) => a.id === id);
         if (!achievement) return;
         await deleteAchievement(achievement.id);
         setAchievements((prev) => prev.filter((a) => a.id !== id));
         if (selectedId === id) closeEditor();
-        setDeleted({ entity: "achievements", item: achievement });
+        setDeleted([{ entity: "achievements", item: achievement }]);
       }
+      setSelectedIds((prev) => prev.filter((value) => value !== id));
     } catch (err) {
       setError(apiDetail(err));
     }
@@ -379,23 +444,147 @@ export function Education() {
     if (!deleted) return;
     setError("");
     try {
-      if (deleted.entity === "education") {
-        const restored = await createEducationItem(
-          educationToIn(educationFormFromItem(deleted.item))
-        );
-        setItems((prev) => [restored, ...prev]);
-      } else if (deleted.entity === "certifications") {
-        const restored = await createCertification(
-          certificationToIn(certificationFormFromItem(deleted.item))
-        );
-        setCerts((prev) => [restored, ...prev]);
-      } else {
-        const restored = await createAchievement(
-          achievementToIn(achievementFormFromItem(deleted.item))
-        );
-        setAchievements((prev) => [restored, ...prev]);
+      for (const entry of deleted) {
+        if (entry.entity === "education") {
+          const restored = await createEducationItem(
+            educationToIn(educationFormFromItem(entry.item))
+          );
+          setItems((prev) => [restored, ...prev]);
+        } else if (entry.entity === "certifications") {
+          const restored = await createCertification(
+            certificationToIn(certificationFormFromItem(entry.item))
+          );
+          setCerts((prev) => [restored, ...prev]);
+        } else {
+          const restored = await createAchievement(
+            achievementToIn(achievementFormFromItem(entry.item))
+          );
+          setAchievements((prev) => [restored, ...prev]);
+        }
       }
       setDeleted(null);
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllVisible = () =>
+    setSelectedIds(
+      (entity === "education" ? visEdu : entity === "certifications" ? visCerts : visAch).map(
+        (item) => item.id
+      )
+    );
+
+  const bulkSetStatus = async (status: "draft" | "active") => {
+    setBulkBusy(true);
+    setError("");
+    try {
+      for (const id of selectedIds) {
+        if (entity === "education") {
+          const updated = await updateEducationItem(id, { status });
+          if (updated) {
+            setItems((prev) =>
+              prev.map((item) =>
+                item.id === id ? { ...item, status } : item
+              )
+            );
+          }
+        } else if (entity === "certifications") {
+          const updated = await updateCertification(id, { status });
+          if (updated) {
+            setCerts((prev) =>
+              prev.map((item) => (item.id === id ? { ...item, status } : item))
+            );
+          }
+        } else {
+          const updated = await updateAchievement(id, { status });
+          if (updated) {
+            setAchievements((prev) =>
+              prev.map((item) => (item.id === id ? { ...item, status } : item))
+            );
+          }
+        }
+      }
+      setSelectedIds([]);
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    setBulkConfirm(false);
+    setBulkBusy(true);
+    setError("");
+    try {
+      const removed: Deleted[] = [];
+      for (const id of selectedIds) {
+        if (!selectedIds.includes(id)) continue;
+        if (entity === "education") {
+          const item = visEdu.find((i) => i.id === id);
+          if (!item) continue;
+          await deleteEducationItem(id);
+          setItems((prev) => prev.filter((entry) => entry.id !== id));
+          removed.push({ entity: "education", item });
+        } else if (entity === "certifications") {
+          const cert = visCerts.find((i) => i.id === id);
+          if (!cert) continue;
+          await deleteCertification(id);
+          setCerts((prev) => prev.filter((entry) => entry.id !== id));
+          removed.push({ entity: "certifications", item: cert });
+        } else {
+          const achievement = visAch.find((i) => i.id === id);
+          if (!achievement) continue;
+          await deleteAchievement(id);
+          setAchievements((prev) => prev.filter((entry) => entry.id !== id));
+          removed.push({ entity: "achievements", item: achievement });
+        }
+        if (selectedId === id) closeEditor();
+      }
+      setDeleted(removed);
+      setSelectedIds([]);
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const duplicateEntry = async (id: string) => {
+    setError("");
+    try {
+      if (entity === "education") {
+        const item = items.find((i) => i.id === id);
+        if (!item) return;
+        const created = await createEducationItem({
+          ...educationToIn(educationFormFromItem(item)),
+          program: `${item.program} ${t("education.copySuffix")}`.trim(),
+        });
+        if (created) setItems((prev) => [created, ...prev]);
+      } else if (entity === "certifications") {
+        const cert = certs.find((c) => c.id === id);
+        if (!cert) return;
+        const created = await createCertification({
+          ...certificationToIn(certificationFormFromItem(cert)),
+          name: `${cert.name} ${t("education.copySuffix")}`.trim(),
+        });
+        if (created) setCerts((prev) => [created, ...prev]);
+      } else {
+        const achievement = achievements.find((a) => a.id === id);
+        if (!achievement) return;
+        const created = await createAchievement({
+          ...achievementToIn(achievementFormFromItem(achievement)),
+          title: `${achievement.title} ${t("education.copySuffix")}`.trim(),
+        });
+        if (created) setAchievements((prev) => [created, ...prev]);
+      }
     } catch (err) {
       setError(apiDetail(err));
     }
@@ -538,14 +727,149 @@ export function Education() {
             </section>
           )}
 
+          <section
+            className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+            data-testid="education-filters"
+          >
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--as-muted-fg)]"
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={filters.query}
+                onChange={(event) =>
+                  setFilters((prev) => ({ ...prev, query: event.target.value }))
+                }
+                placeholder={t("common.searchPlaceholder")}
+                className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] py-1.5 pl-7 pr-2 text-sm outline-none focus:border-[var(--as-accent)]"
+                data-testid="education-search"
+              />
+            </div>
+            <div className="flex gap-1.5" data-testid="education-filter-statuses">
+              {(["all", "active", "draft"] as const).map((mode) => {
+                const on =
+                  mode === "all"
+                    ? filters.statuses.length === 0
+                    : filters.statuses[0] === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        statuses: mode === "all" ? [] : [mode],
+                      }))
+                    }
+                    className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs ${
+                      on
+                        ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
+                        : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                    }`}
+                    data-testid={`education-filter-${mode}`}
+                  >
+                    {t(`experience.filter.${mode}`)}
+                  </button>
+                );
+              })}
+            </div>
+            {entity === "education" && (
+              <FilterChips
+                testidPrefix="education"
+                options={EDUCATION_LEVEL_ORDER.map((level) => ({
+                  value: level,
+                  label: t(`education.level.${level}`, {
+                    defaultValue: level,
+                  }),
+                }))}
+                selected={filters.aspects}
+                onToggle={(level) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    aspects: prev.aspects.includes(level)
+                      ? prev.aspects.filter((value) => value !== level)
+                      : [...prev.aspects, level],
+                  }))
+                }
+              />
+            )}
+            {entity === "achievements" && (
+              <FilterChips
+                testidPrefix="education"
+                options={Object.keys(ACHIEVEMENT_KIND_ICONS).map((kind) => ({
+                  value: kind,
+                  label: t(`education.kind.${kind}`, { defaultValue: kind }),
+                }))}
+                selected={filters.aspects}
+                onToggle={(kind) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    aspects: prev.aspects.includes(kind)
+                      ? prev.aspects.filter((value) => value !== kind)
+                      : [...prev.aspects, kind],
+                  }))
+                }
+              />
+            )}
+          </section>
+
+          <BulkBar
+            count={selectedIds.length}
+            total={
+              (
+                entity === "education"
+                  ? visEdu
+                  : entity === "certifications"
+                    ? visCerts
+                    : visAch
+              ).length
+            }
+            onClear={() => setSelectedIds([])}
+            onSelectAll={selectAllVisible}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkBusy}
+              onClick={() => void bulkSetStatus("active")}
+              data-testid="bulk-set-active"
+            >
+              {t("experience.bulk.activate")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={bulkBusy}
+              onClick={() => void bulkSetStatus("draft")}
+              data-testid="bulk-set-draft"
+            >
+              {t("experience.bulk.draft")}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={bulkBusy}
+              onClick={() => setBulkConfirm(true)}
+              data-testid="bulk-delete"
+            >
+              <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+              {t("common.delete")}
+            </Button>
+          </BulkBar>
+
           <section className="space-y-2.5" data-testid="education-list">
             {entity === "education" ? (
-              items.length === 0 ? (
+              visEdu.length === 0 ? (
                 <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
-                  {t("education.emptyEducation")}
+                  {items.length > 0
+                    ? t("common.noFilterMatches")
+                    : t("education.emptyEducation")}
                 </p>
               ) : (
-                items.map((item) => (
+                visEdu.map((item) => (
                   <RailCard
                     key={item.id}
                     id={item.id}
@@ -560,7 +884,10 @@ export function Education() {
                       .filter(Boolean)
                       .join(" · ")}
                     active={item.id === selectedId && editorOpen}
+                    selected={selectedIds.includes(item.id)}
                     onOpen={() => guard(() => openEdit(item.id))}
+                    onToggleSelect={() => toggleSelect(item.id)}
+                    onDuplicate={() => void duplicateEntry(item.id)}
                     onDelete={() => void remove(item.id)}
                     badges={
                       <>
@@ -583,12 +910,14 @@ export function Education() {
                 ))
               )
             ) : entity === "certifications" ? (
-              certs.length === 0 ? (
+              visCerts.length === 0 ? (
                 <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
-                  {t("education.emptyCertifications")}
+                  {certs.length > 0
+                    ? t("common.noFilterMatches")
+                    : t("education.emptyCertifications")}
                 </p>
               ) : (
-                certs.map((cert) => {
+                visCerts.map((cert) => {
                   const expiry = expiryState(cert.expires);
                   return (
                     <RailCard
@@ -607,7 +936,10 @@ export function Education() {
                         .filter(Boolean)
                         .join(" · ")}
                       active={cert.id === selectedId && editorOpen}
+                      selected={selectedIds.includes(cert.id)}
                       onOpen={() => guard(() => openEdit(cert.id))}
+                      onToggleSelect={() => toggleSelect(cert.id)}
+                      onDuplicate={() => void duplicateEntry(cert.id)}
                       onDelete={() => void remove(cert.id)}
                       badges={
                         <>
@@ -633,12 +965,14 @@ export function Education() {
                    );
                  })
                )
-            ) : achievements.length === 0 ? (
+            ) : visAch.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
-                {t("education.emptyAchievements")}
+                {achievements.length > 0
+                  ? t("common.noFilterMatches")
+                  : t("education.emptyAchievements")}
               </p>
             ) : (
-              achievements.map((achievement) => (
+              visAch.map((achievement) => (
                 <RailCard
                   key={achievement.id}
                   id={achievement.id}
@@ -653,7 +987,10 @@ export function Education() {
                     .filter(Boolean)
                     .join(" · ")}
                   active={achievement.id === selectedId && editorOpen}
+                  selected={selectedIds.includes(achievement.id)}
                   onOpen={() => guard(() => openEdit(achievement.id))}
+                  onToggleSelect={() => toggleSelect(achievement.id)}
+                  onDuplicate={() => void duplicateEntry(achievement.id)}
                   onDelete={() => void remove(achievement.id)}
                   badges={
                     <>
@@ -756,20 +1093,25 @@ export function Education() {
         </div>
       </div>
 
-      {deleted && (
+      {deleted && deleted.length > 0 && (
         <div
           className="fixed bottom-6 left-6 z-[var(--as-z-modal)]"
           data-testid="undo-education"
         >
           <UndoNotice
-            message={t("education.deletedNotice", {
-              title:
-                deleted.entity === "education"
-                  ? deleted.item.program || deleted.item.institution
-                  : deleted.entity === "achievements"
-                    ? deleted.item.title
-                    : deleted.item.name,
-            })}
+            message={
+              deleted.length === 1
+                ? t("education.deletedNotice", {
+                    title:
+                      deleted[0].entity === "education"
+                        ? deleted[0].item.program ||
+                          deleted[0].item.institution
+                        : deleted[0].entity === "achievements"
+                          ? deleted[0].item.title
+                          : deleted[0].item.name,
+                  })
+                : t("education.bulkDeletedNotice", { count: deleted.length })
+            }
             actionLabel={t("common.undo")}
             duration={8000}
             onUndo={() => void undoDelete()}
@@ -786,6 +1128,16 @@ export function Education() {
         confirmLabel={t("education.discard")}
         destructive
         onConfirm={() => confirmAction && discardAnd(confirmAction)}
+      />
+
+      <ConfirmationModal
+        open={bulkConfirm}
+        onOpenChange={setBulkConfirm}
+        onConfirm={() => void bulkDelete()}
+        title={t("education.bulkDeleteTitle", { count: selectedIds.length })}
+        description={t("education.bulkDeleteBody")}
+        confirmLabel={t("common.delete")}
+        destructive
       />
     </div>
   );
@@ -818,7 +1170,10 @@ function RailCard({
   subtitle,
   badges,
   active,
+  selected,
   onOpen,
+  onToggleSelect,
+  onDuplicate,
   onDelete,
 }: {
   id: string;
@@ -827,16 +1182,21 @@ function RailCard({
   subtitle: string;
   badges: React.ReactNode;
   active: boolean;
+  selected: boolean;
   onOpen: () => void;
+  onToggleSelect: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
   return (
     <article
       className={`group relative cursor-pointer rounded-xl border p-3 transition-colors duration-150 ${
-        active
-          ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
-          : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
+        selected
+          ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_5%,transparent)]"
+          : active
+            ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
+            : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
       }`}
       data-testid={`education-item-${id}`}
     >
@@ -872,6 +1232,15 @@ function RailCard({
       </button>
       <button
         type="button"
+        aria-label={t("education.duplicateAria", { title })}
+        className="absolute right-8 top-2 hidden cursor-pointer rounded p-1 text-slate-300 transition-colors group-hover:text-slate-400 hover:text-[var(--as-accent)] group-hover:block"
+        data-testid={`duplicate-education-${id}`}
+        onClick={onDuplicate}
+      >
+        <Copy className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      <button
+        type="button"
         aria-label={t("education.deleteAria", { title })}
         className="absolute right-2 top-2 cursor-pointer rounded p-1 text-slate-300 transition-colors hover:text-[var(--as-danger)] group-hover:text-slate-400"
         data-testid={`delete-education-${id}`}
@@ -879,6 +1248,13 @@ function RailCard({
       >
         <Trash2 className="h-3.5 w-3.5" aria-hidden />
       </button>
+      <div className="absolute bottom-2 right-2">
+        <SelectionToggle
+          selected={selected}
+          label={t("education.selectAria", { title })}
+          onToggle={onToggleSelect}
+        />
+      </div>
     </article>
   );
 }

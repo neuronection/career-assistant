@@ -85,6 +85,8 @@ export interface DerivedSkillOut {
   level: number;
   confidence: number;
   supporting_items: string[];
+  claimed_level: number | null;
+  claim_status: "confirmed" | "conflict" | null;
 }
 
 export interface EvidenceOut {

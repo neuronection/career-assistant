@@ -127,6 +127,19 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.STRONG.value,
     ),
     TaskDef(
+        AITaskType.CV_TEMPLATE_PICK.value,
+        "Rank template candidates for a new CV with one-line reasons",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.CV_BUILD_REVIEW.value,
+        "CV build review: layout, density and content-coverage critique "
+        "of the rendered draft with suggested builder ops",
+        AICapability.VISION.value,
+        AITaskTier.STRONG.value,
+    ),
+    TaskDef(
         AITaskType.CV_SUGGEST.value,
         "CV writing proposals (summary, bullets, compaction, tailoring)",
         AICapability.TEXT.value,
@@ -147,6 +160,13 @@ TASK_DEFS: list[TaskDef] = [
     TaskDef(
         AITaskType.CV_DRAFT.value,
         "One-shot CV drafting: section plan + grounded section texts",
+        AICapability.TEXT.value,
+        AITaskTier.STRONG.value,
+    ),
+    TaskDef(
+        AITaskType.CV_SYNTH.value,
+        "Synthesized CV variants: grounded summarize/detail/restyle/"
+        "postings/translations",
         AICapability.TEXT.value,
         AITaskTier.STRONG.value,
     ),

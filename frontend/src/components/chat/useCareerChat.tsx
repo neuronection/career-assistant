@@ -80,6 +80,29 @@ export function useCareerChat() {
     };
   }, [stream.status, refresh, reset]);
 
+  useEffect(() => {
+    // Plan 67: the builder page mirrors the live turn's flow events
+    // (node/tool snapshots, never text deltas) — keyed by the CV the
+    // session is bound to. reset() returns the stream to idle, which
+    // clears the mirror once the persisted trace landed (refresh above).
+    const store = useChatStore.getState();
+    const cvId = activeCvId(store.sessions, store.activeSessionId);
+    if (cvId === null) {
+      return;
+    }
+    if (stream.status === "idle") {
+      useCvBuilderLink.getState().applyTurnTrace(cvId, null);
+      return;
+    }
+    useCvBuilderLink.getState().applyTurnTrace(cvId, {
+      status: stream.status,
+      nodes: stream.nodes,
+      toolCalls: stream.toolCalls,
+      startedAt: stream.startedAt,
+      error: stream.error ?? null,
+    });
+  }, [stream.status, stream.nodes, stream.toolCalls, stream.startedAt, stream.error]);
+
   const submit = async () => {
     const content = draft.trim();
     if (content === "" || sending) {

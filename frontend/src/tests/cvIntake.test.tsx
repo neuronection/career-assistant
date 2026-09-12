@@ -2,7 +2,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError } from "axios";
+import { MemoryRouter } from "react-router-dom";
 import { CvIntakeFlow } from "@/components/intake/CvIntakeFlow";
+import { SuggestionReviewList } from "@/components/intake/SuggestionReviewList";
 import {
   applyCvDraft,
   discardCvDraft,
@@ -189,7 +191,7 @@ describe("CvIntakeFlow", () => {
         experience: [0],
         languages: [0],
         interests: [0],
-      })
+      }, {})
     );
     await screen.findByText("Profile imported");
     expect(onApplied).toHaveBeenCalledTimes(1);
@@ -210,7 +212,8 @@ describe("CvIntakeFlow", () => {
     await waitFor(() =>
       expect(applyCvDraft).toHaveBeenCalledWith(
         "doc-1",
-        expect.not.objectContaining({ skills: expect.anything() })
+        expect.not.objectContaining({ skills: expect.anything() }),
+        {}
       )
     );
   });
@@ -370,5 +373,82 @@ describe("CvIntakeFlow — history entry & tracing", () => {
     await screen.findByText("Profile imported");
     fireEvent.click(screen.getByTestId("cv-intake-done"));
     expect(onExit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SuggestionReviewList — readOnly", () => {
+  it("renders the extracted items without checkboxes for browsing", () => {
+    render(
+      <SuggestionReviewList
+        payload={DRAFT.payload}
+        selected={{}}
+        onChange={vi.fn()}
+        readOnly
+      />
+    );
+    expect(screen.getByText("Data Engineer — Acme")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("intake-section-toggle-experience")
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("confidence-high").length).toBeGreaterThan(0);
+  });
+});
+
+describe("CvIntakeFlow — apply status (drafts vs active)", () => {
+  it("per-item draft chip overrides the active default", async () => {
+    vi.mocked(applyCvDraft).mockResolvedValue({ report: APPLY_REPORT });
+    render(<CvIntakeFlow pollMs={10} />);
+    await uploadAndReachReview();
+
+    fireEvent.click(screen.getByTestId("draft-toggle-education-0"));
+    fireEvent.click(screen.getByTestId("cv-intake-apply"));
+
+    await waitFor(() =>
+      expect(applyCvDraft).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { education: [0] }
+      )
+    );
+  });
+
+  it("'Save as drafts' drafts every status section", async () => {
+    vi.mocked(applyCvDraft).mockResolvedValue({ report: APPLY_REPORT });
+    render(<CvIntakeFlow pollMs={10} />);
+    await uploadAndReachReview();
+
+    fireEvent.click(screen.getByTestId("cv-intake-apply-mode-draft"));
+    fireEvent.click(screen.getByTestId("cv-intake-apply"));
+
+    await waitFor(() =>
+      expect(applyCvDraft).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ education: true, experience: true })
+      )
+    );
+  });
+
+  it("the applied phase shows landed-in-profile links", async () => {
+    vi.mocked(applyCvDraft).mockResolvedValue({
+      report: APPLY_REPORT,
+      applied: [
+        { entity_type: "skills", count: 1 },
+        { entity_type: "experience_items", count: 1 },
+      ],
+    });
+    render(
+      <MemoryRouter>
+        <CvIntakeFlow pollMs={10} />
+      </MemoryRouter>
+    );
+    await uploadAndReachReview();
+    fireEvent.click(screen.getByTestId("cv-intake-apply"));
+
+    const landed = await screen.findByTestId("cv-intake-landed");
+    expect(
+      screen.getByTestId("cv-applied-link-experience_items")
+    ).toHaveAttribute("href", "/profile/experience");
+    expect(landed).toHaveTextContent("Landed in your profile");
   });
 });

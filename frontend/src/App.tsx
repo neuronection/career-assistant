@@ -12,6 +12,7 @@ import { Notifications } from "@/pages/settings/Notifications";
 import { Experience } from "@/pages/Experience";
 import { Education } from "@/pages/Education";
 import { CvStudio } from "@/pages/CvStudio";
+import { CvSynthLibrary } from "@/pages/CvSynthLibrary";
 import { CvBuilder } from "@/pages/CvBuilder";
 import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
 import { Catalog } from "@/pages/Catalog";
@@ -21,7 +22,6 @@ import { Dashboard } from "@/pages/Dashboard";
 import { ChatPage } from "@/pages/ChatPage";
 import { Generate } from "@/pages/Generate";
 import { JobDetail } from "@/pages/JobDetail";
-import { Login } from "@/pages/Login";
 import { Onboarding } from "@/pages/Onboarding";
 import { ExpressOnboarding } from "@/pages/ExpressOnboarding";
 import { Growth } from "@/pages/Growth";
@@ -35,7 +35,6 @@ import { PostingsFeed } from "@/components/postings/PostingsFeed";
 import { Explore } from "@/pages/Explore";
 import { Autopilot } from "@/pages/Autopilot";
 import { Assessment } from "@/pages/Assessment";
-import { Register } from "@/pages/Register";
 import { Universities } from "@/pages/Universities";
 import { UniversityDetail } from "@/pages/UniversityDetail";
 
@@ -48,8 +47,6 @@ export function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
         <Route
           element={
             <ProtectedRoute>
@@ -80,6 +77,7 @@ export function App() {
           <Route path="/growth" element={<Growth />} />
           <Route path="/profile" element={<ProfileEdit />} />
           <Route path="/profile/import" element={<ProfileImport />} />
+          <Route path="/profile/import/:documentId" element={<ProfileImport />} />
           <Route path="/profile/experience" element={<Experience />} />
           <Route path="/profile/education" element={<Education />} />
           <Route path="/profile/assessment" element={<Assessment />} />
@@ -89,6 +87,7 @@ export function App() {
           <Route path="/universities" element={<Navigate to="/catalog/universities" replace />} />
           <Route path="/universities/:id" element={<UniversityRedirect />} />
           <Route path="/cv" element={<CvStudio />} />
+          <Route path="/cv/synth" element={<CvSynthLibrary />} />
           <Route path="/cv/:id" element={<CvBuilder />} />
           <Route path="/cv/templates/:id" element={<CvTemplateEditor />} />
           <Route path="/about" element={<About />} />

@@ -19,6 +19,10 @@ class SlidingWindowRateLimiter:
     def __init__(self) -> None:
         self._events: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 
+    def reset(self) -> None:
+        """Drop all counters (tests isolate their rate-limit spend)."""
+        self._events.clear()
+
     def check(self, bucket: str, identity: str) -> Optional[int]:
         """Record one event; return retry-after seconds when over the limit.
 

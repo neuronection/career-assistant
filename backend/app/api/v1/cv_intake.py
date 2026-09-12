@@ -23,9 +23,15 @@ router = APIRouter(prefix="/cv/intake", tags=["cv"])
 
 
 class CvApplyRequest(BaseModel):
-    """Partial apply: section → true (all) or list of item indices."""
+    """Partial apply: section → true (all) or list of item indices.
+
+    `drafts` marks selections that should land as drafts (not active):
+    section → true (all applied items of that section) or a list of
+    item indices. Items are active by default — the review ticks are
+    the user's approval."""
 
     selections: dict
+    drafts: dict = {}
 
 
 @router.get("/drafts")
@@ -68,9 +74,14 @@ async def get_cv_drafts(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """The review-first extraction draft."""
+    """The review-first extraction draft; applied drafts also carry
+    `applied` — where their import created profile entities."""
     try:
-        draft = await CvIntakeService(db).get_draft(document_id, user.id)
+        service = CvIntakeService(db)
+        draft = await service.get_draft(document_id, user.id)
+        applied: list[dict] = []
+        if draft.status == "applied":
+            applied = await service.applied_counts(document_id, user.id)
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return {
@@ -79,6 +90,7 @@ async def get_cv_drafts(
         "payload": draft.payload,
         "report": draft.report,
         "section_count": CvIntakeService.section_count(draft.payload or {}),
+        "applied": applied,
     }
 
 
@@ -91,12 +103,14 @@ async def apply_cv_draft(
 ) -> dict:
     """Apply confirmed selections to the profile (review-first)."""
     try:
-        report = await CvIntakeService(db).apply(
-            document_id, user.id, payload.selections
+        service = CvIntakeService(db)
+        report = await service.apply(
+            document_id, user.id, payload.selections, payload.drafts
         )
+        applied = await service.applied_counts(document_id, user.id)
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    return {"report": report}
+    return {"report": report, "applied": applied}
 
 
 @router.post("/{document_id}/discard", status_code=status.HTTP_204_NO_CONTENT)

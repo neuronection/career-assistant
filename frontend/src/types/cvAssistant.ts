@@ -1,4 +1,5 @@
 import type { CvBlock, CvRenderMetrics } from "@/types/cv";
+import type { CvDesignTokens } from "@/types/cvTemplate";
 
 export interface CvAssistantOpResult {
   op: string;
@@ -42,6 +43,7 @@ export interface CvAssistantState {
   operations: CvAssistantOpResult[];
   critique: CvAssistantCritique | null;
   version: number | null;
+  design?: CvDesignTokens;
 }
 
 export const CV_BUILDER_SURFACE = "cv_builder";

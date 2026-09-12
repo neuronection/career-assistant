@@ -26,5 +26,5 @@ async def test_skill_taxonomy_seeded(client, auth_headers, seeded_catalog):
     assert "empathy" in keys
 
 
-async def test_taxonomy_requires_auth(client):
+async def test_taxonomy_requires_auth(client, multi_user_mode):
     assert (await client.get("/api/v1/taxonomy/interests")).status_code == 401

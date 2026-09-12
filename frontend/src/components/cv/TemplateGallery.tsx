@@ -44,7 +44,9 @@ export function TemplatePreviewFrame({ template }: { template: CvTemplateSummary
       srcDoc={html}
       sandbox=""
       loading="lazy"
-      className={`${aspect} w-full border-b bg-white`}
+      scrolling="no"
+      style={{ pointerEvents: "none" }}
+      className={`${aspect} w-full overflow-hidden border-b bg-white`}
     />
   );
 }
@@ -65,77 +67,71 @@ function TemplateCard({
   const isBank = template.author_key === "bank";
   return (
     <Card
-      className={`group overflow-hidden p-0 transition-all duration-150 ${
+      className={`group relative overflow-hidden p-0 transition-all duration-150 ${
         current
           ? "border-2 border-[var(--as-accent)] shadow-sm"
           : "hover:-translate-y-0.5 hover:border-[var(--as-accent)] hover:shadow-md"
       }`}
       data-testid="template-card"
     >
-      <button
-        type="button"
-        onClick={onUse}
-        disabled={current}
-        aria-label={current ? `${template.title} (current template)` : `Use ${template.title}`}
-        title={current ? "Current template" : `Use ${template.title}`}
-        className="relative block w-full cursor-pointer"
-        data-testid={`preview-template-${template.id}`}
-      >
-        <TemplatePreviewFrame template={template} />
-        {current && (
-          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[var(--as-accent)] px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-            <Check className="h-3 w-3" aria-hidden /> Current
-          </span>
-        )}
-        {!current && (
-          <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/25 group-hover:flex">
-            <span className="rounded-full bg-[var(--as-surface-raised)] px-4 py-1.5 text-xs font-semibold text-[var(--as-fg)] shadow-md">
-              {actionLabel}
+      <div className="relative space-y-2">
+        <div className="relative" data-testid={`preview-template-${template.id}`}>
+          <TemplatePreviewFrame template={template} />
+          <button
+            type="button"
+            onClick={onUse}
+            disabled={current}
+            aria-label={current ? `${template.title} (current template)` : `Use ${template.title}`}
+            title={current ? "Current template" : `Use ${template.title}`}
+            className="absolute inset-0 z-10 cursor-pointer"
+            data-testid={`use-template-${template.id}`}
+          />
+          {current && (
+            <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[var(--as-accent)] px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+              <Check className="h-3 w-3" aria-hidden /> Current
             </span>
-          </span>
-        )}
-      </button>
-      <div className="space-y-2 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="truncate font-medium text-[var(--as-fg)]">{template.title}</p>
-          <span className="flex shrink-0 gap-1 text-[10px] uppercase">
-            <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[var(--as-muted-fg)]">
-              {template.source}
-            </span>
-            <span
-              className={`rounded px-1.5 py-0.5 ${
-                template.ats_safe
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-amber-100 text-amber-800"
-              }`}
-            >
-              {template.ats_safe ? "ATS-safe" : "decorative"}
-            </span>
-          </span>
-        </div>
-        {template.description && (
-          <p className="line-clamp-2 text-xs text-[var(--as-muted-fg)]">{template.description}</p>
-        )}
-        <div className="flex items-center gap-2">
-          {current ? (
-            <Button variant="ghost" size="sm" disabled data-testid={`use-template-${template.id}`} className="flex-1">
-              Current template
-            </Button>
-          ) : (
-            <Button variant="default" size="sm" data-testid={`use-template-${template.id}`} onClick={onUse} className="flex-1">
-              {actionLabel}
-            </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid={`edit-template-${template.id}`}
-            onClick={onCustomize}
-            title={isBank ? "Customize a copy of this bank template" : "Customize this template"}
-          >
-            <Pencil className="mr-1 h-3 w-3" aria-hidden />
-            Customize
-          </Button>
+          {!current && (
+            <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/25 group-hover:flex">
+              <span className="rounded-full bg-[var(--as-surface-raised)] px-4 py-1.5 text-xs font-semibold text-[var(--as-fg)] shadow-md">
+                {actionLabel}
+              </span>
+            </span>
+          )}
+        </div>
+        <div className="space-y-2 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate font-medium text-[var(--as-fg)]">{template.title}</p>
+            <span className="flex shrink-0 gap-1 text-[10px] uppercase">
+              <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[var(--as-muted-fg)]">
+                {template.source}
+              </span>
+              <span
+                className={`rounded px-1.5 py-0.5 ${
+                  template.ats_safe
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {template.ats_safe ? "ATS-safe" : "decorative"}
+              </span>
+            </span>
+          </div>
+          {template.description && (
+            <p className="line-clamp-2 text-xs text-[var(--as-muted-fg)]">{template.description}</p>
+          )}
+          <div className="flex items-center justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid={`edit-template-${template.id}`}
+              onClick={onCustomize}
+              title={isBank ? "Customize a copy of this bank template" : "Customize this template"}
+            >
+              <Pencil className="mr-1 h-3 w-3" aria-hidden />
+              Customize
+            </Button>
+          </div>
         </div>
       </div>
     </Card>

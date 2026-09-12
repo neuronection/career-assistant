@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { BLOCK_TYPES, type BlockTypeSpec } from "@/components/cv/blockTypes";
+import { type CvArea, type CvAreaId } from "@/components/cv/areas";
+import { SegmentedRow } from "@/components/cv/formPrimitives";
 
 const bar = "block h-1 rounded-full bg-[var(--as-border)]";
 const dot = "block h-1.5 w-1.5 rounded-full bg-[var(--as-accent)]";
@@ -93,6 +95,24 @@ function TypePreview({ value }: { value: string }) {
       {value === "spacer" && (
         <span className="block h-2 w-full rounded-sm border border-dashed border-[var(--as-border)]" />
       )}
+      {value === "synth_items" && (
+        <>
+          <span className="flex items-center gap-1">
+            <span className={dot} />
+            <span className={`${bar} flex-1`} />
+          </span>
+          <span className={`${bar} ml-2.5`} style={{ width: "65%" }} />
+          <span className="flex gap-1">
+            {[8, 6, 7].map((w, i) => (
+              <span
+                key={i}
+                className="rounded-full border border-[var(--as-border)]"
+                style={{ width: w * 2, height: 6 }}
+              />
+            ))}
+          </span>
+        </>
+      )}
     </div>
   );
 }
@@ -123,19 +143,34 @@ function TypeCard({ spec, onAdd }: { spec: BlockTypeSpec; onAdd: (kind: string) 
 export function BlockTypePicker({
   onAdd,
   extraTypes = [],
+  areas,
+  presetArea,
+  testId = "add-section-button",
 }: {
-  onAdd: (kind: string) => void;
+  onAdd: (kind: string, area?: CvAreaId) => void;
   extraTypes?: BlockTypeSpec[];
+  areas?: CvArea[];
+  presetArea?: CvAreaId;
+  testId?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [targetArea, setTargetArea] = useState<CvAreaId>("main");
   const types = [...BLOCK_TYPES, ...extraTypes];
+  const grouped = Boolean(areas && areas.length > 1);
+  const effectiveArea = presetArea
+    ? presetArea
+    : grouped
+      ? areas!.some((area) => area.id === targetArea)
+        ? targetArea
+        : areas![0].id
+      : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          data-testid="add-section-button"
+          data-testid={testId}
           aria-expanded={open}
           className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-xs font-medium text-[var(--as-muted-fg)] transition-colors duration-150 hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
         >
@@ -157,12 +192,22 @@ export function BlockTypePicker({
               key={spec.value}
               spec={spec}
               onAdd={(kind) => {
-                onAdd(kind);
+                onAdd(kind, effectiveArea);
                 setOpen(false);
               }}
             />
           ))}
         </div>
+        {grouped && !presetArea && (
+          <div className="border-t border-[var(--as-border)] pt-1.5">
+            <SegmentedRow
+              label="Add to"
+              value={effectiveArea!}
+              options={areas!.map((area) => ({ value: area.id, label: area.label }))}
+              onChange={(area) => setTargetArea(area as CvAreaId)}
+            />
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

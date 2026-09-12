@@ -413,7 +413,7 @@ async def test_notification_hub_subscribe_publish(db):
     assert notification_stream.subscriber_count(user_id) == 0
 
 
-async def test_stream_endpoint_requires_auth(client):
+async def test_stream_endpoint_requires_auth(client, multi_user_mode):
     response = await client.get("/api/v1/notifications/stream")
     assert response.status_code in (401, 403)
 

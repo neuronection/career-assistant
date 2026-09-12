@@ -19,7 +19,7 @@ from app.models.enums import AITaskType
 from app.schemas.cv_extract import CvExtract
 from app.services.cv_field_map import build_extraction_prompt
 
-_DATE = r"(\d{4}-\d{2}|\d{4})"
+_DATE = r"(?:(\d{4}-\d{2}(?:-\d{2})?|\d{2}/\d{2}/\d{4}|\d{2}/\d{4}|\d{4}))"
 
 
 def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
@@ -79,6 +79,10 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
                 )
             elif upper.startswith("EDUCATION:"):
                 body = line.split(":", 1)[1]
+                level_match = re.search(r"\s+LEVEL=(\w+)", body, re.I)
+                level = level_match.group(1) if level_match else ""
+                if level_match:
+                    body = re.sub(r"\s+LEVEL=(\w+)", "", body, flags=re.I)
                 period = re.search(rf"\({_DATE}\s*-\s*({_DATE}|present)\)", body, re.I)
                 body_clean = re.sub(
                     rf"\({_DATE}\s*-\s*({_DATE}|present)\)", "", body, flags=re.I
@@ -91,6 +95,7 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
                     {
                         "institution": institution.strip(),
                         "program": program.strip(),
+                        "level": (level_match.group(1) if level_match else ""),
                         "start": period.group(1) if period else "",
                         "end": period.group(2) if period else "",
                         "evidence": {"quote": line[:200], "confidence": 0.9},

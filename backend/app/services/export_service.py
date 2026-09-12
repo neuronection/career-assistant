@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.chat_model import ChatMessage, ChatSession
+from app.models.cv_synth_model import CvSynthItem
 from app.models.document_model import Document
 from app.models.matching_model import MatchInsight
 from app.models.user_model import Profile, User
@@ -87,6 +88,17 @@ async def collect_user_data(
         .scalars()
         .all()
     )
+    synth_rows = (
+        (
+            await db.execute(
+                select(CvSynthItem)
+                .where(CvSynthItem.user_id == user_id)
+                .order_by(CvSynthItem.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
     data = {
         "profile": _row_dict(profile) if profile else None,
         "match_insights": [_row_dict(i) for i in insights],
@@ -98,6 +110,7 @@ async def collect_user_data(
             for s in sessions
         ],
         "documents": [_row_dict(d) for d in documents],
+        "cv_synth_items": [_row_dict(r) for r in synth_rows],
     }
     return data, list(documents)
 
@@ -117,6 +130,7 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
             "match_insights",
             "chat_sessions",
             "documents",
+            "cv_synth_items",
         ],
         "excludes": "Catalog jobs, families, taxonomy and universities are "
         "shared instance data and are not part of a personal export.",
@@ -135,6 +149,10 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
         bundle.writestr(
             "chat_sessions.json",
             json.dumps(data["chat_sessions"], indent=2, default=str),
+        )
+        bundle.writestr(
+            "cv_synth_items.json",
+            json.dumps(data["cv_synth_items"], indent=2, default=str),
         )
         bundle.writestr(
             "documents.json", json.dumps(data["documents"], indent=2, default=str)

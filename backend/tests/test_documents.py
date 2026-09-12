@@ -1,7 +1,12 @@
 import io
+from datetime import datetime, timezone
 
 from pypdf import PdfWriter
+from sqlalchemy import select
 
+from app.models.experience_model import SkillEvidence
+from app.models.taxonomy_model import Skill
+from app.models.user_model import User
 from app.services.job_worker import JobWorker
 
 
@@ -169,3 +174,34 @@ async def test_documents_are_private(client, auth_headers):
         f"/api/v1/documents/{upload.json()['document']['id']}", headers=other_headers
     )
     assert response.status_code == 404
+
+
+async def test_delete_document_cascades_skill_evidence(
+    client, db, auth_headers, seeded_catalog
+):
+    """Deleting a document removes its skill_evidence rows (CASCADE FK, not
+    SET NULL — the one-source CHECK would reject the nulled row)."""
+    upload = await _upload(client, auth_headers, "cv.txt", b"cv content")
+    doc_id = upload.json()["document"]["id"]
+
+    skill = (await db.execute(select(Skill).limit(1))).scalars().first()
+    user = (
+        (await db.execute(select(User).where(User.email == "student@example.com")))
+        .scalars()
+        .first()
+    )
+    db.add(
+        SkillEvidence(
+            user_id=user.id,
+            skill_id=skill.id,
+            cv_document_id=doc_id,
+            claimed_at=datetime.now(timezone.utc),
+        )
+    )
+    await db.commit()
+
+    deleted = await client.delete(f"/api/v1/documents/{doc_id}", headers=auth_headers)
+    assert deleted.status_code == 204, deleted.text
+
+    remaining = (await db.execute(select(SkillEvidence))).scalars().all()
+    assert remaining == []

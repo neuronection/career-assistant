@@ -15,6 +15,7 @@ from app.models.base import Base
 from app.models.career_path_model import CareerPath, CareerPathStep
 from app.models.chat_model import ChatMessage, ChatSession
 from app.models.cv_model import CvDocument, CvVersion
+from app.models.cv_synth_model import CvSynthItem  # noqa: F401
 from app.models.cv_intake_model import CvParseDraft
 from app.models.cv_template_model import CvTemplate
 from app.models.document_model import Document

@@ -26,13 +26,22 @@ interface PathRow {
   steps: { position: number; label: string; kind: string }[];
 }
 
+interface EnrichmentRow {
+  id: string;
+  code: string;
+  title: string;
+  proposal: Record<string, unknown> | null;
+  proposed_at: string | null;
+}
+
 /** Admin taxonomy management: create, edit, promote/deprecate, merge, delete. */
 export function Taxonomy() {
   const { t } = useTranslation();
-  const [kind, setKind] = useState<"interests" | "skills" | "paths">("interests");
+  const [kind, setKind] = useState<"interests" | "skills" | "paths" | "enrichment">("interests");
   const [tags, setTags] = useState<Tag[]>([]);
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [paths, setPaths] = useState<PathRow[]>([]);
+  const [enrichment, setEnrichment] = useState<EnrichmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -48,6 +57,9 @@ export function Taxonomy() {
         setTags(await fetchInterests());
       } else if (kind === "skills") {
         setSkills(await fetchSkillRows());
+      } else if (kind === "enrichment") {
+        const { data } = await api.get<EnrichmentRow[]>("/admin/jobs/enrichment");
+        setEnrichment(data);
       } else {
         const { data } = await api.get<PathRow[]>("/admin/paths", {
           params: { status: "draft" },
@@ -69,7 +81,7 @@ export function Taxonomy() {
   const onCreate = async () => {
     setError("");
     try {
-      await createTag(kind === "paths" ? "skills" : kind, draft);
+      await createTag(kind === "skills" ? "skills" : (kind === "interests" ? "interests" : "skills"), draft);
       setDraft({ key: "", label: "", category: "", description: "" });
       setCreating(false);
       await load();
@@ -91,7 +103,7 @@ export function Taxonomy() {
   const setStatus = async (tag: Tag | SkillRow, status: string) => {
     setError("");
     try {
-      await updateTag(kind === "paths" ? "skills" : kind, tag.id, { status } as never);
+      await updateTag(kind === "skills" ? "skills" : "interests", tag.id, { status } as never);
       await load();
     } catch (err) {
       setError(apiDetail(err));
@@ -114,7 +126,7 @@ export function Taxonomy() {
     setError("");
     setNote("");
     try {
-      await deleteTag(kind === "paths" ? "skills" : kind, tag.id);
+      await deleteTag(kind === "skills" ? "skills" : "interests", tag.id);
       await load();
     } catch (err) {
       setError(apiDetail(err));
@@ -132,6 +144,16 @@ export function Taxonomy() {
     }
   };
 
+  const moderateEnrichment = async (id: string, action: "apply" | "reject") => {
+    setError("");
+    try {
+      await api.post(`/admin/jobs/${id}/enrichment/${action}`);
+      await load();
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
   const activeSkills = skills.filter((s) => s.status === "active");
   const proposed = skills.filter((s) => s.status === "proposed");
 
@@ -139,7 +161,7 @@ export function Taxonomy() {
     <div className="space-y-4" data-testid="settings-taxonomy">
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
-          {(["interests", "skills", "paths"] as const).map((k) => (
+          {(["interests", "skills", "paths", "enrichment"] as const).map((k) => (
             <button
               key={k}
               onClick={() => setKind(k)}
@@ -153,7 +175,7 @@ export function Taxonomy() {
             </button>
           ))}
         </div>
-        {kind !== "paths" && (
+        {kind !== "paths" && kind !== "enrichment" && (
           <button
             onClick={() => setCreating((v) => !v)}
             className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5"
@@ -163,7 +185,7 @@ export function Taxonomy() {
         )}
       </div>
 
-      {creating && kind !== "paths" && (
+      {creating && kind !== "paths" && kind !== "enrichment" && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 grid md:grid-cols-2 gap-2">
           <input
             placeholder={t("taxonomy.keyPlaceholder")}
@@ -207,6 +229,50 @@ export function Taxonomy() {
           <Spinner size="lg" />
           <p className="mt-3 text-sm text-slate-400">{t("common.loading")}</p>
         </div>
+      ) : kind === "enrichment" ? (
+        enrichment.length === 0 ? (
+          <EmptyState
+            title={t("taxonomy.noEnrichment", { defaultValue: "No enrichment proposals" })}
+            description={t("taxonomy.noEnrichmentBody", { defaultValue: "AI-generated job enrichment proposals appear here for review." })}
+          />
+        ) : (
+          <div className="space-y-3" data-testid="enrichment-queue">
+            {enrichment.map((row) => (
+              <div
+                key={row.id}
+                className="bg-white border border-slate-200 rounded-xl p-4"
+                data-testid={`enrichment-row-${row.id}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900">
+                      {row.title} <span className="text-xs text-slate-400">({row.code})</span>
+                    </p>
+                    <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-50 p-2 text-[11px] text-slate-700">
+                      {JSON.stringify(row.proposal, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      onClick={() => void moderateEnrichment(row.id, "apply")}
+                      className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs text-white"
+                      data-testid={`enrichment-apply-${row.id}`}
+                    >
+                      {t("taxonomy.enrichmentApply", { defaultValue: "Apply" })}
+                    </button>
+                    <button
+                      onClick={() => void moderateEnrichment(row.id, "reject")}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600"
+                      data-testid={`enrichment-reject-${row.id}`}
+                    >
+                      {t("taxonomy.enrichmentReject", { defaultValue: "Discard" })}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : kind === "paths" ? (
         paths.length === 0 ? (
           <EmptyState

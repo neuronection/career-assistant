@@ -18,6 +18,9 @@ import {
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { PhotoPicker } from "@/components/cv/PhotoPicker";
 import { SectionsPanel } from "@/components/cv/SectionsPanel";
+import { DesignTokenEditor } from "@/components/cv/DesignTokenEditor";
+import { SelectField } from "@/components/cv/formPrimitives";
+import { useTranslation } from "react-i18next";
 import {
   LetterDraftSlideOver,
 } from "@/components/cv/LetterDraftSlideOver";
@@ -26,6 +29,7 @@ import {
   type LetterProps,
 } from "@/components/cv/LetterSectionsEditor";
 import type { GalleryPhoto } from "@/api/mePhoto";
+import type { CvArea, CvAreaId } from "@/components/cv/areas";
 import type {
   CoverLetterSuggestionOut,
   CvBlock,
@@ -33,12 +37,16 @@ import type {
   CvProposal,
   CvSuggestionOut,
 } from "@/types/cv";
-import type { CvTemplateSummary } from "@/types/cvTemplate";
+import type { CvDesignTokens, CvTemplateSummary } from "@/types/cvTemplate";
+import type { CvAssistantCritique } from "@/types/cvAssistant";
+import { CritiqueCard } from "@/components/cv/CritiqueCard";
+import { apiDetail } from "@/api/client";
 
-export type InspectorTab = "design" | "sections" | "ai" | "lint";
+export type InspectorTab = "design" | "template" | "sections" | "ai" | "lint";
 
 const TABS: { id: InspectorTab; label: string }[] = [
   { id: "design", label: "Design" },
+  { id: "template", label: "Template" },
   { id: "sections", label: "Sections" },
   { id: "ai", label: "AI" },
   { id: "lint", label: "Lint" },
@@ -64,6 +72,15 @@ interface InspectorPanelProps {
   onTemplate: (templateId: string) => void;
   onBrowseTemplates: () => void;
   onCustomizeTemplate: () => void;
+
+  design: CvDesignTokens | null;
+  designTemplateMeta: { id: string; title: string; owned: boolean; ats_safe: boolean } | null;
+  designDirty: boolean;
+  onDesignChange: (patch: Partial<CvDesignTokens>) => void;
+  onDesignApply: () => void;
+  onDesignReset: () => void;
+  onPageSize: (pageSize: string) => void;
+  pageSize: string;
   photos: GalleryPhoto[];
   photoId: string;
   onPhoto: (photoId: string) => void;
@@ -72,9 +89,14 @@ interface InspectorPanelProps {
   onError: (message: string) => void;
 
   blocks: CvBlock[];
+  areas?: CvArea[];
+  skillOptions?: { id: string; label: string }[];
+  itemOptions?: Record<string, { id: string; label: string }[]>;
+  synthOptions?: { id: string; label: string; stale?: boolean }[];
   onDuplicateBlock: (index: number) => void;
-  onAddBlock: (kind: string) => void;
+  onAddBlock: (kind: string, area?: CvAreaId) => void;
   onMoveBlock: (index: number, delta: number) => void;
+  onAssignArea?: (index: number, area: CvAreaId) => void;
   onRemoveBlock: (index: number) => void;
   onUpdateBlockProps: (index: number, patch: Record<string, unknown>) => void;
   dragIndexRef: { current: number | null };
@@ -97,6 +119,8 @@ interface InspectorPanelProps {
   onApplyProposal: (entry: CvProposal) => void;
 
   lint: CvLintReport | null;
+  critique?: CvAssistantCritique | null;
+  onApplyCritiqueFixes?: (fixes: Record<string, string>) => void;
 }
 
 export function InspectorPanel(props: InspectorPanelProps) {
@@ -130,10 +154,13 @@ export function InspectorPanel(props: InspectorPanelProps) {
 
       <div
         key={tab}
-        className="cv-pane-enter min-h-0 flex-1 overflow-y-auto pr-0.5"
+        className={`cv-pane-enter min-h-0 flex-1 pr-0.5 ${
+          tab === "template" ? "flex flex-col overflow-hidden" : "overflow-y-auto"
+        }`}
         data-testid={`inspector-body-${tab}`}
       >
         {tab === "design" && <DesignTab {...props} />}
+        {tab === "template" && <TemplateTab {...props} />}
         {tab === "sections" &&
           (props.mode === "cover_letter" ? (
             props.letterProps && (
@@ -147,6 +174,146 @@ export function InspectorPanel(props: InspectorPanelProps) {
           ))}
         {tab === "ai" && <AiTab {...props} />}
         {tab === "lint" && <LintTab {...props} />}
+      </div>
+    </div>
+  );
+}
+
+function TemplateTab({
+  design,
+  designTemplateMeta,
+  designDirty,
+  onDesignChange,
+  onDesignApply,
+  onDesignReset,
+  pageSize,
+  onPageSize,
+  onError,
+}: InspectorPanelProps) {
+  const { t } = useTranslation();
+  const [reviewFiles, setReviewFiles] = useState<File[]>([]);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewCritique, setReviewCritique] = useState<CvAssistantCritique | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  if (!design) {
+    return (
+      <p className="text-sm text-[var(--as-muted-fg)]" data-testid="template-loading">
+        {t("cvBuilder.templateLoading", { defaultValue: "Loading template…" })}
+      </p>
+    );
+  }
+  const runReview = async () => {
+    if (!designTemplateMeta || reviewFiles.length === 0) return;
+    setReviewBusy(true);
+    setReviewNote("");
+    try {
+      const { reviewTemplatePages } = await import("@/api/cvTemplates");
+      const out = await reviewTemplatePages(designTemplateMeta.id, reviewFiles);
+      setReviewCritique(
+        out.critique
+          ? {
+              summary: out.critique.summary,
+              issues: out.critique.issues as CvAssistantCritique["issues"],
+              safe_token_fixes: out.critique.safe_token_fixes,
+            }
+          : null
+      );
+      setReviewNote(out.note ?? "");
+    } catch (err) {
+      onError(apiDetail(err));
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5" data-testid="template-scroll">
+        {designTemplateMeta && (
+          <div
+            className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-2 text-xs"
+            data-testid="template-meta"
+          >
+            <p className="font-medium text-[var(--as-fg)]">{designTemplateMeta.title}</p>
+            <p className="mt-0.5 text-[var(--as-muted-fg)]">
+              {designTemplateMeta.owned
+                ? t("cvBuilder.templateOwned", { defaultValue: "Your customized template" })
+                : t("cvBuilder.templateBank", { defaultValue: "Applying changes creates your own copy" })}
+              {designTemplateMeta.ats_safe ? "" : ` · ${t("cvBuilder.notAtsSafe", { defaultValue: "not ATS-safe" })}`}
+            </p>
+          </div>
+        )}
+        <DesignTokenEditor design={design} onChange={onDesignChange} />
+        <SelectField
+          label={t("cvBuilder.pageSize", { defaultValue: "Page size" })}
+          value={pageSize}
+          onChange={onPageSize}
+          options={[
+            { value: "a4", label: "A4" },
+            { value: "letter", label: "Letter" },
+          ]}
+          testId="page-size-select"
+        />
+        {designTemplateMeta && (
+          <div className="space-y-2 rounded-lg border border-[var(--as-border)] p-2.5" data-testid="printed-review">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t("cvBuilder.printedReview", { defaultValue: "Check a printed copy" })}
+            </p>
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              multiple
+              aria-label={t("cvBuilder.printedReviewUpload", { defaultValue: "Upload printed page photos" })}
+              onChange={(event) => setReviewFiles(Array.from(event.target.files ?? []))}
+              data-testid="printed-review-input"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={reviewBusy || reviewFiles.length === 0}
+              onClick={() => void runReview()}
+              data-testid="printed-review-run"
+            >
+              {reviewBusy
+                ? t("cvBuilder.printedReviewRunning", { defaultValue: "Reviewing…" })
+                : t("cvBuilder.printedReviewRun", { defaultValue: "Review pages" })}
+            </Button>
+            {reviewNote && (
+              <p className="text-xs text-[var(--as-muted-fg)]" data-testid="printed-review-note">
+                {reviewNote}
+              </p>
+            )}
+            {reviewCritique && (
+              <CritiqueCard critique={reviewCritique} />
+            )}
+          </div>
+        )}
+      </div>
+      <div
+        className="mt-2 flex shrink-0 items-center gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] pt-2"
+        data-testid="template-footer"
+      >
+        <Button
+          variant="default"
+          size="sm"
+          className="flex-1"
+          disabled={!designDirty}
+          onClick={onDesignApply}
+          data-testid="apply-design"
+        >
+          {designDirty
+            ? t("cvBuilder.applyDesign", { defaultValue: "Apply changes" })
+            : t("cvBuilder.designSaved", { defaultValue: "Saved" })}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!designDirty}
+          onClick={onDesignReset}
+          data-testid="reset-design"
+        >
+          {t("common.reset", { defaultValue: "Reset" })}
+        </Button>
       </div>
     </div>
   );
@@ -244,6 +411,13 @@ function AiTab(props: InspectorPanelProps) {
 
   return (
     <div className="space-y-3">
+      {props.critique && (
+        <CritiqueCard
+          critique={props.critique}
+          onApplyFixes={props.onApplyCritiqueFixes}
+          busy={busy.startsWith("ai:")}
+        />
+      )}
       <Popover open={tailorOpen} onOpenChange={setTailorOpen}>
         <PopoverAnchor asChild>
           <div>

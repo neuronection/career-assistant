@@ -89,7 +89,9 @@ async def test_export_download_is_private(client, db, auth_headers):
     assert stolen.status_code == 404
 
 
-async def test_delete_account_cascades_and_requires_password(client, db):
+async def test_delete_account_cascades_and_requires_password(
+    client, db, multi_user_mode
+):
     headers = await _register(client, "deleteme@example.com")
     user = (
         (await db.execute(select(User).where(User.email == "deleteme@example.com")))
@@ -114,17 +116,19 @@ async def test_delete_account_cascades_and_requires_password(client, db):
         await db.execute(select(Profile).where(Profile.user_id == user_id))
     ).scalars().first() is None
     me_again = await client.get("/api/v1/auth/me", headers=headers)
-    assert me_again.status_code == 401
+    assert me_again.status_code == 401 if multi_user_mode else 200
 
 
-async def test_last_admin_cannot_self_delete(client, db, auth_headers):
-    # auth_headers fixture registers the first user → becomes admin.
+async def test_last_admin_cannot_self_delete(client, db, multi_user_mode):
+    """Multi-user only: in single-user mode there is no second user to take
+    over, so self-delete is the only admin's way out and stays allowed."""
+    admin = await _register(client, "dp-admin@example.com")
     await _register(client, "second@example.com")
-    me = (await client.get("/api/v1/auth/me", headers=auth_headers)).json()
+    me = (await client.get("/api/v1/auth/me", headers=admin)).json()
     assert me["is_admin"] is True
 
     denied = await client.request(
-        "DELETE", "/api/v1/me", json={"password": "supersecret1"}, headers=auth_headers
+        "DELETE", "/api/v1/me", json={"password": "supersecret1"}, headers=admin
     )
     assert denied.status_code == 400
     assert "last admin" in denied.json()["detail"]

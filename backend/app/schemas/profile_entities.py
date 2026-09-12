@@ -1,11 +1,12 @@
 """CV-data profile entity schemas: education, certifications,
 achievements, plus the deterministic cv-readiness report."""
 
+import re
 import uuid
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import EducationLevel
 
@@ -77,7 +78,18 @@ class CertificationIn(BaseModel):
     expires: Optional[date] = None
     credential_id: str = Field(default="", max_length=120)
     link: str = Field(default="", max_length=500)
+    language_code: Optional[str] = Field(default=None, max_length=10)
     status: Literal["draft", "active"] = "active"
+
+    @field_validator("language_code")
+    @classmethod
+    def _language_code_shape(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip().lower()
+        if not re.fullmatch(r"[a-z]{2,3}", cleaned):
+            raise ValueError("language_code must be a 2–3 letter language code")
+        return cleaned
 
 
 class CertificationPatch(BaseModel):
@@ -87,7 +99,18 @@ class CertificationPatch(BaseModel):
     expires: Optional[date] = None
     credential_id: Optional[str] = Field(default=None, max_length=120)
     link: Optional[str] = Field(default=None, max_length=500)
+    language_code: Optional[str] = Field(default=None, max_length=10)
     status: Optional[Literal["draft", "active"]] = None
+
+    @field_validator("language_code")
+    @classmethod
+    def _language_code_shape(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip().lower()
+        if not re.fullmatch(r"[a-z]{2,3}", cleaned):
+            raise ValueError("language_code must be a 2–3 letter language code")
+        return cleaned
 
 
 class CertificationOut(BaseModel):
@@ -98,6 +121,7 @@ class CertificationOut(BaseModel):
     expires: Optional[date] = None
     credential_id: str
     link: str
+    language_code: Optional[str] = None
     source: str
     status: str
     created_at: datetime

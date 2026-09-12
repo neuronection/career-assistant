@@ -13,11 +13,12 @@ import logging
 import random
 import re
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import build_chat_model
@@ -34,6 +35,15 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 MOCK_FIXTURES: dict[str, Callable[[Any, str], dict]] = {}
+
+
+class RunRef(BaseModel):
+    """Opt-in run linkage for multi-step flows: the audit row records
+    which background run (and which stage of it) a call served. Plain
+    columns, no FK — the ledger outlives the run."""
+
+    id: uuid.UUID = Field(..., description="The run id (e.g. background job id)")
+    stage: str = Field(..., description="Stage label, e.g. 'cv_draft.plan'")
 
 
 def register_mock_fixture(
@@ -211,31 +221,48 @@ async def _record(
     model_name: Optional[str] = None,
     pack_key: Optional[str] = None,
     pack_version: Optional[int] = None,
-) -> None:
-    """Persist an audit row for one AI call."""
+    run_id: Optional[uuid.UUID] = None,
+    run_stage: Optional[str] = None,
+) -> AIGeneration:
+    """Persist an audit row for one AI call (the row is returned so the
+    `with_audit_ref` opt-in can hand back exactly what was written)."""
     from app.ai.prompt_versions import prompt_version
     from app.ai.tasks import task_tier
 
-    db.add(
-        AIGeneration(
-            user_id=user_id,
-            task_type=task.value,
-            provider=provider_type or "unknown",
-            model=model_name or model,
-            prompt=prompt[:4000],
-            output=output,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            latency_ms=latency_ms,
-            status=status,
-            error=error[:1000],
-            task_tier=task_tier(task.value),
-            prompt_version=prompt_version(task.value),
-            pack_key=pack_key,
-            pack_version=pack_version,
-        )
+    row = AIGeneration(
+        user_id=user_id,
+        task_type=task.value,
+        provider=provider_type or "unknown",
+        model=model_name or model,
+        prompt=prompt[:4000],
+        output=output,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        latency_ms=latency_ms,
+        status=status,
+        error=error[:1000],
+        task_tier=task_tier(task.value),
+        prompt_version=prompt_version(task.value),
+        pack_key=pack_key,
+        pack_version=pack_version,
+        run_id=run_id,
+        run_stage=run_stage,
     )
+    db.add(row)
     await db.flush()
+    return row
+
+
+def _audit_ref(row: AIGeneration) -> dict:
+    """The compact per-call summary flipped on by `with_audit_ref` —
+    exactly the fields `_record` just wrote, no second read."""
+    return {
+        "id": str(row.id),
+        "task_type": row.task_type,
+        "tokens_in": row.tokens_in,
+        "tokens_out": row.tokens_out,
+        "latency_ms": int(row.latency_ms) if row.latency_ms is not None else None,
+    }
 
 
 async def ainvoke_structured(
@@ -246,7 +273,9 @@ async def ainvoke_structured(
     user: str,
     user_id=None,
     images: Optional[list[tuple[str, bytes]]] = None,
-) -> T:
+    run: Optional[RunRef] = None,
+    with_audit_ref: bool = False,
+) -> "T | tuple[T, dict]":
     """Run an AI task and return a schema-validated result (audited).
 
     The provider/model is resolved per (task, user) from the database:
@@ -256,6 +285,12 @@ async def ainvoke_structured(
     output can be produced; failures are recorded in ``ai_generations``.
     ``images`` (mime, bytes) adds vision content parts; the mock provider
     ignores them and builds deterministic output from the prompt context.
+    ``run`` optionally links the audit row to a multi-step flow run and
+    stage; absent (the default) the row's run columns stay NULL exactly
+    as every single-call path today. ``with_audit_ref`` opt-in changes
+    the return to ``(value, audit_ref)`` where ``audit_ref`` is the
+    compact summary of the audit row just written (id, task, tokens,
+    latency) — read back in the same transaction, no second SELECT.
     """
     from app.ai.providers.resolution import resolve_task_model
 
@@ -268,6 +303,8 @@ async def ainvoke_structured(
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
     resolved = await resolve_task_model(db, task.value, user_id)
+    run_id = run.id if run is not None else None
+    run_stage = run.stage if run is not None else None
     started = time.perf_counter()
     if resolved is None:
         error = (
@@ -288,6 +325,8 @@ async def ainvoke_structured(
             "error",
             error,
             provider_type="none",
+            run_id=run_id,
+            run_stage=run_stage,
         )
         raise AINotConfiguredError(error)
     if resolved.provider_type == "mock" and settings.is_production:
@@ -309,6 +348,8 @@ async def ainvoke_structured(
             "error",
             error,
             provider_type="mock",
+            run_id=run_id,
+            run_stage=run_stage,
         )
         raise AINotConfiguredError(error)
     from app.ai.budgets import enforce_budgets
@@ -326,7 +367,7 @@ async def ainvoke_structured(
                 await asyncio.sleep(0)
                 result = _mock_output(schema, task, user)
                 latency = (time.perf_counter() - started) * 1000
-                await _record(
+                row = await _record(
                     db,
                     user_id,
                     task,
@@ -341,8 +382,10 @@ async def ainvoke_structured(
                     provider_type=resolved.provider_type,
                     pack_key=pack.key if pack else None,
                     pack_version=pack.version if pack else None,
+                    run_id=run_id,
+                    run_stage=run_stage,
                 )
-                return result
+                return (result, _audit_ref(row)) if with_audit_ref else result
             result, tokens_in, tokens_out = await _invoke_model(
                 schema,
                 effective_system,
@@ -351,7 +394,7 @@ async def ainvoke_structured(
                 images=images,
             )
             latency = (time.perf_counter() - started) * 1000
-            await _record(
+            row = await _record(
                 db,
                 user_id,
                 task,
@@ -365,8 +408,10 @@ async def ainvoke_structured(
                 provider_type=resolved.provider_type,
                 pack_key=pack.key if pack else None,
                 pack_version=pack.version if pack else None,
+                run_id=run_id,
+                run_stage=run_stage,
             )
-            return result
+            return (result, _audit_ref(row)) if with_audit_ref else result
         except Exception as exc:
             last_error = f"{type(exc).__name__}: {exc}"
             logger.warning(
@@ -387,6 +432,8 @@ async def ainvoke_structured(
         latency,
         "error",
         last_error,
+        run_id=run_id,
+        run_stage=run_stage,
     )
     raise StructuredAIError(
         f"AI task '{task.value}' failed after {attempts} attempts: {last_error}"

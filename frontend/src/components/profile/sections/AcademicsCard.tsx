@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { X } from "lucide-react";
 import {
+  ComboboxField,
   ComboboxMultiField,
   FormRow,
-  SelectField,
   SegmentedRow,
   StepperRow,
 } from "@/components/cv/formPrimitives";
@@ -152,19 +152,23 @@ export const AcademicsCard = forwardRef<SectionCardHandle, AcademicsCardProps>(
                 testId={`academics-language-${i}`}
               >
                 <div className="flex flex-wrap items-end gap-2 rounded-lg border border-[var(--as-border)] p-2.5">
-                  <div className="w-40">
-                    <SelectField
+                  <div className="w-44">
+                    <ComboboxField
                       label={t("profileSection.language")}
                       value={lang.code}
                       options={LANGUAGE_CODE_OPTIONS.map((o) => ({
                         value: o.value,
                         label: t(o.labelKey, { defaultValue: o.label }),
                       }))}
+                      allowCreate
+                      createLabel={(term) =>
+                        t("profileSection.addNamedLanguage", { name: term })
+                      }
                       testId={`language-code-${i}`}
                       onChange={(code) =>
                         patch({
                           languages: draft.languages.map((x, j) =>
-                            j === i ? { ...x, code } : x
+                            j === i ? { ...x, code: code.toLowerCase() } : x
                           ),
                         })
                       }

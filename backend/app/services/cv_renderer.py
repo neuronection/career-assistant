@@ -18,7 +18,8 @@ from typing import Any
 
 from app.models.enums import CvOverflowPolicy, CvPageSize
 from app.schemas.cv_template import DesignTokens, TemplateContent
-from app.services.cv_blocks import validate_blocks
+from app.services.cv_blocks import block_area, validate_blocks
+from app.services.cv_languages import is_proficiency_cert, proficiency_for
 
 FONT_STACKS = {
     "sans": "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
@@ -30,10 +31,11 @@ FONT_STACKS = {
 DATE_FORMATS = {"mon_yyyy", "iso", "eu", "year"}
 
 SOURCE_DEFAULT_TITLES = {
-    "experience": "Experience",
+    "experience": "Work Experience",
     "education": "Education",
     "certifications": "Certifications",
     "projects": "Projects",
+    "volunteer": "Volunteering",
 }
 
 MONTHS = [
@@ -91,6 +93,28 @@ def inline_md(value: Any) -> str:
 _MD_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+|mailto:[^)\s]+)\)")
 
 _SAFE_URL = re.compile(r"^(https?://|mailto:|tel:)", re.IGNORECASE)
+
+
+def _short_url(url: str) -> str:
+    """Printable link address: no scheme, no www, no query/fragment."""
+    short = re.sub(r"^[a-z][a-z0-9+.-]*://", "", url.strip(), flags=re.I)
+    short = re.sub(r"^www\.", "", short, flags=re.I)
+    short = short.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    return short
+
+
+def _display_link(link: dict) -> str:
+    """Print-first link text: the address must be legible on paper.
+
+    Custom labels are kept as a prefix when they add something (they
+    never replace the address); a plain `kind` icon + "Github" chip is
+    not useful when nothing is clickable, so the URL always shows.
+    """
+    short = _short_url(str(link.get("url") or ""))
+    label = str(link.get("label") or "").strip()
+    if label and label.lower() != short.lower() and label.lower() not in short.lower():
+        return f"{label} ({short})"
+    return short
 
 
 def _safe_href(url: Any) -> str | None:
@@ -185,36 +209,150 @@ def _lines_per_page(design: DesignTokens, page_size: str) -> int:
     return max(20, int(usable / line_mm))
 
 
-def _block_lines(kind: str, props: Any, snapshot: dict) -> int:
-    """Estimated line cost of one block from the snapshot."""
+def _chars_per_line(
+    design: DesignTokens, page_size: str, width_share: float = 1.0
+) -> int:
+    """Average characters one text line holds at the current geometry.
+
+    `width_share` narrows the estimate for sidebar columns; ~0.48em per
+    char is a conservative average for the font stacks in use.
+    """
+    width_mm, _ = PAGE_MM[page_size]
+    usable_width = (width_mm - 2 * _page_margin_mm(design)) * max(
+        0.1, min(width_share, 1.0)
+    )
+    char_mm = design.base_size_pt * 0.3528 * 0.48
+    return max(20, int(usable_width / char_mm))
+
+
+def _wrap_lines(text: str, chars_per_line: int) -> int:
+    stripped = (text or "").strip()
+    return math.ceil(len(stripped) / chars_per_line) if stripped else 0
+
+
+def _pages_for(main_lines: int, sidebar_lines: int, lpp: int, two_columns: bool) -> int:
+    """Page extent from per-column line costs.
+
+    Columns flow independently side by side, so a true two-column
+    layout fills max(main, sidebar) pages — not the sum — while a
+    single-column layout stacks everything into one flow.
+    """
+    if not two_columns:
+        return max(1, math.ceil((main_lines + sidebar_lines) / lpp))
+    main_pages = max(1, math.ceil(main_lines / lpp)) if main_lines else 1
+    sidebar_pages = max(1, math.ceil(sidebar_lines / lpp)) if sidebar_lines else 1
+    return max(main_pages, sidebar_pages)
+
+
+def _block_lines(
+    kind: str,
+    props: Any,
+    snapshot: dict,
+    design: DesignTokens,
+    page_size: str = CvPageSize.A4.value,
+    width_share: float = 1.0,
+) -> int:
+    """Estimated line cost of one block from the snapshot.
+
+    Column-aware (a sidebar block wraps ~3× sooner than the main
+    column) so shrink/truncate fire on the content that actually
+    overflows — long item descriptions were previously free.
+    """
+    chars = _chars_per_line(design, page_size, width_share)
     if kind == "header":
-        return 4
+        basics = snapshot.get("basics") or {}
+        lines = 2
+        if getattr(design, "show_photo", False) and basics.get("photo"):
+            lines += max(0, int(design.photo_size_mm / (design.base_size_pt * 0.3528)))
+        contact = " ".join(
+            str(basics.get(field) or "") for field in ("email", "phone", "location")
+        ) + " ".join(
+            _display_link(link) if isinstance(link, dict) else ""
+            for link in basics.get("links") or []
+        )
+        return lines + _wrap_lines(contact, chars)
     if kind == "summary":
-        text = str(snapshot.get("summary") or "")
-        return math.ceil(len(text) / 85) + 1 if text else 0
+        return _wrap_lines(str(snapshot.get("summary") or ""), chars) + 1
     if kind == "items":
-        items = snapshot.get(props.source_key) or []
-        per_item = (
-            2 + (1 if props.show_skills else 0) + (1 if props.show_achievements else 0)
-        )
-        return min(len(items), props.max_items) * per_item + 1
+        items = _ordered_by_props(snapshot.get(props.source_key) or [], props)
+        lines = 1
+        for item in items[: props.max_items]:
+            lines += 2  # head + spacing
+            detail = str(item.get("description") or item.get("detail") or "").strip()
+            if props.show_description and detail:
+                lines += _wrap_lines(detail, chars)
+            for achievement in (item.get("achievements") or [])[:5]:
+                text = (
+                    str(achievement.get("text") or "")
+                    if isinstance(achievement, dict)
+                    else str(achievement or "")
+                )
+                lines += max(1, _wrap_lines(text, chars))
+        return lines
+    if kind == "synth_items":
+        entries = snapshot.get("synth") or []
+        selected_ids = getattr(props, "selected", None) or []
+        if selected_ids:
+            chosen = {str(item_id) for item_id in selected_ids}
+            entries = [
+                entry
+                for entry in entries
+                if isinstance(entry, dict) and str(entry.get("id")) in chosen
+            ]
+        lines = 1
+        for entry in entries[: props.max_items]:
+            lines += 2
+            detail = str(entry.get("description") or "").strip()
+            if detail:
+                lines += _wrap_lines(detail, chars)
+            for bullet in (entry.get("bullets") or [])[:8]:
+                lines += max(1, _wrap_lines(str(bullet), chars))
+            if props.show_source_chips:
+                lines += 1
+        return lines
     if kind == "skills":
-        count = len(snapshot.get("skills") or [])
-        return math.ceil(min(count, props.max_items) / 6) + 1
+        skill_rows = snapshot.get("skills") or []
+        selected_ids = getattr(props, "selected", None) or []
+        if selected_ids:
+            chosen = {str(x) for x in selected_ids}
+            skill_rows = [
+                s
+                for s in skill_rows
+                if isinstance(s, dict) and str(s.get("id") or "") in chosen
+            ]
+        count = min(len(skill_rows), props.max_items)
+        chips_per_row = max(2, chars // 14)
+        return math.ceil(count / chips_per_row) + 1
     if kind == "languages":
-        return (1 if snapshot.get("languages") else 0) + 1
+        count = 1 if snapshot.get("languages") else 0
+        extra = 0
+        if getattr(props, "show_proficiency", False):
+            certifications = snapshot.get("certifications") or []
+            extra += len(
+                proficiency_for(snapshot.get("languages") or [], certifications)
+            )
+        if getattr(props, "display", "chips") == "list":
+            count = min(len(snapshot.get("languages") or []), 8) + extra
+        return math.ceil(count / max(2, chars // 16)) + 1
     if kind == "achievements":
-        return min(len(snapshot.get("achievements") or []), 10) + 1
+        achievements = snapshot.get("achievements") or []
+        lines = 1
+        for achievement in achievements[:10]:
+            text = (
+                str(achievement.get("title") or "")
+                if isinstance(achievement, dict)
+                else ""
+            )
+            lines += max(1, _wrap_lines(text, chars))
+        return lines
     if kind == "interests":
-        return (
-            math.ceil(min(len(snapshot.get("interests") or []), props.max_items) / 8)
-            + 1
-        )
+        count = min(len(snapshot.get("interests") or []), props.max_items)
+        return math.ceil(count / max(2, chars // 12)) + 1
     if kind == "custom_text":
-        return math.ceil(len(str(props.text)) / 85) + 1
+        return _wrap_lines(str(props.text or ""), chars) + 1
     if kind == "letter":
         paragraphs = [str(p) for p in (props.paragraphs or []) if str(p).strip()]
-        lines = sum(math.ceil(len(text) / 85) for text in paragraphs) + 3
+        lines = sum(_wrap_lines(text, chars) for text in paragraphs) + 3
         if props.recipient_name or props.recipient_org:
             lines += 1
         if props.date_label:
@@ -230,11 +368,13 @@ def _contact_line(basics: dict, props: Any, design: Any = None) -> str:
 
     show_icons = bool(getattr(design, "show_icons", False))
 
-    def piece(name: str, text: str, url: str | None = None) -> str:
+    def piece(name: str, text: str, url: str | None = None, css_class: str = "") -> str:
         mark = icon(name) if show_icons else ""
         body = esc(text)
-        value = f'<a href="{esc(url)}">{body}</a>' if url else body
-        return f"<span class='cpi'>{mark}{value}</span>"
+        href = _safe_href(url) if url else None
+        value = f'<a href="{esc(href)}">{body}</a>' if href else body
+        css = f" {css_class}" if css_class else ""
+        return f"<span class='cpi{css}'>{mark}{value}</span>"
 
     parts = []
     if basics.get("email"):
@@ -247,13 +387,18 @@ def _contact_line(basics: dict, props: Any, design: Any = None) -> str:
         parts.append(piece("location", basics["location"]))
     if props.show_links:
         for link in basics.get("links") or []:
-            label = link.get("label") or link.get("kind") or link.get("url")
-            if label and link.get("url"):
+            url = str(link.get("url") or "").strip()
+            href = _safe_href(url)
+            if not href:
+                continue  # a scheme-unsafe URL is never printed as text
+            display = _display_link(link)
+            if display:
                 parts.append(
                     piece(
                         LINK_KIND_ICONS.get(link.get("kind"), "link"),
-                        label,
-                        _safe_href(link.get("url")),
+                        display,
+                        href,
+                        css_class="lnk",
                     )
                 )
     if show_icons:
@@ -261,9 +406,26 @@ def _contact_line(basics: dict, props: Any, design: Any = None) -> str:
     return " <span class='sep'>·</span> ".join(parts)
 
 
+def _ordered_by_props(items: list, props: Any) -> list:
+    """Applies `props.order` (plan 72.1): the ordered ids print first,
+    then the remainder in resolved order. Runs after the block's
+    kind/proficiency filters and before `max_items` truncation, so the
+    user's order decides what survives truncation."""
+    order = list(getattr(props, "order", None) or [])
+    if not order or not items:
+        return items
+    first = {str(item_id): rank for rank, item_id in enumerate(order)}
+    if not any(str(item.get("id")) in first for item in items):
+        return items
+    head = [item for item in items if str(item.get("id")) in first]
+    head.sort(key=lambda item: first[str(item.get("id"))])
+    tail = [item for item in items if str(item.get("id")) not in first]
+    return head + tail
+
+
 def _render_items(items: list, props: Any) -> str:
     rows = []
-    for item in items[: props.max_items]:
+    for item in _ordered_by_props(items, props)[: props.max_items]:
         title = esc(item.get("title") or item.get("program") or "")
         org = (
             esc(item.get("org") or item.get("institution") or item.get("issuer") or "")
@@ -413,6 +575,10 @@ def _render_block(
         )
     if kind == "items":
         items = snapshot.get(props.source_key) or []
+        if props.kinds:
+            items = [item for item in items if item.get("kind") in props.kinds]
+        if props.exclude_proficiency:
+            items = [item for item in items if not is_proficiency_cert(item)]
         if not items:
             return "", False
         title = props.title or SOURCE_DEFAULT_TITLES.get(
@@ -422,10 +588,69 @@ def _render_block(
             _section_tag("items", title, _render_items(items, props), design, props),
             True,
         )
+    if kind == "synth_items":
+        entries = snapshot.get("synth") or []
+        selected_ids = getattr(props, "selected", None) or []
+        if selected_ids:
+            chosen = {str(item_id) for item_id in selected_ids}
+            entries = [
+                entry
+                for entry in entries
+                if isinstance(entry, dict) and str(entry.get("id")) in chosen
+            ]
+        entries = entries[: props.max_items]
+        if not entries:
+            return "", False
+        rows = []
+        for entry in entries:
+            head = f"<span class='item-title'>{esc(entry.get('title') or '')}</span>"
+            fragments = [f"<li><div class='item-head'>{head}</div>"]
+            detail = str(entry.get("description") or "").strip()
+            if detail:
+                fragments.append(f"<p class='item-detail'>{inline_md(detail)}</p>")
+            bullets = [
+                text.get("text") if isinstance(text, dict) else text
+                for text in entry.get("bullets") or []
+            ]
+            if bullets:
+                bullet_html = "".join(
+                    f"<li>{inline_md(str(text))}</li>" for text in bullets[:8]
+                )
+                fragments.append(f"<ul class='ach'>{bullet_html}</ul>")
+            if props.show_source_chips:
+                chips = "".join(
+                    f"<span class='chip'>{esc(str(ref.get('label') or ref.get('item_id') or ''))}</span>"
+                    for ref in entry.get("source_refs") or []
+                    if isinstance(ref, dict)
+                )
+                if chips:
+                    fragments.append(f"<div class='chips'>{chips}</div>")
+            fragments.append("</li>")
+            rows.append("".join(fragments))
+        return (
+            _section_tag(
+                "synth_items",
+                props.title,
+                f"<ul class='items'>{''.join(rows)}</ul>",
+                design,
+                props,
+            ),
+            True,
+        )
     if kind == "skills":
         skills = snapshot.get("skills") or []
         if not skills:
             return "", False
+        selected_ids = getattr(props, "selected", None) or []
+        if selected_ids:
+            chosen = {str(x) for x in selected_ids}
+            skills = [
+                s
+                for s in skills
+                if isinstance(s, dict) and str(s.get("id") or "") in chosen
+            ]
+            if not skills:
+                return "", False
         shown = skills[: props.max_items]
         if props.display == "list":
             body = (
@@ -467,20 +692,45 @@ def _render_block(
         languages = snapshot.get("languages") or []
         if not languages:
             return "", False
-        chips = "".join(
-            f"<span class='chip'>{esc(lang.get('label') or lang.get('code') or lang)} — {esc(lang.get('level', ''))}</span>"
-            if isinstance(lang, dict)
-            else f"<span class='chip'>{esc(lang)}</span>"
-            for lang in languages
+        proficiency = (
+            proficiency_for(languages, snapshot.get("certifications") or [])
+            if props.show_proficiency
+            else {}
         )
+
+        def _entry(lang: Any) -> dict:
+            return lang if isinstance(lang, dict) else {"label": str(lang)}
+
+        def _text(entry: dict) -> str:
+            label = esc(entry.get("label") or entry.get("code") or "")
+            level = esc(entry.get("level", ""))
+            text = f"{label} — {level}" if level else label
+            if props.show_cefr and entry.get("cefr"):
+                text = f"{text} ({esc(entry['cefr'])})"
+            if props.show_proficiency:
+                cert = proficiency.get(entry.get("code") or "")
+                if cert:
+                    issued = esc(cert.get("start") or "")
+                    text = f"{text} · {esc(cert.get('title') or '')}" + (
+                        f", {issued}" if issued else ""
+                    )
+            return text
+
+        entries = [_entry(lang) for lang in languages]
+        if props.display == "list":
+            body = (
+                "<ul class='items'>"
+                + "".join(f"<li>{_text(e)}</li>" for e in entries)
+                + "</ul>"
+            )
+        else:
+            body = (
+                "<div class='chips'>"
+                + "".join(f"<span class='chip'>{_text(e)}</span>" for e in entries)
+                + "</div>"
+            )
         return (
-            _section_tag(
-                "languages",
-                props.title,
-                f"<div class='chips'>{chips}</div>",
-                design,
-                props,
-            ),
+            _section_tag("languages", props.title, body, design, props),
             True,
         )
     if kind == "achievements":
@@ -632,6 +882,7 @@ h2 {{ font-family: {heading_font}; font-size: {round(base * 1.15, 2)}pt; color: 
      }}
 .icn {{ width: {design.icon_size_mm}mm; height: {design.icon_size_mm}mm; vertical-align: -0.6mm; margin-right: 1mm; }}
 .contact-icons .cpi {{ margin-right: 3mm; white-space: nowrap; }}
+.contact-icons .cpi.lnk {{ white-space: normal; word-break: break-all; }}
 ul.items.items-timeline {{ padding-left: 5mm; position: relative; }}
 ul.items.items-timeline > li {{ position: relative; padding-left: 4mm;
      {"margin-bottom: " + str(design.item_gap_mm) + "mm;" if design.item_gap_mm is not None else "margin-bottom: calc(0.6em * var(--spacing));"} }}
@@ -655,6 +906,9 @@ header.cv-header {{ text-align: {align}; {header_rule} }}
 .contact a {{ color: var(--accent); text-decoration: none; }}
 .sep {{ color: var(--muted); }}
 section {{ {"margin-bottom: " + str(design.section_gap_mm) + "mm;" if design.section_gap_mm is not None else "margin-bottom: calc(0.8em * var(--spacing));"} }}
+/* Print fragmentation: keep semantic units whole across page breaks. */
+h2 {{ break-after: avoid; }}
+ul.items > li, ul.ach, .chips, .bar-row, .cv-header-row, section.cv-card {{ break-inside: avoid; }}
 section.cv-outline {{ }}
 section.cv-accentbar {{ }}
 section.cv-block {{ }}
@@ -673,16 +927,16 @@ ul.items > li {{ margin-bottom: calc(0.6em * var(--spacing)); }}
 .item-period {{ float: right; color: var(--muted); font-size: {round(base * 0.9, 2)}pt; }}
 .item-detail {{ margin-top: 0.5mm; }}
 ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
-.chips {{ display: flex; flex-wrap: wrap; gap: 1.2mm; }}
+.chips {{ display: flex; flex-wrap: wrap; gap: 1.2mm; width: 100%; }}
 .chip {{ background: color-mix(in srgb, var(--accent) 12%, var(--background));
         color: var(--heading); border-radius: {max(1, design.corner_radius)}mm;
         padding: 0 1.6mm; font-size: {round(base * 0.95, 2)}pt; }}
-.cv-columns {{ display: flex; gap: {round(design.spacing_scale * 5, 1)}mm;
-     align-items: stretch; }}
-.cv-sidebar {{ width: {design.sidebar_width_pct}%; background: {design.sidebar_color};
+.cv-columns {{ display: table; width: 100%; table-layout: fixed;
+     border-spacing: {round(design.spacing_scale * 5, 1)}mm 0; margin: 0 -{round(design.spacing_scale * 5, 1)}mm; }}
+.cv-sidebar {{ display: table-cell; vertical-align: top; width: {design.sidebar_width_pct}%; background: {design.sidebar_color};
      color: {design.sidebar_text_color}; border-radius: {design.corner_radius}mm;
-     padding: 4mm 4.5mm; }}
-.cv-main {{ flex: 1; min-width: 0; }}
+     padding: {f"{design.sidebar_padding_mm}mm" if design.sidebar_padding_mm is not None else "4mm 4.5mm"}; }}
+.cv-main {{ display: table-cell; vertical-align: top;{" padding: " + str(design.main_padding_mm) + "mm;" if design.main_padding_mm is not None else ""} }}
 .cv-sidebar h2 {{ color: inherit;
      border-bottom-color: color-mix(in srgb, currentColor 35%, transparent); }}
 .cv-sidebar .item-org, .cv-sidebar .item-period {{ color: inherit; opacity: 0.8; }}
@@ -722,63 +976,102 @@ def render_cv(
     for index, (kind, props) in enumerate(validated):
         target = (
             sidebar_blocks
-            if (use_sidebar and content.blocks[index].get("column") == "sidebar")
+            if (use_sidebar and block_area(content.blocks[index]) == "sidebar")
             else main_blocks
         )
         target.append((kind, props))
 
-    def render_column(pairs: list[tuple[str, Any]]) -> list[str]:
+    def render_column(
+        pairs: list[tuple[str, Any]], width_share: float = 1.0
+    ) -> tuple[list[str], list[tuple[str, Any, int]]]:
+        """(per-block bodies, per-body (kind, props, line cost) entries)."""
         bodies: list[str] = []
+        entries: list[tuple[str, Any, int]] = []
         for kind, props in pairs:
             body, had_content = _render_block(kind, props, snapshot, design)
             if not had_content:
                 metrics.empty_blocks.append(kind)
                 continue
             bodies.append(body)
-            metrics.estimated_lines += _block_lines(kind, props, snapshot)
-        return bodies
+            entries.append(
+                (
+                    kind,
+                    props,
+                    _block_lines(kind, props, snapshot, design, page_size, width_share),
+                )
+            )
+        return bodies, entries
 
-    main_bodies = render_column(main_blocks)
-    sidebar_bodies = render_column(sidebar_blocks)
+    def _effective_share(raw_share: float, padding_mm: int | None) -> float:
+        """Column share after subtracting the area's own padding, so line
+        estimates reflect the real text width (plan 70 area tokens)."""
+        if padding_mm is None:
+            return raw_share
+        width_mm, _ = PAGE_MM[page_size]
+        usable_w = width_mm - 2 * _page_margin_mm(design)
+        return max(0.1, (usable_w * raw_share - 2 * padding_mm) / usable_w)
 
-    metrics.estimated_pages = max(
-        1, math.ceil(metrics.estimated_lines / metrics.lines_per_page)
+    sidebar_share = (
+        _effective_share(design.sidebar_width_pct / 100, design.sidebar_padding_mm)
+        if use_sidebar
+        else 0.0
     )
+    main_share = _effective_share(1.0, design.main_padding_mm)
+    main_bodies, main_entries = render_column(main_blocks, main_share)
+    sidebar_bodies, sidebar_entries = (
+        render_column(sidebar_blocks, sidebar_share)
+        if use_sidebar
+        else render_column(sidebar_blocks)
+    )
+
+    def _page_estimate() -> int:
+        """Page extent: columns flow independently side by side, so a
+        two-column layout fills max(main, sidebar) pages, not the sum."""
+        lpp = metrics.lines_per_page
+        return _pages_for(
+            sum(e[2] for e in main_entries),
+            sum(e[2] for e in sidebar_entries),
+            lpp,
+            use_sidebar and bool(sidebar_entries),
+        )
+
+    metrics.estimated_lines = sum(e[2] for e in main_entries) + sum(
+        e[2] for e in sidebar_entries
+    )
+    metrics.estimated_pages = _page_estimate()
     metrics.overflow = metrics.estimated_pages > max_pages
 
     shrink = 1.0
     if metrics.overflow:
         if content.pages.overflow_policy == CvOverflowPolicy.SHRINK:
             shrink = max(0.85, math.sqrt(max_pages / metrics.estimated_pages))
-            metrics.estimated_pages = max(
-                1,
-                math.ceil(
-                    metrics.estimated_lines
-                    / _lines_per_page_per_shrink(design, page_size, shrink)
-                ),
+            metrics.lines_per_page = _lines_per_page_per_shrink(
+                design, page_size, shrink
             )
+            metrics.estimated_pages = _page_estimate()
             metrics.overflow = metrics.estimated_pages > max_pages
         elif content.pages.overflow_policy == CvOverflowPolicy.TRUNCATE:
-            all_bodies = main_bodies + sidebar_bodies
-            all_pairs = main_blocks + sidebar_blocks
             budget = max_pages * metrics.lines_per_page
-            truncate_blocks(all_bodies, all_pairs, snapshot, budget, metrics)
-            main_bodies = all_bodies[: len(main_blocks)]
-            sidebar_bodies = all_bodies[len(main_blocks) :]
+            columns = [(main_entries, main_bodies), (sidebar_entries, sidebar_bodies)]
+            per_column = use_sidebar and bool(sidebar_entries)
+            metrics.truncated = truncate_column(columns, budget, per_column)
+            metrics.estimated_lines = sum(e[2] for e in main_entries) + sum(
+                e[2] for e in sidebar_entries
+            )
+            metrics.estimated_pages = _page_estimate()
+            metrics.overflow = metrics.estimated_pages > max_pages
 
-    if use_sidebar and sidebar_bodies:
-        sidebar_html = "".join(sidebar_bodies)
-        main_html = "".join(main_bodies)
+    if use_sidebar and any(sidebar_bodies):
         columns = (
-            f"<aside class='cv-sidebar'>{sidebar_html}</aside>"
-            f"<main class='cv-main'>{main_html}</main>"
+            "<aside class='cv-sidebar'>" + "".join(sidebar_bodies) + "</aside>"
+            "<main class='cv-main'>" + "".join(main_bodies) + "</main>"
             if design.sidebar_side == "left"
-            else f"<main class='cv-main'>{main_html}</main>"
-            f"<aside class='cv-sidebar'>{sidebar_html}</aside>"
+            else "<main class='cv-main'>" + "".join(main_bodies) + "</main>"
+            "<aside class='cv-sidebar'>" + "".join(sidebar_bodies) + "</aside>"
         )
         document = f"<div class='cv-columns'>{columns}</div>"
     else:
-        document = "\n".join(main_bodies + sidebar_bodies)
+        document = "".join(main_bodies + sidebar_bodies)
     html_out = (
         '<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="utf-8">'
         f"<title>CV</title><style>{_css(design, page_size, shrink)}</style></head>"
@@ -796,24 +1089,60 @@ def _lines_per_page_per_shrink(
     return _lines_per_page(shrunken, page_size)
 
 
-def truncate_blocks(
-    bodies: list[str],
-    validated: list[tuple[str, Any]],
-    snapshot: dict,
+def truncate_column(
+    columns: list[tuple[list[tuple[str, Any, int]], list[str]]],
     budget: int,
-    metrics: RenderMetrics,
-) -> None:
-    """Drop whole lowest-priority blocks until the estimate fits (never the header)."""
-    order = list(range(len(bodies)))
-    while metrics.estimated_lines > budget and len(order) > 1:
-        victim = order[-1]
-        kind, props = validated[victim]
-        if kind == "header":
+    per_column: bool,
+) -> int:
+    """Drop whole lowest-priority blocks (never the header) in place.
+
+    `columns` is a list of (entries, bodies) lists in combined render
+    order (main last scanned → sidebar blocks go first, matching the
+    previous combined-order behavior). With `per_column` (two real
+    columns) each column truncates against its own `budget`; otherwise
+    a single shared budget applies to the stacked result. Never leaves
+    fewer than one live block anywhere, and the `header` never drops.
+    """
+    dropped = 0
+    two_columns = per_column and len(columns) > 1
+
+    def col_lines(index: int) -> int:
+        entries, _bodies = columns[index]
+        return sum(entry[2] for entry in entries)
+
+    def live_blocks() -> int:
+        return sum(
+            len([entry for entry in entries if entry[2] > 0])
+            for entries, _bodies in columns
+        )
+
+    while True:
+        targets = (
+            [i for i in range(len(columns)) if col_lines(i) > budget]
+            if two_columns
+            else [len(columns) - 1]
+            if col_lines(len(columns) - 1) > budget
+            else []
+        )
+        if not two_columns and sum(col_lines(i) for i in range(len(columns))) > budget:
+            targets = list(range(len(columns) - 1, -1, -1))
+        elif not targets:
             break
-        metrics.estimated_lines -= _block_lines(kind, props, snapshot)
-        order.pop()
-    keep = set(order)
-    for index in range(len(bodies)):
-        if index not in keep:
-            bodies[index] = ""
-    metrics.truncated = len(validated) - len(order)
+        victim: tuple[int, int] | None = None
+        for column in targets:
+            entries, _bodies = columns[column]
+            for index in range(len(entries) - 1, -1, -1):
+                if entries[index][0] == "header":
+                    continue
+                victim = (column, index)
+                break
+            if victim is not None:
+                break
+        if victim is None or live_blocks() <= 1:
+            break
+        column, index = victim
+        entries, bodies = columns[column]
+        entries[index] = (entries[index][0], entries[index][1], 0)
+        bodies[index] = ""
+        dropped += 1
+    return dropped

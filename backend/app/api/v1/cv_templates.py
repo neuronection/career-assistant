@@ -44,6 +44,50 @@ class DraftAIRequest(BaseModel):
     publish_as: str | None = Field(default=None, max_length=200)
 
 
+class SuggestRequest(BaseModel):
+    language: str = Field(default="en", min_length=2, max_length=10)
+    target_posting_id: uuid.UUID | None = None
+
+
+@router.post("/suggest")
+async def suggest_templates(
+    payload: SuggestRequest,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Rank template candidates for a new CV (signals + AI rationale)."""
+    posting = None
+    if payload.target_posting_id is not None:
+        from sqlalchemy import select as sa_select
+
+        from app.models.posting_model import JobPosting
+
+        posting = (
+            (
+                await db.execute(
+                    sa_select(JobPosting).where(
+                        JobPosting.id == payload.target_posting_id
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+    try:
+        result = await CvTemplateService(db).suggest(
+            user.id,
+            language=payload.language,
+            posting=posting,
+        )
+    except Exception as exc:  # noqa: BLE001 - AI failures surface as 503/400
+        from app.core.errors import AINotConfiguredError
+
+        if isinstance(exc, AINotConfiguredError):
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return result
+
+
 def _validate_content(payload: dict) -> TemplateContent:
     try:
         return TemplateContent.model_validate(payload)

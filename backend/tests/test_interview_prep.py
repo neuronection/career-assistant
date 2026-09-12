@@ -385,11 +385,18 @@ async def test_debrief_aggregate_resources_and_retry(
 ):
     from app.models.growth_model import LearningResource
 
-    skill_row = await _seeded_skill(db)
     session = await _make_session(client, auth_headers, db, kind="technical")
+    plan_skill_key = next(
+        item["skill_key"]
+        for item in session["plan"]
+        if item["kind"] == "technical" and item.get("skill_key")
+    )
+    plan_skill = (
+        await db.execute(select(Skill).where(Skill.key == plan_skill_key))
+    ).scalars().one()
     db.add(
         LearningResource(
-            skill_id=skill_row.id,
+            skill_id=plan_skill.id,
             kind="course",
             title="SQL for Interviewing",
             provider="Example Academy",

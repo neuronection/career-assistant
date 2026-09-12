@@ -1,5 +1,3 @@
-import { TOKEN_KEY } from "./client";
-
 export type NotificationStreamEvent =
   | { event: "notification"; data: Record<string, unknown> }
   | { event: "unread"; data: { unread_count: number } };
@@ -40,8 +38,8 @@ function parseStreamEvent(block: SseBlock): NotificationStreamEvent | null {
   return null;
 }
 
-/** Consume the notification SSE stream (GET, fetch-based: the
- * endpoint needs the bearer header, which native EventSource cannot send).
+/** Consume the notification SSE stream (GET, fetch-based: native
+ * EventSource cannot stream the way this client needs).
  * Reconnect with `last-event-id` on drop; backoff is linear up to 30s. */
 export async function streamNotifications(
   onEvent: (event: NotificationStreamEvent) => void,
@@ -51,10 +49,8 @@ export async function streamNotifications(
   let backoff = 1000;
   while (!signal.aborted) {
     try {
-      const token = localStorage.getItem(TOKEN_KEY);
       const response = await fetch("/api/v1/notifications/stream", {
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(lastEventId ? { "Last-Event-Id": lastEventId } : {}),
         },
         signal,

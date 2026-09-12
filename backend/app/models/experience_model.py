@@ -93,7 +93,9 @@ class ExperienceItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
     )
     org_name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    start: Mapped[date] = mapped_column(Date(), nullable=False)
+    # Optional: projects may be undated (note #15: not all kinds mandate a
+    # start date) — jobs/internships still require one at the API layer.
+    start: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
     end: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
     open_ended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     hours_per_week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -197,7 +199,7 @@ class SkillEvidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("experience_items.id", ondelete="CASCADE"), nullable=True
     )
     cv_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
     )
     note: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     # Derived level + confidence at evidence time (display summary).

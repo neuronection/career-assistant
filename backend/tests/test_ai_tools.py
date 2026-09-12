@@ -52,6 +52,12 @@ def test_builtin_registry_declarations():
         "cv_move_block",
         "cv_update_block_props",
         "cv_set_override",
+        # — CV synth variant family (plan 62)
+        "cv_synth_list",
+        "cv_synth_read",
+        "cv_synth_generate",
+        "cv_synth_update",
+        "cv_synth_enable",
     }
     assert all(t["builtin"] for t in listed.values())
     non_cv = {k: t for k, t in listed.items() if not k.startswith("cv_")}
@@ -64,7 +70,14 @@ def test_builtin_registry_declarations():
     assert all(
         listed[key]["scope"] == "write"
         for key in listed
-        if key.startswith("cv_") and key not in ("cv_read_state", "cv_review_visual")
+        if key.startswith("cv_")
+        and key
+        not in (
+            "cv_read_state",
+            "cv_review_visual",
+            "cv_synth_list",
+            "cv_synth_read",
+        )
     )
     assert listed["search_postings"]["requires_user"] is True
     assert listed["run_autopilot"]["requires_user"] is True

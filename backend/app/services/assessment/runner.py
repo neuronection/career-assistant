@@ -369,6 +369,8 @@ class AssessmentService:
                     continue
                 level = int(round(float(level)))
                 existing = existing_rows.get(skill.id)
+                if existing is not None and not existing.derive_enabled:
+                    continue
                 if existing is not None:
                     if abs(existing.level - level) > 2:
                         conflicts.append(

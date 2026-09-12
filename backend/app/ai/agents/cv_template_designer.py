@@ -9,11 +9,14 @@ Mock fixtures are deterministic so the whole loop runs offline in tests;
 the mock reviewer parses `[PAGE n]` markers the same way the OCR mock does.
 """
 
+from typing import Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.agents.context import context_json, parse_context
-from app.ai.gateway import ainvoke_structured, register_mock_fixture
+from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.models.enums import AITaskType
 from app.schemas.cv_template import CvVisualCritique, TemplateContent
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _mock_template_content(schema: type, user_prompt: str) -> dict:
@@ -30,7 +33,7 @@ def _mock_template_content(schema: type, user_prompt: str) -> dict:
             {
                 "kind": "items",
                 "props": {
-                    "title": "Experience",
+                    "title": "Work Experience",
                     "source_key": "experience",
                     "max_items": 8,
                     "show_skills": True,
@@ -110,6 +113,7 @@ async def draft_template(
     target_role: str = "",
     density: str = "normal",
     page_budget: int = 1,
+    run: Optional[RunRef] = None,
 ) -> TemplateContent:
     """Brief → validated template draft (author reviews before publish)."""
     prompt = context_json(
@@ -129,10 +133,14 @@ async def draft_template(
             "Use only the registered block kinds provided in the brief; "
             "respect the page budget; keep typography readable. Leave "
             "design.margin_mm unset unless the brief explicitly asks for "
-            "full-bleed or unusual margins; it is bounded 0-25mm."
+            "full-bleed or unusual margins; it is bounded 0-25mm. For "
+            "sidebar layouts prefer margin_mm=0 with per-area padding "
+            "(main_padding_mm, sidebar_padding_mm) so the colored column "
+            "runs to the page edge."
         ),
         user=prompt,
         user_id=user_id,
+        run=run,
     )
 
 

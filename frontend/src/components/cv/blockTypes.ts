@@ -5,6 +5,7 @@ import {
   Languages,
   MoveVertical,
   PenLine,
+  Sparkles,
   Trophy,
   Wrench,
   type LucideIcon,
@@ -25,7 +26,7 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
     description: "templateEditor.block.items_desc",
     icon: Briefcase,
     props: {
-      title: "Experience",
+      title: "Work Experience",
       source_key: "experience",
       max_items: 10,
       show_skills: true,
@@ -62,7 +63,7 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
     label: "templateEditor.block.languages",
     description: "templateEditor.block.languages_desc",
     icon: Languages,
-    props: { title: "Languages" },
+    props: { title: "Languages", display: "chips", show_cefr: false, show_proficiency: false },
   },
   {
     value: "achievements",
@@ -79,6 +80,18 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
     props: { title: "Interests", max_items: 6 },
   },
   {
+    value: "synth_items",
+    label: "cvSynth.block.label",
+    description: "cvSynth.block.description",
+    icon: Sparkles,
+    props: {
+      title: "Highlights",
+      selected: [],
+      show_source_chips: true,
+      max_items: 6,
+    },
+  },
+  {
     value: "spacer",
     label: "templateEditor.block.spacer",
     description: "templateEditor.block.spacer_desc",
@@ -92,10 +105,17 @@ export function blockTypeOf(kind: string): BlockTypeSpec | undefined {
 }
 
 export const ITEM_SOURCE_OPTIONS = [
-  { value: "experience", label: "Experience" },
+  { value: "experience", label: "Work Experience" },
   { value: "education", label: "Education" },
   { value: "certifications", label: "Certifications" },
   { value: "projects", label: "Projects" },
+  { value: "volunteer", label: "Volunteering" },
+];
+
+export const EXPERIENCE_KIND_OPTIONS = [
+  { value: "job", label: "Jobs" },
+  { value: "internship", label: "Internships" },
+  { value: "freelance", label: "Freelance" },
 ];
 
 export const SKILLS_DISPLAY_OPTIONS = [

@@ -21,6 +21,7 @@ import i18next from "i18next";
 import { Plus, X } from "lucide-react";
 import { slugifyKey } from "@/lib/slug";
 
+
 export const KINDS: {
   value: ExperienceItemIn["kind"];
   labelKey: string;
@@ -118,11 +119,12 @@ export function validateExperience(form: ExperienceEditorForm): {
         field: i18next.t("experience.field.title"),
       });
   if (title) errors.title = title;
-  const start = form.start.trim()
-    ? null
-    : i18next.t("validation.required", {
-        field: i18next.t("experience.field.start"),
-      });
+  const start =
+    form.kind === "project" || form.start.trim()
+      ? null
+      : i18next.t("validation.required", {
+          field: i18next.t("experience.field.start"),
+        });
   if (start) errors.start = start;
   if (!form.open_ended && form.start && !form.end) {
     errors.end = i18next.t("experience.validation.endRequired");
@@ -350,7 +352,7 @@ export function ExperienceEditor({
               {form.skills.map((s, i) => (
                 <div
                   key={s.skill_key}
-                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2"
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2"
                 >
                   <span className="truncate text-xs text-[var(--as-fg)]">
                     {skillChoices.find((o) => o.value === s.skill_key)?.label ?? s.skill_key}
@@ -376,6 +378,27 @@ export function ExperienceEditor({
                       </option>
                     ))}
                   </select>
+                  <OptionalStepper
+                    compact
+                    label={skillChoices.find((o) => o.value === s.skill_key)?.label ?? s.skill_key}
+                    value={s.level_claim}
+                    min={1}
+                    max={10}
+                    onChange={(level_claim) =>
+                      patch({
+                        skills: form.skills.map((x, j) =>
+                          j === i ? { ...x, level_claim } : x
+                        ),
+                      })
+                    }
+                    addValue={5}
+                    addLabel={t("experience.setLevelClaim")}
+                    decreaseAria={t("experience.claimDecreaseAria")}
+                    increaseAria={t("experience.claimIncreaseAria")}
+                    clearAria={t("experience.claimClearAria")}
+                    clearTitle={t("experience.claimClear")}
+                    testIdPrefix={`skill-claim-${i}`}
+                  />
                   <button
                     type="button"
                     onClick={() =>

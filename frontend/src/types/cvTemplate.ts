@@ -29,6 +29,8 @@ export interface CvDesignTokens {
   sidebar_color: string;
   sidebar_text_color: string;
   sidebar_width_pct: number;
+  main_padding_mm: number | null;
+  sidebar_padding_mm: number | null;
 }
 
 export interface TemplateContent {
@@ -40,6 +42,7 @@ export interface TemplateContent {
 
 export interface CvTemplateBlock {
   kind: string;
+  area?: "main" | "sidebar";
   column?: "main" | "sidebar";
   props?: Record<string, unknown>;
 }

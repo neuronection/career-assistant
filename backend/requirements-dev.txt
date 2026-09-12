@@ -1,3 +1,4 @@
 pytest-cov>=5.0
+pytest-timeout>=2.3
 mypy>=1.11
 pytest-playwright>=0.5

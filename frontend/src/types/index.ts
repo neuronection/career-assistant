@@ -136,6 +136,8 @@ export interface UserSkill {
   source: UserSkillSource;
   confidence: number;
   level_anchors: LevelAnchor[];
+  derive_enabled: boolean;
+  hidden?: boolean;
 }
 
 export interface SkillGap {

@@ -178,6 +178,83 @@ async def test_mock_generic_fallback_schema(db, client, auth_headers):
     assert result.answer
 
 
+async def test_run_linkage_records_on_audit_rows(db, client, auth_headers):
+    """Opt-in `run` threading: the audit row records the run id + stage."""
+    import uuid as uuid_mod
+
+    from app.ai.gateway import RunRef
+
+    run = RunRef(id=uuid_mod.uuid4(), stage="cv_draft.plan")
+    await ainvoke_structured(
+        db,
+        AITaskType.ASSIST,
+        ChatReply,
+        system="s",
+        user="CONTEXT_JSON: {}",
+        run=run,
+    )
+    row = (
+        (
+            await db.execute(
+                select(AIGeneration)
+                .where(AIGeneration.task_type == AITaskType.ASSIST.value)
+                .order_by(AIGeneration.created_at.desc())
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert row is not None
+    assert row.run_id == run.id
+    assert row.run_stage == "cv_draft.plan"
+
+
+async def test_run_absent_keeps_run_columns_null(db, client, auth_headers):
+    """Byte-compat default: no `run` ⇒ the run columns stay NULL, exactly
+    as every existing sync/single-call path."""
+    await ainvoke_structured(
+        db, AITaskType.ASSIST, ChatReply, system="s", user="CONTEXT_JSON: {}"
+    )
+    row = (
+        (
+            await db.execute(
+                select(AIGeneration)
+                .where(AIGeneration.task_type == AITaskType.ASSIST.value)
+                .order_by(AIGeneration.created_at.desc())
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert row is not None
+    assert row.run_id is None
+    assert row.run_stage is None
+
+
+async def test_with_audit_ref_returns_the_row_just_written(db, client, auth_headers):
+    """The opt-in contract: ``(value, audit_ref)`` with exactly the
+    fields `_record` just wrote; the default keeps returning the bare
+    value."""
+    value = await ainvoke_structured(
+        db, AITaskType.ASSIST, ChatReply, system="s", user="CONTEXT_JSON: {}"
+    )
+    assert isinstance(value, ChatReply)
+    value, ref = await ainvoke_structured(
+        db,
+        AITaskType.ASSIST,
+        ChatReply,
+        system="s",
+        user="CONTEXT_JSON: {}",
+        with_audit_ref=True,
+    )
+    assert isinstance(value, ChatReply)
+    assert set(ref) == {"id", "task_type", "tokens_in", "tokens_out", "latency_ms"}
+    assert ref["task_type"] == AITaskType.ASSIST.value
+    assert ref["latency_ms"] >= 0
+    row = await db.get(AIGeneration, ref["id"])
+    assert row is not None and row.status == "ok"
+
+
 async def test_structured_error_recorded(db, client, auth_headers, monkeypatch):
     from app.ai import gateway as provider_module
     from app.ai.agents.chatbot import _mock_chat_reply

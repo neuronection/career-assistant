@@ -44,7 +44,12 @@ Pickers/cards that follow the same recipe:
   description; extend with `extraTypes` instead of adding raw selects.
 - `SectionsPanel` — the card pattern for ordered lists: drag handle,
   kind icon, inline title, gear-configured collapsible panel
-  (`cv-collapse` animation), duplicate/move/remove actions.
+  (`cv-collapse` animation), duplicate/move/remove actions. When the
+  active template is sidebar-layout, the panel switches to an
+  **area-grouped** variant (plan 61): dashed group shells with a per-area
+  count, drop-target styling, and a compact area chip per card (popover
+  picker) — sections drag across groups to reassign; the Add-section
+  picker footer carries an "Add to" area toggle.
 - Cards use tokens everywhere; hover = accent border + surface-raised.
 
 When a second family app needs the primitives, promote
@@ -59,7 +64,24 @@ review cards: section header with a tri-state select-all, per-item
 and the verbatim evidence quote — review-first, nothing applies without
 a tick. Selections are controlled (`section → true | indices`); reuse
 this recipe for any future extraction-review surface (posting extract,
-university parse).
+university parse). Status-bearing sections (education, experience,
+certifications, awards — `STATUS_SECTIONS` in `CvStatus.tsx`) carry a
+per-item Draft/Active chip next to the confidence pill, plus the
+review footer's global "Active items / Save as drafts" segmented
+(`cv-intake-apply-mode`); the backend payloads are `selections` +
+`drafts` (section → true | indices), **applied items are ACTIVE by
+default — the review ticks are the user's approval**. The same list renders in `readOnly` mode (no
+checkboxes/counts, pills + evidence kept) — the browse view of what a
+processed CV contained on the per-CV detail route
+(`/profile/import/:id`, clickable from the history rows), together
+with the apply report and a "Landed in your profile" row of deep
+links (`cv-applied-link-*`) driven by the `cv_intake_applied`
+ledger surfaced on the draft endpoint's `applied` field; the link
+map lives in `CvDraftViewer.APPLIED_ENTITY_LINKS`. Shared CV
+status vocabulary (`StatusChip`, `statusLabelKey`, `reportSummary`,
+`ReportLines`) lives in `components/intake/CvStatus.tsx`; the Profile
+overview's import panel (`import-cv-panel` with a live
+`import-cv-status` line) consumes the same label keys.
 
 ## 2a. The profile section-card pattern (plans 50, 2026-09)
 
@@ -115,6 +137,24 @@ page-local form for a profile section.
   `experience-item-{id}`, `add-experience`, `save-experience`,
   `delete-experience-{id}`, `undo-experience`, `derivation-panel`,
   `apply-derivation`.
+- **Workspace list mechanics (both workspaces)** — shared
+  `components/profile/BulkTools.tsx`: a per-card `SelectionToggle`
+  (library `CheckIndicator`, placed outside the card's open-button) and
+  the `BulkBar` over the library `SelectionBar` (hidden at 0
+  selected): Select all · Set active · Set draft · Delete, delete via a
+  confirm modal + the multi-entry `UndoNotice` (undo re-POSTs each
+  snapshot). Card `Duplicate` re-creates from the same toIn/form
+  snapshot with a "(copy)" suffix. Client-side `filters` (search /
+  status segmented / kind or level `FilterChips`
+  `{page}-search`, `-filter-{all|active|draft}`, `-kind-{value}`;
+  empty state: "No entries match these filters.").
+- **Experience kind groups** — with no kind chip selected, the
+  experience rail renders collapsible per-kind group headers (counts,
+  `experience-group-{kind}` + `-toggle-{kind}`); the kind chips switch
+  to a narrow flat view. On the template side, the CV context engine
+  registers a `projects` source and `items` blocks accept a `kinds`
+  filter, so templates can split Work Experience / Projects sections
+  without touching the data model.
 - **Education workspace** (`/profile/education`, full-bleed, nested
   under Profile: the same master-detail recipe over the
   education/certification entities, with an entity toggle

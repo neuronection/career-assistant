@@ -238,10 +238,13 @@ class AITaskType(str, Enum):
     CV_PARSE = "cv_parse"
     CV_TEMPLATE_DESIGN = "cv_template_design"
     CV_TEMPLATE_REVIEW = "cv_template_review"
+    CV_TEMPLATE_PICK = "cv_template_pick"
+    CV_BUILD_REVIEW = "cv_build_review"
     CV_SUGGEST = "cv_suggest"
     CV_COVER_LETTER = "cv_cover_letter"
     CV_BUILDER_CHAT = "cv_builder_chat"
     CV_DRAFT = "cv_draft"
+    CV_SYNTH = "cv_synth"
     CATALOG_ENRICH = "catalog_enrich"
     AUTOPILOT_RUN = "autopilot_run"
     INTERVIEW_PLAN = "interview_plan"
@@ -543,6 +546,8 @@ class BackgroundJobType(str, Enum):
     CATALOG_ENRICH = "catalog_enrich"
     AUTOPILOT_RUN = "autopilot_run"
     CV_GENERATE = "cv_generate"
+    CV_POLISH = "cv_polish"
+    CV_SYNTH = "cv_synth"
     FOLLOWUP_SWEEP = "followup_sweep"
     MARKET_HISTORY_CAPTURE = "market_history_capture"
 
@@ -610,6 +615,28 @@ class CvVersionCreator(str, Enum):
     EXPORT = "export"
     RESTORE = "restore"
     DUPLICATE = "duplicate"
+
+
+class CvSynthStatus(str, Enum):
+    """Lifecycle of a synthesized CV item (draft-then-approve)."""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+
+
+class CvSynthScope(str, Enum):
+    """What a synthesized item replaces."""
+
+    ITEM = "item"
+    SUMMARY = "summary"
+
+
+class CvSynthSource(str, Enum):
+    """Who wrote the variant text."""
+
+    AI = "ai"
+    MANUAL = "manual"
 
 
 class CvPageTextSource(str, Enum):

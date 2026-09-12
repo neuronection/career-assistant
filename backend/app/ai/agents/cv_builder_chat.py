@@ -32,6 +32,7 @@ from app.schemas.cv import CvContextSelection
 from app.schemas.cv_assistant import CvBuilderTurn, OpResult
 from app.schemas.cv_template import DesignTokens, TemplateContent
 from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
+from app.services.cv_blocks import block_area
 from app.services.cv_pdf_service import html_to_pngs, pdf_engine_available
 from app.services.cv_themes import CV_THEMES, THEMES_BY_KEY
 
@@ -55,16 +56,26 @@ SYSTEM = (
     "icon_size_mm, show_photo, photo_shape, photo_size_mm, section_gap_mm, "
     "item_gap_mm). Hex colors look like #1d4ed8. Styling a bank template "
     "automatically customizes a private copy.\n"
-    "- set_context {mode, include[], exclude[]} — select which profile "
-    "items the CV uses; refs are {source_key, item_id} pairs from "
-    "`sources`. Exclusions always win.\n"
+    "- set_context {mode, include[], exclude[], synth_mode?, synth_pins?} "
+    "— select which profile items the CV uses; refs are {source_key, "
+    "item_id} pairs from `sources`. Exclusions always win. Optionally "
+    "set the synth behavior: synth_mode \"prefer\" applies the best "
+    "matching synthesized variant inside each item, and synth_pins "
+    "({\"source_key:item_id\": synth_id} — omit or pass \"\" to unpin) "
+    "stars one variant as that item's default; a pinned variant applies "
+    "even with synth_mode off. Omit both keys to keep the current "
+    "setting.\n"
     "- set_doc_options {title, page_size, max_pages, language}.\n"
     "- add_block {kind, props, position} / remove_block {block_index} / "
     "move_block {block_index, to_index} / update_block_props {block_index, "
     "props} — sections come from `blocks` with their 0-based index; kinds "
     "and props follow the block registry (header, summary, items with "
-    "source_key, skills with display, languages, achievements, interests, "
-    "custom_text, letter, spacer).\n"
+    "source_key — experience for paid work, projects, volunteer for "
+    "volunteering, education, certifications — skills with display, "
+    "languages, achievements, interests, custom_text, letter, spacer, "
+    "synth_items whose props are title, selected[] (synth variant ids — "
+    "empty lists all), show_source_chips, max_items; its sections hold "
+    "the user's synthesized variants and render only they exist).\n"
     "- set_override {source_key, item_id, field, value} — rewrite one "
     "field of one profile item for THIS CV only (e.g. summary/summary, "
     "experience/description, education/description, basics/headline; "
@@ -80,6 +91,9 @@ SYSTEM = (
 
 MAX_REFINE_ROUNDS = 2
 _PROP_CAP = 240
+TRACE_SUMMARY_CAP = 160
+TRACE_TOOL_CAP = 16
+TRACE_NODE_CAP = 12
 
 OVERRIDE_FIELD_HINTS = {
     "basics": ["headline"],
@@ -89,6 +103,7 @@ OVERRIDE_FIELD_HINTS = {
 }
 
 OP_TITLES = {
+    "read_state": "Reading the builder state",
     "set_template": "Switching template",
     "apply_theme": "Applying theme",
     "update_design": "Updating styling",
@@ -114,17 +129,41 @@ def _cap(value, limit: int = _PROP_CAP):
     return value
 
 
-def _validated_pairs(blocks: list[dict]):
-    """(kind, props) pairs via the block registry, pass-through."""
-    from app.services.cv_blocks import validate_blocks
+def _tool_event(tools: list[dict], **spec) -> dict:
+    """One tool_call: the SSE payload plus the persisted-trace entry.
 
-    try:
-        return validate_blocks(blocks or [])
-    except Exception:  # noqa: BLE001 — a broken draft must still digest
-        return [
-            (block.get("kind", "unknown"), block.get("props") or {})
-            for block in blocks or []
-        ]
+    The SSE payload keys are snake_case (`duration_ms`) — the transport
+    reads them as sent. Summaries are serialized-safe strings capped so
+    the persisted metadata stays small.
+    """
+    event_id = spec["id"]
+    name = spec["name"]
+    title = spec["title"]
+    status = spec["status"]
+    args = spec["args"]
+    result = spec["result"]
+    start_ms = spec["start_ms"]
+    duration_ms = spec.get("duration_ms")
+    tools.append(
+        {
+            "name": name,
+            "title": title,
+            "status": status,
+            "args_summary": args[:TRACE_SUMMARY_CAP],
+            "result_summary": result[:TRACE_SUMMARY_CAP],
+            "start_ms": start_ms,
+            "duration_ms": duration_ms,
+        }
+    )
+    return {
+        "id": event_id,
+        "name": name,
+        "title": title,
+        "status": status,
+        "args": args,
+        "result": result,
+        "duration_ms": duration_ms,
+    }
 
 
 async def build_builder_context(db: AsyncSession, cv) -> dict:
@@ -182,8 +221,13 @@ async def build_builder_context(db: AsyncSession, cv) -> dict:
         ],
         "design": template_content.design.model_dump(mode="json"),
         "blocks": [
-            {"index": index, "kind": kind, "props": _cap(props or {})}
-            for index, (kind, props) in enumerate(_validated_pairs(blocks))
+            {
+                "index": index,
+                "kind": raw.get("kind"),
+                "area": block_area(raw),
+                "props": _cap(raw.get("props") or {}),
+            }
+            for index, raw in enumerate(blocks)
         ],
         "overrides": _cap(working.get("overrides") or {}),
         "selection": {
@@ -322,10 +366,35 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                     raise ValidationError(
                         f"Unknown context item {ref.source_key}:{ref.item_id}"
                     )
+            current = CvContextSelection.model_validate(cv.context or {})
+            for ref_key in op.synth_pins or {}:
+                if ref_key not in {
+                    f"{source_key}:{item_id}"
+                    for source_key, item_id in known
+                }:
+                    raise ValidationError(
+                        f"Unknown synth pin target {ref_key}"
+                    )
+            if op.synth_pins:
+                from app.services.cv_synth_service import CvSynthService
+
+                service = CvSynthService(db)
+                for synth_id in {value for value in op.synth_pins.values() if value}:
+                    await service.get_owned(UUID(synth_id), cv.user_id)
             selection = CvContextSelection(
                 mode=op.mode,
                 include=[ref.model_dump(mode="json") for ref in op.include],
                 exclude=[ref.model_dump(mode="json") for ref in op.exclude],
+                synth_mode=(
+                    op.synth_mode
+                    if op.synth_mode is not None
+                    else current.synth_mode
+                ),
+                synth_pins=(
+                    {key: value for key, value in op.synth_pins.items() if value}
+                    if op.synth_pins is not None
+                    else current.synth_pins
+                ),
             )
             cv.context = selection.model_dump(mode="json")
             await db.commit()
@@ -335,6 +404,11 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                 detail=(
                     f"context mode {op.mode}"
                     f" (+{len(op.include)}/-{len(op.exclude)} items)"
+                    + (
+                        f", {len(selection.synth_pins)} pinned variant(s)"
+                        if selection.synth_pins
+                        else ""
+                    )
                 ),
             )
 
@@ -367,12 +441,16 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
 
             validate_blocks([{"kind": op.kind, "props": op.props}])
             position = op.position if op.position is not None else len(blocks)
-            blocks.insert(
-                min(position, len(blocks)), {"kind": op.kind, "props": op.props}
-            )
+            block: dict = {"kind": op.kind, "props": op.props}
+            if op.area is not None:
+                block["area"] = op.area
+            blocks.insert(min(position, len(blocks)), block)
             _save_working(cv, blocks, overrides)
             await db.commit()
-            return OpResult(op=kind, ok=True, detail=f"{op.kind} section added")
+            detail = f"{op.kind} section added"
+            if op.area == "sidebar":
+                detail += " to the sidebar"
+            return OpResult(op=kind, ok=True, detail=detail)
 
         if kind == "remove_block":
             if op.block_index >= len(blocks):
@@ -493,6 +571,47 @@ def _critique_digest(critique) -> dict:
     }
 
 
+async def builder_state_payload(
+    db: AsyncSession,
+    cv,
+    *,
+    operations: Optional[list[dict]] = None,
+    critique=None,
+    version_number: Optional[int] = None,
+) -> dict:
+    """The refreshed builder state after operations (plan 71.1).
+
+    One helper for both the copilot turn path and the UI-driven ops
+    endpoint, so the terminal payload never drifts between the two
+    consumers."""
+    from app.services.cv_builder_service import CvBuilderService
+
+    html, metrics, resolution, blocks = await CvBuilderService(db).preview(cv)
+    return {
+        "document": {
+            "id": str(cv.id),
+            "title": cv.title,
+            "kind": cv.kind,
+            "language": cv.language,
+            "page_size": cv.page_size,
+            "max_pages": cv.max_pages,
+            "status": cv.status,
+            "template_id": str(cv.template_id) if cv.template_id else None,
+            "photo_document_id": str(cv.photo_document_id)
+            if cv.photo_document_id
+            else None,
+        },
+        "blocks": blocks,
+        "overrides": (cv.working_content or {}).get("overrides") or {},
+        "html": html,
+        "metrics": metrics,
+        "resolution": {"snapshot_index": resolution.snapshot_index},
+        "operations": operations or [],
+        "critique": _critique_digest(critique) if critique is not None else None,
+        "version": version_number,
+    }
+
+
 # --------------------------------------------------------------- turn
 
 
@@ -522,23 +641,71 @@ async def builder_turn_events(
     ]
     yield "flow_started", {"flow": "cv_builder", "steps": steps}
 
-    yield "node_started", {"id": "ground", "label": steps[0]["label"]}
-    digest = await build_builder_context(db, cv)
-    yield (
-        "node_finished",
-        {
-            "id": "ground",
-            "duration_ms": int((time.monotonic() - turn_started) * 1000),
-        },
-    )
+    tools_trace: list[dict] = []
+    nodes_trace: list[dict] = []
+    open_nodes: dict[str, tuple[float, str]] = {}
+
+    def _open_node(node_id: str, label: str) -> None:
+        open_nodes[node_id] = (time.monotonic(), label)
+
+    def _note_node(
+        node_id: str, status: str = "done", ended: Optional[float] = None
+    ) -> Optional[dict]:
+        """Close one node window for the persisted trace."""
+        window = open_nodes.pop(node_id, None)
+        if window is None:
+            return None
+        started, label = window
+        ended = ended if ended is not None else time.monotonic()
+        entry = {
+            "id": node_id,
+            "label": label,
+            "status": status,
+            "start_ms": max(0, int((started - turn_started) * 1000)),
+            "duration_ms": int((ended - started) * 1000),
+        }
+        nodes_trace.append(entry)
+        return entry
 
     all_results: list[dict] = []
     critique: Optional[object] = None
     critique_note = ""
     answers: list[str] = []
+    stream: Optional[StructuredStream] = None
     try:
+        _open_node("ground", steps[0]["label"])
+        yield "node_started", {"id": "ground", "label": steps[0]["label"]}
+        digest = await build_builder_context(db, cv)
+        ground = _note_node("ground")
+        yield (
+            "node_finished",
+            {
+                "id": "ground",
+                "duration_ms": ground["duration_ms"] if ground else 0,
+            },
+        )
+        metrics = digest.get("metrics") or {}
+        yield (
+            "tool_call",
+            _tool_event(
+                tools_trace,
+                id="cv-read-state",
+                name="cv_read_state",
+                title=OP_TITLES["read_state"],
+                status="done",
+                args="templates, blocks, sources, metrics, lint",
+                result=(
+                    f"{len(digest.get('blocks') or [])} blocks · "
+                    f"{len(digest.get('sources') or {})} sources · "
+                    f"{metrics.get('estimated_pages')} page(s)"
+                ),
+                start_ms=ground["start_ms"] if ground else 0,
+                duration_ms=ground["duration_ms"] if ground else 0,
+            ),
+        )
         for round_index in range(MAX_REFINE_ROUNDS):
             label = steps[1]["label"] if round_index == 0 else "refining changes"
+            _open_node("plan", label)
             yield "node_started", {"id": "plan", "label": label}
             stream = StructuredStream()
             sent = 0
@@ -572,16 +739,18 @@ async def builder_turn_events(
                 raise DomainError(stream.error or "AI produced no valid plan")
             turn = cast(CvBuilderTurn, stream.reply)
             answers.append(turn.answer)
+            plan = _note_node("plan")
             yield (
                 "node_finished",
                 {
                     "id": "plan",
-                    "duration_ms": int((time.monotonic() - turn_started) * 1000),
+                    "duration_ms": plan["duration_ms"] if plan else 0,
                 },
             )
 
             if not turn.operations:
                 break
+            _open_node("apply", steps[2]["label"])
             yield "node_started", {"id": "apply", "label": steps[2]["label"]}
             for op_index, op in enumerate(turn.operations):
                 started = time.monotonic()
@@ -589,40 +758,59 @@ async def builder_turn_events(
                 all_results.append(result.model_dump(mode="json"))
                 yield (
                     "tool_call",
-                    {
-                        "id": f"cv-{op.op}-{round_index}-{op_index}",
-                        "name": f"cv_{op.op}",
-                        "title": OP_TITLES.get(op.op, op.op),
-                        "status": "done" if result.ok else "failed",
-                        "args": json.dumps(_op_args(op))[:160],
-                        "result": result.detail,
-                        "durationMs": int((time.monotonic() - started) * 1000),
-                    },
+                    _tool_event(
+                        tools_trace,
+                        id=f"cv-{op.op}-{round_index}-{op_index}",
+                        name=f"cv_{op.op}",
+                        title=OP_TITLES.get(op.op, op.op),
+                        status="done" if result.ok else "failed",
+                        args=json.dumps(_op_args(op))[:TRACE_SUMMARY_CAP],
+                        result=result.detail,
+                        start_ms=int((started - turn_started) * 1000),
+                        duration_ms=int((time.monotonic() - started) * 1000),
+                    ),
                 )
-            yield "node_finished", {"id": "apply"}
+            apply = _note_node("apply")
+            yield (
+                "node_finished",
+                {
+                    "id": "apply",
+                    "duration_ms": apply["duration_ms"] if apply else 0,
+                },
+            )
 
             digest = await build_builder_context(db, cv)
 
             if round_index + 1 >= MAX_REFINE_ROUNDS or not turn.need_visual_review:
                 break
+            _open_node("review", steps[3]["label"])
             yield "node_started", {"id": "review", "label": steps[3]["label"]}
+            review_started = time.monotonic()
             critique, critique_note = await _critique_preview(
                 db, cv, user_id=user_id, lint=digest.get("lint") or {}
             )
             yield (
                 "tool_call",
+                _tool_event(
+                    tools_trace,
+                    id=f"cv-visual_review-{round_index}",
+                    name="cv_review_visual",
+                    title=OP_TITLES["visual_review"],
+                    status="done",
+                    args="rendered page screenshots",
+                    result=critique.summary if critique is not None else critique_note,
+                    start_ms=int((review_started - turn_started) * 1000),
+                    duration_ms=int((time.monotonic() - review_started) * 1000),
+                ),
+            )
+            review = _note_node("review")
+            yield (
+                "node_finished",
                 {
-                    "id": f"cv-visual_review-{round_index}",
-                    "name": "cv_review_visual",
-                    "title": OP_TITLES["visual_review"],
-                    "status": "done",
-                    "args": "rendered page screenshots",
-                    "result": critique.summary
-                    if critique is not None
-                    else critique_note,
+                    "id": "review",
+                    "duration_ms": review["duration_ms"] if review else 0,
                 },
             )
-            yield "node_finished", {"id": "review"}
             if critique is None or not critique.issues:
                 break
 
@@ -638,30 +826,13 @@ async def builder_turn_events(
             except Exception:  # noqa: BLE001 — empty context may block compile
                 pass
 
-        html, metrics, resolution, blocks = await CvBuilderService(db).preview(cv)
-        state = {
-            "document": {
-                "id": str(cv.id),
-                "title": cv.title,
-                "kind": cv.kind,
-                "language": cv.language,
-                "page_size": cv.page_size,
-                "max_pages": cv.max_pages,
-                "status": cv.status,
-                "template_id": str(cv.template_id) if cv.template_id else None,
-                "photo_document_id": str(cv.photo_document_id)
-                if cv.photo_document_id
-                else None,
-            },
-            "blocks": blocks,
-            "overrides": (cv.working_content or {}).get("overrides") or {},
-            "html": html,
-            "metrics": metrics,
-            "resolution": {"snapshot_index": resolution.snapshot_index},
-            "operations": all_results,
-            "critique": _critique_digest(critique) if critique is not None else None,
-            "version": version_number,
-        }
+        state = await builder_state_payload(
+            db,
+            cv,
+            operations=all_results,
+            critique=critique,
+            version_number=version_number,
+        )
 
         total_ms = int((time.monotonic() - turn_started) * 1000)
         message_row = await ChatService(db).complete_builder_turn(
@@ -675,6 +846,8 @@ async def builder_turn_events(
                 "version": version_number,
                 "elapsed_ms": total_ms,
                 "model": stream.model,
+                "tools": tools_trace[:TRACE_TOOL_CAP],
+                "nodes": nodes_trace[:TRACE_NODE_CAP],
             },
         )
         yield "builder_state", state
@@ -691,6 +864,32 @@ async def builder_turn_events(
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001 — stream must end cleanly
+        now = time.monotonic()
+        for node_id in list(open_nodes):
+            _note_node(node_id, status="failed", ended=now)
+        partial = "\n\n".join(answers)
+        if partial.strip() or nodes_trace:
+            try:
+                await ChatService(db).complete_interrupted(
+                    session,
+                    user_message_id,
+                    partial,
+                    metadata={
+                        "surface": "cv_builder",
+                        "operations": all_results,
+                        "tools": tools_trace[:TRACE_TOOL_CAP],
+                        "nodes": nodes_trace[:TRACE_NODE_CAP],
+                        "elapsed_ms": int((now - turn_started) * 1000),
+                        **(
+                            {"model": stream.model}
+                            if stream is not None and stream.model
+                            else {}
+                        ),
+                    },
+                    allow_empty=True,
+                )
+            except Exception:  # noqa: BLE001 — best-effort persistence
+                await db.rollback()
         code = "ai_unavailable" if "not configured" in str(exc).lower() else "ai_error"
         yield "flow_failed", {"code": code, "message": str(exc), "retryable": True}
         yield "error", {"detail": str(exc)}

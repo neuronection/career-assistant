@@ -117,7 +117,7 @@ class SkillService:
         rows = await self.db.execute(
             select(UserSkill)
             .options(selectinload(UserSkill.skill))
-            .where(UserSkill.user_id == user_id)
+            .where(UserSkill.user_id == user_id, UserSkill.hidden.is_(False))
             .order_by(UserSkill.level.desc())
         )
         return list(rows.scalars().all())
@@ -155,13 +155,55 @@ class SkillService:
             row.level = int(item["level"])
             row.confidence = float(item.get("confidence", 1.0))
             row.source = "self_report"
+            row.derive_enabled = True
+            row.hidden = False
         await self.db.commit()
         return await self.user_skills(user_id)
+
+    async def set_derive_enabled(
+        self, user_id: UUID, skill_id: UUID, derive_enabled: bool
+    ) -> UserSkill:
+        """Toggle the derivation opt-out flag on one of the user's rows."""
+        rows = await self.db.execute(
+            select(UserSkill).where(
+                UserSkill.user_id == user_id, UserSkill.skill_id == skill_id
+            )
+        )
+        row = rows.scalars().first()
+        if row is None:
+            await self.db.rollback()
+            raise NotFoundError(f"Skill {skill_id} is not on the profile")
+        row.derive_enabled = derive_enabled
+        await self.db.commit()
+        for candidate in await self.user_skills(user_id):
+            if candidate.skill_id == row.skill_id:
+                return candidate
+        return row
+
+    async def delete_user_skill(self, user_id: UUID, skill_id: UUID) -> None:
+        """Tombstone one row: hidden from every surface, derivation
+        never re-creates it. Re-adding the skill makes a fresh row."""
+        rows = await self.db.execute(
+            select(UserSkill).where(
+                UserSkill.user_id == user_id, UserSkill.skill_id == skill_id
+            )
+        )
+        row = rows.scalars().first()
+        if row is None:
+            await self.db.rollback()
+            raise NotFoundError(f"Skill {skill_id} is not on the profile")
+        row.hidden = True
+        row.derive_enabled = False
+        await self.db.commit()
 
     async def gaps(self, user_id: UUID, job: Job) -> dict:
         """Required vs current per job skill + a suggested next step."""
         hints = await self._path_hints(job.id)
-        mine = {row.skill_id: row.level for row in await self.user_skills(user_id)}
+        mine = {
+            row.skill_id: row.level
+            for row in await self.user_skills(user_id)
+            if row.derive_enabled
+        }
         gaps = []
         for link in sorted(
             job.skill_links,

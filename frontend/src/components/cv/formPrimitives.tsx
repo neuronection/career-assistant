@@ -1,4 +1,6 @@
-import { Minus, Plus } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { Minus, Plus, X } from "lucide-react";
 import {
   Combobox,
   ComboboxMulti,
@@ -182,6 +184,8 @@ export function TextareaField({
   hint,
   error,
   counter = false,
+  autoGrow = false,
+  autoGrowMaxHeight = 320,
   testId,
 }: {
   label: string;
@@ -193,12 +197,29 @@ export function TextareaField({
   hint?: string;
   error?: string;
   counter?: boolean;
+  /** Grow with the content instead of scrolling internally (capped at
+   * `autoGrowMaxHeight` px — the surrounding form/modal scrolls after
+   * that). Off by default so existing call sites keep their size. */
+  autoGrow?: boolean;
+  autoGrowMaxHeight?: number;
   testId?: string;
 }) {
   const resolvedHint =
     counter && maxLength
       ? `${value.length}/${maxLength}${hint ? ` · ${hint}` : ""}`
       : hint;
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!autoGrow) return;
+    const node = textareaRef.current;
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.overflowY =
+      node.scrollHeight > autoGrowMaxHeight ? "auto" : "hidden";
+    node.style.height = `${Math.min(node.scrollHeight, autoGrowMaxHeight)}px`;
+  }, [autoGrow, autoGrowMaxHeight, value]);
+
   return (
     <Textarea
       label={label}
@@ -208,6 +229,8 @@ export function TextareaField({
       placeholder={placeholder}
       hint={resolvedHint}
       error={error}
+      ref={textareaRef}
+      className={autoGrow ? "resize-y" : undefined}
       onChange={(event) => onChange(event.target.value)}
       data-testid={testId}
     />
@@ -356,6 +379,12 @@ export function OptionalStepper({
   addValue,
   addLabel = "Set value",
   suffix,
+  compact = false,
+  testIdPrefix,
+  decreaseAria,
+  increaseAria,
+  clearAria,
+  clearTitle,
 }: {
   label: string;
   value: number | null;
@@ -366,8 +395,69 @@ export function OptionalStepper({
   addValue: number;
   addLabel?: string;
   suffix?: string;
+  /** Inline control without the label row — for dense grids (skill
+   * rows, tables). Full row layout stays the default. */
+  compact?: boolean;
+  testIdPrefix?: string;
+  decreaseAria?: string;
+  increaseAria?: string;
+  clearAria?: string;
+  clearTitle?: string;
 }) {
   const clamp = (next: number) => Math.min(Math.max(next, min), max);
+  const testPrefix = testIdPrefix ?? `stepper-${slug(label)}`;
+  if (compact) {
+    if (value === null) {
+      return (
+        <button
+          type="button"
+          onClick={() => onChange(clamp(addValue))}
+          className="cursor-pointer rounded-md border border-[var(--as-border)] px-2 py-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+          aria-label={addLabel}
+          data-testid={`${testPrefix}-set`}
+        >
+          {addLabel}
+        </button>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1" data-testid={testPrefix}>
+        <button
+          type="button"
+          aria-label={decreaseAria ?? `${label} decrease`}
+          disabled={value <= min}
+          onClick={() => onChange(clamp(value - step))}
+          className="cursor-pointer rounded-md border border-[var(--as-border)] p-0.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)] disabled:pointer-events-none disabled:opacity-40"
+          data-testid={`${testPrefix}-decrease`}
+        >
+          <Minus className="h-3 w-3" aria-hidden />
+        </button>
+        <span className="min-w-6 text-center font-medium tabular-nums text-xs text-[var(--as-fg)]">
+          {value}
+        </span>
+        <button
+          type="button"
+          aria-label={increaseAria ?? `${label} increase`}
+          disabled={value >= max}
+          onClick={() => onChange(clamp(value + step))}
+          className="cursor-pointer rounded-md border border-[var(--as-border)] p-0.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)] disabled:pointer-events-none disabled:opacity-40"
+          data-testid={`${testPrefix}-increase`}
+        >
+          <Plus className="h-3 w-3" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="cursor-pointer rounded-md p-0.5 text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
+          aria-label={clearAria ?? `Unset ${label.toLowerCase()}`}
+          title={clearTitle ?? "Not set"}
+          data-testid={`${testPrefix}-clear`}
+        >
+          <X className="h-3 w-3" aria-hidden />
+        </button>
+      </span>
+    );
+  }
   if (value === null) {
     return (
       <div
@@ -647,5 +737,53 @@ export function RangeField({
         aria-label={label}
       />
     </FieldLabel>
+  );
+}
+
+export function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2 text-xs text-[var(--as-fg)]">
+      <span>{label}</span>
+      <input
+        type="color"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-7 w-10 cursor-pointer rounded border border-[var(--as-border)] bg-[var(--as-surface)]"
+        data-testid={`color-${label}`}
+      />
+    </label>
+  );
+}
+
+export function GapsField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  options: number[];
+  onChange: (value: number | null) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <SelectField
+      label={label}
+      value={value === null ? "auto" : String(value)}
+      onChange={(next) => onChange(next === "auto" ? null : Number(next))}
+      options={[
+        { value: "auto", label: t("templateEditor.auto") },
+        ...options.map((option) => ({ value: String(option), label: `${option}mm` })),
+      ]}
+    />
   );
 }

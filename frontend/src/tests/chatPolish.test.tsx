@@ -108,6 +108,7 @@ describe("retry of failed turns", () => {
     useChatStore.setState({
       sessions: [],
       activeSessionId: "s1",
+      chatMode: "bubble",
       messages: [
         { id: "u1", role: "user", content: "find jobs", parent_id: null, variant_index: 1, variant_count: 1, sibling_ids: ["u1"], metadata_json: null, created_at: "2026-09-06T09:00:00Z" },
       ],

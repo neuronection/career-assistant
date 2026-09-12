@@ -1,11 +1,19 @@
 """Skill ontology: browse, user skills, gap report."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import DomainError
-from app.schemas.skills import SkillGapReport, SkillJobsOut, UserSkillsIn, UserSkillOut
+from app.schemas.skills import (
+    SkillGapReport,
+    SkillJobsOut,
+    UserSkillPatchIn,
+    UserSkillsIn,
+    UserSkillOut,
+)
 from app.services.deps import get_current_user
 from app.services.job_service import JobService
 from app.services.skills_service import SkillService
@@ -104,6 +112,31 @@ async def put_my_skills(
     return [_user_skill_out(row) for row in rows]
 
 
+@router.patch("/me/skills/{skill_id}", response_model=UserSkillOut)
+async def patch_my_skill(
+    skill_id: str,
+    data: UserSkillPatchIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserSkillOut:
+    """Toggle per-skill derivation participation (opt in/opt out)."""
+    row = await SkillService(db).set_derive_enabled(
+        user.id, uuid.UUID(skill_id), data.derive_enabled
+    )
+    return _user_skill_out(row)
+
+
+@router.delete("/me/skills/{skill_id}", status_code=204)
+async def delete_my_skill(
+    skill_id: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove a skill row permanently: hidden everywhere, derivation
+    never resurrects it (re-adding the skill makes a fresh row)."""
+    await SkillService(db).delete_user_skill(user.id, uuid.UUID(skill_id))
+
+
 @router.get("/me/skills/gaps", response_model=SkillGapReport)
 async def my_skill_gaps(
     job_id: str = Query(...),
@@ -130,4 +163,6 @@ def _user_skill_out(row) -> UserSkillOut:
         source=row.source,
         confidence=row.confidence,
         level_anchors=skill.level_anchors or [],
+        derive_enabled=row.derive_enabled,
+        hidden=row.hidden,
     )

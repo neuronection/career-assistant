@@ -78,7 +78,7 @@ describe("AIConfig (settings > AI)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({
-      token: "t",
+      
       user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
     });
     mocked.fetchConfigSummary.mockResolvedValue({
@@ -196,7 +196,7 @@ describe("AIConfig (settings > AI)", () => {
 
   it("models tab: system providers are read-only without global rights", async () => {
     useAuthStore.setState({
-      token: "t",
+      
       user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: false },
     });
     mocked.fetchConfigSummary.mockResolvedValue({
@@ -302,7 +302,7 @@ describe("AIConfig (settings > AI)", () => {
 
   it("tasks tab: hides the scope toggle for non-admins (personal only)", async () => {
     useAuthStore.setState({
-      token: "t",
+      
       user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: false },
     });
     mocked.fetchConfigSummary.mockResolvedValue({
@@ -351,7 +351,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({
-      token: "t",
+      
       user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
     });
     mocked.fetchConfigSummary.mockResolvedValue({
@@ -419,7 +419,7 @@ describe("AIConfig models: native Gemini catalog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({
-      token: "t",
+      
       user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
     });
     mocked.fetchConfigSummary.mockResolvedValue({

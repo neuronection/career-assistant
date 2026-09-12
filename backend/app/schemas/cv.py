@@ -60,11 +60,30 @@ class CvContextRef(BaseModel):
 
 
 class CvContextSelection(BaseModel):
-    """Per-CV context selection: include-all-minus / none-plus / custom."""
+    """Per-CV context selection: include-all-minus / none-plus / custom.
+
+    `synth_mode`: prefer = active synthesized variants matching this CV
+    swap their text in at resolution (before overrides); off = verbatim
+    profile text. Default off — existing CVs are byte-compatible.
+    `synth_pins` (plan 72 follow-up): per-item variant pinning —
+    `{"source_key:item_id": synth_id}`; a pin beats the automatic
+    `match_for_user` winner for that ref."""
 
     mode: Literal["all", "none", "custom"] = "all"
     include: list[CvContextRef] = Field(default_factory=list, max_length=500)
     exclude: list[CvContextRef] = Field(default_factory=list, max_length=500)
+    synth_mode: Literal["off", "prefer"] = "off"
+    synth_pins: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("synth_pins")
+    @classmethod
+    def _cap_pins(cls, pins: dict[str, str]) -> dict[str, str]:
+        if len(pins) > 100:
+            raise ValueError("synth_pins supports at most 100 pinned refs")
+        for ref_key, synth_id in pins.items():
+            if ":" not in ref_key or len(synth_id) > 64:
+                raise ValueError(f"malformed synth pin: {ref_key!r}")
+        return pins
 
 
 class CvDocumentCreate(BaseModel):
@@ -187,3 +206,40 @@ class CvContextStatusOut(BaseModel):
     changed: list[CvContextItemRef] = Field(default_factory=list)
     added: list[CvContextItemRef] = Field(default_factory=list)
     removed: list[CvContextItemRef] = Field(default_factory=list)
+
+
+class CvCoverageRef(BaseModel):
+    """One context item in the coverage matrix (stable ids only)."""
+
+    source_key: str = Field(min_length=1, max_length=60)
+    item_id: str = Field(min_length=1, max_length=64)
+    label: str = Field(default="", max_length=200)
+
+
+class CvCoverageMatrix(BaseModel):
+    """Content-coverage audit over the user's selected context.
+
+    `available` = the three lists combined; the user's include/exclude
+    selection is authoritative, so matrix entries only ever name items
+    the selection permits.
+    """
+
+    included: list[CvCoverageRef] = Field(default_factory=list)
+    dropped: list[CvCoverageRef] = Field(default_factory=list)
+    missing: list[CvCoverageRef] = Field(default_factory=list)
+
+
+class CvTemplateMeta(BaseModel):
+    """Template meta for the builder's Template tab (plan 71)."""
+
+    id: str
+    title: str
+    owned: bool
+    ats_safe: bool
+
+
+class CvDesignOut(BaseModel):
+    """The CV's effective design tokens + template meta."""
+
+    design: dict
+    template: Optional[CvTemplateMeta] = None

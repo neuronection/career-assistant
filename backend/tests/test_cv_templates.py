@@ -1,6 +1,8 @@
 """— CV template system: versioning, registry, renderer, AI, review."""
 
 import io
+import uuid
+from uuid import UUID
 
 from sqlalchemy import select
 
@@ -236,6 +238,33 @@ async def test_template_public_visibility_unreachable(client, db, auth_headers):
     assert all(t["visibility"] != "public" for t in listing.json())
 
 
+async def test_suggest_templates_via_mock(client, db, auth_headers):
+    """Deterministic candidate scores, then AI ranks refs best-first."""
+    await seed_cv_template_bank(db)
+    response = await client.post(
+        "/api/v1/cv/templates/suggest",
+        json={"language": "en"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["candidates_considered"] >= 5
+    assert body["picks"], "the mock ranks at least one pick"
+    titles = {pick["title"] for pick in body["picks"]}
+    listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
+    known = {t["title"] for t in listing.json()}
+    assert titles <= known, "picks are real template rows"
+
+
+async def test_suggest_templates_no_candidates(client, db, auth_headers):
+    from tests.conftest import _uid
+
+    result = await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)), language="en"
+    )
+    assert result == {"picks": [], "candidates_considered": 0}
+
+
 async def test_ai_template_draft_via_mock(client, db, auth_headers):
     response = await client.post(
         "/api/v1/cv/templates/draft-ai",
@@ -322,3 +351,138 @@ async def test_bank_templates_seed_and_preview(client, db, auth_headers):
         headers=auth_headers,
     )
     assert edit_bank.status_code == 400, "bank templates are read-only"
+
+
+def test_skills_block_renders_only_selected_ids():
+    """`SkillsProps.selected` lists context item ids (plan 68): only the
+    chosen skills render; an empty/absent list keeps all skills."""
+    from app.schemas.cv_template import TemplateContent
+    from app.services.cv_renderer import render_cv
+
+    snapshot = {
+        "basics": {"name": "Jane Doe", "email": "j@x.io"},
+        "skills": [
+            {"id": "sk-1", "label": "Python", "level": 7},
+            {"id": "sk-2", "label": "SQL", "level": 5},
+        ],
+    }
+    content = TemplateContent.model_validate(VALID_CONTENT)
+    full = render_cv(content, snapshot).html
+    assert "Python" in full and "SQL" in full
+
+    picked_data = dict(VALID_CONTENT)
+    picked_data = []
+    for block in VALID_CONTENT["blocks"]:
+        if block["kind"] == "skills":
+            picked_data.append(
+                {"kind": "skills", "props": {**block["props"], "selected": ["sk-1"]}}
+            )
+        else:
+            picked_data.append(block)
+    picked = TemplateContent.model_validate({**VALID_CONTENT, "blocks": picked_data})
+    narrowed = render_cv(picked, snapshot).html
+    assert "Python" in narrowed
+    assert ">SQL<" not in narrowed
+
+    void = TemplateContent.model_validate(
+        {
+            **VALID_CONTENT,
+            "blocks": [
+                {"kind": "skills", "props": {"selected": ["no-such-id"]}},
+                {"kind": "skills", "props": {"display": "chips", "max_items": 18}},
+            ],
+        }
+    )
+    strict = render_cv(void, snapshot).html
+    # The broken-selected skills block renders nothing (strict); only the
+    # second, selection-free block contributes its chips.
+    assert strict.count("Python") == 1, "unknown ids render nothing — no fallback"
+
+
+async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
+    """Plan 70: edited bank specs ship as version 2 — the seeder inserts
+    the new immutable row alongside a pre-existing v1 and the listing
+    dedupes to the highest version."""
+    from datetime import datetime, timezone
+
+    db.add(
+        CvTemplate(
+            key="ats-classic",
+            version=1,
+            title="ATS-Safe Classic",
+            description="legacy v1",
+            author_user_id=None,
+            author_key="bank",
+            source="bank",
+            visibility="private",
+            language="en",
+            page_size="a4",
+            ats_safe=True,
+            schema_version=1,
+            content_hash="legacy",
+            status="published",
+            content=TemplateContent.model_validate(
+                {
+                    "blocks": [{"kind": "header"}],
+                    "design": {},
+                    "pages": {"default_max_pages": 1},
+                    "prompts": {},
+                }
+            ).model_dump(mode="json"),
+            created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        )
+    )
+    await db.commit()
+
+    await seed_cv_template_bank(db)
+    rows = {
+        (row.key, row.version): row
+        for row in (
+            await db.execute(
+                select(CvTemplate).where(
+                    CvTemplate.author_key == "bank", CvTemplate.key == "ats-classic"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert set(rows) == {("ats-classic", 1), ("ats-classic", 2)}
+    assert (
+        rows[("ats-classic", 2)].content["blocks"]
+        != rows[("ats-classic", 1)].content["blocks"]
+    ), "v2 carries the plan-70 content"
+    assert rows[("ats-classic", 1)].content_hash == "legacy", "v1 rows are immutable"
+
+    service = CvTemplateService(db)
+    listing = await service.list_templates(uuid.uuid4())
+    by_key = {row.key: row for row in listing if row.author_key == "bank"}
+    assert by_key["ats-classic"].version == 2
+
+
+async def test_sidebar_bank_template_uses_area_paddings(db):
+    await seed_cv_template_bank(db)
+    row = (
+        (
+            await db.execute(
+                select(CvTemplate).where(
+                    CvTemplate.author_key == "bank",
+                    CvTemplate.key == "navy-sidebar",
+                    CvTemplate.version == 2,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert row is not None
+    design = row.content["design"]
+    assert design["margin_mm"] == 0
+    assert design["main_padding_mm"] > 0
+    assert design["sidebar_padding_mm"] > 0
+    source_keys = [
+        block.get("props", {}).get("source_key")
+        for block in row.content["blocks"]
+        if block.get("kind") == "items"
+    ]
+    assert "experience" in source_keys and "projects" in source_keys

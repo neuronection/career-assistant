@@ -19,6 +19,7 @@ from app.ai.prompt_versions import prompt_version
 from app.models.enums import AITaskType
 from app.ai.schemas import (
     ChatReply,
+    CvBuildCritique,
     JobDraftSet,
     MatchResult,
     ProfileInsight,
@@ -94,9 +95,21 @@ def _check_cv_extract(extract: CvExtract) -> None:
     assert all(s.level_claim is not None for s in extract.skills)
 
 
+def _check_build_review(critique: CvBuildCritique) -> None:
+    issues = critique.issues
+    assert issues, "the mock flags the fail-level lint check"
+    issue = issues[0]
+    assert issue.level == "fail"
+    assert issue.area == "content"
+    assert critique.coverage.missing == ["skill-1"], (
+        "the coverage echo mirrors the matrix ids it received"
+    )
+
+
 def _build_cases() -> list[GoldenCase]:
     from app.ai.agents.chatbot import CHATBOT  # noqa: F401 — fixture side effects
     import app.ai.agents  # noqa: F401 — registers every mock fixture
+    import app.ai.agents.cv_build_reviewer  # noqa: F401 — fixture side effect
 
     from app.ai.agents.job_generator import JOB_GENERATOR
     from app.ai.agents.prompts import MATCH_SCORER, PROFILE_ANALYST, UNIVERSITY_PARSER
@@ -195,6 +208,26 @@ def _build_cases() -> list[GoldenCase]:
             ),
             prompt_version=_blessed(AITaskType.UNIVERSITY_PARSE.value),
             check=_check_universities,
+        ),
+        GoldenCase(
+            task=AITaskType.CV_BUILD_REVIEW.value,
+            schema=CvBuildCritique,
+            system=(
+                "You review a generated CV for a final professional pass; "
+                "suggest only existing BuilderOps."
+            ),
+            user=(
+                'CONTEXT_JSON: {"lint": {"checks": [{"id": "contact_email", '
+                '"level": "fail", "message": "No email in the header."}], '
+                '"empty_blocks": []}, '
+                '"coverage": {"included": [{"item_id": "skill-2"}], '
+                '"missing": [{"source_key": "skills", "item_id": "skill-1", '
+                '"label": "SQL"}], "dropped": []}, '
+                '"blocks": [{"kind": "skills", "props": {"title": "Skills"}}], '
+                '"iteration": 0}'
+            ),
+            prompt_version=_blessed(AITaskType.CV_BUILD_REVIEW.value),
+            check=_check_build_review,
         ),
     ]
     return cases

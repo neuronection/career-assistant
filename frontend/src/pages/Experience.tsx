@@ -7,11 +7,14 @@ import {
   Briefcase,
   CalendarRange,
   Coins,
+  Copy,
   GraduationCap,
   Hammer,
   HeartHandshake,
   Plus,
+  Search,
   Trash2,
+  ChevronRight,
 } from "lucide-react";
 import { Button, ConfirmationModal } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
@@ -31,6 +34,11 @@ import type {
   ExperienceItemIn,
   ExperienceItemOut,
 } from "@/types/experience";
+import {
+  BulkBar,
+  FilterChips,
+  SelectionToggle,
+} from "@/components/profile/BulkTools";
 import {
   EMPTY_FORM,
   ExperienceEditor,
@@ -87,7 +95,8 @@ function periodEnd(item: ExperienceItemOut): string {
 }
 
 /** Experience workspace: full-bleed master-detail with an
- * editor pane, optimistic delete + undo and a derivation panel. */
+ * editor pane, optimistic delete + undo, per-item + bulk selection
+ * (set status / delete), duplicates and search/status/kind filters. */
 export function Experience() {
   const { t } = useTranslation();
   const [items, setItems] = useState<ExperienceItemOut[]>([]);
@@ -106,7 +115,141 @@ export function Experience() {
   const [error, setError] = useState("");
   const [applyState, setApplyState] = useState<string | null>(null);
   const [derivationOpen, setDerivationOpen] = useState(true);
-  const [deleted, setDeleted] = useState<ExperienceItemOut | null>(null);
+  const [deleted, setDeleted] = useState<ExperienceItemOut[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [filters, setFilters] = useState<{ query: string; statuses: string[]; kinds: string[] }>({
+    query: "",
+    statuses: [],
+    kinds: [],
+  });
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+
+  const shouldGroup = filters.kinds.length === 0;
+
+  const visible = useMemo(() => {
+    const query = filters.query.trim().toLowerCase();
+    return items.filter((item) => {
+      if (query &&
+        !`${item.title} ${item.org_name}`.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+      if (filters.statuses.length && !filters.statuses.includes(item.status)) {
+        return false;
+      }
+      if (filters.kinds.length && !filters.kinds.includes(item.kind)) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, filters]);
+
+  const renderCard = (item: ExperienceItemOut) => {
+    const Icon = KIND_ICONS[item.kind] ?? Briefcase;
+    const active = item.id === selectedId;
+    return (
+      <article
+        key={item.id}
+        className={`group relative cursor-pointer rounded-xl border p-3 transition-colors duration-150 ${
+          active
+            ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
+            : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
+        }`}
+        data-testid={`experience-item-${item.id}`}
+      >
+        <button
+          type="button"
+          onClick={() => guard(() => openEdit(item))}
+          className="flex w-full cursor-pointer items-start justify-between gap-2 pr-8 text-left"
+          data-testid="experience-item"
+          aria-current={active ? "true" : undefined}
+        >
+          <span className="flex min-w-0 items-start gap-2.5">
+            <span
+              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                active
+                  ? "bg-[color-mix(in_srgb,var(--as-accent)_15%,transparent)] text-[var(--as-accent)]"
+                  : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
+              }`}
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+            </span>
+            <span className="block min-w-0">
+              <span className="block truncate text-sm font-medium text-[var(--as-fg)]">
+                {item.title}
+                {item.status === "draft" && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                    {t("experience.draft")}
+                  </span>
+                )}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
+                {t(`experience.kind.${item.kind}`, {
+                  defaultValue: item.kind,
+                })}
+                {item.org_name ? ` · ${item.org_name}` : ""} ·{" "}
+                {formatPeriod(item)}
+                {item.hours_per_week
+                  ? ` · ${t("experience.hoursShort", { hours: item.hours_per_week })}`
+                  : ""}
+              </span>
+              {item.description && (
+                <span
+                  className="mt-1 line-clamp-2 block text-xs leading-snug text-[var(--as-muted-fg)]/90"
+                >
+                  {item.description}
+                </span>
+              )}
+              {item.skills.length > 0 && (
+                <span className="mt-1.5 flex flex-wrap gap-1">
+                  {item.skills.slice(0, 4).map((s) => (
+                    <span
+                      key={s.skill_key}
+                      className="rounded-full border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]"
+                    >
+                      {s.skill_label}
+                    </span>
+                  ))}
+                  {item.skills.length > 4 && (
+                    <span className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]">
+                      +{item.skills.length - 4}
+                    </span>
+                  )}
+                </span>
+              )}
+            </span>
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label={t("experience.duplicateAria", { title: item.title })}
+          className="absolute right-8 top-2 hidden cursor-pointer rounded p-1 text-slate-300 transition-colors group-hover:text-slate-400 hover:text-[var(--as-accent)] group-hover:block"
+          data-testid={`duplicate-experience-${item.id}`}
+          onClick={() => void duplicate(item)}
+        >
+          <Copy className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={t("experience.deleteAria", { title: item.title })}
+          className="absolute right-2 top-2 cursor-pointer rounded p-1 text-slate-300 transition-colors hover:text-[var(--as-danger)] group-hover:text-slate-400"
+          data-testid={`delete-experience-${item.id}`}
+          onClick={() => void remove(item)}
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        <div className="absolute bottom-2 right-2">
+          <SelectionToggle
+            selected={selectedIds.includes(item.id)}
+            label={t("experience.selectAria", { title: item.title })}
+            onToggle={() => toggleSelect(item.id)}
+          />
+        </div>
+      </article>
+    );
+  };
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [activePane, setActivePane] = useState<"list" | "editor">("list");
   const railRef = useRef<HTMLDivElement>(null);
@@ -138,6 +281,27 @@ export function Experience() {
       void undefined;
     }
   }, []);
+
+  /** Skill estimates apply themselves after any experience mutation —
+   * the panel is a summary, not a manual action surface (plan 68.4). */
+  const syncDerivation = useCallback(async () => {
+    try {
+      const result = await applyDerivation();
+      setApplyState(
+        result.conflicts.length > 0
+          ? t("experience.appliedWithConflicts", {
+              count: result.applied,
+              conflicts: result.conflicts.length,
+            })
+          : result.applied > 0
+            ? t("experience.appliedClean", { count: result.applied })
+            : null
+      );
+      await refreshDerived();
+    } catch {
+      void undefined;
+    }
+  }, [t, refreshDerived]);
 
   useEffect(() => {
     void load().catch((err) => setError(apiDetail(err)));
@@ -181,8 +345,8 @@ export function Experience() {
     setShowErrors(false);
   };
 
-  const openCreate = () => {
-    setForm({ ...EMPTY_FORM });
+  const openCreate = (kind?: ExperienceItemIn["kind"]) => {
+    setForm({ ...EMPTY_FORM, ...(kind ? { kind } : {}) });
     setSelectedId(null);
     setIsNew(true);
     setEditorOpen(true);
@@ -246,7 +410,7 @@ export function Experience() {
       }
       setDirty(false);
       setShowErrors(false);
-      void refreshDerived();
+      void syncDerivation();
     } catch (err) {
       setError(apiDetail(err));
     } finally {
@@ -259,9 +423,10 @@ export function Experience() {
     try {
       await deleteExperienceItem(item.id);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setSelectedIds((prev) => prev.filter((id) => id !== item.id));
       if (selectedId === item.id) closeEditor();
-      setDeleted(item);
-      void refreshDerived();
+      setDeleted([item]);
+      void syncDerivation();
     } catch (err) {
       setError(apiDetail(err));
     }
@@ -271,30 +436,85 @@ export function Experience() {
     if (!deleted) return;
     setError("");
     try {
-      const restored = await createExperienceItem(toIn(deleted));
-      if (restored) {
-        setItems((prev) => sortByRecency([restored, ...prev]));
-        setDeleted(null);
-        void refreshDerived();
+      for (const item of deleted) {
+        const restored = await createExperienceItem(toIn(item));
+        if (restored) {
+          setItems((prev) => sortByRecency([restored, ...prev]));
+        }
       }
+      setDeleted(null);
+      void syncDerivation();
     } catch (err) {
       setError(apiDetail(err));
     }
   };
 
-  const apply = async () => {
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllVisible = () =>
+    setSelectedIds(visible.map((item) => item.id));
+
+  const bulkSetStatus = async (status: "draft" | "active") => {
+    setBulkBusy(true);
     setError("");
     try {
-      const result = await applyDerivation();
-      setApplyState(
-        result.conflicts.length > 0
-          ? t("experience.appliedWithConflicts", {
-              count: result.applied,
-              conflicts: result.conflicts.length,
-            })
-          : t("experience.appliedClean", { count: result.applied })
-      );
-      await load();
+      let changed = [...items];
+      for (const id of selectedIds) {
+        const updated = await updateExperienceItem(id, { status });
+        if (updated) {
+          changed = changed.map((item) =>
+            item.id === id ? { ...item, status } : item
+          );
+        }
+      }
+      setItems(changed);
+      setSelectedIds([]);
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    setBulkConfirm(false);
+    setBulkBusy(true);
+    setError("");
+    try {
+      const removed: ExperienceItemOut[] = [];
+      for (const id of selectedIds) {
+        const target = items.find((item) => item.id === id);
+        if (!target) continue;
+        await deleteExperienceItem(id);
+        removed.push(target);
+      }
+      const gone = new Set(selectedIds);
+      setItems((prev) => prev.filter((item) => !gone.has(item.id)));
+      if (selectedId != null && gone.has(selectedId)) closeEditor();
+      setDeleted(removed);
+      setSelectedIds([]);
+      void syncDerivation();
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const duplicate = async (item: ExperienceItemOut) => {
+    setError("");
+    try {
+      const created = await createExperienceItem({
+        ...toIn(item),
+        title: `${item.title} ${t("experience.copySuffix")}`,
+      });
+      if (created) {
+        setItems((prev) => sortByRecency([created, ...prev]));
+      }
     } catch (err) {
       setError(apiDetail(err));
     }
@@ -328,7 +548,7 @@ export function Experience() {
           >
             {t("experience.yearsDerived", { years })}
           </span>
-          <Button variant="default" onClick={openCreate} data-testid="add-experience">
+          <Button variant="default" onClick={() => openCreate()} data-testid="add-experience">
             <Plus className="mr-1 h-4 w-4" aria-hidden /> {t("experience.addEntry")}
           </Button>
         </div>
@@ -420,20 +640,15 @@ export function Experience() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void apply()}
-                      data-testid="apply-derivation"
-                    >
-                      {t("experience.applySkills")}
-                    </Button>
+                  <div className="mt-3 flex items-start gap-2">
                     {applyState && (
                       <span className="text-xs text-emerald-600" data-testid="apply-state">
                         {applyState}
                       </span>
                     )}
+                    <p className="text-xs text-[var(--as-muted-fg)]">
+                      {t("experience.derivedHint")}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -441,75 +656,179 @@ export function Experience() {
           )}
 
           <section className="space-y-2.5" data-testid="experience-list">
-            {items.length === 0 && (
+            <div className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3" data-testid="experience-filters">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--as-muted-fg)]"
+                  aria-hidden
+                />
+                <input
+                  type="search"
+                  value={filters.query}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, query: event.target.value }))
+                  }
+                  placeholder={t("experience.searchPlaceholder")}
+                  className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] py-1.5 pl-7 pr-2 text-sm outline-none focus:border-[var(--as-accent)]"
+                  data-testid="experience-search"
+                />
+              </div>
+              <div className="flex gap-1.5" data-testid="experience-filter-statuses">
+                {(["all", "active", "draft"] as const).map((mode) => {
+                  const on =
+                    mode === "all"
+                      ? filters.statuses.length === 0
+                      : filters.statuses[0] === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          statuses: mode === "all" ? [] : [mode],
+                        }))
+                      }
+                      className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs ${
+                        on
+                          ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
+                          : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                      }`}
+                      data-testid={`experience-filter-${mode}`}
+                    >
+                      {t(`experience.filter.${mode}`)}
+                    </button>
+                  );
+                })}
+              </div>
+              <FilterChips
+                testidPrefix="experience"
+                options={(Object.keys(KIND_ICONS) as ExperienceItemOut["kind"][]).map(
+                  (kind) => ({
+                    value: kind,
+                    label: t(`experience.kind.${kind}`, { defaultValue: kind }),
+                  })
+                )}
+                selected={filters.kinds}
+                onToggle={(kind) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    kinds: prev.kinds.includes(kind)
+                      ? prev.kinds.filter((value) => value !== kind)
+                      : [...prev.kinds, kind],
+                  }))
+                }
+              />
+            </div>
+            <BulkBar
+              count={selectedIds.length}
+              total={visible.length}
+              onClear={() => setSelectedIds([])}
+              onSelectAll={selectAllVisible}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => void bulkSetStatus("active")}
+                data-testid="bulk-set-active"
+              >
+                {t("experience.bulk.activate")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => void bulkSetStatus("draft")}
+                data-testid="bulk-set-draft"
+              >
+                {t("experience.bulk.draft")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setBulkConfirm(true)}
+                data-testid="bulk-delete"
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                {t("common.delete")}
+              </Button>
+            </BulkBar>
+            {visible.length === 0 && items.length > 0 && (
+              <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
+                {t("common.noFilterMatches")}
+              </p>
+            )}
+            {visible.length === 0 && items.length === 0 && (
               <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
                 {t("experience.empty")}
               </p>
             )}
-            {items.map((item) => {
-              const Icon = KIND_ICONS[item.kind] ?? Briefcase;
-              const active = item.id === selectedId;
-              return (
-                <article
-                  key={item.id}
-                  className={`group relative cursor-pointer rounded-xl border p-3 transition-colors duration-150 ${
-                    active
-                      ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
-                      : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
-                  }`}
-                  data-testid={`experience-item-${item.id}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => guard(() => openEdit(item))}
-                    className="flex w-full cursor-pointer items-start justify-between gap-2 pr-8 text-left"
-                    data-testid="experience-item"
-                    aria-current={active ? "true" : undefined}
-                  >
-                    <span className="flex min-w-0 items-start gap-2.5">
-                      <span
-                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                          active
-                            ? "bg-[color-mix(in_srgb,var(--as-accent)_15%,transparent)] text-[var(--as-accent)]"
-                            : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" aria-hidden />
-                      </span>
-                      <span className="block min-w-0">
-                        <span className="block truncate text-sm font-medium text-[var(--as-fg)]">
-                          {item.title}
-                          {item.status === "draft" && (
-                            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                              {t("experience.draft")}
-                            </span>
-                          )}
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
-                          {t(`experience.kind.${item.kind}`, {
-                            defaultValue: item.kind,
-                          })}
-                          {item.org_name ? ` · ${item.org_name}` : ""} ·{" "}
-                          {formatPeriod(item)}
-                          {item.hours_per_week
-                            ? ` · ${t("experience.hoursShort", { hours: item.hours_per_week })}`
-                            : ""}
-                        </span>
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t("experience.deleteAria", { title: item.title })}
-                    className="absolute right-2 top-2 cursor-pointer rounded p-1 text-slate-300 transition-colors hover:text-[var(--as-danger)] group-hover:text-slate-400"
-                    data-testid={`delete-experience-${item.id}`}
-                    onClick={() => void remove(item)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </article>
-              );
-            })}
+            {shouldGroup
+              ? (
+                  Object.keys(KIND_ICONS) as ExperienceItemOut["kind"][]
+                )
+                  .map((kind) => ({
+                    kind,
+                    list: visible.filter((item) => item.kind === kind),
+                  }))
+                  .filter((entry) => entry.list.length > 0)
+                  .map(({ kind, list }) => (
+                    <div key={kind} data-testid={`experience-group-${kind}`}>
+                      <div className="flex items-center gap-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-muted)] px-3 py-1.5">
+                        <button
+                          type="button"
+                          aria-expanded={!collapsedGroups.includes(kind)}
+                          onClick={() =>
+                            setCollapsedGroups((prev) =>
+                              prev.includes(kind)
+                                ? prev.filter((value) => value !== kind)
+                                : [...prev, kind]
+                            )
+                          }
+                          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+                          data-testid={`experience-group-toggle-${kind}`}
+                        >
+                          {(() => {
+                            const GroupIcon = KIND_ICONS[kind];
+                            return (
+                              <GroupIcon className="h-3.5 w-3.5 shrink-0 text-[var(--as-accent)]" aria-hidden />
+                            );
+                          })()}
+                          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--as-fg)]">
+                            {t(`experience.kind.${kind}`, { defaultValue: kind })}
+                          </span>
+                          <span className="rounded-full bg-[var(--as-surface)] px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[var(--as-muted-fg)]" data-testid={`experience-group-count-${kind}`}>
+                            {list.length}
+                          </span>
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 text-[var(--as-muted-fg)] transition-transform ${
+                              collapsedGroups.includes(kind) ? "" : "rotate-90"
+                            }`}
+                            aria-hidden
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openCreate(kind)}
+                          className="flex cursor-pointer items-center gap-1 rounded-lg border border-dashed border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-[11px] font-medium text-[var(--as-muted-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+                          data-testid={`experience-group-add-${kind}`}
+                          title={t(`experience.kind.${kind}`, { defaultValue: kind })}
+                        >
+                          <Plus className="h-3 w-3" aria-hidden />
+                          {t("experience.groupAdd")}
+                        </button>
+                      </div>
+                      {!collapsedGroups.includes(kind) && (
+                        <div className="mt-2 space-y-2.5">
+                          {list.map(renderCard)}
+                        </div>
+                      )}
+                    </div>
+                  ))
+              : visible.map((item) => renderCard(item))}
           </section>
         </div>
 
@@ -533,18 +852,22 @@ export function Experience() {
               isNew={isNew}
             />
           ) : (
-            <ExperienceEditorEmpty onAdd={openCreate} />
+            <ExperienceEditorEmpty onAdd={() => openCreate()} />
           )}
         </div>
       </div>
 
-      {deleted && (
+      {deleted && deleted.length > 0 && (
         <div
           className="fixed bottom-6 left-6 z-[var(--as-z-modal)]"
           data-testid="undo-experience"
         >
           <UndoNotice
-            message={t("experience.deletedNotice", { title: deleted.title })}
+            message={
+              deleted.length === 1
+                ? t("experience.deletedNotice", { title: deleted[0].title })
+                : t("experience.bulkDeletedNotice", { count: deleted.length })
+            }
             actionLabel={t("common.undo")}
             duration={8000}
             onUndo={() => void undoDelete()}
@@ -552,6 +875,16 @@ export function Experience() {
           />
         </div>
       )}
+
+      <ConfirmationModal
+        open={bulkConfirm}
+        onOpenChange={setBulkConfirm}
+        onConfirm={() => void bulkDelete()}
+        title={t("experience.bulkDeleteTitle", { count: selectedIds.length })}
+        description={t("experience.bulkDeleteBody")}
+        confirmLabel={t("common.delete")}
+        destructive
+      />
 
       <ConfirmationModal
         open={confirmAction !== null}

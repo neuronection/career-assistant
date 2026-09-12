@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
+import secrets
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -100,3 +102,42 @@ class AuthService:
 def _as_aware(value: datetime) -> datetime:
     """SQLite returns naive datetimes; compare on the UTC clock regardless."""
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+async def get_or_create_default_user(db: AsyncSession) -> User:
+    """Return the single default user, creating it on first use.
+
+    Used only in single-user mode (``settings.SINGLE_USER_MODE``): the
+    transitory no-login state. The user is created through the regular
+    registration path so it becomes admin and gets a default profile. The
+    generated password is a discarded random secret — nobody logs in with
+    it. Race-safe: concurrent first requests rely on the unique email
+    constraint and one retry.
+    """
+    email = settings.DEFAULT_USER_EMAIL
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+    if user is not None and user.is_active:
+        return user
+    try:
+        user, _ = await AuthService(db).register(
+            RegisterIn(
+                email=email,
+                password=secrets.token_urlsafe(24),
+                full_name="Default User",
+            )
+        )
+        return user
+    except ValidationError:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalars().first()
+        if user is None:
+            raise
+        return user
+    except IntegrityError:
+        await db.rollback()
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalars().first()
+        if user is None:
+            raise
+        return user

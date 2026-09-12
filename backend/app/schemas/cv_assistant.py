@@ -41,6 +41,10 @@ class SetContextOp(BaseModel):
     mode: Literal["all", "none", "custom"] = "custom"
     include: list[CvContextRef] = Field(default_factory=list, max_length=200)
     exclude: list[CvContextRef] = Field(default_factory=list, max_length=200)
+    # Synth state (plan 72): omitted = keep the CV's current values, so
+    # context edits don't wipe the user's prefer toggle / stars.
+    synth_mode: Optional[Literal["off", "prefer"]] = None
+    synth_pins: Optional[dict[str, str]] = Field(default=None, max_length=100)
 
 
 class SetDocOptionsOp(BaseModel):
@@ -60,6 +64,7 @@ class AddBlockOp(BaseModel):
     kind: str = Field(min_length=1, max_length=40)
     props: dict = Field(default_factory=dict, max_length=30)
     position: Optional[int] = Field(default=None, ge=0, le=24)
+    area: Optional[Literal["main", "sidebar"]] = Field(default=None)
 
 
 class RemoveBlockOp(BaseModel):
@@ -128,3 +133,18 @@ class OpResult(BaseModel):
     op: str
     ok: bool
     detail: str = Field(default="", max_length=300)
+
+
+class CvOpsRequest(BaseModel):
+    """UI-driven builder operations (plan 71): the copilot's op
+    vocabulary applied through the same audited path."""
+
+    ops: list[BuilderOp] = Field(default_factory=list, max_length=12)
+
+
+class CvOpsOut(BaseModel):
+    """Application results + the refreshed builder state in one round
+    trip (`template_id` reflects private-copy re-pointing)."""
+
+    results: list[OpResult]
+    state: dict

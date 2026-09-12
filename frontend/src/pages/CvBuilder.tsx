@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { Eye, FileText, Sparkles } from "lucide-react";
-import { Button, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
+import { Button, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle, PanelModal } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 import {
   aiAction,
   compileCv,
+  createSynthItem,
   draftCoverLetter,
   duplicateCv,
   exportCv,
@@ -15,10 +16,14 @@ import {
   fetchContextStatus,
   fetchCoverLetterBrief,
   fetchCv,
+  fetchCvDesign,
+  fetchSynthItems,
   fetchVersionPreview,
   fetchLint,
   fetchVersions,
+  applyCvOps,
   patchCv,
+  patchSynthItem,
   previewCv,
   restoreVersion,
   setContext,
@@ -28,11 +33,15 @@ import { fetchTemplates } from "@/api/cvTemplates";
 import { fetchPostings } from "@/api/postings";
 import { fetchPhotoGallery, uploadGalleryPhoto, type GalleryPhoto } from "@/api/mePhoto";
 import { BuilderToolbar, EXPORT_FORMATS, type ExportFormat } from "@/components/cv/BuilderToolbar";
+import { PolishTraceCard } from "@/components/cv/PolishTrace";
+import { BuildProgressCard } from "@/components/cv/BuildProgress";
+import { RunsPanelModal } from "@/components/cv/RunsPanel";
 import { openCvChat } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
-import type { CvAssistantState } from "@/types/cvAssistant";
+import type { CvAssistantCritique, CvAssistantState } from "@/types/cvAssistant";
 import { BLOCK_TYPES } from "@/components/cv/blockTypes";
 import { ContextPanel } from "@/components/cv/ContextPanel";
+import { VariantEditor, type VariantEditorBody } from "@/components/cv/VariantEditor";
 import { InspectorPanel, type InspectorTab } from "@/components/cv/InspectorPanel";
 import { PreviewCanvas } from "@/components/cv/PreviewCanvas";
 import { TemplateGallery } from "@/components/cv/TemplateGallery";
@@ -40,7 +49,9 @@ import { CommandPalette, type CommandItem } from "@/components/cv/CommandPalette
 import { GenerateCvModal } from "@/components/cv/GenerateCvModal";
 import { LetterBriefPanel } from "@/components/cv/LetterBriefPanel";
 import { letterPropsOf } from "@/components/cv/LetterSectionsEditor";
+import { areaOf, areasForDesign, type CvArea } from "@/components/cv/areas";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
+import type { CvDesignTokens } from "@/types/cvTemplate";
 import type {
   CoverLetterBriefOut,
   CoverLetterSuggestionOut,
@@ -51,6 +62,7 @@ import type {
   CvProposal,
   CvRenderMetrics,
   CvSuggestionOut,
+  CvSynthItem,
   CvVersionOut,
 } from "@/types/cv";
 function refKey(sourceKey: string, itemId: string): string {
@@ -64,6 +76,13 @@ export function CvBuilder() {
   const pushToast = useToastStore((state) => state.push);
   const [cv, setCv] = useState<CvDocumentOut | null>(null);
   const [sources, setSources] = useState<CvContextSourceOut[]>([]);
+  const [synthItems, setSynthItems] = useState<CvSynthItem[]>([]);
+  const synthPins = ((cv?.context?.synth_pins ?? {}) as Record<string, string>) ?? {};
+  const [variantEditor, setVariantEditor] = useState<{
+    open: boolean;
+    initial: CvSynthItem | null;
+    sourceKey: string;
+  }>({ open: false, initial: null, sourceKey: "" });
   const [templates, setTemplates] = useState<CvTemplateSummary[]>([]);
   const [savedPostings, setSavedPostings] = useState<{ id: string; title: string; org: string }[]>([]);
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
@@ -74,6 +93,10 @@ export function CvBuilder() {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string>>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [versions, setVersions] = useState<CvVersionOut[]>([]);
+  const polishVersion = versions.find(
+    (version) =>
+      (version.content as { polish?: unknown } | undefined)?.polish != null
+  );
   const [lint, setLint] = useState<CvLintReport | null>(null);
   const [suggestion, setSuggestion] = useState<CvSuggestionOut | null>(null);
   const [error, setError] = useState("");
@@ -81,6 +104,8 @@ export function CvBuilder() {
   const [loaded, setLoaded] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [runsOpen, setRunsOpen] = useState(false);
+  const [polishOpen, setPolishOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tone, setTone] = useState("");
   const [length, setLength] = useState("");
@@ -94,6 +119,22 @@ export function CvBuilder() {
     future: { blocks: CvBlock[]; overrides: Record<string, Record<string, string>> }[];
   }>({ past: [], future: [] });
   const [notice, setNotice] = useState<string | null>(null);
+  const [critique, setCritique] = useState<CvAssistantCritique | null>(null);
+  const [snapshotRows, setSnapshotRows] = useState<Record<string, unknown>>({});
+  const [designState, setDesignState] = useState<CvDesignTokens | null>(null);
+  const [designSaved, setDesignSaved] = useState<CvDesignTokens | null>(null);
+  const [designMeta, setDesignMeta] = useState<{
+    id: string;
+    title: string;
+    owned: boolean;
+    ats_safe: boolean;
+  } | null>(null);
+  const [designApplying, setDesignApplying] = useState(false);
+  const designDirty =
+    !!designState &&
+    !!designSaved &&
+    JSON.stringify(designState) !== JSON.stringify(designSaved);
+  void designApplying;
   const [photoUploading, setPhotoUploading] = useState(false);
   const [versionDiff, setVersionDiff] = useState<{
     version: number;
@@ -143,6 +184,7 @@ export function CvBuilder() {
       setHtml(result.html);
       setMetrics(result.metrics);
       setBlocks(result.blocks ?? []);
+      setSnapshotRows(result.resolution.snapshot ?? {});
       const next = new Set<string>();
       for (const [key, ids] of Object.entries(result.resolution.snapshot_index)) {
         for (const itemId of ids) next.add(refKey(key, itemId));
@@ -177,20 +219,96 @@ export function CvBuilder() {
     }
   }, [id, pushToast]);
 
+  const loadDesign = useCallback(async () => {
+    try {
+      const out = await fetchCvDesign(id);
+      setDesignState(out.design);
+      setDesignMeta(out.template);
+      setDesignSaved(out.design);
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  }, [id]);
+
+  const changeDesign = (patch: Partial<CvDesignTokens>) => {
+    setDesignState((current) => (current ? { ...current, ...patch } : current));
+  };
+
+  const resetDesign = () => {
+    setDesignState(designSaved ? { ...designSaved } : null);
+  };
+
+  const applyDesign = async () => {
+    if (!designState || !designSaved) return;
+    const patch: Record<string, unknown> = {};
+    const saved = designSaved as unknown as Record<string, unknown>;
+    for (const [key, value] of Object.entries(designState)) {
+      if (JSON.stringify(value) !== JSON.stringify(saved[key])) {
+        patch[key] = value;
+      }
+    }
+    if (Object.keys(patch).length === 0) return;
+    setDesignApplying(true);
+    try {
+      const out = await applyCvOps(id, [{ op: "update_design", design: patch }]);
+      setDesignState(out.state.design ?? designState);
+      setDesignSaved(out.state.design ?? designState);
+      setHtml(out.state.html);
+      setMetrics(out.state.metrics as CvRenderMetrics);
+      setBlocks(out.state.blocks ?? []);
+      if (out.state.document.template_id) {
+        setCv((prev) =>
+          prev ? ({ ...prev, template_id: out.state.document.template_id } as CvDocumentOut) : prev
+        );
+      }
+      void refreshMeta();
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setDesignApplying(false);
+    }
+  };
+
+  const applyPageSize = async (page_size: string) => {
+    try {
+      const out = await applyCvOps(id, [{ op: "set_doc_options", page_size }]);
+      setHtml(out.state.html);
+      setMetrics(out.state.metrics as CvRenderMetrics);
+      setCv((prev) => (prev ? ({ ...prev, page_size } as CvDocumentOut) : prev));
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  const applyCritiqueFixes = async (fixes: Record<string, string>) => {
+    try {
+      const out = await applyCvOps(id, [{ op: "update_design", design: fixes }]);
+      setHtml(out.state.html);
+      setMetrics(out.state.metrics as CvRenderMetrics);
+      setBlocks(out.state.blocks ?? []);
+      setCritique(null);
+      void refreshMeta();
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [document, context, templateList, postings, photos] = await Promise.all([
+        const [document, context, templateList, postings, photos, variants] = await Promise.all([
           fetchCv(id),
           fetchContextSources(),
           fetchTemplates().catch(() => []),
           fetchPostings({ saved: true }).catch(() => ({ items: [] })),
           fetchPhotoGallery().catch(() => []),
+          fetchSynthItems({ status: "active" }).catch(() => [] as CvSynthItem[]),
         ]);
         if (cancelled) return;
         setCv(document);
         setSources(context.sources);
+        setSynthItems(variants);
         setTemplates(templateList);
         setSavedPostings(
           postings.items.map((row) => ({
@@ -205,6 +323,7 @@ export function CvBuilder() {
         setLoaded(true);
         await refreshPreview();
         await refreshMeta();
+        void loadDesign();
       } catch (err) {
         if (!cancelled) {
           setError(apiDetail(err));
@@ -294,13 +413,101 @@ export function CvBuilder() {
         return { source_key: source, item_id: item };
       });
       try {
-        await setContext(id, { mode: "custom", include, exclude: [] });
+        await setContext(id, {
+          mode: "custom",
+          include,
+          exclude: [],
+          synth_mode: (cv?.context?.synth_mode as "off" | "prefer") ?? "off",
+          synth_pins: synthPins,
+        });
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
       }
     },
-    [id, refreshPreview]
+    [id, cv?.context?.synth_mode, synthPins, refreshPreview]
+  );
+
+  const commitSynthMode = useCallback(
+    async (synth_mode: "off" | "prefer", pins?: Record<string, string>) => {
+      const include = [...selected].map((value) => {
+        const [source, item] = value.split(":");
+        return { source_key: source, item_id: item };
+      });
+      try {
+        const effectivePins = pins ?? synthPins;
+        await setContext(id, {
+          mode: "custom",
+          include,
+          exclude: [],
+          synth_mode,
+          synth_pins: effectivePins,
+        });
+        setCv((prev) =>
+          prev
+            ? ({
+                ...prev,
+                context: {
+                  ...(prev.context ?? {}),
+                  synth_mode,
+                  synth_pins: effectivePins,
+                },
+              } as CvDocumentOut)
+            : prev,
+        );
+        await refreshPreview();
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [id, selected, synthPins, refreshPreview]
+  );
+
+  const commitSynthPin = useCallback(
+    async (
+      sourceKey: string,
+      itemId: string,
+      synthId: string | null,
+      mode: "off" | "prefer",
+    ) => {
+      const pins = { ...synthPins };
+      if (synthId) {
+        pins[`${sourceKey}:${itemId}`] = synthId;
+      } else {
+        delete pins[`${sourceKey}:${itemId}`];
+      }
+      await commitSynthMode(mode, pins);
+    },
+    [synthPins, commitSynthMode]
+  );
+
+  const saveVariant = useCallback(
+    async (body: VariantEditorBody) => {
+      try {
+        if (variantEditor.initial) {
+          await patchSynthItem(variantEditor.initial.id, {
+            payload: body.payload,
+            variant_key: body.variant_key,
+          });
+        } else {
+          await createSynthItem({
+            refs: body.refs,
+            scope: body.scope,
+            payload: body.payload,
+            variant_key: body.variant_key,
+            target_posting_id: body.target_posting_id ?? undefined,
+            voice: body.voice,
+          });
+        }
+        setVariantEditor({ open: false, initial: null, sourceKey: "" });
+        setNotice(t("cvSynth.created"));
+        setSynthItems(await fetchSynthItems({ status: "active" }));
+        await refreshPreview();
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [variantEditor.initial, refreshPreview, t]
   );
 
   const flushPendingSave = useCallback(async () => {
@@ -324,6 +531,7 @@ export function CvBuilder() {
       setOverrides(state.overrides ?? {});
       setHtml(state.html);
       setMetrics(state.metrics);
+      setCritique(state.critique ?? null);
       const next = new Set<string>();
       for (const [key, ids] of Object.entries(state.resolution?.snapshot_index ?? {})) {
         for (const itemId of ids) next.add(refKey(key, itemId));
@@ -444,24 +652,59 @@ export function CvBuilder() {
     persistWorking({ blocks: next, overrides }, true);
   }
 
+  function moveBlockTo(index: number, to: number) {
+    const next = [...blocks];
+    if (to < 0 || to > next.length) return;
+    const [moved] = next.splice(index, 1);
+    next.splice(to > index ? to - 1 : to, 0, moved);
+    persistWorking({ blocks: next, overrides }, true);
+  }
+
+  function assignArea(index: number, area: CvArea["id"]) {
+    const source = blocks[index];
+    if (!source || areaOf(source) === area) return;
+    const marked = blocks.map((block, position) =>
+      position === index
+        ? { ...block, area, column: area as CvArea["id"] }
+        : block
+    );
+    const lastInArea = marked.reduce(
+      (last, block, position) =>
+        position !== index && areaOf(block) === area ? position : last,
+      -1
+    );
+    const [moved] = marked.splice(index, 1);
+    marked.splice(lastInArea >= 0 ? lastInArea : marked.length, 0, moved);
+    persistWorking({ blocks: marked, overrides }, true);
+  }
+
   function removeBlock(index: number) {
     const next = blocks.filter((_, position) => position !== index);
     setNotice(t("cvBuilder.sectionRemoved"));
     persistWorking({ blocks: next, overrides }, true);
   }
 
-  function addBlock(kind: string) {
+  function addBlock(kind: string, area?: CvArea["id"]) {
     const props = { ...(BLOCK_TYPES.find((type) => type.value === kind)?.props ?? {}) };
-    const next = [...blocks, { kind, props }];
+    const target = area ?? areas[0].id;
+    const block: CvBlock =
+      areas.length > 1 ? { kind, props, area: target, column: target } : { kind, props };
+    const next = [...blocks];
+    const last = next.map(areaOf).lastIndexOf(target);
+    next.splice(last === -1 ? next.length : last + 1, 0, block);
+    setNotice(t("cvBuilder.sectionAdded"));
     persistWorking({ blocks: next, overrides }, true);
   }
 
   function duplicateBlock(index: number) {
     const source = blocks[index];
     if (!source) return;
+    const area = areaOf(source);
     const copy: CvBlock = {
       kind: source.kind,
       props: JSON.parse(JSON.stringify(source.props ?? {})) as Record<string, unknown>,
+      ...(source.area ? { area: source.area } : {}),
+      ...(areas.length > 1 ? { column: area } : {}),
     };
     const next = [...blocks];
     next.splice(index + 1, 0, copy);
@@ -475,6 +718,47 @@ export function CvBuilder() {
     );
     persistWorking({ blocks: next, overrides });
   }
+
+  const itemOptions = useMemo(() => {
+    const out: Record<string, { id: string; label: string }[]> = {};
+    for (const [key, rows] of Object.entries(snapshotRows)) {
+      if (!Array.isArray(rows)) continue;
+      const list = rows
+        .map((row) => {
+          const entry = row as {
+            id?: string;
+            item_id?: string;
+            title?: string;
+            program?: string;
+            issuer?: string;
+            label?: string;
+          };
+          return {
+            id: String(entry.id ?? entry.item_id ?? ""),
+            label: String(
+              entry.title ?? entry.program ?? entry.issuer ?? entry.label ?? ""
+            ),
+          };
+        })
+        .filter((entry) => entry.id && entry.label);
+      if (list.length > 0) out[key] = list;
+    }
+    return out;
+  }, [snapshotRows]);
+
+  const synthOptions = useMemo(
+    () =>
+      synthItems
+        .filter((variant) => variant.status !== "archived")
+        .map((variant) => ({
+          id: variant.id,
+          label:
+            (variant.payload.description || variant.payload.summary || "")
+              .slice(0, 42) || `${variant.variant_key} · ${variant.voice.language}`,
+          stale: variant.stale,
+        })),
+    [synthItems]
+  );
 
   const applyPhoto = useCallback(
     async (photoDocumentId: string) => {
@@ -660,6 +944,10 @@ export function CvBuilder() {
   const pages = metrics.estimated_pages ?? 1;
   const maxPages = cv?.max_pages ?? 1;
   const currentLetter = isLetter ? letterPropsOf(blocks) : null;
+  const activeDesign = templates.find(
+    (row) => row.id === (cv?.template_id ?? "")
+  )?.content?.design;
+  const areas = areasForDesign(activeDesign as Partial<CvDesignTokens>);
 
   if (!loaded) {
     return (
@@ -679,6 +967,7 @@ export function CvBuilder() {
   const commands: CommandItem[] = [
     { id: "save-version", label: t("templateEditor.saveVersion"), hint: "Ctrl+S", run: () => void saveVersion() },
     { id: "open-versions", label: t("cvBuilder.showVersions"), run: () => setVersionsOpen(true) },
+    { id: "open-runs", label: t("cvBuilder.runs.title"), run: () => setRunsOpen(true) },
     { id: "browse-templates", label: t("cvBuilder.browseTemplates"), run: () => setGalleryOpen(true) },
     { id: "ask-ai", label: t("cvBuilder.askAssistant"), run: () => void openCvChat(id, "docked") },
     ...(isLetter
@@ -718,7 +1007,8 @@ export function CvBuilder() {
         onSaveVersion={() => void saveVersion()}
         onExport={(format) => void handleExport(format)}
         onOpenVersions={() => setVersionsOpen(true)}
-        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenRuns={() => setRunsOpen(true)}
+        onOpenPolish={polishVersion ? () => setPolishOpen(true) : null}        onOpenPalette={() => setPaletteOpen(true)}
         onOpenAssistant={() => void openCvChat(id, "docked")}
         onUndo={undo}
         onRedo={redo}
@@ -745,6 +1035,12 @@ export function CvBuilder() {
           </Button>
         </div>
       )}
+
+      <BuildProgressCard
+        cvId={id}
+        onOpenRuns={() => setRunsOpen(true)}
+        onRunFinished={() => void refreshPreview().then(refreshMeta)}
+      />
 
       <div className="mb-2 flex shrink-0 gap-1 lg:hidden" role="group" aria-label={t("experience.panesAria")} data-testid="pane-switcher">
         {(
@@ -789,6 +1085,25 @@ export function CvBuilder() {
               onToggle={toggleItem}
               onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
               onBullet={(sourceKey, itemId) => void runAction("bullet", { source_key: sourceKey, item_id: itemId })}
+              synthMode={(cv?.context?.synth_mode as "off" | "prefer") ?? "off"}
+              onSynthModeChange={(mode) => void commitSynthMode(mode)}
+              synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
+              onPinVariant={(sourceKey, itemId, synthId) =>
+                void commitSynthPin(
+                  sourceKey,
+                  itemId,
+                  synthId,
+                  (cv?.context?.synth_mode as "off" | "prefer") ?? "off",
+                )
+              }
+              variants={synthItems}
+              onAddVariant={(sourceKey) =>
+                setVariantEditor({ open: true, initial: null, sourceKey })
+              }
+              onEditVariant={(variant) =>
+                setVariantEditor({ open: true, initial: variant, sourceKey: "" })
+              }
+              busy={busy !== ""}
             />
           )}
         </div>
@@ -799,7 +1114,12 @@ export function CvBuilder() {
           } cv-pane-enter min-h-0 flex-col lg:flex`}
           data-testid="builder-canvas"
         >
-          <PreviewCanvas html={html} loading={previewLoading} pageSize={cv?.page_size} />
+          <PreviewCanvas
+            html={html}
+            loading={previewLoading}
+            pageSize={cv?.page_size}
+            pages={Number(metrics.estimated_pages) || 1}
+          />
         </div>
 
         <div
@@ -830,6 +1150,14 @@ export function CvBuilder() {
             onCustomizeTemplate={() => {
               if (cv.template_id) navigate(`/cv/templates/${cv.template_id}`);
             }}
+            design={designState}
+            designTemplateMeta={designMeta}
+            designDirty={designDirty}
+            onDesignChange={changeDesign}
+            onDesignApply={() => void applyDesign()}
+            onDesignReset={resetDesign}
+            pageSize={cv.page_size}
+            onPageSize={(page_size) => void applyPageSize(page_size)}
             photos={photos}
             photoId={cv.photo_document_id ?? ""}
             onPhoto={(photoId) => void applyPhoto(photoId)}
@@ -837,14 +1165,24 @@ export function CvBuilder() {
             onUploadPhoto={(file) => void handlePhotoUpload(file)}
             onError={setError}
             blocks={blocks}
+            areas={areas}
+            skillOptions={Array.isArray(snapshotRows.skills)
+              ? (snapshotRows.skills as { item_id?: string; label?: string; title?: string }[]).map((row) => ({
+                  id: String(row.item_id ?? row.label ?? ""),
+                  label: String(row.label ?? row.title ?? ""),
+                }))
+              : []}
+            itemOptions={itemOptions}
+            synthOptions={synthOptions}
             onAddBlock={addBlock}
             onMoveBlock={moveBlock}
+            onAssignArea={assignArea}
             onDuplicateBlock={duplicateBlock}
             onRemoveBlock={removeBlock}
             onUpdateBlockProps={updateBlockProps}
             dragIndexRef={dragIndex}
             onDragReorder={(target) => {
-              if (dragIndex.current !== null) moveBlock(dragIndex.current, target);
+              if (dragIndex.current !== null) moveBlockTo(dragIndex.current, target);
               dragIndex.current = null;
             }}
             busy={busy}
@@ -863,6 +1201,8 @@ export function CvBuilder() {
             onCloseSuggestion={() => setSuggestion(null)}
             onApplyProposal={(entry) => void applyProposal(entry)}
             lint={lint}
+            critique={critique}
+            onApplyCritiqueFixes={(fixes) => void applyCritiqueFixes(fixes)}
           />
         </div>
       </div>
@@ -885,6 +1225,21 @@ export function CvBuilder() {
         </div>
       )}
 
+      <RunsPanelModal open={runsOpen} onOpenChange={setRunsOpen} cv={cv} />
+      <PanelModal
+        open={polishOpen}
+        onOpenChange={setPolishOpen}
+        title={t("cvBuilder.polishReview.title")}
+        data-testid="polish-review-panel"
+      >
+        <div className="max-h-[70vh] overflow-y-auto px-4 pb-4 pt-2" data-testid="polish-review-body">
+          {polishVersion ? (
+            <PolishTraceCard version={polishVersion} />
+          ) : (
+            <p className="text-xs text-[var(--as-muted-fg)]">{t("cvBuilder.polishReview.empty")}</p>
+          )}
+        </div>
+      </PanelModal>
       <Modal open={versionsOpen} onOpenChange={(open) => !open && setVersionsOpen(false)}>
         <ModalContent size="md" aria-describedby={undefined}>
           <ModalHeader>
@@ -1097,6 +1452,20 @@ export function CvBuilder() {
       />
 
       <GenerateCvModal open={generateOpen} onOpenChange={setGenerateOpen} />
+
+      {variantEditor.open && (
+        <VariantEditor
+          open
+          sources={sources ?? []}
+          savedPostings={savedPostings}
+          initial={variantEditor.initial}
+          defaultLanguage={cv.language}
+          defaultSourceKey={variantEditor.sourceKey}
+          busy={busy !== ""}
+          onClose={() => setVariantEditor({ open: false, initial: null, sourceKey: "" })}
+          onSubmit={saveVariant}
+        />
+      )}
     </div>
   );
 }

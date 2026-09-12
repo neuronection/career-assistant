@@ -5,8 +5,11 @@ import {
   fetchMySkills,
   fetchSkillOntology,
   saveMySkills,
+  setSkillDeriveEnabled,
+  deleteMySkill,
 } from "@/api/skills";
 import type { SkillSummary } from "@/api/skills";
+import { fetchDerivation } from "@/api/experience";
 import { ComboboxField } from "@/components/cv/formPrimitives";
 import { ProfileSectionCard } from "@/components/profile/ProfileSectionCard";
 import { ScaleSlider } from "@/components/ui";
@@ -27,6 +30,9 @@ const DEFAULT_LEVEL = 5;
 export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
   const [skills, setSkills] = useState<UserSkill[]>([]);
   const [options, setOptions] = useState<{ label: string; value: string }[]>([]);
+  const [derivation, setDerivation] = useState<
+    Record<string, { level: number; months: number; claimed_level?: number | null }>
+  >({});
   const [saving, setSaving] = useState(false);
   const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
@@ -35,11 +41,17 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
   useEffect(() => {
     void (async () => {
       try {
-        const [rows, ontology] = await Promise.all([
+        const [rows, ontology, derived] = await Promise.all([
           fetchMySkills(),
           fetchSkillOntology(),
+          fetchDerivation().catch(() => null),
         ]);
         setSkills(rows);
+        setDerivation(
+          Object.fromEntries(
+            (derived?.skills ?? []).map((item) => [item.skill_id, item])
+          )
+        );
         setOptions(
           ontology.map((s: SkillSummary) => ({
             label: `${s.label} (${s.category})`,
@@ -82,6 +94,64 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
     void persist(next);
   };
 
+  const forgetSkill = async (skill: UserSkill) => {
+    setSaving(true);
+    setError("");
+    setSkills((prev) => prev.filter((p) => p.key !== skill.key));
+    try {
+      await deleteMySkill(skill.skill_id);
+      onChanged?.();
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const takeOver = (skill: UserSkill) => {
+    const next = [
+      ...skills
+        .filter((s) => s.source === "self_report")
+        .map((s) => ({ skill_key: s.key, level: s.level })),
+      { skill_key: skill.key, level: skill.level },
+    ];
+    void persist(next);
+  };
+
+  const toggleDerive = async (skill: UserSkill, derive_enabled: boolean) => {
+    setSaving(true);
+    setError("");
+    setSkills((prev) =>
+      prev.map((p) =>
+        p.key === skill.key ? { ...p, derive_enabled } : p
+      )
+    );
+    try {
+      const updated = await setSkillDeriveEnabled(skill.skill_id, derive_enabled);
+      setSkills((prev) =>
+        prev.map((p) => (p.key === updated.key ? updated : p))
+      );
+      onChanged?.();
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const derivedTitle = (s: UserSkill) => {
+    const derived = derivation[s.skill_id];
+    if (derived) {
+      return t("profileSection.derivedFrom", {
+        level: derived.level.toFixed(1),
+        months: derived.months,
+      });
+    }
+    return t("profileSection.fromSource", {
+      source: s.source.replace(/_/g, " "),
+    });
+  };
+
   const addSkill = (raw: string) => {
     if (!raw.trim()) return;
     const key = slugifyKey(raw);
@@ -95,8 +165,9 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
     void persist(next);
   };
 
-  const selfReported = skills.filter((s) => s.source === "self_report");
-  const fromSystem = skills.filter((s) => s.source !== "self_report");
+  const disabledSkills = skills.filter(
+    (s) => s.derive_enabled === false && s.hidden !== true
+  );
 
   return (
     <ProfileSectionCard
@@ -114,9 +185,27 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
             {t("profileSection.noSkillsYet")}
           </p>
         )}
+        <div className="flex justify-end">
+          <div className="w-56">
+            <ComboboxField
+              label={saving ? t("profileSection.adding") : t("profileSection.addSkill")}
+              value=""
+              onChange={(value) => addSkill(value)}
+              options={choices}
+              allowCreate
+              createLabel={(term) => t("experience.addSkill", { name: term })}
+              placeholder={t("profileSection.skillSearchPlaceholder")}
+              hideLabel
+              testId="add-skill"
+            />
+          </div>
+        </div>
         {skills.length > 0 && (
-          <ul className="space-y-2">
-            {[...selfReported, ...fromSystem].map((s) => (
+          <>
+            <ul className="space-y-2">
+              {skills
+                .filter((s) => s.derive_enabled !== false && s.hidden !== true)
+                .map((s) => (
               <li key={s.key} className="flex items-center gap-3">
                 <span className="w-44 shrink-0 text-sm text-[var(--as-fg)]">
                   {s.label}
@@ -146,16 +235,26 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
                         );
                       }}
                       onPointerUp={() => {
-                        if (s.level !== undefined) {
-                          void persist([{ skill_key: s.key, level: s.level }]);
-                        }
+                        if (s.level === undefined) return;
+                        const next = skills
+                          .filter((row) => row.source === "self_report")
+                          .map((row) => ({
+                            skill_key: row.key,
+                            level: row.key === s.key ? s.level : row.level,
+                          }));
+                        void persist(next);
                       }}
                     />
                   </div>
                 ) : (
-                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--as-muted)]">
+                  <div
+                    className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--as-muted)]"
+                    title={derivedTitle(s)}
+                  >
                     <div
-                      className="h-1.5 rounded-full bg-[var(--as-accent)]"
+                      className={`h-1.5 rounded-full ${
+                        s.derive_enabled ? "bg-[var(--as-accent)]" : "bg-[var(--as-muted-fg)]"
+                      }`}
                       style={{ width: `${(s.level / 10) * 100}%` }}
                     />
                   </div>
@@ -163,7 +262,7 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
                 <span className="w-8 text-right text-xs text-[var(--as-muted-fg)]">
                   {s.level}/10
                 </span>
-                {s.source === "self_report" && (
+                {s.source === "self_report" ? (
                   <button
                     type="button"
                     onClick={() => removeSkill(s.key)}
@@ -173,24 +272,116 @@ export function SkillsCard({ complete = null, onChanged }: SkillsCardProps) {
                   >
                     {t("profileSection.remove")}
                   </button>
+                ) : (
+                  <span className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => takeOver(s)}
+                      className="cursor-pointer rounded p-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
+                      aria-label={t("profileSection.takeOverAria", { name: s.label })}
+                      title={t("profileSection.takeOverHint")}
+                      data-testid={`skill-takeover-${s.key}`}
+                    >
+                      {t("profileSection.edit")}
+                    </button>
+                    {s.derive_enabled ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void toggleDerive(s, false)}
+                          className="cursor-pointer rounded p-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-danger)]"
+                          aria-label={t("profileSection.disableAria", { name: s.label })}
+                          title={t("profileSection.disableHint")}
+                          data-testid={`skill-disable-${s.key}`}
+                        >
+                          {t("profileSection.disable")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void forgetSkill(s)}
+                          className="cursor-pointer rounded p-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-danger)]"
+                          aria-label={t("profileSection.forgetAria", { name: s.label })}
+                          title={t("profileSection.forgetHint")}
+                          data-testid={`skill-forget-${s.key}`}
+                        >
+                          {t("profileSection.remove")}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void toggleDerive(s, true)}
+                        className="cursor-pointer rounded p-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
+                        aria-label={t("profileSection.enableAria", { name: s.label })}
+                        title={t("profileSection.disableHint")}
+                        data-testid={`skill-enable-${s.key}`}
+                      >
+                        {t("profileSection.enable")}
+                      </button>
+                    )}
+                  </span>
                 )}
               </li>
             ))}
-          </ul>
+            </ul>
+            {disabledSkills.length > 0 && (
+              <details
+                className="rounded-lg border border-[var(--as-border)] p-2"
+                data-testid="skill-disabled-group"
+              >
+                <summary className="cursor-pointer select-none text-xs text-[var(--as-muted-fg)]">
+                  {t("profileSection.disabledCount", { count: disabledSkills.length })}
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  {disabledSkills.map((s) => (
+                    <li
+                      key={s.key}
+                      className="flex items-center gap-3 opacity-70"
+                      data-testid={`skill-disabled-${s.key}`}
+                    >
+                      <span className="w-44 shrink-0 truncate text-sm text-[var(--as-fg)]">
+                        {s.label}
+                        <span
+                          className="ml-1 inline-block rounded-full bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]"
+                          title={derivedTitle(s)}
+                          data-testid={`skill-source-${s.key}`}
+                        >
+                          {s.source.replace(/_/g, " ")} · {t("profileSection.deriveOff")}
+                        </span>
+                      </span>
+                      <span className="min-w-0 flex-1 text-xs text-[var(--as-muted-fg)]">
+                        {t("profileSection.derivedUncounted")}
+                      </span>
+                      <span className="w-8 text-right text-xs text-[var(--as-muted-fg)]">
+                        {s.level}/10
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void toggleDerive(s, true)}
+                        className="cursor-pointer rounded p-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
+                        aria-label={t("profileSection.enableAria", { name: s.label })}
+                        title={t("profileSection.disableHint")}
+                        data-testid={`skill-enable-${s.key}`}
+                      >
+                        {t("profileSection.enable")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void forgetSkill(s)}
+                        className="cursor-pointer rounded p-0.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-danger)]"
+                        aria-label={t("profileSection.forgetAria", { name: s.label })}
+                        title={t("profileSection.forgetHint")}
+                        data-testid={`skill-forget-${s.key}`}
+                      >
+                        {t("profileSection.remove")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
         )}
-        <div className="max-w-sm">
-          <ComboboxField
-            label={saving ? t("profileSection.adding") : t("profileSection.addSkill")}
-            value=""
-            onChange={(value) => addSkill(value)}
-            options={choices}
-            allowCreate
-            createLabel={(term) => t("experience.addSkill", { name: term })}
-            placeholder={t("profileSection.skillSearchPlaceholder")}
-            hint={t("profileSection.skillAddHint")}
-            testId="add-skill"
-          />
-        </div>
       </div>
     </ProfileSectionCard>
   );

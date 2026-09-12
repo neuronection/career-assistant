@@ -119,6 +119,19 @@ export type CvIntakeSection =
 
 export type CvSelections = Partial<Record<CvIntakeSection, true | number[]>>;
 
+export interface CvAppliedEntity {
+  entity_type:
+    | "basics"
+    | "skills"
+    | "experience_items"
+    | "education_items"
+    | "certifications"
+    | "profile_achievements"
+    | "user_interest"
+    | "academics_languages";
+  count: number;
+}
+
 export interface CvDraft {
   id: string;
   status: "pending" | "applied" | "discarded";
@@ -131,6 +144,7 @@ export interface CvDraft {
     duplicates?: unknown[];
   };
   section_count?: number;
+  applied?: CvAppliedEntity[];
 }
 
 export interface CvApplyReport {

@@ -4,6 +4,7 @@ import type {
   CoverLetterCreate,
   CoverLetterSuggestionOut,
   CvCompileOut,
+  CvContextRef,
   CvContextSelection,
   CvContextSourcesOut,
   CvContextStatusOut,
@@ -11,11 +12,20 @@ import type {
   CvDocumentOut,
   CvDocumentUpdate,
   CvGenerateRequest,
+  CvGeneratePreviewOut,
   CvLintReport,
   CvPreviewOut,
+  CvRunOut,
   CvSuggestionOut,
+  CvSynthGenerateOut,
+  CvSynthGenerateRequest,
+  CvSynthItem,
+  CvSynthPayload,
+  CvSynthPreview,
   CvVersionOut,
 } from "@/types/cv";
+import type { CvAssistantState } from "@/types/cvAssistant";
+import type { CvDesignTokens } from "@/types/cvTemplate";
 
 export async function fetchCvs(): Promise<CvDocumentOut[]> {
   const { data } = await api.get<CvDocumentOut[]>("/cv");
@@ -142,6 +152,36 @@ export async function generateCv(
   return data;
 }
 
+export async function previewSynthMatches(body: {
+  language: string;
+  target_posting_id?: string;
+  refs?: { source_key: string; item_id: string }[];
+  context?: CvContextSelection;
+}): Promise<CvSynthPreview> {
+  const { data } = await api.post<CvSynthPreview>("/cv/synth/preview", body);
+  return data;
+}
+
+export async function fetchGeneratePreview(
+  jobId: string
+): Promise<CvGeneratePreviewOut> {
+  const { data } = await api.get<CvGeneratePreviewOut>(
+    `/cv/generate/${jobId}/preview`
+  );
+  return data;
+}
+
+export async function polishCv(
+  cvId: string,
+  resumedFrom?: string
+): Promise<{ job_id: string; status: string }> {
+  const { data } = await api.post<{ job_id: string; status: string }>(
+    `/cv/${cvId}/polish`,
+    resumedFrom ? { resumed_from: resumedFrom } : {}
+  );
+  return data;
+}
+
 export async function fetchCoverLetterBrief(
   postingId: string
 ): Promise<CoverLetterBriefOut> {
@@ -159,5 +199,86 @@ export async function draftCoverLetter(
     `/cv/${id}/ai/cover_letter`,
     body
   );
+  return data;
+}
+
+// — Synthesized variant library (plan 62)
+
+export async function fetchSynthItems(
+  params: {
+    status?: string;
+    source_key?: string;
+    language?: string;
+    posting_id?: string;
+    stale?: boolean;
+  } = {}
+): Promise<CvSynthItem[]> {
+  const { data } = await api.get<CvSynthItem[]>("/cv/synth", { params });
+  return data;
+}
+
+export async function createSynthItem(body: {
+  refs: CvContextRef[];
+  scope: "item" | "summary";
+  payload: CvSynthPayload;
+  variant_key?: string;
+  target_posting_id?: string;
+  voice?: { language?: string; tone?: string; length?: string };
+}): Promise<CvSynthItem> {
+  const { data } = await api.post<CvSynthItem>("/cv/synth", body);
+  return data;
+}
+
+export async function generateSynthItems(
+  body: CvSynthGenerateRequest
+): Promise<CvSynthGenerateOut> {
+  const { data } = await api.post<CvSynthGenerateOut>("/cv/synth/generate", body);
+  return data;
+}
+
+export async function regenerateSynthItem(id: string): Promise<CvSynthGenerateOut> {
+  const { data } = await api.post<CvSynthGenerateOut>(`/cv/synth/${id}/regenerate`);
+  return data;
+}
+
+export async function patchSynthItem(
+  id: string,
+  body: {
+    payload?: CvSynthPayload;
+    status?: "draft" | "active" | "archived";
+    variant_key?: string;
+  }
+): Promise<CvSynthItem> {
+  const { data } = await api.patch<CvSynthItem>(`/cv/synth/${id}`, body);
+  return data;
+}
+
+export async function deleteSynthItem(id: string): Promise<void> {
+  await api.delete(`/cv/synth/${id}`);
+}
+
+export async function fetchCvRuns(cvId: string): Promise<CvRunOut[]> {
+  const { data } = await api.get<CvRunOut[]>(`/cv/${cvId}/runs`);
+  return data;
+}
+
+export async function fetchCvDesign(
+  cvId: string
+): Promise<{
+  design: CvDesignTokens;
+  template: { id: string; title: string; owned: boolean; ats_safe: boolean } | null;
+}> {
+  const { data } = await api.get(`/cv/${cvId}/design`);
+  return data;
+}
+
+export async function applyCvOps(
+  cvId: string,
+  ops: Record<string, unknown>[]
+): Promise<{
+  results: { op: string; ok: boolean; detail: string }[];
+  state: CvAssistantState;
+}> {
+  const { data } = await api.post(`/cv/${cvId}/ops`, { ops });
   return data;
 }

@@ -5,9 +5,11 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import AuthError, decode_access_token
 from app.models.user_model import Profile, User
+from app.services.auth_service import get_or_create_default_user
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -16,8 +18,14 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Resolve the authenticated user from the Authorization header."""
+    """Resolve the authenticated user from the Authorization header.
+
+    In single-user mode an absent token resolves to the default user
+    instead of rejecting the request; presented tokens are still validated.
+    """
     if credentials is None:
+        if settings.SINGLE_USER_MODE:
+            return await get_or_create_default_user(db)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     try:
         user_id, token_version = decode_access_token(credentials.credentials)

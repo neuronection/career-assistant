@@ -74,6 +74,7 @@ TABLES = [
     "posting_skills",
     "posting_fits",
     "interview_sessions",
+    "cv_synth_items",
     "job_postings",
     "organizations",
     "job_sources",
@@ -101,6 +102,7 @@ TABLES = [
     "job_department_links",
     "department_admissions",
     "cv_parse_drafts",
+    "cv_intake_applied",
     "departments",
     "universities",
     "career_path_steps",
@@ -152,6 +154,9 @@ async def clean_db() -> AsyncGenerator:
     isolation guarantee is unchanged.
     """
     async with _engine.connect() as conn:
+        from app.core.ratelimit import limiter
+
+        limiter.reset()
         transaction = await conn.begin()
         yield conn
         if transaction.is_active:
@@ -188,8 +193,34 @@ async def client(clean_db) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def auth_headers(client: AsyncClient) -> dict:
-    """Register a user and return bearer auth headers."""
+async def auth_headers(client: AsyncClient, db) -> dict:
+    """Bearer auth headers for API calls.
+
+    Single-user mode: warm the default user via /auth/me, then mint a token
+    for it (tests decode the user id from the token). Multi-user mode:
+    register student@example.com through the regular register endpoint.
+    """
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.core.security import create_access_token
+    from app.models.user_model import User
+
+    if settings.SINGLE_USER_MODE:
+        response = await client.get("/api/v1/auth/me")
+        assert response.status_code == 200, response.text
+        user = (
+            (
+                await db.execute(
+                    select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        assert user is not None
+        token = create_access_token(user.id, user.token_version)
+        return {"Authorization": f"Bearer {token}"}
     response = await client.post(
         "/api/v1/auth/register",
         json={
@@ -449,3 +480,11 @@ async def client_admin_headers(client, db):
     row.is_admin = True
     await db.commit()
     return {"Authorization": f"Bearer {first.json()['access_token']}"}
+
+
+@pytest.fixture
+def multi_user_mode(monkeypatch):
+    """Disable single-user mode: strict JWT auth like the future family auth."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "SINGLE_USER_MODE", False)

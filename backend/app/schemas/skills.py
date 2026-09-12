@@ -35,6 +35,12 @@ class UserSkillOut(BaseModel):
     source: UserSkillSource
     confidence: float
     level_anchors: list[dict] = Field(default_factory=list)
+    derive_enabled: bool = True
+    hidden: bool = False
+
+
+class UserSkillPatchIn(BaseModel):
+    derive_enabled: bool
 
 
 class GapOut(BaseModel):

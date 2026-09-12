@@ -10,6 +10,7 @@ from app.api.v1 import (
     background_jobs,
     chat,
     cv_intake,
+    cv_synth,
     cvs,
     cv_templates,
     documents,
@@ -52,6 +53,7 @@ api_router.include_router(universities.router)
 api_router.include_router(documents.router)
 api_router.include_router(cv_templates.router)
 api_router.include_router(cv_intake.router)
+api_router.include_router(cv_synth.router)
 api_router.include_router(cvs.router)
 api_router.include_router(matching.router)
 api_router.include_router(engagement.router)

@@ -37,6 +37,20 @@ export async function saveMySkills(
   return data;
 }
 
+export async function setSkillDeriveEnabled(
+  skillId: string,
+  derive_enabled: boolean,
+): Promise<UserSkill> {
+  const { data } = await api.patch<UserSkill>(`/me/skills/${skillId}`, {
+    derive_enabled,
+  });
+  return data;
+}
+
+export async function deleteMySkill(skillId: string): Promise<void> {
+  await api.delete(`/me/skills/${skillId}`);
+}
+
 export async function fetchSkillGaps(jobRef: string): Promise<SkillGapReport> {
   const { data } = await api.get<SkillGapReport>("/me/skills/gaps", {
     params: { job_id: jobRef },

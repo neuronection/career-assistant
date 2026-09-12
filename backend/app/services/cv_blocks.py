@@ -65,6 +65,7 @@ SAMPLE_SNAPSHOT: dict = {
     ),
     "experience": [
         {
+            "id": "exp-1",
             "title": "Software Intern",
             "org": "Sample Corp",
             "start": "2024-06",
@@ -87,6 +88,7 @@ SAMPLE_SNAPSHOT: dict = {
     "certifications": [],
     "projects": [
         {
+            "id": "proj-1",
             "title": "Campus events app",
             "start": "2023-02",
             "end": "2023-06",
@@ -110,6 +112,21 @@ SAMPLE_SNAPSHOT: dict = {
         }
     ],
     "interests": [{"label": "Open source"}, {"label": "Board games"}],
+    "synth": [
+        {
+            "id": "synth-1",
+            "title": "Software Intern",
+            "description": "Internship rewritten for backend roles.",
+            "bullets": ["Cut manual QA setup from 2h to 20min"],
+            "source_refs": [
+                {
+                    "source_key": "experience",
+                    "item_id": "exp-1",
+                    "label": "Software Intern",
+                }
+            ],
+        }
+    ],
 }
 
 
@@ -129,29 +146,49 @@ class ItemsBlockProps(BaseModel):
 
     title: str = Field(default="", max_length=60)
     source_key: str = Field(min_length=1, max_length=60)
+    # Optional kind filter (empty = all kinds). Lets one template split
+    # the experience buckets into separate sections (Work / Projects).
+    kinds: list[Literal["job", "internship", "project", "freelance", "volunteer"]] = (
+        Field(default_factory=list, max_length=5)
+    )
     max_items: int = Field(default=10, ge=1, le=30)
+    # Item-id ordering (snapshot row ids; snapshot rows carry their
+    # context `id`). A partial list means "these first, then the
+    # remainder in resolved order" — robust against removed items. The
+    # user's order also decides what `max_items` truncation keeps.
+    order: list[str] = Field(default_factory=list, max_length=40)
     show_skills: bool = True
     show_achievements: bool = True
     show_org: bool = True
     show_description: bool = True
     date_format: Literal["mon_yyyy", "iso", "eu", "year"] = "mon_yyyy"
     style: Literal["list", "timeline"] = "list"
+    # Drop language-proficiency certificates here when the languages
+    # block claims them inline (they print once, under Languages).
+    exclude_proficiency: bool = Field(default=False)
     container: BlockContainer = Field(default_factory=BlockContainer)
 
 
 class SkillsProps(BaseModel):
     title: str = Field(default="Skills", max_length=60)
-    display: Literal["chips", "list", "grouped"] = "chips"
-    show_levels: bool = False
-    max_items: int = Field(default=18, ge=1, le=40)
     display: Literal["chips", "list", "grouped", "bars"] = "chips"
     show_levels: bool = False
     max_items: int = Field(default=18, ge=1, le=40)
+    # Per-item subset of the resolved skills (context item ids = skill
+    # uuids); empty or absent = render all (default behavior).
+    selected: list[str] = Field(default_factory=list, max_length=40)
     container: BlockContainer = Field(default_factory=BlockContainer)
 
 
 class LanguagesProps(BaseModel):
     title: str = Field(default="Languages", max_length=60)
+    display: Literal["chips", "list"] = "chips"
+    # "English — Advanced (C1)": representative CEFR band next to the level.
+    show_cefr: bool = False
+    # Append the latest language-proficiency certificate inline
+    # ("… · EF SET, Jun 2025"); pair with `exclude_proficiency` on the
+    # certifications `items` block to print it once.
+    show_proficiency: bool = False
     container: BlockContainer = Field(default_factory=BlockContainer)
 
 
@@ -193,6 +230,25 @@ class LetterProps(BaseModel):
 
 class SpacerProps(BaseModel):
     height_mm: int = Field(default=4, ge=2, le=20)
+
+
+class SynthItemsProps(BaseModel):
+    """Synthesized-variant highlights("Custom highlights" section).
+
+    Entries render the `synth` snapshot key computed per CV in
+    `CvBuilderService.resolution`: active variants whose refs match the
+    CV's language/posting, deduped to the `match_for_user` winner per
+    ref (excluded in `prefer` mode where the variant already renders
+    inside its referenced item). `selected` (synth item ids) limits the
+    listing; empty = all applicable. Stale variants list too (parity
+    with the overlay) — the config UI surfaces staleness.
+    """
+
+    title: str = Field(default="Highlights", max_length=60)
+    selected: list[str] = Field(default_factory=list, max_length=40)
+    show_source_chips: bool = True
+    max_items: int = Field(default=6, ge=1, le=20)
+    container: BlockContainer = Field(default_factory=BlockContainer)
 
 
 class BlockSpec:
@@ -254,9 +310,24 @@ BUILTIN_BLOCKS: dict[str, BlockSpec] = {
         },
     ),
     "spacer": BlockSpec("spacer", SpacerProps, {"height_mm": 4}),
+    "synth_items": BlockSpec(
+        "synth_items",
+        SynthItemsProps,
+        {"title": "Highlights", "max_items": 6, "show_source_chips": True},
+    ),
 }
 
 REGISTRY: dict[str, BlockSpec] = dict(BUILTIN_BLOCKS)
+
+# Layout areas a template declares. Sidebar templates have two; `single`
+# layouts render everything into `main` (the sidebar mark is ignored).
+CV_AREAS = ("main", "sidebar")
+
+
+def block_area(block: dict) -> str:
+    """The layout area a block is assigned to (`area`, legacy `column`)."""
+    area = block.get("area") or block.get("column")
+    return "sidebar" if area == "sidebar" else "main"
 
 
 def register_block_kind(spec: BlockSpec) -> None:

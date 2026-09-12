@@ -79,7 +79,12 @@ async def near_miss_radar(
     skill_levels = {
         row.skill_id: row.level
         for row in (
-            await db.execute(select(UserSkill).where(UserSkill.user_id == user_id))
+            await db.execute(
+                select(UserSkill).where(
+                    UserSkill.user_id == user_id,
+                    UserSkill.derive_enabled,
+                )
+            )
         )
         .scalars()
         .all()
@@ -366,7 +371,16 @@ async def patch_step(
                 .scalars()
                 .first()
             )
-            if existing is not None and abs(existing.level - int(level)) > 2:
+            if existing is not None and not existing.derive_enabled:
+                conflicts.append(
+                    {
+                        "skill_id": str(step.skill_id),
+                        "self_level": existing.level,
+                        "reported_level": int(level),
+                        "reason": "derive_disabled",
+                    }
+                )
+            elif existing is not None and abs(existing.level - int(level)) > 2:
                 conflicts.append(
                     {
                         "skill_id": str(step.skill_id),
@@ -609,6 +623,8 @@ async def complete_checkin(
                 if skill_id is None or not 1 <= int(level) <= 10:
                     continue
                 row = existing.get(skill_id)
+                if row is not None and not row.derive_enabled:
+                    continue
                 if row is not None and abs(row.level - int(level)) > 2:
                     conflicts.append(
                         {

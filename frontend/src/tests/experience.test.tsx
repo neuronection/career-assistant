@@ -10,6 +10,7 @@ import {
   applyDerivation,
   createExperienceItem,
   updateExperienceItem,
+  deleteExperienceItem,
 } from "@/api/experience";
 import { fetchSkillOntology } from "@/api/skills";
 
@@ -85,6 +86,8 @@ const DERIVED = {
       level: 3.2,
       confidence: 0.2,
       supporting_items: ["e1"],
+      claimed_level: null,
+      claim_status: null,
     },
   ],
   years_of_experience: 0.9,
@@ -223,6 +226,61 @@ describe("Experience workspace", () => {
     );
   });
 
+  it("claims a level on an experience skill and patches it through", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openItem("e1");
+    const editor = screen.getByTestId("experience-editor");
+    expect(within(editor).getByTestId("skill-claim-0-set")).toBeInTheDocument();
+    await user.click(within(editor).getByTestId("skill-claim-0-set"));
+    const stepper = within(editor).getByTestId("skill-claim-0");
+    expect(stepper).toHaveTextContent("5");
+    await user.click(within(stepper).getByTestId("skill-claim-0-increase"));
+    expect(stepper).toHaveTextContent("6");
+    await user.click(within(editor).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(updateExperienceItem).toHaveBeenCalledWith(
+        "e1",
+        expect.objectContaining({
+          skills: [
+            expect.objectContaining({ skill_key: "python", level_claim: 6 }),
+          ],
+        })
+      )
+    );
+  });
+
+  it("clears a claimed level back to unset", async () => {
+    const user = userEvent.setup();
+    const item = {
+      ...ITEM,
+      skills: [{ ...ITEM.skills[0], level_claim: 7 }],
+    };
+    vi.mocked(fetchExperience).mockResolvedValue({
+      items: [item, ITEM2],
+      years_of_experience: 0.9,
+    });
+    renderPage();
+    await openItem("e1");
+    const editor = screen.getByTestId("experience-editor");
+    expect(
+      within(editor).getByTestId("skill-claim-0")
+    ).toHaveTextContent("7");
+    await user.click(within(editor).getByTestId("skill-claim-0-clear"));
+    expect(within(editor).getByTestId("skill-claim-0-set")).toBeInTheDocument();
+    await user.click(within(editor).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(updateExperienceItem).toHaveBeenCalledWith(
+        "e1",
+        expect.objectContaining({
+          skills: [
+            expect.objectContaining({ skill_key: "python", level_claim: null }),
+          ],
+        })
+      )
+    );
+  });
+
   it("deletes optimistically and restores through undo (POST of the snapshot)", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -276,10 +334,12 @@ describe("Experience workspace", () => {
     expect(await screen.findByText("Nothing selected")).toBeInTheDocument();
   });
 
-  it("applies derivation and reports the outcome", async () => {
+  it("re-applies derivation automatically after a save and reports the outcome", async () => {
+    const user = userEvent.setup();
     renderPage();
-    const button = await screen.findByTestId("apply-derivation");
-    fireEvent.click(button);
+    await openItem("e1");
+    await user.click(screen.getByTestId("save-experience"));
+    await waitFor(() => expect(applyDerivation).toHaveBeenCalled());
     expect(await screen.findByTestId("apply-state")).toHaveTextContent(
       "Applied 1 skill level(s)"
     );
@@ -294,6 +354,187 @@ describe("Experience workspace", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByTestId("apply-derivation")).toBeInTheDocument();
+    expect(screen.getByTestId("derivation-panel")).toHaveTextContent(
+      "Skill level estimates"
+    );
+  });
+
+  it("saves a project without a start date", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByTestId("add-experience"));
+    const editor = screen.getByTestId("experience-editor");
+    await user.type(within(editor).getByTestId("experience-title"), "Weekend hack");
+    await user.click(within(editor).getByTestId("toggle-currently-ongoing"));
+    await user.click(within(editor).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(createExperienceItem).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "project", start: null })
+      )
+    );
+  });
+
+});
+
+describe("Experience workspace — selection, bulk and filters", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fetchExperience).mockResolvedValue({
+      items: [ITEM, ITEM2],
+      years_of_experience: 0.9,
+    });
+    vi.mocked(fetchDerivation).mockResolvedValue(DERIVED);
+    vi.mocked(createExperienceItem).mockImplementation(
+      async (body) =>
+        ({ ...ITEM, id: "new-1", ...body, skills: [], achievements: [] }) as never
+    );
+    vi.mocked(updateExperienceItem).mockImplementation(
+      async (id, body) => ({ ...(id === "e1" ? ITEM : ITEM2), ...body }) as never
+    );
+    vi.mocked(deleteExperienceItem).mockResolvedValue(undefined);
+  });
+
+  function renderPage() {
+    return render(
+      <MemoryRouter>
+        <Experience />
+      </MemoryRouter>
+    );
+  }
+
+  it("selects items, bulk-sets statuses and uses select-all", async () => {
+    renderPage();
+    const first = await screen.findByTestId("experience-item-e1");
+    fireEvent.click(within(first).getByRole("checkbox"));
+    const second = screen.getByTestId("experience-item-e2");
+    fireEvent.click(within(second).getByRole("checkbox"));
+    const bar = await screen.findByTestId("bulk-bar");
+    expect(bar).toHaveTextContent("2 selected");
+    await userEvent.setup().click(screen.getByTestId("bulk-set-draft"));
+    await waitFor(() =>
+      expect(updateExperienceItem).toHaveBeenCalledWith(
+        "e1",
+        expect.objectContaining({ status: "draft" })
+      )
+    );
+    expect(updateExperienceItem).toHaveBeenCalledWith(
+      "e2",
+      expect.objectContaining({ status: "draft" })
+    );
+    expect(
+      screen.getByTestId("experience-item-e1")
+    ).toHaveTextContent("draft");
+    expect(screen.queryByTestId("bulk-bar")).not.toBeInTheDocument();
+  });
+
+  it("bulk-deletes with confirmation and restores all through undo", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("experience-item-e1");
+    fireEvent.click(within(screen.getByTestId("experience-item-e1")).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByTestId("experience-item-e2")).getByRole("checkbox"));
+    fireEvent.click(await screen.findByTestId("bulk-delete"));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteExperienceItem).toHaveBeenCalledWith("e1"));
+    expect(deleteExperienceItem).toHaveBeenCalledWith("e2");
+    expect(screen.queryByTestId("experience-item-e1")).not.toBeInTheDocument();
+    const notice = await screen.findByTestId("undo-experience");
+    expect(notice).toHaveTextContent("2 entries deleted");
+    await waitFor(() =>
+      expect(document.body.dataset.scrollLocked).toBeUndefined()
+    );
+    const undoBtn = await screen.findByRole("button", { name: "Undo" });
+    await user.click(undoBtn);
+    await waitFor(() => expect(createExperienceItem).toHaveBeenCalledTimes(2));
+    const restored = await screen.findAllByTestId("experience-item-new-1");
+    expect(restored).toHaveLength(2);
+  });
+
+  it("filters by search, status and kind", async () => {
+    renderPage();
+    await screen.findByTestId("experience-item-e2");
+
+    fireEvent.change(screen.getByTestId("experience-search"), {
+      target: { value: "zzz-nothing" },
+    });
+    expect(screen.getByText("No entries match these filters."));
+    fireEvent.change(screen.getByTestId("experience-search"), {
+      target: { value: "" },
+    });
+    expect(screen.getByTestId("experience-item-e1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("experience-filter-draft"));
+    expect(screen.queryByTestId("experience-item-e1")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("experience-filter-all"));
+
+    fireEvent.click(screen.getByTestId("experience-kind-project"));
+    expect(screen.queryByTestId("experience-item-e1")).not.toBeInTheDocument();
+  });
+
+  it("duplicates an entry via create of its snapshot", async () => {
+    renderPage();
+    await screen.findByTestId("experience-item-e1");
+    fireEvent.click(screen.getByTestId("duplicate-experience-e1"));
+    await waitFor(() =>
+      expect(createExperienceItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "DevOps intern (copy)",
+        })
+      )
+    );
+    expect(await screen.findByTestId("experience-item-new-1")).toBeInTheDocument();
+  });
+});
+
+describe("Experience workspace — kind groups", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fetchExperience).mockResolvedValue({
+      items: [ITEM, ITEM2],
+      years_of_experience: 0.9,
+    });
+    vi.mocked(fetchDerivation).mockResolvedValue(DERIVED);
+  });
+
+  function renderPage() {
+    return render(
+      <MemoryRouter>
+        <Experience />
+      </MemoryRouter>
+    );
+  }
+
+  it("groups visible entries under collapsible kind headers with per-group add", async () => {
+    renderPage();
+    const group = await screen.findByTestId("experience-group-internship");
+    expect(within(group).getByTestId("experience-item-e1")).toBeInTheDocument();
+    expect(
+      within(group).getByTestId("experience-group-count-internship")
+    ).toHaveTextContent("1");
+
+    fireEvent.click(within(group).getByTestId("experience-group-add-internship"));
+    await waitFor(() => {
+      const form = screen.getByTestId("experience-editor");
+      expect(
+        within(form).getByRole("button", { name: "Internship", pressed: true })
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(within(group).getByTestId("experience-group-toggle-internship"));
+    expect(
+      within(group).queryByTestId("experience-item-e1")
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(group).getByTestId("experience-group-toggle-internship"));
+    expect(within(group).getByTestId("experience-item-e1")).toBeInTheDocument();
+  });
+
+  it("a kind chip narrows the list and drops the group headers", async () => {
+    renderPage();
+    await screen.findByTestId("experience-group-internship");
+    fireEvent.click(screen.getByTestId("experience-kind-project"));
+    expect(
+      screen.queryByTestId("experience-group-internship")
+    ).not.toBeInTheDocument();
+    expect(await screen.findByTestId("experience-item-e2")).toBeInTheDocument();
   });
 });

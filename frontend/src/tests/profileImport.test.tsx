@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AxiosError } from "axios";
 import { ProfileImport } from "@/pages/ProfileImport";
 import {
@@ -11,7 +11,7 @@ import {
   listCvDraftHistory,
   reparseCv,
 } from "@/api/cvIntake";
-import type { DraftHistoryRow } from "@/types/cvIntake";
+import type { CvDraft, DraftHistoryRow } from "@/types/cvIntake";
 import type { DocumentRecord } from "@/types";
 
 vi.mock("@/api/cvIntake", async (importOriginal) => {
@@ -64,10 +64,13 @@ function historyRow(overrides: Partial<DraftHistoryRow> = {}): DraftHistoryRow {
   };
 }
 
-function renderPage() {
+function renderPage(initialPath = "/profile/import") {
   return render(
-    <MemoryRouter>
-      <ProfileImport />
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/profile/import" element={<ProfileImport />} />
+        <Route path="/profile/import/:documentId" element={<ProfileImport />} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -190,5 +193,115 @@ describe("ProfileImport — CV import workspace", () => {
     await waitFor(() =>
       expect(screen.getByText("No CVs yet")).toBeInTheDocument()
     );
+  });
+
+  describe("per-CV detail route", () => {
+    const APPLIED_DRAFT: CvDraft = {
+      id: "draft-1",
+      status: "applied",
+      payload: {
+        basics: {
+          full_name: "Jane",
+          headline: "",
+          email: "",
+          phone: "",
+          location: "",
+          links: [],
+          evidence: { quote: "Jane", page: null, confidence: 0.9 },
+        },
+        summary: "",
+        education: [],
+        experience: [],
+        skills: [
+          {
+            name: "Python",
+            level_claim: 8,
+            evidence: { quote: "Python — 8", page: 0, confidence: 0.4 },
+          },
+        ],
+        languages: [],
+        certifications: [],
+        awards: [],
+        interests: [],
+      },
+      report: {
+        created: { skills: 2 },
+        proposed_skills: [],
+        skill_conflicts: [],
+        unmapped_interests: [],
+        duplicates: [],
+      },
+      applied: [
+        { entity_type: "basics", count: 1 },
+        { entity_type: "skills", count: 2 },
+        { entity_type: "experience_items", count: 1 },
+      ],
+    };
+
+    function appliedRow(): DraftHistoryRow {
+      return historyRow({
+        status: "applied",
+        report: { created: { skills: 2 } },
+      });
+    }
+
+    it("the filename opens the read-only viewer for a processed CV", async () => {
+      vi.mocked(listCvDraftHistory).mockResolvedValue([appliedRow()]);
+      vi.mocked(getCvDrafts).mockResolvedValue(APPLIED_DRAFT);
+      renderPage();
+      fireEvent.click(await screen.findByTestId("cv-history-open"));
+      const meta = await screen.findByTestId("cv-detail-meta");
+      expect(meta).toHaveTextContent("cv-2026.pdf");
+      expect(meta).toHaveTextContent("Imported");
+      await waitFor(() =>
+        expect(getCvDrafts).toHaveBeenCalledWith("doc-1")
+      );
+      expect(await screen.findByTestId("cv-draft-viewer")).toBeInTheDocument();
+      expect(screen.getByText("Python")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("intake-section-toggle-skills")
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("confidence-low")).toBeInTheDocument();
+      const report = screen.getByTestId("cv-draft-report");
+      expect(report).toHaveTextContent("Added 2 skills.");
+      expect(report).toHaveTextContent("Imported");
+      expect(screen.getByText("Landed in your profile")).toBeInTheDocument();
+      const skillsLink = screen.getByTestId("cv-applied-link-skills");
+      expect(skillsLink).toHaveAttribute("href", "/profile#skills");
+      expect(skillsLink).toHaveTextContent("2 skills");
+      expect(screen.getByTestId("cv-applied-link-experience_items")).toHaveAttribute(
+        "href",
+        "/profile/experience"
+      );
+    });
+
+    it("a deep link opens the viewer directly", async () => {
+      vi.mocked(listCvDraftHistory).mockResolvedValue([appliedRow()]);
+      vi.mocked(getCvDrafts).mockResolvedValue(APPLIED_DRAFT);
+      renderPage("/profile/import/doc-1");
+      expect(await screen.findByTestId("cv-draft-viewer")).toBeInTheDocument();
+    });
+
+    it("the back button returns to the list", async () => {
+      vi.mocked(listCvDraftHistory).mockResolvedValue([appliedRow()]);
+      vi.mocked(getCvDrafts).mockResolvedValue(APPLIED_DRAFT);
+      renderPage("/profile/import/doc-1");
+      fireEvent.click(await screen.findByTestId("import-back"));
+      expect(await screen.findByTestId("cv-history-row")).toBeInTheDocument();
+    });
+
+    it("an unknown document id shows not found", async () => {
+      renderPage("/profile/import/nope");
+      expect(await screen.findByText("CV not found")).toBeInTheDocument();
+    });
+
+    it("re-process from the detail re-parses the document", async () => {
+      vi.mocked(reparseCv).mockResolvedValue({ job_id: "job-1" });
+      vi.mocked(listCvDraftHistory).mockResolvedValue([appliedRow()]);
+      vi.mocked(getCvDrafts).mockResolvedValue(APPLIED_DRAFT);
+      renderPage("/profile/import/doc-1");
+      fireEvent.click(await screen.findByTestId("cv-detail-reprocess"));
+      await waitFor(() => expect(reparseCv).toHaveBeenCalledWith("doc-1"));
+    });
   });
 });

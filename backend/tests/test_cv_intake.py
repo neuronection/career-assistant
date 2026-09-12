@@ -9,6 +9,7 @@ re-intake dedupe, discard, and ownership.
 from sqlalchemy import select
 
 from app.models.experience_model import ExperienceItem, SkillEvidence
+from app.models.profile_entities_model import EducationItem
 from app.models.user_model import UserSkill
 
 
@@ -84,7 +85,7 @@ async def test_apply_writes_provenance_and_evidence(client, db, auth_headers):
 
     rows = await db.execute(select(ExperienceItem))
     item = rows.scalars().one()
-    assert item.status == "draft"
+    assert item.status == "active", "review ticks are the approval"
     assert item.source == "cv_parse"
     assert item.org_name == "Sample Corp"
     assert item.org_id is not None, "org proposed via 39 lifecycle"
@@ -247,6 +248,69 @@ async def test_document_kind_filter(client, db, auth_headers):
     assert rows[0]["created_at"] is not None
 
 
+EDUCATION_TEXT = (
+    "NAME: Jane Doe\n"
+    "EDUCATION: B.Sc in Data Science at University of Sample LEVEL=bachelor (2020 - 09/2021)\n"
+    "EDUCATION: Networking Tech at Vocational Institute (09/2014 - 15/03/2020)\n"
+    "EDUCATION: Informatics at University of West Attica (2016 - 2020)\n"
+)
+
+
+async def test_education_dates_gap_fill_and_level_inference(client, db, auth_headers):
+    from datetime import date
+
+    doc_id = await _upload_and_parse(client, db, auth_headers, text=EDUCATION_TEXT)
+    applied = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"education": True}},
+        headers=auth_headers,
+    )
+    assert applied.status_code == 200, applied.text
+    rows = (
+        (await db.execute(select(EducationItem).order_by(EducationItem.start)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 3
+    vocational, university, bachelor = rows
+    assert vocational.level == "vocational"
+    assert vocational.level == "vocational"
+    assert vocational.start == date(2014, 9, 1), "MM/YYYY → month-first, day defaults"
+    assert vocational.end == date(2020, 3, 15), "full date is preserved, not dropped"
+    assert not vocational.in_progress
+
+    assert university.level == "bachelor", "university without degree name → bachelor"
+    assert university.start == date(2016, 1, 1), "year-only → January"
+    assert university.end == date(2020, 1, 1)
+
+    assert bachelor.level == "bachelor"
+    assert bachelor.start == date(2020, 1, 1)
+    assert bachelor.end == date(2021, 9, 1), "MM/YYYY applies month-first"
+
+
+def test_parse_date_gap_filling_matches_real_cv_formats():
+    from datetime import date
+
+    from app.services.cv_intake_service import _parse_date
+
+    cases = {
+        "2020-09": date(2020, 9, 1),
+        "2020": date(2020, 1, 1),
+        "2020-03-15": date(2020, 3, 15),
+        "2020/09": date(2020, 9, 1),
+        "09/2020": date(2020, 9, 1),
+        "15/03/2020": date(2020, 3, 15),
+        "Sep 2020": date(2020, 9, 1),
+        "September 2020": date(2020, 9, 1),
+        "2020 sep": date(2020, 9, 1),
+        "present": None,
+        "": None,
+        "not a date": None,
+    }
+    for raw, want in cases.items():
+        assert _parse_date(raw) == want, f"{raw!r} → {want}"
+
+
 async def test_mock_parser_heuristics_read_plain_text():
     from app.ai.agents.cv_parser import _mock_cv_extract
 
@@ -301,3 +365,155 @@ async def test_import_history_reports_section_count(client, db, auth_headers):
     await db.commit()
     rows = (await client.get("/api/v1/cv/intake/drafts", headers=auth_headers)).json()
     assert rows[0]["section_count"] == 0
+
+
+async def test_apply_records_landed_provenance(client, db, auth_headers):
+    """Every created entity lands in cv_intake_applied, keyed to the doc."""
+    import uuid
+
+    from app.models.cv_intake_model import CvIntakeApplied
+    from app.seeds.run import seed_taxonomy
+
+    await seed_taxonomy(db)
+
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+    applied = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={
+            "selections": {
+                "basics": True,
+                "experience": True,
+                "skills": True,
+                "education": True,
+                "languages": True,
+                "certifications": True,
+                "awards": True,
+                "interests": True,
+            }
+        },
+        headers=auth_headers,
+    )
+    assert applied.status_code == 200, applied.text
+    rows = (
+        (
+            await db.execute(
+                select(CvIntakeApplied).order_by(CvIntakeApplied.entity_type)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    types = {row.entity_type for row in rows}
+    assert {
+        "basics",
+        "skills",
+        "experience_items",
+        "education_items",
+        "certifications",
+        "profile_achievements",
+        "academics_languages",
+        "user_interest",
+    } <= types
+    assert all(row.user_id is not None and row.user_id is not None for row in rows)
+    assert all(row.document_id == uuid.UUID(doc_id) for row in rows), (
+        "provenance keyed to the source document"
+    )
+
+
+async def test_applied_draft_GET_reports_landed_counts(client, db, auth_headers):
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+
+    pending = (
+        await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
+    ).json()
+    assert pending["applied"] == []
+
+    re_apply = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"skills": True, "experience": True, "basics": True}},
+        headers=auth_headers,
+    )
+    assert re_apply.status_code == 200, re_apply.text
+
+    body = (
+        await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
+    ).json()
+    counts = {entry["entity_type"]: entry["count"] for entry in body["applied"]}
+    assert body["status"] == "applied"
+    assert counts == {
+        "basics": 1,
+        "skills": 2,
+        "experience_items": 1,
+    }
+
+
+async def test_apply_dedupes_provenance_rows(client, db, auth_headers):
+    """The on-screen dedupe also holds in the provenance ledger."""
+    from sqlalchemy import func
+
+    from app.models.cv_intake_model import CvIntakeApplied
+
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+    payload = {"selections": {"experience": True, "skills": True}}
+    await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers
+    )
+    await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers
+    )
+    total = (
+        await db.execute(select(func.count()).select_from(CvIntakeApplied))
+    ).scalar_one()
+    assert total == 3, "2 skills + 1 experience item, no provenance duplicates"
+
+
+async def test_apply_active_by_default_and_drafts_spec(client, db, auth_headers):
+    """items land ACTIVE unless `drafts` marks them (all or by index)."""
+    doc_id = await _upload_and_parse(
+        client,
+        db,
+        auth_headers,
+        text=CV_TEXT
+        + "EDUCATION: MSc Data at University of Sample (2026-09 - present)\n",
+    )
+
+    await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={
+            "selections": {"education": True},
+            "drafts": {"education": [0]},
+        },
+        headers=auth_headers,
+    )
+    items = (
+        (await db.execute(select(EducationItem).order_by(EducationItem.start)))
+        .scalars()
+        .all()
+    )
+    assert [item.status for item in items] == ["draft", "active"]
+
+    other = await _upload_and_parse(
+        client,
+        db,
+        auth_headers,
+        text=(
+            "NAME: Jane Doe\nEDUCATION: PhD Chemistry at Other U (2020-09 - 2024-06)\n"
+        ),
+    )
+    await client.post(
+        f"/api/v1/cv/intake/{other}/apply",
+        json={"selections": {"education": True}, "drafts": {"education": True}},
+        headers=auth_headers,
+    )
+    other_items = (
+        (
+            await db.execute(
+                select(EducationItem).where(EducationItem.institution == "Other U")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert other_items and all(i.status == "draft" for i in other_items), (
+        "drafts:true drafts every applied education item"
+    )

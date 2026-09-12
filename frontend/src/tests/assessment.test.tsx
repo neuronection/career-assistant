@@ -187,3 +187,31 @@ describe("Assessment templates", () => {
     );
   });
 });
+
+describe("plan 71 — assessment AI drafting", () => {
+  it("drafts a template with AI and saves it", async () => {
+    const mod = await import("@/api/assessments");
+    const mockMod = mod as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    mockMod.draftTemplateAi = vi.fn().mockResolvedValue({
+      content: { title: "Growth Mindset Scale", description: "d", sections: [] },
+      status: "draft_review",
+    });
+    mockMod.createTemplate = vi.fn().mockResolvedValue({ id: "tpl-9", title: "Growth Mindset Scale" });
+    mockMod.fetchTemplates = vi.fn().mockResolvedValue([{ id: "tpl-9", title: "Growth Mindset Scale" }]);
+    mockMod.createAssessment = vi.fn().mockResolvedValue(phaseTwoState());
+    render(
+      <MemoryRouter>
+        <Assessment />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByTestId("assessment")).toBeInTheDocument());
+    fireEvent.click(await screen.findByTestId("draft-template-ai"));
+    fireEvent.change(await screen.findByTestId("draft-brief-input"), {
+      target: { value: "Growth mindset scale" },
+    });
+    fireEvent.click(screen.getByTestId("draft-template-submit"));
+    await waitFor(() => expect(mockMod.draftTemplateAi).toHaveBeenCalled());
+    expect(mockMod.createTemplate).toHaveBeenCalled();
+    expect(await screen.findByTestId("template-note")).toHaveTextContent(/Drafted/);
+  });
+});

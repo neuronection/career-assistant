@@ -66,6 +66,26 @@ async def html_to_pdf(html: str) -> bytes:
         ) from exc
 
 
+def pdf_page_count(pdf: bytes) -> int | None:
+    """Actual page count of a PDF as printed (no rendering engine needed).
+
+    Reads the uncompressed page-tree `Count` from the PDF structure —
+    Chromium serializes those objects plainly, so the count matches what
+    the viewer shows. Falls back to None when the structure isn't
+    readable (never guess at a page count).
+    """
+    import re
+
+    counts = [
+        int(match.group(1))
+        for match in re.finditer(rb"/Type\s*/Pages[^>]*?/Count\s+(\d+)", pdf)
+        or re.finditer(rb"/Type\s*/Pages\s*/Parent[^>]*?/Count\s+(\d+)", pdf)
+    ]
+    if not counts:
+        return None
+    return max(counts)
+
+
 async def html_to_pngs(
     html: str, page_size: str = "a4", max_pages: int = MAX_SCREENSHOT_PAGES
 ) -> list[tuple[str, bytes]]:

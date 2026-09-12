@@ -25,44 +25,18 @@ import {
   type BlockTypeSpec,
 } from "@/components/cv/blockTypes";
 import {
+  ChipTogglesRow,
   RangeField,
+  SegmentedRow,
   SelectField,
   StepperRow,
   ToggleRow,
 } from "@/components/cv/formPrimitives";
+import { DesignTokenEditor } from "@/components/cv/DesignTokenEditor";
+import { ContainerEditor } from "@/components/cv/ContainerEditor";
 import { BlockTypePicker } from "@/components/cv/BlockTypePicker";
 import { CustomTextEditor } from "@/components/cv/CustomTextEditor";
 
-const FONTS = [
-  { value: "Sans", label: "sans", labelKey: "templateEditor.fonts.sans" },
-  { value: "Serif", label: "serif", labelKey: "templateEditor.fonts.serif" },
-  { value: "Mixed", label: "mixed", labelKey: "templateEditor.fonts.mixed" },
-  { value: "Geometric", label: "geometric", labelKey: "templateEditor.fonts.geometric" },
-];
-const HEADER_STYLES = [
-  { value: "Left", label: "left", labelKey: "templateEditor.header_styles.left" },
-  { value: "Centered", label: "centered", labelKey: "templateEditor.header_styles.centered" },
-  { value: "Banner", label: "banner", labelKey: "templateEditor.header_styles.banner" },
-];
-const DENSITIES = [
-  { value: "Compact", label: "compact", labelKey: "templateEditor.densities.compact" },
-  { value: "Normal", label: "normal", labelKey: "templateEditor.densities.normal" },
-  { value: "Roomy", label: "roomy", labelKey: "templateEditor.densities.roomy" },
-];
-const SECTION_STYLES = [
-  { value: "Flat (best for ATS)", label: "flat", labelKey: "templateEditor.section_styles.flat" },
-  { value: "Card containers", label: "card", labelKey: "templateEditor.section_styles.card" },
-];
-const HEADING_CASES = [
-  { value: "UPPERCASE", label: "uppercase", labelKey: "templateEditor.heading_cases.uppercase" },
-  { value: "Title", label: "title", labelKey: "templateEditor.heading_cases.title" },
-  { value: "Normal", label: "none", labelKey: "templateEditor.heading_cases.none" },
-];
-const HEADING_RULES = [
-  { value: "Line (muted)", label: "line", labelKey: "templateEditor.heading_rules.line" },
-  { value: "Line (accent)", label: "accent", labelKey: "templateEditor.heading_rules.accent" },
-  { value: "None", label: "none", labelKey: "templateEditor.heading_rules.none" },
-];
 const ITEM_SOURCES = [
   { value: "Experience", label: "experience", labelKey: "templateEditor.item_sources.experience" },
   { value: "Education", label: "education", labelKey: "templateEditor.item_sources.education" },
@@ -79,26 +53,10 @@ const DATE_FORMATS = [
   { value: "eu", label: "06/2024" },
   { value: "year", label: "2024" },
 ];
-const LAYOUTS = [
-  { value: "Single column", label: "single", labelKey: "templateEditor.layouts.single" },
-  { value: "Two-column sidebar", label: "sidebar", labelKey: "templateEditor.layouts.sidebar" },
-];
-const SIDEBAR_SIDES = [
-  { value: "Left", label: "left", labelKey: "templateEditor.sidebar_sides.left" },
-  { value: "Right", label: "right", labelKey: "templateEditor.sidebar_sides.right" },
-];
 const OVERFLOW_POLICIES = [
   { value: "Warn", label: "warn", labelKey: "templateEditor.overflow_policies.warn" },
   { value: "Shrink to fit", label: "shrink", labelKey: "templateEditor.overflow_policies.shrink" },
   { value: "Truncate", label: "truncate", labelKey: "templateEditor.overflow_policies.truncate" },
-];
-const CONTAINER_STYLES = [
-  { value: "Inherit", label: "inherit", labelKey: "templateEditor.container_styles.inherit" },
-  { value: "Flat", label: "flat", labelKey: "templateEditor.container_styles.flat" },
-  { value: "Tinted", label: "tinted", labelKey: "templateEditor.container_styles.tinted" },
-  { value: "Card", label: "card", labelKey: "templateEditor.container_styles.card" },
-  { value: "Outline", label: "outline", labelKey: "templateEditor.container_styles.outline" },
-  { value: "Accent bar", label: "accent-bar", labelKey: "templateEditor.container_styles.accent_bar" },
 ];
 const HEADER_BLOCK: BlockTypeSpec = {
   value: "header",
@@ -141,58 +99,12 @@ const EMPTY_CONTENT: TemplateContent = {
     sidebar_color: "#16324f",
     sidebar_text_color: "#ffffff",
     sidebar_width_pct: 34,
+    main_padding_mm: null,
+    sidebar_padding_mm: null,
   },
   pages: { default_max_pages: 1, overflow_policy: "warn" },
   prompts: { field_prompts: {}, field_handling: "" },
 };
-
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="flex items-center justify-between gap-2 text-xs text-[var(--as-fg)]">
-      <span>{label}</span>
-      <input
-        type="color"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-7 w-10 cursor-pointer rounded border border-[var(--as-border)] bg-[var(--as-surface)]"
-        data-testid={`color-${label}`}
-      />
-    </label>
-  );
-}
-
-function GapsField({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  options: number[];
-  onChange: (value: number | null) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <SelectField
-      label={label}
-      value={value === null ? "auto" : String(value)}
-      onChange={(next) => onChange(next === "auto" ? null : Number(next))}
-      options={[
-        { value: "auto", label: t("templateEditor.auto") },
-        ...options.map((option) => ({ value: String(option), label: `${option}mm` })),
-      ]}
-    />
-  );
-}
 
 export function CvTemplateEditor() {
   const { t } = useTranslation();
@@ -393,61 +305,13 @@ export function CvTemplateEditor() {
               ))}
             </div>
             <div className="space-y-2 border-t border-[var(--as-border)] pt-2" data-testid="custom-colors">
-              <ColorField label={t("templateEditor.color.accent")} value={content.design.accent_color} onChange={(v) => setDesign({ accent_color: v })} />
-              <ColorField label={t("templateEditor.color.headings")} value={content.design.heading_color} onChange={(v) => setDesign({ heading_color: v })} />
-              <ColorField label={t("templateEditor.color.body")} value={content.design.text_color} onChange={(v) => setDesign({ text_color: v })} />
-              <ColorField label={t("templateEditor.color.muted")} value={content.design.muted_color} onChange={(v) => setDesign({ muted_color: v })} />
-              <ColorField label={t("templateEditor.color.background")} value={content.design.background_color} onChange={(v) => setDesign({ background_color: v })} />
+              <DesignTokenEditor design={content.design} onChange={setDesign} showPhotoControls={false} showLayout={false} />
             </div>
           </Card>
 
           <Card className="space-y-2.5 p-3">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">{t("templateEditor.typography")}</h2>
-            <SelectField label={t("templateEditor.fontLabel")} value={content.design.font_stack} onChange={(font_stack) => setDesign({ font_stack: font_stack as TemplateContent["design"]["font_stack"] })} options={FONTS.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-            <SelectField label={t("templateEditor.headerStyleLabel")} value={content.design.header_style} onChange={(header_style) => setDesign({ header_style: header_style as TemplateContent["design"]["header_style"] })} options={HEADER_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-            <SelectField label={t("templateEditor.densityLabel")} value={content.design.density} onChange={(density) => setDesign({ density: density as TemplateContent["design"]["density"] })} options={DENSITIES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-            <GapsField label={t("templateEditor.pageMargin")} value={content.design.margin_mm} options={[0, 5, 8, 12, 16, 20, 25]} onChange={(margin_mm) => setDesign({ margin_mm })} />
-            <SelectField label={t("templateEditor.sectionStyleLabel")} value={content.design.section_style} onChange={(section_style) => setDesign({ section_style: section_style as TemplateContent["design"]["section_style"] })} options={SECTION_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-            <RangeField label={t("templateEditor.cornerRadius")} value={content.design.corner_radius} min={0} max={6} onChange={(corner_radius) => setDesign({ corner_radius })} suffix="mm" />
-            <SelectField label={t("templateEditor.headingCaseLabel")} value={content.design.heading_case} onChange={(heading_case) => setDesign({ heading_case: heading_case as TemplateContent["design"]["heading_case"] })} options={HEADING_CASES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-            <RangeField label={t("templateEditor.headingWeight")} value={content.design.heading_weight} min={400} max={800} step={100} onChange={(heading_weight) => setDesign({ heading_weight })} />
-            <RangeField label={t("templateEditor.baseSize")} value={content.design.base_size_pt} min={7} max={14} onChange={(base_size_pt) => setDesign({ base_size_pt })} suffix="pt" />
-            <ToggleRow label={t("templateEditor.contactIcons")} checked={content.design.show_icons} onChange={(show_icons) => setDesign({ show_icons })} />
-            <RangeField label={t("templateEditor.iconSize")} value={content.design.icon_size_mm} min={2} max={6} step={0.2} onChange={(icon_size_mm) => setDesign({ icon_size_mm })} suffix="mm" />
-            <div className="space-y-2 rounded-lg border border-[var(--as-border)] p-2" data-testid="photo-controls">
-              <ToggleRow
-                label={t("templateEditor.profilePhoto")}
-                checked={content.design.show_photo}
-                onChange={(show_photo) => setDesign({ show_photo })}
-              />
-              {content.design.show_photo && (
-                <>
-                  <SelectField
-                    label={t("templateEditor.shape")}
-                    value={content.design.photo_shape}
-                    onChange={(photo_shape) => setDesign({ photo_shape: photo_shape as TemplateContent["design"]["photo_shape"] })}
-                    options={[
-                      { value: "circle", label: "Circle" },
-                      { value: "rounded", label: "Rounded" },
-                      { value: "square", label: "Square" },
-                    ]}
-                  />
-                  <RangeField label={t("templateEditor.size")} value={content.design.photo_size_mm} min={10} max={40} onChange={(photo_size_mm) => setDesign({ photo_size_mm })} suffix="mm" />
-                </>
-              )}
-            </div>
-            <SelectField label={t("templateEditor.headingRuleLabel")} value={content.design.heading_rule} onChange={(heading_rule) => setDesign({ heading_rule: heading_rule as TemplateContent["design"]["heading_rule"] })} options={HEADING_RULES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-            <GapsField label={t("templateEditor.sectionGap")} value={content.design.section_gap_mm} options={[2, 4, 6, 8, 10, 12]} onChange={(section_gap_mm) => setDesign({ section_gap_mm })} />
-            <GapsField label={t("templateEditor.itemGap")} value={content.design.item_gap_mm} options={[1, 2, 3, 4, 5, 6]} onChange={(item_gap_mm) => setDesign({ item_gap_mm })} />
-            <SelectField label={t("templateEditor.layoutLabel")} value={content.design.layout} onChange={(layout) => setDesign({ layout: layout as TemplateContent["design"]["layout"] })} options={LAYOUTS.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} testId="layout-select" />
-            {content.design.layout === "sidebar" && (
-              <div className="space-y-2 rounded-lg border border-[var(--as-border)] p-2" data-testid="sidebar-controls">
-                <SelectField label={t("templateEditor.sidebarSide")} value={content.design.sidebar_side} onChange={(sidebar_side) => setDesign({ sidebar_side: sidebar_side as TemplateContent["design"]["sidebar_side"] })} options={SIDEBAR_SIDES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-                <ColorField label={t("templateEditor.color.sidebar")} value={content.design.sidebar_color} onChange={(v) => setDesign({ sidebar_color: v })} />
-                <ColorField label={t("templateEditor.color.sidebarText")} value={content.design.sidebar_text_color} onChange={(v) => setDesign({ sidebar_text_color: v })} />
-                <RangeField label={t("templateEditor.sidebarWidth")} value={content.design.sidebar_width_pct} min={25} max={45} onChange={(sidebar_width_pct) => setDesign({ sidebar_width_pct })} suffix="%" />
-              </div>
-            )}
+            <DesignTokenEditor design={content.design} onChange={setDesign} />
             <RangeField label={t("templateEditor.maxPages")} value={content.pages.default_max_pages} min={1} max={3} onChange={(default_max_pages) => setPages({ default_max_pages })} />
             <SelectField label={t("templateEditor.overflowPolicy")} value={content.pages.overflow_policy} onChange={(overflow_policy) => setPages({ overflow_policy: overflow_policy as TemplateContent["pages"]["overflow_policy"] })} options={OVERFLOW_POLICIES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
           </Card>
@@ -467,7 +331,6 @@ export function CvTemplateEditor() {
                 const type = blockTypeOf(block.kind);
                 const Icon = type?.icon ?? HEADER_BLOCK.icon;
                 const box = (bp.container ?? {}) as Record<string, unknown>;
-                const containerActive = Boolean(box.container) && box.container !== "inherit";
                 const open = openIndex === index;
                 return (
                   <li
@@ -547,71 +410,71 @@ export function CvTemplateEditor() {
                       <div className="cv-collapse mt-1.5" data-open="true">
                         <div className="space-y-2.5 border-t border-[var(--as-border)] pt-2 text-xs">
                           {block.kind !== "header" && block.kind !== "spacer" && (
-                            <div className="space-y-2" data-testid={`container-${index}`}>
-                              <SelectField
-                                label={t("templateEditor.container")}
-                                value={String(box.container ?? "inherit")}
-                                onChange={(value) =>
-                                  setBlockProps(index, {
-                                    container: { ...box, container: value },
-                                  })
-                                }
-                                options={CONTAINER_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))}
-                              />
-                              {containerActive && (
-                                <div className="grid grid-cols-2 gap-2">
-                                  <StepperRow
-                                    label={t("templateEditor.radius")}
-                                    value={Number(box.radius ?? 0)}
-                                    min={0}
-                                    max={8}
-                                    onChange={(radius) => setBlockProps(index, { container: { ...box, radius } })}
-                                    suffix="mm"
-                                  />
-                                  <StepperRow
-                                    label={t("templateEditor.padding")}
-                                    value={Number(box.padding_mm ?? 4)}
-                                    min={1}
-                                    max={10}
-                                    onChange={(padding_mm) => setBlockProps(index, { container: { ...box, padding_mm } })}
-                                    suffix="mm"
-                                  />
-                                  <ColorField label={t("templateEditor.color.bg")} value={String(box.background ?? content.design.background_color)} onChange={(background) => setBlockProps(index, { container: { ...box, background } })} />
-                                  <ColorField label={t("templateEditor.color.border")} value={String(box.border_color ?? content.design.border_color)} onChange={(border_color) => setBlockProps(index, { container: { ...box, border_color } })} />
-                                </div>
-                              )}
-                            </div>
+                            <ContainerEditor
+                              box={box}
+                              fallbackBackground={content.design.background_color}
+                              fallbackBorder={content.design.border_color}
+                              onChange={(patch) => setBlockProps(index, patch)}
+                              testId={`container-${index}`}
+                            />
                           )}
                           {content.design.layout === "sidebar" && block.kind !== "header" && (
-                            <SelectField
-                              label={t("templateEditor.column")}
-                              value={block.column ?? "main"}
-                              onChange={(column) =>
-                                setContent((current) => ({
-                                  ...current,
-                                  blocks: current.blocks.map((row, position) =>
-                                    position === index
-                                      ? { ...row, column: column as "main" | "sidebar" }
-                                      : row
-                                  ),
-                                }))
-                              }
-                              options={[
-                                { value: "main", label: "Main" },
-                                { value: "sidebar", label: "Sidebar" },
-                              ]}
-                              testId={`column-${index}`}
-                            />
+                            <div data-testid={`area-${index}`}>
+                              <SegmentedRow
+                                label={t("templateEditor.column")}
+                                value={block.area ?? block.column ?? "main"}
+                                onChange={(area) =>
+                                  setBlocks(
+                                    content.blocks.map((row, position) =>
+                                      position === index
+                                        ? { ...row, area: area as "main" | "sidebar", column: area as "main" | "sidebar" }
+                                        : row
+                                    )
+                                  )
+                                }
+                                options={[
+                                  { value: "main", label: t("templateEditor.areaMain") },
+                                  { value: "sidebar", label: t("templateEditor.areaSidebar") },
+                                ]}
+                              />
+                            </div>
                           )}
                           {block.kind === "items" && (
                             <div className="space-y-2">
                               <SelectField label={t("templateEditor.dataSource")} value={String(bp.source_key ?? "experience")} onChange={(source_key) => setBlockProps(index, { source_key })} options={ITEM_SOURCES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
+                              {String(bp.source_key ?? "experience") === "experience" && (
+                                <ChipTogglesRow
+                                  label={t("templateEditor.kinds", { defaultValue: "Include kinds" })}
+                                  values={Array.isArray(bp.kinds) ? (bp.kinds as string[]) : []}
+                                  options={[
+                                    { value: "job", label: "Jobs" },
+                                    { value: "internship", label: "Internships" },
+                                    { value: "freelance", label: "Freelance" },
+                                  ]}
+                                  onChange={(kinds) => setBlockProps(index, { kinds })}
+                                />
+                              )}
+                              {String(bp.source_key) === "certifications" && (
+                                <ToggleRow label={t("templateEditor.excludeProficiency", { defaultValue: "Hide proficiency certificates" })} checked={bp.exclude_proficiency === true} onChange={(exclude_proficiency) => setBlockProps(index, { exclude_proficiency })} />
+                              )}
                               <SelectField label={t("templateEditor.styleLabel")} value={String(bp.style ?? "list")} onChange={(style) => setBlockProps(index, { style })} options={ITEM_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
                               <SelectField label={t("templateEditor.datesLabel")} value={String(bp.date_format ?? "mon_yyyy")} onChange={(date_format) => setBlockProps(index, { date_format })} options={DATE_FORMATS} testId={`date-format-${index}`} />
                               <ToggleRow label={t("templateEditor.showOrg")} checked={bp.show_org !== false} onChange={(show_org) => setBlockProps(index, { show_org })} />
                               <ToggleRow label={t("templateEditor.showDescription")} checked={bp.show_description !== false} onChange={(show_description) => setBlockProps(index, { show_description })} />
                               <ToggleRow label={t("templateEditor.showSkills")} checked={bp.show_skills !== false} onChange={(show_skills) => setBlockProps(index, { show_skills })} />
                               <ToggleRow label={t("templateEditor.showAchievements")} checked={bp.show_achievements !== false} onChange={(show_achievements) => setBlockProps(index, { show_achievements })} />
+                            </div>
+                          )}
+                          {block.kind === "languages" && (
+                            <div className="space-y-2">
+                              <ToggleRow label={t("templateEditor.showCefr", { defaultValue: "Show CEFR band" })} checked={bp.show_cefr === true} onChange={(show_cefr) => setBlockProps(index, { show_cefr })} />
+                              <ToggleRow label={t("templateEditor.showProficiency", { defaultValue: "Latest proficiency certificate" })} checked={bp.show_proficiency === true} onChange={(show_proficiency) => setBlockProps(index, { show_proficiency })} />
+                            </div>
+                          )}
+                          {block.kind === "header" && (
+                            <div className="space-y-2">
+                              <ToggleRow label={t("templateEditor.showLinks", { defaultValue: "Show contact links" })} checked={bp.show_links === true} onChange={(show_links) => setBlockProps(index, { show_links })} />
+                              <ToggleRow label={t("templateEditor.showLocation", { defaultValue: "Show location" })} checked={bp.show_location === true} onChange={(show_location) => setBlockProps(index, { show_location })} />
                             </div>
                           )}
                           {block.kind === "skills" && (
@@ -624,6 +487,26 @@ export function CvTemplateEditor() {
                               ]} testId={`skills-display-${index}`} />
                               <ToggleRow label={t("templateEditor.showLevels")} checked={bp.show_levels !== false} onChange={(show_levels) => setBlockProps(index, { show_levels })} />
                               <StepperRow label={t("templateEditor.maxItems")} value={Number(bp.max_items ?? 18)} min={1} max={40} onChange={(max_items) => setBlockProps(index, { max_items })} />
+                            </div>
+                          )}
+                          {block.kind === "synth_items" && (
+                            <div className="space-y-2">
+                              <ToggleRow
+                                label={t("cvSynth.block.sourceChips", {
+                                  defaultValue: "Show source chips",
+                                })}
+                                checked={bp.show_source_chips !== false}
+                                onChange={(show_source_chips) =>
+                                  setBlockProps(index, { show_source_chips })
+                                }
+                              />
+                              <StepperRow
+                                label={t("templateEditor.maxItems")}
+                                value={Number(bp.max_items ?? 6)}
+                                min={1}
+                                max={20}
+                                onChange={(max_items) => setBlockProps(index, { max_items })}
+                              />
                             </div>
                           )}
                           {block.kind === "custom_text" && (

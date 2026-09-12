@@ -28,6 +28,8 @@ const fetchVersionPreview = vi.fn();
 const fetchTemplates = vi.fn();
 const fetchTemplatePreview = vi.fn();
 const draftTemplateAi = vi.fn();
+const suggestTemplates = vi.fn();
+const fetchCvRuns = vi.fn();
 const fetchPhotoGallery = vi.fn();
 const uploadGalleryPhoto = vi.fn();
 const fetchPhotoBlobUrl = vi.fn();
@@ -35,9 +37,14 @@ const fetchThemes = vi.fn();
 const createTemplate = vi.fn();
 const publishTemplateVersion = vi.fn();
 const previewTemplateDraft = vi.fn();
+const fetchCvDesign = vi.fn();
+const applyCvOps = vi.fn();
 const createAssistantSession = vi.fn();
 const fetchAssistantMessages = vi.fn();
 const streamAssistantTurn = vi.fn();
+const fetchSynthItems = vi.fn();
+const createSynthItem = vi.fn();
+const patchSynthItem = vi.fn();
 
 vi.mock("@/api/universities", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/universities")>();
@@ -80,10 +87,19 @@ vi.mock("@/api/postings", async (importOriginal) => {
   };
 });
 
+vi.mock("@/api/cvIntake", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/cvIntake")>();
+  return {
+    ...mod,
+    listCvDraftHistory: vi.fn<typeof mod.listCvDraftHistory>(),
+  };
+});
+
 vi.mock("@/api/cvTemplates", () => ({
   fetchTemplates: (...args: unknown[]) => fetchTemplates(...args),
   fetchTemplatePreview: (...args: unknown[]) => fetchTemplatePreview(...args),
   draftTemplateAi: (...args: unknown[]) => draftTemplateAi(...args),
+  suggestTemplates: (...args: unknown[]) => suggestTemplates(...args),
 }));
 
 vi.mock("@/api/cvTemplateDraft", async (importOriginal) => {
@@ -118,6 +134,12 @@ vi.mock("@/api/cv", async (importOriginal) => {
     exportCv: (...args: unknown[]) => exportCv(...args),
     restoreVersion: (...args: unknown[]) => restoreVersion(...args),
     fetchVersionPreview: (...args: unknown[]) => fetchVersionPreview(...args),
+    fetchCvRuns: (...args: unknown[]) => fetchCvRuns(...args),
+    fetchSynthItems: (...args: unknown[]) => fetchSynthItems(...args),
+    createSynthItem: (...args: unknown[]) => createSynthItem(...args),
+    patchSynthItem: (...args: unknown[]) => patchSynthItem(...args),
+    fetchCvDesign: (...args: unknown[]) => fetchCvDesign(...args),
+    applyCvOps: (...args: unknown[]) => applyCvOps(...args),
   };
 });
 
@@ -185,6 +207,7 @@ function renderStudio() {
           <Route path="/cv" element={<CvStudio />} />
           <Route path="/cv/:id" element={<CvBuilder />} />
           <Route path="/cv/templates/:id" element={<CvTemplateEditor />} />
+          <Route path="/profile/import" element={<div data-testid="import-dest" />} />
         </Routes>
       </MemoryRouter>
     </TooltipProvider>
@@ -220,8 +243,7 @@ function renderBuilder() {
 const template = {
   id: "tpl-1",
   key: "classic",
-  version: 1,
-  title: "Classic Serif",
+  version: 1,  title: "Classic Serif",
   description: "Traditional serif layout",
   author_key: "bank",
   source: "bank",
@@ -239,10 +261,31 @@ const template = {
   content_hash: "h",
 };
 
-beforeEach(() => {
+const sidebarTemplate = {
+  ...template,
+  key: "navy-sidebar",
+  title: "Navy Sidebar",
+  content: {
+    ...template.content,
+    blocks: [
+      { kind: "header" },
+      { kind: "summary", area: "sidebar", column: "sidebar" },
+    ],
+    design: { layout: "sidebar", sidebar_side: "left" },
+  },
+};
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  vi.mocked(
+    (await import("@/api/cvIntake")).listCvDraftHistory
+  ).mockResolvedValue([]);
   fetchCvs.mockResolvedValue([cv]);
   fetchTemplates.mockResolvedValue([template]);
+  suggestTemplates.mockResolvedValue({
+    picks: [{ template_id: "tpl-1", title: "Classic Serif", reason: "ATS-safe serif" }],
+    candidates_considered: 6,
+  });
   fetchPhotoGallery.mockResolvedValue([
     { document_id: "photo-1", filename: "me.png", created_at: "2026-09-04", is_default: true },
     { document_id: "photo-2", filename: "alt.png", created_at: "2026-09-04", is_default: false },
@@ -277,10 +320,102 @@ beforeEach(() => {
   fetchCv.mockResolvedValue(cv);
   fetchContextSources.mockResolvedValue(sources);
   previewCv.mockResolvedValue(preview);
+  fetchCvDesign.mockResolvedValue({
+    design: {
+      accent_color: "#1d4ed8",
+      text_color: "#111827",
+      muted_color: "#6b7280",
+      heading_color: "#0f172a",
+      background_color: "#ffffff",
+      font_stack: "sans",
+      base_size_pt: 10,
+      line_height: 1.35,
+      spacing_scale: 1,
+      header_style: "left",
+      show_photo: false,
+      density: "normal",
+      margin_mm: null,
+      section_style: "flat",
+      corner_radius: 0,
+      heading_case: "uppercase",
+      heading_weight: 600,
+      heading_rule: "line",
+      show_icons: true,
+      icon_size_mm: 3.2,
+      photo_shape: "circle",
+      photo_size_mm: 22,
+      section_gap_mm: null,
+      item_gap_mm: null,
+      border_color: "#e5e7eb",
+      layout: "single",
+      sidebar_side: "left",
+      sidebar_color: "#16324f",
+      sidebar_text_color: "#ffffff",
+      sidebar_width_pct: 34,
+      main_padding_mm: null,
+      sidebar_padding_mm: null,
+    },
+    template: { id: "tpl-1", title: "Classic Serif", owned: false, ats_safe: true },
+  });
+  applyCvOps.mockImplementation(async (_id: string, ops: { op: string; design?: Record<string, unknown> }[]) => {
+    const patch = ops[0]?.design ?? {};
+    return {
+      results: ops.map((op) => ({ op: op.op, ok: true, detail: "design updated" })),
+      state: {
+        document: { ...cv, template_id: "tpl-copy-1" },
+        blocks: preview.blocks,
+        overrides: {},
+        html: "<html>restyled</html>",
+        metrics: preview.metrics,
+        resolution: { snapshot_index: {} },
+        operations: [],
+        critique: null,
+        version: 2,
+        design: {
+          ...{
+            accent_color: "#1d4ed8",
+            text_color: "#111827",
+            muted_color: "#6b7280",
+            heading_color: "#0f172a",
+            background_color: "#ffffff",
+            font_stack: "sans",
+            base_size_pt: 10,
+            line_height: 1.35,
+            spacing_scale: 1,
+            header_style: "left",
+            show_photo: false,
+            density: "normal",
+            margin_mm: null,
+            section_style: "flat",
+            corner_radius: 0,
+            heading_case: "uppercase",
+            heading_weight: 600,
+            heading_rule: "line",
+            show_icons: true,
+            icon_size_mm: 3.2,
+            photo_shape: "circle",
+            photo_size_mm: 22,
+            section_gap_mm: null,
+            item_gap_mm: null,
+            border_color: "#e5e7eb",
+            layout: "single",
+            sidebar_side: "left",
+            sidebar_color: "#16324f",
+            sidebar_text_color: "#ffffff",
+            sidebar_width_pct: 34,
+            main_padding_mm: null,
+            sidebar_padding_mm: null,
+          },
+          ...patch,
+        },
+      },
+    };
+  });
   createAssistantSession.mockResolvedValue({ id: "s-assist", title: "CV assistant" });
   fetchAssistantMessages.mockResolvedValue([]);
   streamAssistantTurn.mockResolvedValue(undefined);
   fetchVersions.mockResolvedValue([]);
+  fetchCvRuns.mockResolvedValue([]);
   fetchLint.mockResolvedValue(lint);
   fetchContextStatus.mockResolvedValue({ has_baseline: false, stale: false, changed: [], added: [], removed: [] });
   compileCv.mockResolvedValue({
@@ -293,6 +428,7 @@ beforeEach(() => {
     ...body,
   }));
   setContext.mockImplementation(async () => ({ ...cv }));
+  fetchSynthItems.mockResolvedValue([]);
   previewCv.mockImplementation(async () => {
     const lastPatch = patchCv.mock.calls[patchCv.mock.calls.length - 1]?.[1] as
       | { working_content?: { blocks?: typeof preview.blocks } }
@@ -357,7 +493,10 @@ describe("CvStudio", () => {
       { ...template, id: "tpl-2", title: "Second Style" },
     ]);
     renderStudio();
-    fireEvent.click(await screen.findByTestId("open-templates"));
+    fireEvent.click(screen.getByTestId("new-cv"));
+    await screen.findByTestId("cv-generate-form");
+    fireEvent.click(screen.getByRole("button", { name: "Start from scratch" }));
+    fireEvent.click(await screen.findByTestId("choose-template"));
     expect(await screen.findByTestId("gallery-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("gallery-featured")).not.toBeInTheDocument();
     const cards = screen.getAllByTestId("template-card");
@@ -369,9 +508,49 @@ describe("CvStudio", () => {
     );
   });
 
+  it("picks a template with AI inside the new-CV form", async () => {
+    renderStudio();
+    fireEvent.click(screen.getByTestId("new-cv"));
+    await screen.findByTestId("cv-generate-form");
+    fireEvent.click(screen.getByRole("button", { name: "Start from scratch" }));
+    fireEvent.click(await screen.findByTestId("ask-ai-choose"));
+    const tile = await screen.findByTestId("use-suggestion-tpl-1");
+    expect(tile).toHaveTextContent("Classic Serif");
+    expect(tile.parentElement).toHaveTextContent("ATS-safe serif");
+    fireEvent.click(tile);
+    await waitFor(() =>
+      expect(screen.getByTestId("new-cv-template-section")).toHaveTextContent(
+        "Classic Serif"
+      )
+    );
+    fireEvent.change(screen.getByTestId("new-cv-title"), { target: { value: "AI CV" } });
+    fireEvent.click(screen.getByTestId("create-cv"));
+    await waitFor(() => expect(createCv).toHaveBeenCalled());
+    expect(createCv.mock.calls[0][0]).toEqual({
+      title: "AI CV",
+      template_id: "tpl-1",
+    });
+  });
+
+  it("creates a CV with no template chosen (studio default)", async () => {
+    renderStudio();
+    fireEvent.click(screen.getByTestId("new-cv"));
+    await screen.findByTestId("cv-generate-form");
+    fireEvent.click(screen.getByRole("button", { name: "Start from scratch" }));
+    fireEvent.click(await screen.findByTestId("new-cv-template-section"));
+    expect(screen.getByTestId("no-template-note")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("new-cv-title"), { target: { value: "Plain CV" } });
+    fireEvent.click(screen.getByTestId("create-cv"));
+    await waitFor(() => expect(createCv).toHaveBeenCalled());
+    expect(createCv.mock.calls[0][0]).toEqual({ title: "Plain CV" });
+  });
+
   it("opens the gallery and creates a CV from a chosen template", async () => {
     renderStudio();
-    fireEvent.click(await screen.findByTestId("open-templates"));
+    fireEvent.click(screen.getByTestId("new-cv"));
+    await screen.findByTestId("cv-generate-form");
+    fireEvent.click(screen.getByRole("button", { name: "Start from scratch" }));
+    fireEvent.click(await screen.findByTestId("choose-template"));
     const card = await screen.findByTestId("template-card");
     expect(card).toHaveTextContent("Classic Serif");
     await waitFor(() =>
@@ -390,7 +569,10 @@ describe("CvStudio", () => {
 
   it("drafts a template with AI from the gallery", async () => {
     renderStudio();
-    fireEvent.click(await screen.findByTestId("open-templates"));
+    fireEvent.click(screen.getByTestId("new-cv"));
+    await screen.findByTestId("cv-generate-form");
+    fireEvent.click(screen.getByRole("button", { name: "Start from scratch" }));
+    fireEvent.click(await screen.findByTestId("choose-template"));
     fireEvent.change(await screen.findByTestId("template-brief"), {
       target: { value: "serif, teal accent" },
     });
@@ -471,6 +653,88 @@ describe("CvBuilder", () => {
     await waitFor(() => expect(useChatStore.getState().chatMode).toBe("docked"));
     await waitFor(() => expect(useChatStore.getState().activeSessionId).toBe("s-assist"));
     expect(fetchAssistantMessages).toHaveBeenCalledWith("s-assist");
+  });
+
+  it("Runs & metrics popup lists runs with the LLM-call ledger and ops", async () => {
+    fetchCvRuns.mockResolvedValue([
+      {
+        job_id: "job-polish-1",
+        job_type: "cv_polish",
+        status: "succeeded",
+        stage: "done",
+        error: null,
+        created_at: "2026-09-11T10:00:00Z",
+        finished_at: "2026-09-11T10:00:05Z",
+        outcome: "completed",
+        resumed_from: "job-generate-1",
+        final_version: 3,
+        stages: [{ node: "review", at: "2026-09-11T10:00:01Z", note: "reviewing the draft (1/3)" }],
+        iterations: [
+          {
+            n: 0,
+            summary: "Tightened spacing",
+            ops: [
+              { op: "update_design", ok: true, detail: "design updated (private copy)" },
+              { op: "set_override", ok: false, detail: "reverted" },
+            ],
+            coverage: { missing: [{ source_key: "projects", item_id: "p1", label: "PWA project" }] },
+          },
+        ],
+        llm_calls: [
+          {
+            id: "a1",
+            task: "cv_build_review",
+            stage: "cv_draft.review",
+            status: "ok",
+            provider: "mock",
+            model: "mock-vision",
+            prompt_version: "v1",
+            tokens_in: 3200,
+            tokens_out: 700,
+            latency_ms: 850,
+          },
+        ],
+        aggregate: {
+          calls: 1,
+          tokens_in: 3200,
+          tokens_out: 700,
+          latency_ms_sum: 850,
+          by_task: { cv_build_review: { calls: 1, tokens_in: 3200, tokens_out: 700, latency_ms_sum: 850 } },
+        },
+      },
+    ]);
+    renderBuilder();
+    await userEvent.click(await screen.findByTestId("open-runs"));
+    const row = await screen.findByTestId("cv-run-row");
+    expect(row).toHaveAttribute("data-run-type", "cv_polish");
+    expect(row).toHaveTextContent("1 call(s) · 3200 in / 700 out");
+    expect(row).toHaveTextContent("final v3");
+    expect(row).toHaveTextContent("AI polish finished — review the final draft in the builder.");
+    fireEvent.click(screen.getByTestId("cv-run-toggle"));
+    const detail = await screen.findByTestId("cv-runs-detail");
+    expect(detail).toHaveTextContent("Reviewing the build");
+    expect(detail).toHaveTextContent("mock-vision");
+    expect(detail).toHaveTextContent("850 ms");
+    expect(detail).toHaveTextContent("Reviewing the draft");
+    expect(detail).toHaveTextContent("✓");
+    expect(detail).toHaveTextContent("✗");
+    expect(screen.getByTestId("cv-runs-coverage")).toHaveTextContent(
+      "PWA project"
+    );
+    expect(detail).toHaveTextContent(/earlier run/);
+  });
+
+  it("runs popup shows the empty state and recovers from a fetch error", async () => {
+    fetchCvRuns.mockResolvedValue([]);
+    renderBuilder();
+    await userEvent.click(await screen.findByTestId("open-runs"));
+    expect(await screen.findByTestId("cv-runs-list")).toHaveTextContent(
+      "No AI runs yet"
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Close" }));
+    fetchCvRuns.mockRejectedValue(new Error("boom"));
+    await userEvent.click(await screen.findByTestId("open-runs"));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
   it("renders preview, lint score and context toggles", async () => {
@@ -711,6 +975,20 @@ describe("CvBuilder", () => {
     expect(blocks[blocks.length - 1].props.text).toBe("Few words about me");
   });
 
+  it("marks estimated page boundaries when the CV grows over one page", async () => {
+    previewCv.mockResolvedValue({ ...preview, metrics: { ...preview.metrics, estimated_pages: 2 } });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    expect(await screen.findByTestId("page-break-2")).toBeInTheDocument();
+    expect(screen.getByTestId("page-break-2")).toHaveTextContent("Page 2");
+  });
+
+  it("shows no page boundary on a single-page CV", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    expect(screen.queryByTestId(/page-break-/)).not.toBeInTheDocument();
+  });
+
   it("adds sections from the card picker with previews", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
@@ -762,6 +1040,146 @@ describe("CvBuilder", () => {
     expect(cards[1]).toHaveClass("opacity-40");
     fireEvent.dragEnd(cards[1]);
     expect(cards[1]).not.toHaveClass("opacity-40");
+  });
+
+  it("groups sections by template area, adds per area and reassigns by drag", async () => {
+    fetchTemplates.mockResolvedValue([sidebarTemplate]);
+    fetchCv.mockResolvedValue({ ...cv, template_id: "tpl-1" });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    expect(await screen.findByTestId("area-group-sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("area-group-main")).toBeInTheDocument();
+    expect(screen.getByTestId("area-count-sidebar")).toHaveTextContent("0");
+    expect(screen.queryByTestId("section-area-0")).not.toBeInTheDocument();
+
+    const firstCard = screen.getByTestId("section-card-0");
+    fireEvent.dragStart(firstCard);
+    const sidebarGroup = screen.getByTestId("area-group-sidebar");
+    fireEvent.drop(sidebarGroup);
+    await waitFor(() => expect(patchCv).toHaveBeenCalled());
+    const blocks = patchCv.mock.calls[0][1].working_content.blocks;
+    expect(blocks[blocks.length - 1]).toMatchObject({
+      kind: "header",
+      area: "sidebar",
+      column: "sidebar",
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("area-count-sidebar")).toHaveTextContent("1")
+    );
+
+    fireEvent.click(await screen.findByTestId("add-section-sidebar"));
+    const menu = await screen.findByTestId("add-section-menu");
+    expect(within(menu).queryByText("Add to")).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByTestId("add-block-skills"));
+    await waitFor(() =>
+      expect(patchCv.mock.calls.length).toBeGreaterThanOrEqual(2)
+    );
+    const saved = patchCv.mock.calls[patchCv.mock.calls.length - 1][1];
+    const savedBlocks = saved.working_content.blocks;
+    expect(savedBlocks[savedBlocks.length - 1]).toMatchObject({
+      kind: "skills",
+      area: "sidebar",
+      column: "sidebar",
+    });
+  });
+
+  it("keeps the global add picker area toggle for sidebar templates", async () => {
+    fetchTemplates.mockResolvedValue([sidebarTemplate]);
+    fetchCv.mockResolvedValue({ ...cv, template_id: "tpl-1" });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(await screen.findByTestId("add-section-button"));
+    const menu = await screen.findByTestId("add-section-menu");
+    expect(await screen.findByText("Add to")).toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Add to" })).getByRole("button", {
+        name: "Left panel",
+      })
+    );
+    fireEvent.click(within(menu).getByTestId("add-block-skills"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalled());
+    const blocks = patchCv.mock.calls[0][1].working_content.blocks;
+    expect(blocks[blocks.length - 1]).toMatchObject({
+      kind: "skills",
+      area: "sidebar",
+      column: "sidebar",
+    });
+  });
+
+  it("moves the AI polish notes off the canvas: hidden without polish, opens from the toolbar", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    expect(screen.queryByTestId("polish-trace-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("open-polish")).not.toBeInTheDocument();
+
+    fetchVersions.mockResolvedValue([
+      {
+        id: "v-polish",
+        version: 2,
+        content: {
+          polish: {
+            request: { notes: "Lead with the internship.", length: "standard", language: "en", max_pages: 1 },
+            outcome: { status: "completed" },
+            iterations: [
+              {
+                n: 0,
+                summary: "One spacing fix.",
+                ops: [{ op: "move_block", ok: true, detail: "Languages section moved" }],
+              },
+            ],
+          },
+        },
+        context_resolution: {},
+        content_hash: "h",
+        created_by: "ai_apply",
+        created_at: "2026-09-04T12:00:00Z",
+      } as never,
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    const notesButton = await screen.findByTestId("open-polish");
+    expect(screen.queryByTestId("polish-trace-card")).not.toBeInTheDocument();
+    await userEvent.click(notesButton);
+    expect(await screen.findByTestId("polish-review-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("polish-trace-card")).toHaveTextContent(
+      "Lead with the internship."
+    );
+    expect(screen.getByText("Languages section moved")).toBeInTheDocument();
+  });
+
+  it("keeps a flat single-layout list with no area controls", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await screen.findByTestId("sections-list");
+    expect(screen.queryByTestId(/area-group-/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-area-0")).not.toBeInTheDocument();
+  });
+
+  it("configures a languages block format with CEFR and proficiency toggles", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-languages"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalled());
+    const addedCount = patchCv.mock.calls[0][1].working_content.blocks.length;
+    expect(addedCount).toBeGreaterThanOrEqual(3);
+    fireEvent.click(screen.getByTestId("configure-section-2"));
+    fireEvent.click(await screen.findByTestId("toggle-show-cefr-band"));
+    fireEvent.click(await screen.findByTestId("toggle-latest-proficiency-certificate"));
+    await waitFor(
+      () => {
+        const blocks =
+          patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+            .blocks;
+        expect(blocks[blocks.length - 1].props.show_cefr).toBe(true);
+        expect(blocks[blocks.length - 1].props.show_proficiency).toBe(true);
+      },
+      { timeout: 3000 }
+    );
   });
 
   it("opens the template style editor from the Design tab Customize button", async () => {
@@ -870,6 +1288,17 @@ describe("CvBuilder", () => {
       { source_key: "experience", item_id: "exp-1" },
       { source_key: "skills", item_id: "sk-1" },
     ]);
+  });
+
+  it("toggles the per-CV prefer-synth preference (plan 62)", async () => {
+    renderBuilder();
+    const toggle = await screen.findByTestId("context-synth-prefer");
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(setContext).toHaveBeenCalled());
+    const body = setContext.mock.calls[setContext.mock.calls.length - 1][1];
+    expect(body.synth_mode).toBe("prefer");
+    expect(await screen.findByTestId("context-synth-prefer")).toBeChecked();
   });
 
   it("filters context items through the search box", async () => {
@@ -1121,5 +1550,455 @@ describe("CvBuilder", () => {
     expect(applyButtons[1]).toHaveFocus();
     fireEvent.keyDown(slideOver, { key: "ArrowUp" });
     expect(applyButtons[0]).toHaveFocus();
+  });
+});
+
+describe("CvStudio — import bridging", () => {
+  it("the New CV modal offers an Import-from-CV mode that routes to the workspace", async () => {
+    renderStudio();
+    fireEvent.click(await screen.findByTestId("new-cv"));
+    fireEvent.click(await screen.findByRole("button", { name: "Import from CV" }));
+    fireEvent.click(await screen.findByTestId("import-cv-go"));
+    expect(await screen.findByTestId("import-dest")).toBeInTheDocument();
+  });
+
+  it("shows the imported source CVs panel with status chips", async () => {
+    const { listCvDraftHistory } = await import("@/api/cvIntake");
+    vi.mocked(listCvDraftHistory).mockResolvedValue([
+      {
+        document_id: "doc-9",
+        status: "applied",
+        updated_at: "2026-09-09T09:00:00Z",
+        report: { created: { skills: 2 } },
+        document: {
+          id: "doc-9",
+          filename: "imported-cv.pdf",
+          mime: "application/pdf",
+          size_bytes: 1024,
+          page_count: 1,
+          status: "ready",
+          error: "",
+          created_at: "2026-09-09T09:00:00Z",
+        },
+      },
+    ]);
+    renderStudio();
+    const panel = await screen.findByTestId("cvstudio-imports-panel");
+    expect(panel).toHaveTextContent("imported-cv.pdf");
+    expect(panel).toHaveTextContent("Imported");
+    expect(
+      screen.getByTestId("cvstudio-import-doc-9")
+    ).toHaveAttribute("href", "/profile/import/doc-9");
+  });
+});
+
+describe("CvTemplateEditor — plan 70 area paddings", () => {
+  it("exposes main/sidebar padding controls for sidebar layouts and round-trips them", async () => {
+    fetchTemplates.mockResolvedValue([sidebarTemplate]);
+    renderEditor();
+    expect(await screen.findByTestId("template-title")).toHaveValue(
+      "Navy Sidebar"
+    );
+    const controls = await screen.findByTestId("sidebar-controls");
+    expect(within(controls).getByText("Main column padding")).toBeInTheDocument();
+    expect(within(controls).getByText("Sidebar padding")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("save-template"));
+    await waitFor(() => expect(createTemplate).toHaveBeenCalled());
+    const body = createTemplate.mock.calls[0][0];
+    expect(body.content.design).toHaveProperty("main_padding_mm");
+    expect(body.content.design).toHaveProperty("sidebar_padding_mm");
+  });
+});
+
+describe("CvBuilder — plan 70 items kinds filter", () => {
+  it("toggles experience kinds on an items section and saves the filter", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-items"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("configure-section-2"));
+    const group = await screen.findByRole("group", { name: "Include kinds" });
+    fireEvent.click(within(group).getByRole("button", { name: "Jobs" }));
+    await waitFor(
+      () => {
+        const blocks =
+          patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+            .blocks;
+        expect(blocks[blocks.length - 1].props.kinds).toEqual(["job"]);
+      },
+      { timeout: 3000 }
+    );
+  });
+});
+
+describe("CvBuilder — plan 71 Template tab", () => {
+  it("renders the Template tab with token controls and meta", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-template"));
+    const body = await screen.findByTestId("inspector-body-template");
+    expect(within(body).getByTestId("design-token-editor")).toBeInTheDocument();
+    expect(within(body).getByTestId("template-meta")).toHaveTextContent(
+      "Classic Serif"
+    );
+    expect(within(body).getByTestId("apply-design")).toBeDisabled();
+    // The action footer is pinned outside the scrollable body.
+    const scroll = within(body).getByTestId("template-scroll");
+    expect(scroll).not.toContainElement(within(body).getByTestId("template-footer"));
+    expect(within(body).getByTestId("template-footer")).toContainElement(
+      within(body).getByTestId("apply-design")
+    );
+  });
+
+  it("applies a design change through the ops endpoint and re-syncs", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-template"));
+    const body = await screen.findByTestId("inspector-body-template");
+    fireEvent.change(within(body).getByLabelText("Accent"), {
+      target: { value: "#b91c1c" },
+    });
+    expect(within(body).getByTestId("apply-design")).toBeEnabled();
+    fireEvent.click(within(body).getByTestId("apply-design"));
+    await waitFor(() => expect(applyCvOps).toHaveBeenCalledTimes(1));
+    const [cvId, ops] = applyCvOps.mock.calls[0];
+    expect(cvId).toBe("cv-1");
+    expect(ops[0].op).toBe("update_design");
+    expect(ops[0].design.accent_color).toBe("#b91c1c");
+    expect(await screen.findByTestId("preview-frame")).toBeInTheDocument();
+  });
+});
+
+describe("CvBuilder — plan 71 container styling", () => {
+  it("configures a block container in the builder sections panel", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-skills"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("configure-section-2"));
+    const container = await screen.findByTestId("container-2");
+    fireEvent.change(within(container).getByLabelText("Container"), {
+      target: { value: "card" },
+    });
+    await waitFor(
+      () => {
+        const blocks =
+          patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+            .blocks;
+        expect(blocks[blocks.length - 1].props.container.container).toBe("card");
+      },
+      { timeout: 3000 }
+    );
+  });
+});
+
+describe("CvBuilder — plan 71 critique card", () => {
+  it("renders the copilot critique with one-click fixes", async () => {
+    const { useCvBuilderLink } = await import("@/stores/cvBuilderLinkStore");
+    act(() => {
+      useCvBuilderLink.setState({
+        lastBuilderState: {
+          document: { id: "cv-1", title: "T", kind: "resume", language: "en", page_size: "a4", max_pages: 1, status: "draft", template_id: null, photo_document_id: null },
+          blocks: preview.blocks,
+          overrides: {},
+          html: preview.html,
+          metrics: preview.metrics,
+          resolution: { snapshot_index: {} },
+          operations: [],
+          critique: {
+            summary: "Layout is close to budget",
+            issues: [{ severity: "major", area: "page_budget", message: "Content renders on 2 pages but the budget is 1." }],
+            safe_token_fixes: { base_size_pt: "9.5" },
+          },
+          version: 1,
+        },
+      });
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-ai"));
+    const card = await screen.findByTestId("critique-card");
+    expect(within(card).getByTestId("critique-issue-0")).toHaveTextContent("page_budget");
+    applyCvOps.mockResolvedValueOnce({
+      results: [{ op: "update_design", ok: true, detail: "ok" }],
+      state: {
+        document: { id: "cv-1" },
+        blocks: preview.blocks,
+        overrides: {},
+        html: "<html>fixed</html>",
+        metrics: preview.metrics,
+        resolution: { snapshot_index: {} },
+        operations: [],
+        critique: null,
+        version: 2,
+      },
+    });
+    fireEvent.click(within(card).getByTestId("apply-critique-fixes"));
+    await waitFor(() => expect(applyCvOps).toHaveBeenCalledTimes(1));
+    expect(applyCvOps.mock.calls[0][1][0].design).toEqual({ base_size_pt: "9.5" });
+  });
+});
+
+describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
+  it("adds the Custom highlights section from the add-section card", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-synth_items"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    const [, body] = patchCv.mock.calls[0];
+    const added = body.working_content.blocks[body.working_content.blocks.length - 1];
+    expect(added.kind).toBe("synth_items");
+    expect(added.props.title).toBe("Highlights");
+    expect(added.props.show_source_chips).toBe(true);
+  });
+
+  it("configs a synth_items block and round-trips its props", async () => {
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "default",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Tailored text" },
+        voice: { language: "en" },
+        status: "active",
+        source: "manual",
+        verified: true,
+        stale: true,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-synth_items"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("configure-section-2"));
+    const chips = await screen.findByRole("button", {
+      name: /Tailored text \(changed\)/,
+    });
+    fireEvent.click(chips);
+    await waitFor(() => {
+      const blocks =
+        patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+          .blocks;
+      expect(blocks[blocks.length - 1].props.selected).toEqual(["syn-1"]);
+    });
+    fireEvent.click(screen.getByTestId("stepper-max-items").children[2]);
+    await waitFor(() => {
+      const blocks =
+        patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+          .blocks;
+      expect(blocks[blocks.length - 1].props.max_items).toBe(7);
+    });
+    const chipsToggle = screen.getByTestId("toggle-show-source-chips") as HTMLInputElement;
+    expect(chipsToggle.checked).toBe(true);
+    fireEvent.click(chipsToggle);
+    await waitFor(() => {
+      const blocks =
+        patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+          .blocks;
+      expect(blocks[blocks.length - 1].props.show_source_chips).toBe(false);
+    });
+  });
+
+  it("reorders items in an items block and persists the full order array", async () => {
+    const richPreview = {
+      ...preview,
+      resolution: {
+        ...preview.resolution,
+        snapshot: {
+          experience: [
+            { id: "exp-1", title: "Older Role" },
+            { id: "exp-2", title: "Newer Role" },
+          ],
+        },
+        snapshot_index: { ...preview.resolution.snapshot_index, experience: ["exp-1", "exp-2"] },
+      },
+    };
+    previewCv.mockImplementation(async () => {
+      const lastPatch = patchCv.mock.calls[patchCv.mock.calls.length - 1]?.[1] as
+        | { working_content?: { blocks?: typeof richPreview.blocks } }
+        | undefined;
+      return {
+        ...richPreview,
+        blocks: lastPatch?.working_content?.blocks ?? richPreview.blocks,
+      };
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-items"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("configure-section-2"));
+    fireEvent.click(await screen.findByTestId("items-order-toggle"));
+    await screen.findByTestId("items-order-list");
+    fireEvent.click(screen.getByTestId("items-order-up-exp-2"));
+    await waitFor(() => {
+      const blocks =
+        patchCv.mock.calls[patchCv.mock.calls.length - 1][1].working_content
+          .blocks;
+      const itemsBlock = blocks.find(
+        (block: { kind: string }) => block.kind === "items"
+      );
+      expect(itemsBlock.props.order).toEqual(["exp-2", "exp-1"]);
+    });
+  });
+
+  it("renders active variants nested under their items, cross-listed per ref", async () => {
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [
+          { source_key: "experience", item_id: "exp-1" },
+          { source_key: "skills", item_id: "sk-1" },
+        ],
+        source_state: [],
+        payload: { description: "Cross-listed text" },
+        voice: { language: "en" },
+        status: "active",
+        source: "ai",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("pane-context"));
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(screen.getByTestId("context-group-header-skills"));
+    expect(
+      await screen.findAllByTestId("context-variant-syn-1"),
+    ).toHaveLength(2);
+    expect(screen.queryByTestId("context-variant-toggle-syn-1")).toBeNull(),
+      void screen.queryByTestId("context-variant-toggle-syn-1");
+  });
+
+  it("pins a variant per item with the star and persists synth_pins", async () => {
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Pinned text" },
+        voice: { language: "en" },
+        status: "active",
+        source: "manual",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    setContext.mockImplementation(async () => ({ ...cv }));
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("pane-context"));
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    const star = await screen.findByTestId("context-pin-star-syn-1");
+    expect(star.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(star);
+    await waitFor(() =>
+      expect(setContext).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          synth_pins: { "experience:exp-1": "syn-1" },
+        }),
+      ),
+    );
+    const starred = await screen.findByTestId("context-pin-star-syn-1");
+    expect(starred.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(starred);
+    await waitFor(() => expect(setContext).toHaveBeenCalledTimes(2));
+    expect(setContext.mock.calls[1][1].synth_pins).toEqual({});
+  });
+
+  it("shows an edit button on variant rows that opens the editor", async () => {
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Nested under its item" },
+        voice: { language: "en" },
+        status: "active",
+        source: "manual",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("pane-context"));
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(await screen.findByTestId("context-variant-edit-syn-1"));
+    const text = await screen.findByTestId("synth-editor-description-input");
+    expect((text as HTMLTextAreaElement).value).toBe("Nested under its item");
+  });
+
+  it("finds variants nested under their own item row, not the group bottom", async () => {
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Cross-listed text" },
+        voice: { language: "en" },
+        status: "draft",
+        source: "ai",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("pane-context"));
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    expect(await screen.findByTestId("context-variant-syn-1")).toBeTruthy();
+  });
+
+  it("opens the variant editor from the context panel add-variant button", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("pane-context"));
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(await screen.findByTestId("ai-add-variant-exp-1"));
+    expect(
+      await screen.findByTestId("synth-editor-description-input"),
+    ).toBeInTheDocument();
   });
 });

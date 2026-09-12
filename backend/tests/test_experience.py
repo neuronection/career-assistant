@@ -119,6 +119,28 @@ def test_recency_decay_applies():
     assert derived["s1"].months == months * 0.5
 
 
+def test_claims_mean_and_calibration_status():
+    today = date(2026, 9, 1)
+    start = today - timedelta(days=365)
+    job = _FakeItem("job-1", "job", start, today)
+    parts = [
+        {"item": job, "skill_id": "s1", "role_in_item": "primary", "level_claim": 3},
+        {"item": job, "skill_id": "s2", "role_in_item": "primary", "level_claim": 4},
+        {"item": job, "skill_id": "s3", "role_in_item": "primary", "level_claim": 9},
+        {"item": job, "skill_id": "s4", "role_in_item": "primary"},
+    ]
+    derived = derive_skill_months(parts, today=today)
+    months = _months_between(start, today) + 1
+    derived_level = months_to_level(months)
+    assert derived["s1"].claimed_level == 3
+    assert derived["s1"].claim_status() == "confirmed"
+    assert derived["s2"].claim_status() == "confirmed"
+    assert derived["s3"].claim_status() == "conflict"
+    assert derived["s4"].claimed_level is None
+    assert derived["s4"].claim_status() is None
+    assert derived_level is not None
+
+
 def test_fit_experience_uses_skill_months():
     band = (1, 3)
     job = {
@@ -214,6 +236,51 @@ async def test_experience_crud_and_derivation_flow(
     assert trace_items[0]["experience_item"]["title"] == "DevOps intern"
 
 
+async def test_stale_machine_row_follows_derivation(
+    client, auth_headers, seeded_catalog, db
+):
+    """document/cv_parse estimates are not protected by the ±2 gate:
+    the fresh curve updates them (fixes the stale skills-page level)."""
+    from app.models.taxonomy_model import Skill
+
+    skill = (await db.execute(select(Skill).limit(1))).scalars().first()
+    auth_user = (
+        (await db.execute(select(User).where(User.email == "student@example.com")))
+        .scalars()
+        .first()
+    )
+    body = {
+        "title": "Long job",
+        "kind": "job",
+        "start": "2018-01-01",
+        "end": "2025-12-31",
+        "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
+    }
+    created = await client.post(
+        "/api/v1/me/experience", json=body, headers=auth_headers
+    )
+    assert created.status_code == 201
+    skill_id = UUID(created.json()["skills"][0]["skill_id"])
+    db.add(
+        UserSkill(
+            user_id=auth_user.id,
+            skill_id=skill_id,
+            level=1,
+            source="document",
+        )
+    )
+    await db.commit()
+    applied = await client.post(
+        "/api/v1/me/experience/derivation/apply", headers=auth_headers
+    )
+    data = applied.json()
+    assert data["applied"] == 1
+    assert data["conflicts"] == []
+    row = (await db.execute(select(UserSkill))).scalars().first()
+    assert row.level > 6
+    assert row.source == "experience"
+
+
 async def test_conflicting_self_report_not_overwritten(
     client, auth_headers, seeded_catalog, db
 ):
@@ -254,6 +321,167 @@ async def test_conflicting_self_report_not_overwritten(
     assert len(data["conflicts"]) == 1
     row = (await db.execute(select(UserSkill))).scalars().first()
     assert row.level == 10
+
+
+async def test_claim_conflicts_leaf_row_untouched(
+    client, auth_headers, seeded_catalog, db
+):
+    """A claim far from the curve records its own conflict, never applied."""
+    await _apply_claim_case(client, auth_headers, db, seeded_catalog, claimed=10)
+    applied = await client.post(
+        "/api/v1/me/experience/derivation/apply", headers=auth_headers
+    )
+    data = applied.json()
+    assert data["applied"] == 0
+    assert len(data["conflicts"]) == 1
+    assert data["conflicts"][0]["claimed_level"] == 10
+    rows = (await db.execute(select(UserSkill))).scalars().all()
+    assert rows == []
+
+
+async def test_claim_confirmed_raises_confidence(
+    client, auth_headers, seeded_catalog, db
+):
+    from app.services.experience_service import CONFLICT_STEP
+
+    months = _months_between(date(2024, 1, 1), date(2024, 6, 30)) + 1
+    from app.services.experience_derivation import months_to_level
+
+    target = int(round(months_to_level(months)))
+    await _apply_claim_case(client, auth_headers, db, seeded_catalog, claimed=target)
+    applied = await client.post(
+        "/api/v1/me/experience/derivation/apply", headers=auth_headers
+    )
+    data = applied.json()
+    assert data["applied"] == 1
+    assert data["conflicts"] == []
+    row = (await db.execute(select(UserSkill))).scalars().first()
+    assert row.source == "experience"
+    assert row.level == target
+    assert row.confidence > months_to_confidence(months)
+    assert CONFLICT_STEP == 2
+
+
+async def test_disabled_skill_is_skipped_by_apply(
+    client, auth_headers, seeded_catalog, db
+):
+    """An opted-out row keeps its level/source; apply reports it skipped."""
+    from uuid import UUID as PyUUID
+
+    from app.models.taxonomy_model import Skill
+
+    skill = (await db.execute(select(Skill).limit(1))).scalars().first()
+    auth_user = (
+        (await db.execute(select(User).where(User.email == "student@example.com")))
+        .scalars()
+        .first()
+    )
+    body = {
+        "title": "Disabled job",
+        "kind": "job",
+        "start": "2024-01-01",
+        "end": "2024-06-30",
+        "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
+    }
+    created = await client.post(
+        "/api/v1/me/experience", json=body, headers=auth_headers
+    )
+    assert created.status_code == 201
+    skill_id = PyUUID(created.json()["skills"][0]["skill_id"])
+    db.add(
+        UserSkill(
+            user_id=auth_user.id,
+            skill_id=skill_id,
+            level=7,
+            source="self_report",
+            derive_enabled=False,
+        )
+    )
+    await db.commit()
+    applied = await client.post(
+        "/api/v1/me/experience/derivation/apply", headers=auth_headers
+    )
+    data = applied.json()
+    assert data["applied"] == 0
+    assert data["skipped_disabled"] == 1
+    row = (await db.execute(select(UserSkill))).scalars().first()
+    assert row.level == 7
+    assert row.source == "self_report"
+
+
+async def test_hidden_skill_is_skipped_by_apply(
+    client, auth_headers, seeded_catalog, db
+):
+    """A tombstoned skill is never re-created by the next apply."""
+    from uuid import UUID as PyUUID
+
+    from app.models.taxonomy_model import Skill
+
+    skill = (await db.execute(select(Skill).limit(1))).scalars().first()
+    auth_user = (
+        (await db.execute(select(User).where(User.email == "student@example.com")))
+        .scalars()
+        .first()
+    )
+    body = {
+        "title": "Hidden job",
+        "kind": "job",
+        "start": "2024-01-01",
+        "end": "2024-06-30",
+        "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
+    }
+    created = await client.post(
+        "/api/v1/me/experience", json=body, headers=auth_headers
+    )
+    assert created.status_code == 201
+    skill_id = PyUUID(created.json()["skills"][0]["skill_id"])
+    db.add(
+        UserSkill(
+            user_id=auth_user.id,
+            skill_id=skill_id,
+            level=1,
+            source="experience",
+            hidden=True,
+        )
+    )
+    await db.commit()
+    applied = await client.post(
+        "/api/v1/me/experience/derivation/apply", headers=auth_headers
+    )
+    data = applied.json()
+    assert data["applied"] == 0
+    row = (await db.execute(select(UserSkill))).scalars().first()
+    assert row.hidden is True
+    assert row.level == 1
+
+
+async def _apply_claim_case(client, auth_headers, db, seeded_catalog, *, claimed):
+    """Create one 6-month job experience carrying a level_claim."""
+    from app.models.taxonomy_model import Skill
+
+    skill = (await db.execute(select(Skill).limit(1))).scalars().first()
+    body = {
+        "title": "Claim job",
+        "kind": "job",
+        "start": "2024-01-01",
+        "end": "2024-06-30",
+        "skills": [
+            {
+                "skill_key": skill.key,
+                "role_in_item": "primary",
+                "level_claim": claimed,
+            }
+        ],
+    }
+    created = await client.post(
+        "/api/v1/me/experience", json=body, headers=auth_headers
+    )
+    assert created.status_code == 201, created.text
+    preview = await client.get("/api/v1/me/experience/derivation", headers=auth_headers)
+    assert preview.status_code == 200
+    summary = preview.json()["skills"][0]
+    assert summary["claimed_level"] == claimed
+    return summary
 
 
 async def test_draft_items_excluded_from_derivation(

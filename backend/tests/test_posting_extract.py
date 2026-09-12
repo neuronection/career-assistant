@@ -521,7 +521,7 @@ async def test_admin_needs_review_listing_and_reextract(
     assert reextract.json()["extracted"] is True
 
 
-async def test_search_endpoints_require_auth(client, search_fixtures):
+async def test_search_endpoints_require_auth(client, search_fixtures, multi_user_mode):
     response = await client.get(
         "/api/v1/postings/search", params={"skills": "programming"}
     )

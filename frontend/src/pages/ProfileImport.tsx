@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import i18next from "i18next";
 import {
   ArrowLeft,
   ChevronDown,
@@ -11,21 +15,19 @@ import {
 } from "lucide-react";
 import { Button, ConfirmationModal, EmptyState } from "@neuronection/assistant-ui";
 import { CvIntakeFlow } from "@/components/intake/CvIntakeFlow";
+import { CvDraftViewer } from "@/components/intake/CvDraftViewer";
+import { ReportLines, StatusChip } from "@/components/intake/CvStatus";
 import { useProfileStore } from "@/stores/profileStore";
 import {
   deleteCvDocument,
   fetchCvFileUrl,
+  getCvDrafts,
   listCvDocuments,
   listCvDraftHistory,
 } from "@/api/cvIntake";
 import { apiDetail } from "@/api/client";
 import type { DocumentRecord } from "@/types";
-import type { DraftHistoryRow } from "@/types/cvIntake";
-
-interface ActiveImport {
-  documentId: string;
-  reprocess?: boolean;
-}
+import type { CvDraft, DraftHistoryRow } from "@/types/cvIntake";
 
 function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -42,66 +44,39 @@ function createdLabel(iso: string | null): string {
   });
 }
 
-const CREATED_LABEL_KEYS: Record<string, string> = {
-  skills: "profileImport.created.skills",
-  education_items: "profileImport.created.education",
-  experience_items: "profileImport.created.experience",
-  certifications: "profileImport.created.certifications",
-  profile_achievements: "profileImport.created.achievements",
-};
-
-function reportSummary(row: DraftHistoryRow): string | null {
-  const t = i18next.t;
-  const created = row.report.created ?? {};
-  const parts = Object.entries(created)
-    .filter(([, n]) => n > 0)
-    .map(([key, n]) =>
-      t("profileImport.createdCount", {
-        count: n,
-        label: t(CREATED_LABEL_KEYS[key] ?? key.replace(/_/g, " ")),
-      })
-    );
-  if (!parts.length) return null;
-  return t("profileImport.reportSummary", { parts: parts.join(", ") });
-}
-
-function StatusChip({ row }: { row: DraftHistoryRow }) {
+function MetaLine({ row }: { row: DraftHistoryRow }) {
   const { t } = useTranslation();
-  if (row.document.status === "error" || row.document.status === "failed") {
-    return (
-      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">
-        {t("profileImport.status.failed")}
-      </span>
-    );
-  }
-  if (row.status === "pending") {
-    if (row.section_count === 0) {
-      return (
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-          {t("profileImport.status.noDetails")}
-        </span>
-      );
-    }
-    return (
-      <span className="rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
-        {t("profileImport.status.draftReady")}
-      </span>
-    );
-  }
-  if (row.status === "applied") {
-    return (
-      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        {t("profileImport.status.imported")}
-      </span>
-    );
+  const parts = [
+    createdLabel(row.document.created_at),
+    fileSize(row.document.size_bytes),
+  ];
+  if (row.document.page_count > 0) {
+    parts.push(t("profileImport.pages", { count: row.document.page_count }));
   }
   return (
-    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
-      {row.status === "discarded" && !row.updated_at
-        ? t("profileImport.status.parsed")
-        : t("profileImport.status.discarded")}
-    </span>
+    <p className="text-xs text-[var(--as-muted-fg)]">
+      {parts.filter(Boolean).join(" · ")}
+    </p>
   );
+}
+
+function orphanRow(doc: DocumentRecord): DraftHistoryRow {
+  return {
+    document_id: doc.id,
+    status: "discarded",
+    updated_at: null,
+    report: {},
+    document: {
+      id: doc.id,
+      filename: doc.filename,
+      mime: doc.mime,
+      size_bytes: doc.size_bytes,
+      page_count: doc.page_count,
+      status: doc.status,
+      error: doc.error,
+      created_at: null,
+    },
+  };
 }
 
 function HistoryRow({
@@ -119,7 +94,9 @@ function HistoryRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { t } = useTranslation();
-  const summary = reportSummary(row);
+  const hasReport =
+    Object.keys(row.report.created ?? {}).length > 0 ||
+    (row.report.proposed_skills?.length ?? 0) > 0;
   return (
     <li
       className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
@@ -128,9 +105,13 @@ function HistoryRow({
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-medium text-[var(--as-fg)]">
+            <Link
+              to={`/profile/import/${row.document.id}`}
+              className="truncate text-sm font-medium text-[var(--as-fg)] hover:underline"
+              data-testid="cv-history-open"
+            >
               {row.document.filename}
-            </p>
+            </Link>
             <StatusChip row={row} />
           </div>
           <p className="text-xs text-[var(--as-muted-fg)]">
@@ -170,7 +151,7 @@ function HistoryRow({
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-          {summary && (
+          {hasReport && (
             <button
               type="button"
               aria-expanded={expanded}
@@ -186,31 +167,9 @@ function HistoryRow({
           )}
         </div>
       </div>
-      {expanded && summary && (
-        <div
-          className="mt-3 rounded-lg border border-[var(--as-border)] p-3 text-sm text-[var(--as-muted-fg)]"
-          data-testid="cv-history-report"
-        >
-          <p>{summary}</p>
-          {(row.report.proposed_skills?.length ?? 0) > 0 && (
-            <p className="mt-1">
-              {t("profileImport.suggestedSkills", {
-                skills: row.report.proposed_skills?.join(", "),
-              })}
-            </p>
-          )}
-          {(row.report.skill_conflicts?.length ?? 0) > 0 && (
-            <p className="mt-1">
-              {t("profileImport.levelConflicts", {
-                conflicts: (row.report.skill_conflicts as string[]).join("; "),
-              })}
-            </p>
-          )}
-          <p className="mt-1">
-            {t("profileImport.importedAt", {
-              date: createdLabel(row.updated_at) || t("profileImport.earlier"),
-            })}
-          </p>
+      {expanded && (
+        <div className="mt-3">
+          <ReportLines report={row.report} updatedAt={row.updated_at} testid="cv-history-report" />
         </div>
       )}
     </li>
@@ -254,11 +213,16 @@ function DownloadButton({
 
 /** /profile/import: the CV-import workspace — upload a CV,
  * revisit drafts, re-process older CVs, download originals, and trace
- * what each import added. */
+ * what each import added. /profile/import/:documentId shows one CV:
+ * pending drafts open the interactive review flow, applied ones a
+ * read-only view of what was extracted and imported. */
 export function ProfileImport() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { documentId } = useParams<{ documentId: string }>();
+  const [search] = useSearchParams();
+  const reprocess = search.get("re") === "1";
   const { load } = useProfileStore();
-  const [active, setActive] = useState<ActiveImport | null>(null);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [rows, setRows] = useState<DraftHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,6 +230,8 @@ export function ProfileImport() {
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DraftHistoryRow | null>(null);
   const [refreshed, setRefreshed] = useState(false);
+  const [viewerDraft, setViewerDraft] = useState<CvDraft | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -289,9 +255,51 @@ export function ProfileImport() {
   const historyDocIds = new Set(rows.map((row) => row.document_id));
   const orphans = documents.filter((doc) => !historyDocIds.has(doc.id));
 
-  const openReview = (documentId: string, reprocess = false) => {
+  const detailRow = useMemo(() => {
+    if (!documentId) return undefined;
+    const hit = rows.find((row) => row.document_id === documentId);
+    if (hit) return hit;
+    const doc = documents.find((candidate) => candidate.id === documentId);
+    return doc ? orphanRow(doc) : undefined;
+  }, [documentId, rows, documents]);
+
+  const viewerApplicable =
+    !!documentId && !!detailRow && detailRow.status !== "pending" && !reprocess;
+
+  useEffect(() => {
+    setViewerDraft(null);
+    if (!viewerApplicable || !documentId) return;
+    let cancelled = false;
+    setViewerLoading(true);
+    getCvDrafts(documentId)
+      .then((draft) => {
+        if (!cancelled) setViewerDraft(draft);
+      })
+      .catch(() => {
+        /* draft gone — the metadata card + report still render */
+      })
+      .finally(() => {
+        if (!cancelled) setViewerLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerApplicable, documentId]);
+
+  const openDetail = (id: string) => {
     setError("");
-    setActive({ documentId, reprocess });
+    navigate(`/profile/import/${id}`);
+  };
+
+  const openReprocess = (id: string) => {
+    setError("");
+    navigate(`/profile/import/${id}?re=1`);
+  };
+
+  const exitDetail = () => {
+    setRefreshed(true);
+    navigate("/profile/import");
+    void refresh();
   };
 
   const confirmDelete = async () => {
@@ -300,7 +308,11 @@ export function ProfileImport() {
     setError("");
     try {
       await deleteCvDocument(deleteTarget.document_id);
+      const fromDetail = deleteTarget.document_id === documentId;
       setDeleteTarget(null);
+      if (fromDetail) {
+        navigate("/profile/import", { replace: true });
+      }
       await refresh();
     } catch (err) {
       setError(apiDetail(err));
@@ -315,11 +327,11 @@ export function ProfileImport() {
       data-testid="profile-import"
     >
       <div>
-        {active ? (
+        {documentId ? (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setActive(null)}
+            onClick={() => exitDetail()}
             data-testid="import-back"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -345,22 +357,91 @@ export function ProfileImport() {
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {active ? (
-        <CvIntakeFlow
-          key={`${active.documentId}:${active.reprocess ? "re" : "view"}`}
-          initialDocumentId={active.documentId}
-          reprocess={active.reprocess}
-          onExit={() => {
-            setActive(null);
-            setRefreshed(true);
-            void refresh();
-          }}
-          onApplied={() => {
-            setRefreshed(true);
-            void load();
-            void refresh();
-          }}
-        />
+      {documentId ? (
+        loading ? (
+          <p className="text-sm text-[var(--as-muted-fg)]">{t("common.loading")}</p>
+        ) : !detailRow ? (
+          <EmptyState
+            title={t("profileImport.detail.notFoundTitle")}
+            description={t("profileImport.detail.notFoundBody")}
+            action={
+              <Button size="sm" onClick={() => exitDetail()} data-testid="cv-detail-back-list">
+                {t("profileImport.backToCvs")}
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            <div
+              className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+              data-testid="cv-detail-meta"
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="truncate text-sm font-semibold text-[var(--as-fg)]">
+                      {detailRow.document.filename}
+                    </h2>
+                    <StatusChip row={detailRow} />
+                  </div>
+                  <MetaLine row={detailRow} />
+                </div>
+                <div className="flex items-center gap-2">
+                  {detailRow.document.status !== "error" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openReprocess(documentId)}
+                      disabled={busy}
+                      data-testid="cv-detail-reprocess"
+                    >
+                      <RefreshCw className="mr-1 h-3.5 w-3.5" aria-hidden />
+                      {t("profileImport.reprocess")}
+                    </Button>
+                  )}
+                  <DownloadButton
+                    documentId={detailRow.document.id}
+                    filename={detailRow.document.filename}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("profileImport.deleteAria", {
+                      name: detailRow.document.filename,
+                    })}
+                    title={t("profileImport.deleteCv")}
+                    onClick={() => setDeleteTarget(detailRow)}
+                    disabled={busy}
+                    data-testid="cv-detail-delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            {detailRow.status === "pending" || reprocess ? (
+              <CvIntakeFlow
+                key={`${documentId}:${reprocess ? "re" : "view"}`}
+                initialDocumentId={documentId}
+                reprocess={reprocess}
+                onExit={exitDetail}
+                onApplied={() => {
+                  setRefreshed(true);
+                  void load();
+                  void refresh();
+                }}
+              />
+            ) : (
+              <CvDraftViewer
+                payload={viewerDraft?.payload ?? null}
+                row={detailRow}
+                documentId={documentId}
+                applied={viewerDraft?.applied ?? []}
+                loading={viewerLoading}
+              />
+            )}
+          </>
+        )
       ) : (
         <>
           <CvIntakeFlow
@@ -391,56 +472,27 @@ export function ProfileImport() {
                     key={row.document_id}
                     row={row}
                     busy={busy}
-                    onReview={() => openReview(row.document_id)}
-                    onReprocess={() => openReview(row.document_id, true)}
+                    onReview={() => openDetail(row.document_id)}
+                    onReprocess={() => openReprocess(row.document_id)}
                     onDelete={() => setDeleteTarget(row)}
                   />
                 ))}
-                {orphans.map((doc) => (
-                  <HistoryRow
-                    key={doc.id}
-                    busy={busy}
-                    row={{
-                      document_id: doc.id,
-                      status: "discarded",
-                      updated_at: null,
-                      report: {},
-                      document: {
-                        id: doc.id,
-                        filename: doc.filename,
-                        mime: doc.mime,
-                        size_bytes: doc.size_bytes,
-                        page_count: doc.page_count,
-                        status: doc.status,
-                        error: doc.error,
-                        created_at: null,
-                      },
-                    }}
-                    onReview={() => openReview(doc.id)}
-                    onReprocess={() => openReview(doc.id, true)}
-                    onDelete={() =>
-                      setDeleteTarget({
-                        document_id: doc.id,
-                        status: "discarded",
-                        updated_at: null,
-                        report: {},
-                        document: {
-                          id: doc.id,
-                          filename: doc.filename,
-                          mime: doc.mime,
-                          size_bytes: doc.size_bytes,
-                          page_count: doc.page_count,
-                          status: doc.status,
-                          error: doc.error,
-                          created_at: null,
-                        },
-                      })
-                    }
-                  />
-                ))}
+                {orphans.map((doc) => {
+                  const row = orphanRow(doc);
+                  return (
+                    <HistoryRow
+                      key={doc.id}
+                      row={row}
+                      busy={busy}
+                      onReview={() => openDetail(doc.id)}
+                      onReprocess={() => openReprocess(doc.id)}
+                      onDelete={() => setDeleteTarget(row)}
+                    />
+                  );
+                })}
               </ul>
             )}
-            {refreshed && !active && (
+            {refreshed && !documentId && (
               <p className="mt-2 text-sm text-emerald-600" data-testid="import-refreshed">
                 {t("profileImport.updated")}
               </p>

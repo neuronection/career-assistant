@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type { DocumentRecord } from "@/types";
 import type {
+  CvAppliedEntity,
   CvApplyReport,
   CvDraft,
   CvIntakeSection,
@@ -35,11 +36,15 @@ export async function getCvDrafts(documentId: string): Promise<CvDraft> {
 
 export async function applyCvDraft(
   documentId: string,
-  selections: CvSelections
-): Promise<{ report: CvApplyReport }> {
-  const { data } = await api.post<{ report: CvApplyReport }>(
+  selections: CvSelections,
+  drafts: CvSelections = {}
+): Promise<{ report: CvApplyReport; applied?: CvAppliedEntity[] }> {
+  const { data } = await api.post<{
+    report: CvApplyReport;
+    applied?: CvAppliedEntity[];
+  }>(
     `/cv/intake/${documentId}/apply`,
-    { selections }
+    { selections, drafts }
   );
   return data;
 }

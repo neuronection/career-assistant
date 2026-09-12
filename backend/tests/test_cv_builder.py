@@ -109,6 +109,8 @@ async def test_context_sources_list_items(client, auth_headers, seeded_catalog):
         "basics",
         "summary",
         "experience",
+        "projects",
+        "volunteer",
         "education",
         "certifications",
         "achievements",
@@ -138,7 +140,8 @@ async def test_resolution_modes_and_exclusion_primacy(
     resolved = await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
     assert resolved.status_code == 200, resolved.text
     body = resolved.json()
-    assert body["snapshot_index"]["experience"] == [first["id"], second["id"]]
+    assert body["snapshot_index"]["experience"] == [first["id"]]
+    assert body["snapshot_index"]["projects"] == [second["id"]]
     assert body["snapshot"]["basics"]["location"] == "Athens, Greece"
 
     minus_one = await client.put(
@@ -146,7 +149,7 @@ async def test_resolution_modes_and_exclusion_primacy(
         json={
             "mode": "all",
             "include": [],
-            "exclude": [{"source_key": "experience", "item_id": second["id"]}],
+            "exclude": [{"source_key": "projects", "item_id": second["id"]}],
         },
         headers=auth_headers,
     )
@@ -155,12 +158,13 @@ async def test_resolution_modes_and_exclusion_primacy(
         await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
     ).json()
     assert resolved["snapshot_index"]["experience"] == [first["id"]]
+    assert "projects" not in resolved["snapshot_index"]
 
     plus_only = await client.put(
         f"/api/v1/cv/{cv['id']}/context",
         json={
             "mode": "none",
-            "include": [{"source_key": "experience", "item_id": second["id"]}],
+            "include": [{"source_key": "projects", "item_id": second["id"]}],
             "exclude": [],
         },
         headers=auth_headers,
@@ -169,7 +173,7 @@ async def test_resolution_modes_and_exclusion_primacy(
     resolved = (
         await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
     ).json()
-    assert resolved["snapshot_index"] == {"experience": [second["id"]]}
+    assert resolved["snapshot_index"] == {"projects": [second["id"]]}
     assert "basics" not in resolved["snapshot"]
 
     excluded_but_included = await client.put(
@@ -177,9 +181,9 @@ async def test_resolution_modes_and_exclusion_primacy(
         json={
             "mode": "custom",
             "include": [
-                {"source_key": "experience", "item_id": second["id"]},
+                {"source_key": "projects", "item_id": second["id"]},
             ],
-            "exclude": [{"source_key": "experience", "item_id": second["id"]}],
+            "exclude": [{"source_key": "projects", "item_id": second["id"]}],
         },
         headers=auth_headers,
     )
@@ -188,6 +192,43 @@ async def test_resolution_modes_and_exclusion_primacy(
         await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
     ).json()
     assert resolved["snapshot"] == {}, "exclusions must win over includes"
+
+
+async def test_experience_sources_split_by_kind(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    """Plan 70: work/projects/volunteer resolve as three disjoint sources."""
+    job = await _experience(client, auth_headers)
+    project = await _experience(
+        client,
+        auth_headers,
+        title="Campus app",
+        kind="project",
+        org_name="",
+        start="2024-02-01",
+        end="2024-06-30",
+    )
+    volunteer = await _experience(
+        client,
+        auth_headers,
+        title="Food bank helper",
+        kind="volunteer",
+        org_name="Food Bank",
+        start="2023-10-01",
+        end="2024-01-31",
+    )
+    sources = {
+        source["key"]: source
+        for source in (
+            await client.get("/api/v1/cv/context/sources", headers=auth_headers)
+        ).json()["sources"]
+    }
+    assert [item["item_id"] for item in sources["experience"]["items"]] == [job["id"]]
+    assert [item["item_id"] for item in sources["projects"]["items"]] == [project["id"]]
+    assert [item["item_id"] for item in sources["volunteer"]["items"]] == [
+        volunteer["id"]
+    ]
+    assert sources["experience"]["label"] == "Work Experience"
 
 
 async def test_preview_renders_without_versioning(

@@ -84,7 +84,10 @@ class CoverLetterService:
         rows = await self.db.execute(
             select(UserSkill, Skill)
             .join(Skill, Skill.id == UserSkill.skill_id)
-            .where(UserSkill.user_id == user_id)
+            .where(
+                UserSkill.user_id == user_id,
+                UserSkill.derive_enabled,
+            )
         )
         return {skill.key: user_skill.level for user_skill, skill in rows.all()}
 

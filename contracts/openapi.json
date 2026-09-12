@@ -109,6 +109,62 @@
         "title": "AchievementOut",
         "type": "object"
       },
+      "AddBlockOp": {
+        "description": "Append (or insert at a position) one registry-valid block.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "enum": [
+                  "main",
+                  "sidebar"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "kind": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "op": {
+            "const": "add_block",
+            "title": "Op",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "maximum": 24.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "props": {
+            "additionalProperties": true,
+            "maxProperties": 30,
+            "title": "Props",
+            "type": "object"
+          }
+        },
+        "required": [
+          "op",
+          "kind"
+        ],
+        "title": "AddBlockOp",
+        "type": "object"
+      },
       "AdminUserOut": {
         "properties": {
           "created_at": {
@@ -337,6 +393,28 @@
           "posting_id"
         ],
         "title": "AppliedIn",
+        "type": "object"
+      },
+      "ApplyThemeOp": {
+        "description": "Apply a curated theme (key from the themes registry).",
+        "properties": {
+          "op": {
+            "const": "apply_theme",
+            "title": "Op",
+            "type": "string"
+          },
+          "theme_key": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Theme Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "theme_key"
+        ],
+        "title": "ApplyThemeOp",
         "type": "object"
       },
       "ArchetypeOut": {
@@ -1554,6 +1632,18 @@
             "title": "Issuer",
             "type": "string"
           },
+          "language_code": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
           "link": {
             "default": "",
             "maxLength": 500,
@@ -1625,6 +1715,17 @@
           "issuer": {
             "title": "Issuer",
             "type": "string"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
           },
           "link": {
             "title": "Link",
@@ -1711,6 +1812,18 @@
               }
             ],
             "title": "Issuer"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
           },
           "link": {
             "anyOf": [
@@ -2355,8 +2468,14 @@
         "type": "object"
       },
       "CvApplyRequest": {
-        "description": "Partial apply: section \u2192 true (all) or list of item indices.",
+        "description": "Partial apply: section \u2192 true (all) or list of item indices.\n\n`drafts` marks selections that should land as drafts (not active):\nsection \u2192 true (all applied items of that section) or a list of\nitem indices. Items are active by default \u2014 the review ticks are\nthe user's approval.",
         "properties": {
+          "drafts": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Drafts",
+            "type": "object"
+          },
           "selections": {
             "additionalProperties": true,
             "title": "Selections",
@@ -2475,7 +2594,7 @@
         "type": "object"
       },
       "CvContextSelection": {
-        "description": "Per-CV context selection: include-all-minus / none-plus / custom.",
+        "description": "Per-CV context selection: include-all-minus / none-plus / custom.\n\n`synth_mode`: prefer = active synthesized variants matching this CV\nswap their text in at resolution (before overrides); off = verbatim\nprofile text. Default off \u2014 existing CVs are byte-compatible.\n`synth_pins` (plan 72 follow-up): per-item variant pinning \u2014\n`{\"source_key:item_id\": synth_id}`; a pin beats the automatic\n`match_for_user` winner for that ref.",
         "properties": {
           "exclude": {
             "items": {
@@ -2502,6 +2621,22 @@
             ],
             "title": "Mode",
             "type": "string"
+          },
+          "synth_mode": {
+            "default": "off",
+            "enum": [
+              "off",
+              "prefer"
+            ],
+            "title": "Synth Mode",
+            "type": "string"
+          },
+          "synth_pins": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Synth Pins",
+            "type": "object"
           }
         },
         "title": "CvContextSelection",
@@ -2590,6 +2725,31 @@
           "stale"
         ],
         "title": "CvContextStatusOut",
+        "type": "object"
+      },
+      "CvDesignOut": {
+        "description": "The CV's effective design tokens + template meta.",
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "title": "Design",
+            "type": "object"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CvTemplateMeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "design"
+        ],
+        "title": "CvDesignOut",
         "type": "object"
       },
       "CvDocumentCreate": {
@@ -2990,6 +3150,47 @@
         "title": "CvGenerateAccepted",
         "type": "object"
       },
+      "CvGeneratePreviewOut": {
+        "description": "Live draft preview while the polish loop edits (plan 64 \u00a73).\n\n`pct` and `stage` come from the job's progress; `iteration` from the\ntrace so the card can label (\"polishing 2/3\"); `trace` is the\nmid-run mirror of the polish trace (the card's timeline). `html` is\nthe deterministic render of the currently committed working state.",
+        "properties": {
+          "html": {
+            "default": "",
+            "title": "Html",
+            "type": "string"
+          },
+          "iteration": {
+            "default": 0,
+            "title": "Iteration",
+            "type": "integer"
+          },
+          "pct": {
+            "default": 0,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Pct",
+            "type": "integer"
+          },
+          "stage": {
+            "default": "",
+            "title": "Stage",
+            "type": "string"
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace"
+          }
+        },
+        "title": "CvGeneratePreviewOut",
+        "type": "object"
+      },
       "CvGenerateRequest": {
         "description": "The generate modal's preferences.",
         "properties": {
@@ -3027,8 +3228,14 @@
           },
           "notes": {
             "default": "",
-            "maxLength": 2000,
+            "maxLength": 5000,
             "title": "Notes",
+            "type": "string"
+          },
+          "posting_text": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Posting Text",
             "type": "string"
           },
           "sections": {
@@ -3036,6 +3243,8 @@
               "enum": [
                 "summary",
                 "experience",
+                "projects",
+                "volunteer",
                 "education",
                 "certifications",
                 "skills",
@@ -3045,7 +3254,7 @@
               ],
               "type": "string"
             },
-            "maxItems": 8,
+            "maxItems": 10,
             "title": "Sections",
             "type": "array"
           },
@@ -3072,6 +3281,15 @@
               }
             ],
             "title": "Template Id"
+          },
+          "template_pick": {
+            "default": "none",
+            "enum": [
+              "none",
+              "ai"
+            ],
+            "title": "Template Pick",
+            "type": "string"
           },
           "tone": {
             "anyOf": [
@@ -3118,6 +3336,33 @@
             "default": false,
             "title": "Plan Fallback",
             "type": "boolean"
+          },
+          "polish": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Polish"
+          },
+          "synth_applied": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Synth Applied",
+            "type": "object"
+          },
+          "synth_proposed": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Synth Proposed",
+            "type": "array"
           },
           "title": {
             "title": "Title",
@@ -3226,6 +3471,90 @@
         ],
         "title": "CvKind",
         "type": "string"
+      },
+      "CvOpsOut": {
+        "description": "Application results + the refreshed builder state in one round\ntrip (`template_id` reflects private-copy re-pointing).",
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/OpResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "state": {
+            "additionalProperties": true,
+            "title": "State",
+            "type": "object"
+          }
+        },
+        "required": [
+          "results",
+          "state"
+        ],
+        "title": "CvOpsOut",
+        "type": "object"
+      },
+      "CvOpsRequest": {
+        "description": "UI-driven builder operations (plan 71): the copilot's op\nvocabulary applied through the same audited path.",
+        "properties": {
+          "ops": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "add_block": "#/components/schemas/AddBlockOp",
+                  "apply_theme": "#/components/schemas/ApplyThemeOp",
+                  "move_block": "#/components/schemas/MoveBlockOp",
+                  "remove_block": "#/components/schemas/RemoveBlockOp",
+                  "set_context": "#/components/schemas/SetContextOp",
+                  "set_doc_options": "#/components/schemas/SetDocOptionsOp",
+                  "set_override": "#/components/schemas/SetOverrideOp",
+                  "set_template": "#/components/schemas/SetTemplateOp",
+                  "update_block_props": "#/components/schemas/UpdateBlockPropsOp",
+                  "update_design": "#/components/schemas/UpdateDesignOp"
+                },
+                "propertyName": "op"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SetTemplateOp"
+                },
+                {
+                  "$ref": "#/components/schemas/ApplyThemeOp"
+                },
+                {
+                  "$ref": "#/components/schemas/UpdateDesignOp"
+                },
+                {
+                  "$ref": "#/components/schemas/SetContextOp"
+                },
+                {
+                  "$ref": "#/components/schemas/SetDocOptionsOp"
+                },
+                {
+                  "$ref": "#/components/schemas/AddBlockOp"
+                },
+                {
+                  "$ref": "#/components/schemas/RemoveBlockOp"
+                },
+                {
+                  "$ref": "#/components/schemas/MoveBlockOp"
+                },
+                {
+                  "$ref": "#/components/schemas/UpdateBlockPropsOp"
+                },
+                {
+                  "$ref": "#/components/schemas/SetOverrideOp"
+                }
+              ]
+            },
+            "maxItems": 12,
+            "title": "Ops",
+            "type": "array"
+          }
+        },
+        "title": "CvOpsRequest",
+        "type": "object"
       },
       "CvPageSize": {
         "enum": [
@@ -3380,6 +3709,258 @@
         "title": "CvResolutionOut",
         "type": "object"
       },
+      "CvRunAggregateOut": {
+        "description": "Per-run totals of the LLM-call ledger (task breakdown included).",
+        "properties": {
+          "by_task": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "By Task",
+            "type": "object"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "latency_ms_sum": {
+            "title": "Latency Ms Sum",
+            "type": "integer"
+          },
+          "tokens_in": {
+            "title": "Tokens In",
+            "type": "integer"
+          },
+          "tokens_out": {
+            "title": "Tokens Out",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "calls",
+          "tokens_in",
+          "tokens_out",
+          "latency_ms_sum"
+        ],
+        "title": "CvRunAggregateOut",
+        "type": "object"
+      },
+      "CvRunCallOut": {
+        "description": "One audited LLM call of a CV run (plan 65.3).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          },
+          "tokens_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens In"
+          },
+          "tokens_out": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Out"
+          }
+        },
+        "required": [
+          "id",
+          "task",
+          "status",
+          "provider",
+          "model"
+        ],
+        "title": "CvRunCallOut",
+        "type": "object"
+      },
+      "CvRunOut": {
+        "description": "One run of `cv_generate` / `cv_polish` for a CV (plan 65.3).\n\n`iterations` carries the polish trace per iteration (ops ledger,\ncoverage, verdicts); `llm_calls` is the run's audit ledger from\n`ai_generations` (run-linked); `outcome` is the loop's terminal\nstatus (completed / cap / failed / cancelled).",
+        "properties": {
+          "aggregate": {
+            "$ref": "#/components/schemas/CvRunAggregateOut"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "final_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Version"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "iterations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Iterations",
+            "type": "array"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_type": {
+            "title": "Job Type",
+            "type": "string"
+          },
+          "llm_calls": {
+            "items": {
+              "$ref": "#/components/schemas/CvRunCallOut"
+            },
+            "title": "Llm Calls",
+            "type": "array"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "resumed_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resumed From"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "job_type",
+          "status",
+          "created_at",
+          "aggregate"
+        ],
+        "title": "CvRunOut",
+        "type": "object"
+      },
       "CvStatus": {
         "enum": [
           "draft",
@@ -3442,6 +4023,554 @@
         "title": "CvSuggestionOut",
         "type": "object"
       },
+      "CvSynthGenerateOut": {
+        "description": "Sync drafts, or 202 with the queue job id (bulk runs).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CvSynthItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          }
+        },
+        "title": "CvSynthGenerateOut",
+        "type": "object"
+      },
+      "CvSynthItemCreate": {
+        "description": "Manual variant creation (user-written text, no AI).",
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/CvSynthPayload"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/CvContextRef"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Refs",
+            "type": "array"
+          },
+          "scope": {
+            "default": "item",
+            "enum": [
+              "item",
+              "summary"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "target_posting_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Posting Id"
+          },
+          "variant_key": {
+            "default": "default",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Variant Key",
+            "type": "string"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/CvSynthVoice"
+          }
+        },
+        "required": [
+          "refs",
+          "payload"
+        ],
+        "title": "CvSynthItemCreate",
+        "type": "object"
+      },
+      "CvSynthItemGenerate": {
+        "description": "Body of POST /cv/synth/generate. >5 refs ride the CV_SYNTH queue.",
+        "properties": {
+          "action": {
+            "default": "summarize",
+            "enum": [
+              "summarize",
+              "detail",
+              "restyle",
+              "posting_fit",
+              "translate"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "language": {
+            "default": "en",
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Language",
+            "type": "string"
+          },
+          "length": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length"
+          },
+          "posting_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posting Id"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/CvContextRef"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Refs",
+            "type": "array"
+          },
+          "regenerate_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regenerate Of"
+          },
+          "scope": {
+            "default": "item",
+            "enum": [
+              "item",
+              "summary"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "target_language": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Language"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          },
+          "translate_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translate Of"
+          },
+          "variant_key": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Key"
+          }
+        },
+        "required": [
+          "refs"
+        ],
+        "title": "CvSynthItemGenerate",
+        "type": "object"
+      },
+      "CvSynthItemOut": {
+        "description": "Read shape with computed state (staleness, orphan, applicability).",
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "orphaned": {
+            "default": false,
+            "title": "Orphaned",
+            "type": "boolean"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CvSynthPayload"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_refs": {
+            "items": {
+              "$ref": "#/components/schemas/CvContextRef"
+            },
+            "title": "Source Refs",
+            "type": "array"
+          },
+          "source_state": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Source State",
+            "type": "array"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_posting_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Posting Id"
+          },
+          "variant_key": {
+            "title": "Variant Key",
+            "type": "string"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/CvSynthVoice"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "variant_key",
+          "source_refs",
+          "payload",
+          "voice",
+          "status",
+          "source",
+          "verified"
+        ],
+        "title": "CvSynthItemOut",
+        "type": "object"
+      },
+      "CvSynthItemUpdate": {
+        "description": "User actions on a variant (draft\u2192active, text edits).",
+        "properties": {
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CvSynthPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "draft",
+                  "active",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "variant_key": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Key"
+          }
+        },
+        "title": "CvSynthItemUpdate",
+        "type": "object"
+      },
+      "CvSynthPayload": {
+        "description": "The validated synthesized text (only text-bearing fields land).",
+        "properties": {
+          "bullets": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Bullets",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "title": "CvSynthPayload",
+        "type": "object"
+      },
+      "CvSynthPreviewIn": {
+        "description": "Body of POST /cv/synth/preview \u2014 match candidates without AI.\n\n`refs` (\u226440) when the caller knows the item ids; otherwise the\ncaller's context selection is resolved server-side.",
+        "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CvContextSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "default": "en",
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Language",
+            "type": "string"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/CvContextRef"
+            },
+            "maxItems": 40,
+            "title": "Refs",
+            "type": "array"
+          },
+          "target_posting_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Posting Id"
+          }
+        },
+        "title": "CvSynthPreviewIn",
+        "type": "object"
+      },
+      "CvSynthPreviewItemOut": {
+        "description": "One matched + applying variant pair (plan 69.3).",
+        "properties": {
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "synth_id": {
+            "format": "uuid",
+            "title": "Synth Id",
+            "type": "string"
+          },
+          "variant_key": {
+            "title": "Variant Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_key",
+          "item_id",
+          "synth_id",
+          "variant_key",
+          "stale"
+        ],
+        "title": "CvSynthPreviewItemOut",
+        "type": "object"
+      },
+      "CvSynthPreviewOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CvSynthPreviewItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "CvSynthPreviewOut",
+        "type": "object"
+      },
+      "CvSynthVoice": {
+        "description": "Recorded generation request (drives matching + regenerate).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "language": {
+            "default": "en",
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Language",
+            "type": "string"
+          },
+          "length": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          }
+        },
+        "title": "CvSynthVoice",
+        "type": "object"
+      },
       "CvTemplateExport": {
         "description": "File-first export package.",
         "properties": {
@@ -3477,6 +4606,35 @@
           "content_hash"
         ],
         "title": "CvTemplateExport",
+        "type": "object"
+      },
+      "CvTemplateMeta": {
+        "description": "Template meta for the builder's Template tab (plan 71).",
+        "properties": {
+          "ats_safe": {
+            "title": "Ats Safe",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "owned": {
+            "title": "Owned",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "owned",
+          "ats_safe"
+        ],
+        "title": "CvTemplateMeta",
         "type": "object"
       },
       "CvTemplateOut": {
@@ -3810,6 +4968,11 @@
             },
             "title": "Derived",
             "type": "array"
+          },
+          "skipped_disabled": {
+            "default": 0,
+            "title": "Skipped Disabled",
+            "type": "integer"
           }
         },
         "required": [
@@ -3843,6 +5006,28 @@
       },
       "DerivedSkillOut": {
         "properties": {
+          "claim_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Status"
+          },
+          "claimed_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed Level"
+          },
           "confidence": {
             "title": "Confidence",
             "type": "number"
@@ -4895,9 +6080,16 @@
             "type": "string"
           },
           "start": {
-            "format": "date",
-            "title": "Start",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
           },
           "status": {
             "title": "Status",
@@ -4913,7 +6105,6 @@
           "kind",
           "title",
           "org_name",
-          "start",
           "open_ended",
           "description",
           "links",
@@ -7696,6 +8887,35 @@
         "title": "ModelUpdate",
         "type": "object"
       },
+      "MoveBlockOp": {
+        "description": "Move one block to a new position (bounds-clamped).",
+        "properties": {
+          "block_index": {
+            "maximum": 24.0,
+            "minimum": 0.0,
+            "title": "Block Index",
+            "type": "integer"
+          },
+          "op": {
+            "const": "move_block",
+            "title": "Op",
+            "type": "string"
+          },
+          "to_index": {
+            "maximum": 24.0,
+            "minimum": 0.0,
+            "title": "To Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "op",
+          "block_index",
+          "to_index"
+        ],
+        "title": "MoveBlockOp",
+        "type": "object"
+      },
       "NotificationOut": {
         "properties": {
           "body": {
@@ -7912,6 +9132,31 @@
           }
         },
         "title": "OnboardingPathIn",
+        "type": "object"
+      },
+      "OpResult": {
+        "description": "Application outcome of one operation (failed ops never abort).",
+        "properties": {
+          "detail": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Detail",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "ok"
+        ],
+        "title": "OpResult",
         "type": "object"
       },
       "PathGraphOut": {
@@ -9808,6 +11053,28 @@
         "title": "RelationType",
         "type": "string"
       },
+      "RemoveBlockOp": {
+        "description": "Drop the block at a context-listed index.",
+        "properties": {
+          "block_index": {
+            "maximum": 24.0,
+            "minimum": 0.0,
+            "title": "Block Index",
+            "type": "integer"
+          },
+          "op": {
+            "const": "remove_block",
+            "title": "Op",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "block_index"
+        ],
+        "title": "RemoveBlockOp",
+        "type": "object"
+      },
       "ResetPasswordIn": {
         "properties": {
           "new_password": {
@@ -10385,6 +11652,211 @@
         "title": "SessionUpdate",
         "type": "object"
       },
+      "SetContextOp": {
+        "description": "Replace the context selection (same contract as PUT /cv/{id}/context).",
+        "properties": {
+          "exclude": {
+            "items": {
+              "$ref": "#/components/schemas/CvContextRef"
+            },
+            "maxItems": 200,
+            "title": "Exclude",
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "$ref": "#/components/schemas/CvContextRef"
+            },
+            "maxItems": 200,
+            "title": "Include",
+            "type": "array"
+          },
+          "mode": {
+            "default": "custom",
+            "enum": [
+              "all",
+              "none",
+              "custom"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "op": {
+            "const": "set_context",
+            "title": "Op",
+            "type": "string"
+          },
+          "synth_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "prefer"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synth Mode"
+          },
+          "synth_pins": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "maxProperties": 100,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synth Pins"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "title": "SetContextOp",
+        "type": "object"
+      },
+      "SetDocOptionsOp": {
+        "description": "Document-level options: title, page size, page budget, language.",
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "max_pages": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Pages"
+          },
+          "op": {
+            "const": "set_doc_options",
+            "title": "Op",
+            "type": "string"
+          },
+          "page_size": {
+            "anyOf": [
+              {
+                "enum": [
+                  "a4",
+                  "letter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Size"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "title": "SetDocOptionsOp",
+        "type": "object"
+      },
+      "SetOverrideOp": {
+        "description": "Field patch over one resolved context item (editor override).",
+        "properties": {
+          "field": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Field",
+            "type": "string"
+          },
+          "item_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Item Id",
+            "type": "string"
+          },
+          "op": {
+            "const": "set_override",
+            "title": "Op",
+            "type": "string"
+          },
+          "source_key": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Source Key",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "source_key",
+          "item_id",
+          "field",
+          "value"
+        ],
+        "title": "SetOverrideOp",
+        "type": "object"
+      },
+      "SetTemplateOp": {
+        "description": "Point the CV at a readable template (bank or the owner's own).",
+        "properties": {
+          "op": {
+            "const": "set_template",
+            "title": "Op",
+            "type": "string"
+          },
+          "template_id": {
+            "maxLength": 64,
+            "minLength": 8,
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "template_id"
+        ],
+        "title": "SetTemplateOp",
+        "type": "object"
+      },
       "ShiftTolerance": {
         "description": "On-call/shift tolerance levels.",
         "enum": [
@@ -10806,6 +12278,31 @@
           "created_at"
         ],
         "title": "SubscriptionOut",
+        "type": "object"
+      },
+      "SuggestRequest": {
+        "properties": {
+          "language": {
+            "default": "en",
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Language",
+            "type": "string"
+          },
+          "target_posting_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Posting Id"
+          }
+        },
+        "title": "SuggestRequest",
         "type": "object"
       },
       "TagCreateIn": {
@@ -11611,6 +13108,97 @@
         "title": "UnseenCountOut",
         "type": "object"
       },
+      "UpdateBlockPropsOp": {
+        "description": "Merge a props patch into the block at a context-listed index.",
+        "properties": {
+          "block_index": {
+            "maximum": 24.0,
+            "minimum": 0.0,
+            "title": "Block Index",
+            "type": "integer"
+          },
+          "op": {
+            "const": "update_block_props",
+            "title": "Op",
+            "type": "string"
+          },
+          "props": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "items": {},
+                  "type": "array"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "maxProperties": 30,
+            "minProperties": 1,
+            "title": "Props",
+            "type": "object"
+          }
+        },
+        "required": [
+          "op",
+          "block_index",
+          "props"
+        ],
+        "title": "UpdateBlockPropsOp",
+        "type": "object"
+      },
+      "UpdateDesignOp": {
+        "description": "Patch design tokens on the rendered template (duplicate-if-bank).",
+        "properties": {
+          "design": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "maxProperties": 30,
+            "minProperties": 1,
+            "title": "Design",
+            "type": "object"
+          },
+          "op": {
+            "const": "update_design",
+            "title": "Op",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "design"
+        ],
+        "title": "UpdateDesignOp",
+        "type": "object"
+      },
       "UsageRollup": {
         "properties": {
           "calls": {
@@ -11795,6 +13383,16 @@
             "title": "Confidence",
             "type": "number"
           },
+          "derive_enabled": {
+            "default": true,
+            "title": "Derive Enabled",
+            "type": "boolean"
+          },
+          "hidden": {
+            "default": false,
+            "title": "Hidden",
+            "type": "boolean"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -11834,6 +13432,19 @@
           "confidence"
         ],
         "title": "UserSkillOut",
+        "type": "object"
+      },
+      "UserSkillPatchIn": {
+        "properties": {
+          "derive_enabled": {
+            "title": "Derive Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "derive_enabled"
+        ],
+        "title": "UserSkillPatchIn",
         "type": "object"
       },
       "UserSkillSource": {
@@ -18093,6 +19704,55 @@
         ]
       }
     },
+    "/api/v1/cv/generate/{job_id}/preview": {
+      "get": {
+        "description": "Live draft preview while the run edits (plan 64 \u00a73 / 64.5).\n\nRenders the currently committed working state of the job's CV \u2014\ndeterministic, no version created. Unknown/foreign/finished runs\nanswer 404 (the builder takes over afterwards); a running run whose\ndraft does not exist yet (queued/plan/draft stages) answers 200\nwith an empty snapshot instead \u2014 the progress card polls.",
+        "operationId": "generate_preview_api_v1_cv_generate__job_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvGeneratePreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Preview",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
     "/api/v1/cv/intake/drafts": {
       "get": {
         "description": "Import history: every CV draft + its source document.",
@@ -18230,7 +19890,7 @@
     },
     "/api/v1/cv/intake/{document_id}/drafts": {
       "get": {
-        "description": "The review-first extraction draft.",
+        "description": "The review-first extraction draft; applied drafts also carry\n`applied` \u2014 where their import created profile entities.",
         "operationId": "get_cv_drafts_api_v1_cv_intake__document_id__drafts_get",
         "parameters": [
           {
@@ -18325,6 +19985,464 @@
           }
         ],
         "summary": "Parse Cv Document",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/synth": {
+      "get": {
+        "description": "The caller's variant library, newest first.",
+        "operationId": "list_synth_items_api_v1_cv_synth_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "posting_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Posting Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Language"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stale",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CvSynthItemOut"
+                  },
+                  "title": "Response List Synth Items Api V1 Cv Synth Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Synth Items",
+        "tags": [
+          "cv"
+        ]
+      },
+      "post": {
+        "description": "Create a manual variant (user-written text, active immediately).",
+        "operationId": "create_synth_item_api_v1_cv_synth_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvSynthItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Synth Item",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/synth/generate": {
+      "post": {
+        "description": "Draft synthesized variants (\u22645 refs inline; more \u2192 queued bulk).",
+        "operationId": "generate_synth_items_api_v1_cv_synth_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvSynthItemGenerate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Synth Items",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/synth/preview": {
+      "post": {
+        "description": "Which of the caller's active variants would apply (plan 69.3).\n\nRead-only, deterministic, no AI: the generate modal uses it for the\n\"N matching variants will be used\" hint. Precedence mirrors the\nresolver: active \u2192 language \u2192 posting-scoped beats generic.",
+        "operationId": "preview_synth_matches_api_v1_cv_synth_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvSynthPreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Synth Matches",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/synth/{item_id}": {
+      "delete": {
+        "description": "Delete the variant (the source profile item is untouched).",
+        "operationId": "delete_synth_item_api_v1_cv_synth__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Synth Item",
+        "tags": [
+          "cv"
+        ]
+      },
+      "get": {
+        "description": "One variant with computed state.",
+        "operationId": "get_synth_item_api_v1_cv_synth__item_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Synth Item",
+        "tags": [
+          "cv"
+        ]
+      },
+      "patch": {
+        "description": "Edit text / transition status (activate supersedes slot siblings).",
+        "operationId": "update_synth_item_api_v1_cv_synth__item_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvSynthItemUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Synth Item",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/synth/{item_id}/regenerate": {
+      "post": {
+        "description": "Re-run a stored AI variant's exact params \u2192 a fresh draft.",
+        "operationId": "regenerate_synth_item_api_v1_cv_synth__item_id__regenerate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Regenerate Synth Item",
         "tags": [
           "cv"
         ]
@@ -18542,6 +20660,55 @@
           }
         ],
         "summary": "Preview Draft",
+        "tags": [
+          "cv-templates"
+        ]
+      }
+    },
+    "/api/v1/cv/templates/suggest": {
+      "post": {
+        "description": "Rank template candidates for a new CV (signals + AI rationale).",
+        "operationId": "suggest_templates_api_v1_cv_templates_suggest_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Suggest Templates Api V1 Cv Templates Suggest Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Suggest Templates",
         "tags": [
           "cv-templates"
         ]
@@ -19390,6 +21557,55 @@
         ]
       }
     },
+    "/api/v1/cv/{cv_id}/design": {
+      "get": {
+        "description": "The CV's effective design tokens + template meta (plan 71):\ninitial state for the builder's Template tab.",
+        "operationId": "cv_design_api_v1_cv__cv_id__design_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvDesignOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cv Design",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
     "/api/v1/cv/{cv_id}/duplicate": {
       "post": {
         "description": "Copy the CV (metadata + working state); versions stay behind.",
@@ -19547,6 +21763,126 @@
         ]
       }
     },
+    "/api/v1/cv/{cv_id}/ops": {
+      "post": {
+        "description": "UI-driven builder operations (plan 71): the copilot's op\nvocabulary applied through the same audited `apply_operation` path \u2014\nbuttons and AI converge on one code path. Failed ops never abort the\nbatch; the refreshed state (with the effective template_id) returns\nin the same response.",
+        "operationId": "apply_cv_ops_api_v1_cv__cv_id__ops_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvOpsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvOpsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Cv Ops",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/{cv_id}/polish": {
+      "post": {
+        "description": "Run the polish loop over a committed CV (plan 64 resume path).\n\n\"*Resume polish*\" after a failed/cap-stopped run and the manual\n\"run polish\" action on any generated CV; 404 for a foreign CV, 503\nwhen no AI provider is configured. `{\"resumed_from\": \"<job_id>\"}`\nchains the new trace onto the earlier run.",
+        "operationId": "polish_cv_api_v1_cv__cv_id__polish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvGenerateAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Polish Cv",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
     "/api/v1/cv/{cv_id}/preview": {
       "post": {
         "description": "Render the current state (live preview; no version is created).",
@@ -19591,6 +21927,59 @@
           }
         ],
         "summary": "Preview Cv",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/{cv_id}/runs": {
+      "get": {
+        "description": "Runs & metrics for one CV (plan 65.3): the generation run plus\nevery polish re-run, newest first \u2014 each with the polish trace\n(iterations, ops ledger, coverage, stages) and the run's LLM-call\nledger from `ai_generations` plus per-run/task aggregates.\n\nOwner-scoped; the rows prefer the finished run's `result.cv_id` and\nonly ride the CV's mid-run `run_id` while the job is still RUNNING\n(working content may be rewritten on later co-pilot edits).",
+        "operationId": "list_cv_runs_api_v1_cv__cv_id__runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CvRunOut"
+                  },
+                  "title": "Response List Cv Runs Api V1 Cv  Cv Id  Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Cv Runs",
         "tags": [
           "cv"
         ]
@@ -24400,6 +26789,103 @@
           }
         ],
         "summary": "My Skill Gaps",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/me/skills/{skill_id}": {
+      "delete": {
+        "description": "Remove a skill row permanently: hidden everywhere, derivation\nnever resurrects it (re-adding the skill makes a fresh row).",
+        "operationId": "delete_my_skill_api_v1_me_skills__skill_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skill_id",
+            "required": true,
+            "schema": {
+              "title": "Skill Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete My Skill",
+        "tags": [
+          "skills"
+        ]
+      },
+      "patch": {
+        "description": "Toggle per-skill derivation participation (opt in/opt out).",
+        "operationId": "patch_my_skill_api_v1_me_skills__skill_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "skill_id",
+            "required": true,
+            "schema": {
+              "title": "Skill Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserSkillPatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSkillOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch My Skill",
         "tags": [
           "skills"
         ]

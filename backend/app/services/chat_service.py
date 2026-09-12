@@ -301,11 +301,15 @@ class ChatService:
         parent_user_message_id: uuid.UUID,
         partial: str,
         metadata: Optional[dict] = None,
+        *,
+        allow_empty: bool = False,
     ) -> Optional[ChatMessage]:
         """Persist an aborted turn's partial prefix as an interrupted
         assistant message (study pattern, stop feature) — with
-        the partial turn trace when the stream runner gathered one."""
-        if not partial.strip():
+        the partial turn trace when the stream runner gathered one.
+        `allow_empty` lets a trace-only turn (builder copilot error
+        path) persist with no reply text."""
+        if not partial.strip() and not allow_empty:
             return None
         parent = await self.db.get(ChatMessage, parent_user_message_id)
         if parent is None:

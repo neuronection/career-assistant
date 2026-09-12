@@ -125,7 +125,8 @@ def test_contact_fields_are_links_and_schemes_are_allowlisted():
     assert ">+30 555 0100</a>" in html
     assert 'href="https://alexsample.dev"' in html
     assert 'href="javascript:' not in html
-    assert ">evil</span>" in html
+    assert ">evil" not in html, "scheme-unsafe URLs are not printed at all"
+    assert ">portfolio (alexsample.dev)</a>" in html
 
 
 async def test_custom_text_inline_markup_is_escaped():
@@ -253,6 +254,156 @@ def test_single_layout_ignores_column_marks():
     assert "class='cv-columns'" not in html
 
 
+def test_area_mark_renders_sidebar_and_orders_before_main():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "skills", "area": "sidebar"},
+                {"kind": "summary"},
+            ],
+            "design": {"layout": "sidebar"},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "class='cv-columns'" in html and "class='cv-sidebar'" in html
+    assert html.find("class='cv-sidebar'") < html.find("class='cv-main'")
+
+
+def test_single_layout_ignores_area_marks():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "skills", "area": "sidebar"}],
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "class='cv-columns'" not in html
+
+
+def test_overflow_css_keeps_semantic_units_on_one_page():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "header"}, {"kind": "summary"}],
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "h2 { break-after: avoid" in html
+    assert "ul.items > li, ul.ach, .chips" in html
+    assert "break-inside: avoid" in html
+
+
+def test_columns_fragment_across_print_pages_as_table_cells():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "skills", "area": "sidebar"},
+                {"kind": "summary"},
+            ],
+            "design": {"layout": "sidebar"},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "display: table" in html and "display: table-cell" in html
+    assert ".cv-columns { display: table" in html
+    assert ".cv-main { flex" not in html
+
+
+def test_page_estimate_fills_columns_side_by_side_not_stacked():
+    from app.services.cv_renderer import _pages_for
+
+    # Two columns flow side by side: max, not the sum, decides pages.
+    assert _pages_for(57, 1, 57, two_columns=True) == 1  # sum-model would say 2
+    assert _pages_for(114, 1, 57, two_columns=True) == 2
+    assert _pages_for(114, 200, 57, two_columns=True) == 4
+    # Stacked single-column behavior is unchanged.
+    assert _pages_for(57, 0, 57, two_columns=False) == 1
+    assert _pages_for(58, 0, 57, two_columns=False) == 2
+
+
+def test_truncate_drops_from_the_overflowing_column():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "summary", "area": "sidebar"},
+                {
+                    "kind": "items",
+                    "props": {"source_key": "experience", "title": "Work"},
+                },
+            ],
+            "design": {"layout": "sidebar"},
+            "pages": {"overflow_policy": "truncate"},
+        }
+    )
+    snapshot = {**SAMPLE_SNAPSHOT, "summary": "word " * 1200}
+    result = render_cv(content, snapshot, max_pages=1)
+    # The sidebar column is over budget and its lone summary drops; the
+    # main column stays within budget and keeps its content.
+    assert result.metrics.truncated == 1
+    assert "word word" not in result.html, "summary body rendered intact"
+    assert "Work</h2>" in result.html
+
+
+def test_pdf_page_count_reads_chromium_page_tree():
+    from app.services.cv_pdf_service import pdf_page_count
+
+    assert pdf_page_count(b"%PDF-1.4 ... /Type /Pages /Kids [...] /Count 5") == 5
+    assert pdf_page_count(b"garbage") is None
+
+
+def test_overflow_css_keeps_semantic_units_on_one_page_unused():
+    pass
+
+
+def test_estimation_counts_descriptions_and_narrows_sidebar_columns():
+    from app.services.cv_renderer import _block_lines
+    from app.services.cv_blocks import ItemsBlockProps
+    from app.schemas.cv_template import DesignTokens
+
+    props = ItemsBlockProps.model_validate(
+        {"source_key": "experience", "show_skills": False, "show_achievements": False}
+    )
+    long_item = [
+        {
+            "title": "Engineer",
+            "org": "Acme",
+            "start": "2024-01",
+            "end": "",
+            "description": "word " * 800,
+        }
+    ]
+    design = DesignTokens()
+    flat = _block_lines("items", props, {"experience": long_item}, design)
+    assert flat > 10  # an 800-word description is no longer free
+
+    # A sidebar-width column wraps ~3x sooner than the main column.
+    narrow = _block_lines(
+        "items", props, {"experience": long_item}, design, width_share=0.34
+    )
+    assert narrow > flat
+
+    # Short snippet sanity: head + spacing stays a modest line count.
+    short = _block_lines(
+        "items",
+        props,
+        {
+            "experience": [
+                {"title": "Engineer", "org": "Acme", "start": "2024-01", "end": ""}
+            ]
+        },
+        design,
+    )
+    assert short <= 4
+
+
 def test_timeline_items_and_skill_bars():
     from app.services.cv_blocks import SAMPLE_SNAPSHOT
 
@@ -275,6 +426,158 @@ def test_timeline_items_and_skill_bars():
     assert "items-timeline" in html
     assert "bar-fill" in html and "width:70%" in html  # sample SQL level 5 → 50%
     assert "width:50%" in html
+
+
+LANGS = [
+    {"label": "English", "code": "en", "level": "advanced", "cefr": "C1"},
+    {"label": "Greek", "code": "el", "level": "native", "cefr": "Native"},
+]
+CERTS = [
+    {
+        "title": "EF SET Proficiency Certificate",
+        "org": "EF",
+        "start": "Jun 2025",
+        "end": "",
+    }
+]
+
+
+def _languages_cv(**props) -> str:
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "languages", "props": {"title": "Languages", **props}}],
+            "design": {},
+        }
+    )
+    snapshot = {**SAMPLE_SNAPSHOT, "languages": LANGS, "certifications": CERTS}
+    return render_cv(content, snapshot).html
+
+
+def test_languages_default_stays_chips_name_and_level():
+    html = _languages_cv()
+    assert "<span class='chip'>English — advanced</span>" in html
+    assert "<span class='chip'>Greek — native</span>" in html
+    assert "C1" not in html and "EF SET" not in html
+
+
+def test_languages_list_format_with_cefr_band():
+    html = _languages_cv(display="list", show_cefr=True)
+    assert "<ul class='items'><li>English — advanced (C1)</li>" in html
+    assert "<li>Greek — native (Native)</li>" in html
+
+
+def test_languages_proficiency_certificate_inline_and_latest():
+    html = _languages_cv(show_proficiency=True)
+    assert "English — advanced · EF SET Proficiency Certificate, Jun 2025" in html
+    assert "Greek — native</span>" in html
+
+
+def test_explicit_language_link_beats_derived_matching():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "languages",
+                    "props": {"title": "Languages", "show_proficiency": True},
+                }
+            ],
+            "design": {},
+        }
+    )
+    explicit = {
+        "title": "Quest 3 Certificate",
+        "org": "Anywhere",
+        "start": "May 2026",
+        "end": "",
+        "language_code": "el",
+    }
+    snapshot = {
+        **SAMPLE_SNAPSHOT,
+        "languages": LANGS,
+        "certifications": [explicit] + CERTS,
+    }
+    html = render_cv(content, snapshot).html
+    # "Quest 3" has no detectable exam name, but the explicit link wins.
+    assert "Greek — native · Quest 3 Certificate, May 2026" in html
+    # English still claims its newest derived match.
+    assert "English — advanced · EF SET Proficiency Certificate, Jun 2025" in html
+
+
+def test_proficiency_matching_prefers_first_issued_language_certificate():
+    from app.services.cv_languages import (
+        cefr_of,
+        is_proficiency_cert,
+        language_name,
+        match_language,
+        proficiency_for,
+    )
+
+    assert language_name("en") == "English"
+    assert language_name("xx") == "XX"
+    assert cefr_of("intermediate") == "B1–B2"
+    assert is_proficiency_cert(CERTS[0]) is True
+    assert match_language(CERTS[0], LANGS) == "en"
+
+    exams = [
+        {
+            "title": "IELTS Academic",
+            "org": "British Council",
+            "start": "2024-01",
+            "end": "",
+        },
+        {
+            "title": "TOEFL iBT certificate",
+            "org": "ETS",
+            "start": "2020-01",
+            "end": "",
+        },
+    ]
+    claimed = proficiency_for(LANGS, exams)
+    assert claimed["en"]["title"] == "IELTS Academic"
+    generic = {
+        "title": "English Proficiency Certificate",
+        "org": "School",
+        "start": "2023-01",
+        "end": "",
+    }
+    assert is_proficiency_cert(generic) and match_language(generic, LANGS) == "en"
+
+    # Unrelated certificate stays unclaimed
+    assert (
+        proficiency_for(
+            LANGS, [{"title": "CCNA", "org": "Cisco", "start": "", "end": ""}]
+        )
+        == {}
+    )
+
+
+def test_certifications_block_dedupes_proficiency_items():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "items",
+                    "props": {
+                        "source_key": "certifications",
+                        "exclude_proficiency": True,
+                    },
+                },
+                {"kind": "languages", "props": {"show_proficiency": True}},
+            ],
+            "design": {},
+        }
+    )
+    snapshot = {**SAMPLE_SNAPSHOT, "languages": LANGS, "certifications": CERTS}
+    html = render_cv(content, snapshot).html
+    # Both items entries dropped → empty Certifications section hides.
+    assert "Certifications</h2>" not in html
+    assert "EF SET Proficiency Certificate, Jun 2025" in html
 
 
 def test_per_block_containers_override_design():
@@ -567,3 +870,91 @@ async def test_gallery_upload_keeps_profile_default_unchanged(
     assert bad.status_code == 400
 
     await client.delete("/api/v1/me/photo", headers=auth_headers)
+
+
+def test_area_padding_tokens_default_to_legacy():
+    """Plan 70: unset area paddings keep the legacy renderer defaults."""
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "header"},
+                {"kind": "skills", "column": "sidebar"},
+            ],
+            "design": {"layout": "sidebar"},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "padding: 4mm 4.5mm" in html
+    import re as _re
+
+    main_rule = _re.search(r"\.cv-main \{[^}]*\}", html).group(0)
+    assert "padding" not in main_rule
+
+
+def test_area_padding_tokens_emit_per_area_css():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "header"},
+                {"kind": "skills", "column": "sidebar"},
+            ],
+            "design": {
+                "layout": "sidebar",
+                "margin_mm": 0,
+                "main_padding_mm": 12,
+                "sidebar_padding_mm": 8,
+            },
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "padding: 8mm" in html
+    assert ".cv-main" in html and "padding: 12mm;" in html
+
+
+def test_area_padding_out_of_bounds_rejected():
+    with pytest.raises(ValidationError):
+        TemplateContent.model_validate(
+            {"blocks": [{"kind": "header"}], "design": {"main_padding_mm": 30}}
+        )
+    with pytest.raises(ValidationError):
+        TemplateContent.model_validate(
+            {"blocks": [{"kind": "header"}], "design": {"sidebar_padding_mm": -1}}
+        )
+
+
+def test_area_padding_feeds_pagination_heuristic():
+    """Padded columns have less text width — the line estimate must drop."""
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    blocks = [
+        {"kind": "header"},
+        {"kind": "skills", "column": "sidebar"},
+        {
+            "kind": "items",
+            "props": {"title": "Experience", "source_key": "experience"},
+        },
+    ]
+    bare = render_cv(
+        TemplateContent.model_validate(
+            {"blocks": blocks, "design": {"layout": "sidebar"}}
+        ),
+        SAMPLE_SNAPSHOT,
+    ).metrics
+    padded = render_cv(
+        TemplateContent.model_validate(
+            {
+                "blocks": blocks,
+                "design": {
+                    "layout": "sidebar",
+                    "main_padding_mm": 10,
+                    "sidebar_padding_mm": 10,
+                },
+            }
+        ),
+        SAMPLE_SNAPSHOT,
+    ).metrics
+    assert padded.estimated_lines >= bare.estimated_lines

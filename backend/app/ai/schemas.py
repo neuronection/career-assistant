@@ -12,6 +12,7 @@ from app.models.enums import (
     PrerequisiteStatus,
     RelationType,
 )
+from app.schemas.cv_assistant import BuilderOp
 from app.schemas.job import Aspect, JobAttributes
 
 
@@ -223,6 +224,14 @@ class CvDraftSectionPlan(BaseModel):
     rationale: str = Field(default="", max_length=400)
 
 
+class CvDraftSynthProposal(BaseModel):
+    """A gap variant the planner proposes to ground before drafting."""
+
+    source_key: str = Field(min_length=1, max_length=60)
+    item_id: str = Field(min_length=1, max_length=64)
+    action: Literal["posting_fit", "detail", "restyle"] = "detail"
+
+
 class CvDraftStructure(BaseModel):
     """The CV's section plan: order + item assignment.
 
@@ -231,6 +240,9 @@ class CvDraftStructure(BaseModel):
     """
 
     sections: list[CvDraftSectionPlan] = Field(default_factory=list, max_length=12)
+    synth_proposals: list[CvDraftSynthProposal] = Field(
+        default_factory=list, max_length=6
+    )
 
 
 class CvDraftItemText(BaseModel):
@@ -262,6 +274,46 @@ class CvDraftTexts(BaseModel):
     sections: list[CvDraftSectionText] = Field(default_factory=list, max_length=4)
 
 
+class CvBuildCoverageReview(BaseModel):
+    """The reviewer's own coverage judgment, echoed from the matrix.
+
+    The deterministic matrix (host-side) remains the gating truth; this
+    block lets the critic flag uncertainty in prose-free ids.
+    """
+
+    covered: list[str] = Field(default_factory=list, max_length=200)
+    dropped_knowingly: list[str] = Field(default_factory=list, max_length=200)
+    missing: list[str] = Field(default_factory=list, max_length=200)
+
+
+class CvSuggestedOp(BaseModel):
+    """A BuilderOp shape with the critic's one-line rationale."""
+
+    operation: BuilderOp
+    rationale: str = Field(default="", max_length=300)
+
+
+class CvBuildReviewIssue(BaseModel):
+    """One build-review finding, optionally carrying builder ops."""
+
+    level: Literal["fail", "warn", "info"]
+    area: str = Field(min_length=1, max_length=80)
+    message: str = Field(min_length=1, max_length=600)
+    suggested_ops: list[CvSuggestedOp] = Field(default_factory=list, max_length=4)
+
+
+class CvBuildCritique(BaseModel):
+    """Output of the CV_BUILD_REVIEW build-reviewer task.
+
+    `suggested_ops` are re-validated and applied by the deterministic
+    applier in the polish loop — never model-rendered, never trusted.
+    """
+
+    summary: str = Field(default="", max_length=1000)
+    issues: list[CvBuildReviewIssue] = Field(default_factory=list, max_length=10)
+    coverage: CvBuildCoverageReview = Field(default_factory=CvBuildCoverageReview)
+
+
 __all__ = [
     "ProfileInsight",
     "JobDraft",
@@ -285,4 +337,8 @@ __all__ = [
     "CvDraftItemText",
     "CvDraftSectionText",
     "CvDraftTexts",
+    "CvBuildCoverageReview",
+    "CvBuildReviewIssue",
+    "CvSuggestedOp",
+    "CvBuildCritique",
 ]

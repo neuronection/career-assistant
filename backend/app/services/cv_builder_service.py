@@ -30,7 +30,7 @@ FALLBACK_CONTENT: dict = {
         {"kind": "summary"},
         {
             "kind": "items",
-            "props": {"title": "Experience", "source_key": "experience"},
+            "props": {"title": "Work Experience", "source_key": "experience"},
         },
         {
             "kind": "items",
@@ -42,6 +42,24 @@ FALLBACK_CONTENT: dict = {
 }
 
 
+def _annotate_snapshot_ids(
+    snapshot: dict, snapshot_index: dict[str, list[str]]
+) -> None:
+    """Stamp each snapshot row with its context item id (plan 72.1).
+
+    `snapshot_index` maps source key → row ids positionally, so the
+    pairing is positional; scalar payloads are skipped. Renderer-side
+    ordering (`ItemsBlockProps.order`) reads the stamped `id`.
+    """
+    for source_key, ids in snapshot_index.items():
+        rows = snapshot.get(source_key)
+        if not isinstance(rows, list):
+            continue
+        for position, item_id in enumerate(ids):
+            if position < len(rows) and isinstance(rows[position], dict):
+                rows[position]["id"] = item_id
+
+
 class CvBuilderService:
     """Preview / compile / restore / duplicate over one user's CVs."""
 
@@ -50,15 +68,102 @@ class CvBuilderService:
         self.cvs = CvService(db)
 
     async def resolution(self, cv: CvDocument) -> CvResolution:
-        """Resolve the CV's stored selection (default: include everything)."""
+        """Resolve the CV's stored selection (default: include everything).
+
+        In `prefer` synth mode (plan 62), matched synthesized variants
+        swap their text in before overrides; the applied map rides
+        `resolution.synth_applied` and lands in the version's trace at
+        compile. Snapshot rows are annotated with their context item id
+        (positional `snapshot_index` pairing) so block rendering can
+        honor `props.order`, and the plan-72 `synth` key lists the
+        applying variants for this CV's language/posting."""
         selection = (
             CvContextSelection.model_validate(cv.context)
             if cv.context
             else CvContextSelection()
         )
-        return await resolve(
+        resolved = await resolve(
             self.db, cv.user_id, selection, photo_document_id=cv.photo_document_id
         )
+        if selection.synth_mode == "prefer" or selection.synth_pins:
+            from app.services.cv_synth_service import CvSynthService
+
+            resolved.synth_applied = await CvSynthService(self.db).apply_to_resolution(
+                cv, resolved, selection.synth_mode, pins=selection.synth_pins
+            )
+        _annotate_snapshot_ids(resolved.snapshot, resolved.snapshot_index)
+        entries = await self._synth_snapshot(cv, resolved, pins=selection.synth_pins)
+        if entries:
+            resolved.snapshot["synth"] = entries
+        return resolved
+
+    async def _synth_snapshot(self, cv: CvDocument, resolved, pins: dict | None = None) -> list[dict]:
+        """Applying synthesized variants for this CV (plan 72, 72.1).
+
+        Winner per resolved ref (`match_for_user` precedence: active →
+        language → posting-scoped beats generic → default variant_key →
+        newest), deduped to one entry per distinct variant so a
+        multi-ref variant lists once. Variants already overlay-applied
+        in `prefer` mode are excluded — their text renders inside the
+        referenced item. Stale variants are NOT filtered (overlay
+        parity)."""
+        from app.services.cv_synth_service import CvSynthService
+
+        refs = [
+            (source_key, item_id)
+            for source_key, ids in resolved.snapshot_index.items()
+            for item_id in ids
+        ]
+        if not refs:
+            return []
+        matches = await CvSynthService(self.db).match_for_user(
+            cv.user_id,
+            cv.language,
+            cv.target_posting_id,
+            refs=refs,
+            pins=pins,
+        )
+        excluded = set((resolved.synth_applied or {}).values())
+        labels = {item.item_id: item.label for item in resolved.items}
+        entries: list[dict] = []
+        seen: set[str] = set()
+        for _source_key, item_id in refs:
+            variant = matches.get((_source_key, item_id))
+            if variant is None or str(variant.id) in seen:
+                continue
+            if str(variant.id) in excluded:
+                continue
+            seen.add(str(variant.id))
+            source_refs = [
+                {
+                    "source_key": ref["source_key"],
+                    "item_id": ref["item_id"],
+                    "label": labels.get(ref["item_id"])
+                    or (
+                        variant.payload.get("title")
+                        if isinstance(variant.payload, dict)
+                        else None
+                    )
+                    or variant.variant_key,
+                }
+                for ref in variant.source_refs
+            ]
+            payload = variant.payload or {}
+            title = (payload.get("title") if isinstance(payload, dict) else None) or (
+                source_refs[0]["label"] if source_refs else variant.variant_key
+            )
+            entries.append(
+                {
+                    "id": str(variant.id),
+                    "title": title,
+                    "description": payload.get("description")
+                    or payload.get("summary")
+                    or "",
+                    "bullets": payload.get("bullets") or [],
+                    "source_refs": source_refs,
+                }
+            )
+        return entries
 
     async def template_row(self, cv: CvDocument) -> CvTemplate | None:
         """The template row a CV renders with (explicit → canonical bank).
@@ -150,6 +255,7 @@ class CvBuilderService:
             context_resolution={
                 "resolved_at": resolution.resolved_at.isoformat(),
                 "items": resolution.item_refs(),
+                "synth_applied": getattr(resolution, "synth_applied", {}) or {},
             },
         )
         return version, html, asdict(metrics)

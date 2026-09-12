@@ -323,7 +323,13 @@
     "undo": "Undo",
     "hide": "Hide",
     "show": "Show",
-    "add": "Add"
+    "add": "Add",
+    "delete": "Delete",
+    "selectAll": "Select all",
+    "selectedCount": "{{count}} selected",
+    "noFilterMatches": "No entries match these filters.",
+    "searchPlaceholder": "Search…",
+    "reset": "Reset"
   },
   "validation": {
     "required": "{{field}} is required.",
@@ -410,6 +416,27 @@
     "noCvsTitle": "No CVs yet",
     "noCvsBody": "Upload your first CV above — it stays here so you can re-import or re-process it any time.",
     "updated": "Profile updated.",
+    "open": "Open",
+    "panel": {
+      "empty": "No CV imported yet",
+      "summary": "{{count}} CVs on file · latest: {{filename}}"
+    },
+    "detail": {
+      "extractedTitle": "Extracted from this CV",
+      "notFoundTitle": "CV not found",
+      "notFoundBody": "This CV was deleted or never existed."
+    },
+    "landedTitle": "Landed in your profile",
+    "landed": {
+      "basics": "{{count}} basics",
+      "skills": "{{count}} skills",
+      "experience": "{{count}} experience entries",
+      "education": "{{count}} education entries",
+      "certifications": "{{count}} certifications",
+      "achievements": "{{count}} achievements",
+      "interests": "{{count}} interests",
+      "languages": "{{count}} languages"
+    },
     "status": {
       "failed": "Extraction failed",
       "noDetails": "No usable details",
@@ -623,7 +650,8 @@
     "kind": {
       "interests": "interests",
       "skills": "skills",
-      "paths": "paths"
+      "paths": "paths",
+      "enrichment": "Enrichment"
     },
     "newTag": "New tag",
     "keyPlaceholder": "key (stable slug, e.g. renewable-energy)",
@@ -653,7 +681,11 @@
     "mergeInto": "Merge {{key}} into:",
     "chooseActive": "Choose active skill…",
     "mergeConfirm": "Merge",
-    "noTags": "No tags"
+    "noTags": "No tags",
+    "enrichmentApply": "Apply",
+    "enrichmentReject": "Discard",
+    "noEnrichment": "No enrichment proposals",
+    "noEnrichmentBody": "AI-generated job enrichment proposals appear here for review."
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
@@ -883,7 +915,6 @@
   "cvStudio": {
     "title": "CV Studio",
     "subtitle": "Build tailored CVs from your profile — every line traceable to your own evidence.",
-    "templates": "Templates",
     "newLetter": "New cover letter",
     "newCv": "New CV",
     "emptyTitle": "No CVs yet",
@@ -915,13 +946,29 @@
     "modeLabel": "How do you want to start?",
     "modeScratch": "Start from scratch",
     "modeGenerate": "Generate with AI",
-    "aiDraft": "AI draft"
+    "modeImport": "Import from CV",
+    "importBody": "Have a CV already? Import it in one pass — the extracted details flow straight into your profile.",
+    "importAction": "Go to CV import",
+    "importedCvsTitle": "Imported CVs (sources)",
+    "importedCvsOpen": "Open import",
+    "aiDraft": "AI draft",
+    "templateLabel": "Template",
+    "askAiChoose": "Ask AI to choose",
+    "askingAi": "Asking AI…",
+    "chooseTemplate": "Choose template",
+    "atsSafe": "ATS-safe",
+    "decorative": "decorative",
+    "useNoTemplate": "use the studio default instead",
+    "noTemplateNote": "No template chosen — the CV will use the studio default. Choose one below, or let AI pick for you."
   },
   "cvGenerate": {
     "title": "Generate my CV",
     "subtitle": "One draft from your profile — target a posting, tune the voice, and review everything in the builder.",
     "target": "Target posting (optional)",
     "noTarget": "No target — general CV",
+    "postingPaste": "Or paste a job posting",
+    "postingPasteHint": "From any careers page — the first line names the role. A saved target posting takes precedence.",
+    "postingPastePlaceholder": "Paste the whole job ad here: role, requirements, what the team looks for…",
     "language": "Language",
     "notes": "What should this CV emphasize?",
     "notesPlaceholder": "e.g. the data internship — lead with Python and the campus analytics project",
@@ -939,6 +986,10 @@
     "lengthDetailed": "Detailed",
     "maxPages": "Max pages",
     "template": "Template",
+    "templateAuto": "Best for me (AI picks)",
+    "templateAutoPicking": "Letting AI pick the best template…",
+    "templateAutoPick": "AI chose the {{title}} template for this CV.",
+    "templateAutoFallback": "AI template pick unavailable — using the studio default.",
     "templateDefault": "Studio default",
     "includePhoto": "Include profile photo",
     "sections": "Sections",
@@ -949,7 +1000,35 @@
     "cancelled": "Generation cancelled — nothing was created.",
     "backToForm": "Adjust settings",
     "failed": "Generation failed.",
-    "sparseHint": "Your profile has nothing to generate from yet — add experience, education, or skills first (or import your CV)."
+    "sparseHint": "Your profile has nothing to generate from yet — add experience, education, or skills first (or import your CV).",
+    "preview": "Live draft",
+    "previewPending": "The live preview appears once the first pages are drafted…",
+    "resumePolish": "Resume polish",
+    "openBuilder": "Open the builder",
+    "preferSynth": "Prefer synthesized items",
+    "synthMatchCount": "{{n}} of your synthesized variants will replace their profile text in this CV.",
+    "synthMatchNone": "No matching synthesized variants for this target — the library rows will stay unapplied.",
+    "synthSuccess": "CV drafted.",
+    "synthAppliedCount": "{{n}} of your synthesized variants were used in this CV.",
+    "synthProposedCount": "{{n}} draft variants were created for this posting — review them to reuse them in other CVs.",
+    "reviewVariants": "Review variants",
+    "polish": {
+      "running": "AI polish pass {{n}} — reviewing the rendered pages…",
+      "iteration": "Polish pass {{n}}",
+      "errors": "Errors",
+      "warnings": "Warnings",
+      "appliedOps": "Applied edits",
+      "opRejected": "Rejected edit ({{op}}): {{detail}}",
+      "coverageDrops": "Considered but not shown: {{items}}"
+    },
+    "request": {
+      "title": "What you asked for",
+      "meta": "Length: {{length}} · Language: {{language}} · Max pages: {{maxPages}}"
+    },
+    "polishOutcome": {
+      "completed": "AI polish finished — review the final draft in the builder.",
+      "cap": "AI polish stopped at its safety cap — the current draft is ready; edit it or run polish again."
+    }
   },
   "intake": {
     "slowParse": "The CV parse is taking longer than expected — try again in a moment.",
@@ -962,6 +1041,11 @@
     "importing": "Importing…",
     "importCount_one": "Import {{count}} detail",
     "importCount_other": "Import {{count}} details",
+    "applyActive": "Active items",
+    "applyDraft": "Save as drafts",
+    "statusActive": "Active",
+    "statusDraft": "Draft",
+    "statusToggleAria": "Toggle draft state for {{title}}",
     "emptyTitle": "Nothing usable in this CV",
     "emptyBody": "We read the file but couldn't extract details we trust — scanned or very stylised CVs often fail. Try a text-based PDF, or fill the profile manually. If your instance runs on the built-in mock AI, real CVs need a real provider configured in Settings → AI Configuration.",
     "backToCvs": "Back to your CVs",
@@ -1001,6 +1085,7 @@
     },
     "now": "now",
     "contactDetails": "Contact details",
+    "levelUnknownHint": "level unknown — defaults to High school",
     "claimedLevel": "claimed level {{level}}/10",
     "confidenceTitle": "Extraction confidence {{percent}}%",
     "confidence": {
@@ -1063,10 +1148,30 @@
       "french": "French",
       "spanish": "Spanish",
       "italian": "Italian",
+      "portuguese": "Portuguese",
+      "dutch": "Dutch",
+      "swedish": "Swedish",
+      "polish": "Polish",
       "turkish": "Turkish",
       "russian": "Russian",
       "arabic": "Arabic",
+      "japanese": "Japanese",
+      "korean": "Korean",
       "chinese": "Chinese",
+      "hindi": "Hindi",
+      "urdu": "Urdu",
+      "persian": "Persian",
+      "romanian": "Romanian",
+      "hungarian": "Hungarian",
+      "czech": "Czech",
+      "slovak": "Slovak",
+      "ukrainian": "Ukrainian",
+      "hebrew": "Hebrew",
+      "bengali": "Bengali",
+      "indonesian": "Indonesian",
+      "malay": "Malay",
+      "thai": "Thai",
+      "vietnamese": "Vietnamese",
       "basic": "Basic",
       "intermediate": "Intermediate",
       "advanced": "Advanced",
@@ -1142,6 +1247,7 @@
     "language": "Language",
     "removeLanguage": "Remove language",
     "addLanguage": "+ Add language",
+    "addNamedLanguage": "Add language “{{name}}”",
     "constraints": "Constraints",
     "constraintsBody": "Reality checks that keep suggestions genuinely open to you.",
     "conditions": "Physical conditions to accommodate",
@@ -1198,7 +1304,21 @@
     "relatedInterests": "Related interests",
     "notes": "Notes",
     "notesPlaceholder": "What does it look like, day to day?",
-    "addAspiration": "Add an aspiration"
+    "addAspiration": "Add an aspiration",
+    "takeOverAria": "Make {{name}} editable",
+    "takeOverHint": "Imported skills are estimates. Take control of this level — it becomes your own editable rating.",
+    "derivedFrom": "≈ level {{level}} from {{months}} months of evidence",
+    "edit": "edit",
+    "disable": "disable",
+    "disableAria": "Stop deriving {{name}}",
+    "disableHint": "Keep the current level but stop updating it from your experience.",
+    "enable": "enable",
+    "enableAria": "Resume deriving {{name}}",
+    "deriveOff": "derivation off",
+    "disabledCount": "Disabled ({{count}})",
+    "derivedUncounted": "not counted for fit, CV content or AI scoring",
+    "forgetAria": "Delete {{name}}",
+    "forgetHint": "Remove this skill from your profile. Derivation will not bring it back — re-adding it via the search creates a fresh editable rating."
   },
   "cvBuilder": {
     "profileChangedTitle": "Profile changed",
@@ -1206,7 +1326,20 @@
     "draftApplied": "Draft applied",
     "aiDraftBanner": "AI draft applied — review before exporting.",
     "regenerate": "Regenerate",
+    "copilotActivity": {
+      "title": "Copilot activity",
+      "openInStudio": "Open in CV Studio",
+      "askAssistant": "Ask the assistant",
+      "working": "Working…",
+      "done": "Turn finished",
+      "error": "Turn failed"
+    },
+    "polishReview": {
+      "title": "AI polish notes",
+      "empty": "No AI polish notes for this CV yet — polish it to generate notes."
+    },
     "sectionRemoved": "Section removed",
+    "sectionAdded": "Section added",
     "sectionDuplicated": "Section duplicated",
     "proposalApplied": "Proposal applied",
     "photoUploaded": "Photo uploaded",
@@ -1245,7 +1378,78 @@
     "diffPrevious": "v{{version}} — previous",
     "versionThumbnail": "Version {{version}} thumbnail",
     "restoreVersion": "Restore v{{version}}",
-    "applyToCv": "Apply to CV"
+    "applyToCv": "Apply to CV",
+    "runs": {
+      "title": "AI runs",
+      "openAll": "Open runs & metrics",
+      "cancel": "Cancel run",
+      "resume": "Resume run",
+      "liveStatus": {
+        "queued": "Queued",
+        "running": "Running"
+      },
+      "loading": "Loading runs…",
+      "empty": "No AI runs yet — generate or polish this CV to see the ledger.",
+      "traceTitle": "Run trace",
+      "stages": "Stages",
+      "calls": "LLM calls",
+      "ops": "Operations",
+      "chained": "Resumed from the earlier run — the loop re-entered at review.",
+      "finalVersion": "final v{{version}}",
+      "meta": "{{calls}} call(s) · {{tokensIn}} in / {{tokensOut}} out",
+      "type": {
+        "cv_generate": "Generation run",
+        "cv_polish": "Polish run"
+      },
+      "stage": {
+        "collect": "Reading context",
+        "plan": "Planning sections",
+        "draft": "Writing sections",
+        "assemble": "Assembling pages",
+        "review": "Reviewing the draft",
+        "fix": "Applying fixes",
+        "finalize": "Compiling final version"
+      },
+      "task": {
+        "cv_draft": "Writing the draft",
+        "cv_build_review": "Reviewing the build",
+        "cv_synth": "Grounding a variant",
+        "cv_template_design": "Redesigning the layout"
+      },
+      "telemetry": {
+        "calls": "call(s)",
+        "tokensIn": "tokens in",
+        "tokensOut": "tokens out",
+        "edits": "edits",
+        "simulated": "Simulated"
+      },
+      "error": "AI runs could not be loaded."
+    },
+    "ops": {
+      "set_template": "Switch template",
+      "apply_theme": "Apply theme",
+      "update_design": "Update styling",
+      "set_context": "Update context selection",
+      "set_doc_options": "Update document options",
+      "add_block": "Add section",
+      "remove_block": "Remove section",
+      "move_block": "Reorder sections",
+      "update_block_props": "Update section",
+      "set_override": "Rewrite text"
+    },
+    "applyDesign": "Apply changes",
+    "designSaved": "Saved",
+    "notAtsSafe": "not ATS-safe",
+    "pageSize": "Page size",
+    "templateBank": "Applying changes creates your own copy",
+    "templateLoading": "Loading template…",
+    "templateOwned": "Your customized template",
+    "printedReview": "Check a printed copy",
+    "printedReviewUpload": "Upload printed page photos",
+    "printedReviewRun": "Review pages",
+    "printedReviewRunning": "Reviewing…",
+    "applyCritiqueFixes": "Apply suggested fixes",
+    "critiqueTitle": "Visual review"
   },
   "templateEditor": {
     "notFound": "Template not found",
@@ -1277,7 +1481,8 @@
       "sidebar": "Sidebar",
       "sidebarText": "Sidebar text",
       "bg": "BG",
-      "border": "Border"
+      "border": "Border",
+      "group": "Colors"
     },
     "fontLabel": "Font",
     "headerStyleLabel": "Header style",
@@ -1299,6 +1504,13 @@
     "layoutLabel": "Layout",
     "sidebarSide": "Sidebar side",
     "sidebarWidth": "Sidebar width",
+    "mainPadding": "Main column padding",
+    "sidebarPadding": "Sidebar padding",
+    "group": "Colors",
+    "headings": "Headings",
+    "lineHeight": "Line height",
+    "page": "Page",
+    "spacingScale": "Spacing scale",
     "maxPages": "Max pages",
     "overflowPolicy": "Overflow policy",
     "dragToReorder": "Drag to reorder",
@@ -1309,7 +1521,9 @@
     "container": "Container",
     "radius": "Radius",
     "padding": "Padding",
-    "column": "Column",
+    "column": "Area",
+    "areaMain": "Main",
+    "areaSidebar": "Panel",
     "dataSource": "Data source",
     "styleLabel": "Style",
     "datesLabel": "Dates",
@@ -1401,7 +1615,13 @@
       "interests_desc": "A few personal interests to end the page",
       "spacer": "Spacer",
       "spacer_desc": "Extra breathing room between sections"
-    }
+    },
+    "excludeProficiency": "Hide proficiency certificates",
+    "kinds": "Include kinds",
+    "showCefr": "Show CEFR band",
+    "showLinks": "Show contact links",
+    "showLocation": "Show location",
+    "showProficiency": "Latest proficiency certificate"
   },
   "shared": {
     "scoreAria": "Score {{score}} of 10",
@@ -1625,6 +1845,12 @@
     "emptyBody": "Pick an entry on the left, or add a new one to get started.",
     "deleteAria": "Delete {{title}}",
     "deletedNotice": "Deleted “{{title}}”",
+    "selectAria": "Select “{{title}}”",
+    "duplicateAria": "Duplicate {{title}}",
+    "copySuffix": "(copy)",
+    "bulkDeletedNotice": "{{count}} entries deleted",
+    "bulkDeleteTitle": "Delete {{count}} entries?",
+    "bulkDeleteBody": "Each deleted entry can be restored with Undo right after.",
     "discardTitle": "Discard changes?",
     "discardBody": "You have unsaved changes in this entry.",
     "discard": "Discard",
@@ -1736,6 +1962,8 @@
     },
     "durationLabel": "Duration (years)",
     "languageLabel": "Language",
+    "languageProofLabel": "Proves language",
+    "languageProofNone": "Not a language certificate",
     "languageUnspecified": "Not specified",
     "deadlineLabel": "Application deadline",
     "deptDescriptionPlaceholder": "What the department covers (optional).",
@@ -1799,12 +2027,29 @@
       "list": "List",
       "editor": "Editor"
     },
-    "derivedTitle": "Derived skill levels",
+    "derivedTitle": "Skill level estimates",
     "levelOf": "≈ level {{level}} · {{months}}mo",
-    "applySkills": "Apply to my skills",
     "appliedClean": "Applied {{count}} skill level(s) from your experience.",
     "appliedWithConflicts": "Applied {{count}} skill level(s); {{conflicts}} conflict(s) need review.",
     "empty": "No experience items yet — add your first project, internship or job.",
+    "searchPlaceholder": "Search title or organization…",
+    "filter": {
+      "all": "All",
+      "active": "Active",
+      "draft": "Drafts"
+    },
+    "selectAria": "Select “{{title}}”",
+    "duplicateAria": "Duplicate {{title}}",
+    "copySuffix": "(copy)",
+    "bulk": {
+      "activate": "Set active",
+      "draft": "Set draft"
+    },
+    "bulkDeletedNotice": "{{count}} entries deleted",
+    "bulkDeleteTitle": "Delete {{count}} entries?",
+    "bulkDeleteBody": "Each deleted entry can be restored with Undo right after.",
+    "groupCount": "{{count}} entries",
+    "groupAdd": "+ Add",
     "present": "present",
     "draft": "draft",
     "hoursShort": "{{hours}}h/wk",
@@ -1830,9 +2075,9 @@
       "draft": "Draft"
     },
     "role": {
-      "primary": "Primary",
-      "secondary": "Secondary",
-      "exposure": "Exposure"
+      "primary": "Primary — daily use (full weight)",
+      "secondary": "Secondary — regular (0.6×)",
+      "exposure": "Exposure — occasional (0.3×)"
     },
     "field": {
       "title": "Title",
@@ -1857,7 +2102,7 @@
     "descriptionPlaceholder": "What did you work on? Context helps the AI score your fit.",
     "skillsLabel": "Skills used",
     "addSkill": "Add skill \"{{name}}\"",
-    "skillsHint": "Type any skill that isn't in the list — it's added as a catalog suggestion.",
+    "skillsHint": "Type any skill that isn't in the list — it's added as a catalog suggestion. Roles and claimed levels feed the skill-level estimate on your profile.",
     "roleForAria": "Role for {{skill}}",
     "removeSkillAria": "Remove skill {{skill}}",
     "achievementsLabel": "Achievements (metrics make these stronger on your CV)",
@@ -1872,7 +2117,13 @@
       "endRequired": "End is required unless this is ongoing.",
       "endBeforeStart": "End cannot precede the start date.",
       "achievementRequired": "Achievement text is required."
-    }
+    },
+    "setLevelClaim": "+ Level",
+    "claimDecreaseAria": "Decrease claimed level",
+    "claimIncreaseAria": "Increase claimed level",
+    "claimClearAria": "Clear claimed level",
+    "claimClear": "Not claimed",
+    "derivedHint": "These estimates update automatically after you save, delete or restore entries — based on kind, hours, roles and claimed levels. Manage (edit/disable) them on your Profile → Skills."
   },
   "assessment": {
     "conflictsTitle": "We spotted conflicts",
@@ -1882,5 +2133,89 @@
     "saveContinue": "Save & continue →",
     "seeRankings": "see rankings →",
     "fit": "fit"
+  },
+  "cvSynth": {
+    "title": "Synthesized variants",
+    "subtitle": "AI-written or manual variants of your profile items — reusable across every CV.",
+    "backToStudio": "Back to CV Studio",
+    "unknownSource": "Unknown source",
+    "sources": {
+      "experience": "Experience",
+      "projects": "Projects",
+      "education": "Education",
+      "certifications": "Certifications",
+      "achievements": "Achievements",
+      "skills": "Skills",
+      "languages": "Languages",
+      "interests": "Interests",
+      "summary": "Objective"
+    },
+    "actions": {
+      "summarize": "Summarize",
+      "detail": "More detail",
+      "restyle": "Rewrite style",
+      "posting_fit": "Aim at posting",
+      "translate": "Translate"
+    },
+    "generate": "Generate variant",
+    "variantCount": "{{count}} variant(s)",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "origin": {
+      "ai": "AI",
+      "manual": "Manual"
+    },
+    "activate": "Use it",
+    "activated": "Variant activated — it now renders in matching CVs with 'prefer synthesized' on.",
+    "archive": "Archive",
+    "archived": "Variant archived.",
+    "regenerate": "Regenerate",
+    "regenerated": "A fresh draft was generated.",
+    "edit": "Edit",
+    "editTitle": "Edit variant text",
+    "saved": "Variant saved.",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this variant?",
+    "deleteBody": "The profile item is untouched; only the variant is removed. This cannot be undone.",
+    "deleted": "Variant deleted.",
+    "stale": "Source changed",
+    "orphaned": "Source gone",
+    "generated": "Variant drafts created — review them below.",
+    "emptyTitle": "No synthesized variants yet",
+    "emptyBody": "Generate a variant for one of your profile items from CV Studio's context panel or here once items exist.",
+    "noSelection": "No variant selected.",
+    "action": "Generation action",
+    "sourceSummary": "Objective",
+    "block": {
+      "label": "Custom highlights",
+      "description": "A section of your synthesized variants — the tailored text you keep in the variant library, with the items it is based on as chips.",
+      "sourceChips": "Show source chips"
+    },
+    "editor": {
+      "addTitle": "Write a variant",
+      "editTitle": "Edit variant",
+      "refsLabel": "Based on profile items",
+      "refsReadonly": "The items this variant is based on are fixed after creation.",
+      "refsCap": "Up to {{count}} items per variant.",
+      "noRefs": "Record profile items first.",
+      "textLabel": "Description text",
+      "bulletsLabel": "Bullet points",
+      "bulletPlaceholder": "A strong, evidence-based bullet",
+      "bulletAdd": "Add bullet",
+      "variantKeyLabel": "Variant key",
+      "languageLabel": "Language",
+      "languageHint": "Variants only apply to CVs written in this language.",
+      "postingLabel": "Aim at posting",
+      "postingReadonly": "Posting scope cannot change after creation.",
+      "postingAny": "All CVs (generic)",
+      "create": "Create variant",
+      "supersedeHint": "Activating this variant replaces the active variant for the same items and key.",
+      "subtitle": "Write tailored text once — it applies to matching CVs automatically."
+    },
+    "newVariant": "Add variant",
+    "created": "Variant created — it is active and applies to matching CVs."
   }
 }

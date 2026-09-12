@@ -7,11 +7,13 @@ export {
 } from "./Popover";
 export {
   Modal,
+  PanelModal,
   ModalContent,
   ModalHeader,
   ModalTitle,
   ModalDescription,
   ModalFooter,
+  type PanelModalProps,
 } from "./Modal";
 export { SearchableDropdown } from "./SearchableDropdown";
 export type { DropdownOption } from "./SearchableDropdown";
@@ -40,3 +42,15 @@ export {
   type FlowStep,
   type FlowStepStatus,
 } from "./FlowStatusCard";
+export {
+  FlowTraceCard,
+  FlowTelemetryStrip,
+  formatFlowLatency,
+  type FlowTrace,
+  type FlowTraceCall,
+  type FlowTraceCardLabels,
+  type FlowTraceCardProps,
+  type FlowTraceStage,
+  type FlowTelemetryStripProps,
+  type FlowTraceToolOp,
+} from "./FlowTrace";

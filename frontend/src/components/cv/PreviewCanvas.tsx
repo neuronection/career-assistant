@@ -4,6 +4,7 @@ import { Card } from "@/components/ui";
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const PAGE_WIDTHS_PX = { a4: 794, letter: 816 } as const;
+const PAGE_HEIGHTS_PX = { a4: 1123, letter: 1056 } as const;
 
 type PageSize = keyof typeof PAGE_WIDTHS_PX;
 type ZoomMode = "fit" | "manual";
@@ -24,12 +25,16 @@ export function PreviewCanvas({
   html,
   loading,
   pageSize = "a4",
+  pages = 1,
 }: {
   html: string;
   loading: boolean;
   pageSize?: PageSize;
+  pages?: number;
 }) {
   const pageWidthPx = PAGE_WIDTHS_PX[pageSize] ?? PAGE_WIDTHS_PX.a4;
+  const pageCount = Math.max(1, Math.min(pages, 10));
+  const pageHeightPx = PAGE_HEIGHTS_PX[pageSize] ?? PAGE_HEIGHTS_PX.a4;
   const [zoom, setZoom] = useState(1);
   const [mode, setMode] = useState<ZoomMode>("fit");
   const frameHostRef = useRef<HTMLDivElement>(null);
@@ -85,9 +90,23 @@ export function PreviewCanvas({
             title="CV preview"
             srcDoc={html}
             sandbox=""
-            className="h-full w-full rounded border border-[var(--as-border)] bg-white"
+            style={{ height: `${pageCount * pageHeightPx}px` }}
+            className="w-full rounded border border-[var(--as-border)] bg-white"
             data-testid="preview-frame"
           />
+          {Array.from({ length: pageCount - 1 }, (_, index) => (
+            <div
+              key={index}
+              aria-hidden
+              data-testid={`page-break-${index + 2}`}
+              style={{ top: `${(index + 1) * pageHeightPx}px` }}
+              className="absolute inset-x-0 flex items-center justify-end gap-1.5 border-t border-dashed border-[var(--as-accent)] px-2"
+            >
+              <span className="rounded-full bg-[var(--as-accent)] px-1.5 py-0.5 text-[10px] font-medium text-white">
+                Page {index + 2}
+              </span>
+            </div>
+          ))}
           {loading && (
             <div
               aria-hidden

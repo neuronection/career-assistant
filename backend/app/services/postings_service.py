@@ -678,7 +678,9 @@ async def profile_coverage(
     if not links:
         return 0.0
     level_rows = await db.execute(
-        select(UserSkill.skill_id, UserSkill.level).where(UserSkill.user_id == user_id)
+        select(UserSkill.skill_id, UserSkill.level).where(
+            UserSkill.user_id == user_id, UserSkill.derive_enabled
+        )
     )
     user_levels: dict[UUID, int] = {
         skill_id: level for skill_id, level in level_rows.all()

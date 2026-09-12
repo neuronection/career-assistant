@@ -30,6 +30,12 @@ class AIGeneration(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # The skill-pack version that governed this call.
     pack_key: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     pack_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Run linkage (opt-in, no FK): the multi-step flow this call served —
+    # e.g. a background job id — so a run's ledger can be consulted per
+    # run. Plain columns: the audit outlives deleted CVs/jobs/users and
+    # budget math stays untouched.
+    run_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
+    run_stage: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
 
 
 class AIBudget(UUIDPrimaryKeyMixin, TimestampMixin, Base):

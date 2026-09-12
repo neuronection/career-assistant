@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import {
+  Activity,
   ChevronDown,
   Command,
   Download,
   History,
+  NotebookPen,
   Redo2,
   Save,
   Sparkles,
@@ -79,6 +81,8 @@ interface BuilderToolbarProps {
   onSaveVersion: () => void;
   onExport: (format: ExportFormat) => void;
   onOpenVersions: () => void;
+  onOpenRuns: () => void;
+  onOpenPolish: (() => void) | null;
   onOpenPalette: () => void;
   onOpenAssistant: () => void;
   onUndo: () => void;
@@ -101,6 +105,8 @@ export function BuilderToolbar({
   onSaveVersion,
   onExport,
   onOpenVersions,
+  onOpenRuns,
+  onOpenPolish,
   onOpenPalette,
   onOpenAssistant,
   onUndo,
@@ -182,6 +188,26 @@ export function BuilderToolbar({
           <History className="mr-1 h-4 w-4" /> Versions
           {versions.length > 0 ? ` (${versions.length})` : ""}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenRuns}
+          data-testid="open-runs"
+          title="Runs & metrics"
+        >
+          <Activity className="mr-1 h-4 w-4" /> AI runs
+        </Button>
+        {onOpenPolish && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenPolish}
+            data-testid="open-polish"
+            title="AI polish review log"
+          >
+            <NotebookPen className="mr-1 h-4 w-4" /> Notes
+          </Button>
+        )}
 
         <Menu>
           <MenuTrigger asChild>

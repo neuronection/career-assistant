@@ -79,6 +79,7 @@ function TraceMeta({ message }: { message: ChatMessageRow }) {
  * Legacy messages without execution windows keep the compact badges.
  */
 function MessageTrace({ message }: { message: ChatMessageRow }) {
+  const { t } = useTranslation();
   const meta = message.metadata_json;
   const tools = meta?.tools ?? [];
   const nodes = meta?.nodes ?? [];
@@ -92,8 +93,14 @@ function MessageTrace({ message }: { message: ChatMessageRow }) {
   }
   const hasTimeline =
     nodes.length > 0 || tools.some((tool) => typeof tool.start_ms === "number");
+  const versionChip = builderVersionChip(message, t);
   if (!hasTimeline) {
-    return <TraceMeta message={message} />;
+    return (
+      <div className="mt-1 flex w-full flex-col gap-1">
+        <TraceMeta message={message} />
+        {versionChip}
+      </div>
+    );
   }
   return (
     <div className="mt-1 flex w-full flex-col gap-1" data-testid="chat-message-trace">
@@ -125,14 +132,50 @@ function MessageTrace({ message }: { message: ChatMessageRow }) {
             kind: "tool" as const,
             label: tool.name,
             detail: tool.args_summary ?? null,
+            args: tool.args_summary ?? null,
+            response: tool.result_summary ?? null,
             startMs: tool.start_ms ?? null,
             durationMs: tool.duration_ms ?? null,
           })),
         ]}
       />
+      {versionChip}
     </div>
   );
 }
+
+/**
+ * Plan 67.4: a copilot turn that produced a version deep-links back to
+ * its CV's builder (chat → builder). The CV id comes from the session
+ * binding the trace was produced in; absent → no chip.
+ */
+function builderVersionChip(
+  message: ChatMessageRow,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  const meta = message.metadata_json;
+  if (meta?.surface !== "cv_builder" || typeof meta.version !== "number") {
+    return null;
+  }
+  const sessions = useChatStore.getState().sessions;
+  const active = sessions.find((session) => session.id === useChatStore.getState().activeSessionId);
+  const context = active?.context as { surface?: string; cv_id?: string } | null;
+  if (context?.surface !== "cv_builder" || !context.cv_id) {
+    return null;
+  }
+  return (
+    <Link
+      to={`/cv/${context.cv_id}`}
+      className="self-start"
+      data-testid="chat-builder-link"
+    >
+      <span className="inline-flex items-center gap-1 rounded-full border border-[var(--as-border)] bg-[var(--as-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]">
+        {t("cvBuilder.copilotActivity.openInStudio")}
+      </span>
+    </Link>
+  );
+}
+
 
 function ReferenceChips({ message }: { message: ChatMessageRow }) {
   const { t } = useTranslation();
@@ -583,7 +626,7 @@ export function ChatWidget() {
     }
   }, [location.pathname]);
 
-  if (location.pathname === "/chat" || chatMode === "docked") {
+  if (location.pathname === "/chat" || chatMode !== "bubble") {
     return null;
   }
 
@@ -633,6 +676,8 @@ function clampChatWidth(value: number): number {
  * The docked shape of the ONE chatbot (study's tutor panel): a
  * resizable right column the page content reflows beside — no overlay.
  * Same provider, same surface, same session as bubble and page.
+ * Closing the dock hands off to the bubble launcher (the quiet
+ * re-open surface); only explicit user gestures switch chat mode.
  */
 export function ChatDock() {
   const { t } = useTranslation();
@@ -680,7 +725,10 @@ export function ChatDock() {
         onPointerCancel={onResizeEnd}
       />
       <CareerChatProvider>
-        <ChatSurface variant="sidebar" />
+        <ChatSurface
+          variant="sidebar"
+          onClose={() => useChatStore.getState().setChatMode("bubble")}
+        />
       </CareerChatProvider>
     </aside>
   );

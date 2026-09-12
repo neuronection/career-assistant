@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
-from app.ai.gateway import ainvoke_structured, register_mock_fixture
+from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.ai.schemas import CvDraftStructure, CvDraftTexts
 from app.models.enums import AITaskType
 
@@ -23,9 +23,15 @@ PLAN_SYSTEM = (
     "You plan the structure of a resume. Given the candidate's context "
     "items grouped by source, choose the section order and which items "
     "feed each section. Use only the offered section kinds and item ids; "
-    "skip sections with no items. Lead with the strongest evidence for "
+    "skip sections with no items. The experience source is paid work "
+    "(jobs, internships, freelance) only — projects and volunteering "
+    "arrive as their own sources and each gets its own section, never "
+    "merged into work experience. Lead with the strongest evidence for "
     "the target role (summary first, then experience/education, then "
-    "supporting sections). Respond with JSON only."
+    "supporting sections). If the target role demands emphasis an "
+    "experience item's text cannot show, propose at most three synth "
+    "variants for those items (action posting_fit when a saved posting "
+    "exists, otherwise detail or restyle). Respond with JSON only."
 )
 
 WRITE_SYSTEM = (
@@ -33,8 +39,10 @@ WRITE_SYSTEM = (
     "sentence in the supplied context items; never invent employers, "
     "dates, numbers, skills, or achievements — a metric the candidate "
     "never gave stays an explicit placeholder. Keep names, orgs and "
-    "taxonomy labels verbatim. Write in the CV's language, no "
-    "first-person pronouns, tight and skimmable. Respond with JSON only."
+    "taxonomy labels verbatim. Items marked synth already carry tailored "
+    "text: keep it unless it conflicts with the target; never re-tailor "
+    "it away. Write in the CV's language, no first-person pronouns, "
+    "tight and skimmable. Respond with JSON only."
 )
 
 TONES = {
@@ -229,6 +237,7 @@ async def plan_structure(
     language: str = "en",
     notes: str = "",
     tone: str | None = None,
+    run: RunRef | None = None,
 ) -> CvDraftStructure:
     """One audited CV_DRAFT plan call."""
     return await ainvoke_structured(
@@ -244,6 +253,7 @@ async def plan_structure(
             notes=notes,
         ),
         user_id=user_id,
+        run=run,
     )
 
 
@@ -259,6 +269,7 @@ async def draft_section(
     tone: str | None = None,
     length: str | None = None,
     retry_note: str = "",
+    run: RunRef | None = None,
 ) -> CvDraftTexts:
     """One audited CV_DRAFT write call for a single section."""
     return await ainvoke_structured(
@@ -279,6 +290,7 @@ async def draft_section(
             ]
         ),
         user_id=user_id,
+        run=run,
     )
 
 

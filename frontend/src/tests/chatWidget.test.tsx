@@ -74,6 +74,7 @@ function renderWidget(path = "/") {
 describe("ChatWidget (library surface)", () => {
   beforeEach(() => {
     vi.useRealTimers()
+    useChatStore.setState({ chatMode: "bubble" });
     streamChatMessage.mockReset();
     aiApi.fetchAiTools.mockReset().mockResolvedValue([
       {
@@ -307,12 +308,73 @@ describe("ChatWidget (library surface)", () => {
     expect(trace).toBeInTheDocument();
     expect(screen.getAllByText("Searching the job catalog").length).toBeGreaterThan(0);
     await user.click(screen.getAllByText("Searching the job catalog")[0]);
-    expect(await screen.findByText('{"query": "nursing"}')).toBeInTheDocument();
+    expect(await screen.findByText("query")).toBeInTheDocument();
+    expect(screen.getByText("nursing")).toBeInTheDocument();
+    expect(screen.queryByText(/"query": "nursing"/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Show response trace" }));
     expect(screen.getByText("Total 1.9 s")).toBeInTheDocument();
     expect(screen.getByText("210 tokens")).toBeInTheDocument();
     expect(screen.getByText("writing the reply")).toBeInTheDocument();
+  });
+
+  it("renders the builder copilot's persisted trace with expandable tool details", async () => {
+    useChatStore.setState({
+      activeSessionId: "s1",
+      messages: [
+        { id: "m1", role: "user", content: "switch template", metadata_json: null, created_at: "2026-09-11T09:00:00Z" },
+        {
+          id: "m2",
+          role: "assistant",
+          content: "Switched the template.",
+          metadata_json: {
+            surface: "cv_builder",
+            model: "gpt-5.6",
+            elapsed_ms: 2100,
+            version: 2,
+            operations: [{ op: "set_template", ok: true, detail: "template “ATS Classic”" }],
+            tools: [
+              {
+                name: "cv_read_state",
+                title: "Reading the builder state",
+                status: "done",
+                start_ms: 0,
+                duration_ms: 35,
+                args_summary: "templates, blocks, sources, metrics, lint",
+                result_summary: "6 blocks · 4 sources · 1 page(s)",
+              },
+              {
+                name: "cv_set_template",
+                title: "Switching template",
+                status: "done",
+                start_ms: 1240,
+                duration_ms: 120,
+                args_summary: '{"template_id": "abc"}',
+                result_summary: "template “ATS Classic”",
+              },
+            ],
+            nodes: [
+              { id: "ground", label: "reading the builder state", status: "done", start_ms: 0, duration_ms: 35 },
+              { id: "plan", label: "planning changes", status: "done", start_ms: 36, duration_ms: 1200 },
+              { id: "apply", label: "applying changes", status: "done", start_ms: 1240, duration_ms: 800 },
+            ],
+          },
+          created_at: "2026-09-11T09:00:05Z",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderWidget();
+    await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    const trace = await screen.findByTestId("chat-message-trace");
+    expect(trace).toBeInTheDocument();
+    expect(screen.getAllByText("Reading the builder state").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Show response trace" }));
+    expect(screen.getByText("planning changes")).toBeInTheDocument();
+    expect(screen.getByText("applying changes")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "cv_read_state details" }));
+    expect(screen.getByText("templates, blocks, sources, metrics, lint")).toBeInTheDocument();
+    expect(screen.getByText("6 blocks · 4 sources · 1 page(s)")).toBeInTheDocument();
   });
 
   it("offers empty-state suggestions that seed the draft", async () => {
@@ -417,5 +479,47 @@ describe("ChatWidget (library surface)", () => {
     await waitFor(() => {
       expect(screen.queryByText("Portfolio review")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("opt-in bubble launcher (plan 75)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useChatStore.setState({
+      sessions: [],
+      activeSessionId: null,
+      messages: [],
+      chatMode: "docked",
+    });
+  });
+
+  it("does not render the launcher in docked mode (the default)", () => {
+    renderWidget();
+    expect(screen.queryByRole("button", { name: "Open chat assistant" })).not.toBeInTheDocument();
+  });
+
+  it("renders the launcher only after the user opts into bubble mode", () => {
+    useChatStore.getState().setChatMode("bubble");
+    renderWidget();
+    expect(screen.getByRole("button", { name: "Open chat assistant" })).toBeInTheDocument();
+  });
+
+  it("persists the chosen mode across store reads (ca:chat:mode)", () => {
+    useChatStore.getState().setChatMode("bubble");
+    expect(localStorage.getItem("ca:chat:mode")).toBe("bubble");
+    useChatStore.getState().setChatMode("docked");
+    expect(localStorage.getItem("ca:chat:mode")).toBe("docked");
+  });
+
+  it("opens the launcher again from the docked close button", async () => {
+    const user = userEvent.setup();
+    const { ChatDock } = await import("@/components/chat/ChatWidget");
+    render(
+      <MemoryRouter>
+        <ChatDock />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: "Close panel" }));
+    expect(useChatStore.getState().chatMode).toBe("bubble");
   });
 });

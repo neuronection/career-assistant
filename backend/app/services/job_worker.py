@@ -691,6 +691,59 @@ async def _run_cv_generate(
     )
 
 
+async def _run_cv_synth(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """Bulk synthesized-variant generation on the queue (plan 62)."""
+    from app.models.enums import CvSynthStatus
+    from app.schemas.cv_synth import CvSynthItemGenerate
+    from app.services.cv_synth_service import CvSynthService
+
+    request = CvSynthItemGenerate.model_validate(
+        (job.payload or {}).get("request") or {}
+    )
+    rows = await CvSynthService(db).generate(_require_user(job), request)
+    drafts = [row for row in rows if row.status == CvSynthStatus.DRAFT.value]
+    if drafts:
+        from app.services.notification_service import NotificationService
+
+        await NotificationService(db).emit(
+            "cv_synth_ready",
+            [_require_user(job)],
+            title="Synthesized variants are ready for review",
+            body=f"{len(drafts)} new variants are drafts — review them in "
+            "the CV synth library.",
+            payload={"count": len(drafts), "ids": [str(r.id) for r in drafts]},
+            source_ref={"kind": "cv_synth", "job_id": str(job.id)},
+        )
+    return {"created": len(rows)}
+
+
+async def _run_cv_polish(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """Polish-only run over a committed CV (plan 64 resume path)."""
+    from app.services.cv_generate_service import CvGenerateService
+
+    payload = job.payload or {}
+    return await CvGenerateService(db).polish(
+        _require_user(job),
+        uuid.UUID(payload.get("cv_id")),
+        run_id=job.id,
+        progress=progress,
+        cancelled=cancelled,
+        resumed_from=str(payload.get("resumed_from") or ""),
+    )
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -710,6 +763,8 @@ HANDLERS: dict[str, Handler] = {
     "catalog_enrich": _run_catalog_enrich,
     "autopilot_run": _run_autopilot,
     "cv_generate": _run_cv_generate,
+    "cv_polish": _run_cv_polish,
+    "cv_synth": _run_cv_synth,
 }
 
 

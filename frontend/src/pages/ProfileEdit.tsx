@@ -18,8 +18,11 @@ import {
   Wrench,
 } from "lucide-react";
 import { SettingsShell, type SettingsNavItem } from "@neuronection/assistant-ui";
+import { statusLabelKey } from "@/components/intake/CvStatus";
+import { listCvDraftHistory } from "@/api/cvIntake";
+import type { DraftHistoryRow } from "@/types/cvIntake";
 import { useProfileStore } from "@/stores/profileStore";
-import { logout as clearToken, revokeSessions } from "@/api/auth";
+import { useAuthStore } from "@/stores/authStore";
 import {
   deleteAccount,
   downloadExport,
@@ -181,7 +184,6 @@ export function ProfileEdit() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
-  const [revoking, setRevoking] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
@@ -236,8 +238,8 @@ export function ProfileEdit() {
     setError("");
     try {
       await deleteAccount(deletePassword);
-      clearToken();
-      navigate("/login");
+      useAuthStore.getState().reset();
+      navigate("/");
     } catch (err) {
       setError(apiDetail(err));
       setDeleting(false);
@@ -253,20 +255,6 @@ export function ProfileEdit() {
       setSaved(true);
     } catch (err) {
       setError(apiDetail(err));
-    }
-  };
-
-  const signOutEverywhere = async () => {
-    setRevoking(true);
-    setError("");
-    try {
-      await revokeSessions();
-      clearToken();
-      navigate("/login");
-    } catch (err) {
-      setError(apiDetail(err));
-    } finally {
-      setRevoking(false);
     }
   };
 
@@ -380,14 +368,48 @@ export function ProfileEdit() {
               deletePassword={deletePassword}
               onDeletePassword={setDeletePassword}
               deleting={deleting}
-              revoking={revoking}
-              onRevoke={() => void signOutEverywhere()}
             />
           )}
           {saved && <p className="text-sm text-emerald-600">{t("profileEdit.saved")}</p>}
         </div>
       </SettingsShell>
     </div>
+  );
+}
+
+function CvImportStatus() {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<DraftHistoryRow[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    listCvDraftHistory()
+      .then((history) => {
+        if (!cancelled) setRows(history);
+      })
+      .catch(() => {
+        if (!cancelled) setRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (rows === null) return null;
+  if (rows.length === 0) {
+    return (
+      <p className="mt-2 text-xs text-[var(--as-muted-fg)]" data-testid="import-cv-status">
+        {t("profileImport.panel.empty")}
+      </p>
+    );
+  }
+  const latest = rows[0];
+  return (
+    <p className="mt-2 text-xs text-[var(--as-muted-fg)]" data-testid="import-cv-status">
+      {t("profileImport.panel.summary", {
+        count: rows.length,
+        filename: latest.document.filename,
+      })}{" "}
+      · {t(statusLabelKey(latest))}
+    </p>
   );
 }
 
@@ -446,16 +468,32 @@ function OverviewSection({
               })}
             </p>
           )}
-        <div className="mt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/profile/import")}
-            data-testid="import-cv-entry"
-          >
-            <FileUp className="mr-1 h-3.5 w-3.5" aria-hidden />
-            {t("profileImport.title")}
-          </Button>
+        <div
+          className="mt-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+          data-testid="import-cv-panel"
+        >
+          <div className="flex items-start gap-3">
+            <FileUp
+              className="mt-0.5 h-5 w-5 shrink-0 text-[var(--as-accent)]"
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[var(--as-fg)]">
+                {t("profileImport.title")}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
+                {t("profileImport.subtitle")}
+              </p>
+              <CvImportStatus />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => navigate("/profile/import")}
+              data-testid="import-cv-entry"
+            >
+              {t("profileImport.open")}
+            </Button>
+          </div>
         </div>
         {p.ai_summary && (
           <div
@@ -841,8 +879,6 @@ function AccountSection({
   deletePassword,
   onDeletePassword,
   deleting,
-  revoking,
-  onRevoke,
 }: {
   exporting: boolean;
   exportJob: BackgroundJob | null;
@@ -853,8 +889,6 @@ function AccountSection({
   deletePassword: string;
   onDeletePassword: (value: string) => void;
   deleting: boolean;
-  revoking: boolean;
-  onRevoke: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -867,9 +901,6 @@ function AccountSection({
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" size="sm" onClick={onExport} disabled={exporting}>
             {exporting ? t("profileEdit.preparingExport") : t("profileEdit.exportData")}
-          </Button>
-          <Button variant="outline" size="sm" onClick={onRevoke} disabled={revoking} title={t("profileEdit.revokeTitle")}>
-            {revoking ? t("profileEdit.signingOut") : t("profileEdit.signOutEverywhere")}
           </Button>
           <Button
             variant="outline"

@@ -288,7 +288,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     "status": "done",
                     "args": tool.get("args_summary", ""),
                     "result": tool.get("result_summary", ""),
-                    "durationMs": tool.get("duration_ms"),
+                    "duration_ms": tool.get("duration_ms"),
                 },
             )
         sent = 0

@@ -73,6 +73,7 @@ export interface CertificationIn {
   expires: string | null;
   credential_id: string;
   link: string;
+  language_code: string | null;
   status: "draft" | "active";
 }
 
@@ -83,6 +84,7 @@ export interface CertificationUpdate {
   expires?: string | null;
   credential_id?: string;
   link?: string;
+  language_code?: string | null;
   status?: "draft" | "active";
 }
 
@@ -94,6 +96,7 @@ export interface CertificationOut {
   expires: string | null;
   credential_id: string;
   link: string;
+  language_code: string | null;
   source: "self_report" | "cv_parse" | "assessment" | "import";
   status: "draft" | "active";
   created_at: string;

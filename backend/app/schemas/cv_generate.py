@@ -17,6 +17,8 @@ from app.schemas.cv import CvContextSelection
 CvGenerateSectionKind = Literal[
     "summary",
     "experience",
+    "projects",
+    "volunteer",
     "education",
     "certifications",
     "skills",
@@ -28,6 +30,8 @@ CvGenerateSectionKind = Literal[
 GENERATABLE_KINDS: tuple[CvGenerateSectionKind, ...] = (
     "summary",
     "experience",
+    "projects",
+    "volunteer",
     "education",
     "certifications",
     "skills",
@@ -41,15 +45,17 @@ class CvGenerateRequest(BaseModel):
     """The generate modal's preferences."""
 
     target_posting_id: Optional[uuid.UUID] = None
+    posting_text: str = Field(default="", max_length=5000)
+    template_pick: Literal["none", "ai"] = "none"
     language: str = Field(default="en", min_length=2, max_length=10)
     tone: Optional[Literal["professional", "warm", "concise", "confident"]] = None
     length: Literal["concise", "standard", "detailed"] = "standard"
     max_pages: int = Field(default=1, ge=1, le=3)
     template_id: Optional[uuid.UUID] = None
     include_photo: bool = False
-    sections: list[CvGenerateSectionKind] = Field(default_factory=list, max_length=8)
+    sections: list[CvGenerateSectionKind] = Field(default_factory=list, max_length=10)
     context: CvContextSelection = Field(default_factory=CvContextSelection)
-    notes: str = Field(default="", max_length=2000)
+    notes: str = Field(default="", max_length=5000)
 
     def enabled_kinds(self) -> list[str]:
         """The requested section kinds (empty = every generatable kind)."""
@@ -77,6 +83,24 @@ class CvGenerateResultOut(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     fallback_sections: list[str] = Field(default_factory=list)
     plan_fallback: bool = False
+    synth_applied: dict[str, str] = Field(default_factory=dict)
+    synth_proposed: list[dict] = Field(default_factory=list)
+    polish: Optional[dict] = None
+
+
+class CvGeneratePreviewOut(BaseModel):
+    """Live draft preview while the polish loop edits (plan 64 §3).
+
+    `pct` and `stage` come from the job's progress; `iteration` from the
+    trace so the card can label ("polishing 2/3"); `trace` is the
+    mid-run mirror of the polish trace (the card's timeline). `html` is
+    the deterministic render of the currently committed working state."""
+
+    stage: str = ""
+    pct: int = Field(default=0, ge=0, le=100)
+    iteration: int = 0
+    html: str = ""
+    trace: Optional[dict] = None
 
 
 class CvGenerateStatusOut(BaseModel):
@@ -90,3 +114,52 @@ class CvGenerateStatusOut(BaseModel):
     result: Optional[CvGenerateResultOut] = None
     created_at: datetime
     finished_at: Optional[datetime] = None
+
+
+class CvRunCallOut(BaseModel):
+    """One audited LLM call of a CV run (plan 65.3)."""
+
+    id: uuid.UUID
+    task: str
+    stage: Optional[str] = None
+    status: str
+    provider: str
+    model: str
+    prompt_version: Optional[str] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    latency_ms: Optional[int] = None
+
+
+class CvRunAggregateOut(BaseModel):
+    """Per-run totals of the LLM-call ledger (task breakdown included)."""
+
+    calls: int
+    tokens_in: int
+    tokens_out: int
+    latency_ms_sum: int
+    by_task: dict[str, dict] = Field(default_factory=dict)
+
+
+class CvRunOut(BaseModel):
+    """One run of `cv_generate` / `cv_polish` for a CV (plan 65.3).
+
+    `iterations` carries the polish trace per iteration (ops ledger,
+    coverage, verdicts); `llm_calls` is the run's audit ledger from
+    `ai_generations` (run-linked); `outcome` is the loop's terminal
+    status (completed / cap / failed / cancelled)."""
+
+    job_id: uuid.UUID
+    job_type: str
+    status: str
+    stage: Optional[str] = None
+    error: Optional[str] = None
+    created_at: datetime
+    finished_at: Optional[datetime] = None
+    outcome: Optional[str] = None
+    resumed_from: Optional[str] = None
+    final_version: Optional[int] = None
+    stages: list[dict] = Field(default_factory=list)
+    iterations: list[dict] = Field(default_factory=list)
+    llm_calls: list[CvRunCallOut] = Field(default_factory=list)
+    aggregate: CvRunAggregateOut

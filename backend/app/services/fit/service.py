@@ -52,7 +52,8 @@ class FitService:
         skill_rows = (
             await self.db.execute(
                 select(UserSkill.skill_id, UserSkill.level).where(
-                    UserSkill.user_id == profile.user_id
+                    UserSkill.user_id == profile.user_id,
+                    UserSkill.derive_enabled,
                 )
             )
         ).all()

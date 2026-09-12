@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { CheckIndicator } from "@neuronection/assistant-ui/check-indicator";
 import { fetchCvPageImageUrl } from "@/api/cvIntake";
+import { EDUCATION_LEVEL_LABEL } from "@/components/profile/sections/options";
+import { isStatusSection } from "./CvStatus";
 import type {
   CvExtractPayload,
   CvIntakeSection,
@@ -33,9 +35,28 @@ const SECTION_LABEL_KEYS: Record<CvIntakeSection, string> = {
   interests: "intake.section.interests",
 };
 
+const MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function prettyDate(raw: string): string {
+  const text = raw.trim();
+  let match = text.match(/^(\d{4})[-/.](\d{1,2})/);
+  if (match) return `${MONTH_SHORT[Number(match[2]) - 1] ?? text} ${match[1]}`;
+  match = text.match(/^(\d{1,2})[-/.](\d{4})$/);
+  if (match) return `${MONTH_SHORT[Number(match[1]) - 1] ?? text} ${match[2]}`;
+  match = text.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*(\d{4})$/i);
+  if (match)
+    return `${match[1].charAt(0).toUpperCase()}${match[1].slice(1, 3)} ${match[2]}`;
+  return text;
+}
+
 function period(start: string, end: string): string | undefined {
   if (!start && !end) return undefined;
-  return [start, end || i18next.t("intake.now")].filter(Boolean).join(" – ");
+  return [prettyDate(start), prettyDate(end) || i18next.t("intake.now")]
+    .filter(Boolean)
+    .join(" – ");
 }
 
 /** The eight applicable sections of a draft, in review order. */
@@ -66,8 +87,12 @@ export function sectionViews(payload: CvExtractPayload): SectionView[] {
       label: label("education"),
       items: payload.education.map((item) => ({
         title: [item.program, item.institution].filter(Boolean).join(" — "),
-        detail: [item.level, period(item.start, item.end)]
+        detail: [
+          EDUCATION_LEVEL_LABEL[item.level] || item.level,
+          period(item.start, item.end),
+        ]
           .filter(Boolean)
+          .concat(!item.level ? [t("intake.levelUnknownHint")] : [])
           .join(" · "),
         evidence: item.evidence,
       })),
@@ -245,17 +270,29 @@ function sectionState(sel: CvSelections, view: SectionView) {
 /** Review-first suggestion list: grouped by section, one
  * checkbox per item, confidence pill + evidence quote for grounding.
  * With `documentId`, items can reveal their source page image (tracing).
- * Controlled: `selected`/`onChange` own the selections payload. */
+ * Controlled: `selected`/`onChange` own the selections payload.
+ * `readOnly` drops the checkboxes — a browse view of what was
+ * extracted (per-CV detail), keeping pills + evidence grounding.
+ * Status sections get a per-item Draft/Active chip: `draftAll` is the
+ * global footer default, `draftItems` the per-item overrides. */
 export function SuggestionReviewList({
   payload,
   selected,
   onChange,
   documentId,
+  readOnly = false,
+  draftItems,
+  onDraftToggle,
+  draftAll = false,
 }: {
   payload: CvExtractPayload;
   selected: CvSelections;
   onChange: (next: CvSelections) => void;
   documentId?: string;
+  readOnly?: boolean;
+  draftItems?: Partial<Record<CvIntakeSection, number[]>>;
+  onDraftToggle?: (section: CvIntakeSection, index: number) => void;
+  draftAll?: boolean;
 }) {
   const { t } = useTranslation();
   const views = sectionViews(payload);
@@ -294,47 +331,82 @@ export function SuggestionReviewList({
             className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)]"
             data-testid={`intake-section-${view.key}`}
           >
-            <label className="flex items-center gap-2.5 border-b border-[var(--as-border)] px-4 py-2.5">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--as-accent)]"
-                checked={state.all}
-                ref={(el) => {
-                  if (el) el.indeterminate = state.some;
-                }}
-                onChange={() => toggleSection(view)}
-                aria-label={t("intake.importAll", { label: view.label.toLowerCase() })}
-                data-testid={`intake-section-toggle-${view.key}`}
-              />
-              <span className="text-sm font-semibold text-[var(--as-fg)]">
-                {view.label}
-              </span>
-              <span className="text-xs text-[var(--as-muted-fg)]">
-                {state.chosen}/{state.count}
-              </span>
-            </label>
+            {readOnly ? (
+              <div className="flex items-center gap-2.5 border-b border-[var(--as-border)] px-4 py-2.5">
+                <span className="text-sm font-semibold text-[var(--as-fg)]">
+                  {view.label}
+                </span>
+                <span className="text-xs text-[var(--as-muted-fg)]">
+                  {state.count}
+                </span>
+              </div>
+            ) : (
+              <label className="flex items-center gap-2.5 border-b border-[var(--as-border)] px-4 py-2.5">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[var(--as-accent)]"
+                  checked={state.all}
+                  ref={(el) => {
+                    if (el) el.indeterminate = state.some;
+                  }}
+                  onChange={() => toggleSection(view)}
+                  aria-label={t("intake.importAll", { label: view.label.toLowerCase() })}
+                  data-testid={`intake-section-toggle-${view.key}`}
+                />
+                <span className="text-sm font-semibold text-[var(--as-fg)]">
+                  {view.label}
+                </span>
+                <span className="text-xs text-[var(--as-muted-fg)]">
+                  {state.chosen}/{state.count}
+                </span>
+              </label>
+            )}
             <ul>
               {view.items.map((item, index) => {
                 const on = isItemSelected(selected, view, index);
+                const statusRow =
+                  !!onDraftToggle && isStatusSection(view.key) && !readOnly;
+                const draftState = draftAll || draftItems?.[view.key]?.includes(index);
                 return (
                   <li
                     key={`${view.key}-${index}`}
                     className={`flex items-start gap-2.5 px-4 py-2.5 ${
                       index > 0 ? "border-t border-[var(--as-border)]" : ""
-                    } ${on ? "" : "opacity-50"}`}
+                    } ${on || readOnly ? "" : "opacity-50"}`}
                     data-testid={`intake-item-${view.key}-${index}`}
                   >
-                    <CheckIndicator
-                      checked={on}
-                      onToggle={() => toggleItem(view, index)}
-                      label={t("intake.importItem", { title: item.title })}
-                    />
+                    {!readOnly && (
+                      <CheckIndicator
+                        checked={on}
+                        onToggle={() => toggleItem(view, index)}
+                        label={t("intake.importItem", { title: item.title })}
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-medium text-[var(--as-fg)]">
                           {item.title}
                         </p>
                         <ConfidencePill evidence={item.evidence} />
+                        {statusRow && (
+                          <button
+                            type="button"
+                            onClick={() => onDraftToggle?.(view.key, index)}
+                            title={t("intake.statusToggleAria", { title: item.title })}
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                              draftState
+                                ? "bg-amber-100 text-amber-700"
+                                : "border border-[var(--as-border)] text-[var(--as-muted-fg)]"
+                            }`}
+                            data-testid={`draft-toggle-${view.key}-${index}`}
+                          >
+                            {t(
+                              draftState
+                                ? "intake.statusDraft"
+                                : "intake.statusActive"
+                            )}
+                          </button>
+                        )}
                       </div>
                       {item.detail && (
                         <p className="text-xs text-[var(--as-muted-fg)]">

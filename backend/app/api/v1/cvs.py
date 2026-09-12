@@ -2,14 +2,18 @@ import uuid
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.errors import ValidationError
+from app.core.errors import AINotConfiguredError, NotFoundError, ValidationError
 from app.models.background_job_model import BackgroundJob
 from app.models.cv_model import CvVersion
-from app.models.enums import BackgroundJobType, CvVersionCreator
+from app.models.enums import (
+    BackgroundJobStatus,
+    BackgroundJobType,
+    CvVersionCreator,
+)
 from app.schemas.cv import (
     CvCompileOut,
     CvContextItemRef,
@@ -17,19 +21,26 @@ from app.schemas.cv import (
     CvContextSourceOut,
     CvContextSourcesOut,
     CvContextStatusOut,
+    CvDesignOut,
     CvDocumentCreate,
     CvDocumentOut,
     CvDocumentUpdate,
     CvPreviewOut,
     CvResolutionOut,
+    CvTemplateMeta,
     CvVersionOut,
 )
+from app.schemas.cv_assistant import CvOpsOut, CvOpsRequest
 from app.schemas.cv_export import CvExportRequest
 from app.schemas.cv_generate import (
     CvGenerateAccepted,
+    CvGeneratePreviewOut,
     CvGenerateRequest,
     CvGenerateResultOut,
     CvGenerateStatusOut,
+    CvRunAggregateOut,
+    CvRunCallOut,
+    CvRunOut,
 )
 from app.schemas.cv_suggest import CvActionRequest, CvSuggestionOut
 from app.schemas.cover_letter import (
@@ -41,7 +52,7 @@ from app.schemas.cover_letter import (
 from app.services.cv_builder_service import CvBuilderService
 from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
 from app.services.cv_export_service import CvExportService
-from app.services.cv_generate_service import enqueue_generation
+from app.services.cv_generate_service import enqueue_generation, enqueue_polish
 from app.services.cv_pdf_service import PDFEngineUnavailable
 from app.services.cv_service import CvService
 from app.services.cover_letter_service import CoverLetterService
@@ -184,6 +195,101 @@ async def generate_status(
     )
 
 
+@router.get("/generate/{job_id}/preview", response_model=CvGeneratePreviewOut)
+async def generate_preview(
+    job_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvGeneratePreviewOut:
+    """Live draft preview while the run edits (plan 64 §3 / 64.5).
+
+    Renders the currently committed working state of the job's CV —
+    deterministic, no version created. Unknown/foreign/finished runs
+    answer 404 (the builder takes over afterwards); a running run whose
+    draft does not exist yet (queued/plan/draft stages) answers 200
+    with an empty snapshot instead — the progress card polls."""
+    rows = await db.execute(
+        select(BackgroundJob).where(
+            BackgroundJob.id == job_id, BackgroundJob.user_id == user.id
+        )
+    )
+    job = rows.scalars().first()
+    if job is None or job.job_type not in (
+        BackgroundJobType.CV_GENERATE.value,
+        BackgroundJobType.CV_POLISH.value,
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Generate job not found")
+    if job.status != BackgroundJobStatus.RUNNING.value:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run is not active")
+    result = job.result or {}
+    polish = result.get("polish") or {}
+    cv_id = result.get("cv_id") or (job.payload or {}).get("cv_id")
+    html = ""
+    if cv_id:
+        cv, builder = await _owned_builder(uuid.UUID(str(cv_id)), user.id, db)
+    else:
+        from app.models.cv_model import CvDocument
+
+        draft = (
+            (
+                await db.execute(
+                    select(CvDocument)
+                    .where(
+                        CvDocument.user_id == user.id,
+                        CvDocument.working_content["run_id"].as_string() == str(job.id),
+                    )
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if draft is None:
+            return CvGeneratePreviewOut(
+                stage=job.stage or "",
+                pct=job.progress or 0,
+                iteration=0,
+                html="",
+            )
+        builder = CvBuilderService(db)
+        cv = draft
+    html, _payload, _resolution, _metrics = await builder.render_state(cv)
+    return CvGeneratePreviewOut(
+        stage=job.stage or "",
+        pct=job.progress or 0,
+        iteration=int(polish.get("iteration") or 0),
+        html=html,
+        trace=polish or None,
+    )
+
+
+@router.post("/{cv_id}/polish", response_model=CvGenerateAccepted, status_code=202)
+async def polish_cv(
+    cv_id: uuid.UUID,
+    payload: dict = Body(default={}),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvGenerateAccepted:
+    """Run the polish loop over a committed CV (plan 64 resume path).
+
+    "*Resume polish*" after a failed/cap-stopped run and the manual
+    "run polish" action on any generated CV; 404 for a foreign CV, 503
+    when no AI provider is configured. `{"resumed_from": "<job_id>"}`
+    chains the new trace onto the earlier run."""
+    try:
+        job = await enqueue_polish(
+            db,
+            user.id,
+            cv_id,
+            resumed_from=str((payload or {}).get("resumed_from") or ""),
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except AINotConfiguredError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    return CvGenerateAccepted(job_id=job.id, status=job.status)
+
+
 @router.get("", response_model=list[CvDocumentOut])
 async def list_cvs(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -238,6 +344,138 @@ async def list_versions(
     """Immutable snapshots, newest first."""
     versions = await CvService(db).list_versions(cv_id, user.id)
     return [CvVersionOut.model_validate(v) for v in versions]
+
+
+async def _run_calls(db: AsyncSession, run_id: uuid.UUID) -> list[CvRunCallOut]:
+    """The run's audit ledger, newest-run queried oldest-first (65.1
+    linkage makes this exact — run_id = the job id)."""
+    from app.models.ai_model import AIGeneration
+
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration)
+                .where(AIGeneration.run_id == run_id)
+                .order_by(AIGeneration.created_at)
+                .limit(64)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        CvRunCallOut(
+            id=row.id,
+            task=row.task_type,
+            stage=row.run_stage,
+            status=row.status,
+            provider=row.provider,
+            model=row.model,
+            prompt_version=row.prompt_version,
+            tokens_in=row.tokens_in,
+            tokens_out=row.tokens_out,
+            latency_ms=int(row.latency_ms) if row.latency_ms is not None else None,
+        )
+        for row in rows
+    ]
+
+
+def _run_aggregate(calls: list[CvRunCallOut]) -> CvRunAggregateOut:
+    aggregate = CvRunAggregateOut(
+        calls=len(calls),
+        tokens_in=0,
+        tokens_out=0,
+        latency_ms_sum=0,
+    )
+    for call in calls:
+        by_task = aggregate.by_task.setdefault(
+            call.task,
+            {"calls": 0, "tokens_in": 0, "tokens_out": 0, "latency_ms_sum": 0},
+        )
+        by_task["calls"] += 1
+        by_task["tokens_in"] += call.tokens_in or 0
+        by_task["tokens_out"] += call.tokens_out or 0
+        by_task["latency_ms_sum"] += call.latency_ms or 0
+        aggregate.tokens_in += call.tokens_in or 0
+        aggregate.tokens_out += call.tokens_out or 0
+        aggregate.latency_ms_sum += call.latency_ms or 0
+    return aggregate
+
+
+@router.get("/{cv_id}/runs", response_model=list[CvRunOut])
+async def list_cv_runs(
+    cv_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CvRunOut]:
+    """Runs & metrics for one CV (plan 65.3): the generation run plus
+    every polish re-run, newest first — each with the polish trace
+    (iterations, ops ledger, coverage, stages) and the run's LLM-call
+    ledger from `ai_generations` plus per-run/task aggregates.
+
+    Owner-scoped; the rows prefer the finished run's `result.cv_id` and
+    only ride the CV's mid-run `run_id` while the job is still RUNNING
+    (working content may be rewritten on later co-pilot edits)."""
+    cv = await CvService(db).get_owned(cv_id, user.id)
+    mid_run = (cv.working_content or {}).get("run_id")
+    running_alias = None
+    if isinstance(mid_run, str) and mid_run:
+        try:
+            running_alias = uuid.UUID(mid_run)
+        except ValueError:
+            running_alias = None
+    jobs = (
+        (
+            await db.execute(
+                select(BackgroundJob)
+                .where(
+                    BackgroundJob.user_id == user.id,
+                    BackgroundJob.job_type.in_(
+                        [
+                            BackgroundJobType.CV_GENERATE.value,
+                            BackgroundJobType.CV_POLISH.value,
+                        ]
+                    ),
+                    or_(
+                        BackgroundJob.result["cv_id"].as_string() == str(cv.id),
+                        and_(
+                            BackgroundJob.status == BackgroundJobStatus.RUNNING.value,
+                            running_alias is not None,
+                            BackgroundJob.id == running_alias,
+                        ),
+                    ),
+                )
+                .order_by(BackgroundJob.created_at.desc())
+                .limit(25)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    runs = []
+    for job in jobs:
+        polish = (job.result or {}).get("polish") or {}
+        run_meta = (polish.get("run") or {}).get("resumed_from") or {}
+        calls = await _run_calls(db, job.id)
+        runs.append(
+            CvRunOut(
+                job_id=job.id,
+                job_type=job.job_type,
+                status=job.status,
+                stage=job.stage,
+                error=job.error,
+                created_at=job.created_at,
+                finished_at=job.finished_at,
+                outcome=((polish.get("outcome") or {}).get("status")),
+                resumed_from=run_meta.get("job_id") or None,
+                final_version=((polish.get("final") or {}).get("version")),
+                stages=(polish.get("run") or {}).get("stages") or [],
+                iterations=polish.get("iterations") or [],
+                llm_calls=calls,
+                aggregate=_run_aggregate(calls),
+            )
+        )
+    return runs
 
 
 @router.post("/{cv_id}/versions", response_model=CvVersionOut, status_code=201)
@@ -301,6 +539,67 @@ async def context_status(
         changed=_refs(report["changed"]),
         added=_refs(report["added"]),
         removed=_refs(report["removed"]),
+    )
+
+
+@router.post("/{cv_id}/ops", response_model=CvOpsOut)
+async def apply_cv_ops(
+    cv_id: uuid.UUID,
+    body: CvOpsRequest,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvOpsOut:
+    """UI-driven builder operations (plan 71): the copilot's op
+    vocabulary applied through the same audited `apply_operation` path —
+    buttons and AI converge on one code path. Failed ops never abort the
+    batch; the refreshed state (with the effective template_id) returns
+    in the same response."""
+    cv, _builder = await _owned_builder(cv_id, user.id, db)
+    from app.ai.agents.cv_builder_chat import apply_operation, builder_state_payload
+
+    results = []
+    for op in body.ops:
+        result = await apply_operation(db, cv, op)
+        results.append(result)
+    failed = [r for r in results if not r.ok]
+    if failed and len(failed) == len(results) and results:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            failed[0].detail or "Operations could not be applied",
+        )
+    state = await builder_state_payload(
+        db, cv, operations=[r.model_dump(mode="json") for r in results]
+    )
+    return CvOpsOut(
+        results=[r.model_dump(mode="json") for r in results],
+        state=state,
+    )
+
+
+@router.get("/{cv_id}/design", response_model=CvDesignOut)
+async def cv_design(
+    cv_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvDesignOut:
+    """The CV's effective design tokens + template meta (plan 71):
+    initial state for the builder's Template tab."""
+    cv, builder = await _owned_builder(cv_id, user.id, db)
+    template = await builder.template_row(cv)
+    content, _tid = await builder.template_content(cv)
+    return CvDesignOut(
+        design=content.design.model_dump(mode="json"),
+        template=(
+            CvTemplateMeta(
+                id=str(template.id),
+                title=template.title,
+                owned=template.author_user_id == user.id
+                and template.author_key != "bank",
+                ats_safe=template.ats_safe,
+            )
+            if template
+            else None
+        ),
     )
 
 

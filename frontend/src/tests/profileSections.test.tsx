@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { useRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -15,7 +15,13 @@ import { ProfileSectionCard } from "@/components/profile/ProfileSectionCard";
 import { ProfileEdit } from "@/pages/ProfileEdit";
 import { useProfileStore } from "@/stores/profileStore";
 import { fetchProfile } from "@/api/profile";
-import { fetchMySkills, saveMySkills, fetchSkillOntology } from "@/api/skills";
+import {
+  fetchMySkills,
+  saveMySkills,
+  fetchSkillOntology,
+  setSkillDeriveEnabled,
+  deleteMySkill,
+} from "@/api/skills";
 import { SkillsCard } from "@/components/profile/sections/SkillsCard";
 import type { SectionCardHandle } from "@/components/profile/sections/shared";
 import type { Profile } from "@/types";
@@ -26,6 +32,14 @@ vi.mock("@/api/profile", async (importOriginal) => {
     ...mod,
     fetchProfile: vi.fn<typeof mod.fetchProfile>(),
     saveProfileSection: vi.fn<typeof mod.saveProfileSection>(),
+  };
+});
+
+vi.mock("@/api/cvIntake", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/cvIntake")>();
+  return {
+    ...mod,
+    listCvDraftHistory: vi.fn<typeof mod.listCvDraftHistory>(),
   };
 });
 
@@ -44,6 +58,8 @@ vi.mock("@/api/skills", async (importOriginal) => {
     fetchMySkills: vi.fn<typeof mod.fetchMySkills>(),
     fetchSkillOntology: vi.fn<typeof mod.fetchSkillOntology>(),
     saveMySkills: vi.fn<typeof mod.saveMySkills>(),
+    setSkillDeriveEnabled: vi.fn<typeof mod.setSkillDeriveEnabled>(),
+    deleteMySkill: vi.fn<typeof mod.deleteMySkill>(),
   };
 });
 
@@ -62,6 +78,7 @@ vi.mock("@/api/experience", async (importOriginal) => {
   return {
     ...mod,
     fetchExperience: vi.fn(),
+    fetchDerivation: vi.fn().mockResolvedValue({ skills: [], years_of_experience: 0 }),
   };
 });
 
@@ -107,8 +124,11 @@ function makeAcademics(): Profile["academics"] {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  vi.mocked(
+    (await import("@/api/cvIntake")).listCvDraftHistory
+  ).mockResolvedValue([]);
 });
 
 describe("ProfileSectionCard", () => {
@@ -307,13 +327,13 @@ describe("BasicsCard", () => {
 
 describe("AcademicsCard", () => {
   it("saves subjects and languages as structured rows", async () => {
+    const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<AcademicsCard initial={makeAcademics()} onSave={onSave} />);
     expect(screen.queryByTestId("academics-gpa-band")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("add-language"));
-    fireEvent.change(screen.getByTestId("language-code-1"), {
-      target: { value: "fr" },
-    });
+    fireEvent.click(screen.getAllByRole("combobox", { name: "Language" })[1]);
+    await user.click(await screen.findByRole("option", { name: "French" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1), {
       timeout: 1500,
     });
@@ -366,16 +386,20 @@ describe("AcademicsCard", () => {
     );
   });
 
-  it("language rows validate: an empty code blocks the save", async () => {
+  it("language rows validate: an empty code blocks the save, typed names are added", async () => {
+    const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<AcademicsCard initial={makeAcademics()} onSave={onSave} />);
     fireEvent.click(screen.getByTestId("add-language"));
     expect(await screen.findByText("Pick a language")).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 700));
     expect(onSave).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByTestId("language-code-1"), {
-      target: { value: "el" },
-    });
+    fireEvent.click(screen.getAllByRole("combobox", { name: "Language" })[1]);
+    await user.type(
+      screen.getByPlaceholderText("Search…"),
+      "Greek"
+    );
+    await user.click(await screen.findByRole("option", { name: "Greek" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1), {
       timeout: 1500,
     });
@@ -387,6 +411,20 @@ describe("AcademicsCard", () => {
         ],
       }),
     });
+
+    fireEvent.click(screen.getByTestId("add-language"));
+    await user.click(
+      (screen.getAllByRole("combobox", { name: "Language" }) as HTMLButtonElement[])[2]
+    );
+    await user.type(screen.getByPlaceholderText("Search…"), "Punjabi");
+    await user.click(
+      await screen.findByRole("option", { name: 'Add language “Punjabi”' })
+    );
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2), {
+      timeout: 1500,
+    });
+    const payload = onSave.mock.calls[1][0].academics;
+    expect(payload.languages[2]).toEqual({ code: "punjabi", level: "intermediate" });
   });
 
   it("removes a language row and saves the result", async () => {
@@ -708,7 +746,22 @@ describe("SkillsCard", () => {
         source: "self_report" as const,
         confidence: 1,
         level_anchors: [],
+        derive_enabled: true,
       }))
+    );
+    vi.mocked(deleteMySkill).mockResolvedValue(undefined);
+    vi.mocked(setSkillDeriveEnabled).mockImplementation(
+      async (skillId: string, derive_enabled: boolean) => ({
+        skill_id: skillId,
+        key: "docker",
+        label: "Docker",
+        category: "devops",
+        level: 4,
+        source: "experience" as const,
+        confidence: 0.8,
+        level_anchors: [],
+        derive_enabled,
+      })
     );
   });
 
@@ -755,6 +808,7 @@ describe("SkillsCard", () => {
         source: "self_report",
         confidence: 1,
         level_anchors: [],
+        derive_enabled: true,
       },
     ]);
     render(<SkillsCard />);
@@ -762,6 +816,252 @@ describe("SkillsCard", () => {
     await user.click(await screen.findByRole("option", { name: "Python (programming)" }));
     await new Promise((r) => setTimeout(r, 50));
     expect(saveMySkills).not.toHaveBeenCalled();
+  });
+
+  it("moving a level slider persists the whole self_report set, not just the moved row", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchMySkills).mockResolvedValue([
+      {
+        skill_id: "s1",
+        key: "python",
+        label: "Python",
+        category: "programming",
+        level: 6,
+        source: "self_report",
+        confidence: 1,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+      {
+        skill_id: "s3",
+        key: "sql",
+        label: "SQL",
+        category: "programming",
+        level: 7,
+        source: "self_report",
+        confidence: 1,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+      {
+        skill_id: "s2",
+        key: "docker",
+        label: "Docker",
+        category: "devops",
+        level: 4,
+        source: "experience",
+        confidence: 0.8,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+    ]);
+    render(<SkillsCard />);
+    const sliderInput = await screen
+      .findByTestId("skill-slider-python")
+      .then((node) =>
+        within(node).getByRole("slider", { name: /Python/ })
+      );
+    await user.click(sliderInput);
+    // ScaleSlider writes level through onChange on pointer events; fire the
+    // pointer-up persistence with the locally updated value set directly.
+    await user.pointer([
+      { keys: "[MouseLeft>]", target: sliderInput },
+    ]);
+    // The regression: whatever the local level became, the PUT must span
+    // BOTH self-report rows.
+    await waitFor(() => {
+      const calls = vi.mocked(saveMySkills).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const call = calls[calls.length - 1];
+      expect(call).toBeTruthy();
+      const keys = (call![0] as { skill_key: string }[])
+        .map((item) => item.skill_key)
+        .sort();
+      expect(keys).toEqual(["python", "sql"]);
+    });
+  });
+
+  it("offers takeover on experience-derived skills and converts them to self_report", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchMySkills).mockResolvedValue([
+      {
+        skill_id: "s1",
+        key: "python",
+        label: "Python",
+        category: "programming",
+        level: 6,
+        source: "self_report",
+        confidence: 1,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+      {
+        skill_id: "s2",
+        key: "docker",
+        label: "Docker",
+        category: "devops",
+        level: 4,
+        source: "experience",
+        confidence: 0.8,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+    ]);
+    vi.mocked(
+      (await import("@/api/experience")).fetchDerivation
+    ).mockResolvedValue({
+      skills: [
+        {
+          skill_id: "s2",
+          skill_label: "Docker",
+          months: 14,
+          level: 4.0,
+          confidence: 0.4,
+          supporting_items: ["e1"],
+          claimed_level: null,
+          claim_status: null,
+        },
+      ],
+      years_of_experience: 1.2,
+    });
+    render(<SkillsCard />);
+    const takeover = await screen.findByTestId("skill-takeover-docker");
+    await user.click(takeover);
+    await waitFor(() =>
+      expect(saveMySkills).toHaveBeenCalledWith([
+        { skill_key: "python", level: 6 },
+        { skill_key: "docker", level: 4 },
+      ])
+    );
+    expect(await screen.findByTestId("skill-slider-docker")).toBeInTheDocument();
+  });
+
+  it("derivation tooltip surfaces the evidence summary on derived rows", async () => {
+    vi.mocked(fetchMySkills).mockResolvedValue([
+      {
+        skill_id: "s2",
+        key: "docker",
+        label: "Docker",
+        category: "devops",
+        level: 4,
+        source: "experience",
+        confidence: 0.8,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+    ]);
+    vi.mocked(
+      (await import("@/api/experience")).fetchDerivation
+    ).mockResolvedValue({
+      skills: [
+        {
+          skill_id: "s2",
+          skill_label: "Docker",
+          months: 14.5,
+          level: 4.0,
+          confidence: 0.4,
+          supporting_items: ["e1"],
+          claimed_level: null,
+          claim_status: null,
+        },
+      ],
+      years_of_experience: 1.2,
+    });
+    render(<SkillsCard />);
+    await screen.findByTestId("skill-takeover-docker");
+    expect(
+      screen.getByTitle("≈ level 4.0 from 14.5 months of evidence")
+    ).toBeInTheDocument();
+  });
+
+  it("disables and re-enables derivation on a derived row", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchMySkills).mockResolvedValue([
+      {
+        skill_id: "s2",
+        key: "docker",
+        label: "Docker",
+        category: "devops",
+        level: 4,
+        source: "experience",
+        confidence: 0.8,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+    ]);
+    render(<SkillsCard />);
+    await screen.findByTestId("skill-takeover-docker");
+    await user.click(screen.getByTestId("skill-disable-docker"));
+    await waitFor(() =>
+      expect(setSkillDeriveEnabled).toHaveBeenCalledWith("s2", false)
+    );
+    expect(await screen.findByTestId("skill-enable-docker")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-disabled-group")).toHaveTextContent(
+      "Disabled (1)"
+    );
+    expect(
+      within(screen.getByTestId("skill-disabled-group")).getByTestId(
+        "skill-disabled-docker"
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("skill-takeover-docker")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("skill-enable-docker"));
+    await waitFor(() =>
+      expect(setSkillDeriveEnabled).toHaveBeenCalledWith("s2", true)
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("skill-disabled-docker")).not.toBeInTheDocument();
+      expect(screen.getByTestId("skill-takeover-docker")).toBeInTheDocument();
+    });
+  });
+
+  it("deletes a derived skill permanently (forget action)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchMySkills).mockResolvedValue([
+      {
+        skill_id: "s2",
+        key: "docker",
+        label: "Docker",
+        category: "devops",
+        level: 4,
+        source: "experience",
+        confidence: 0.8,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+    ]);
+    render(<SkillsCard />);
+    await screen.findByTestId("skill-takeover-docker");
+    await user.click(screen.getByTestId("skill-forget-docker"));
+    await waitFor(() =>
+      expect(deleteMySkill).toHaveBeenCalledWith("s2")
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("skill-source-docker")).not.toBeInTheDocument()
+    );
+  });
+
+  it("places the add-skill search above the list", async () => {    vi.mocked(fetchMySkills).mockResolvedValue([
+      {
+        skill_id: "s1",
+        key: "python",
+        label: "Python",
+        category: "programming",
+        level: 6,
+        source: "self_report",
+        confidence: 1,
+        level_anchors: [],
+        derive_enabled: true,
+      },
+    ]);
+    render(<SkillsCard />);
+    const card = await screen.findByTestId("skill-slider-python").then((node) =>
+      node.closest("div.space-y-3")
+    );
+    const search = screen.getByTestId("add-skill");
+    expect(card).not.toBeNull();
+    expect(card!.lastElementChild!.contains(search)).toBe(false);
+    expect(card!.firstElementChild!.contains(search)).toBe(true);
   });
 });
 
@@ -983,6 +1283,12 @@ describe("ProfileEdit (settings-shell restructure)", () => {
       "67% of the sections your start path needs are filled."
     );
     expect(screen.getByTestId("import-cv-entry")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("import-cv-status")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("import-cv-status")).toHaveTextContent(
+      "No CV imported yet"
+    );
   });
 
   it("shows the overview by default with stage switch and completeness bar", async () => {

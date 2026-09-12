@@ -1,5 +1,7 @@
 export {
   Modal,
+  PanelModal,
+  type PanelModalProps,
   ModalTrigger,
   ModalClose,
   ModalContent,

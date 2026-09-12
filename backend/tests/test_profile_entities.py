@@ -397,3 +397,35 @@ async def test_fit_uses_derived_education_level(client, db, auth_headers):
     )
     context = await FitService(db).user_context(profile)
     assert context["education_level"] == "master"
+
+
+async def test_certification_language_link_validation(client, db, auth_headers):
+    response = await client.post(
+        "/api/v1/me/certifications",
+        json={"name": "Quest 3 Certificate", "issuer": "Anywhere"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201, response.text
+    cert = response.json()
+
+    good = await client.patch(
+        f"/api/v1/me/certifications/{cert['id']}",
+        json={"language_code": "EN"},
+        headers=auth_headers,
+    )
+    assert good.status_code == 200, good.text
+    assert good.json()["language_code"] == "en", "codes normalize to lowercase"
+
+    bad = await client.patch(
+        f"/api/v1/me/certifications/{cert['id']}",
+        json={"language_code": "klingon"},
+        headers=auth_headers,
+    )
+    assert bad.status_code == 422
+
+    clear = await client.patch(
+        f"/api/v1/me/certifications/{cert['id']}",
+        json={"language_code": None},
+        headers=auth_headers,
+    )
+    assert clear.status_code == 200 and clear.json()["language_code"] is None

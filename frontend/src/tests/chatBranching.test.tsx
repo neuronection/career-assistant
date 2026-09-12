@@ -74,6 +74,7 @@ describe("ChatWidget branching UI", () => {
     useChatStore.setState({
       sessions: [],
       activeSessionId: "s1",
+      chatMode: "bubble",
       messages: branchedMessages(),
     });
   });

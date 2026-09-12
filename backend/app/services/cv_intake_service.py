@@ -16,7 +16,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
-from app.models.cv_intake_model import CvParseDraft
+from app.models.cv_intake_model import CvIntakeApplied, CvParseDraft
 from app.models.document_model import Document
 from app.models.experience_model import (
     ExperienceAchievement,
@@ -34,7 +34,6 @@ from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import Profile, UserInterest, UserSkill
 from app.models.enums import (
     ExperienceItemSource,
-    ExperienceItemStatus,
     RoleInItem,
     SkillOrigin,
     TagSource,
@@ -49,13 +48,157 @@ def _slug(name: str) -> str:
     return slug[:78] or f"skill-{uuid.uuid4().hex[:8]}"
 
 
+_MONTHS: dict[str, int] = {
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "mar": 3,
+    "april": 4,
+    "apr": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "sept": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
+}
+
+
+def _month_name(value: str) -> int:
+    return _MONTHS.get(value.strip().lower(), 0)
+
+
 def _parse_date(raw: str) -> date | None:
-    text = str(raw or "").strip()
-    if re.fullmatch(r"\d{4}-\d{2}", text):
-        return date(int(text[:4]), int(text[5:7]), 1)
+    """Parse an extraction date with gap-filling defaults.
+
+    Accepts the schema formats (YYYY-MM, YYYY) plus what real CVs
+    contain: full dates (2020-03-15), separators (2020/03, 03/2020,
+    15/03/2020) and month names ("Sep 2020", "September 2020"). Missing
+    pieces default — year-only → January, month-only → day 1 — instead
+    of being dropped.
+    """
+    text = str(raw or "").strip().lower()
+    if not text or text in {"present", "now", "current", "ongoing"}:
+        return None
+
+    def as_date(year: int, month: int | None, day: int | None) -> date | None:
+        try:
+            return date(year, month or 1, day or 1)
+        except ValueError:
+            return None
+
+    iso_full = re.fullmatch(r"(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})", text)
+    if iso_full:
+        return as_date(
+            int(iso_full.group(1)), int(iso_full.group(2)), int(iso_full.group(3))
+        )
+    iso_month = re.fullmatch(r"(\d{4})[-/.](\d{1,2})", text)
+    if iso_month:
+        month = int(iso_month.group(2))
+        if 1 <= month <= 12:
+            return as_date(int(iso_month.group(1)), month, None)
     if re.fullmatch(r"\d{4}", text):
-        return date(int(text), 1, 1)
+        return as_date(int(text), None, None)
+    day_first = re.fullmatch(r"(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})", text)
+    if day_first:
+        return as_date(
+            int(day_first.group(3)), int(day_first.group(2)), int(day_first.group(1))
+        )
+    month_first = re.fullmatch(r"(\d{1,2})[-/.](\d{4})", text)
+    if month_first:
+        month = int(month_first.group(1))
+        if 1 <= month <= 12:
+            return as_date(int(month_first.group(2)), month, None)
+    name_month = re.fullmatch(r"(\d{4})?\s*([a-z]+)\s*(\d{4})?", text)
+    if name_month:
+        month = _month_name(name_month.group(2) or "")
+        year_text = name_month.group(1) or name_month.group(3)
+        if month and year_text:
+            return as_date(int(year_text), month, None)
     return None
+
+
+EDUCATION_LEVEL_KEYWORDS: dict[str, str] = {
+    "phd": "doctorate",
+    "ph.d": "doctorate",
+    "doctorate": "doctorate",
+    "doctoral": "doctorate",
+    "dphil": "doctorate",
+    "master": "master",
+    "msc": "master",
+    "m.sc": "master",
+    "mba": "master",
+    "postgraduate": "master",
+    "ma": "master",
+    "bachelor": "bachelor",
+    "university": "bachelor",
+    "bsc": "bachelor",
+    "b.sc": "bachelor",
+    "bba": "bachelor",
+    "undergraduate": "bachelor",
+    "vocational": "vocational",
+    "apprenticeship": "vocational",
+    "diploma": "vocational",
+    "high school": "high_school",
+    "high-school": "high_school",
+    "highschool": "high_school",
+    "secondary school": "high_school",
+    "lyceum": "high_school",
+    "liceo": "high_school",
+    "lycee": "high_school",
+    "middle school": "middle_school",
+    "gymnasium": "middle_school",
+    "primary": "middle_school",
+    "elementary": "middle_school",
+    "no formal": "no_formal",
+}
+
+
+_LEVEL_TEXT_HINTS: tuple[tuple[str, str], ...] = (
+    ("university", "bachelor"),
+    ("college", "bachelor"),
+    ("faculty", "bachelor"),
+    ("b.sc", "bachelor"),
+    ("m.sc", "master"),
+    ("vocational", "vocational"),
+    ("technical school", "vocational"),
+    ("technician", "vocational"),
+    ("institute", "vocational"),
+    ("high school", "high_school"),
+)
+
+
+def _keyword_hit(haystack: str, keyword: str) -> bool:
+    pattern = rf"(?<![a-z]){re.escape(keyword.lower())}(?![a-z])"
+    return re.search(pattern, haystack.lower()) is not None
+
+
+def _education_level(item: dict) -> str:
+    """Curated level resolution: vocabulary matching, then inference."""
+    raw = str(item.get("level") or "").strip().lower()
+    for keyword, level in EDUCATION_LEVEL_KEYWORDS.items():
+        if keyword and _keyword_hit(raw, keyword):
+            return level
+    text = f"{item.get('program') or ''} {item.get('institution') or ''}".lower()
+    for hint, level in _LEVEL_TEXT_HINTS:
+        if _keyword_hit(text, hint):
+            return level
+    for keyword, level in EDUCATION_LEVEL_KEYWORDS.items():
+        if keyword and _keyword_hit(text, keyword):
+            return level
+    return "high_school"
 
 
 LEVEL_ORDER = {"basic": 0, "intermediate": 1, "advanced": 2, "native": 3}
@@ -66,6 +209,27 @@ class CvIntakeService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._applied_notes: list[tuple[str, uuid.UUID]] = []
+
+    def _note(
+        self,
+        user_id: uuid.UUID,
+        document_id: uuid.UUID,
+        entity_type: str,
+        entity_id: uuid.UUID,
+    ) -> None:
+        """Record that applying this document created one profile entity."""
+        key = (entity_type, entity_id)
+        if key not in self._applied_notes:
+            self._applied_notes.append(key)
+            self.db.add(
+                CvIntakeApplied(
+                    user_id=user_id,
+                    document_id=document_id,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                )
+            )
 
     async def _owned_document(
         self, document_id: uuid.UUID, user_id: uuid.UUID
@@ -190,6 +354,24 @@ class CvIntakeService:
             for draft, doc in rows.all()
         ]
 
+    async def applied_counts(
+        self, document_id: uuid.UUID, user_id: uuid.UUID
+    ) -> list[dict]:
+        """Where an applied import landed: per-entity-type created counts."""
+        await self._owned_document(document_id, user_id)
+        rows = await self.db.execute(
+            select(CvIntakeApplied.entity_type, func.count(CvIntakeApplied.entity_id))
+            .where(
+                CvIntakeApplied.document_id == document_id,
+                CvIntakeApplied.user_id == user_id,
+            )
+            .group_by(CvIntakeApplied.entity_type)
+        )
+        return [
+            {"entity_type": entity_type, "count": count}
+            for entity_type, count in rows.all()
+        ]
+
     async def discard(self, document_id: uuid.UUID, user_id: uuid.UUID) -> None:
         """Discard the draft; nothing was ever written to the profile."""
         draft = await self.get_draft(document_id, user_id)
@@ -199,21 +381,38 @@ class CvIntakeService:
     # ------------------------------------------------------------ apply
 
     async def apply(
-        self, document_id: uuid.UUID, user_id: uuid.UUID, selections: dict
+        self,
+        document_id: uuid.UUID,
+        user_id: uuid.UUID,
+        selections: dict,
+        drafts: dict | None = None,
     ) -> dict:
         """Apply user-confirmed selections; everything else stays draft-free.
 
         selections maps a CvExtract section to either `true` (all items)
         or a list of indices. Missing sections are not applied (partial
-        applies are the norm). Returns a report with created counts,
-        proposed skills, conflicts, unmapped items and duplicates.
+        applies are the norm). `drafts` mirrors that shape for sections
+        (or individual items) that should land as drafts — everything
+        else is ACTIVE (the review ticks are the user's approval).
+        Returns a report with created counts, proposed skills,
+        conflicts, unmapped items and duplicates.
         """
+
+        def _is_draft(section: str, index: int | None = None) -> bool:
+            spec = (drafts or {}).get(section)
+            if spec is True:
+                return True
+            if isinstance(draft := spec, list):
+                return index is not None and index in draft
+            return False
+
         await self._owned_document(document_id, user_id)
         draft = await self.get_draft(document_id, user_id)
         if draft.status == "discarded":
             raise ValidationError("Draft was discarded")
         extract = CvExtract.model_validate(draft.payload)
         document_id_str = str(document_id)
+        self._applied_notes = []
 
         report: dict = {
             "created": {},
@@ -224,15 +423,24 @@ class CvIntakeService:
         }
 
         if self._selected(selections, "basics"):
-            await self._apply_basics(user_id, extract.basics.model_dump())
+            basics_profile = await self._apply_basics(
+                user_id, extract.basics.model_dump()
+            )
+            self._note(user_id, document_id, "basics", basics_profile.id)
 
         if self._selected(selections, "education"):
             for index in self._indices(selections, "education", len(extract.education)):
                 item = extract.education[index]
-                created = await self._create_education(user_id, item.model_dump())
-                report["created"]["education_items"] = report["created"].get(
-                    "education_items", 0
-                ) + int(created)
+                created = await self._create_education(
+                    user_id,
+                    item.model_dump(),
+                    status=("draft" if _is_draft("education", index) else "active"),
+                )
+                if created is not None:
+                    self._note(user_id, document_id, "education_items", created.id)
+                    report["created"]["education_items"] = (
+                        report["created"].get("education_items", 0) + 1
+                    )
 
         if self._selected(selections, "experience"):
             for index in self._indices(
@@ -240,18 +448,24 @@ class CvIntakeService:
             ):
                 item = extract.experience[index]
                 created = await self._create_experience(
-                    user_id, document_id_str, item.model_dump(), report
+                    user_id,
+                    document_id_str,
+                    item.model_dump(),
+                    report,
+                    status=("draft" if _is_draft("experience", index) else "active"),
                 )
-                report["created"]["experience_items"] = report["created"].get(
-                    "experience_items", 0
-                ) + int(created)
+                if created is not None:
+                    self._note(user_id, document_id, "experience_items", created.id)
+                    report["created"]["experience_items"] = (
+                        report["created"].get("experience_items", 0) + 1
+                    )
 
         if self._selected(selections, "skills"):
             for index in self._indices(selections, "skills", len(extract.skills)):
                 skill = extract.skills[index]
                 await self._apply_skill(
                     user_id,
-                    document_id_str,
+                    document_id,
                     skill.name,
                     skill.level_claim,
                     skill.evidence.quote,
@@ -259,24 +473,25 @@ class CvIntakeService:
                 )
 
         if self._selected(selections, "languages"):
-            await self._apply_languages(user_id, extract)
+            await self._apply_languages(user_id, extract, document_id)
 
         if self._selected(selections, "certifications"):
             for index in self._indices(
                 selections, "certifications", len(extract.certifications)
             ):
                 item = extract.certifications[index]
-                self.db.add(
-                    Certification(
-                        user_id=user_id,
-                        name=item.name,
-                        issuer=item.issuer,
-                        issued=_parse_date(item.issued),
-                        credential_id=item.credential_id,
-                        source=ExperienceItemSource.CV_PARSE.value,
-                        status="draft",
-                    )
+                certification = Certification(
+                    user_id=user_id,
+                    name=item.name,
+                    issuer=item.issuer,
+                    issued=_parse_date(item.issued),
+                    credential_id=item.credential_id,
+                    source=ExperienceItemSource.CV_PARSE.value,
+                    status="draft" if _is_draft("certifications") else "active",
                 )
+                self.db.add(certification)
+                await self.db.flush()
+                self._note(user_id, document_id, "certifications", certification.id)
                 report["created"]["certifications"] = (
                     report["created"].get("certifications", 0) + 1
                 )
@@ -284,23 +499,24 @@ class CvIntakeService:
         if self._selected(selections, "awards"):
             for index in self._indices(selections, "awards", len(extract.awards)):
                 item = extract.awards[index]
-                self.db.add(
-                    ProfileAchievement(
-                        user_id=user_id,
-                        kind=item.kind,
-                        title=item.title,
-                        issuer=item.issuer,
-                        date=_parse_date(item.date),
-                        source=ExperienceItemSource.CV_PARSE.value,
-                        status="draft",
-                    )
+                achievement = ProfileAchievement(
+                    user_id=user_id,
+                    kind=item.kind,
+                    title=item.title,
+                    issuer=item.issuer,
+                    date=_parse_date(item.date),
+                    source=ExperienceItemSource.CV_PARSE.value,
+                    status="draft" if _is_draft("awards") else "active",
                 )
+                self.db.add(achievement)
+                await self.db.flush()
+                self._note(user_id, document_id, "profile_achievements", achievement.id)
                 report["created"]["profile_achievements"] = (
                     report["created"].get("profile_achievements", 0) + 1
                 )
 
         if self._selected(selections, "interests"):
-            await self._apply_interests(user_id, extract, report)
+            await self._apply_interests(user_id, extract, report, document_id)
 
         draft.status = "applied"
         merged = dict(draft.report or {})
@@ -354,6 +570,7 @@ class CvIntakeService:
                     )
             data["links"] = merged[:8]
         profile.basics = data
+        return profile
 
     async def _resolve_org(self, name: str) -> Organization | None:
         if not name.strip():
@@ -377,8 +594,13 @@ class CvIntakeService:
         return org
 
     async def _create_experience(
-        self, user_id: uuid.UUID, document_id: str, item: dict, report: dict
-    ) -> bool:
+        self,
+        user_id: uuid.UUID,
+        document_id: str,
+        item: dict,
+        report: dict,
+        status: str,
+    ) -> ExperienceItem | None:
         """Create one draft experience item; dedupe on (org, title, start)."""
         org_name = str(item.get("org") or "")
         title = str(item.get("title") or "")
@@ -396,20 +618,24 @@ class CvIntakeService:
         rows = await self.db.execute(select(ExperienceItem).where(*dup_condition))
         if rows.scalars().first() is not None:
             report["duplicates"].append(f"{title} @ {org_name or '?'}")
-            return False
+            return None
         org = await self._resolve_org(org_name)
+        kind_raw = item.get("kind") or "job"
+        kind = str(getattr(kind_raw, "value", kind_raw))
         experience = ExperienceItem(
             user_id=user_id,
-            kind=item.get("kind") or "job",
+            kind=kind,
             title=title[:160],
             org_id=org.id if org else None,
             org_name=org_name[:200],
-            start=start or date(2000, 1, 1),
+            # Projects may be undated (note #15); other kinds keep the
+            # legacy placeholder so the stored row stays non-null.
+            start=start if start is not None or kind == "project" else date(2000, 1, 1),
             end=_parse_date(item.get("end") or ""),
             open_ended=str(item.get("end") or "").lower() in ("", "present"),
             description=str(item.get("description") or "")[:4000],
             source=ExperienceItemSource.CV_PARSE.value,
-            status=ExperienceItemStatus.DRAFT.value,
+            status=status,
         )
         self.db.add(experience)
         await self.db.flush()
@@ -435,7 +661,7 @@ class CvIntakeService:
                     role_in_item=RoleInItem.PRIMARY.value,
                 )
             )
-        return True
+        return experience
 
     async def _resolve_skill(self, name: str, report: dict) -> Skill | None:
         """Find-or-propose a taxonomy skill."""
@@ -468,7 +694,7 @@ class CvIntakeService:
     async def _apply_skill(
         self,
         user_id: uuid.UUID,
-        document_id: str,
+        document_id: uuid.UUID,
         name: str,
         level_claim: int | None,
         quote: str,
@@ -493,6 +719,8 @@ class CvIntakeService:
                 confidence=0.8 if level_claim else 0.5,
             )
             self.db.add(user_skill)
+            await self.db.flush()
+            self._note(user_id, document_id, "skills", user_skill.id)
             report["created"]["skills"] = report["created"].get("skills", 0) + 1
         elif level_claim and user_skill.level != level_claim:
             report["skill_conflicts"].append(
@@ -502,7 +730,7 @@ class CvIntakeService:
             SkillEvidence(
                 user_id=user_id,
                 skill_id=skill.id,
-                cv_document_id=uuid.UUID(document_id),
+                cv_document_id=document_id,
                 note=(quote or "claimed in CV")[:500],
                 level_value=level_claim or user_skill.level,
                 confidence=0.8 if level_claim else 0.5,
@@ -510,7 +738,9 @@ class CvIntakeService:
             )
         )
 
-    async def _create_education(self, user_id: uuid.UUID, item: dict) -> bool:
+    async def _create_education(
+        self, user_id: uuid.UUID, item: dict, status: str
+    ) -> EducationItem | None:
         rows = await self.db.execute(
             select(EducationItem).where(
                 EducationItem.user_id == user_id,
@@ -521,25 +751,30 @@ class CvIntakeService:
             )
         )
         if rows.scalars().first() is not None:
-            return False
-        self.db.add(
-            EducationItem(
-                user_id=user_id,
-                institution=str(item.get("institution") or "")[:200],
-                org_name=str(item.get("institution") or "")[:200],
-                program=str(item.get("program") or "")[:200],
-                level=str(item.get("level") or "high_school")[:30],
-                start=_parse_date(item.get("start") or ""),
-                end=_parse_date(item.get("end") or ""),
-                in_progress=not item.get("end"),
-                grade_band=item.get("grade_band"),
-                source=ExperienceItemSource.CV_PARSE.value,
-                status="draft",
-            )
+            return None
+        education = EducationItem(
+            user_id=user_id,
+            institution=str(item.get("institution") or "")[:200],
+            org_name=str(item.get("institution") or "")[:200],
+            program=str(item.get("program") or "")[:200],
+            level=_education_level(item),
+            start=_parse_date(item.get("start") or ""),
+            end=_parse_date(item.get("end") or ""),
+            in_progress=not item.get("end"),
+            grade_band=item.get("grade_band"),
+            source=ExperienceItemSource.CV_PARSE.value,
+            status=status,
         )
-        return True
+        self.db.add(education)
+        await self.db.flush()
+        return education
 
-    async def _apply_languages(self, user_id: uuid.UUID, extract: CvExtract) -> None:
+    async def _apply_languages(
+        self,
+        user_id: uuid.UUID,
+        extract: CvExtract,
+        document_id: uuid.UUID,
+    ) -> None:
         rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
         profile = rows.scalars().first()
         if profile is None:
@@ -549,14 +784,22 @@ class CvIntakeService:
         academics = dict(profile.academics or {})
         languages = list(academics.get("languages") or [])
         existing = {lang.get("code") for lang in languages}
+        appended = 0
         for extracted in extract.languages:
             if extracted.code not in existing:
                 languages.append({"code": extracted.code, "level": extracted.level})
-        academics["languages"] = languages[:10]
-        profile.academics = academics
+                appended += 1
+        if appended:
+            academics["languages"] = languages[:10]
+            profile.academics = academics
+            self._note(user_id, document_id, "academics_languages", profile.id)
 
     async def _apply_interests(
-        self, user_id: uuid.UUID, extract: CvExtract, report: dict
+        self,
+        user_id: uuid.UUID,
+        extract: CvExtract,
+        report: dict,
+        document_id: uuid.UUID,
     ) -> None:
         """Map extracted interest labels onto taxonomy tags (user_interests)."""
         known = (await self.db.execute(select(InterestTag))).scalars().all()
@@ -566,6 +809,7 @@ class CvIntakeService:
             select(UserInterest.interest_tag_id).where(UserInterest.user_id == user_id)
         )
         existing_ids = {row[0] for row in rows.all()}
+        created: list[UserInterest] = []
         for extracted in extract.interests:
             label = extracted.label.strip().lower()
             tag = by_key.get(label) or by_label.get(label)
@@ -574,13 +818,17 @@ class CvIntakeService:
                 continue
             if tag.id in existing_ids:
                 continue
-            self.db.add(
-                UserInterest(
-                    user_id=user_id,
-                    interest_tag_id=tag.id,
-                    weight=3,
-                    source=TagSource.AI.value,
-                    evidence={"source_document": "cv_parse"},
-                )
+            interest = UserInterest(
+                user_id=user_id,
+                interest_tag_id=tag.id,
+                weight=3,
+                source=TagSource.AI.value,
+                evidence={"source_document": "cv_parse"},
             )
+            self.db.add(interest)
+            created.append(interest)
             existing_ids.add(tag.id)
+        if created:
+            await self.db.flush()
+            for interest in created:
+                self._note(user_id, document_id, "user_interest", interest.id)

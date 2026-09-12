@@ -8,6 +8,13 @@ and stored — inert until a row exists (39's inert-unmapped rule).
 
 from app.models.enums import ExperienceKind
 from app.schemas.cv_extract import CvExtract
+from app.services.cv_intake_service import EDUCATION_LEVEL_KEYWORDS
+
+
+def _education_level_values() -> str:
+    """Curated level vocabulary, from the matcher's target set."""
+    return ", ".join(sorted(set(EDUCATION_LEVEL_KEYWORDS.values())))
+
 
 # (field_path, target, prompt_hint, review_kind)
 CV_FIELD_MAP: list[tuple[str, str, str, str]] = [
@@ -18,11 +25,24 @@ CV_FIELD_MAP: list[tuple[str, str, str, str]] = [
     ("basics.location", "profile.basics", "City/country of residence.", "text"),
     ("basics.links", "profile.basics", "Portfolio/LinkedIn/GitHub URLs.", "links"),
     ("summary", "draft.report", "Profile/objective summary text.", "text"),
-    ("education[]", "education_items", "Each school/program with period.", "items"),
+    (
+        "education[]",
+        "education_items",
+        "Each school/program with period and level. Level must be one of: "
+        + _education_level_values()
+        + " — infer from degree words (BSc/B.A. → bachelor, MSc/MBA → master, "
+        "PhD → doctorate, diploma → vocational); a university/college entry with "
+        "no named degree is bachelor; when truly unknown leave empty.",
+        "items",
+    ),
     (
         "experience[]",
         "experience_items",
-        "Each role/project with org, period, description, skills used, and metric-bearing achievements.",
+        "Each role/project with period, org, description, skills used, and "
+        "metric-bearing achievements. kind may be job, internship, "
+        "freelance, project or volunteer (infer from the line). Projects "
+        "and side work often carry NO dates — leave start/end empty when "
+        "the CV gives none; never guess dates.",
         "items",
     ),
     (

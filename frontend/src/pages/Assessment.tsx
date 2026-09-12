@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { FileDown, FileUp, Library } from "lucide-react";
+import { FileDown, FileUp, Library, Sparkles } from "lucide-react";
 import { ScaleSlider } from "@/components/ui";
 import { apiDetail } from "@/api/client";
 import {
@@ -34,6 +34,9 @@ export function Assessment() {
   const [effects, setEffects] = useState<Record<string, unknown> | null>(null);
   const [templates, setTemplates] = useState<AssessmentTemplate[]>([]);
   const [templateNote, setTemplateNote] = useState("");
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draftBrief, setDraftBrief] = useState("");
+  const [draftBusy, setDraftBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const start = useCallback(async (kind: string, context: Record<string, unknown> = {}) => {
@@ -83,6 +86,32 @@ export function Assessment() {
       setError(apiDetail(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const draftWithAi = async () => {
+    setError("");
+    setDraftBusy(true);
+    try {
+      const { draftTemplateAi, createTemplate } = await import("@/api/assessments");
+      const out = await draftTemplateAi({ topic: draftBrief.trim() });
+      const content = out.content as {
+        title?: string;
+        description?: string;
+      };
+      const saved = await createTemplate({
+        title: String(content.title ?? (draftBrief.trim() || "AI draft")),
+        description: String(content.description ?? ""),
+        content: out.content,
+      });
+      setTemplateNote(`Drafted "${saved.title}" with AI — saved as a private template.`);
+      setDraftOpen(false);
+      setDraftBrief("");
+      setTemplates(await fetchTemplates());
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setDraftBusy(false);
     }
   };
 
@@ -261,8 +290,50 @@ export function Assessment() {
             >
               <FileUp className="w-3.5 h-3.5" /> Import
             </button>
+            <button
+              type="button"
+              onClick={() => setDraftOpen((open) => !open)}
+              className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
+              data-testid="draft-template-ai"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Draft with AI
+            </button>
           </div>
         </div>
+        {draftOpen && (
+          <div className="mt-3 space-y-2 rounded-lg border border-slate-200 p-3" data-testid="draft-template-form">
+            <label className="block text-xs font-medium text-slate-700" htmlFor="draft-brief">
+              What should the assessment measure?
+            </label>
+            <textarea
+              id="draft-brief"
+              className="w-full rounded-lg border border-slate-300 p-2 text-sm"
+              rows={3}
+              value={draftBrief}
+              onChange={(e) => setDraftBrief(e.target.value)}
+              placeholder="e.g. A 12-question growth mindset scale for first-year students"
+              data-testid="draft-brief-input"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDraftOpen(false)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={draftBusy || !draftBrief.trim()}
+                onClick={() => void draftWithAi()}
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                data-testid="draft-template-submit"
+              >
+                {draftBusy ? "Drafting…" : "Draft template"}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           {templates.length === 0 && (
             <p className="text-xs text-slate-400">
