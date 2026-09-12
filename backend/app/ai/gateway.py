@@ -15,7 +15,7 @@ import re
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar, overload
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -263,6 +263,34 @@ def _audit_ref(row: AIGeneration) -> dict:
         "tokens_out": row.tokens_out,
         "latency_ms": int(row.latency_ms) if row.latency_ms is not None else None,
     }
+
+
+@overload
+async def ainvoke_structured(
+    db: AsyncSession,
+    task: AITaskType,
+    schema: type[T],
+    system: str,
+    user: str,
+    user_id=None,
+    images: Optional[list[tuple[str, bytes]]] = None,
+    run: Optional[RunRef] = None,
+    with_audit_ref: Literal[False] = False,
+) -> "T": ...
+
+
+@overload
+async def ainvoke_structured(
+    db: AsyncSession,
+    task: AITaskType,
+    schema: type[T],
+    system: str,
+    user: str,
+    user_id=None,
+    images: Optional[list[tuple[str, bytes]]] = None,
+    run: Optional[RunRef] = None,
+    with_audit_ref: Literal[True] = True,
+) -> "tuple[T, dict]": ...
 
 
 async def ainvoke_structured(

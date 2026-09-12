@@ -23,7 +23,8 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Optional, TypedDict
+from collections.abc import Mapping
+from typing import Any, Awaitable, Callable, Optional, TypedDict, cast
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -35,12 +36,12 @@ from app.ai.gateway import RunRef
 from app.ai.schemas import CvDraftStructure, CvDraftTexts
 from app.models.enums import CvVersionCreator
 from app.models.posting_model import JobPosting
-from app.schemas.cv import CvContextSelection
+from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_context_service import resolve
 
 
-def _run_ref(state: dict, stage: str) -> RunRef:
+def _run_ref(state: Mapping[str, Any], stage: str) -> RunRef:
     """The audit-row run linkage for one graph stage (run_id = job id)."""
     return RunRef(id=UUID(state["run_id"]), stage=stage)
 
@@ -458,7 +459,7 @@ def make_synthesize_node(deps: GraphDeps):
             return {}
         if await _is_cancelled(deps):
             return {"abort_reason": "cancelled"}
-        from app.schemas.cv_synth import CvSynthItemGenerate
+        from app.schemas.cv_synth import CvSynthAction, CvSynthItemGenerate
         from app.services.cv_synth_service import CvSynthService, swap_variant_payload
 
         request = _request(state)
@@ -477,9 +478,9 @@ def make_synthesize_node(deps: GraphDeps):
                 }
             source_key = str(proposal.get("source_key"))
             item_id = str(proposal.get("item_id"))
-            action = str(proposal.get("action") or "detail")
+            action = cast(CvSynthAction, str(proposal.get("action") or "detail"))
             gen_request = CvSynthItemGenerate(
-                refs=[{"source_key": source_key, "item_id": item_id}],
+                refs=[CvContextRef(source_key=source_key, item_id=item_id)],
                 action=action,
                 posting_id=(
                     request.target_posting_id if action == "posting_fit" else None
@@ -640,7 +641,7 @@ async def _resolve_template_for_run(
     request: CvGenerateRequest,
     context: dict,
     user_id: str,
-) -> tuple[str | None, str | None]:
+) -> "tuple[UUID | None, str | None]":
     """Background-side template pick (never blocks the UI submit).
 
     `template_pick == "ai"` runs the deterministic-signal + AI ranking
@@ -664,7 +665,7 @@ async def _resolve_template_for_run(
             else None
         )
         result = await CvTemplateService(deps.db).suggest(
-            user_id,
+            UUID(user_id),
             language=request.language,
             posting=posting,
         )
@@ -673,7 +674,7 @@ async def _resolve_template_for_run(
     picks = result.get("picks") or []
     if not picks:
         return None, None
-    return str(picks[0]["template_id"]), None
+    return picks[0]["template_id"], None
 
 
 def make_assemble_node(deps: GraphDeps):
@@ -1088,7 +1089,7 @@ def make_review_node(deps: GraphDeps):
 
     async def review(state: CvDraftState) -> dict:
         if await _is_cancelled(deps):
-            polish = dict(state.get("polish") or {})
+            polish: dict = dict(state.get("polish") or {})
             polish["outcome"] = polish_outcome("cancelled")
             _trace_stage(polish, "review", "run cancelled")
             return {"abort_reason": "cancelled", "polish": polish}
@@ -1138,7 +1139,7 @@ def make_review_node(deps: GraphDeps):
             run=_run_ref(state, "cv_draft.review"),
             with_ref=True,
         )
-        iteration_record = {
+        iteration_record: dict = {
             "n": iteration,
             "started_at": _now_iso(),
             "finished_at": _now_iso(),
@@ -1323,10 +1324,10 @@ def make_fix_node(deps: GraphDeps):
 
         request = CvSynthItemGenerate(
             refs=[
-                {
-                    "source_key": candidate["source_key"],
-                    "item_id": candidate["item_id"],
-                }
+                CvContextRef(
+                    source_key=str(candidate["source_key"]),
+                    item_id=str(candidate["item_id"]),
+                )
             ],
             action="restyle",
             language=cv.language or "en",

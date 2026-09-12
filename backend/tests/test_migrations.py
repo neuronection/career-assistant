@@ -15,28 +15,26 @@ def _configured() -> Config:
     return Config("alembic.ini")
 
 
-def _table_present() -> bool:
-    """A fresh engine per probe — pool connections are loop-bound."""
+def _table_present(table: str = "cv_synth_items") -> bool:
+    """A fresh engine per probe — pool connections are loop-bound.
 
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    from app.core.config import settings
+    Probes via the SQLAlchemy inspector so the round-trips also run on the
+    SQLite (desktop) CI profile — information_schema is Postgres-only.
+    """
 
     async def probe():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
         engine = create_async_engine(settings.DATABASE_URL)
         try:
             async with engine.connect() as conn:
                 return bool(
-                    (
-                        await conn.execute(
-                            text(
-                                "SELECT count(*) FROM information_schema.tables "
-                                "WHERE table_name = :t"
-                            ),
-                            {"t": "cv_synth_items"},
-                        )
-                    ).scalar()
+                    await conn.run_sync(
+                        lambda sync_conn: inspect(sync_conn).has_table(table)
+                    )
                 )
         finally:
             await engine.dispose()
@@ -45,7 +43,7 @@ def _table_present() -> bool:
 
 
 def _column_present(table: str, column: str) -> bool:
-    from sqlalchemy import text
+    from sqlalchemy import inspect
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.core.config import settings
@@ -54,17 +52,12 @@ def _column_present(table: str, column: str) -> bool:
         engine = create_async_engine(settings.DATABASE_URL)
         try:
             async with engine.connect() as conn:
-                return bool(
-                    (
-                        await conn.execute(
-                            text(
-                                "SELECT count(*) FROM information_schema.columns "
-                                "WHERE table_name = :t AND column_name = :c"
-                            ),
-                            {"t": table, "c": column},
-                        )
-                    ).scalar()
+                columns = await conn.run_sync(
+                    lambda sync_conn: [
+                        col["name"] for col in inspect(sync_conn).get_columns(table)
+                    ]
                 )
+            return column in columns
         finally:
             await engine.dispose()
 
@@ -171,7 +164,7 @@ def test_0030_derive_enabled_roundtrip():
 
 
 def _start_nullable() -> bool:
-    from sqlalchemy import text
+    from sqlalchemy import inspect
     from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.core.config import settings
@@ -180,16 +173,11 @@ def _start_nullable() -> bool:
         engine = create_async_engine(settings.DATABASE_URL)
         try:
             async with engine.connect() as conn:
-                value = (
-                    await conn.execute(
-                        text(
-                            "SELECT is_nullable FROM information_schema.columns "
-                            "WHERE table_name = 'experience_items' "
-                            "AND column_name = 'start'"
-                        )
-                    )
-                ).scalar()
-                return bool(value == "YES")
+                columns = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_columns("experience_items")
+                )
+                start = next((c for c in columns if c["name"] == "start"), None)
+                return bool(start is not None and start["nullable"])
         finally:
             await engine.dispose()
 

@@ -366,7 +366,7 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                     raise ValidationError(
                         f"Unknown context item {ref.source_key}:{ref.item_id}"
                     )
-            current = CvContextSelection.model_validate(cv.context or {})
+            existing = CvContextSelection.model_validate(cv.context or {})
             for ref_key in op.synth_pins or {}:
                 if ref_key not in {
                     f"{source_key}:{item_id}" for source_key, item_id in known
@@ -383,12 +383,12 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                 include=[ref.model_dump(mode="json") for ref in op.include],
                 exclude=[ref.model_dump(mode="json") for ref in op.exclude],
                 synth_mode=(
-                    op.synth_mode if op.synth_mode is not None else current.synth_mode
+                    op.synth_mode if op.synth_mode is not None else existing.synth_mode
                 ),
                 synth_pins=(
                     {key: value for key, value in op.synth_pins.items() if value}
                     if op.synth_pins is not None
-                    else current.synth_pins
+                    else existing.synth_pins
                 ),
             )
             cv.context = selection.model_dump(mode="json")
@@ -840,7 +840,7 @@ async def builder_turn_events(
                 "critique": state["critique"],
                 "version": version_number,
                 "elapsed_ms": total_ms,
-                "model": stream.model,
+                "model": (stream.model if stream else "") or "",
                 "tools": tools_trace[:TRACE_TOOL_CAP],
                 "nodes": nodes_trace[:TRACE_NODE_CAP],
             },

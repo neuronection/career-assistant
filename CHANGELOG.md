@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **CI checks are honest again on `main`**: a fresh SQLite database
+  migrates cleanly through the whole chain, the AI type-gate (mypy)
+  is green across `app/ai`, and the E2E smoke can run against both a
+  repo checkout (venv) and a CI environment (system python). Desktop
+  checkpoints live in their own `checkpoints.db` so live AI runs no
+  longer deadlock the app database under WAL.
+
 ## [v0.8.3] - 2026-09-12
 
 ### Fixed

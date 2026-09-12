@@ -12,7 +12,7 @@ lint + complete coverage in ⇒ a clean critique out — so bounded-stop
 assertions actually stop.
 """
 
-from typing import Optional
+from typing import Literal, Optional, overload
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -179,6 +179,42 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
 register_mock_fixture(AITaskType.CV_BUILD_REVIEW, _mock_build_critique)
 
 
+@overload
+async def review_build(
+    db: AsyncSession,
+    user_id,
+    *,
+    template_summary: str,
+    lint: dict,
+    coverage: dict,
+    blocks: list[dict],
+    page_count: int,
+    max_pages: int,
+    iteration: int,
+    images: Optional[list[tuple[str, bytes]]] = None,
+    run: Optional[RunRef] = None,
+    with_ref: Literal[False] = False,
+) -> CvBuildCritique: ...
+
+
+@overload
+async def review_build(
+    db: AsyncSession,
+    user_id,
+    *,
+    template_summary: str,
+    lint: dict,
+    coverage: dict,
+    blocks: list[dict],
+    page_count: int,
+    max_pages: int,
+    iteration: int,
+    images: Optional[list[tuple[str, bytes]]] = None,
+    run: Optional[RunRef] = None,
+    with_ref: Literal[True] = True,
+) -> "tuple[CvBuildCritique, dict]": ...
+
+
 async def review_build(
     db: AsyncSession,
     user_id,
@@ -221,6 +257,28 @@ async def review_build(
             "pages": [f"[PAGE {index}]" for index in range(page_count)],
         }
     )
+    if with_ref:
+        return await ainvoke_structured(
+            db,
+            AITaskType.CV_BUILD_REVIEW,
+            CvBuildCritique,
+            system=(
+                "You review a generated CV for a final professional pass: page "
+                "images for layout/density/typography, the lint report for "
+                "structural facts, and the coverage matrix for content that "
+                "should have landed. Each issue carries a level: fail (blocks "
+                "readiness), warn, info. Only suggest existing BuilderOps "
+                "(add_block/remove_block/move_block/update_block_props/"
+                "set_override/set_context/set_doc_options/update_design/"
+                "apply_theme/set_template) that are truly safe for the stated "
+                "area; never invent content or render HTML."
+            ),
+            user=prompt,
+            user_id=user_id,
+            images=images or None,
+            run=run,
+            with_audit_ref=True,
+        )
     return await ainvoke_structured(
         db,
         AITaskType.CV_BUILD_REVIEW,
@@ -240,5 +298,4 @@ async def review_build(
         user_id=user_id,
         images=images or None,
         run=run,
-        with_audit_ref=with_ref,
     )

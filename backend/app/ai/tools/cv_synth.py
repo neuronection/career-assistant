@@ -11,11 +11,15 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
+from typing import Literal
+
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_synth import (
+    CvSynthAction,
     CvSynthItemGenerate,
     CvSynthItemUpdate,
     CvSynthPayload,
+    CvSynthStateStatus,
 )
 
 AUDIENCES = frozenset({"cv_builder"})
@@ -45,7 +49,7 @@ class CvSynthReadInput(BaseModel):
 class CvSynthGenerateInput(BaseModel):
     cv_id: str = Field(min_length=8, max_length=64)
     refs: list[CvContextRef] = Field(min_length=1, max_length=10)
-    action: str = "summarize"
+    action: CvSynthAction = "summarize"
     target_language: Optional[str] = None
     translate_of: Optional[str] = None
     regenerate_of: Optional[str] = None
@@ -59,13 +63,15 @@ class CvSynthGenerateInput(BaseModel):
 class CvSynthUpdateInput(BaseModel):
     item_id: str = Field(min_length=8, max_length=64)
     description: Optional[str] = Field(default=None, min_length=1, max_length=4000)
-    status: Optional[str] = Field(default=None, description="draft | active | archived")
+    status: Optional[CvSynthStateStatus] = Field(
+        default=None, description="draft | active | archived"
+    )
     variant_key: Optional[str] = None
 
 
 class CvSynthEnableInput(BaseModel):
     cv_id: str = Field(min_length=8, max_length=64)
-    mode: str = "prefer"
+    mode: Literal["off", "prefer"] = "prefer"
 
 
 async def _owned_cv(db, ctx: ToolContext, cv_id: str):
@@ -222,6 +228,10 @@ async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
 
 
 async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
+    if ctx.user_id is None:
+        from app.core.errors import PermissionDeniedError
+
+        raise PermissionDeniedError("A signed-in user is required")
     row = await _owned_variant(db, ctx, args.item_id)
     from app.services.cv_synth_service import CvSynthService
 
@@ -245,6 +255,10 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
 async def _enable_synth(db, ctx: ToolContext, args: CvSynthEnableInput):
     from app.services.cv_service import CvService
 
+    if ctx.user_id is None:
+        from app.core.errors import PermissionDeniedError
+
+        raise PermissionDeniedError("A signed-in user is required")
     cv = await _owned_cv(db, ctx, args.cv_id)
     if args.mode not in ("off", "prefer"):
         from app.core.errors import DomainError

@@ -10,6 +10,7 @@ continue from the last checkpoint instead of restarting.
 
 import logging
 from contextlib import AsyncExitStack
+from pathlib import Path
 from typing import Any, Optional
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -31,11 +32,22 @@ def _psycopg_uri() -> str:
 
 
 def _sqlite_path() -> str:
-    """The file path (or :memory:) out of the SQLAlchemy sqlite URL."""
+    """The checkpoint DB of the desktop profile.
+
+    A separate sibling file, never the app database itself: the saver owns
+    long write transactions (graph-step checkpoints) and sharing the file
+    with the main engine deadlocks SQLite even under WAL ("database is
+    locked" bursts while polish/autopilot runs are live). Fileless
+    (``:memory:``) profiles stay in-memory.
+    """
     url = settings.DATABASE_URL
     if "///" in url:
-        return url.split("///", 1)[-1] or ":memory:"
-    return ":memory:"
+        path = url.split("///", 1)[-1]
+    else:
+        path = ""
+    if not path or path == ":memory:":
+        return ":memory:"
+    return str(Path(path).parent / "checkpoints.db")
 
 
 async def get_checkpointer() -> BaseCheckpointSaver:

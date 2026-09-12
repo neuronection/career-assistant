@@ -21,6 +21,18 @@ export RATE_LIMIT_ENABLED=false
 
 cd "$ROOT"
 
+echo ">>> resolving backend toolchain"
+if [[ -x "$ROOT/backend/venv/bin/alembic" ]]; then
+  ALEMBIC_BIN=("$ROOT/backend/venv/bin/alembic")
+  PY_BIN=("$ROOT/backend/venv/bin/python")
+  UVICORN_BIN=("$ROOT/backend/venv/bin/uvicorn")
+else
+  # CI installs into the global env — no venv checkout to lean on.
+  ALEMBIC_BIN=(python3 -m alembic)
+  PY_BIN=(python3)
+  UVICORN_BIN=(python3 -m uvicorn)
+fi
+
 if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   echo ">>> building SPA"
   (cd frontend && npm run build)
@@ -33,13 +45,13 @@ if [[ "$DATABASE_URL" == *"career_e2e" ]] && docker ps --format '{{.Names}}' | g
 fi
 
 echo ">>> migrating scratch DB"
-(cd backend && ./venv/bin/alembic upgrade head)
+(cd backend && "${ALEMBIC_BIN[@]}" upgrade head)
 
 echo ">>> seeding catalog (idempotent)"
-(cd backend && PYTHONPATH="$(pwd)" ./venv/bin/python -m app.seeds.run)
+(cd backend && PYTHONPATH="$(pwd)" "${PY_BIN[@]}" -m app.seeds.run)
 
 echo ">>> booting server on :${PORT}"
-(cd backend && ./venv/bin/uvicorn app.main:app --host 127.0.0.1 --port "$PORT" \
+(cd backend && exec "${UVICORN_BIN[@]}" app.main:app --host 127.0.0.1 --port "$PORT" \
   > /tmp/career-e2e-server.log 2>&1) &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
