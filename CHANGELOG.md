@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-09-12
+
 ### Changed
 - **The floating chat bubble is now opt-in (plan 75)**: the always-on
   launcher button is gone. The docked chat panel is the default chat
