@@ -16,32 +16,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.drop_constraint(
-        "fk_skill_evidence_cv_document_id_documents",
-        "skill_evidence",
-        type_="foreignkey",
-    )
-    op.create_foreign_key(
-        "fk_skill_evidence_cv_document_id_documents",
-        "skill_evidence",
-        "documents",
-        ["cv_document_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
+    with op.batch_alter_table("skill_evidence") as batch:
+        batch.drop_constraint(
+            "fk_skill_evidence_cv_document_id_documents",
+            type_="foreignkey",
+        )
+        batch.create_foreign_key(
+            "fk_skill_evidence_cv_document_id_documents",
+            "documents",
+            ["cv_document_id"],
+            ["id"],
+            ondelete="CASCADE",
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "fk_skill_evidence_cv_document_id_documents",
-        "skill_evidence",
-        type_="foreignkey",
-    )
-    op.create_foreign_key(
-        "fk_skill_evidence_cv_document_id_documents",
-        "skill_evidence",
-        "documents",
-        ["cv_document_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("skill_evidence") as batch:
+        batch.drop_constraint(
+            "fk_skill_evidence_cv_document_id_documents",
+            type_="foreignkey",
+        )
+        batch.create_foreign_key(
+            "fk_skill_evidence_cv_document_id_documents",
+            "documents",
+            ["cv_document_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )

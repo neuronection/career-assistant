@@ -14,13 +14,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column("experience_items", "start", existing_type=sa.Date(), nullable=True)
+    with op.batch_alter_table("experience_items") as batch:
+        batch.alter_column("start", existing_type=sa.Date(), nullable=True)
 
 
 def downgrade() -> None:
     op.execute(
         """UPDATE experience_items
-           SET "start" = COALESCE("end", CURRENT_DATE)::date
+           SET "start" = COALESCE("end", CURRENT_DATE)
            WHERE "start" IS NULL"""
     )
-    op.alter_column("experience_items", "start", existing_type=sa.Date(), nullable=False)
+    with op.batch_alter_table("experience_items") as batch:
+        batch.alter_column("start", existing_type=sa.Date(), nullable=False)

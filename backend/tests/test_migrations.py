@@ -207,3 +207,23 @@ def test_0032_experience_start_nullable_roundtrip():
 
     command.upgrade(config, "head")
     assert _start_nullable(), "re-upgrade re-allows undated rows"
+
+
+def test_fresh_sqlite_migrates_to_head(monkeypatch):
+    """The desktop mode migrates a fresh SQLite file — constraint and
+    column ALTERs must go through batch mode (the packaging smoke's
+    regression)."""
+    import tempfile
+    from pathlib import Path
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    Path(path).unlink()
+    db_url = f"sqlite+aiosqlite:///{path}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setattr("app.core.config.settings.DATABASE_URL", db_url, raising=False)
+    try:
+        command.upgrade(_configured(), "head")
+    finally:
+        if Path(path).exists():
+            Path(path).unlink()

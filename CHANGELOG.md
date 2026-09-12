@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Desktop installs migrate cleanly again (v0.8.1)**: two database
+  migrations assumed Postgres dialect and crashed a fresh desktop profile
+  (SQLite) mid-setup — the CV-document cascade update and the optional
+  project start date now go through the SQLite-safe batch mode, plus a
+  regression test that migrates a fresh SQLite file all the way to head.
+
 ## [v0.8.0] - 2026-09-12
 
 ### Changed
