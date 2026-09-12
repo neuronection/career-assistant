@@ -4,6 +4,8 @@
 
 aiosqlite>=0.20
 pywebview>=5.3
-pygobject>=3.50 ; sys_platform == 'linux'
+# 3.58+ builds against girepository-2.0 (Ubuntu 24.04+ only); the glibc-2.35
+# compat packaging (22.04 runners) builds against the 1.0 API, like study.
+pygobject>=3.50,<3.51 ; sys_platform == 'linux'
 pystray>=0.19
 Pillow>=10.0
