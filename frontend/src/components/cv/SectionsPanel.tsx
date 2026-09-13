@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
   ArrowUp,
@@ -333,6 +334,7 @@ function SectionCard({
   itemOptions?: { id: string; label: string }[];
   synthOptions?: { id: string; label: string; stale?: boolean }[];
 }) {
+  const { t } = useTranslation();
   const type = blockTypeOf(block.kind);
   const Icon = type?.icon;
   const isCustomText = block.kind === "custom_text";
@@ -376,7 +378,10 @@ function SectionCard({
           />
         ) : (
           <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">
-            {String(block.props?.title ?? type?.label ?? block.kind)}
+            {String(
+              block.props?.title ??
+                (type ? t(type.label, { defaultValue: type.value }) : block.kind)
+            )}
           </span>
         )}
         {isCustomText && (

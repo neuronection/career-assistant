@@ -434,9 +434,12 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
         if kind == "add_block":
             from app.services.cv_blocks import validate_blocks
 
-            validate_blocks([{"kind": op.kind, "props": op.props}])
+            validated = validate_blocks([{"kind": op.kind, "props": op.props}])
             position = op.position if op.position is not None else len(blocks)
-            block: dict = {"kind": op.kind, "props": op.props}
+            block: dict = {
+                "kind": op.kind,
+                "props": validated[0][1].model_dump(mode="json", exclude_none=True),
+            }
             if op.area is not None:
                 block["area"] = op.area
             blocks.insert(min(position, len(blocks)), block)

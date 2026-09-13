@@ -4,6 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **CV Builder chat no longer produces untitled sections**: sections added
+  by the assistant now get the block registry's defaults (e.g. "Skills")
+  instead of an empty title, and the Sections panel falls back to the
+  translated block name instead of showing a raw `templateEditor…` key.
+
 ### Added
 - **CV import now fills your basic profile details**: headline, email,
   phone, city, country, birth year (only when explicitly stated) and
