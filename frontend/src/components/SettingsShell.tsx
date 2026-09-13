@@ -39,8 +39,14 @@ export function SettingsShell() {
       <LibrarySettingsShell
         nav={items}
         active={active}
-        onNavigate={(id) => navigate(id)}
+        onNavigate={(id) => {
+          navigate(id);
+          document
+            .getElementById("main")
+            ?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+        }}
         header={{ title: "Settings" }}
+        navClassName="lg:top-0 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto"
       >
         <Outlet />
       </LibrarySettingsShell>
