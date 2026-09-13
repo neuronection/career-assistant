@@ -1,15 +1,13 @@
-"""Journey: register → rankings → compare tray → /compare → rate.
+"""Journey: rankings → compare tray → /compare → rate.
 
 The one spec that walks the product's core loop end-to-end over the
 mock provider; failure here means a user cannot complete the flow.
 """
 
-from conftest import BASE_URL, register_via_ui
+from conftest import BASE_URL
 
 
-def test_register_rank_compare_rate(page, credentials) -> None:
-    register_via_ui(page, credentials)
-
+def test_rank_compare_rate(page) -> None:
     page.goto(f"{BASE_URL}/rankings")
     page.wait_for_selector('[data-testid="rankings"]')
     first_add = page.locator('[data-testid^="compare-add-"]').first

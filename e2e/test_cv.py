@@ -4,13 +4,11 @@ The renderer's one-path rule means the preview iframe IS the
 export/print path — no server PDF dependency asserted here.
 """
 
-from conftest import BASE_URL, register_via_ui
+from conftest import BASE_URL, API
 from playwright.sync_api import expect
 
 
-def test_cv_studio_create_and_preview(page, credentials) -> None:
-    register_via_ui(page, credentials)
-
+def test_cv_studio_create_and_preview(page) -> None:
     page.goto(f"{BASE_URL}/cv")
     page.wait_for_selector('[data-testid="cv-studio"]')
     page.get_by_test_id("new-cv").click()
@@ -21,11 +19,10 @@ def test_cv_studio_create_and_preview(page, credentials) -> None:
     assert "/cv/" in page.url
 
 
-def test_cv_synth_library_empty_state_smoke(page, credentials) -> None:
+def test_cv_synth_library_empty_state_smoke(page) -> None:
     """Plan 62: the synth library is reachable from CV Studio and renders
-    its empty state for a fresh user (variants arrive via AI generation)."""
-    register_via_ui(page, credentials)
-
+    its empty state for a pristine workspace (variants arrive via AI
+    generation; the conftest reset guarantees the emptiness)."""
     page.goto(f"{BASE_URL}/cv")
     page.wait_for_selector('[data-testid="cv-studio"]')
     page.get_by_test_id("synth-library-link").click()
@@ -37,19 +34,12 @@ def test_cv_synth_library_empty_state_smoke(page, credentials) -> None:
     )
 
 
-def test_generate_with_synth_prefer_reuse(page, credentials) -> None:
+def test_generate_with_synth_prefer_reuse(page) -> None:
     """Plan 69: the generate flow reuses an active library variant —
     the toggle shows the match hint, and the drafted CV renders the
     variant's tailored text instead of the profile verbatim."""
-    register_via_ui(page, credentials)
-    token = page.evaluate("localStorage.getItem('career_token')")
-    assert token, "the SPA session stores a bearer token"
-    headers = {"Authorization": f"Bearer {token}"}
-    api = f"{BASE_URL}/api/v1"
-
     item = page.request.post(
-        f"{api}/me/experience",
-        headers=headers,
+        f"{API}/me/experience",
         data={
             "title": "Backend Intern",
             "kind": "internship",
@@ -64,8 +54,7 @@ def test_generate_with_synth_prefer_reuse(page, credentials) -> None:
     item_id = item.json()["id"]
 
     draft = page.request.post(
-        f"{api}/cv/synth/generate",
-        headers=headers,
+        f"{API}/cv/synth/generate",
         data={
             "refs": [{"source_key": "experience", "item_id": item_id}],
             "action": "summarize",
@@ -74,8 +63,7 @@ def test_generate_with_synth_prefer_reuse(page, credentials) -> None:
     assert draft.ok, draft.text()
     row = draft.json()["items"][0]
     activate = page.request.patch(
-        f"{api}/cv/synth/{row['id']}",
-        headers=headers,
+        f"{API}/cv/synth/{row['id']}",
         data={"status": "active"},
     )
     assert activate.ok, activate.text()
@@ -84,9 +72,9 @@ def test_generate_with_synth_prefer_reuse(page, credentials) -> None:
     page.goto(f"{BASE_URL}/cv?generate=1")
     page.get_by_test_id("cv-generate-advanced").click()
     page.get_by_role("switch", name="Prefer synthesized items").click()
-    expect(
-        page.get_by_test_id("cv-generate-synth-hint")
-    ).to_contain_text("1 of your synthesized variants")
+    expect(page.get_by_test_id("cv-generate-synth-hint")).to_contain_text(
+        "1 of your synthesized variants"
+    )
 
     page.get_by_test_id("cv-generate-submit").click()
     expect(page.get_by_test_id("cv-generate-finished")).to_be_visible(
@@ -109,23 +97,16 @@ def test_generate_with_synth_prefer_reuse(page, credentials) -> None:
     )
 
 
-def test_generate_splits_experience_family(page, credentials) -> None:
+def test_generate_splits_experience_family(page) -> None:
     """Plan 70: work, projects and volunteering render as three separate
     sections in the generated CV preview."""
-    register_via_ui(page, credentials)
-    token = page.evaluate("localStorage.getItem('career_token')")
-    assert token, "the SPA session stores a bearer token"
-    headers = {"Authorization": f"Bearer {token}"}
-    api = f"{BASE_URL}/api/v1"
-
     for kind, title, org, description in (
         ("internship", "Backend Intern", "Sample Corp", "Built QA tooling"),
         ("project", "Campus app", "", "Shipped a campus events app"),
         ("volunteer", "Food bank helper", "Food Bank", "Organized food drives"),
     ):
         made = page.request.post(
-            f"{api}/me/experience",
-            headers=headers,
+            f"{API}/me/experience",
             data={
                 "title": title,
                 "kind": kind,

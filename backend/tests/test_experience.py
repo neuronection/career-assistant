@@ -513,6 +513,28 @@ async def test_draft_items_excluded_from_derivation(
     assert len(preview.json()["skills"]) == 1
 
 
+async def test_startless_project_keeps_bootstrap_alive(
+    client, auth_headers, seeded_catalog
+):
+    """Projects may omit `start` (the only kind allowed to); the stage
+    heuristic and profile snapshot must tolerate the missing year
+    instead of 500ing /me/bootstrap (regression: migration 0032 made
+    `start` nullable but stage_dicts assumed it set)."""
+    created = await client.post(
+        "/api/v1/me/experience",
+        json={"title": "Side project", "kind": "project", "open_ended": True},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["start"] is None
+
+    listing = (await client.get("/api/v1/me/experience", headers=auth_headers)).json()
+    assert listing["items"][0]["start"] is None
+
+    bootstrap = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
+    assert bootstrap.status_code == 200, bootstrap.text
+
+
 async def test_experience_isolation(client, auth_headers, seeded_catalog, db):
     skill_key = await _skill_key(db)
     body = {

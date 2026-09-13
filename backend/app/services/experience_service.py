@@ -325,7 +325,7 @@ class ExperienceService:
         return [
             {
                 "kind": item.kind,
-                "start_year": item.start.year,
+                "start_year": item.start.year if item.start else None,
                 "end_year": item.end.year if item.end else None,
                 "hours_per_week": item.hours_per_week,
             }
@@ -356,10 +356,14 @@ class ExperienceService:
             {
                 "title": item.title,
                 "kind": item.kind,
-                "years": max(
-                    0,
-                    (item.end.year if item.end else date.today().year)
-                    - item.start.year,
+                "years": (
+                    max(
+                        0,
+                        (item.end.year if item.end else date.today().year)
+                        - item.start.year,
+                    )
+                    if item.start
+                    else 0
                 ),
                 "skills": [link.skill.key for link in item.skills],
             }

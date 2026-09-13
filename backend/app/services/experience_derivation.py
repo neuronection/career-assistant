@@ -114,9 +114,15 @@ def _item_rate(item, role: str) -> float:
     )
 
 
-def item_span(item, today: date | None = None) -> tuple[date, date]:
-    """Effective [start, end] of an item (open-ended runs to today)."""
+def item_span(item, today: date | None = None) -> tuple[date, date] | None:
+    """Effective [start, end] of an item (open-ended runs to today).
+
+    Startless items (projects may omit the date) contribute no span —
+    there is no evidence window to derive from.
+    """
     today = today or date.today()
+    if item.start is None:
+        return None
     end = item.end or (today if item.open_ended else item.start)
     if end > today:
         end = today
@@ -124,7 +130,10 @@ def item_span(item, today: date | None = None) -> tuple[date, date]:
 
 
 def months_per_item(item, today: date | None = None) -> int:
-    start, end = item_span(item, today)
+    span = item_span(item, today)
+    if span is None:
+        return 0
+    start, end = span
     return _span_months(start, end, today or date.today())
 
 
@@ -135,7 +144,9 @@ def years_of_experience(items, today: date | None = None) -> float:
     union of [start, end] spans is the honest total.
     """
     today = today or date.today()
-    spans = sorted(item_span(item, today) for item in items or [])
+    spans = sorted(
+        span for span in (item_span(item, today) for item in items or []) if span
+    )
     total = 0
     current_start: int | None = None
     current_end: int | None = None
@@ -186,7 +197,10 @@ def derive_skill_months(
         rate = _item_rate(item, role)
         if rate <= 0:
             continue
-        start, end = item_span(item, today)
+        span = item_span(item, today)
+        if span is None:
+            continue
+        start, end = span
         month_map = month_maps.setdefault(skill_id, {})
         for index in range(_month_index(start), _month_index(end) + 1):
             if rate > month_map.get(index, 0.0):

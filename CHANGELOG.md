@@ -14,6 +14,12 @@ All notable changes to **Career Assistant** are documented here.
   `localStorage`.
 
 ### Fixed
+- **Adding a project without dates no longer breaks the app**: projects
+  are the one experience kind allowed to omit a start date, but the
+  career-stage heuristic, profile snapshot and skill derivation still
+  assumed it was set — crashing `/me/bootstrap` (and with it the whole
+  dashboard) with a 500. Startless items now contribute no evidence
+  window instead of crashing.
 - **CI checks are honest again on `main`**: a fresh SQLite database
   migrates cleanly through the whole chain, the AI type-gate (mypy)
   is green across `app/ai`, and the E2E smoke can run against both a
