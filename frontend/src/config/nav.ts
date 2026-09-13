@@ -18,6 +18,12 @@ export interface AppNavItem {
   labelKey: string
   icon: LucideIcon
   studentOnly: boolean
+  /**
+   * Page still under development: hidden from the sidebar unless dev
+   * mode is unlocked (see `stores/devModeStore`). Deep links keep
+   * working and `resolveActiveId` still resolves these routes.
+   */
+  inDev?: boolean
   /** Divider label rendered above this item (first occurrence only). */
   section?: string
   /** Prefix used for active matching when it differs from `to`. */
@@ -34,10 +40,10 @@ export const NAV: AppNavItem[] = [
   { to: "/chat", labelKey: "nav.chat", icon: MessageCircle, studentOnly: false, section: "nav.sectionJobHunt" },
   { to: "/catalog", labelKey: "nav.catalog", icon: Briefcase, studentOnly: false },
   { to: "/rankings", labelKey: "nav.rankings", icon: Trophy, studentOnly: false },
-  { to: "/postings", labelKey: "nav.postings", icon: Globe, studentOnly: false },
-  { to: "/autopilot", labelKey: "nav.autopilot", icon: Bot, studentOnly: false },
-  { to: "/interviews", labelKey: "nav.interviews", icon: GraduationCap, studentOnly: false },
-  { to: "/growth", labelKey: "nav.growth", icon: Route, studentOnly: false },
+  { to: "/postings", labelKey: "nav.postings", icon: Globe, studentOnly: false, inDev: true },
+  { to: "/autopilot", labelKey: "nav.autopilot", icon: Bot, studentOnly: false, inDev: true },
+  { to: "/interviews", labelKey: "nav.interviews", icon: GraduationCap, studentOnly: false, inDev: true },
+  { to: "/growth", labelKey: "nav.growth", icon: Route, studentOnly: false, inDev: true },
   { to: "/cv", labelKey: "nav.cvStudio", icon: FileText, studentOnly: false },
   { to: "/profile", labelKey: "nav.profile", icon: UserRound, studentOnly: false, section: "nav.sectionAccount" },
   { to: "/settings/ai", labelKey: "nav.settings", icon: Settings2, studentOnly: false, matchPrefix: "/settings" },

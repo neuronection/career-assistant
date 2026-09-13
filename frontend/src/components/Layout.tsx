@@ -15,6 +15,8 @@ import { ToastHost } from "@/components/ToastHost";
 import { CompareTray } from "@/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
 import { NAV, resolveActiveId } from "@/config/nav";
+import { useDevModeStore } from "@/stores/devModeStore";
+import { DevMenu } from "@/components/DevMenu";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -31,6 +33,7 @@ export function Layout() {
   const isExperienceRoute = useMatch("/profile/experience") !== null;
   const isEducationRoute = useMatch("/profile/education") !== null;
   const chatMode = useChatStore((state) => state.chatMode);
+  const devModeEnabled = useDevModeStore((state) => state.enabled);
   const fullBleed =
     isBuilderRoute ||
     isTemplateRoute ||
@@ -54,6 +57,7 @@ export function Layout() {
   }, [location.pathname, location.search]);
 
   const enabled = (item: (typeof NAV)[number]) =>
+    (devModeEnabled || !item.inDev) &&
     !(item.studentOnly && bootstrap && !bootstrap.features.universities);
   const toNavItem = ({ to, labelKey, icon, section }: (typeof NAV)[number]) => ({
     id: to,
@@ -108,7 +112,14 @@ export function Layout() {
               )}
             </div>
           }
-          footer={<SidebarFooter collapsed={collapsed} compact={isShort} />}
+          footer={
+            <div className="flex flex-col gap-2">
+              <SidebarFooter collapsed={collapsed} compact={isShort} />
+              <div className={collapsed ? "flex justify-center pb-1" : "flex justify-end pb-1 pr-1"}>
+                <DevMenu />
+              </div>
+            </div>
+          }
         />
       </div>
 

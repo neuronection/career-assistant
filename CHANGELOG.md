@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Hidden in-development pages with a developer menu**: Postings,
+  Autopilot, Interviews and Growth are removed from the sidebar
+  (deep links still work). A hidden trigger at the bottom of the
+  sidebar unlocks dev mode — 5 taps within 2 seconds — and its popover
+  lists the in-progress pages for one-click access; "Lock again"
+  hides them once more. The unlock persists across reloads via
+  `localStorage`.
+
 ### Fixed
 - **CI checks are honest again on `main`**: a fresh SQLite database
   migrates cleanly through the whole chain, the AI type-gate (mypy)

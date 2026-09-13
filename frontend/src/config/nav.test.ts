@@ -50,4 +50,16 @@ describe("resolveActiveId", () => {
     expect(NAV.filter((item) => item.section).length).toBeGreaterThan(0);
     expect(NAV[NAV.length - 1].to).toBe("/settings/ai");
   });
+
+  it("flags the in-development pages", () => {
+    expect(NAV.filter((item) => item.inDev).map((item) => item.to)).toEqual([
+      "/postings",
+      "/autopilot",
+      "/interviews",
+      "/growth",
+    ]);
+    // Hidden entries stay in the registry so deep links still resolve.
+    expect(resolveActiveId("/postings/search")).toBe("/postings");
+    expect(resolveActiveId("/autopilot")).toBe("/autopilot");
+  });
 });

@@ -24,6 +24,12 @@
     "openNavigation": "Open navigation",
     "signOut": "Sign out"
   },
+  "devMenu": {
+    "trigger": "Developer menu",
+    "title": "In development",
+    "lock": "Lock again",
+    "lockedHint": "Dev mode is locked. Tap the lock 5 times within 2 seconds to unlock in-development pages."
+  },
   "auth": {
     "email": "Email",
     "password": "Password",
