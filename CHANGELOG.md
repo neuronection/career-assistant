@@ -14,6 +14,14 @@ All notable changes to **Career Assistant** are documented here.
   `localStorage`.
 
 ### Fixed
+- **Profile page navigation no longer jumps around**: the section rail
+  sticks flush under the app header and, being taller than short
+  viewports with its 15 sections, scrolls internally instead of
+  pushing its bottom items below the fold; switching tabs scrolls the
+  content pane back to top, so every tab starts in the same place.
+- **Startless projects no longer crash the profile Experience tab**: the
+  summary card sliced an absent start date; entries without dates now
+  render a "no dates" badge instead of a blank page.
 - **Adding a project without dates no longer breaks the app**: projects
   are the one experience kind allowed to omit a start date, but the
   career-stage heuristic, profile snapshot and skill derivation still

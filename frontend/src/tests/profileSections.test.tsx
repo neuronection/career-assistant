@@ -1240,6 +1240,33 @@ describe("ProfileEdit (settings-shell restructure)", () => {
     expect(window.location.hash).toBe("#constraints");
   });
 
+  it("scrolls the content pane back to top when switching tabs", async () => {
+    const main = document.createElement("div");
+    main.id = "main";
+    document.body.appendChild(main);
+    render(
+      <MemoryRouter>
+        <ProfileEdit />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("section-rail");
+    Object.defineProperty(main, "scrollTop", {
+      value: 800,
+      writable: true,
+      configurable: true,
+    });
+    const scrollTo = vi.fn();
+    main.scrollTo = scrollTo;
+    fireEvent.click(screen.getByRole("button", { name: "Constraints" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("profile-section-constraints")).toBeInTheDocument()
+    );
+    expect(scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ top: 0 })
+    );
+    main.remove();
+  });
+
   it("marks required sections on the rail and hints at the required scope", async () => {
     const profile = makeProfile();
     profile.completeness = {

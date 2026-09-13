@@ -2057,6 +2057,7 @@
     "groupCount": "{{count}} entries",
     "groupAdd": "+ Add",
     "present": "present",
+    "noDates": "no dates",
     "draft": "draft",
     "hoursShort": "{{hours}}h/wk",
     "deleteAria": "Delete {{title}}",

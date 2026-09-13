@@ -207,6 +207,9 @@ export function ProfileEdit() {
       "",
       `${window.location.pathname}${window.location.search}#${id}`
     );
+    document
+      .getElementById("main")
+      ?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   };
 
   const onExportDone = (finished: BackgroundJob) => {
@@ -270,6 +273,7 @@ export function ProfileEdit() {
         onNavigate={navigateTo}
         header={{ icon: UserRound, title: t("profileEdit.title") }}
         navTestId="section-rail"
+        navClassName="lg:top-0 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto"
       >
         <div className="space-y-4">
           {error && (
@@ -739,8 +743,13 @@ function ExperienceSummaryCard() {
                 {item.org_name ? ` · ${item.org_name}` : ""}
               </span>
               <span className="ml-auto shrink-0 text-xs text-[var(--as-muted-fg)]">
-                {item.start.slice(0, 7)} →{" "}
-                {item.open_ended ? t("experience.present") : (item.end ?? "").slice(0, 7)}
+                {item.start
+                  ? `${item.start.slice(0, 7)} → ${
+                      item.open_ended
+                        ? t("experience.present")
+                        : (item.end ?? "").slice(0, 7)
+                    }`
+                  : t("experience.noDates")}
               </span>
             </li>
           ))}
