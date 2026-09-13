@@ -14,6 +14,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 from app.models.enums import AchievementMetricKind, ExperienceKind
+from app.services.stages_service import max_birth_year
 
 
 class FieldEvidence(BaseModel):
@@ -35,6 +36,9 @@ class ExtractedBasics(BaseModel):
     email: str = Field(default="", max_length=200)
     phone: str = Field(default="", max_length=40)
     location: str = Field(default="", max_length=200)
+    city: str = Field(default="", max_length=80)
+    country: str = Field(default="", max_length=80)
+    birth_year: Optional[int] = Field(default=None, ge=1950, le=max_birth_year())
     links: list[ExtractedLink] = Field(default_factory=list, max_length=8)
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 

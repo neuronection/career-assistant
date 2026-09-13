@@ -27,6 +27,7 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
 
     Recognized markers (one per line):
       NAME: … | HEADLINE: … | EMAIL: … | PHONE: … | LOCATION: …
+      CITY: … | COUNTRY: … | BIRTH_YEAR: …
       LINK: kind=url
       SUMMARY: …
       EDUCATION: program at institution (start - end)
@@ -55,6 +56,9 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
         "EMAIL": ("email", "basics"),
         "PHONE": ("phone", "basics"),
         "LOCATION": ("location", "basics"),
+        "CITY": ("city", "basics"),
+        "COUNTRY": ("country", "basics"),
+        "BIRTH_YEAR": ("birth_year", "basics"),
         "SUMMARY": (None, "summary"),
     }
     for line in text.splitlines():
@@ -66,6 +70,9 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
                 value = line.split(":", 1)[1].strip()
                 if target == "summary":
                     out["summary"] = value
+                elif field == "birth_year":
+                    if value.isdigit():
+                        out["basics"]["birth_year"] = int(value)
                 elif field:
                     out["basics"][field] = value
                 break
@@ -250,6 +257,15 @@ def _heuristic_plain_text_extract(text: str) -> dict | None:
         ):
             out["basics"]["full_name"] = line
             out["basics"]["evidence"] = _heuristic_line(line)
+            break
+    for line in lines[:8]:
+        if line == out["basics"].get("full_name"):
+            continue
+        place = re.fullmatch(r"([A-Za-z.\-' ]{2,40}),\s*([A-Za-z.\-' ]{2,40})", line)
+        if place and "city" not in out["basics"]:
+            out["basics"]["city"] = place.group(1).strip()
+            out["basics"]["country"] = place.group(2).strip()
+            out["basics"].setdefault("evidence", _heuristic_line(line))
             break
     section: str | None = None
     for line in lines:

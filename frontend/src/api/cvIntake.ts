@@ -37,14 +37,15 @@ export async function getCvDrafts(documentId: string): Promise<CvDraft> {
 export async function applyCvDraft(
   documentId: string,
   selections: CvSelections,
-  drafts: CvSelections = {}
+  drafts: CvSelections = {},
+  basicsOverwrite: string[] = []
 ): Promise<{ report: CvApplyReport; applied?: CvAppliedEntity[] }> {
   const { data } = await api.post<{
     report: CvApplyReport;
     applied?: CvAppliedEntity[];
   }>(
     `/cv/intake/${documentId}/apply`,
-    { selections, drafts }
+    { selections, drafts, basics_overwrite: basicsOverwrite }
   );
   return data;
 }

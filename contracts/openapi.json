@@ -2468,8 +2468,16 @@
         "type": "object"
       },
       "CvApplyRequest": {
-        "description": "Partial apply: section \u2192 true (all) or list of item indices.\n\n`drafts` marks selections that should land as drafts (not active):\nsection \u2192 true (all applied items of that section) or a list of\nitem indices. Items are active by default \u2014 the review ticks are\nthe user's approval.",
+        "description": "Partial apply: section \u2192 true (all) or list of item indices.\n\n`drafts` marks selections that should land as drafts (not active):\nsection \u2192 true (all applied items of that section) or a list of\nitem indices. Items are active by default \u2014 the review ticks are\nthe user's approval. `basics_overwrite` lists basics fields the\nuser explicitly chose to replace where the profile already holds a\ndifferent value; conflicting fields without it are kept.",
         "properties": {
+          "basics_overwrite": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Basics Overwrite",
+            "type": "array"
+          },
           "drafts": {
             "additionalProperties": true,
             "default": {},

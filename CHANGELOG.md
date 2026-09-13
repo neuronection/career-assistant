@@ -5,6 +5,16 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **CV import now fills your basic profile details**: headline, email,
+  phone, city, country, birth year (only when explicitly stated) and
+  links are extracted alongside everything else and land field by
+  field on the review screen. Where your profile already holds a
+  different value, the row shows your current value with an explicit
+  Keep / Replace choice — nothing is overwritten silently; matching
+  values and already-saved links are marked as such, and the import
+  report lists what was kept.
+
+### Added
 - **Hidden in-development pages with a developer menu**: Postings,
   Autopilot, Interviews and Growth are removed from the sidebar
   (deep links still work). A hidden trigger at the bottom of the

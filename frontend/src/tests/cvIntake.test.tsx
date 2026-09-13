@@ -55,6 +55,9 @@ const DRAFT: CvDraft = {
       email: "ilias@example.com",
       phone: "+30 69",
       location: "Athens, GR",
+      city: "Athens",
+      country: "Greece",
+      birth_year: 2003,
       links: [],
       evidence: { quote: "Ilias Pap — Data engineer", page: 0, confidence: 0.92 },
     },
@@ -113,6 +116,7 @@ const APPLY_REPORT = {
   created: { education_items: 1, experience_items: 1 },
   proposed_skills: ["python"],
   skill_conflicts: [],
+  basics_conflicts: [],
   unmapped_interests: [],
   duplicates: [],
 };
@@ -191,7 +195,7 @@ describe("CvIntakeFlow", () => {
         experience: [0],
         languages: [0],
         interests: [0],
-      }, {})
+      }, {}, [])
     );
     await screen.findByText("Profile imported");
     expect(onApplied).toHaveBeenCalledTimes(1);
@@ -213,7 +217,8 @@ describe("CvIntakeFlow", () => {
       expect(applyCvDraft).toHaveBeenCalledWith(
         "doc-1",
         expect.not.objectContaining({ skills: expect.anything() }),
-        {}
+        {},
+        []
       )
     );
   });
@@ -273,6 +278,9 @@ const EMPTY_DRAFT: CvDraft = {
       email: "",
       phone: "",
       location: "",
+      city: "",
+      country: "",
+      birth_year: null,
       links: [],
       evidence: { quote: "", page: null, confidence: 0.5 },
     },
@@ -407,7 +415,8 @@ describe("CvIntakeFlow — apply status (drafts vs active)", () => {
       expect(applyCvDraft).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        { education: [0] }
+        { education: [0] },
+        []
       )
     );
   });
@@ -424,7 +433,8 @@ describe("CvIntakeFlow — apply status (drafts vs active)", () => {
       expect(applyCvDraft).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        expect.objectContaining({ education: true, experience: true })
+        expect.objectContaining({ education: true, experience: true }),
+        []
       )
     );
   });
@@ -452,3 +462,152 @@ describe("CvIntakeFlow — apply status (drafts vs active)", () => {
     expect(landed).toHaveTextContent("Landed in your profile");
   });
 });
+
+describe("CvIntakeFlow — basics keep-or-replace", () => {
+  const EXISTING = {
+    email: "old@example.com",
+    phone: "+30 69",
+    headline: "",
+    city: "Patras",
+    country: "",
+    birth_year: null,
+    links: ["https://github.com/janedoe"],
+  };
+  const CONFLICT_DRAFT: CvDraft = {
+    ...DRAFT,
+    existing_basics: EXISTING,
+    payload: {
+      ...DRAFT.payload,
+      basics: {
+        ...DRAFT.payload.basics,
+        links: [
+          {
+            kind: "github",
+            url: "https://github.com/janedoe",
+            label: "",
+            evidence: { quote: "github.com/janedoe", page: 0, confidence: 0.9 },
+          },
+          {
+            kind: "portfolio",
+            url: "https://ilias.dev",
+            label: "",
+            evidence: { quote: "ilias.dev", page: 0, confidence: 0.8 },
+          },
+        ],
+      },
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("flags conflicting fields with Now + Keep/Replace and matching ones as saved", async () => {
+    vi.mocked(getCvDrafts).mockResolvedValue(CONFLICT_DRAFT);
+    render(<CvIntakeFlow pollMs={10} initialDocumentId="doc-1" />);
+    await screen.findByTestId("cv-intake-review");
+
+    const emailRow = screen.getByTestId("intake-basics-field-email");
+    expect(emailRow).toHaveTextContent("ilias@example.com");
+    expect(screen.getByTestId("basics-current-email")).toHaveTextContent(
+      "Now: old@example.com"
+    );
+    const cityRow = screen.getByTestId("intake-basics-field-city");
+    expect(cityRow).toHaveTextContent("Now: Patras");
+    expect(screen.getByTestId("intake-basics-field-phone")).toHaveTextContent(
+      "Already in your profile"
+    );
+    expect(
+      screen.getByTestId("intake-basics-field-country")
+    ).toHaveTextContent("Greece");
+    expect(screen.getByTestId("basics-decision-email")).toHaveTextContent(
+      "Keep"
+    );
+    expect(
+      screen.queryByTestId("basics-decision-phone")
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("intake-basics-link-github")).toHaveTextContent(
+      "Already saved"
+    );
+    expect(screen.getByTestId("intake-basics-link-portfolio")).toHaveTextContent(
+      "https://ilias.dev"
+    );
+
+    vi.mocked(applyCvDraft).mockResolvedValue({ report: APPLY_REPORT });
+    fireEvent.click(screen.getByTestId("cv-intake-apply"));
+    await waitFor(() =>
+      expect(applyCvDraft).toHaveBeenCalledWith(
+        "doc-1",
+        expect.anything(),
+        {},
+        []
+      )
+    );
+  });
+
+  it("sends basics_overwrite only for fields the user chose to replace", async () => {
+    vi.mocked(getCvDrafts).mockResolvedValue(CONFLICT_DRAFT);
+    vi.mocked(applyCvDraft).mockResolvedValue({ report: APPLY_REPORT });
+    render(<CvIntakeFlow pollMs={10} initialDocumentId="doc-1" />);
+    await screen.findByTestId("cv-intake-review");
+
+    fireEvent.click(screen.getByTestId("basics-replace-email"));
+    expect(screen.getByTestId("basics-replace-email")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    fireEvent.click(screen.getByTestId("cv-intake-apply"));
+    await waitFor(() =>
+      expect(applyCvDraft).toHaveBeenCalledWith(
+        "doc-1",
+        expect.anything(),
+        {},
+        ["email"]
+      )
+    );
+  });
+
+  it("keeps conflicts by default and reports them after apply", async () => {
+    vi.mocked(getCvDrafts).mockResolvedValue(CONFLICT_DRAFT);
+    vi.mocked(applyCvDraft).mockResolvedValue({
+      report: {
+        ...APPLY_REPORT,
+        basics_conflicts: [
+          { field: "email", existing: "old@example.com", incoming: "ilias@example.com" },
+        ],
+      },
+    });
+    render(
+      <MemoryRouter>
+        <CvIntakeFlow pollMs={10} />
+      </MemoryRouter>
+    );
+    await uploadAndReachReviewWith(CONFLICT_DRAFT);
+    fireEvent.click(screen.getByTestId("cv-intake-apply"));
+    await screen.findByText(/Kept your existing Email/);
+  });
+});
+
+async function uploadAndReachReviewWith(draft: CvDraft) {
+  vi.mocked(uploadCv).mockResolvedValue({
+    document: {
+      id: "doc-1",
+      kind: "cv",
+      filename: "cv.pdf",
+      mime: "application/pdf",
+      size_bytes: 10,
+      page_count: 2,
+      extraction: { universities: [] },
+      status: "parsed",
+      error: "",
+    },
+    job_id: "job-1",
+  });
+  vi.mocked(getCvDrafts).mockResolvedValue(draft);
+  const user = userEvent.setup();
+  await user.upload(
+    fileInput(),
+    new File(["cv"], "cv.pdf", { type: "application/pdf" })
+  );
+  await screen.findByTestId("cv-intake-review");
+}

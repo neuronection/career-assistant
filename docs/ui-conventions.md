@@ -70,7 +70,15 @@ per-item Draft/Active chip next to the confidence pill, plus the
 review footer's global "Active items / Save as drafts" segmented
 (`cv-intake-apply-mode`); the backend payloads are `selections` +
 `drafts` (section → true | indices), **applied items are ACTIVE by
-default — the review ticks are the user's approval**. The same list renders in `readOnly` mode (no
+default — the review ticks are the user's approval**. The basics
+section is field-granular (`BasicsReview` in
+`SuggestionReviewList.tsx`): each contact field renders its own row,
+and where the profile already holds a different value the row turns
+amber with "Now: …" and an explicit Keep/Replace segmented control
+(`basics-decision-{field}`; default Keep, sent as `basics_overwrite`
+on apply) — never silently overwrite existing profile data, and reuse
+this field-level conflict recipe for any future merge surface. The
+same list renders in `readOnly` mode (no
 checkboxes/counts, pills + evidence kept) — the browse view of what a
 processed CV contained on the per-CV detail route
 (`/profile/import/:id`, clickable from the history rows), together

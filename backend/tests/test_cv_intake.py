@@ -19,6 +19,9 @@ CV_TEXT = (
     "EMAIL: jane@example.com\n"
     "PHONE: +30 555 0100\n"
     "LOCATION: Athens\n"
+    "CITY: Athens\n"
+    "COUNTRY: Greece\n"
+    "BIRTH_YEAR: 2003\n"
     "LINK: github=https://github.com/janedoe\n"
     "SUMMARY: Student with a passion for pipelines.\n"
     "EDUCATION: BSc Computer Science at University of Sample (2022-09 - 2026-06)\n"
@@ -160,6 +163,97 @@ async def test_basics_languages_interests_apply(client, db, auth_headers):
     tags = {t.id: t.key for t in (await db.execute(select(InterestTag))).scalars()}
     interests = (await db.execute(select(UserInterest))).scalars().all()
     assert {tags[i.interest_tag_id] for i in interests} == {"technology-software"}
+
+
+async def test_basics_conflicts_keep_unless_overwritten(client, db, auth_headers):
+    """Existing profile values are kept unless the user explicitly
+    chose replace for that field on the review screen."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.models.cv_intake_model import CvParseDraft
+    from app.models.user_model import Profile
+
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+    await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}},
+        headers=auth_headers,
+    )
+    profile = (await db.execute(select(Profile))).scalars().one()
+    assert profile.basics["email"] == "jane@example.com"
+    assert profile.basics["city"] == "Athens"
+    assert profile.basics["country"] == "Greece"
+    assert profile.basics["birth_year"] == 2003
+
+    draft = (await db.execute(select(CvParseDraft))).scalars().one()
+    draft.payload["basics"]["email"] = "jane.doe@other.com"
+    draft.payload["basics"]["phone"] = "+30 555 9999"
+    flag_modified(draft, "payload")
+    await db.commit()
+
+    kept = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}},
+        headers=auth_headers,
+    )
+    conflicts = {
+        entry["field"]: entry for entry in kept.json()["report"]["basics_conflicts"]
+    }
+    assert set(conflicts) == {"email", "phone"}
+    assert conflicts["email"]["existing"] == "jane@example.com"
+    assert conflicts["email"]["incoming"] == "jane.doe@other.com"
+    db.expire_all()
+    profile = (await db.execute(select(Profile))).scalars().one()
+    assert profile.basics["email"] == "jane@example.com", "kept without overwrite"
+    assert profile.basics["phone"] == "+30 555 0100"
+
+    replaced = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}, "basics_overwrite": ["email"]},
+        headers=auth_headers,
+    )
+    conflicts = {
+        entry["field"] for entry in replaced.json()["report"]["basics_conflicts"]
+    }
+    assert conflicts == {"phone"}
+    db.expire_all()
+    profile = (await db.execute(select(Profile))).scalars().one()
+    assert profile.basics["email"] == "jane.doe@other.com"
+    assert profile.basics["phone"] == "+30 555 0100"
+
+
+async def test_drafts_response_carries_existing_basics(client, db, auth_headers):
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+    await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}},
+        headers=auth_headers,
+    )
+    body = (
+        await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
+    ).json()
+    basics = body["existing_basics"]
+    assert basics["email"] == "jane@example.com"
+    assert basics["city"] == "Athens"
+    assert basics["country"] == "Greece"
+    assert basics["birth_year"] == 2003
+    assert basics["links"] == ["https://github.com/janedoe"]
+
+
+async def test_location_falls_back_to_city_when_city_missing(client, db, auth_headers):
+    from app.models.user_model import Profile
+
+    doc_id = await _upload_and_parse(
+        client, db, auth_headers, text="NAME: Jane Doe\nLOCATION: Athens, GA\n"
+    )
+    await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}},
+        headers=auth_headers,
+    )
+    profile = (await db.execute(select(Profile))).scalars().one()
+    assert profile.basics["city"] == "Athens, GA"
+    assert profile.basics["country"] == ""
 
 
 async def test_discard_blocks_apply(client, db, auth_headers):
@@ -333,6 +427,8 @@ async def test_mock_parser_heuristics_read_plain_text():
     assert extract["basics"]["full_name"] == "Ilias Papadopoulos"
     assert extract["basics"]["email"] == "ilias@example.com"
     assert "+30 694 123 4567" in extract["basics"]["phone"]
+    assert extract["basics"]["city"] == "Athens"
+    assert extract["basics"]["country"] == "Greece"
     assert [s["name"] for s in extract["skills"]] == ["Python", "SQL", "Docker"]
     assert extract["experience"][0]["title"] == "Software Intern"
     assert extract["experience"][0]["org"] == "Acme"

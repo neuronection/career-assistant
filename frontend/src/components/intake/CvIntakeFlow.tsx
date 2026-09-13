@@ -84,10 +84,18 @@ function appliedSummary(report: CvApplyReport): string {
   const base = counts.length
     ? t("intake.appliedBase", { parts: counts.join(", ") })
     : t("intake.nothingNew");
+  const keptFields = (report.basics_conflicts ?? []).map((conflict) =>
+    t(`intake.basicsField.${conflict.field}`, {
+      defaultValue: conflict.field.replace(/_/g, " "),
+    })
+  );
+  const keptNote = keptFields.length
+    ? ` ${t("intake.keptBasics", { fields: keptFields.join(", ") })}`
+    : "";
   const proposed = report.proposed_skills?.length ?? 0;
   return proposed > 0
-    ? `${base} ${t("intake.proposedSuffix", { count: proposed })}`
-    : base;
+    ? `${base}${keptNote} ${t("intake.proposedSuffix", { count: proposed })}`
+    : `${base}${keptNote}`;
 }
 
 /** CV import flow: upload `kind=cv` → poll for the parse
@@ -117,6 +125,7 @@ export const CvIntakeFlow = forwardRef<
   const [draftItems, setDraftItems] = useState<
     Partial<Record<CvIntakeSection, number[]>>
   >({});
+  const [basicsDecisions, setBasicsDecisions] = useState<Record<string, boolean>>({});
   const [applied, setApplied] = useState<CvApplyReport | null>(null);
   const [appliedEntities, setAppliedEntities] = useState<CvAppliedEntity[]>([]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -149,6 +158,7 @@ export const CvIntakeFlow = forwardRef<
           const found = await getCvDrafts(id);
           setDraft(found);
           setSelected(defaultSelections(found));
+          setBasicsDecisions({});
           setPhase(
             sectionViews(found.payload).length ? "review" : "empty"
           );
@@ -175,6 +185,7 @@ export const CvIntakeFlow = forwardRef<
         const found = await getCvDrafts(id);
         setDraft(found);
         setSelected(defaultSelections(found));
+        setBasicsDecisions({});
         setPhase(sectionViews(found.payload).length ? "review" : "empty");
       } catch (err) {
         if (isNotFound(err) && triesLeft > 1) {
@@ -294,6 +305,18 @@ export const CvIntakeFlow = forwardRef<
     if (all) setDraftItems({});
   }, []);
 
+  const toggleBasicsDecision = useCallback((field: string, replace: boolean) => {
+    setBasicsDecisions((prev) => ({ ...prev, [field]: replace }));
+  }, []);
+
+  const basicsOverwrite = useMemo(
+    () =>
+      Object.entries(basicsDecisions)
+        .filter(([, replace]) => replace)
+        .map(([field]) => field),
+    [basicsDecisions]
+  );
+
   const apply = async () => {
     if (!draft || !documentId) return;
     setSubmitting(true);
@@ -302,7 +325,8 @@ export const CvIntakeFlow = forwardRef<
       const { report, applied } = await applyCvDraft(
         documentId,
         selectionsPayload,
-        draftsPayload
+        draftsPayload,
+        basicsOverwrite
       );
       setApplied(report);
       setAppliedEntities(applied ?? []);
@@ -383,6 +407,9 @@ export const CvIntakeFlow = forwardRef<
             draftItems={draftItems}
             onDraftToggle={toggleItemDraft}
             draftAll={draftAll}
+            existingBasics={draft.existing_basics}
+            basicsDecisions={basicsDecisions}
+            onBasicsDecision={toggleBasicsDecision}
           />
           {error && <p className="text-sm text-rose-600">{error}</p>}
           <div className="flex flex-wrap items-center justify-between gap-2">

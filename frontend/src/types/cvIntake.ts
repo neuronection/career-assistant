@@ -17,8 +17,21 @@ export interface ExtractedBasics {
   email: string;
   phone: string;
   location: string;
+  city: string;
+  country: string;
+  birth_year: number | null;
   links: ExtractedLink[];
   evidence: FieldEvidence;
+}
+
+export interface ExistingBasics {
+  email: string;
+  phone: string;
+  headline: string;
+  city: string;
+  country: string;
+  birth_year: number | null;
+  links: string[];
 }
 
 export interface ExtractedMetric {
@@ -132,6 +145,12 @@ export interface CvAppliedEntity {
   count: number;
 }
 
+export interface CvBasicsConflict {
+  field: string;
+  existing: string;
+  incoming: string;
+}
+
 export interface CvDraft {
   id: string;
   status: "pending" | "applied" | "discarded";
@@ -140,10 +159,12 @@ export interface CvDraft {
     created?: Record<string, number>;
     proposed_skills?: string[];
     skill_conflicts?: unknown[];
+    basics_conflicts?: CvBasicsConflict[];
     unmapped_interests?: string[];
     duplicates?: unknown[];
   };
   section_count?: number;
+  existing_basics?: ExistingBasics;
   applied?: CvAppliedEntity[];
 }
 
@@ -151,6 +172,7 @@ export interface CvApplyReport {
   created: Record<string, number>;
   proposed_skills: string[];
   skill_conflicts: unknown[];
+  basics_conflicts: CvBasicsConflict[];
   unmapped_interests: string[];
   duplicates: unknown[];
 }
@@ -175,6 +197,7 @@ export interface DraftHistoryRow {
     created?: Record<string, number>;
     proposed_skills?: string[];
     skill_conflicts?: unknown[];
+    basics_conflicts?: CvBasicsConflict[];
     unmapped_interests?: string[];
     duplicates?: unknown[];
   };

@@ -97,7 +97,12 @@ export function ReportLines({
   const summary = reportSummary(report);
   const proposed = report.proposed_skills?.length ?? 0;
   const conflicts = report.skill_conflicts?.length ?? 0;
-  if (!summary && !proposed && !conflicts) return null;
+  const keptBasics = (report.basics_conflicts ?? []).map((conflict) =>
+    i18next.t(`intake.basicsField.${conflict.field}`, {
+      defaultValue: conflict.field.replace(/_/g, " "),
+    })
+  );
+  if (!summary && !proposed && !conflicts && !keptBasics.length) return null;
   return (
     <div
       className="rounded-lg border border-[var(--as-border)] p-3 text-sm text-[var(--as-muted-fg)]"
@@ -109,6 +114,11 @@ export function ReportLines({
           {t("profileImport.suggestedSkills", {
             skills: report.proposed_skills?.join(", "),
           })}
+        </p>
+      )}
+      {keptBasics.length > 0 && (
+        <p className={summary || proposed ? "mt-1" : ""}>
+          {t("profileImport.basicsConflicts", { fields: keptBasics.join(", ") })}
         </p>
       )}
       {conflicts > 0 && (

@@ -22,7 +22,20 @@ CV_FIELD_MAP: list[tuple[str, str, str, str]] = [
     ("basics.headline", "profile.basics", "Professional headline if present.", "text"),
     ("basics.email", "profile.basics", "Primary contact email.", "text"),
     ("basics.phone", "profile.basics", "Primary contact phone.", "text"),
-    ("basics.location", "profile.basics", "City/country of residence.", "text"),
+    (
+        "basics.location",
+        "profile.basics",
+        "Free-text location line if the CV has one (legacy fallback).",
+        "text",
+    ),
+    ("basics.city", "profile.basics", "City of residence.", "text"),
+    ("basics.country", "profile.basics", "Country of residence.", "text"),
+    (
+        "basics.birth_year",
+        "profile.basics",
+        "Birth year ONLY when explicitly stated (e.g. a date of birth line) — never guess.",
+        "text",
+    ),
     ("basics.links", "profile.basics", "Portfolio/LinkedIn/GitHub URLs.", "links"),
     ("summary", "draft.report", "Profile/objective summary text.", "text"),
     (
@@ -107,7 +120,16 @@ def summarize_targets(extract: CvExtract) -> dict[str, int]:
     """How many extracted items map to each target (review screen header)."""
     counts = {
         "profile.basics": 1
-        if (extract.basics.email or extract.basics.phone or extract.basics.links)
+        if (
+            extract.basics.headline
+            or extract.basics.email
+            or extract.basics.phone
+            or extract.basics.city
+            or extract.basics.country
+            or extract.basics.location
+            or extract.basics.birth_year
+            or extract.basics.links
+        )
         else 0,
         "education_items": len(extract.education),
         "experience_items": len(extract.experience),

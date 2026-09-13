@@ -9,6 +9,8 @@ import type {
   CvExtractPayload,
   CvIntakeSection,
   CvSelections,
+  ExistingBasics,
+  ExtractedBasics,
   FieldEvidence,
 } from "@/types/cvIntake";
 
@@ -65,7 +67,18 @@ export function sectionViews(payload: CvExtractPayload): SectionView[] {
   const label = (key: CvIntakeSection) => t(SECTION_LABEL_KEYS[key]);
   const views: SectionView[] = [];
   const basics = payload.basics;
-  if (basics && (basics.full_name || basics.email || basics.phone || basics.location)) {
+  if (
+    basics &&
+    (basics.full_name ||
+      basics.headline ||
+      basics.email ||
+      basics.phone ||
+      basics.location ||
+      basics.city ||
+      basics.country ||
+      basics.birth_year != null ||
+      basics.links.length)
+  ) {
     const detail = [basics.email, basics.phone, basics.location]
       .filter(Boolean)
       .join(" · ");
@@ -171,8 +184,166 @@ export function sectionViews(payload: CvExtractPayload): SectionView[] {
   return views;
 }
 
-function ConfidencePill({ evidence }: { evidence: FieldEvidence }) {
+type BasicsFieldKey =
+  | "headline"
+  | "email"
+  | "phone"
+  | "city"
+  | "country"
+  | "birth_year";
+
+const BASICS_FIELDS: { key: BasicsFieldKey; labelKey: string }[] = [
+  { key: "headline", labelKey: "intake.basicsField.headline" },
+  { key: "email", labelKey: "intake.basicsField.email" },
+  { key: "phone", labelKey: "intake.basicsField.phone" },
+  { key: "city", labelKey: "intake.basicsField.city" },
+  { key: "country", labelKey: "intake.basicsField.country" },
+  { key: "birth_year", labelKey: "intake.basicsField.birth_year" },
+];
+
+function basicsValue(basics: ExtractedBasics, key: BasicsFieldKey): string {
+  const value = basics[key];
+  return value == null || value === "" ? "" : String(value);
+}
+
+/** The Contact review card, field by field: filled profile fields show
+ * "Now: …" with an explicit Keep/Replace choice when the CV disagrees;
+ * matching fields are marked as already saved; links merge by URL, so
+ * known ones are labeled instead of toggled. */
+function BasicsReview({
+  basics,
+  existing,
+  decisions,
+  onDecision,
+  documentId,
+}: {
+  basics: ExtractedBasics;
+  existing: ExistingBasics | null;
+  decisions: Record<string, boolean>;
+  onDecision?: (field: string, replace: boolean) => void;
+  documentId?: string;
+}) {
   const { t } = useTranslation();
+  const fields = BASICS_FIELDS.map((field) => ({
+    ...field,
+    value: basicsValue(basics, field.key),
+  })).filter((field) => field.value);
+  const links = basics.links.filter((link) => link.url);
+  if (!fields.length && !links.length && !basics.full_name) return null;
+  return (
+    <div className="px-4 py-2.5" data-testid="intake-basics-fields">
+      {basics.full_name && (
+        <p className="text-sm font-medium text-[var(--as-fg)]">{basics.full_name}</p>
+      )}
+      {(fields.some((f) => {
+        const existingValue = existing ? String(existing[f.key] ?? "") : "";
+        return !!existingValue && existingValue !== f.value;
+      })) && (
+        <p className="mb-1 text-xs text-[var(--as-muted-fg)]">
+          {t("intake.basicsConflictHint")}
+        </p>
+      )}
+      <ul className={basics.full_name ? "mt-1 space-y-1.5" : "space-y-1.5"}>
+        {fields.map((field) => {
+          const existingValue = existing ? String(existing[field.key] ?? "") : "";
+          const conflict = !!existingValue && existingValue !== field.value;
+          const same = !!existingValue && existingValue === field.value;
+          const replace = decisions[field.key] === true;
+          return (
+            <li
+              key={field.key}
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1 ${
+                conflict ? "bg-amber-50" : ""
+              }`}
+              data-testid={`intake-basics-field-${field.key}`}
+            >
+              <span className="w-20 shrink-0 text-xs text-[var(--as-muted-fg)]">
+                {t(field.labelKey)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-[var(--as-fg)]">
+                {field.value}
+              </span>
+              <ConfidencePill evidence={basics.evidence} />
+              {conflict && (
+                <>
+                  <span
+                    className="max-w-40 truncate text-xs text-amber-700"
+                    data-testid={`basics-current-${field.key}`}
+                  >
+                    {t("intake.basicsCurrent", { value: existingValue })}
+                  </span>
+                  <span
+                    className="inline-flex rounded-lg border border-[var(--as-border)] p-0.5"
+                    data-testid={`basics-decision-${field.key}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onDecision?.(field.key, false)}
+                      aria-pressed={!replace}
+                      className={`rounded-md px-2 py-0.5 text-xs ${
+                        replace
+                          ? "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                          : "bg-[var(--as-muted)] text-[var(--as-fg)]"
+                      }`}
+                      data-testid={`basics-keep-${field.key}`}
+                    >
+                      {t("intake.basicsKeep")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDecision?.(field.key, true)}
+                      aria-pressed={replace}
+                      className={`rounded-md px-2 py-0.5 text-xs ${
+                        replace
+                          ? "bg-[var(--as-muted)] text-[var(--as-fg)]"
+                          : "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                      }`}
+                      data-testid={`basics-replace-${field.key}`}
+                    >
+                      {t("intake.basicsReplace")}
+                    </button>
+                  </span>
+                </>
+              )}
+              {same && (
+                <span className="text-xs text-emerald-600">
+                  {t("intake.basicsMatch")}
+                </span>
+              )}
+            </li>
+          );
+        })}
+        {links.map((link) => {
+          const saved = existing?.links?.includes(link.url) ?? false;
+          return (
+            <li
+              key={link.url}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1"
+              data-testid={`intake-basics-link-${link.kind}`}
+            >
+              <span className="w-20 shrink-0 text-xs text-[var(--as-muted-fg)]">
+                {t(`intake.linkKind.${link.kind}`)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-[var(--as-fg)]">
+                {link.url}
+              </span>
+              {saved ? (
+                <span className="text-xs text-emerald-600">
+                  {t("intake.basicsLinkSaved")}
+                </span>
+              ) : (
+                <ConfidencePill evidence={link.evidence} />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <Evidence evidence={basics.evidence} documentId={documentId} />
+    </div>
+  );
+}
+
+function ConfidencePill({ evidence }: { evidence: FieldEvidence }) {  const { t } = useTranslation();
   const tone =
     evidence.confidence >= 0.8 ? "high" : evidence.confidence >= 0.5 ? "medium" : "low";
   return (
@@ -284,6 +455,9 @@ export function SuggestionReviewList({
   draftItems,
   onDraftToggle,
   draftAll = false,
+  existingBasics,
+  basicsDecisions = {},
+  onBasicsDecision,
 }: {
   payload: CvExtractPayload;
   selected: CvSelections;
@@ -293,6 +467,9 @@ export function SuggestionReviewList({
   draftItems?: Partial<Record<CvIntakeSection, number[]>>;
   onDraftToggle?: (section: CvIntakeSection, index: number) => void;
   draftAll?: boolean;
+  existingBasics?: ExistingBasics | null;
+  basicsDecisions?: Record<string, boolean>;
+  onBasicsDecision?: (field: string, replace: boolean) => void;
 }) {
   const { t } = useTranslation();
   const views = sectionViews(payload);
@@ -361,6 +538,15 @@ export function SuggestionReviewList({
                 </span>
               </label>
             )}
+            {view.key === "basics" && !readOnly && payload.basics ? (
+              <BasicsReview
+                basics={payload.basics}
+                existing={existingBasics ?? null}
+                decisions={basicsDecisions}
+                onDecision={onBasicsDecision}
+                documentId={documentId}
+              />
+            ) : (
             <ul>
               {view.items.map((item, index) => {
                 const on = isItemSelected(selected, view, index);
@@ -419,6 +605,7 @@ export function SuggestionReviewList({
                 );
               })}
             </ul>
+            )}
           </section>
         );
       })}

@@ -28,10 +28,13 @@ class CvApplyRequest(BaseModel):
     `drafts` marks selections that should land as drafts (not active):
     section → true (all applied items of that section) or a list of
     item indices. Items are active by default — the review ticks are
-    the user's approval."""
+    the user's approval. `basics_overwrite` lists basics fields the
+    user explicitly chose to replace where the profile already holds a
+    different value; conflicting fields without it are kept."""
 
     selections: dict
     drafts: dict = {}
+    basics_overwrite: list[str] = []
 
 
 @router.get("/drafts")
@@ -90,6 +93,7 @@ async def get_cv_drafts(
         "payload": draft.payload,
         "report": draft.report,
         "section_count": CvIntakeService.section_count(draft.payload or {}),
+        "existing_basics": await service.existing_basics(user.id),
         "applied": applied,
     }
 
@@ -105,7 +109,11 @@ async def apply_cv_draft(
     try:
         service = CvIntakeService(db)
         report = await service.apply(
-            document_id, user.id, payload.selections, payload.drafts
+            document_id,
+            user.id,
+            payload.selections,
+            payload.drafts,
+            payload.basics_overwrite,
         )
         applied = await service.applied_counts(document_id, user.id)
     except DomainError as exc:

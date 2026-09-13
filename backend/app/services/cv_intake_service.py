@@ -41,6 +41,7 @@ from app.models.enums import (
 )
 from app.schemas.cv_extract import CvExtract
 from app.services.cv_source_service import cv_extraction_of
+from app.services.stages_service import max_birth_year
 
 
 def _slug(name: str) -> str:
@@ -304,7 +305,16 @@ class CvIntakeService:
         count = 0
         if any(
             basics.get(field)
-            for field in ("full_name", "headline", "email", "phone", "location")
+            for field in (
+                "full_name",
+                "headline",
+                "email",
+                "phone",
+                "location",
+                "city",
+                "country",
+                "birth_year",
+            )
         ):
             count += 1
         for section in (
@@ -386,6 +396,7 @@ class CvIntakeService:
         user_id: uuid.UUID,
         selections: dict,
         drafts: dict | None = None,
+        basics_overwrite: list[str] | None = None,
     ) -> dict:
         """Apply user-confirmed selections; everything else stays draft-free.
 
@@ -394,9 +405,17 @@ class CvIntakeService:
         applies are the norm). `drafts` mirrors that shape for sections
         (or individual items) that should land as drafts — everything
         else is ACTIVE (the review ticks are the user's approval).
+        `basics_overwrite` lists basics fields the user explicitly chose
+        to replace when the profile already holds a different value;
+        conflicting fields without it are kept and reported.
         Returns a report with created counts, proposed skills,
         conflicts, unmapped items and duplicates.
         """
+        overwrite = {
+            field
+            for field in (basics_overwrite or [])
+            if field in (*self.BASICS_TEXT_FIELDS, "birth_year")
+        }
 
         def _is_draft(section: str, index: int | None = None) -> bool:
             spec = (drafts or {}).get(section)
@@ -412,19 +431,25 @@ class CvIntakeService:
             raise ValidationError("Draft was discarded")
         extract = CvExtract.model_validate(draft.payload)
         document_id_str = str(document_id)
-        self._applied_notes = []
+        rows = await self.db.execute(
+            select(CvIntakeApplied.entity_type, CvIntakeApplied.entity_id).where(
+                CvIntakeApplied.document_id == document_id
+            )
+        )
+        self._applied_notes = list(rows.all())
 
         report: dict = {
             "created": {},
             "proposed_skills": [],
             "skill_conflicts": [],
+            "basics_conflicts": [],
             "unmapped_interests": [],
             "duplicates": [],
         }
 
         if self._selected(selections, "basics"):
             basics_profile = await self._apply_basics(
-                user_id, extract.basics.model_dump()
+                user_id, extract.basics.model_dump(), overwrite, report
             )
             self._note(user_id, document_id, "basics", basics_profile.id)
 
@@ -542,7 +567,45 @@ class CvIntakeService:
 
     # ---------------------------------------------------------- appliers
 
-    async def _apply_basics(self, user_id: uuid.UUID, basics: dict) -> None:
+    BASICS_TEXT_FIELDS = ("email", "phone", "headline", "city", "country")
+
+    async def existing_basics(self, user_id: uuid.UUID) -> dict:
+        """The profile's current basics, for the review screen's
+        keep-or-replace comparison (fresh server state, not a stale
+        store copy)."""
+        rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
+        profile = rows.scalars().first()
+        data = dict(profile.basics or {}) if profile else {}
+        return {
+            "email": data.get("email", ""),
+            "phone": data.get("phone", ""),
+            "headline": data.get("headline", ""),
+            "city": data.get("city", ""),
+            "country": data.get("country", ""),
+            "birth_year": data.get("birth_year"),
+            "links": [
+                link.get("url")
+                for link in data.get("links", [])
+                if isinstance(link, dict) and link.get("url")
+            ],
+        }
+
+    async def _apply_basics(
+        self,
+        user_id: uuid.UUID,
+        basics: dict,
+        overwrite: set[str],
+        report: dict,
+    ) -> Profile:
+        """Merge extracted basics into the profile, field by field.
+
+        Empty profile fields are filled; fields the profile already
+        holds with a DIFFERENT value are only replaced when listed in
+        `overwrite` (the review screen's explicit replace choice) —
+        otherwise the existing value is kept and the clash is reported
+        in `basics_conflicts`. Same-value fields are no-ops. Links merge
+        URL-deduped (never overwrite).
+        """
         rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
         profile = rows.scalars().first()
         if profile is None:
@@ -550,11 +613,33 @@ class CvIntakeService:
             self.db.add(profile)
             await self.db.flush()
         data = dict(profile.basics or {})
-        for field in ("email", "phone", "headline"):
-            if basics.get(field):
-                data[field] = basics[field]
-        if basics.get("location"):
-            data["city"] = basics["location"][:80]
+        incoming: dict[str, object] = {
+            field: basics.get(field) for field in self.BASICS_TEXT_FIELDS
+        }
+        if not incoming.get("city") and basics.get("location"):
+            incoming["city"] = str(basics["location"])[:80]
+        birth_year = basics.get("birth_year")
+        if birth_year is not None and 1950 <= int(birth_year) <= max_birth_year():
+            incoming["birth_year"] = int(birth_year)
+        for field, value in incoming.items():
+            if not value:
+                continue
+            current = data.get(field)
+            if current == value:
+                continue
+            if current:
+                if field in overwrite:
+                    data[field] = value
+                else:
+                    report["basics_conflicts"].append(
+                        {
+                            "field": field,
+                            "existing": str(current),
+                            "incoming": str(value),
+                        }
+                    )
+                continue
+            data[field] = value
         links = basics.get("links") or []
         if links:
             existing_urls = {lnk.get("url") for lnk in data.get("links", [])}
