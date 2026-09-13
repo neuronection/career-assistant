@@ -25,11 +25,13 @@ echo ">>> resolving backend toolchain"
 if [[ -x "$ROOT/backend/venv/bin/alembic" ]]; then
   ALEMBIC_BIN=("$ROOT/backend/venv/bin/alembic")
   PY_BIN=("$ROOT/backend/venv/bin/python")
+  PYTEST_BIN=("$ROOT/backend/venv/bin/pytest")
   UVICORN_BIN=("$ROOT/backend/venv/bin/uvicorn")
 else
   # CI installs into the global env — no venv checkout to lean on.
   ALEMBIC_BIN=(python3 -m alembic)
   PY_BIN=(python3)
+  PYTEST_BIN=(python3 -m pytest)
   UVICORN_BIN=(python3 -m uvicorn)
 fi
 
@@ -63,4 +65,4 @@ done
 curl -fsS "$E2E_BASE_URL/health" > /dev/null || { echo "server never became healthy"; exit 1; }
 
 echo ">>> running e2e specs"
-./backend/venv/bin/pytest e2e -q
+"${PYTEST_BIN[@]}" e2e -q
