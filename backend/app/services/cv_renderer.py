@@ -35,13 +35,37 @@ FONT_STACKS = {
 
 DATE_FORMATS = {"mon_yyyy", "iso", "eu", "year"}
 
-SOURCE_DEFAULT_TITLES = {
-    "experience": "Work Experience",
-    "education": "Education",
-    "certifications": "Certifications",
-    "projects": "Projects",
-    "volunteer": "Volunteering",
+SOURCE_DEFAULT_TITLES: dict[str, dict[str, str]] = {
+    "en": {
+        "experience": "Work Experience",
+        "education": "Education",
+        "certifications": "Certifications",
+        "projects": "Projects",
+        "volunteer": "Volunteering",
+    },
+    "el": {
+        "experience": "Εργασιακή Εμπειρία",
+        "education": "Εκπαίδευση",
+        "certifications": "Πιστοποιήσεις",
+        "projects": "Έργα",
+        "volunteer": "Εθελοντισμός",
+    },
+    "de": {
+        "experience": "Berufserfahrung",
+        "education": "Ausbildung",
+        "certifications": "Zertifikate",
+        "projects": "Projekte",
+        "volunteer": "Ehrenamt",
+    },
 }
+
+
+def default_section_title(source_key: str, language: str = "en") -> str:
+    """Localized default heading for a context source; user-typed
+    block titles always win over this."""
+    table = SOURCE_DEFAULT_TITLES.get(language) or SOURCE_DEFAULT_TITLES["en"]
+    return table.get(source_key, source_key)
+
 
 MONTHS = [
     "Jan",
@@ -373,6 +397,8 @@ def _block_lines(
         return lines
     if kind == "spacer":
         return max(1, props.height_mm // 5)
+    if kind == "qr":
+        return max(1, int(getattr(props, "size_mm", 24) // 5)) + 1
     return 1
 
 
@@ -550,7 +576,11 @@ def _section_tag(
 
 
 def _render_block(
-    kind: str, props: Any, snapshot: dict, design: Any = None
+    kind: str,
+    props: Any,
+    snapshot: dict,
+    design: Any = None,
+    language: str = "en",
 ) -> tuple[str, bool]:
     """Returns (html, had_content) — empty blocks hide by default."""
     design = design or DesignTokens()
@@ -621,9 +651,7 @@ def _render_block(
             items = [item for item in items if not is_proficiency_cert(item)]
         if not items:
             return "", False
-        title = props.title or SOURCE_DEFAULT_TITLES.get(
-            props.source_key, props.source_key
-        )
+        title = props.title or default_section_title(props.source_key, language)
         return (
             _section_tag("items", title, _render_items(items, props), design, props),
             True,
@@ -893,7 +921,67 @@ def _render_block(
         return _section_tag("letter", "", body, design, props), True
     if kind == "spacer":
         return f"<div style='height:{int(props.height_mm)}mm'></div>", True
+    if kind == "qr":
+        basics = snapshot.get("basics") or {}
+        target = _first_link_target(basics.get("links") or [], props.link_kind)
+        if target is None:
+            return "", False
+        return _render_qr(target, props, design)
     return "", False
+
+
+def _first_link_target(links: list, wanted: str) -> str | None:
+    """First scheme-allowlisted link matching the QR block's kind."""
+    wanted = (wanted or "web").lower()
+    for link in links:
+        if not isinstance(link, dict):
+            continue
+        url = _safe_href(link.get("url"))
+        if url is None:
+            continue
+        kind = str(link.get("kind") or "").strip().lower()
+        if wanted == "web" and kind not in ("github", "linkedin"):
+            return url
+        if wanted != "web" and kind == wanted:
+            return url
+    return None
+
+
+def _render_qr(target: str, props: Any, design: Any) -> str:
+    """Compact inline SVG QR (no network, deterministic matrix)."""
+    import qrcode
+    from urllib.parse import quote
+
+    code = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        border=0,
+    )
+    code.add_data(target)
+    code.make(fit=True)
+    matrix = code.get_matrix()
+    dark = "".join(
+        f"M{x} {y}h1v1h-1z"
+        for y, row in enumerate(matrix)
+        for x, cell in enumerate(row)
+        if cell
+    )
+    size = int(props.size_mm)
+    svg = (
+        "<svg xmlns='http://www.w3.org/2000/svg' "
+        f"viewBox='0 0 {len(matrix)} {len(matrix)}' "
+        "shape-rendering='crispEdges'>"
+        "<rect width='100%' height='100%' fill='#ffffff'/>"
+        f"<path d='{dark}' fill='#000000'/>"
+        "</svg>"
+    )
+    data = f"data:image/svg+xml;charset=utf-8,{quote(svg, safe='')}"
+    body = (
+        f"<img src='{esc(data)}' alt='QR code' "
+        f"style='width:{size}mm;height:{size}mm;display:block'/>"
+    )
+    return _section_tag(
+        "qr", "", f"<div class='qr-wrap'>{body}</div>", design, props
+    ), True
 
 
 def _font_face_css(font_stack: str) -> str:
@@ -902,7 +990,37 @@ def _font_face_css(font_stack: str) -> str:
     return font_face_css(font_stack)
 
 
-def _css(design: DesignTokens, page_size: str, shrink: float) -> str:
+def _page_margin_boxes(design: DesignTokens, snapshot: dict | None) -> str:
+    """@page margin-box rules for the running-footer token.
+
+    Only exported to the CSS when `running_footer` is on; rendered
+    into the page's own margin area so footer lines never consume
+    body space."""
+    mode = design.running_footer
+    if mode == "none":
+        return ""
+    rules = []
+    if mode == "name":
+        basics = (snapshot or {}).get("basics") or {}
+        name = str(basics.get("name") or "").strip()
+        label = f"{name} — CV" if name else "Curriculum vitae"
+        rules.append(
+            "@bottom-left { content: '%s'; font-size: 8pt; color: #6b7280; }"
+            % esc(label).replace("&#x27;", "\\'")
+        )
+    if mode == "numbers":
+        rules.append(
+            '@bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #6b7280; }'
+        )
+    return " ".join(rules)
+
+
+def _css(
+    design: DesignTokens,
+    page_size: str,
+    shrink: float,
+    snapshot: dict | None = None,
+) -> str:
     width_mm, height_mm = PAGE_MM[page_size]
     margin = _page_margin_mm(design)
     base = round(design.base_size_pt * shrink, 2)
@@ -937,8 +1055,9 @@ def _css(design: DesignTokens, page_size: str, shrink: float) -> str:
             "header.cv-header .contact a { color: inherit; }"
             "header.cv-header .name-accent { color: color-mix(in srgb, #ffffff 65%, var(--accent)); }"
         )
+    margin_boxes = _page_margin_boxes(design, snapshot)
     return f"""
-@page {{ size: {width_mm}mm {height_mm}mm; margin: {margin}mm; }}
+@page {{ {margin_boxes}size: {width_mm}mm {height_mm}mm; margin: {margin}mm; }}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 {_font_face_css(design.font_stack)}
 :root {{
@@ -1019,6 +1138,8 @@ ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
         color: var(--heading); border-radius: {max(1, design.corner_radius)}mm;
         padding: 0 1.6mm; font-size: {round(base * 0.95, 2)}pt; }}
 .skill-group {{ break-inside: avoid; }}
+.qr-wrap {{ display: flex; justify-content: center; padding: 1mm 0; }}
+.cv-sidebar .qr-wrap img {{ background: #ffffff; }}
 .skill-cat {{ font-weight: 600; color: var(--heading);
      margin: calc(0.4em * var(--spacing)) 0 0.5mm;
      text-transform: {heading_transform}; font-size: {round(base * 0.95, 2)}pt; }}
@@ -1061,6 +1182,7 @@ def render_cv(
     *,
     page_size: str = CvPageSize.A4.value,
     max_pages: int = 1,
+    language: str = "en",
 ) -> RenderResult:
     """Render a CV to print-ready HTML with layout metrics.
 
@@ -1091,7 +1213,7 @@ def render_cv(
         bodies: list[str] = []
         entries: list[tuple[str, Any, int]] = []
         for kind, props in pairs:
-            body, had_content = _render_block(kind, props, snapshot, design)
+            body, had_content = _render_block(kind, props, snapshot, design, language)
             if not had_content:
                 metrics.empty_blocks.append(kind)
                 continue
@@ -1180,7 +1302,7 @@ def render_cv(
         document = "".join(main_bodies + sidebar_bodies)
     html_out = (
         '<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="utf-8">'
-        f"<title>CV</title><style>{_css(design, page_size, shrink)}</style></head>"
+        f"<title>CV</title><style>{_css(design, page_size, shrink, snapshot)}</style></head>"
         f"<body>\n{document}\n</body>\n</html>\n"
     )
     return RenderResult(html=html_out, metrics=metrics)

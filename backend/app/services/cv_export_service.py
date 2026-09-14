@@ -24,7 +24,7 @@ from app.services.cv_pdf_service import (
     measure_pages,
 )
 from app.services.cv_renderer import (
-    SOURCE_DEFAULT_TITLES,
+    default_section_title,
     _display_link,
     custom_text_blocks,
 )
@@ -88,8 +88,8 @@ def _heading_of(kind: str, props: dict) -> str:
     if kind == "summary":
         return props.get("title") or "Summary"
     if kind == "items":
-        return props.get("title") or SOURCE_DEFAULT_TITLES.get(
-            props.get("source_key") or "", props.get("source_key") or ""
+        return props.get("title") or default_section_title(
+            props.get("source_key") or "", "en"
         )
     return props.get("title") or kind.replace("_", " ").title()
 

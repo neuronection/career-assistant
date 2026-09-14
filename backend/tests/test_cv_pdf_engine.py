@@ -228,3 +228,37 @@ def test_frozen_env_untouched_without_bundled_tree(monkeypatch, tmp_path: Path):
     (tmp_path / "python").write_text("")
     assert pdf_service._bundled_browsers_path() is None
     assert os.environ.get("PLAYWRIGHT_BROWSERS_PATH") is None
+
+
+def test_running_footer_reaches_printed_pdf_page_2():
+    """Margin-box counters land in the printed PDF's own page 2 text
+    (the engine is the page-count truth per plan 76). Skips cleanly on
+    hosts without any Chromium-class engine — the degradation is honest
+    (fixed-footer fallback emits no numbers)."""
+    import asyncio
+
+    import pypdfium2 as pdfium
+
+    from app.services.cv_pdf_service import (
+        PDFEngineUnavailable,
+        html_to_pdf,
+    )
+
+    html = (
+        "<!DOCTYPE html><html><head><style>"
+        "@page { size: 210mm 297mm; margin: 15mm; "
+        "@bottom-right { content: 'p' counter(page) '/' counter(pages); } }"
+        ".pg { break-after: page; }"
+        "</style></head><body><div class='pg'>ONE</div><div>TWO</div></body></html>"
+    )
+    try:
+        pdf_bytes = asyncio.run(html_to_pdf(html))
+    except (PDFEngineUnavailable, RuntimeError):
+        pytest.skip("no PDF engine on this host")
+    document = pdfium.PdfDocument(pdf_bytes)
+    assert len(document) == 2
+    page_two_text = ""
+    textpage = document[1].get_textpage()
+    if textpage is not None:
+        page_two_text = textpage.get_text_bounded() or ""
+    assert "p2/2" in page_two_text

@@ -30,3 +30,4 @@ pytest-asyncio==1.4.0
 pytest-dotenv==0.5.2
 ruff==0.14.5
 fastmcp==4.0.3
+qrcode==8.2

@@ -1144,3 +1144,56 @@ def test_main_columns_tokens_flow_into_css_and_estimate():
     assert double.metrics.estimated_lines > single.metrics.estimated_lines, (
         "two half-width columns wrap sooner"
     )
+
+
+def test_qr_block_renders_deterministically_and_hides():
+    from copy import deepcopy
+
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "qr", "props": {"size_mm": 24, "link_kind": "github"}}],
+            "design": {},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "data:image/svg+xml;charset=utf-8" in html
+    assert "<img src=" in html
+    again = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert again == html, "the QR matrix renders byte-identically"
+    no_link = deepcopy(SAMPLE_SNAPSHOT)
+    no_link["basics"]["links"] = []
+    assert "<img" not in render_cv(content, no_link).html, "no match hides"
+
+
+def test_running_footer_margin_boxes():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "header", "props": {}}],
+            "design": {"running_footer": "numbers"},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert '@bottom-right { content: counter(page) " / " counter(pages);' in html
+    off = render_cv(
+        TemplateContent.model_validate(
+            {"blocks": [{"kind": "header", "props": {}}], "design": {}}
+        ),
+        SAMPLE_SNAPSHOT,
+    ).html
+    assert "@bottom-right" not in off, "the default stays byte-stable"
+
+
+def test_default_section_titles_fallback_chain():
+    from app.services.cv_renderer import default_section_title
+
+    assert default_section_title("experience", "el") == "Εργασιακή Εμπειρία"
+    assert default_section_title("experience", "de") == "Berufserfahrung"
+    assert default_section_title("experience") == "Work Experience"
+    assert default_section_title("certifications", "fr") == "Certifications", (
+        "unsupported languages fall back to English"
+    )
+    assert default_section_title("volunteer", "el") == "Εθελοντισμός"

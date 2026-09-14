@@ -43,6 +43,10 @@ class DesignTokens(BaseModel):
     main_columns: int = Field(default=1, ge=1, le=2)
     sidebar_columns: int = Field(default=1, ge=1, le=2)
     density: Literal["compact", "normal", "roomy"] = "normal"
+    # Page 2+ running footer via @page margin boxes: none (default —
+    # byte-stable single pages), "name" repeats "Name — CV" bottom-left,
+    # "numbers" prints "P / N" bottom-right (needs a modern engine).
+    running_footer: Literal["none", "name", "numbers"] = "none"
     margin_mm: Optional[int] = Field(default=None, ge=0, le=25)
     # Modern-layout tokens: section containers, corners, heading style.
     section_style: Literal["flat", "card"] = "flat"

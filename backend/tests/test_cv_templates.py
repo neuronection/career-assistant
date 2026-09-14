@@ -574,7 +574,7 @@ async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_hea
         block["kind"] for block in content["blocks"] if block.get("area") == "sidebar"
     }
     assert sidebar_kinds, "the sidebar brief assigns blocks to the sidebar"
-    assert sidebar_kinds <= {"skills", "languages", "interests", "certifications"}
+    assert sidebar_kinds <= {"skills", "languages", "interests", "certifications", "qr"}
 
     def _contradictory(schema, prompt):
         return {
@@ -760,3 +760,35 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
         headers=auth_headers,
     )
     assert leak.status_code == 404, "other users' CVs are unreachable"
+
+
+async def test_template_stats_admin_only(client, db, auth_headers):
+    from app.models.user_model import User
+
+    first = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "admin-stats@example.com", "password": "supersecret1"},
+    )
+    assert first.status_code == 201, first.text
+    row = (
+        (await db.execute(select(User).where(User.email == "admin-stats@example.com")))
+        .scalars()
+        .first()
+    )
+    row.is_admin = True
+    await db.commit()
+    admin = {"Authorization": f"Bearer {first.json()['access_token']}"}
+    allowed = await client.get("/api/v1/cv/templates/stats", headers=admin)
+    assert allowed.status_code == 200, allowed.text
+    assert isinstance(allowed.json(), list)
+    # a second user (registered after the admin) is not an admin
+    second = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "stat-nonadmin@example.com", "password": "supersecret1"},
+    )
+    if second.status_code == 201:
+        denied = await client.get(
+            "/api/v1/cv/templates/stats",
+            headers={"Authorization": f"Bearer {second.json()['access_token']}"},
+        )
+        assert denied.status_code == 403, denied.text

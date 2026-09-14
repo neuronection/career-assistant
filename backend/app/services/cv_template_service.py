@@ -321,6 +321,7 @@ class CvTemplateService:
             snapshot,
             page_size=template.page_size,
             max_pages=max_pages or content.pages.default_max_pages,
+            language=str(template.language or "en"),
         )
         return result.html, {
             "estimated_pages": result.metrics.estimated_pages,
@@ -487,6 +488,7 @@ class CvTemplateService:
             self.sample_snapshot(content),
             page_size=template.page_size,
             max_pages=max_pages or content.pages.default_max_pages,
+            language=str(template.language or "en"),
         )
         return {
             "estimated_pages": result.metrics.estimated_pages,
@@ -495,6 +497,47 @@ class CvTemplateService:
             "truncated": result.metrics.truncated,
             "lines_per_page": result.metrics.lines_per_page,
         }
+
+    async def export_stats(self) -> list[dict]:
+        """Export totals per template (admin telemetry view).
+
+        Derived straight from the immutable `cv_versions` rows stamped
+        `created_by='export'` — the version payload already carries the
+        effective `template_id`, so no new telemetry pipeline is needed.
+        Totals are dialect-safe (no month math in SQL) and stay
+        anonymous (no per-user breakdown)."""
+        from sqlalchemy import String, cast, func
+
+        from app.models.cv_model import CvVersion
+
+        template_ref = cast(CvVersion.content["template_id"], String).label(
+            "template_ref"
+        )
+        groups = (
+            await self.db.execute(
+                select(template_ref, func.count())
+                .where(CvVersion.created_by == "export")
+                .group_by(template_ref)
+            )
+        ).all()
+        by_id: dict[str, CvTemplate] = {}
+        if groups:
+            templates = await self.db.execute(
+                select(CvTemplate).where(
+                    CvTemplate.id.in_([uuid.UUID(ref) for ref, _c in groups if ref])
+                )
+            )
+            by_id = {str(row.id): row for row in templates.scalars().all()}
+        return [
+            {
+                "template_key": by_id[str(ref)].key if str(ref) in by_id else None,
+                "template_source": (
+                    by_id[str(ref)].source if str(ref) in by_id else None
+                ),
+                "exported": exports,
+            }
+            for ref, exports in groups
+        ]
 
 
 SOURCE_KEYS = {"experience", "education", "certifications", "projects"}

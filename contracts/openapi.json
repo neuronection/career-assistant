@@ -20922,6 +20922,38 @@
         ]
       }
     },
+    "/api/v1/cv/templates/stats": {
+      "get": {
+        "description": "Anonymous export totals per template (admin telemetry view).",
+        "operationId": "template_stats_api_v1_cv_templates_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Template Stats Api V1 Cv Templates Stats Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Template Stats",
+        "tags": [
+          "cv-templates"
+        ]
+      }
+    },
     "/api/v1/cv/templates/suggest": {
       "post": {
         "description": "Rank template candidates for a new CV (signals + AI rationale).",

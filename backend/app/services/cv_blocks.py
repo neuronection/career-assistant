@@ -249,6 +249,19 @@ class SpacerProps(BaseModel):
     height_mm: int = Field(default=4, ge=2, le=20)
 
 
+class QRProps(BaseModel):
+    """Scannable QR panel over one allowlisted profile link.
+
+    Deterministic pick: the FIRST `basics.links` entry whose `kind`
+    matches `link_kind` ("web" matches any non-social kind); scheme
+    allowlist applies (`_safe_href`); nothing matches ⇒ the block
+    hides like every empty block."""
+
+    link_kind: Literal["web", "github", "linkedin"] = "web"
+    size_mm: int = Field(default=24, ge=10, le=40)
+    container: BlockContainer = Field(default_factory=BlockContainer)
+
+
 class SynthItemsProps(BaseModel):
     """Synthesized-variant highlights("Custom highlights" section).
 
@@ -328,6 +341,11 @@ BUILTIN_BLOCKS: dict[str, BlockSpec] = {
         },
     ),
     "spacer": BlockSpec("spacer", SpacerProps, {"height_mm": 4}),
+    "qr": BlockSpec(
+        "qr",
+        QRProps,
+        {"size_mm": 24, "link_kind": "web"},
+    ),
     "synth_items": BlockSpec(
         "synth_items",
         SynthItemsProps,

@@ -219,7 +219,11 @@ class CvBuilderService:
             working.get("overrides") or {},
         )
         result = render_cv(
-            render_input, snapshot, page_size=cv.page_size, max_pages=cv.max_pages
+            render_input,
+            snapshot,
+            page_size=cv.page_size,
+            max_pages=cv.max_pages,
+            language=str(cv.language or "en"),
         )
         payload = {
             "template_id": template_id,
@@ -296,6 +300,7 @@ class CvBuilderService:
             content.get("snapshot") or {},
             page_size=cv.page_size,
             max_pages=cv.max_pages,
+            language=str(cv.language or "en"),
         )
         return result.html
 

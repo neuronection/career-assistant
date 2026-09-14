@@ -17,7 +17,7 @@ from app.schemas.cv_template import (
 )
 from app.services.cv_service import CvService
 from app.services.cv_template_service import CvTemplateService
-from app.services.deps import get_current_user
+from app.services.deps import get_current_user, require_admin
 
 router = APIRouter(prefix="/cv/templates", tags=["cv-templates"])
 
@@ -203,6 +203,15 @@ async def import_template(
     except ValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return CvTemplateOut.model_validate(template)
+
+
+@router.get("/stats")
+async def template_stats(
+    _user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Anonymous export totals per template (admin telemetry view)."""
+    return await CvTemplateService(db).export_stats()
 
 
 @router.get("/{template_id}/preview", response_class=HTMLResponse)
