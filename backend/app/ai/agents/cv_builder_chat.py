@@ -330,6 +330,14 @@ async def _styled_template(
     return row, note
 
 
+async def _revive(db: AsyncSession, cv) -> None:
+    """Reload the shared CV's columns after a rollback — rollback expires
+    every instance, and the caller keeps using `cv` for the rest of the
+    turn (later attribute reads would otherwise lazy-load ->
+    MissingGreenlet). Column-only refresh: no relationship loads."""
+    await db.refresh(cv)
+
+
 def _save_working(cv, blocks: list[dict], overrides: dict) -> None:
     cv.working_content = {"blocks": blocks, "overrides": overrides}
 
@@ -544,9 +552,11 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
         raise ValidationError(f"Unsupported operation: {kind}")
     except ValidationError as exc:
         await db.rollback()
+        await _revive(db, cv)
         return OpResult(op=kind, ok=False, detail=str(exc)[:300])
     except Exception as exc:  # noqa: BLE001 — one op never aborts the turn
         await db.rollback()
+        await _revive(db, cv)
         return OpResult(op=kind, ok=False, detail=f"{type(exc).__name__}: {exc}"[:300])
 
 
@@ -661,6 +671,11 @@ async def builder_turn_events(
     (the full post-turn builder state the page re-syncs from).
     """
     from app.services.chat_service import ChatService
+
+    # The user message is only flushed at this point — ops commit MID-TURN
+    # and every op failure path rolls back, which would wipe the parent
+    # row out from under `complete_builder_turn`. Make it durable first.
+    await db.commit()
 
     turn_started = time.monotonic()
     steps = [
@@ -786,6 +801,15 @@ async def builder_turn_events(
                 started = time.monotonic()
                 result = await apply_operation(db, cv, op)
                 all_results.append(result.model_dump(mode="json"))
+                if not result.ok:
+                    # A failed op rolled the transaction back, which expires
+                    # every loaded instance — the turn keeps using `cv` and
+                    # `session`: revive both (column-only, awaited).
+                    try:
+                        await db.refresh(cv)
+                        await db.refresh(session)
+                    except Exception:  # noqa: BLE001 — revive is best-effort
+                        pass
                 yield (
                     "tool_call",
                     _tool_event(
@@ -920,6 +944,10 @@ async def builder_turn_events(
                 )
             except Exception:  # noqa: BLE001 — best-effort persistence
                 await db.rollback()
+                try:
+                    await db.refresh(session)
+                except Exception:  # noqa: BLE001 — revive is best-effort
+                    pass
         code = "ai_unavailable" if "not configured" in str(exc).lower() else "ai_error"
         yield "flow_failed", {"code": code, "message": str(exc), "retryable": True}
         yield "error", {"detail": str(exc)}

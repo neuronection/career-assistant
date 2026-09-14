@@ -5,18 +5,24 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
-- **CVs as chat references**: attach a CV (or cover letter) to any chat
-  message and the answer is grounded in it — the composer chip and Studio
-  entry points land with the next slices; this release adds the
-  foundation. Attachments are per-message (max 2), validated for
-  ownership, and rendered into the prompt as a plain-text reference of
-  the document's current state (latest saved version, or a live render
-  for never-compiled CVs — reading never creates versions). Follow-up
-  questions keep the grounding: a message sent without attachments
-  inherits the conversation's most recent ones as an "attached earlier"
-  reference, and regenerating or editing a message preserves its
-  attachments. Replies carry `referenced_cv_ids` so the UI can deep-link
-  the documents they used.
+- **One chat: CVs as references, builder on demand** (plan 78): the
+  chatbot is one surface everywhere. Attach a CV (or cover letter) to any
+  message — the composer suggests the CV you have open in Studio, the
+  paperclip popover attaches any document — and the answer is grounded in
+  it (plain-text reference of the current state; reading never creates
+  versions). Reply and user message carry deep-link chips. Asking for an
+  actual edit ("rewrite the summary") while a CV is attached hands that
+  single turn to the builder copilot — in the same session, no re-routing;
+  questions stay normal chat. Attachments are per-message (max 2),
+  validated for ownership; follow-ups without their own attachment keep
+  the grounding as an "attached earlier" reference; edit/regenerate
+  preserve attachments. CV Studio's "Ask AI" now opens the normal chat
+  with the CV attached instead of silently converting the session into a
+  copilot (existing bound sessions keep working). Fixes along the way:
+  a failed builder operation could expire shared ORM instances mid-turn
+  (greenlet crash) and roll back the just-typed user message — both now
+  handled (instances revived, the user message is durable before any
+  operation runs).
 - **Profile editing through the chatbot, reviewed on HITL cards**: ask the
   chatbot to add a project, end an internship, set a language level or
   delete a certification and the change lands as a proposal card right in
