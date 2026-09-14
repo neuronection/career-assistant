@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Sidebar regrouped into clearer sections**: Dashboard stands alone,
+  then *Job hunt* (Chat, Catalog, Rankings, Postings, Autopilot,
+  Interviews), *Prepare* (Growth, CV Studio), and *Account* (Profile,
+  Settings) — moving Growth and CV Studio out of the undifferentiated
+  job-hunt block.
+
 ### Fixed
 - **Vision review actually sees the pages now**: the screenshot path
   clipped beyond the viewport for CVs spilling past one page ("Clipped

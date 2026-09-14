@@ -43,7 +43,7 @@ export const NAV: AppNavItem[] = [
   { to: "/postings", labelKey: "nav.postings", icon: Globe, studentOnly: false, inDev: true },
   { to: "/autopilot", labelKey: "nav.autopilot", icon: Bot, studentOnly: false, inDev: true },
   { to: "/interviews", labelKey: "nav.interviews", icon: GraduationCap, studentOnly: false, inDev: true },
-  { to: "/growth", labelKey: "nav.growth", icon: Route, studentOnly: false, inDev: true },
+  { to: "/growth", labelKey: "nav.growth", icon: Route, studentOnly: false, inDev: true, section: "nav.sectionPrepare" },
   { to: "/cv", labelKey: "nav.cvStudio", icon: FileText, studentOnly: false },
   { to: "/profile", labelKey: "nav.profile", icon: UserRound, studentOnly: false, section: "nav.sectionAccount" },
   { to: "/settings/ai", labelKey: "nav.settings", icon: Settings2, studentOnly: false, matchPrefix: "/settings" },
