@@ -281,6 +281,7 @@ export interface Profile {
     country: string;
     city: string;
     timezone?: string;
+    full_name: string;
     email: string;
     phone: string;
     headline: string;

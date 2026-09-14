@@ -7,9 +7,10 @@ export interface CvContextSelection {
   mode: "all" | "none" | "custom";
   include: CvContextRef[];
   exclude: CvContextRef[];
-  /** Plan 62: prefer applies matching synthesized variants at resolve time. */
-  synth_mode?: "off" | "prefer";
-  /** Plan 72 follow-up: per-item variant pins, `{"source_key:item_id": synth_id}`. */
+  /**
+   * Per-item variant stars: `{"source_key:item_id": synth_id}` → the pinned
+   * variant's text replaces the item's profile text at render time.
+   */
   synth_pins?: Record<string, string>;
 }
 
@@ -296,6 +297,9 @@ export interface CvRenderMetrics {
   overflow?: boolean;
   max_pages?: number;
   page_size?: string;
+  page_count_source?: "pdf" | "last_export" | null;
+  pages_actual?: number;
+  pages_actual_over_budget?: boolean;
   [key: string]: unknown;
 }
 

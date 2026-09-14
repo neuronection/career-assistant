@@ -555,11 +555,12 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
         seen["images"] = images
         return await real_rank(db, user_id, candidates, target)
 
-    async def _png(html: str, page_size: str = "a4", max_pages: int = 4):
-        return [("image/png", b"\x89PNG-fake")]
+    async def _png(html: str, page_size: str = "a4", max_images: int = 4):
+        return pdf_service.PageMeasure(
+            pages=1, source="pdf", images=[("image/png", b"\x89PNG-fake")]
+        )
 
-    monkeypatch.setattr(pdf_service, "pdf_engine_available", lambda: True)
-    monkeypatch.setattr(pdf_service, "html_to_pngs", _png)
+    monkeypatch.setattr(pdf_service, "measure_pages", _png)
     monkeypatch.setattr(advisor, "rank_templates", _spy_rank)
     result = await CvTemplateService(db).suggest(
         UUID(_uid(auth_headers)), language="en"
@@ -568,7 +569,12 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
     images = seen["images"]
     assert images and all(mime == "image/png" for mime, _data in images)
 
-    monkeypatch.setattr(pdf_service, "pdf_engine_available", lambda: False)
+    async def _unavailable(*_args, **_kwargs):
+        from app.services.cv_pdf_service import PDFEngineUnavailable
+
+        raise PDFEngineUnavailable("Server PDF engine not installed")
+
+    monkeypatch.setattr(pdf_service, "measure_pages", _unavailable)
     seen.clear()
     result = await CvTemplateService(db).suggest(
         UUID(_uid(auth_headers)), language="en"
@@ -601,3 +607,20 @@ async def test_suggest_carries_the_emphasis_notes_into_the_ranking(
     )
     target = seen["target"] or {}
     assert target.get("notes") == "Emphasize open-source projects and MCP tooling"
+
+
+async def test_suggest_layout_hint_boosts_sidebar_candidates(client, db, auth_headers):
+    """A 'modern / sidebar' brief is a layout preference: the
+    deterministic baseline promotes sidebar-layout candidates to the
+    top instead of the ATS-safe single-column default."""
+    await seed_cv_template_bank(db)
+    result = await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)),
+        language="en",
+        notes="make it very modern, follow best practices",
+    )
+    assert result["picks"], "the mock still ranks picks"
+    top_id = result["picks"][0]["template_id"]
+    top = await db.get(CvTemplate, UUID(top_id))
+    content = TemplateContent.model_validate(top.content)
+    assert content.design.layout == "sidebar", "the layout hint wins the baseline"

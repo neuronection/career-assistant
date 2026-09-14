@@ -68,6 +68,10 @@ function refKey(sourceKey: string, itemId: string): string {
   return `${sourceKey}:${itemId}`;
 }
 
+function usableVariants(items: CvSynthItem[]): CvSynthItem[] {
+  return items.filter((item) => item.status !== "archived");
+}
+
 export function CvBuilder() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
@@ -301,7 +305,7 @@ export function CvBuilder() {
           fetchTemplates().catch(() => []),
           fetchPostings({ saved: true }).catch(() => ({ items: [] })),
           fetchPhotoGallery().catch(() => []),
-          fetchSynthItems({ status: "active" }).catch(() => [] as CvSynthItem[]),
+          fetchSynthItems().then(usableVariants).catch(() => [] as CvSynthItem[]),
         ]);
         if (cancelled) return;
         setCv(document);
@@ -415,7 +419,6 @@ export function CvBuilder() {
           mode: "custom",
           include,
           exclude: [],
-          synth_mode: (cv?.context?.synth_mode as "off" | "prefer") ?? "off",
           synth_pins: synthPins,
         });
         await refreshPreview();
@@ -423,11 +426,11 @@ export function CvBuilder() {
         setError(apiDetail(err));
       }
     },
-    [id, cv?.context?.synth_mode, synthPins, refreshPreview]
+    [id, synthPins, refreshPreview]
   );
 
   const commitSynthMode = useCallback(
-    async (synth_mode: "off" | "prefer", pins?: Record<string, string>) => {
+    async (pins?: Record<string, string>) => {
       const include = [...selected].map((value) => {
         const [source, item] = value.split(":");
         return { source_key: source, item_id: item };
@@ -438,7 +441,6 @@ export function CvBuilder() {
           mode: "custom",
           include,
           exclude: [],
-          synth_mode,
           synth_pins: effectivePins,
         });
         setCv((prev) =>
@@ -447,7 +449,6 @@ export function CvBuilder() {
                 ...prev,
                 context: {
                   ...(prev.context ?? {}),
-                  synth_mode,
                   synth_pins: effectivePins,
                 },
               } as CvDocumentOut)
@@ -462,21 +463,30 @@ export function CvBuilder() {
   );
 
   const commitSynthPin = useCallback(
-    async (
-      sourceKey: string,
-      itemId: string,
-      synthId: string | null,
-      mode: "off" | "prefer",
-    ) => {
+    async (sourceKey: string, itemId: string, synthId: string | null) => {
       const pins = { ...synthPins };
       if (synthId) {
         pins[`${sourceKey}:${itemId}`] = synthId;
       } else {
         delete pins[`${sourceKey}:${itemId}`];
       }
-      await commitSynthMode(mode, pins);
+      await commitSynthMode(pins);
     },
     [synthPins, commitSynthMode]
+  );
+
+  const activateVariant = useCallback(
+    async (variant: CvSynthItem) => {
+      try {
+        await patchSynthItem(variant.id, { status: "active" });
+        setSynthItems(usableVariants(await fetchSynthItems()));
+        setNotice(t("cvSynth.activated"));
+        await refreshPreview();
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [refreshPreview, t]
   );
 
   const saveVariant = useCallback(
@@ -499,7 +509,7 @@ export function CvBuilder() {
         }
         setVariantEditor({ open: false, initial: null, sourceKey: "" });
         setNotice(t("cvSynth.created"));
-        setSynthItems(await fetchSynthItems({ status: "active" }));
+        setSynthItems(usableVariants(await fetchSynthItems()));
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
@@ -938,8 +948,15 @@ export function CvBuilder() {
     }
   }
 
-  const overflow = metrics.overflow === true;
-  const pages = metrics.estimated_pages ?? 1;
+  const overflow =
+    lint?.metrics?.pages_actual_over_budget === true || metrics.overflow === true;
+  const measuredPages = Number(lint?.metrics?.pages_actual) || 0;
+  const pages = measuredPages || metrics.estimated_pages || 1;
+  const pagesSource =
+    lint?.metrics?.page_count_source === "pdf" ||
+    lint?.metrics?.page_count_source === "last_export"
+      ? lint.metrics.page_count_source
+      : null;
   const maxPages = cv?.max_pages ?? 1;
   const currentLetter = isLetter ? letterPropsOf(blocks) : null;
   const activeDesign = templates.find(
@@ -997,6 +1014,7 @@ export function CvBuilder() {
         pages={pages}
         maxPages={maxPages}
         overflow={overflow}
+        pagesSource={pagesSource}
         saveState={saveState}
         saveBusy={busy === "save"}
         exportBusy={busy.startsWith("export:") ? busy.slice("export:".length) : ""}
@@ -1087,16 +1105,9 @@ export function CvBuilder() {
                   onToggle={toggleItem}
                   onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
                   onBullet={(sourceKey, itemId) => void runAction("bullet", { source_key: sourceKey, item_id: itemId })}
-                  synthMode={(cv?.context?.synth_mode as "off" | "prefer") ?? "off"}
-                  onSynthModeChange={(mode) => void commitSynthMode(mode)}
                   synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
                   onPinVariant={(sourceKey, itemId, synthId) =>
-                    void commitSynthPin(
-                      sourceKey,
-                      itemId,
-                      synthId,
-                      (cv?.context?.synth_mode as "off" | "prefer") ?? "off",
-                    )
+                    void commitSynthPin(sourceKey, itemId, synthId)
                   }
                   variants={synthItems}
                   onAddVariant={(sourceKey) =>
@@ -1105,7 +1116,7 @@ export function CvBuilder() {
                   onEditVariant={(variant) =>
                     setVariantEditor({ open: true, initial: variant, sourceKey: "" })
                   }
-                  busy={busy !== ""}
+                  onActivateVariant={(variant) => void activateVariant(variant)}
                 />
               )
             }
@@ -1193,7 +1204,7 @@ export function CvBuilder() {
             html={html}
             loading={previewLoading}
             pageSize={cv?.page_size}
-            pages={Number(metrics.estimated_pages) || 1}
+            pages={pages}
           />
         </div>
       </div>
@@ -1444,6 +1455,11 @@ export function CvBuilder() {
           defaultLanguage={cv.language}
           defaultSourceKey={variantEditor.sourceKey}
           busy={busy !== ""}
+          onActivate={async () => {
+            if (variantEditor.initial)
+              await activateVariant(variantEditor.initial);
+            setVariantEditor({ open: false, initial: null, sourceKey: "" });
+          }}
           onClose={() => setVariantEditor({ open: false, initial: null, sourceKey: "" })}
           onSubmit={saveVariant}
         />

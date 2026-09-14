@@ -234,23 +234,12 @@ describe("GenerateCvFlow", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("prefer-synth toggle sends synth_mode and shows the match hint", async () => {
-    previewSynthMatches.mockResolvedValue({
-      items: [],
-      total: 2,
-    });
+  it("the generate request carries no synth_mode (pins-only)", async () => {
     renderStudio("/cv?generate=1");
     await screen.findByTestId("cv-generate-submit");
-    fireEvent.click(screen.getByTestId("cv-generate-advanced"));
-    fireEvent.click(
-      screen.getByRole("switch", { name: "Prefer synthesized items" })
-    );
-    expect(
-      await screen.findByTestId("cv-generate-synth-hint")
-    ).toHaveTextContent("2 of your synthesized variants");
     fireEvent.click(screen.getByTestId("cv-generate-submit"));
     await waitFor(() => expect(generateCv).toHaveBeenCalledTimes(1));
-    expect(generateCv.mock.calls[0][0].context.synth_mode).toBe("prefer");
+    expect(generateCv.mock.calls[0][0].context.synth_mode).toBeUndefined();
   });
 
   it("opens the builder automatically when the run finishes (with variants)", async () => {

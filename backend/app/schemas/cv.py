@@ -62,17 +62,14 @@ class CvContextRef(BaseModel):
 class CvContextSelection(BaseModel):
     """Per-CV context selection: include-all-minus / none-plus / custom.
 
-    `synth_mode`: prefer = active synthesized variants matching this CV
-    swap their text in at resolution (before overrides); off = verbatim
-    profile text. Default off — existing CVs are byte-compatible.
-    `synth_pins` (plan 72 follow-up): per-item variant pinning —
-    `{"source_key:item_id": synth_id}`; a pin beats the automatic
-    `match_for_user` winner for that ref."""
+    `synth_pins`: per-item variant pinning — `{"source_key:item_id":
+    synth_id}`; a pinned variant's text swaps in at resolution for that
+    ref (before overrides). Unpinned items render verbatim profile text;
+    starred variants make the default for their item."""
 
     mode: Literal["all", "none", "custom"] = "all"
     include: list[CvContextRef] = Field(default_factory=list, max_length=500)
     exclude: list[CvContextRef] = Field(default_factory=list, max_length=500)
-    synth_mode: Literal["off", "prefer"] = "off"
     synth_pins: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("synth_pins")

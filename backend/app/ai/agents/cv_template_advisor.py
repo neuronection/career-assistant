@@ -43,10 +43,20 @@ def _mock_rank(schema: type, user_prompt: str) -> dict:
     ctx = parse_context(user_prompt)
     refs = [candidate["ref"] for candidate in (ctx.get("candidates") or [])]
     query = str(ctx.get("target") or "").lower()
-    ordered = [
+    sidebar_refs = {
+        candidate["ref"]
+        for candidate in (ctx.get("candidates") or [])
+        if str(candidate.get("layout") or "") == "sidebar"
+    }
+    hinted = "sidebar" in query or "modern" in query
+    ordered = []
+    if hinted:
+        ordered.extend(ref for ref in refs if ref in sidebar_refs)
+    ordered += [
         ref
         for ref in refs
-        if any(word in query for word in ("sidebar", "ats-safe", "classic"))
+        if ref not in ordered
+        and any(word in query for word in ("sidebar", "ats-safe", "classic"))
     ]
     ordered += [ref for ref in refs if ref not in ordered]
     return {
@@ -85,7 +95,9 @@ async def rank_templates(
             "The request may carry the user's emphasis notes (what this "
             "CV should highlight) and a target role: weigh both — e.g. "
             "an emphasis on projects or skills favors layouts that "
-            "surface them early. "
+            "surface them early. When it carries a layout_hint "
+            "(e.g. 'sidebar' from a 'modern' brief), candidates "
+            "matching it come first. "
             + (
                 "Page images ride along in candidate-ref order: judge the "
                 "actual look — density, hierarchy, use of the sidebar, "

@@ -84,7 +84,7 @@ async def test_empty_block_triggers_one_move_op(db):
     assert op.operation.block_index == 1
 
 
-async def test_page_budget_overrun_raises_fail_and_doc_option(db):
+async def test_page_budget_overrun_raises_fail_and_trim_op(db):
     lint = {
         "checks": [],
         "empty_blocks": [],
@@ -97,8 +97,29 @@ async def test_page_budget_overrun_raises_fail_and_doc_option(db):
         i for i in critique.issues if i.level == "fail" and i.area == "page_budget"
     )
     op = issue.suggested_ops[0]
-    assert op.operation.op == "set_doc_options"
-    assert op.operation.max_pages == 2
+    assert op.operation.op == "update_design", "densify first, never widen"
+    assert op.operation.design["base_size_pt"] >= 7
+    assert op.rationale
+
+
+async def test_page_budget_overrun_never_suggests_widening(db):
+    """The page budget is the user's constraint — no set_doc_options
+    raise; the fail carries a densify-then-trim suggestion."""
+    lint = {
+        "checks": [],
+        "empty_blocks": [],
+        "pages_actual_over_budget": True,
+        "pages_actual": 2,
+        "max_pages": 1,
+    }
+    critique = await _review(db, _context(lint=lint))
+    for issue in critique.issues:
+        for suggested in issue.suggested_ops:
+            op = suggested.operation
+            if op.op == "set_doc_options":
+                assert op.max_pages is None or int(op.max_pages) <= 1
+            if op.op == "update_design":
+                assert op.design, "the densify op carries real tokens"
 
 
 async def test_coverage_missing_suggests_include_selection_and_echo(db):
@@ -160,7 +181,8 @@ async def test_suggested_ops_round_trip_through_the_builder_union(db):
     critique = await _review(db, _context(lint=lint))
     ops = [s.operation for i in critique.issues for s in i.suggested_ops]
     kinds = {op.op for op in ops}
-    assert {"move_block", "set_doc_options"} <= kinds
+    assert {"move_block", "update_design"} <= kinds
+    assert "set_doc_options" not in kinds, "the budget never grows"
 
 
 def test_coverage_matrix_buckets_by_inclusion_and_drops():
@@ -186,3 +208,63 @@ def test_coverage_matrix_buckets_by_inclusion_and_drops():
     assert [ref.item_id for ref in matrix.dropped] == ["edu-1"]
     assert [ref.item_id for ref in matrix.missing] == ["skill-1"]
     assert matrix.model_dump()["missing"][0]["source_key"] == "skills"
+
+
+async def test_review_prompt_carries_variant_and_override_state(db, monkeypatch):
+    """The reviewer knows which items lean on a synthesized variant or a
+    manual override, plus block props (skills selection, ordering) —
+    per-round context discipline, plan 64."""
+    from app.ai.agents.context import parse_context
+    from app.ai.gateway import MOCK_FIXTURES
+    from app.ai.agents.cv_build_reviewer import review_build as _review_build
+
+    seen: dict[str, object] = {}
+
+    def _spy(schema, user_prompt):
+        seen.update(parse_context(user_prompt))
+        return {
+            "summary": "ok",
+            "issues": [],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    previous = MOCK_FIXTURES.get(AITaskType.CV_BUILD_REVIEW.value)
+    MOCK_FIXTURES[AITaskType.CV_BUILD_REVIEW.value] = _spy
+    try:
+        await _review_build(
+            db,
+            None,
+            template_summary="single density 9 0%",
+            lint=CLEAN_LINT,
+            coverage={"covered": [], "missing": [], "dropped": []},
+            blocks=[
+                {
+                    "kind": "skills",
+                    "area": "sidebar",
+                    "props": {
+                        "display": "chips",
+                        "max_items": 16,
+                        "selected": ["sk-1", "sk-2"],
+                    },
+                },
+                {"kind": "items", "props": {"source_key": "experience"}},
+            ],
+            page_count=1,
+            max_pages=1,
+            iteration=0,
+            synth_applied={"experience:exp-1": "syn-1"},
+            overrides={"experience:exp-1": ["description"]},
+        )
+    finally:
+        if previous is None:
+            MOCK_FIXTURES.pop(AITaskType.CV_BUILD_REVIEW.value, None)
+        else:
+            MOCK_FIXTURES[AITaskType.CV_BUILD_REVIEW.value] = previous
+
+    blocks = seen.get("blocks") or []
+    skills = next(b for b in blocks if b["kind"] == "skills")
+    assert skills["props"]["selected"] == ["sk-1", "sk-2"]
+    assert skills["props"]["display"] == "chips"
+    assert len(skills["props"]["selected"]) == 2
+    assert seen.get("synth_applied") == {"experience:exp-1": "syn-1"}
+    assert seen.get("override_fields") == {"experience:exp-1": ["description"]}

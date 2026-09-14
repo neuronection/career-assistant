@@ -33,7 +33,7 @@ from app.schemas.cv_assistant import CvBuilderTurn, OpResult
 from app.schemas.cv_template import DesignTokens, TemplateContent
 from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
 from app.services.cv_blocks import block_area
-from app.services.cv_pdf_service import html_to_pngs, pdf_engine_available
+from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
 from app.services.cv_themes import CV_THEMES, THEMES_BY_KEY
 
 SYSTEM = (
@@ -56,15 +56,13 @@ SYSTEM = (
     "icon_size_mm, show_photo, photo_shape, photo_size_mm, section_gap_mm, "
     "item_gap_mm). Hex colors look like #1d4ed8. Styling a bank template "
     "automatically customizes a private copy.\n"
-    "- set_context {mode, include[], exclude[], synth_mode?, synth_pins?} "
+    "- set_context {mode, include[], exclude[], synth_pins?} "
     "— select which profile items the CV uses; refs are {source_key, "
     "item_id} pairs from `sources`. Exclusions always win. Optionally "
-    'set the synth behavior: synth_mode "prefer" applies the best '
-    "matching synthesized variant inside each item, and synth_pins "
-    '({"source_key:item_id": synth_id} — omit or pass "" to unpin) '
-    "stars one variant as that item's default; a pinned variant applies "
-    "even with synth_mode off. Omit both keys to keep the current "
-    "setting.\n"
+    'star variants per item: synth_pins ({"source_key:item_id": '
+    'synth_id} — omit or pass "" to unpin) stars one variant as that '
+    "item's default; its text replaces the profile text at resolution. "
+    "Omit the key to keep the current stars.\n"
     "- set_doc_options {title, page_size, max_pages, language}.\n"
     "- add_block {kind, props, position} / remove_block {block_index} / "
     "move_block {block_index, to_index} / update_block_props {block_index, "
@@ -259,13 +257,50 @@ async def build_builder_context(db: AsyncSession, cv) -> dict:
 # ------------------------------------------------------------- operations
 
 
+def _int_field(annotation) -> bool:
+    import typing
+    from types import UnionType
+
+    if annotation is int:
+        return True
+    origin = typing.get_origin(annotation)
+    return origin in (typing.Union, UnionType) and int in (
+        typing.get_args(annotation) or ()
+    )
+
+
+def _float_field(annotation) -> bool:
+    import typing
+    from types import UnionType
+
+    if annotation is float:
+        return True
+    origin = typing.get_origin(annotation)
+    return origin in (typing.Union, UnionType) and float in (
+        typing.get_args(annotation) or ()
+    )
+
+
 def _design_candidate(current: dict, patch: dict) -> dict:
+    """Validate the model's patch against DesignTokens — lenient on
+    NUMBER voice (8.5 → 8, int → float), strict on token names — and
+    hand back a fully-validated token dump."""
     unknown = set(patch) - set(DesignTokens.model_fields)
     if unknown:
         raise ValidationError(
             "Unknown design token(s): " + ", ".join(sorted(str(key) for key in unknown))
         )
-    return {**current, **patch}
+    fields = DesignTokens.model_fields
+    candidate = {**current, **patch}
+    for key, value in patch.items():
+        if value is None or isinstance(value, bool):
+            continue
+        annotation = fields[key].annotation
+        if _int_field(annotation) and isinstance(value, float):
+            candidate[key] = int(round(value))
+        elif _float_field(annotation) and isinstance(value, int):
+            candidate[key] = float(value)
+    return DesignTokens.model_validate(candidate).model_dump(mode="json")
 
 
 async def _styled_template(
@@ -382,9 +417,6 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                 mode=op.mode,
                 include=[ref.model_dump(mode="json") for ref in op.include],
                 exclude=[ref.model_dump(mode="json") for ref in op.exclude],
-                synth_mode=(
-                    op.synth_mode if op.synth_mode is not None else existing.synth_mode
-                ),
                 synth_pins=(
                     {key: value for key, value in op.synth_pins.items() if value}
                     if op.synth_pins is not None
@@ -538,15 +570,15 @@ async def _critique_preview(
         resolved = None
     if resolved is None:
         return None, "no vision model configured for visual review"
-    if not pdf_engine_available():
-        return None, "no headless Chromium on this host for screenshots"
     builder = CvBuilderService(db)
-    html, _payload, _res, metrics = await builder.render_state(cv)
+    html, _payload, _res, _metrics = await builder.render_state(cv)
     template = await builder.template_row(cv)
     try:
-        images = await asyncio.wait_for(
-            html_to_pngs(html, page_size=cv.page_size), timeout=60
+        measure = await asyncio.wait_for(
+            measure_pages(html, page_size=cv.page_size), timeout=60
         )
+    except PDFEngineUnavailable:
+        return None, "no headless Chromium on this host for screenshots"
     except Exception as exc:  # noqa: BLE001 — degrade to lint-only
         return None, f"screenshot failed: {exc}"
     critique = await critique_pages(
@@ -555,8 +587,8 @@ async def _critique_preview(
         template_summary=template.title if template else "",
         lint=lint,
         max_pages=cv.max_pages,
-        page_count=max(1, metrics.estimated_pages),
-        images=images,
+        page_count=measure.pages or 1,
+        images=measure.images,
     )
     return critique, ""
 

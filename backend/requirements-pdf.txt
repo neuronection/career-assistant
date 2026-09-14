@@ -1,4 +1,9 @@
-# Optional server-side PDF engine for CV exports.
-# Install with:  pip install -r requirements-pdf.txt && playwright install chromium
-# When absent, PDF export degrades to the print-ready HTML view (503 -> client fallback).
+# Server-side PDF engine for CV exports (plan 76).
+# Install with:  pip install -r requirements-pdf.txt && playwright install chromium --only-shell
+# Dev:       scripts/run-dev.sh bootstraps this automatically.
+# Desktop:   Linux packages bundle the headless shell next to the executable
+#            (packaging/build-linux.sh); the Windows exe uses the system
+#            Edge/Chrome via Playwright channels.
+# Self-host: optional — without it, PDF export degrades to the print-ready
+#            HTML view (503 -> client fallback) and page counts stay estimates.
 playwright==1.62.0

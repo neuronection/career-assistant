@@ -54,8 +54,8 @@ PROGRESS_DRAFT_START = 30
 PROGRESS_DRAFT_END = 85
 PROGRESS_ASSEMBLE = 95
 
-POLISH_MAX_ITERATIONS = 3
-MAX_OPS_PER_ITERATION = 6
+POLISH_MAX_ITERATIONS = 6
+MAX_OPS_PER_ITERATION = 8
 
 DATA_URI_RE = re.compile(r"data:image/[^\"'\s)]+")
 
@@ -77,7 +77,13 @@ ITEM_TITLE = {
 }
 MAX_PLAN_ITEMS_PER_KIND = 30
 MAX_SYNTH_PROPOSALS = 3
-SYNTH_ITEM_SOURCES = ("experience", "education", "certifications")
+SYNTH_ITEM_SOURCES = (
+    "experience",
+    "education",
+    "certifications",
+    "projects",
+    "volunteer",
+)
 SYNTH_PROPOSAL_ACTIONS = ("posting_fit", "detail", "restyle")
 SYNTH_LENGTH_MAP = {"concise": "short", "standard": "medium", "detailed": "long"}
 DRAFT_RETRIES = 1
@@ -331,16 +337,15 @@ def make_collect_node(deps: GraphDeps):
     async def collect(state: CvDraftState) -> dict:
         """Deterministic: resolve the request's context + target brief.
 
-        Plan 69: in `prefer` synth mode, matched active variants swap
-        their text in before the digest is built — the LLM drafts from
-        the library, not from raw profile text."""
+        Pinned variants swap their text in before the digest is built —
+        the LLM drafts from the library, not from raw profile text."""
         if await _is_cancelled(deps):
             return {"abort_reason": "cancelled"}
         request = _request(state)
         selection = CvContextSelection.model_validate(request.context)
         resolution = await resolve(deps.db, UUID(state["user_id"]), selection)
         synth_applied: dict[str, str] = {}
-        if selection.synth_mode == "prefer" or selection.synth_pins:
+        if selection.synth_pins:
             from app.services.cv_synth_service import CvSynthService
 
             synth_applied = await CvSynthService(deps.db).apply_to_items(
@@ -348,7 +353,6 @@ def make_collect_node(deps: GraphDeps):
                 request.language,
                 request.target_posting_id,
                 resolution,
-                selection.synth_mode,
                 pins=selection.synth_pins,
             )
         items = []
@@ -1055,7 +1059,8 @@ def route_after_review(state: CvDraftState) -> str:
     lint = state.get("review_lint") or {}
     lint_fails = any(
         str(check.get("level")) == "fail" for check in lint.get("checks") or []
-    )
+    ) or bool(lint.get("pages_actual_over_budget"))
+    stale_stop = int(polish.get("stale_rounds") or 0) >= 2
     coverage = critique.get("coverage") or {}
     blocking = lint_fails or any(issue.get("level") == "fail" for issue in issues)
     missing = coverage.get("missing") or []
@@ -1068,7 +1073,9 @@ def route_after_review(state: CvDraftState) -> str:
         return "finalize"
     if iteration >= POLISH_MAX_ITERATIONS + (1 if pending_judgements else 0):
         return "finalize"
-    if not issues:
+    if stale_stop:
+        return "finalize"
+    if not blocking and not issues:
         return "finalize"
     return "fix"
 
@@ -1119,6 +1126,24 @@ async def _load_cv(deps: GraphDeps, state: CvDraftState):
     return row
 
 
+def _review_pages_truth(summary_lint: dict, page_count: int, max_pages: int) -> None:
+    """The review's own printed-PDF count overrides the lint page facts.
+
+    Chromium's printed pagination is the truth — margins and CSS print
+    fragmentation included; the renderer's line estimate drifts (dense
+    two-column layouts) and a flaked engine measure must not downgrade an
+    overflowing CV to 'fits'. When the count disagrees with the
+    per-lint measurement, the WORSE number stands — a tiny spillover
+    always fails the gate."""
+    if page_count <= 0:
+        return
+    measured = int(summary_lint.get("pages_actual") or 0)
+    pages = max(int(page_count), measured)
+    summary_lint["page_count_source"] = "engine"
+    summary_lint["pages_actual"] = pages
+    summary_lint["pages_actual_over_budget"] = pages > int(max_pages)
+
+
 def _summary_lint(lint: dict) -> dict:
     """The reviewer's compact lint facts (schema per plan §3 trace)."""
     checks = lint.get("checks") or []
@@ -1162,7 +1187,7 @@ def make_review_node(deps: GraphDeps):
         from app.ai.agents.cv_build_reviewer import review_build
         from app.services.cv_builder_service import CvBuilderService
         from app.services.cv_export_service import CvExportService
-        from app.services.cv_pdf_service import html_to_pngs, pdf_engine_available
+        from app.services.cv_pdf_service import measure_pages
 
         polish = dict(state.get("polish") or {})
         polish.setdefault("run", {})
@@ -1173,7 +1198,7 @@ def make_review_node(deps: GraphDeps):
         builder = CvBuilderService(deps.db)
         exporter = CvExportService(deps.db)
 
-        html, payload, _resolution, _metrics = await builder.render_state(cv)
+        html, payload, resolution, _metrics = await builder.render_state(cv)
         lint = await exporter.lint_report(cv)
         template_content, _template_id = await builder.template_content(cv)
         design = template_content.design
@@ -1183,13 +1208,19 @@ def make_review_node(deps: GraphDeps):
         )
         coverage = coverage_matrix_for(state, cv.working_content)
         summary_lint = _summary_lint(lint)
-        if pdf_engine_available():
-            try:
-                pages = list(await html_to_pngs(html, page_size=cv.page_size))
-            except Exception:  # noqa: BLE001 — PNG engine flakiness degrades
-                pages = []
-        else:
-            pages = []
+        override_summary = {
+            key: sorted(fields)
+            for key, fields in (
+                (cv.working_content or {}).get("overrides") or {}
+            ).items()
+            if isinstance(fields, dict) and fields
+        }
+        try:
+            measure = await measure_pages(html, page_size=cv.page_size)
+        except Exception:  # noqa: BLE001 — engine missing/flaky → lint-only facts
+            measure = None
+        measured_pages = measure.pages if measure is not None else 0
+        _review_pages_truth(summary_lint, measured_pages, int(request.max_pages))
 
         critique, review_audit = await review_build(
             deps.db,
@@ -1198,10 +1229,13 @@ def make_review_node(deps: GraphDeps):
             lint=summary_lint,
             coverage=coverage,
             blocks=payload.get("blocks") or [],
-            page_count=len(pages),
+            page_count=measured_pages,
             max_pages=int(request.max_pages),
             iteration=iteration,
-            images=pages or None,
+            images=(measure.images if measure is not None else None) or None,
+            notes=str(request.notes or ""),
+            synth_applied=dict(resolution.synth_applied or {}),
+            overrides=override_summary,
             run=_run_ref(state, "cv_draft.review"),
             with_ref=True,
         )
@@ -1211,7 +1245,7 @@ def make_review_node(deps: GraphDeps):
             "finished_at": _now_iso(),
             "summary": critique.summary,
             "lint": summary_lint,
-            "pages": len(pages),
+            "pages": measured_pages,
             "issues": [issue.model_dump(mode="json") for issue in critique.issues],
             "ops": [],
             "audit_ids": [],
@@ -1300,15 +1334,45 @@ def make_fix_node(deps: GraphDeps):
 
     from app.ai.agents.cv_builder_chat import apply_operation
 
-    async def _apply(db, cv, op_dict: dict) -> dict:
-        """Validate + apply one op; failures are logged, never raised."""
+    async def _apply(
+        db, cv, op_dict: dict, *, max_pages_cap: int | None = None
+    ) -> dict:
+        """Validate + apply one op; failures are logged, never raised.
+
+        `max_pages_cap` is the user's page budget: a polish-suggested
+        `set_doc_options` may adjust options but never raise the budget
+        above it — trim the content instead."""
         entry = {"op": "unknown", "ok": False, "detail": "not applied"}
         try:
             operation = op_parser.validate_python(dict(op_dict))
+            if (
+                max_pages_cap is not None
+                and operation.op == "set_doc_options"
+                and operation.max_pages is not None
+                and int(operation.max_pages) > max_pages_cap
+            ):
+                entry = {
+                    "op": operation.op,
+                    "ok": False,
+                    "detail": (
+                        f"rejected: the page budget stays {max_pages_cap} — "
+                        "trim content instead"
+                    ),
+                }
+                return entry
             result = await apply_operation(db, cv, operation)
+            if not result.ok:
+                try:
+                    await db.refresh(cv)
+                except Exception:  # noqa: BLE001 — a stale row reloads lazily
+                    pass
             entry = {"op": operation.op, "ok": result.ok, "detail": result.detail[:200]}
         except Exception as exc:  # noqa: BLE001 — a rejected op never blocks
             logger.warning("polish op rejected: %s", exc)
+            try:
+                await db.refresh(cv)
+            except Exception:  # noqa: BLE001 — a stale row reloads lazily
+                pass
             entry = {
                 "op": str((op_dict or {}).get("op")),
                 "ok": False,
@@ -1357,6 +1421,33 @@ def make_fix_node(deps: GraphDeps):
             "verdict": verdict,
             "synth_item_id": pending.get("synth_item_id"),
         }
+        if (
+            verdict == "kept"
+            and pending.get("synth_item_id")
+            and pending.get("source_key") not in ("", None)
+        ):
+            try:
+                from app.schemas.cv import CvContextSelection
+                from app.schemas.cv_synth import CvSynthItemUpdate
+                from app.services.cv_synth_service import CvSynthService
+
+                selection = (
+                    CvContextSelection.model_validate(cv.context)
+                    if cv.context
+                    else CvContextSelection()
+                )
+                selection.synth_pins[f"{pending['source_key']}:{item_id}"] = str(
+                    pending["synth_item_id"]
+                )
+                cv.context = selection.model_dump(mode="json")
+                await CvSynthService(deps.db).update(
+                    UUID(str(pending["synth_item_id"])),
+                    UUID(state["user_id"]),
+                    CvSynthItemUpdate(status="active"),
+                )
+                record["activated"] = True
+            except Exception as exc:  # noqa: BLE001 — activation is best-effort
+                logger.warning("cv_draft kept variant activation skipped: %s", exc)
         if still_flagged and pending.get("previous_text") is not None:
             await _apply(
                 deps.db,
@@ -1397,11 +1488,21 @@ def make_fix_node(deps: GraphDeps):
             ],
             action="restyle",
             language=cv.language or "en",
+            length="short",
         )
+        ref_key = f"{candidate['source_key']}:{candidate['item_id']}"
+        base_text = str(
+            ((cv.working_content or {}).get("overrides") or {})
+            .get(ref_key, {})
+            .get("description")
+            or ""
+        )
+        base_texts = {tuple(ref_key.split(":", 1)): base_text} if base_text else None
         rows = await CvSynthService(db).generate(
             UUID(state["user_id"]),
             request,
             run=_run_ref(state, "cv_synth"),
+            base_texts=base_texts,
         )
         if not rows:
             return None
@@ -1594,7 +1695,10 @@ def make_fix_node(deps: GraphDeps):
                     break
                 applied += 1
                 entry = await _apply(
-                    deps.db, cv, dict(suggested.get("operation") or {})
+                    deps.db,
+                    cv,
+                    dict(suggested.get("operation") or {}),
+                    max_pages_cap=int(_request(state).max_pages),
                 )
                 iterations = polish.get("iterations") or []
                 if iterations:
@@ -1609,10 +1713,37 @@ def make_fix_node(deps: GraphDeps):
                         "version": template_row.version,
                     }
                 )
+        last = polish.get("iterations") or []
+        effective = 0
+        if last:
+            last = last[-1]
+            effective = sum(
+                1
+                for entry in (last.get("ops") or [])
+                if entry.get("ok") or entry.get("detail") == "applied"
+            )
+        no_progress = effective == 0 and applied > 0
+        if no_progress:
+            polish["stale_rounds"] = int(polish.get("stale_rounds") or 0) + 1
+        else:
+            polish["stale_rounds"] = 0
+        if no_progress and int(polish.get("stale_rounds") or 0) >= 2:
+            _trace_stage(
+                polish, "fix", "stale — the applier keeps rejecting; capping here"
+            )
+        new_warnings: list[str] = []
         if applied < MAX_OPS_PER_ITERATION and not polish.get("variant_pending"):
-            pending = await _new_variant(deps.db, state, cv)
+            try:
+                pending = await _new_variant(deps.db, state, cv)
+            except Exception as exc:  # noqa: BLE001 — grounding never fails the run
+                logger.warning("cv_draft polish variant grounding skipped: %s", exc)
+                new_warnings.append(f"Variant grounding skipped: {str(exc)[:120]}")
+                pending = None
             if pending:
                 polish["variant_pending"] = pending
+        if new_warnings:
+            warnings = list(state.get("warnings") or []) + new_warnings
+            polish["warnings"] = warnings
         await deps.db.commit()
         _trace_stage(polish, "fix", f"applied {applied} op(s)")
         await _report(
@@ -1622,9 +1753,48 @@ def make_fix_node(deps: GraphDeps):
         )
         await _mirror_job_result(deps, state, polish)
         await deps.db.commit()
-        return {"polish": polish}
+        return {"polish": polish, **({"warnings": warnings} if new_warnings else {})}
 
     return fix
+
+
+async def _star_groundings(db, cv, state, proposals: list[dict]) -> None:
+    """Auto-star the run's grounded gap variants (best-effort).
+
+    A completed run's review accepted the CV as drafted — including the
+    grounded variant texts — so the same variant stays the item's
+    default on this CV for future runs: activate the draft rows and
+    write their pins into the CV's `synth_pins`."""
+    from app.schemas.cv import CvContextSelection
+    from app.schemas.cv_synth import CvSynthItemUpdate
+
+    from app.services.cv_synth_service import CvSynthService
+
+    try:
+        selection = (
+            CvContextSelection.model_validate(cv.context)
+            if cv.context
+            else CvContextSelection()
+        )
+        service = CvSynthService(db)
+        user_id = UUID(state["user_id"])
+        for proposal in proposals:
+            source_key = str(proposal.get("source_key") or "")
+            item_id = str(proposal.get("item_id") or "")
+            synth_id = str(proposal.get("synth_item_id") or "")
+            if not source_key or not item_id or not synth_id:
+                continue
+            try:
+                await service.update(
+                    UUID(synth_id), user_id, CvSynthItemUpdate(status="active")
+                )
+            except Exception as exc:  # noqa: BLE001 — star what applied
+                logger.warning("cv_draft gap variant activation skipped: %s", exc)
+            selection.synth_pins[f"{source_key}:{item_id}"] = synth_id
+        if selection.synth_pins:
+            cv.context = selection.model_dump(mode="json")
+    except Exception as exc:  # noqa: BLE001 — starring never fails the run
+        logger.warning("cv_draft gap variant starring skipped: %s", exc)
 
 
 def make_finalize_node(deps: GraphDeps):
@@ -1653,17 +1823,24 @@ def make_finalize_node(deps: GraphDeps):
         if outcome.get("status") not in ("cancelled",):
             review_lint = state.get("review_lint") or {}
             failed = (
-                (review_lint.get("checks") or [])
-                and any(
+                any(
                     str(check.get("level")) == "fail"
                     for check in review_lint.get("checks") or []
                 )
+                or bool(review_lint.get("pages_actual_over_budget"))
             ) or any(
                 issue.get("level") == "fail"
                 for issue in (state.get("critique") or {}).get("issues") or []
             )
             polish.setdefault("outcome", {})
             polish["outcome"] = polish_outcome("cap" if failed else "completed")
+            groundings = list(state.get("synth_proposed") or [])
+            if groundings:
+                await _star_groundings(deps.db, cv, state, groundings)
+                polish["synth_starred"] = [
+                    f"{proposal.get('source_key')}:{proposal.get('item_id')}"
+                    for proposal in groundings
+                ]
         polish["request"] = _public_request(_request(state))
         polish["final"] = {
             "finished_at": _now_iso(),

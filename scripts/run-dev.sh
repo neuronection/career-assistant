@@ -108,6 +108,22 @@ dc_migrate() {
   (cd backend && PYTHONPATH="$(pwd)" alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
 }
 
+dc_ensure_pdf_engine() {
+  # Plan 76: dev parity with the desktop bundles — the printed-PDF page
+  # count (polish gate, lint, export) needs playwright + the Chromium
+  # headless shell. Offline-tolerant: degrade with a warning, never block.
+  dc_step "ensuring the PDF engine (playwright + chromium headless shell)"
+  if ! "$VENV_DIR/bin/python" -c "import playwright" >/dev/null 2>&1; then
+    "$VENV_DIR/bin/pip" install -q -r backend/requirements-pdf.txt \
+      || { dc_warn "playwright install failed — PDF export/page counts degrade to estimates"; return 0; }
+  fi
+  if ls "$HOME/.cache/ms-playwright"/chromium_headless_shell-* >/dev/null 2>&1; then
+    return 0
+  fi
+  "$VENV_DIR/bin/playwright" install chromium --only-shell \
+    || dc_warn "chromium download failed — PDF export/page counts degrade to estimates (offline?)"
+}
+
 dc_reset_db() {
   dc_kill_port "$BACKEND_PORT"
   dc_kill_port "$FRONTEND_PORT"
@@ -126,6 +142,7 @@ fi
 
 dc_start_dev_db
 dc_migrate
+dc_ensure_pdf_engine
 
 dc_step "seeding taxonomy + starter job catalog (idempotent)"
 bash scripts/seed.sh || dc_die "seeding failed — see output above"

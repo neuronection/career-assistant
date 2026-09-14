@@ -81,6 +81,7 @@ function makeProfile(): Profile {
       city: "Athens",
       email: "",
       phone: "",
+      full_name: "Test User",
       headline: "",
     },
     academics: {

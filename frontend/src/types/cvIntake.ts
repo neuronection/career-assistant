@@ -25,6 +25,7 @@ export interface ExtractedBasics {
 }
 
 export interface ExistingBasics {
+  full_name: string;
   email: string;
   phone: string;
   headline: string;

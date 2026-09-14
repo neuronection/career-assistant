@@ -1311,16 +1311,6 @@ describe("CvBuilder", () => {
     ]);
   });
 
-  it("toggles the per-CV prefer-synth preference (plan 62)", async () => {
-    renderBuilder();
-    const toggle = await screen.findByTestId("context-synth-prefer");
-    expect(toggle).not.toBeChecked();
-    fireEvent.click(toggle);
-    await waitFor(() => expect(setContext).toHaveBeenCalled());
-    const body = setContext.mock.calls[setContext.mock.calls.length - 1][1];
-    expect(body.synth_mode).toBe("prefer");
-    expect(await screen.findByTestId("context-synth-prefer")).toBeChecked();
-  });
 
   it("filters context items through the search box", async () => {
     renderBuilder();
@@ -2026,5 +2016,60 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     expect(
       await screen.findByTestId("synth-editor-description-input"),
     ).toBeInTheDocument();
+  });
+
+  it("marks draft variants in the tree and activates them inline", async () => {
+    const draft = {
+      id: "syn-1",
+      scope: "item",
+      variant_key: "tailored",
+      target_posting_id: null,
+      source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+      source_state: [],
+      payload: { description: "Drafted by the polish run" },
+      voice: { language: "en" },
+      status: "draft",
+      source: "ai",
+      verified: true,
+      stale: false,
+      orphaned: false,
+      last_used_at: null,
+      created_at: "",
+    };
+    fetchSynthItems.mockResolvedValue([draft]);
+    patchSynthItem.mockImplementation(async () => ({
+      ...draft,
+      status: "active",
+    }));
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    expect(await screen.findByTestId("context-variant-draft")).toBeTruthy();
+    fireEvent.click(await screen.findByTestId("context-variant-activate-syn-1"));
+    await waitFor(() =>
+      expect(patchSynthItem).toHaveBeenCalledWith("syn-1", { status: "active" }),
+    );
+    await waitFor(() => expect(fetchSynthItems.mock.calls.length).toBe(2));
+    expect(screen.getByTestId("undo-notice-host")).toBeTruthy();
+  });
+});
+
+describe("CvBuilder — measured pages override the estimate", () => {
+  it("prefers lint's measured page count over the renderer estimate", async () => {
+    fetchLint.mockResolvedValue({
+      ...lint,
+      metrics: {
+        ...lint.metrics,
+        pages_actual: 2,
+        pages_actual_over_budget: true,
+      },
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    const toolbar = await screen.findByTestId("builder-toolbar");
+    await waitFor(() =>
+      expect(toolbar.textContent).toMatch(/~2\/1 page/),
+    );
   });
 });

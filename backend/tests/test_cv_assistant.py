@@ -19,7 +19,12 @@ from app.schemas.cv_assistant import (
 )
 from app.seeds.cv_templates import seed_cv_template_bank
 from app.services.cv_builder_service import CvBuilderService
+from app.services.cv_pdf_service import PDFEngineUnavailable
 from app.services.cv_service import CvService
+
+
+async def _raise_engine_unavailable(*_args, **_kwargs):
+    raise PDFEngineUnavailable("Server PDF engine not installed")
 
 
 def _parse_sse(text: str) -> list[tuple[str, dict]]:
@@ -283,7 +288,8 @@ async def test_assistant_turn_stream_applies_ops(
     client, db, auth_headers, profile_ready, monkeypatch
 ):
     monkeypatch.setattr(
-        "app.ai.agents.cv_builder_chat.pdf_engine_available", lambda: False
+        "app.ai.agents.cv_builder_chat.measure_pages",
+        _raise_engine_unavailable,
     )
     await _seed_bank(db)
     cv, cv_json = await _owned_cv(db, client, auth_headers)
@@ -429,7 +435,8 @@ async def test_builder_session_edit_keeps_copilot(
 ):
     """Edit-and-resend rides the same turn flow — copilot ops included."""
     monkeypatch.setattr(
-        "app.ai.agents.cv_builder_chat.pdf_engine_available", lambda: False
+        "app.ai.agents.cv_builder_chat.measure_pages",
+        _raise_engine_unavailable,
     )
     await _seed_bank(db)
     _cv, cv_json = await _owned_cv(db, client, auth_headers)
@@ -488,7 +495,8 @@ async def test_visual_review_degrades_without_chromium(
     await _seed_bank(db)
     _cv, cv_json = await _owned_cv(db, client, auth_headers)
     monkeypatch.setattr(
-        "app.ai.agents.cv_builder_chat.pdf_engine_available", lambda: False
+        "app.ai.agents.cv_builder_chat.measure_pages",
+        _raise_engine_unavailable,
     )
     session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
     response = await client.post(
@@ -516,7 +524,8 @@ async def test_builder_session_sync_turn(
 ):
     """Non-streaming turns on builder sessions run the copilot too."""
     monkeypatch.setattr(
-        "app.ai.agents.cv_builder_chat.pdf_engine_available", lambda: False
+        "app.ai.agents.cv_builder_chat.measure_pages",
+        _raise_engine_unavailable,
     )
     await _seed_bank(db)
     cv, cv_json = await _owned_cv(db, client, auth_headers)
@@ -626,3 +635,27 @@ async def test_ops_endpoint_is_owner_scoped(client, db, auth_headers):
         headers=other,
     )
     assert response.status_code == 404, response.text
+
+
+def test_design_patch_coerces_the_models_number_voice():
+    """The reviewer's densify op with `base_size_pt: 8.5` validates —
+    fraction floats round to the int token; int floats widen to float
+    — instead of being rejected every polish round."""
+    import pytest
+    from pydantic import ValidationError
+
+    from app.schemas.cv_template import DesignTokens
+
+    from app.ai.agents.cv_builder_chat import _design_candidate
+
+    base = DesignTokens().model_dump(mode="json")
+    candidate = _design_candidate(
+        base, {"base_size_pt": 8.5, "spacing_scale": 0.9, "item_gap_mm": 1}
+    )
+    tokens = DesignTokens.model_validate(candidate)
+    assert tokens.base_size_pt == 8, (
+        "8.5 rounds down — banker's rounding, still compact"
+    )
+    assert tokens.spacing_scale == 0.9 and tokens.item_gap_mm == 1
+    with pytest.raises(ValidationError):
+        _design_candidate(base, {"base_size_pt": "big"})

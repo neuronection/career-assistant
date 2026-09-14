@@ -1,6 +1,6 @@
 """— CV synth copilot tools (plan 62.4): registry reads vs writes,
-ownership enforcement, per-CV applicability verdicts, and the
-generate / update / enable write paths."""
+ownership enforcement, per-CV applicability verdicts (pins-only), and
+the generate / update write paths."""
 
 import base64
 import json
@@ -56,7 +56,7 @@ async def _item_and_active_variant(client, db, auth_headers):
     return item, row
 
 
-async def _cv_with_synth(client, auth_headers, db, *, synth_mode: str) -> dict:
+async def _cv(client, auth_headers, db, *, pins: dict | None = None) -> dict:
     cv = (
         await client.post(
             "/api/v1/cv",
@@ -66,10 +66,14 @@ async def _cv_with_synth(client, auth_headers, db, *, synth_mode: str) -> dict:
     ).json()
     await client.put(
         f"/api/v1/cv/{cv['id']}/context",
-        json={"mode": "all", "synth_mode": synth_mode},
+        json={"mode": "all", "synth_pins": pins or {}},
         headers=auth_headers,
     )
     return cv
+
+
+def _pin_for(item) -> dict:
+    return {"experience:" + str(item.id): None}
 
 
 async def test_no_delete_tool_and_scope_split():
@@ -81,7 +85,9 @@ async def test_no_delete_tool_and_scope_split():
     assert listed["cv_synth_read"]["scope"] == ToolScope.READ.value
     assert listed["cv_synth_generate"]["scope"] == ToolScope.WRITE.value
     assert listed["cv_synth_update"]["scope"] == ToolScope.WRITE.value
-    assert listed["cv_synth_enable"]["scope"] == ToolScope.WRITE.value
+    assert "cv_synth_enable" not in listed, (
+        "synth_mode is gone — per-item pins are the only mechanism"
+    )
 
 
 async def test_list_requires_user(db):
@@ -91,32 +97,34 @@ async def test_list_requires_user(db):
         await run_tool(db, "cv_synth_list", None)
 
 
-async def test_list_verdicts_against_cv(client, db, auth_headers):
+async def test_list_verdicts_not_pinned(client, db, auth_headers):
     from tests.test_cv_synth_resolution import (
-        _cv_with_synth,
+        _cv_with_pins,
         _item_and_active_variant,
     )
 
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="off")
+    cv = await _cv_with_pins(client, auth_headers, db)
     result = await run_tool(
         db, "cv_synth_list", uuid.UUID(_uid(auth_headers)), {"cv_id": str(cv["id"])}
     )
     rows = {row["id"]: row for row in result["items"]}
-    assert rows[variant["id"]]["verdict"] == "mode_off", (
-        "active variant exists but the CV's synth_mode is off"
+    assert rows[variant["id"]]["verdict"] == "not_pinned", (
+        "active variant exists but no star pins it on this CV"
     )
     del item
 
 
-async def test_list_applies_after_enable(client, db, auth_headers):
+async def test_list_applies_when_starred(client, db, auth_headers):
     from tests.test_cv_synth_resolution import (
-        _cv_with_synth,
+        _cv_with_pins,
         _item_and_active_variant,
     )
 
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
+    )
     result = await run_tool(
         db, "cv_synth_list", uuid.UUID(_uid(auth_headers)), {"cv_id": str(cv["id"])}
     )
@@ -127,12 +135,14 @@ async def test_list_applies_after_enable(client, db, auth_headers):
 
 async def test_list_language_mismatch_verdict(client, db, auth_headers):
     from tests.test_cv_synth_resolution import (
-        _cv_with_synth,
+        _cv_with_pins,
         _item_and_active_variant,
     )
 
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
+    )
     await client.patch(
         f"/api/v1/cv/{cv['id']}",
         json={"language": "fr"},
@@ -147,10 +157,10 @@ async def test_list_language_mismatch_verdict(client, db, auth_headers):
 
 
 async def test_generate_and_update_via_tools(client, db, auth_headers):
-    from tests.test_cv_synth_resolution import _cv_with_synth
+    from tests.test_cv_synth_resolution import _cv_with_pins
 
     item = await _item(db, _uid(auth_headers))
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    cv = await _cv_with_pins(client, auth_headers, db)
     generated = await run_tool(
         db,
         "cv_synth_generate",
@@ -172,24 +182,3 @@ async def test_generate_and_update_via_tools(client, db, auth_headers):
         {"item_id": draft["id"], "status": "active"},
     )
     assert updated["status"] == "active"
-
-
-async def test_enable_flips_synth_mode(client, db, auth_headers):
-    from tests.test_cv_synth_resolution import _cv_with_synth
-
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="off")
-    result = await run_tool(
-        db,
-        "cv_synth_enable",
-        uuid.UUID(_uid(auth_headers)),
-        {"cv_id": str(cv["id"]), "mode": "prefer"},
-    )
-    assert result["synth_mode"] == "prefer"
-    refreshed = (
-        await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)
-    ).json()
-    assert refreshed["context"]["synth_mode"] == items_mode(refreshed)
-
-
-def items_mode(cv: dict) -> str:
-    return cv["context"].get("synth_mode") or "off"

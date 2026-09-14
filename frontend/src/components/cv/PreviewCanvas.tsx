@@ -6,6 +6,14 @@ const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const PAGE_WIDTHS_PX = { a4: 794, letter: 816 } as const;
 const PAGE_HEIGHTS_PX = { a4: 1123, letter: 1056 } as const;
 
+/** The preview frame pans through the canvas viewport; the iframe's own
+ * document must never grow its own scrollbar (double-scrollbar bug). */
+function frameDocument(html: string): string {
+  return /<\/head>/i.test(html)
+    ? html.replace(/<\/head>/i, "<style>html, body { overflow: hidden; }</style></head>")
+    : html;
+}
+
 type PageSize = keyof typeof PAGE_WIDTHS_PX;
 type ZoomMode = "fit" | "manual";
 
@@ -88,8 +96,9 @@ export function PreviewCanvas({
         >
           <iframe
             title="CV preview"
-            srcDoc={html}
+            srcDoc={frameDocument(html)}
             sandbox=""
+            scrolling="no"
             style={{ height: `${pageCount * pageHeightPx}px` }}
             className="w-full rounded border border-[var(--as-border)] bg-white"
             data-testid="preview-frame"

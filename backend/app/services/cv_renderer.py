@@ -191,6 +191,7 @@ class RenderMetrics:
     estimated_lines: int = 0
     lines_per_page: int = 0
     estimated_pages: int = 1
+    max_pages: int = 1
     empty_blocks: list[str] = field(default_factory=list)
     truncated: int = 0
     overflow: bool = False
@@ -882,7 +883,13 @@ h2 {{ font-family: {heading_font}; font-size: {round(base * 1.15, 2)}pt; color: 
      }}
 .icn {{ width: {design.icon_size_mm}mm; height: {design.icon_size_mm}mm; vertical-align: -0.6mm; margin-right: 1mm; }}
 .contact-icons .cpi {{ margin-right: 3mm; white-space: nowrap; }}
-.contact-icons .cpi.lnk {{ white-space: normal; word-break: break-all; }}
+.contact-icons .cpi.lnk {{ display: inline-block; max-width: 100%;
+     vertical-align: bottom; white-space: nowrap;
+     overflow: hidden; text-overflow: ellipsis; }}
+.contact .cpi {{ white-space: nowrap; }}
+.contact .cpi.lnk {{ display: inline-block; max-width: 100%;
+     vertical-align: bottom; overflow: hidden;
+     text-overflow: ellipsis; }}
 ul.items.items-timeline {{ padding-left: 5mm; position: relative; }}
 ul.items.items-timeline > li {{ position: relative; padding-left: 4mm;
      {"margin-bottom: " + str(design.item_gap_mm) + "mm;" if design.item_gap_mm is not None else "margin-bottom: calc(0.6em * var(--spacing));"} }}
@@ -1039,6 +1046,7 @@ def render_cv(
         e[2] for e in sidebar_entries
     )
     metrics.estimated_pages = _page_estimate()
+    metrics.max_pages = max_pages
     metrics.overflow = metrics.estimated_pages > max_pages
 
     shrink = 1.0

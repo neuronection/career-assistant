@@ -43,7 +43,7 @@ def _uid_of(headers) -> str:
     return str(json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))["sub"])
 
 
-async def _cv(client, auth_headers, *, synth_mode="off") -> dict:
+async def _cv(client, auth_headers, *, pins: dict | None = None) -> dict:
     cv = (
         await client.post(
             "/api/v1/cv",
@@ -53,7 +53,7 @@ async def _cv(client, auth_headers, *, synth_mode="off") -> dict:
     ).json()
     await client.put(
         f"/api/v1/cv/{cv['id']}/context",
-        json={"mode": "all", "synth_mode": synth_mode},
+        json={"mode": "all", "synth_pins": pins or {}},
         headers=auth_headers,
     )
     return cv
@@ -218,13 +218,17 @@ async def test_synth_items_hidden_without_variants(client, auth_headers):
     assert "Highlights</h2>" not in preview["html"]
 
 
-async def test_synth_items_prefer_mode_excludes_overlay_applied(
+async def test_synth_items_starred_variant_excludes_overlay_applied(
     client, db, auth_headers
 ):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    await _create_variant(client, auth_headers, [item])
-    cv = await _cv(client, auth_headers, synth_mode="prefer")
+    variant = await _create_variant(client, auth_headers, [item])
+    cv = await _cv(
+        client,
+        auth_headers,
+        pins={"experience:" + str(item.id): variant["id"]},
+    )
     await _set_blocks(
         client,
         auth_headers,

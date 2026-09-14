@@ -338,8 +338,10 @@ async def test_translate_creates_language_sibling(client, db, auth_headers):
     assert match is not None
 
 
-async def test_out_of_allowlist_items_dropped(client, db, auth_headers):
-    """The honesty gate: AI items citing other refs never persist."""
+async def test_invalid_citation_falls_back_to_request_refs(client, db, auth_headers):
+    """The model citing nothing/other refs never severs the link: on a
+    single-ref request the row persists under the authoritative request
+    refs (unverified — the citation produced no usable evidence)."""
     from app.services.cv_synth_service import CvSynthService
 
     item = (await _make_items(db, _uid(auth_headers)))[0]
@@ -360,7 +362,7 @@ async def test_out_of_allowlist_items_dropped(client, db, auth_headers):
                         "item_id": "00000000-0000-0000-0000-000000000000",
                     }
                 ],
-                payload=CvSynthPayload(description="Invented item"),
+                payload=CvSynthPayload(description="Invented ref, grounded text"),
                 evidence_refs=[],
             )
         ]
@@ -373,7 +375,95 @@ async def test_out_of_allowlist_items_dropped(client, db, auth_headers):
         context={("experience", str(item.id)): {}},
         language="en",
     )
-    assert rows == [], "out-of-allowlist refs are dropped, never silently trusted"
+    assert len(rows) == 1
+    row = rows[0]
+    assert [dict(ref) for ref in row.source_refs] == _refs(item), (
+        "source refs stay the authoritative request refs"
+    )
+    assert row.verified is False, "no usable citation → unverified"
+    assert row.payload["description"], "the grounded text still lands"
+
+
+async def test_valid_citation_subset_is_kept_verbatim(client, db, auth_headers):
+    """A citation inside the allowlist persists as the model wrote it."""
+    from app.schemas.cv_synth import CvSynthPayload
+    from app.services.cv_synth_service import CvSynthService
+
+    items = await _make_items(db, _uid(auth_headers), count=2)
+    service = CvSynthService(db)
+    request = CvSynthItemGenerate(
+        refs=[{"source_key": "experience", "item_id": str(i.id)} for i in items],
+        action="summarize",
+        scope="item",
+    )
+    batch = CvSynthBatch(
+        items=[
+            CvSynthDraft(
+                refs=[
+                    {"source_key": "experience", "item_id": str(items[0].id)},
+                    {
+                        "source_key": "experience",
+                        "item_id": "00000000-0000-0000-0000-000000000000",
+                    },
+                ],
+                payload=CvSynthPayload(description="Grounded text"),
+                evidence_refs=[
+                    {"source_key": "experience", "item_id": str(items[0].id)}
+                ],
+            )
+        ]
+    )
+    rows = await service._persist_batch(
+        uuid.UUID(_uid(auth_headers)),
+        request,
+        batch,
+        refs=[{"source_key": "experience", "item_id": str(i.id)} for i in items],
+        context={("experience", str(i.id)): {} for i in items},
+        language="en",
+    )
+    assert len(rows) == 1
+    assert [dict(ref) for ref in rows[0].source_refs] == [
+        {"source_key": "experience", "item_id": str(items[0].id)}
+    ], "the bogus citation is cut, the valid one kept"
+    assert rows[0].verified is True
+    assert [dict(ref) for ref in rows[0].evidence_refs] == [
+        {"source_key": "experience", "item_id": str(items[0].id)}
+    ]
+
+
+async def test_ambiguous_multi_ref_citation_dropped(client, db, auth_headers):
+    """A multi-ref request whose item cites only out-of-allowlist refs
+    has no resolvable target — the row never persists."""
+    from app.schemas.cv_synth import CvSynthPayload
+    from app.services.cv_synth_service import CvSynthService
+
+    items = await _make_items(db, _uid(auth_headers), count=2)
+    service = CvSynthService(db)
+    refs = [{"source_key": "experience", "item_id": str(i.id)} for i in items]
+    request = CvSynthItemGenerate(refs=refs, action="summarize", scope="item")
+    batch = CvSynthBatch(
+        items=[
+            CvSynthDraft(
+                refs=[
+                    {
+                        "source_key": "experience",
+                        "item_id": "00000000-0000-0000-0000-000000000000",
+                    }
+                ],
+                payload=CvSynthPayload(description="Invented item"),
+                evidence_refs=[],
+            )
+        ]
+    )
+    rows = await service._persist_batch(
+        uuid.UUID(_uid(auth_headers)),
+        request,
+        batch,
+        refs=refs,
+        context={("experience", str(i.id)): {} for i in items},
+        language="en",
+    )
+    assert rows == []
 
 
 async def test_textless_batch_dropped(client, db, auth_headers):
@@ -401,3 +491,35 @@ async def test_textless_batch_dropped(client, db, auth_headers):
         language="en",
     )
     assert rows == []
+
+
+async def test_generate_base_texts_ground_on_caller_current_text(
+    client, db, auth_headers, monkeypatch
+):
+    """The polish loop's compaction rounds ground from the CV's current
+    rendered text (`base_texts`), not the raw profile item — prior
+    tailoring carries through the restyle."""
+    import app.ai.agents.cv_synthetizer as synthetizer
+
+    item = (await _make_items(db, _uid(auth_headers)))[0]
+    seen: dict[str, str] = {}
+    real = synthetizer.ainvoke_structured
+
+    async def _spy(*args, **kwargs):
+        seen["user"] = kwargs.get("user") or (args and args[1]) or ""
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(synthetizer, "ainvoke_structured", _spy)
+    from app.services.cv_synth_service import CvSynthService
+
+    service = CvSynthService(db)
+    rows = await service.generate(
+        uuid.UUID(_uid(auth_headers)),
+        CvSynthItemGenerate(refs=_refs(item), action="restyle"),
+        base_texts={
+            ("experience", str(item.id)): "Base text — Application support for ICT"
+        },
+    )
+    assert rows and "Base text — Application support for ICT" in seen["user"], (
+        "the grounding evidence carries the caller's base text"
+    )

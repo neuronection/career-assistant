@@ -1094,6 +1094,7 @@
     "now": "now",
     "contactDetails": "Contact details",
     "basicsField": {
+      "full_name": "Full name",
       "headline": "Headline",
       "email": "Email",
       "phone": "Phone",
@@ -1248,6 +1249,9 @@
   "profileSection": {
     "basics": "Basics",
     "basicsBody": "How you introduce yourself — this feeds CV exports.",
+    "name": "Full name",
+    "namePlaceholder": "Your full name",
+    "nameHint": "Used as the account name and the CV header name.",
     "stageQuestion": "Where are you in your career right now?",
     "headline": "Headline",
     "headlinePlaceholder": "e.g. Aspiring data engineer",
@@ -2201,7 +2205,7 @@
       "manual": "Manual"
     },
     "activate": "Use it",
-    "activated": "Variant activated — it now renders in matching CVs with 'prefer synthesized' on.",
+    "activated": "Variant activated — star it on a CV to make it that item's text there.",
     "archive": "Archive",
     "archived": "Variant archived.",
     "regenerate": "Regenerate",
@@ -2215,6 +2219,7 @@
     "deleted": "Variant deleted.",
     "stale": "Source changed",
     "orphaned": "Source gone",
+    "basedOn": "Based on",
     "generated": "Variant drafts created — review them below.",
     "emptyTitle": "No synthesized variants yet",
     "emptyBody": "Generate a variant for one of your profile items from CV Studio's context panel or here once items exist.",
@@ -2231,6 +2236,8 @@
       "editTitle": "Edit variant",
       "refsLabel": "Based on profile items",
       "refsReadonly": "The items this variant is based on are fixed after creation.",
+      "refChipRemove": "Remove linked item",
+      "draftHint": "This variant is a draft — activate it to make it eligible for a star.",
       "refsCap": "Up to {{count}} items per variant.",
       "noRefs": "Record profile items first.",
       "textLabel": "Description text",
@@ -2245,9 +2252,9 @@
       "postingAny": "All CVs (generic)",
       "create": "Create variant",
       "supersedeHint": "Activating this variant replaces the active variant for the same items and key.",
-      "subtitle": "Write tailored text once — it applies to matching CVs automatically."
+      "subtitle": "Write tailored text once — star it on a CV to use it there."
     },
     "newVariant": "Add variant",
-    "created": "Variant created — it is active and applies to matching CVs."
+    "created": "Variant created — activate it, then star it on a CV."
   }
 }

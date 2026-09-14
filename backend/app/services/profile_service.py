@@ -70,6 +70,8 @@ class ProfileService:
                     fit_relevant = True
                 if section == "work_preferences":
                     workstyle_written = True
+                if section == "basics":
+                    await self._sync_account_name(self.db, user_id, payload[section])
         await self.strip_student_fields(profile)
         self.db.add(profile)
         await self.db.commit()
@@ -85,6 +87,21 @@ class ProfileService:
 
             await FitService(self.db).refit_user(user_id, profile)
         return profile
+
+    @staticmethod
+    async def _sync_account_name(db: AsyncSession, user_id: UUID, basics: dict) -> None:
+        """basics.full_name mirrors the account's display name — a
+        non-empty write also updates `users.full_name` (the CV header
+        reads it straight from the user row)."""
+        from app.models.user_model import User as UserModel
+
+        name = str(basics.get("full_name") or "").strip()[:160]
+        if not name:
+            return
+        rows = await db.execute(select(UserModel).where(UserModel.id == user_id))
+        user = rows.scalars().first()
+        if user is not None and user.full_name != name:
+            user.full_name = name
 
     @staticmethod
     def _preserve_path(stored: dict, incoming: dict) -> dict:

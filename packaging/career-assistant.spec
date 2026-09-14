@@ -56,6 +56,18 @@ datas = [
 ]
 datas += collect_data_files("webview")
 
+# PDF engine (plan 76): the playwright package carries its node driver as
+# package data — without it the frozen app cannot launch any browser. The
+# browsers themselves are NOT bundled here: Linux packages copy a
+# `ms-playwright` tree next to the executable after PyInstaller (see
+# build-linux.sh); Windows relies on the system Edge/Chrome channels.
+try:
+    datas += collect_data_files("playwright")
+    hiddenimports += ["playwright", "playwright.async_api", "playwright.sync_api"]
+    hiddenimports += collect_submodules("playwright")
+except Exception:
+    pass
+
 # fastmcp reads its own distribution metadata at import time (it probes the
 # `fastmcp-slim` dist first, then falls back to `fastmcp`); PyInstaller does
 # not ship dist-info unless asked. `fastmcp-slim` is optional — CI installs

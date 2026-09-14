@@ -176,7 +176,10 @@ async def test_basics_conflicts_keep_unless_overwritten(client, db, auth_headers
     doc_id = await _upload_and_parse(client, db, auth_headers)
     await client.post(
         f"/api/v1/cv/intake/{doc_id}/apply",
-        json={"selections": {"basics": True}},
+        json={
+            "selections": {"basics": True},
+            "basics_overwrite": ["full_name"],
+        },
         headers=auth_headers,
     )
     profile = (await db.execute(select(Profile))).scalars().one()
@@ -634,3 +637,38 @@ async def test_apply_certifications_twice_dedupes(client, db, auth_headers):
 
     rows = (await db.execute(select(Certification))).scalars().all()
     assert len(rows) == 1
+
+
+async def test_basics_full_name_applies_to_account(client, db, auth_headers):
+    """A differently-named CV name is a keep-or-replace conflict against
+    the account name; replacing lands the extract on `users.full_name`
+    (an empty account name fills straight away)."""
+    import uuid as uuid_mod
+
+    from app.models.user_model import User
+
+    from tests.conftest import _uid
+
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+    applied = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}},
+        headers=auth_headers,
+    )
+    conflicts = {
+        entry["field"] for entry in applied.json()["report"]["basics_conflicts"]
+    }
+    assert conflicts == {"full_name"}, "the registration name is the conflict base"
+    user = await db.get(User, uuid_mod.UUID(_uid(auth_headers)))
+    before = user.full_name
+    assert before != "Jane Doe", "kept without overwrite"
+
+    replaced = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply",
+        json={"selections": {"basics": True}, "basics_overwrite": ["full_name"]},
+        headers=auth_headers,
+    )
+    assert replaced.status_code == 200, replaced.text
+    db.expire_all()
+    user = await db.get(User, uuid_mod.UUID(_uid(auth_headers)))
+    assert user.full_name == "Jane Doe" and before != user.full_name

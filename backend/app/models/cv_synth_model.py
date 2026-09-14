@@ -6,8 +6,8 @@ A variant stores the *text*, its typed source refs (the plan-47
 generation time — so staleness is detectable when the profile item
 changes. Variants are user-level and reusable across CVs: matching is
 deterministic (active → language → posting-scoped beats generic →
-variant order), and a per-CV `synth_mode` decides whether the context
-engine swaps them in. Nothing here writes the profile: these are CV
+variant order), and a per-CV `synth_pins` map stars one variant as the
+default for its item — pinned variants swap their text in at resolution. Nothing here writes the profile: these are CV
 artifacts. Deleting a source item leaves rows `orphaned`, never
 silently dropped.
 """

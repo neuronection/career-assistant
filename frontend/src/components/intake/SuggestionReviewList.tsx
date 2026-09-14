@@ -185,6 +185,7 @@ export function sectionViews(payload: CvExtractPayload): SectionView[] {
 }
 
 type BasicsFieldKey =
+  | "full_name"
   | "headline"
   | "email"
   | "phone"
@@ -193,6 +194,7 @@ type BasicsFieldKey =
   | "birth_year";
 
 const BASICS_FIELDS: { key: BasicsFieldKey; labelKey: string }[] = [
+  { key: "full_name", labelKey: "intake.basicsField.full_name" },
   { key: "headline", labelKey: "intake.basicsField.headline" },
   { key: "email", labelKey: "intake.basicsField.email" },
   { key: "phone", labelKey: "intake.basicsField.phone" },
@@ -232,9 +234,6 @@ function BasicsReview({
   if (!fields.length && !links.length && !basics.full_name) return null;
   return (
     <div className="px-4 py-2.5" data-testid="intake-basics-fields">
-      {basics.full_name && (
-        <p className="text-sm font-medium text-[var(--as-fg)]">{basics.full_name}</p>
-      )}
       {(fields.some((f) => {
         const existingValue = existing ? String(existing[f.key] ?? "") : "";
         return !!existingValue && existingValue !== f.value;

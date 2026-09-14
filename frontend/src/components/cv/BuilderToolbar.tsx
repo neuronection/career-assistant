@@ -72,6 +72,7 @@ interface BuilderToolbarProps {
   pages: number;
   maxPages: number;
   overflow: boolean;
+  pagesSource?: "pdf" | "last_export" | null;
   saveState: AutosaveState;
   saveBusy: boolean;
   exportBusy: string;
@@ -96,6 +97,7 @@ export function BuilderToolbar({
   pages,
   maxPages,
   overflow,
+  pagesSource,
   saveState,
   saveBusy,
   exportBusy,
@@ -165,9 +167,20 @@ export function BuilderToolbar({
           className={`rounded-full px-2 py-1 text-xs font-medium ${
             overflow ? "bg-red-100 text-red-800" : "bg-[var(--as-muted)]"
           }`}
-          title={overflow ? "Content exceeds the page budget" : "Estimated page usage"}
+          title={
+            overflow
+              ? "Content exceeds the page budget"
+              : pagesSource === "pdf"
+                ? "Page usage measured from the printed PDF"
+                : pagesSource === "last_export"
+                  ? "Measured at the last export — may have drifted since the latest edits"
+                  : "Estimate only — no PDF engine on this server, so the page count is unverified"
+          }
+          data-testid="pages-chip"
         >
-          ~{pages}/{maxPages} page{maxPages > 1 ? "s" : ""}
+          {pagesSource ? "" : "~"}
+          {pages}/{maxPages} page{maxPages > 1 ? "s" : ""}
+          {pagesSource ? "" : " (unverified)"}
           {overflow ? " — over budget" : ""}
         </span>
 

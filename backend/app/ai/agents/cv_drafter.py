@@ -38,8 +38,9 @@ PLAN_SYSTEM = (
     "turns into a custom-text block. Lead with the strongest "
     "evidence for the target role (summary first, then "
     "experience/education, then supporting sections). If the target role "
-    "demands emphasis an experience item's text cannot show, propose at "
-    "most three synth variants for those items (action posting_fit when "
+    "demands emphasis an item's text cannot show — work or internship "
+    "experience, a project, a volunteering entry — propose at most "
+    "three synth variants for those items (action posting_fit when "
     "a saved posting exists, otherwise detail or restyle). Respond with "
     "JSON only."
 )

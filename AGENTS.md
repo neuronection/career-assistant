@@ -90,10 +90,15 @@ regenerating a baseline, drop+recreate instead).
   keeps the funnel).
 - `SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
   tests; drive `SchedulerService(db).tick()` directly.
-- Optional server PDF engine: `requirements-pdf.txt` +
-  `playwright install chromium` — without it, CV PDF export answers 503
-  and the frontend falls back to the print view (capability detection,
-  never a hard dependency).
+- PDF engine (plan 76): `requirements-pdf.txt` + `playwright install
+  chromium --only-shell`. The printed PDF is the page-count truth
+  (`cv_pdf_service.measure_pages` — count via pypdfium2, never clamped,
+  page images rasterized from the PDF for vision critique). Linux desktop
+  packages bundle the headless shell; the Windows exe uses the system
+  Edge/Chrome channels; `run-dev.sh` bootstraps it. Without an engine,
+  export answers 503 (print-view fallback) and page counts are flagged
+  `unverified` — capability detection, never a hard dependency. Probe a
+  frozen app with `careerassistant enginecheck`.
 - Update `CHANGELOG.md` under `## [Unreleased]` for user-visible changes
   (CI-enforced on PRs via `scripts/check-changelog.sh`).
 - Always test before commit: backend pytest + ruff, frontend build + vitest.

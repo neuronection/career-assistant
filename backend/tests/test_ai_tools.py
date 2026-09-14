@@ -57,7 +57,6 @@ def test_builtin_registry_declarations():
         "cv_synth_read",
         "cv_synth_generate",
         "cv_synth_update",
-        "cv_synth_enable",
     }
     assert all(t["builtin"] for t in listed.values())
     non_cv = {k: t for k, t in listed.items() if not k.startswith("cv_")}

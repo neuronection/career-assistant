@@ -39,7 +39,8 @@ class BasicSection(BaseModel):
 
     `timezone` is the IANA zone quiet hours (36), digests/check-ins (29)
     and misfire scheduling resolve against — never a UTC offset string.
-    Contact fields (email/phone/headline/links) land with.
+    Contact fields (full_name/email/phone/headline/links) land with;
+    `full_name` mirrors the account's display name.
     """
 
     birth_year: Optional[int] = Field(default=None, ge=1950, le=max_birth_year())
@@ -50,6 +51,7 @@ class BasicSection(BaseModel):
     country: str = Field(default="", max_length=80)
     city: str = Field(default="", max_length=80)
     timezone: str = Field(default="UTC", max_length=60)
+    full_name: str = Field(default="", max_length=160)
     email: str = Field(default="", max_length=200)
     phone: str = Field(default="", max_length=40)
     headline: str = Field(default="", max_length=120)

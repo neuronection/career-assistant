@@ -27,7 +27,7 @@ vi.mock("@/stores/authStore", () => ({
 
 function makeProfile(): Profile {
   return {
-    basics: { birth_year: 2008, education_level: "high_school", grade: null, country: "GR", city: "Athens", email: "", phone: "", headline: "" },
+    basics: { birth_year: 2008, education_level: "high_school", grade: null, country: "GR", city: "Athens", full_name: "Test User", email: "", phone: "", headline: "" },
     academics: { favorite_subjects: [], languages: [] },
     interests: [{ tag_key: "technology-software", weight: 3, source: "self" }],
     hobbies: [],

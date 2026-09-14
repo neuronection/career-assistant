@@ -1,4 +1,4 @@
-"""Mode dispatcher: `python -m careerassistant [app|web|seed|backup|restore]`.
+"""Mode dispatcher: `python -m careerassistant [app|web|seed|backup|restore|enginecheck]`.
 
 app (default) — pywebview desktop window over a local loopback server,
                 with tray + background mode (`app --tray` boots tray-only
@@ -8,9 +8,12 @@ seed          — apply migrations + idempotent starter catalog, then exit.
 backup        — create a backup archive now, then prune old ones.
 restore ZIPO  — replace local data (db/uploads/secret) from an archive; the
                 second argument must be the path to the backup zip.
+enginecheck   — print one PDF through the engine and report page-count
+                health; exit 0/1 (no database, no window).
 
-All modes bootstrap the local profile first: platform data dir, SQLite
-database, uploads directory and a generated JWT secret (data_dir/secret.key).
+All modes except enginecheck bootstrap the local profile first: platform
+data dir, SQLite database, uploads directory and a generated JWT secret
+(data_dir/secret.key).
 """
 
 import sys
@@ -18,6 +21,7 @@ import sys
 USAGE = (
     "usage: python -m careerassistant [app|web|seed|backup|restore ZIP]\n"
     "       python -m careerassistant app --tray   (background auto-start)\n"
+    "       python -m careerassistant enginecheck  (PDF engine health probe)\n"
     "restore replaces local data and cannot be undone."
 )
 
@@ -28,13 +32,22 @@ def main(argv: list[str] | None = None) -> int:
     if mode in ("-h", "--help"):
         print(USAGE)
         return 0
-    if mode not in ("app", "web", "seed", "backup", "restore"):
+    if mode not in ("app", "web", "seed", "backup", "restore", "enginecheck"):
         print(USAGE, file=sys.stderr)
         return 2
     tray_only = False
     if mode == "app" and "--tray" in args:
         args.remove("--tray")
         tray_only = True
+
+    if mode == "enginecheck":
+        import asyncio
+
+        from app.services.cv_pdf_service import engine_check
+
+        ok, detail = asyncio.run(engine_check())
+        print(("ok: " if ok else "fail: ") + detail)
+        return 0 if ok else 1
 
     from pathlib import Path
 

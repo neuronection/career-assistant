@@ -62,7 +62,7 @@ async def _active_variant(client, auth_headers, db, item):
     return row
 
 
-async def _generate(db, headers, *, synth_mode="off", target_posting_id=None):
+async def _generate(db, headers, *, pins: dict | None = None, target_posting_id=None):
     service = CvGenerateService(db, checkpointer=InMemorySaver())
     result = await service.generate(
         UUID(_uid(headers)),
@@ -73,13 +73,17 @@ async def _generate(db, headers, *, synth_mode="off", target_posting_id=None):
                 "mode": "all",
                 "include": [],
                 "exclude": [],
-                "synth_mode": synth_mode,
+                "synth_pins": pins or {},
             },
         ),
         run_id=uuid.uuid4(),
     )
     await db.commit()
     return result
+
+
+def _pin(item_id: str, synth_id: str) -> dict:
+    return {"experience:" + item_id: synth_id} if synth_id else {}
 
 
 async def _last_version(db, cv_id) -> CvVersion:
@@ -96,19 +100,19 @@ async def _last_version(db, cv_id) -> CvVersion:
     )
 
 
-async def test_prefer_mode_reuses_active_variant(
+async def test_starred_variant_is_reused(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     item = await _make_item(db, auth_headers)
     variant = await _active_variant(client, auth_headers, db, item)
-    result = await _generate(db, auth_headers, synth_mode="prefer")
+    result = await _generate(db, auth_headers, pins=_pin(str(item.id), variant["id"]))
     assert result["status"] == "completed", result
     ref_key = f"experience:{item.id}"
     assert result["synth_applied"].get(ref_key) == variant["id"], result
     assert result["synth_proposed"] == []
 
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
-    assert cv.context["synth_mode"] == "prefer", "prefer mode is sticky"
+    assert cv.context["synth_pins"] == _pin(str(item.id), variant["id"])
     override = cv.working_content["overrides"].get(ref_key) or {}
     assert override.get("description") == variant["payload"]["description"], (
         "the draft grounds on the variant text, not the profile text"
@@ -121,12 +125,12 @@ async def test_prefer_mode_reuses_active_variant(
     )
 
 
-async def test_off_mode_ignores_variant(
+async def test_unstarred_variant_is_ignored(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     item = await _make_item(db, auth_headers)
     await _active_variant(client, auth_headers, db, item)
-    result = await _generate(db, auth_headers, synth_mode="off")
+    result = await _generate(db, auth_headers)
     assert result["status"] == "completed"
     assert result["synth_applied"] == {}
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
@@ -168,9 +172,9 @@ async def test_match_for_user_parity_with_match_for_cv(client, db, auth_headers)
     assert set(scoped) == set(by_user), "generic rows apply to any posting"
 
 
-async def test_apply_to_items_returns_empty_outside_prefer(client, db, auth_headers):
+async def test_apply_to_items_pins_only(client, db, auth_headers):
     item = await _make_item(db, auth_headers)
-    await _active_variant(client, auth_headers, db, item)
+    variant = await _active_variant(client, auth_headers, db, item)
     from app.services.cv_context_service import resolve
 
     uid = UUID(_uid(auth_headers))
@@ -178,8 +182,27 @@ async def test_apply_to_items_returns_empty_outside_prefer(client, db, auth_head
 
     resolution = await resolve(db, uid, CvContextSelection())
     service = CvSynthService(db)
-    assert await service.apply_to_items(uid, "en", None, resolution, "off") == {}
-    description = await service.apply_to_items(uid, "en", None, resolution, "prefer")
+    assert await service.apply_to_items(uid, "en", None, resolution) == {}, (
+        "no stars → nothing swaps in"
+    )
+    description = (
+        await service.apply_to_items(
+            uid,
+            "en",
+            None,
+            resolve(
+                db,
+                uid,
+                CvContextSelection(
+                    context={"synth_pins": _pin(str(item.id), variant["id"])}
+                ),
+            ),
+        )
+        if False
+        else await service.apply_to_items(
+            uid, "en", None, resolution, pins=_pin(str(item.id), variant["id"])
+        )
+    )
     assert f"experience:{item.id}" in description
 
 
@@ -200,7 +223,7 @@ def _structure_for(item_id: str, extra_proposals: list[dict] | None = None) -> d
 
 
 async def _generate_with_plan(
-    db, auth_headers, monkeypatch, structure: dict, *, synth_mode: str = "off"
+    db, auth_headers, monkeypatch, structure: dict, *, pins: dict | None = None
 ):
     import app.ai.graphs.cv_draft as graph_module
     from app.ai.schemas import CvDraftStructure
@@ -209,7 +232,7 @@ async def _generate_with_plan(
         return CvDraftStructure.model_validate(structure)
 
     monkeypatch.setattr(graph_module, "plan_structure", planned)
-    return await _generate(db, auth_headers, synth_mode=synth_mode)
+    return await _generate(db, auth_headers, pins=pins)
 
 
 async def test_plan_proposals_ground_gap_variants(
@@ -231,9 +254,14 @@ async def test_plan_proposals_ground_gap_variants(
 
     variant = await db.get(CvSynthItem, UUID(record["synth_item_id"]))
     assert variant is not None
-    assert variant.status == "draft", "draft-then-approve is preserved"
+    assert variant.status == "active", (
+        "a completed run stars its gap variant: the draft row activates"
+    )
 
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    assert cv.context["synth_pins"] == {
+        f"experience:{item.id}": record["synth_item_id"],
+    }, "the used variant is starred as the item's default"
     override = cv.working_content["overrides"].get(f"experience:{item.id}") or {}
     assert override.get("description") == variant.payload["description"], (
         "the draft grounds on the gap variant's text"
@@ -503,7 +531,9 @@ async def test_synth_reuse_matches_rekeyed_project_items(
         json={"status": "active"},
         headers=auth_headers,
     )
-    result = await _generate(db, auth_headers, synth_mode="prefer")
+    result = await _generate(
+        db, auth_headers, pins={f"projects:{project.id}": row["id"]}
+    )
     assert result["status"] == "completed", result
     assert result["synth_applied"].get(f"projects:{project.id}") == row["id"], result
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
@@ -520,3 +550,56 @@ async def test_sections_max_length_accepts_ten_kinds():
     assert CvGenerateRequest(sections=list(GENERATABLE_KINDS))
     with pytest.raises(ValidationError):
         CvGenerateRequest(sections=["summary"] * 11)
+
+
+def test_clamp_proposals_covers_projects_and_volunteer():
+    """Plan-70's v1 scoping is lifted: projects (and volunteering) are
+    first-class gap-variant targets like work experience."""
+    from app.ai.graphs.cv_draft import _clamp_proposals
+
+    class _FakeProposal:
+        def __init__(self, source_key, item_id, action="restyle"):
+            self.source_key = source_key
+            self.item_id = item_id
+            self.action = action
+
+    class _FakeStructure:
+        def __init__(self, rows):
+            self.synth_proposals = rows
+
+    clamped = _clamp_proposals(
+        _FakeStructure(
+            [
+                _FakeProposal("projects", "p-1"),
+                _FakeProposal("volunteer", "v-1"),
+            ]
+        ),
+        {
+            **_unit_state(),
+            "plan": {
+                "sections": [
+                    {"kind": "projects", "item_ids": ["p-1"]},
+                    {"kind": "volunteer", "item_ids": ["v-1"]},
+                ]
+            },
+            "context": {
+                "available": ["projects", "volunteer"],
+                "items": [
+                    {
+                        "item_id": "p-1",
+                        "source_key": "projects",
+                        "payload": {"description": "Project one"},
+                    },
+                    {
+                        "item_id": "v-1",
+                        "source_key": "volunteer",
+                        "payload": {"description": "Volunteer one"},
+                    },
+                ],
+            },
+        },
+    )
+    assert [(entry["source_key"], entry["item_id"]) for entry in clamped] == [
+        ("projects", "p-1"),
+        ("volunteer", "v-1"),
+    ]

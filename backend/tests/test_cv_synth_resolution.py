@@ -56,7 +56,9 @@ def _uid_of(headers) -> str:
     return str(json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))["sub"])
 
 
-async def _cv_with_synth(client, auth_headers, db, *, synth_mode: str) -> dict:
+async def _cv_with_pins(
+    client, auth_headers, db, *, item_id: str = "", synth_id: str = ""
+) -> dict:
     cv = (
         await client.post(
             "/api/v1/cv",
@@ -64,9 +66,10 @@ async def _cv_with_synth(client, auth_headers, db, *, synth_mode: str) -> dict:
             headers=auth_headers,
         )
     ).json()
+    pins = {"experience:" + item_id: synth_id} if synth_id else {}
     await client.put(
         f"/api/v1/cv/{cv['id']}/context",
-        json={"mode": "all", "synth_mode": synth_mode},
+        json={"mode": "all", "synth_pins": pins},
         headers=auth_headers,
     )
     return cv
@@ -78,17 +81,19 @@ async def _resolution(client, auth_headers, cv: dict) -> dict:
     ).json()
 
 
-async def test_off_mode_renders_verbatim(client, db, auth_headers):
-    await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="off")
+async def test_no_pins_render_verbatim(client, db, auth_headers):
+    item, _variant = await _item_and_active_variant(client, db, auth_headers)
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id))
     resolution = await _resolution(client, auth_headers, cv)
     description = resolution["snapshot"]["experience"][0]["description"]
     assert description == "Built QA tooling", "verbatim profile text at off"
 
 
-async def test_prefer_mode_swaps_variant_in(client, db, auth_headers):
+async def test_starred_variant_swaps_in(client, db, auth_headers):
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
+    )
     resolution = await _resolution(client, auth_headers, cv)
     description = resolution["snapshot"]["experience"][0]["description"]
     assert description == variant["payload"]["description"], (
@@ -99,7 +104,9 @@ async def test_prefer_mode_swaps_variant_in(client, db, auth_headers):
 
 async def test_override_beats_synth(client, db, auth_headers):
     item, _variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=_variant["id"]
+    )
     ref = _refs(item)[0]
     ref_key = ref["source_key"] + ":" + ref["item_id"]
     edit = await client.patch(
@@ -123,8 +130,10 @@ async def test_override_beats_synth(client, db, auth_headers):
 
 
 async def test_compile_records_synth_trace(client, db, auth_headers):
-    await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    item, variant = await _item_and_active_variant(client, db, auth_headers)
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
+    )
     compiled = await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
     assert compiled.status_code == 201, compiled.text
     trace = await db.execute(
@@ -140,7 +149,7 @@ async def test_compile_records_synth_trace(client, db, auth_headers):
 
 async def test_lint_flags_synth_available(client, db, auth_headers):
     await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="off")
+    cv = await _cv_with_pins(client, auth_headers, db)
     lint = (
         await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
     ).json()
@@ -149,9 +158,11 @@ async def test_lint_flags_synth_available(client, db, auth_headers):
     assert checks["synth_available"]["level"] == "info"
 
 
-async def test_lint_reports_synth_share_when_prefer(client, db, auth_headers):
-    await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+async def test_lint_reports_synth_share_when_starred(client, db, auth_headers):
+    item, variant = await _item_and_active_variant(client, db, auth_headers)
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
+    )
     lint = (
         await client.get(
             f"/api/v1/cv/{cv['id']}/lint",
@@ -165,7 +176,9 @@ async def test_lint_reports_synth_share_when_prefer(client, db, auth_headers):
 
 async def test_lint_flags_override_conflict(client, db, auth_headers):
     item, _variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_synth(client, auth_headers, db, synth_mode="prefer")
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=_variant["id"]
+    )
     ref = _refs(item)[0]
     ref_key = ref["source_key"] + ":" + ref["item_id"]
     await client.patch(

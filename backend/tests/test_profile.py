@@ -105,3 +105,29 @@ async def test_profile_link_rejects_non_http_scheme(client, auth_headers):
     assert profile.json()["basics"]["links"] == [
         {"kind": "github", "url": "https://github.com/jane", "label": ""}
     ]
+
+
+async def test_basics_full_name_updates_the_account_name(
+    client, auth_headers, profile_ready, db
+):
+    """Editing the name in basic profile info mirrors it onto
+    `users.full_name` — the CV header name source."""
+    from app.models.user_model import User
+
+    response = await client.put(
+        "/api/v1/profile",
+        json={"basics": {"full_name": "Ilias Papadopoulos"}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["basics"]["full_name"] == "Ilias Papadopoulos"
+    user = await db.get(User, str(_uid_from_auth(auth_headers)))
+    assert user.full_name == "Ilias Papadopoulos"
+
+
+def _uid_from_auth(auth_headers) -> str:
+    import base64
+    import json
+
+    token = auth_headers["Authorization"].split(" ", 1)[1]
+    return str(json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))["sub"])

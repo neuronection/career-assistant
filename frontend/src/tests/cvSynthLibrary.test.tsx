@@ -386,3 +386,93 @@ describe("CvSynthLibrary", () => {
     expect(save.disabled).toBe(true);
   });
 });
+
+describe("CvSynthLibrary linked items", () => {
+  const variant = {
+    id: VARIANT_A,
+    scope: "item",
+    variant_key: "default",
+    target_posting_id: null,
+    source_refs: [{ source_key: "experience", item_id: ITEM_ID }],
+    source_state: [],
+    payload: { description: "Tailored text" },
+    voice: { language: "en", action: "summarize" },
+    status: "active",
+    source: "ai",
+    verified: true,
+    stale: false,
+    orphaned: false,
+    last_used_at: null,
+    created_at: VARIANT_A,
+  };
+
+  function baseItem() {
+    return JSON.parse(JSON.stringify(variant));
+  }
+
+  it("shows the linked item as a label chip on the group and the variant", async () => {
+    fetchSynthItems.mockResolvedValue([baseItem()]);
+    await renderLibrary();
+    expect(
+      screen.getByTestId(`synth-group-ref-experience:${ITEM_ID}`).textContent,
+    ).toBe("Backend Intern");
+    const refs = screen.getByTestId(`synth-variant-refs-${VARIANT_A}`);
+    expect(
+      within(refs).getByTestId(`synth-ref-experience:${ITEM_ID}`).textContent,
+    ).toContain("Backend Intern");
+  }, 20000);
+
+  it("falls back to the item-id slice when the source item is gone", async () => {
+    fetchSynthItems.mockResolvedValue([baseItem()]);
+    await renderLibrary();
+    expect(
+      screen.getByTestId(`synth-group-ref-experience:${ITEM_ID}`).textContent,
+    ).toBeTruthy();
+  }, 20000);
+
+  it("shows linked item chips in the edit form (readonly)", async () => {
+    fetchSynthItems.mockResolvedValue([baseItem()]);
+    await renderLibrary();
+    await userEvent.setup().click(screen.getByTestId(`synth-edit-${VARIANT_A}`));
+    const chip = within(document.body).getByTestId(
+      `synth-editor-ref-chip-experience:${ITEM_ID}`,
+    );
+    expect(chip.textContent).toContain("Backend Intern");
+  }, 20000);
+
+  it("shows selected linked chips in the create form and removes on click", async () => {
+    fetchSynthItems.mockResolvedValue([]);
+    await renderLibrary();
+    await userEvent.setup().click(screen.getByTestId("synth-add-variant"));
+    await userEvent
+      .setup()
+      .click(
+        within(document.body).getByTestId(
+          `synth-editor-ref-experience:${ITEM_ID}`,
+        ),
+      );
+    const holder = within(document.body).getByTestId(
+      "synth-editor-selected-refs",
+    );
+    expect(
+      within(holder).getByTestId(`synth-editor-ref-chip-experience:${ITEM_ID}`)
+        .textContent,
+    ).toContain("Backend Intern");
+    await userEvent
+      .setup()
+      .click(
+        within(document.body).getByTestId(
+          `synth-editor-ref-chip-remove-experience:${ITEM_ID}`,
+        ),
+      );
+    expect(
+      within(document.body).queryByTestId(
+        `synth-editor-ref-chip-experience:${ITEM_ID}`,
+      ),
+    ).toBeNull();
+    const checkbox = within(document.body).getByTestId(
+      `synth-editor-ref-experience:${ITEM_ID}`,
+    ) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+  }, 20000);
+});

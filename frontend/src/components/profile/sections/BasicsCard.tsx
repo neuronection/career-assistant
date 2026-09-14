@@ -110,6 +110,17 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
         variant={variant}
       >
         <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <TextField
+              label={t("profileSection.name")}
+              value={draft.full_name}
+              onChange={(v) => patch({ full_name: v })}
+              maxLength={160}
+              placeholder={t("profileSection.namePlaceholder")}
+              hint={t("profileSection.nameHint")}
+              testId="basics-name"
+            />
+          </div>
           {variant === "onboarding" && (
             <div className="sm:col-span-2" data-testid="stage-question">
               <SelectField

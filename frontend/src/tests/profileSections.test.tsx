@@ -113,6 +113,7 @@ function makeBasics(): Profile["basics"] {
     city: "Athens",
     email: "",
     phone: "",
+    full_name: "Test User",
     headline: "",
   };
 }
@@ -1074,6 +1075,7 @@ describe("ProfileEdit (settings-shell restructure)", () => {
         grade: null,
         country: "GR",
         city: "Athens",
+        full_name: "Test User",
         email: "",
         phone: "",
         headline: "",

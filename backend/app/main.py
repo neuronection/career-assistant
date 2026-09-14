@@ -211,6 +211,12 @@ async def lifespan(app: FastAPI):
         for task in workers:
             task.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
+        try:
+            from app.services.cv_pdf_service import shutdown_engine
+
+            await shutdown_engine()
+        except Exception:  # noqa: BLE001 — best effort cleanup
+            logger.warning("PDF engine shutdown failed", exc_info=True)
 
 
 def create_app() -> FastAPI:

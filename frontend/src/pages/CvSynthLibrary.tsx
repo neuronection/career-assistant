@@ -53,15 +53,19 @@ function itemText(item: CvSynthItem): string {
   return "";
 }
 
-function groupLabel(
-  item: CvSynthItem,
+function refLabel(
+  ref: CvContextRef,
+  labels: Map<string, { label: string; source: string }>,
   t: (key: string) => string,
-): string {
-  const ref = item.source_refs[0];
-  if (!ref) return t("cvSynth.unknownSource");
-  if (ref.source_key === "summary") return t("cvSynth.sourceSummary");
-  const label = t(`cvSynth.sources.${ref.source_key}`);
-  return `${label === `cvSynth.sources.${ref.source_key}` ? ref.source_key : label} — ${ref.item_id.slice(0, 8)}`;
+): { label: string; source: string; known: boolean } {
+  const found = labels.get(refKey(ref));
+  if (found) return { ...found, known: true };
+  const sourceLabel = t(`cvSynth.sources.${ref.source_key}`);
+  return {
+    label: `${sourceLabel === `cvSynth.sources.${ref.source_key}` ? ref.source_key : sourceLabel} · ${ref.item_id.slice(0, 8)}`,
+    source: ref.source_key,
+    known: false,
+  };
 }
 
 export function CvSynthLibrary() {
@@ -154,6 +158,19 @@ export function CvSynthLibrary() {
       }));
   }, [items]);
 
+  const refLabels = useMemo(() => {
+    const map = new Map<string, { label: string; source: string }>();
+    for (const source of sources) {
+      for (const entry of source.items) {
+        map.set(`${source.key}:${entry.item_id}`, {
+          label: entry.label,
+          source: source.label,
+        });
+      }
+    }
+    return map;
+  }, [sources]);
+
   async function act(fn: () => Promise<unknown>, message?: string) {
     setBusy(true);
     setError("");
@@ -229,11 +246,26 @@ export function CvSynthLibrary() {
               data-testid={`synth-group-${group.key}`}
             >
               <div className="flex items-center justify-between gap-2 mb-3">
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {groupLabel(group.items[0], t)}
-                  </p>
-                  <p className="text-xs text-slate-500">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {group.refs.map((ref) => {
+                      const resolved = refLabel(ref, refLabels, t);
+                      return (
+                        <span
+                          key={`${ref.source_key}-${ref.item_id}`}
+                          className={`rounded-full px-2 py-0.5 text-xs ${
+                            resolved.known
+                              ? "bg-[color-mix(in_srgb,var(--as-accent)_10%,transparent)] text-[var(--as-accent)]"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                          data-testid={`synth-group-ref-${refKey(ref)}`}
+                        >
+                          {resolved.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {t("cvSynth.variantCount", { count: group.items.length })}
                   </p>
                 </div>
@@ -277,6 +309,33 @@ export function CvSynthLibrary() {
                       <p className="line-clamp-2 text-sm text-slate-900 break-words">
                         {itemText(item) || t("cvSynth.emptyBody")}
                       </p>
+                      {item.source_refs.length > 0 && (
+                        <div
+                          className="mt-1 flex flex-wrap items-center gap-1 text-[11px]"
+                          data-testid={`synth-variant-refs-${item.id}`}
+                        >
+                          <span className="text-[var(--as-muted-fg)]">
+                            {t("cvSynth.basedOn")}:
+                          </span>
+                          {item.source_refs.map((ref) => {
+                            const resolved = refLabel(ref, refLabels, t);
+                            return (
+                              <span
+                                key={`${ref.source_key}-${ref.item_id}`}
+                                className={`max-w-52 truncate rounded-full px-1.5 py-0.5 ${
+                                  resolved.known
+                                    ? "bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)] text-[var(--as-accent)]"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                                title={resolved.label}
+                                data-testid={`synth-ref-${refKey(ref)}`}
+                              >
+                                {resolved.label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
                           {t(`cvSynth.status.${item.status}`)}
@@ -407,6 +466,15 @@ export function CvSynthLibrary() {
           initial={editor.initial}
           defaultLanguage={items[0]?.voice.language ?? "en"}
           busy={busy}
+          onActivate={async () => {
+            const target = editor.initial;
+            if (!target) return;
+            await act(
+              () => patchSynthItem(target.id, { status: "active" }),
+              t("cvSynth.activated"),
+            );
+            setEditor({ open: false, initial: null });
+          }}
           onClose={() => setEditor({ open: false, initial: null })}
           onSubmit={(body) =>
             editor.initial ? saveVariantEdit(body) : saveVariantNew(body)

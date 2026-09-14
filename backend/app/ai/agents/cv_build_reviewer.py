@@ -21,10 +21,63 @@ from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.ai.schemas import CvBuildCritique
 from app.models.enums import AITaskType
 
+REVIEW_SYSTEM = (
+    "You review a generated CV for a final professional pass: page "
+    "images for layout/density/typography, the lint report for "
+    "structural facts, and the coverage matrix for content that should "
+    "have landed. The request may carry the user's brief (user_notes): "
+    "judge the build against it too — e.g. a 'modern / sidepanel / "
+    "two-column' brief makes a long plain single-column list a layout "
+    "finding. Each issue carries a level: fail (blocks readiness), "
+    "warn, info. Only suggest existing BuilderOps "
+    "(add_block/remove_block/move_block/update_block_props/"
+    "set_override/set_context/set_doc_options/update_design/"
+    "apply_theme/set_template) that are truly safe for the stated area; "
+    "never invent content or render HTML. The page budget is the "
+    "user's constraint: NEVER suggest set_doc_options that raises "
+    "max_pages. Fix an over-budget build by DENSIFYING first "
+    "(update_design: base_size_pt 7–14, line_height 1.0–2.0, "
+    "spacing_scale 0.6–1.8, section_gap_mm 0–14, item_gap_mm 0–8, "
+    "sidebar_width_pct 25–45, icon_size_mm 2–6, photo_size_mm 10–40 — "
+    "tighter type and spacing fit more content without cutting "
+    "information; the pt/mm tokens are INTEGERS (8 or 9, never 8.5) "
+    "and font_stack sans/serif/mixed/geometric + the heading tokens "
+    "remain look levers, not fit levers), then trimming "
+    "content (set_context exclude, remove_block, a smaller skills "
+    "max_items) only when even the compact layout cannot fit it. "
+    "Sidebar content that clips or wraps badly says widen "
+    "sidebar_width_pct or densify, never drop the section."
+)
+
 
 def _ref_ids(refs: list) -> list[str]:
     """Matrix ids may arrive as `{item_id}` refs or bare ids — both echo."""
     return [str(ref["item_id"] if isinstance(ref, dict) else ref) for ref in refs]
+
+
+_REVIEW_PROPS_KEYS = frozenset(
+    {"source_key", "display", "max_items", "show_levels", "kinds", "order"}
+)
+
+
+def _review_props(props: dict) -> dict:
+    """The block props the reviewer can reason about (bounded snapshot).
+
+    Skills selections render as the resolved id list (≤12 labels), item
+    ordering rides `order`, synth-stars surface via `props` keys above."""
+    out: dict = {
+        key: props[key]
+        for key in _REVIEW_PROPS_KEYS
+        if key in props and props[key] not in (None, "")
+    }
+    selected = props.get("selected")
+    if isinstance(selected, list):
+        out["selected"] = [str(item) for item in selected[:12]]
+        if len(selected) > 12:
+            out["selected_count"] = len(selected)
+    if isinstance(out.get("order"), list) and out["order"]:
+        out["order"] = out["order"][:12]
+    return out
 
 
 def _mock_build_critique(schema: type, user_prompt: str) -> dict:
@@ -32,7 +85,8 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
 
     - a lint-fail check ⇒ one fail-level issue with a safe fix;
     - empty block kinds ⇒ one move fix (disappears once filled);
-    - a page-budget overrun ⇒ fail + `set_doc_options`;
+    - a page-budget overrun ⇒ fail + a content-trim suggestion (the
+      budget never grows);
     - unused matrix ids ⇒ one coverage fix on the first missing
       item's source block (disappears once covered).
 
@@ -91,23 +145,43 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
         )
 
     if lint.get("pages_actual_over_budget"):
+        skills_index = _kind_index("skills")
+        trim_ops: list[dict] = [
+            {
+                "operation": {
+                    "op": "update_design",
+                    "design": {"base_size_pt": 9, "spacing_scale": 0.9},
+                },
+                "rationale": (
+                    "densify first — tighter type and spacing fit more "
+                    "content within the fixed page budget"
+                ),
+            }
+        ]
+        if skills_index is not None:
+            trim_ops.append(
+                {
+                    "operation": {
+                        "op": "update_block_props",
+                        "block_index": skills_index,
+                        "props": {"max_items": 8},
+                    },
+                    "rationale": (
+                        "trim the skills list to the strongest entries "
+                        "within the fixed page budget"
+                    ),
+                }
+            )
         issues.append(
             {
                 "level": "fail",
                 "area": "page_budget",
                 "message": (
                     f"Content needs {lint.get('pages_actual')} pages but "
-                    f"the budget is {lint.get('max_pages')}."
+                    f"the budget is {lint.get('max_pages')}. Densify, then "
+                    f"trim what still does not fit — the budget never grows."
                 ),
-                "suggested_ops": [
-                    {
-                        "operation": {
-                            "op": "set_doc_options",
-                            "max_pages": min(3, int(lint.get("max_pages") or 1) + 1),
-                        },
-                        "rationale": "budget exceeded; widen before trimming",
-                    }
-                ],
+                "suggested_ops": trim_ops,
             }
         )
 
@@ -192,6 +266,9 @@ async def review_build(
     max_pages: int,
     iteration: int,
     images: Optional[list[tuple[str, bytes]]] = None,
+    notes: str = "",
+    synth_applied: Optional[dict] = None,
+    overrides: Optional[dict] = None,
     run: Optional[RunRef] = None,
     with_ref: Literal[False] = False,
 ) -> CvBuildCritique: ...
@@ -210,6 +287,9 @@ async def review_build(
     max_pages: int,
     iteration: int,
     images: Optional[list[tuple[str, bytes]]] = None,
+    notes: str = "",
+    synth_applied: Optional[dict] = None,
+    overrides: Optional[dict] = None,
     run: Optional[RunRef] = None,
     with_ref: Literal[True] = True,
 ) -> "tuple[CvBuildCritique, dict]": ...
@@ -227,6 +307,9 @@ async def review_build(
     max_pages: int,
     iteration: int,
     images: Optional[list[tuple[str, bytes]]] = None,
+    notes: str = "",
+    synth_applied: Optional[dict] = None,
+    overrides: Optional[dict] = None,
     run: Optional[RunRef] = None,
     with_ref: bool = False,
 ) -> "CvBuildCritique | tuple[CvBuildCritique, dict]":
@@ -235,7 +318,10 @@ async def review_build(
     `lint` is the deterministic report, `coverage` the deterministic
     matrix (`available` cut into included/dropped/missing); both are
     host-side truth — the model judges and suggests, it never audits ids
-    on its own.
+    on its own. `notes` is the user's brief the build must satisfy.
+    `synth_applied` (`{ref_key: synth_id}`) and `override_fields`
+    (`{ref_key: [fields]}`) say exactly which items lean on a synthesized
+    variant or a manual field patch.
     """
     prompt = context_json(
         {
@@ -248,13 +334,17 @@ async def review_build(
                     "kind": str(block.get("kind") or ""),
                     "area": str(block.get("area") or "main"),
                     "title": str((block.get("props") or {}).get("title") or ""),
+                    "props": _review_props(block.get("props") or {}),
                 }
                 for index, block in enumerate(blocks)
             ],
+            "synth_applied": synth_applied or {},
+            "override_fields": overrides or {},
             "page_count": page_count,
             "max_pages": max_pages,
             "iteration": iteration,
             "pages": [f"[PAGE {index}]" for index in range(page_count)],
+            "user_notes": notes,
         }
     )
     if with_ref:
@@ -262,17 +352,7 @@ async def review_build(
             db,
             AITaskType.CV_BUILD_REVIEW,
             CvBuildCritique,
-            system=(
-                "You review a generated CV for a final professional pass: page "
-                "images for layout/density/typography, the lint report for "
-                "structural facts, and the coverage matrix for content that "
-                "should have landed. Each issue carries a level: fail (blocks "
-                "readiness), warn, info. Only suggest existing BuilderOps "
-                "(add_block/remove_block/move_block/update_block_props/"
-                "set_override/set_context/set_doc_options/update_design/"
-                "apply_theme/set_template) that are truly safe for the stated "
-                "area; never invent content or render HTML."
-            ),
+            system=REVIEW_SYSTEM,
             user=prompt,
             user_id=user_id,
             images=images or None,
@@ -283,17 +363,7 @@ async def review_build(
         db,
         AITaskType.CV_BUILD_REVIEW,
         CvBuildCritique,
-        system=(
-            "You review a generated CV for a final professional pass: page "
-            "images for layout/density/typography, the lint report for "
-            "structural facts, and the coverage matrix for content that "
-            "should have landed. Each issue carries a level: fail (blocks "
-            "readiness), warn, info. Only suggest existing BuilderOps "
-            "(add_block/remove_block/move_block/update_block_props/"
-            "set_override/set_context/set_doc_options/update_design/"
-            "apply_theme/set_template) that are truly safe for the stated "
-            "area; never invent content or render HTML."
-        ),
+        system=REVIEW_SYSTEM,
         user=prompt,
         user_id=user_id,
         images=images or None,

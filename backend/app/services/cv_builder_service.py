@@ -85,11 +85,11 @@ class CvBuilderService:
         resolved = await resolve(
             self.db, cv.user_id, selection, photo_document_id=cv.photo_document_id
         )
-        if selection.synth_mode == "prefer" or selection.synth_pins:
+        if selection.synth_pins:
             from app.services.cv_synth_service import CvSynthService
 
             resolved.synth_applied = await CvSynthService(self.db).apply_to_resolution(
-                cv, resolved, selection.synth_mode, pins=selection.synth_pins
+                cv, resolved, pins=selection.synth_pins
             )
         _annotate_snapshot_ids(resolved.snapshot, resolved.snapshot_index)
         entries = await self._synth_snapshot(cv, resolved, pins=selection.synth_pins)

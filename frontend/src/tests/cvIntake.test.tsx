@@ -465,6 +465,7 @@ describe("CvIntakeFlow — apply status (drafts vs active)", () => {
 
 describe("CvIntakeFlow — basics keep-or-replace", () => {
   const EXISTING = {
+    full_name: "",
     email: "old@example.com",
     phone: "+30 69",
     headline: "",

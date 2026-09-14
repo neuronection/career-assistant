@@ -26,10 +26,23 @@ if [[ ! -f "$ROOT/frontend/dist/index.html" ]]; then
   (cd "$ROOT/frontend" && npm ci && npm run build)
 fi
 
+# PDF engine (plan 76): the playwright package must be importable when the
+# spec runs (its node driver rides as package data), and the Chromium headless
+# shell lands next to the executable where _bundled_browsers_path() finds it.
+echo "==> Installing the PDF engine into the build venv"
+"$VENV_PY" -m pip install -q -r "$ROOT/backend/requirements-pdf.txt"
+
 echo "==> PyInstaller onedir (version $VERSION)"
 "$VENV_PY" -m PyInstaller --clean --noconfirm \
   --distpath "$ROOT/backend/dist" --workpath "$WORK" \
   "$ROOT/packaging/career-assistant.spec"
+
+echo "==> Bundling the Chromium headless shell (PDF page-count truth)"
+PLAYWRIGHT_BROWSERS_PATH="$BUNDLE/ms-playwright" "$ROOT/backend/venv/bin/playwright" \
+  install chromium --only-shell
+
+echo "==> Smoke test: frozen enginecheck (bundled browser must print 1 page)"
+"$BUNDLE/careerassistant" enginecheck
 
 if [[ "$TARGET" == "bundle" ]]; then
   echo "==> Done: $BUNDLE"
@@ -82,7 +95,7 @@ Section: education
 Priority: optional
 Architecture: amd64
 Maintainer: Neuronection <dev@neuronection.com>
-Depends: libgtk-3-0, libwebkit2gtk-4.1-0, libglib2.0-0, libgirepository-1.0-1
+Depends: libgtk-3-0, libwebkit2gtk-4.1-0, libglib2.0-0, libgirepository-1.0-1, libnss3, libnspr4, libasound2, libgbm1, libxkbcommon0
 Description: AI-guided career discovery for students
  Self-hosted career-discovery platform: structured job catalog, deep student
  profiles, AI + human matching and university pathway intake. Runs fully
@@ -119,7 +132,22 @@ if [[ "$TARGET" == "appimage" || "$TARGET" == "all" ]]; then
     local -A bundled=()
     while IFS= read -r f; do bundled["$(basename "$f")"]=1; done < <(find "$APPDIR/usr/lib/$APP" -type f \( -name '*.so' -o -name '*.so.*' \))
 
-    local exclude='^(ld-linux|libc\.|libm\.|libdl\.|libpthread\.|librt\.|libresolv\.|libnss_|libnsl|libcrypt|libutil\.|libanl\.|libBrokenLocale|libSegFault|libcidn|libSrpc|linux-vdso)'
+    # PDF engine (plan 76): the bundled Chromium headless shell brings its
+    # own ELF deps (nss, alsa, gbm, …). Queue only its DEPENDENCIES — the
+    # browser itself already lives inside the bundle.
+    while IFS= read -r dep; do
+      dep_base="$(basename "$dep")"
+      [[ -z "$dep" ]] && continue
+      [[ "$dep_base" =~ $exclude ]] && continue
+      [[ -n "${bundled[$dep_base]:-}" || -n "${copied[$dep_base]:-}" ]] && continue
+      queue+=("$dep")
+    done < <(find "$APPDIR/usr/lib/$APP/ms-playwright" -type f 2>/dev/null \
+      | xargs -r file \
+      | awk -F: '$2 ~ /ELF/ {print $1}' \
+      | xargs -r -n1 ldd \
+      | awk '/=> \// {print $3} /^\// {print $1}' \
+      | sort -u)
+
     local -a pending=("${queue[@]}")
     while [[ ${#pending[@]} -gt 0 ]]; do
       f="${pending[0]}"; pending=("${pending[@]:1}")

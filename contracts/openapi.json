@@ -965,7 +965,7 @@
         "type": "string"
       },
       "BasicSection": {
-        "description": "Stage-aware basics: grade/years fields are student-only.\n\n`timezone` is the IANA zone quiet hours (36), digests/check-ins (29)\nand misfire scheduling resolve against \u2014 never a UTC offset string.\nContact fields (email/phone/headline/links) land with.",
+        "description": "Stage-aware basics: grade/years fields are student-only.\n\n`timezone` is the IANA zone quiet hours (36), digests/check-ins (29)\nand misfire scheduling resolve against \u2014 never a UTC offset string.\nContact fields (full_name/email/phone/headline/links) land with;\n`full_name` mirrors the account's display name.",
         "properties": {
           "birth_year": {
             "anyOf": [
@@ -1010,6 +1010,12 @@
             "default": "",
             "maxLength": 200,
             "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Full Name",
             "type": "string"
           },
           "grade": {
@@ -2602,7 +2608,7 @@
         "type": "object"
       },
       "CvContextSelection": {
-        "description": "Per-CV context selection: include-all-minus / none-plus / custom.\n\n`synth_mode`: prefer = active synthesized variants matching this CV\nswap their text in at resolution (before overrides); off = verbatim\nprofile text. Default off \u2014 existing CVs are byte-compatible.\n`synth_pins` (plan 72 follow-up): per-item variant pinning \u2014\n`{\"source_key:item_id\": synth_id}`; a pin beats the automatic\n`match_for_user` winner for that ref.",
+        "description": "Per-CV context selection: include-all-minus / none-plus / custom.\n\n`synth_pins`: per-item variant pinning \u2014 `{\"source_key:item_id\":\nsynth_id}`; a pinned variant's text swaps in at resolution for that\nref (before overrides). Unpinned items render verbatim profile text;\nstarred variants make the default for their item.",
         "properties": {
           "exclude": {
             "items": {
@@ -2628,15 +2634,6 @@
               "custom"
             ],
             "title": "Mode",
-            "type": "string"
-          },
-          "synth_mode": {
-            "default": "off",
-            "enum": [
-              "off",
-              "prefer"
-            ],
-            "title": "Synth Mode",
             "type": "string"
           },
           "synth_pins": {
@@ -11712,21 +11709,6 @@
             "const": "set_context",
             "title": "Op",
             "type": "string"
-          },
-          "synth_mode": {
-            "anyOf": [
-              {
-                "enum": [
-                  "off",
-                  "prefer"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Synth Mode"
           },
           "synth_pins": {
             "anyOf": [

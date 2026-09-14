@@ -31,7 +31,7 @@ from app.models.profile_entities_model import (
     ProfileAchievement,
 )
 from app.models.taxonomy_model import InterestTag, Skill
-from app.models.user_model import Profile, UserInterest, UserSkill
+from app.models.user_model import Profile, User, UserInterest, UserSkill
 from app.models.enums import (
     ExperienceItemSource,
     RoleInItem,
@@ -414,7 +414,7 @@ class CvIntakeService:
         overwrite = {
             field
             for field in (basics_overwrite or [])
-            if field in (*self.BASICS_TEXT_FIELDS, "birth_year")
+            if field in (*self.BASICS_TEXT_FIELDS, "full_name", "birth_year")
         }
 
         def _is_draft(section: str, index: int | None = None) -> bool:
@@ -590,11 +590,19 @@ class CvIntakeService:
     async def existing_basics(self, user_id: uuid.UUID) -> dict:
         """The profile's current basics, for the review screen's
         keep-or-replace comparison (fresh server state, not a stale
-        store copy)."""
+        store copy); `full_name` mirrors the account name."""
         rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
         profile = rows.scalars().first()
         data = dict(profile.basics or {}) if profile else {}
+        user = (
+            await self.db.execute(
+                select(User.id, User.full_name).where(User.id == user_id)
+            )
+        ).first()
         return {
+            "full_name": str(
+                (user.full_name if user else "") or data.get("full_name") or ""
+            ),
             "email": data.get("email", ""),
             "phone": data.get("phone", ""),
             "headline": data.get("headline", ""),
@@ -631,6 +639,36 @@ class CvIntakeService:
             self.db.add(profile)
             await self.db.flush()
         data = dict(profile.basics or {})
+        user = (
+            (await self.db.execute(select(User).where(User.id == user_id)))
+            .scalars()
+            .first()
+        )
+        name_value = str(basics.get("full_name") or "").strip()[:160]
+        if name_value:
+            current_name = str(
+                (user.full_name if user else "") or data.get("full_name") or ""
+            )
+            if current_name != name_value:
+                if current_name:
+                    if "full_name" in overwrite:
+                        data["full_name"] = name_value
+                        if user is not None:
+                            user.full_name = name_value
+                    else:
+                        report["basics_conflicts"].append(
+                            {
+                                "field": "full_name",
+                                "existing": str(current_name),
+                                "incoming": name_value,
+                            }
+                        )
+                else:
+                    data["full_name"] = name_value
+                    if user is not None:
+                        user.full_name = name_value
+            else:
+                data.setdefault("full_name", name_value)
         incoming: dict[str, object] = {
             field: basics.get(field) for field in self.BASICS_TEXT_FIELDS
         }

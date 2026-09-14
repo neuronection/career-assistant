@@ -31,6 +31,7 @@ interface VariantEditorProps {
   defaultLanguage?: string;
   defaultSourceKey?: string;
   busy?: boolean;
+  onActivate?: () => Promise<void> | void;
   onClose: () => void;
   onSubmit: (body: VariantEditorBody) => Promise<void>;
 }
@@ -57,6 +58,7 @@ export function VariantEditor({
   defaultLanguage = "en",
   defaultSourceKey,
   busy = false,
+  onActivate,
   onClose,
   onSubmit,
 }: VariantEditorProps) {
@@ -101,6 +103,27 @@ export function VariantEditor({
         })),
     [sources]
   );
+  const refLabelLookup = useMemo(() => {
+    const map = new Map<string, { label: string; source: string }>();
+    for (const source of sources) {
+      for (const item of source.items ?? []) {
+        map.set(refKey(source.key, item.item_id), {
+          label: item.label,
+          source: source.label,
+        });
+      }
+    }
+    return map;
+  }, [sources]);
+
+  function resolvedRefLabel(key: string): string {
+    const found = refLabelLookup.get(key);
+    if (found) return found.label;
+    const [sourceKey] = key.split(":");
+    return key.startsWith("summary:")
+      ? t("cvSynth.sourceSummary")
+      : `${t(`cvSynth.sources.${sourceKey}`) === `cvSynth.sources.${sourceKey}` ? sourceKey : t(`cvSynth.sources.${sourceKey}`)} · ${key.slice(-8)}`;
+  }
   const optionCount = groupedOptions.reduce(
     (total, group) => total + group.options.length,
     0,
@@ -144,19 +167,21 @@ export function VariantEditor({
         </ModalHeader>
         <div className="flex flex-col gap-4 px-6 py-5 text-sm">
           {editing ? (
-            <div
-              className="flex items-center gap-2 rounded-lg bg-[var(--as-muted)] px-3 py-2 text-xs text-[var(--as-muted-fg)]"
-              data-testid="synth-editor-refs-readonly"
-            >
-              {initial?.source_refs.map((ref) => (
-                <span
-                  key={`${ref.source_key}-${ref.item_id}`}
-                  className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
-                >
-                  {ref.source_key}
-                </span>
-              ))}
-              <span className="flex-1">{t("cvSynth.editor.refsReadonly")}</span>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-[var(--as-muted)] px-3 py-2 text-xs text-[var(--as-muted-fg)]">
+              {(initial?.source_refs ?? []).map((ref) => {
+                const key = refKey(ref.source_key, ref.item_id);
+                return (
+                  <span
+                    key={`${ref.source_key}-${ref.item_id}`}
+                    className="max-w-52 truncate rounded-full border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5 text-[var(--as-fg)]"
+                    title={refKey(ref.source_key, ref.item_id)}
+                    data-testid={`synth-editor-ref-chip-${key}`}
+                  >
+                    {resolvedRefLabel(key)}
+                  </span>
+                );
+              })}
+              <span className="ml-1">{t("cvSynth.editor.refsReadonly")}</span>
             </div>
           ) : (
             <section>
@@ -175,6 +200,36 @@ export function VariantEditor({
                   {refs.length}/{MAX_REFS}
                 </span>
               </div>
+              {refs.length > 0 && (
+                <div
+                  className="mb-2 flex flex-wrap gap-1.5"
+                  data-testid="synth-editor-selected-refs"
+                >
+                  {refs.map((key) => (
+                    <span
+                      key={key}
+                      className="flex max-w-60 items-center gap-1 truncate rounded-full border border-[var(--as-border)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)] px-2 py-0.5 text-[11px] text-[var(--as-accent)]"
+                      title={`${refLabelLookup.get(key)?.source ?? ""} — ${refLabelLookup.get(key)?.label ?? key}`}
+                      data-testid={`synth-editor-ref-chip-${key}`}
+                    >
+                      <span className="truncate">{resolvedRefLabel(key)}</span>
+                      <button
+                        type="button"
+                        aria-label={t("cvSynth.editor.refChipRemove")}
+                        data-testid={`synth-editor-ref-chip-remove-${key}`}
+                        onClick={() =>
+                          setRefs((current) =>
+                            current.filter((entry) => entry !== key),
+                          )
+                        }
+                        className="shrink-0 rounded-full hover:text-red-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
               {optionCount === 0 ? (
                 <p className="rounded-lg border border-dashed border-[var(--as-border)] px-3 py-4 text-center text-xs text-[var(--as-muted-fg)]">
                   {t("cvSynth.editor.noRefs")}
@@ -233,6 +288,24 @@ export function VariantEditor({
                 </p>
               )}
             </section>
+          )}
+
+          {editing && initial?.status === "draft" && onActivate && (
+            <div
+              className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"
+              data-testid="synth-editor-draft-row"
+            >
+              <span>{t("cvSynth.editor.draftHint")}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                data-testid="synth-editor-activate"
+                onClick={() => void onActivate()}
+              >
+                {t("cvSynth.activate")}
+              </Button>
+            </div>
           )}
 
           <section className="space-y-1">

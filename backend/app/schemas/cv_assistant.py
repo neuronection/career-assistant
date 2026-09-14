@@ -42,8 +42,7 @@ class SetContextOp(BaseModel):
     include: list[CvContextRef] = Field(default_factory=list, max_length=200)
     exclude: list[CvContextRef] = Field(default_factory=list, max_length=200)
     # Synth state (plan 72): omitted = keep the CV's current values, so
-    # context edits don't wipe the user's prefer toggle / stars.
-    synth_mode: Optional[Literal["off", "prefer"]] = None
+    # context edits don't wipe the user's per-item variant stars.
     synth_pins: Optional[dict[str, str]] = Field(default=None, max_length=100)
 
 

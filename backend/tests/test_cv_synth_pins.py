@@ -1,6 +1,6 @@
 """Plan 72 follow-up: per-CV synth pinning (context.synth_pins) — a pin
-beats the automatic match winner for its ref, in both the prefer overlay
-and the highlights snapshot; foreign-language or dead pins fall back."""
+swaps that variant's text in for its ref (pins-only semantics), and the
+highlights snapshot cross-lists pinned rows; dead pins fall through."""
 
 import uuid
 from datetime import date
@@ -160,15 +160,16 @@ async def test_pin_gates_on_language_and_falls_back(client, db, auth_headers):
         "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
     )
     html = preview.json()["html"]
-    assert "Winner text" in html, "a foreign-language pin is ignored; default applies"
-    assert "German text" not in html
-
-    # Highlights snapshot lists the winner (post-overlay exclusion keeps
-    # it out of `synth` keys in prefer mode — here prefer + pin → applied
-    # winner → excluded).
+    assert "German text" not in html, "a foreign-language pin never applies"
+    assert "Winner text" not in html, "pins-only: unsupported stars fall through"
+    assert "Built QA tooling" in html, "verbatim profile text renders instead"
     await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
     version = (await db.execute(select(CvVersion))).scalars().first()
-    assert version.content["snapshot"].get("synth", []) == []
+    entries = version.content["snapshot"].get("synth", [])
+    assert "Winner text" in [entry["description"] for entry in entries], (
+        "the highlights snapshot lists the eligible variant even though the "
+        "dead pin never applied"
+    )
 
 
 async def test_highlights_snapshot_respects_pins(client, db, auth_headers):

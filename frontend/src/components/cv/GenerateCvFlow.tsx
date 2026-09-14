@@ -8,7 +8,6 @@ import {
   fetchGeneratePreview,
   generateCv,
   polishCv,
-  previewSynthMatches,
 } from "@/api/cv";
 import type {
   CvGeneratePreviewOut,
@@ -95,8 +94,6 @@ export function GenerateCvFlow({
   const [enabledSources, setEnabledSources] = useState<Set<string>>(new Set());
   const [sectionsOn, setSectionsOn] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
-  const [preferSynth, setPreferSynth] = useState(false);
-  const [synthMatches, setSynthMatches] = useState<number | null>(null);
   const [preview, setPreview] = useState<CvGeneratePreviewOut | null>(null);
 
   const previewActive = Boolean(preview?.html);
@@ -196,39 +193,11 @@ export function GenerateCvFlow({
   const totalItems = offerable.reduce((sum, source) => sum + source.items.length, 0);
   const canGenerate = totalItems > 0;
 
-  useEffect(() => {
-    if (!preferSynth) {
-      setSynthMatches(null);
-      return;
-    }
-    const refs = sources
-      .filter((source) => enabledSources.has(source.key))
-      .flatMap((source) =>
-        source.items.map((item) => ({
-          source_key: source.key,
-          item_id: item.item_id,
-        }))
-      );
-    const timer = window.setTimeout(() => {
-      previewSynthMatches({
-        language,
-        target_posting_id: postingId || undefined,
-        refs,
-      })
-        .then((out) => setSynthMatches(out.total))
-        .catch(() => setSynthMatches(null));
-    }, 400);
-    return () => {
-      window.clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferSynth, language, postingId, enabledSources, sources]);
-
   async function handleGenerate() {
     setError("");
     const allOn = offerable.every((source) => enabledSources.has(source.key));
     const selection: CvContextSelection = allOn
-      ? { mode: "all", include: [], exclude: [], synth_mode: preferSynth ? "prefer" : "off" }
+      ? { mode: "all", include: [], exclude: [] }
       : {
           mode: "none",
           include: sources
@@ -240,7 +209,6 @@ export function GenerateCvFlow({
               }))
             ),
           exclude: [],
-          synth_mode: preferSynth ? "prefer" : "off",
         };
     const request: CvGenerateRequest = {
       target_posting_id: postingId || undefined,
@@ -516,21 +484,6 @@ export function GenerateCvFlow({
           )}
           <div className="space-y-1">
             <p className="text-xs text-[var(--as-muted-fg)]">{t("cvGenerate.context")}</p>
-            <ToggleRow
-              label={t("cvGenerate.preferSynth")}
-              checked={preferSynth}
-              onChange={setPreferSynth}
-            />
-            {preferSynth && synthMatches !== null && (
-              <p
-                className="text-xs text-[var(--as-muted-fg)]"
-                data-testid="cv-generate-synth-hint"
-              >
-                {synthMatches > 0
-                  ? t("cvGenerate.synthMatchCount", { n: synthMatches })
-                  : t("cvGenerate.synthMatchNone")}
-              </p>
-            )}
             {offerable.map((source) => (
               <ToggleRow
                 key={source.key}

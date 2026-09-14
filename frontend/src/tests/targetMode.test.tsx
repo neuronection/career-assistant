@@ -313,6 +313,7 @@ describe("Required-aware completeness banner", () => {
         city: "Athens",
         email: "",
         phone: "",
+        full_name: "Test User",
         headline: "",
       },
       academics: { favorite_subjects: [], languages: [] },

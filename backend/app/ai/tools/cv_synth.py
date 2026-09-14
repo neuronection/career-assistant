@@ -11,9 +11,8 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
-from typing import Literal
 
-from app.schemas.cv import CvContextRef, CvContextSelection
+from app.schemas.cv import CvContextRef
 from app.schemas.cv_synth import (
     CvSynthAction,
     CvSynthItemGenerate,
@@ -67,11 +66,6 @@ class CvSynthUpdateInput(BaseModel):
         default=None, description="draft | active | archived"
     )
     variant_key: Optional[str] = None
-
-
-class CvSynthEnableInput(BaseModel):
-    cv_id: str = Field(min_length=8, max_length=64)
-    mode: Literal["off", "prefer"] = "prefer"
 
 
 async def _owned_cv(db, ctx: ToolContext, cv_id: str):
@@ -162,12 +156,11 @@ async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
                 ref_key in override_patch_keys for ref_key in ref_keys
             ):
                 item["verdict"] = "override_conflict"
-            elif (
-                row.status == "active"
-                and cv.context
-                and (cv.context.get("synth_mode") or "off") == "off"
+            elif row.status == "active" and not any(
+                ((cv.context or {}).get("synth_pins") or {}).get(ref_key)
+                for ref_key in ref_keys
             ):
-                item["verdict"] = "mode_off"
+                item["verdict"] = "not_pinned"
         items.append(item)
     return {"items": items[:40]}
 
@@ -252,35 +245,6 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
     }
 
 
-async def _enable_synth(db, ctx: ToolContext, args: CvSynthEnableInput):
-    from app.services.cv_service import CvService
-
-    if ctx.user_id is None:
-        from app.core.errors import PermissionDeniedError
-
-        raise PermissionDeniedError("A signed-in user is required")
-    cv = await _owned_cv(db, ctx, args.cv_id)
-    if args.mode not in ("off", "prefer"):
-        from app.core.errors import DomainError
-
-        raise DomainError("mode must be 'off' or 'prefer'")
-    selection = (
-        CvContextSelection.model_validate(cv.context)
-        if cv.context
-        else CvContextSelection()
-    )
-    selection.synth_mode = args.mode
-    cv.context = selection.model_dump(mode="json")
-    await CvService(db).update(cv.id, ctx.user_id, cv_id_patch(cv))
-    return {"cv_id": str(cv.id), "synth_mode": args.mode}
-
-
-def cv_id_patch(cv):
-    from app.schemas.cv import CvDocumentUpdate
-
-    return CvDocumentUpdate(context=cv.context)
-
-
 def _tool(key, title, description, input_model, handler, scope, cost="cheap"):
     return AITool(
         key=key,
@@ -330,15 +294,6 @@ CV_SYNTH_TOOLS: list[AITool] = [
         "(draft/active/archived). No delete — that stays human-only.",
         CvSynthUpdateInput,
         _update_synth,
-        ToolScope.WRITE,
-    ),
-    _tool(
-        "cv_synth_enable",
-        "Set the CV's synth preference",
-        "Flip `synth_mode` on a CV: 'prefer' applies matching variants at "
-        "resolution, 'off' renders verbatim profile text.",
-        CvSynthEnableInput,
-        _enable_synth,
         ToolScope.WRITE,
     ),
 ]

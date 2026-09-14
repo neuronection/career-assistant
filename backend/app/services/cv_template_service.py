@@ -39,6 +39,29 @@ def _author_key(user) -> str:
     return str(user.id) if getattr(user, "id", None) else "bank"
 
 
+_LAYOUT_HINT_KEYWORDS = (
+    "sidebar",
+    "side panel",
+    "side-panel",
+    "two-column",
+    "two column",
+    "2-column",
+    "modern",
+)
+
+
+def _layout_hint(notes: str) -> str:
+    """A notes-driven layout hint for the template pick ('' = none).
+
+    'modern' maps to the sidebar family — the two-column look the
+    renderer's area system produces."""
+    lowered = (notes or "").lower()
+    for keyword in _LAYOUT_HINT_KEYWORDS:
+        if keyword in lowered:
+            return "sidebar"
+    return ""
+
+
 class CvTemplateService:
     """CRUD + immutable versions + validation + AI + visual review."""
 
@@ -378,6 +401,7 @@ class CvTemplateService:
         rows = await self.list_templates(user_id)
         if not rows:
             return {"picks": [], "candidates_considered": 0}
+        layout_hint = _layout_hint(notes)
         scored: list[tuple[float, int, CvTemplate]] = []
         for index, row in enumerate(rows):
             score = 5.0
@@ -385,7 +409,7 @@ class CvTemplateService:
                 score += 2.0
             content = TemplateContent.model_validate(row.content)
             if content.design.layout == "sidebar":
-                score += 0.8
+                score += 1.5 if layout_hint == "sidebar" else 0.8
             if row.ats_safe:
                 score += 1.2
             scored.append((-score, index, row))
@@ -410,6 +434,8 @@ class CvTemplateService:
             target = {"title": posting.title, "org": posting.org or ""}
         if notes.strip():
             target["notes"] = notes.strip()[:2000]
+        if layout_hint:
+            target["layout_hint"] = layout_hint
         images = await self._candidate_thumbnails(ordered[:VISUAL_PICK_CANDIDATES])
         ranking = await rank_templates(
             self.db, user_id, candidates, target or None, images=images or None
@@ -429,23 +455,24 @@ class CvTemplateService:
 
         The (mime, bytes) images ride to the model in candidate-ref
         order (t0, t1, …) — the prompt ties order to refs.
-        Capability-detected: no PDF engine or any render failure simply
-        drops the images — the ranking falls back to metadata-only."""
-        from app.services.cv_pdf_service import html_to_pngs, pdf_engine_available
+        Behavior-based (not a probe): no PDF engine or any render
+        failure simply drops the images — the ranking falls back to
+        metadata-only."""
+        from app.services.cv_pdf_service import measure_pages
 
-        if not pdf_engine_available():
-            return []
         images: list[tuple[str, bytes]] = []
         for row in rows:
             try:
                 html, _metrics = self.preview_html_content(
                     TemplateContent.model_validate(row.content)
                 )
-                pages = await html_to_pngs(html, page_size=str(row.page_size))
+                measure = await measure_pages(
+                    html, page_size=str(row.page_size), max_images=1
+                )
             except Exception:  # noqa: BLE001 — one bad candidate degrades
                 continue
-            if pages:
-                images.append(pages[0])
+            if measure.images:
+                images.append(measure.images[0])
         return images
 
     # ------------------------------------------------------ visual review

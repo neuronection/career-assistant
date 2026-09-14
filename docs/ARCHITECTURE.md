@@ -172,14 +172,21 @@ There is no side door around it.
   `app/services/feature_map.py`: rows bind every `PostingExtract` field
   to its real consumers, and the AI extraction prompt is generated from
   those rows — schema and prompt cannot drift.
-- **CV pagination is estimated, then measured**: `cv_renderer` computes
-  `estimated_pages` from per-column wrap math (font size, page size,
-  sidebar width all factor in) and honors them per column (two-column
-  layouts fill max(main, sidebar) pages — the columns table-based so
-  they fragment across print pages). PDF exports record the measured
-  Chromium page count onto the compiled version
-  (`content.render.pages_actual`) and lint surfaces it next to the
-  estimate; break-quality is CSS-only (`break-inside: avoid` on
+- **CV pagination is estimated, then measured — the printed PDF is the
+  truth**: `cv_renderer` computes `estimated_pages` from per-column wrap
+  math (font size, page size, sidebar width all factor in) and honors
+  them per column (two-column layouts fill max(main, sidebar) pages —
+  the columns table-based so they fragment across print pages). Whenever
+  the engine is reachable, `cv_pdf_service.measure_pages` prints the
+  document once through the persistent headless-Chromium browser, counts
+  the PDF's own page tree via pypdfium2 (never clamped) and rasterizes
+  the exact printed pages for the vision critique; lint prefers that
+  live print over the last export's stamp (`page_count_source` says
+  which) and PDF exports stamp it onto the compiled version
+  (`content.render.pages_actual`). Linux desktop packages bundle the
+  Chromium headless shell, the Windows exe falls back to the system
+  Edge/Chrome channels, and `careerassistant enginecheck` probes a
+  frozen install; break-quality is CSS-only (`break-inside: avoid` on
   semantic units, `break-after: avoid` on headings).
 - **Chat tools** register in `app/ai/tools/` (`AITool` data,
   single `run_tool` executor, entry-point group `career_assistant.tools`

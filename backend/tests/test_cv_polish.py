@@ -18,6 +18,7 @@ from app.models.background_job_model import BackgroundJob
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.enums import AITaskType, BackgroundJobStatus, BackgroundJobType
 from app.schemas.cv_generate import CvGenerateRequest
+from app.services.cv_generate_service import CvGenerateService
 
 from tests.conftest import _uid
 from tests.test_cv_generate import _experience
@@ -214,9 +215,13 @@ async def test_polish_without_png_engine_degrades_to_lint_only(
     client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
 ):
     """PNG engine 503 → review degrades; the run still completes."""
-    monkeypatch.setattr(
-        "app.services.cv_pdf_service.pdf_engine_available", lambda: False
-    )
+
+    async def _unavailable(*_args, **_kwargs):
+        from app.services.cv_pdf_service import PDFEngineUnavailable
+
+        raise PDFEngineUnavailable("Server PDF engine not installed")
+
+    monkeypatch.setattr("app.services.cv_pdf_service.measure_pages", _unavailable)
     await _experience(client, auth_headers)
     result = await _generate(db, auth_headers)
     await db.commit()
@@ -302,8 +307,9 @@ async def test_variant_is_applied_then_kept_by_the_next_review(
 ):
     """Iteration 0 flags one item (fail + set_override suggestion): the
     loop grounds a CV_SYNTH variant and applies it; the next review is
-    clean → the pending variant resolves as kept, its synth row stays
-    DRAFT in the library, and the loop finalizes (plan 64 §3)."""
+    clean → the pending variant resolves as kept, its synth row turns
+    ACTIVE (a review-kept variant is eligible), and the loop finalizes
+    (plan 64 §3)."""
     from sqlalchemy import text as sql
 
     from app.ai.agents.context import parse_context
@@ -365,7 +371,16 @@ async def test_variant_is_applied_then_kept_by_the_next_review(
     ]
     assert verdicts and "kept" in verdicts
     rows = (await db.execute(sql("select status, source from cv_synth_items"))).all()
-    assert all(status == "draft" and source == "ai" for status, source in rows)
+    assert rows, "the kept variant lives in the library"
+    assert all(status == "active" for status, _source in rows), (
+        "a review-kept variant is auto-activated"
+    )
+    record = next(v for iteration in trace["iterations"] for v in iteration["variants"])
+    assert record["activated"] is True
+    pins = cv.context.get("synth_pins") or {}
+    assert set(pins.values()) == {
+        record["synth_item_id"],
+    }, "the kept variant is starred as its item's default"
 
 
 async def test_structural_redesign_escape_hatch_triggers_and_keeps(
@@ -448,8 +463,12 @@ async def test_redesign_ladder_escapes_to_fresh_when_modified_reverts(
         r.get("verdict") == "reverted" and r.get("mode") == "modified"
         for r in redesigns
     ), redesigns
-    fresh = trace.get("redesign") or {}
-    assert fresh.get("mode") == "fresh" and fresh.get("pending") is True, fresh
+    fresh_verdicts = [r for r in redesigns if r.get("mode") == "fresh"]
+    assert fresh_verdicts, "the ladder drafted the from-scratch template"
+    assert (
+        any(r.get("verdict") == "reverted" for r in fresh_verdicts)
+        or (trace.get("redesign") or {}).get("pending") is True
+    ), (fresh_verdicts, trace.get("redesign"))
     assert trace["outcome"]["status"] == "cap"
 
 
@@ -634,3 +653,320 @@ async def test_runs_endpoint_splits_resumed_runs(
     assert "cv_build_review" in polish_tasks
     assert "cv_draft" in generate_tasks
     assert polish_run["aggregate"]["calls"] == len(polish_run["llm_calls"])
+
+
+# --------------------------------------------------- budget cap + reviewer brief
+
+
+def test_mock_over_budget_suggests_trim_not_widening():
+    """The bank mock never widens the budget: an over-budget lint yields
+    a content-trim op (skills max_items), never set_doc_options."""
+    from app.ai.agents.cv_build_reviewer import _mock_build_critique
+    from app.ai.schemas import CvBuildCritique
+
+    from app.ai.agents.context import context_json
+
+    prompt = "note\n" + context_json(
+        {
+            "lint": {
+                "checks": [],
+                "pages_actual": 2,
+                "max_pages": 1,
+                "pages_actual_over_budget": True,
+                "empty_blocks": [],
+            },
+            "coverage": {"included": [], "dropped": [], "missing": []},
+            "blocks": [
+                {"index": 0, "kind": "header", "area": "main", "title": "Header"},
+                {"index": 1, "kind": "skills", "area": "main", "title": "Skills"},
+            ],
+        }
+    )
+    critique = _mock_build_critique(CvBuildCritique, prompt)
+    ops = [
+        op for issue in critique["issues"] for op in (issue.get("suggested_ops") or [])
+    ]
+    assert ops, "the over-budget fail suggests densify + trim"
+    assert ops[0]["operation"]["op"] == "update_design", (
+        "densification rides first — tighter type and spacing"
+    )
+    assert ops[0]["operation"]["design"] == {
+        "base_size_pt": 9,
+        "spacing_scale": 0.9,
+    }
+    assert ops[1]["operation"]["op"] == "update_block_props"
+    assert ops[1]["operation"]["props"]["max_items"] == 8
+    assert not any(op["operation"]["op"] == "set_doc_options" for op in ops)
+
+
+async def test_page_budget_is_a_hard_cap_and_notes_reach_the_review(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """The reviewer judges against the user's brief (user_notes) and can
+    never raise the page budget: the fix applier rejects a suggested
+    set_doc_options raise — the budget stays 1 while safe trims ride."""
+    import app.services.cv_generate_service as service_module
+    from app.ai.agents.context import parse_context
+
+    async def memory_checkpointer():
+        return InMemorySaver()
+
+    monkeypatch.setattr(service_module, "get_checkpointer", memory_checkpointer)
+
+    seen_notes: list[str] = []
+
+    def _critique(schema, prompt):
+        ctx = parse_context(prompt)
+        seen_notes.append(str(ctx.get("user_notes") or ""))
+        iteration = int(ctx.get("iteration") or 0)
+        blocks = ctx.get("blocks") or []
+        if iteration == 0:
+            skills_index = next(
+                (entry["index"] for entry in blocks if entry.get("kind") == "skills"),
+                0,
+            )
+            return {
+                "summary": "Over budget.",
+                "issues": [
+                    {
+                        "level": "fail",
+                        "area": "page_budget",
+                        "message": "Two pages against a one-page budget.",
+                        "suggested_ops": [
+                            {
+                                "operation": {
+                                    "op": "set_doc_options",
+                                    "max_pages": 3,
+                                },
+                                "rationale": "widen the budget",
+                            },
+                            {
+                                "operation": {
+                                    "op": "update_block_props",
+                                    "block_index": skills_index,
+                                    "props": {"max_items": 4},
+                                },
+                                "rationale": "trim the skills list",
+                            },
+                        ],
+                    }
+                ],
+                "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+            }
+        return {
+            "summary": "Clean build.",
+            "issues": [],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    monkeypatch.setitem(MOCK_FIXTURES, AITaskType.CV_BUILD_REVIEW.value, _critique)
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(
+            language="en",
+            length="concise",
+            notes="Make it very modern with a side panel.",
+            max_pages=1,
+        ),
+        run_id=uuid.uuid4(),
+    )
+    assert result["status"] == "completed"
+    assert any(
+        "Make it very modern with a side panel." == notes for notes in seen_notes
+    ), "the reviewer prompt carried the user's brief"
+
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    assert cv.max_pages == 1, "the page budget never grows"
+
+    final = await _latest_final_version(db, cv)
+    ops = [
+        entry
+        for iteration in final.content["polish"]["iterations"]
+        for entry in iteration["ops"]
+    ]
+    widen = [entry for entry in ops if entry["op"] == "set_doc_options"]
+    assert widen and widen[0]["ok"] is False, "the widening op was rejected"
+    assert "budget stays 1" in widen[0]["detail"]
+    trim = [entry for entry in ops if entry["op"] == "update_block_props"]
+    assert trim and trim[0]["ok"] is True, "the safe trim still applied"
+
+
+async def test_variant_grounding_failure_never_fails_the_run(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """A grounding error inside the fix node (e.g. stale refs the
+    reviewer invented) degrades to a run warning — the loop finalizes."""
+    from app.ai.agents.context import parse_context
+
+    def _critique(schema, prompt):
+        ctx = parse_context(prompt)
+        iteration = int(ctx.get("iteration") or 0)
+        if iteration == 0:
+            return {
+                "summary": "One content fix.",
+                "issues": [
+                    {
+                        "level": "fail",
+                        "area": "content",
+                        "message": "Tighten the internship.",
+                        "suggested_ops": [
+                            {
+                                "operation": {
+                                    "op": "set_override",
+                                    "source_key": "ghost-source",
+                                    "item_id": "00000000-0000-0000-0000-000000000000",
+                                    "field": "description",
+                                    "value": "tightened",
+                                },
+                                "rationale": "bogus variant slot",
+                            }
+                        ],
+                    }
+                ],
+                "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+            }
+        return {
+            "summary": "Clean build.",
+            "issues": [],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    monkeypatch.setitem(MOCK_FIXTURES, AITaskType.CV_BUILD_REVIEW.value, _critique)
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(language="en", length="concise", max_pages=1),
+        run_id=uuid.uuid4(),
+    )
+    assert result["status"] == "completed", "the run never crashes on grounding"
+
+
+async def test_lint_measures_live_pages_when_engine_present(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """The estimate lies for dense two-column layouts — with the PDF
+    engine present, lint measures the REAL page count and the budget
+    fail stands (a 1.5-page CV is never 'fits in 1')."""
+    from app.services.cv_export_service import CvExportService
+    import app.services.cv_pdf_service as pdf_service
+
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(language="en", length="standard", max_pages=1),
+        run_id=uuid.uuid4(),
+    )
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+
+    async def _two_pages(html: str, page_size: str = "a4", max_images: int = 4):
+        return pdf_service.PageMeasure(
+            pages=2, source="pdf", images=[("image/png", b"a"), ("image/png", b"b")]
+        )
+
+    monkeypatch.setattr("app.services.cv_export_service.measure_pages", _two_pages)
+
+    report = await CvExportService(db).lint_report(cv)
+    metrics = report["metrics"]
+    assert metrics["pages_actual"] == 2
+    assert metrics["pages_actual_over_budget"] is True
+    assert report["checks"], "lint still completes around the live measure"
+    budget_fail = next(
+        (check for check in report["checks"] if check.get("id") == "page_budget"),
+        None,
+    )
+    assert budget_fail is not None and budget_fail["level"] == "fail", (
+        "an over-budget build is a blocking lint fail for the gate, "
+        "not a warn the reviewer can shrug off"
+    )
+
+
+async def test_lint_prefers_the_live_measure_over_a_stale_export_stamp(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """The last export's stamp ages with every edit — a live print of the
+    CURRENT state always wins when the engine is present (plan 76)."""
+    import app.services.cv_pdf_service as pdf_service
+    from app.services.cv_export_service import CvExportService
+
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(language="en", length="standard", max_pages=1),
+        run_id=uuid.uuid4(),
+    )
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+
+    async def _live(html: str, page_size: str = "a4", max_images: int = 0):
+        return pdf_service.PageMeasure(pages=2, source="pdf")
+
+    async def _stale(self, cv):
+        return 1
+
+    monkeypatch.setattr("app.services.cv_export_service.measure_pages", _live)
+    monkeypatch.setattr(CvExportService, "_measured_pages", _stale)
+    metrics = (await CvExportService(db).lint_report(cv))["metrics"]
+    assert metrics["pages_actual"] == 2, "the live measure beats the stale stamp"
+    assert metrics["page_count_source"] == "pdf"
+
+
+async def test_lint_falls_back_to_the_export_stamp_without_an_engine(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """Engine absent → the last export's real measurement still speaks
+    (flagged as aging), never a silent guess."""
+    from app.services.cv_export_service import CvExportService
+
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(language="en", length="standard", max_pages=1),
+        run_id=uuid.uuid4(),
+    )
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+
+    async def _unavailable(*_args, **_kwargs):
+        from app.services.cv_pdf_service import PDFEngineUnavailable
+
+        raise PDFEngineUnavailable("Server PDF engine not installed")
+
+    async def _stale(self, cv):
+        return 1
+
+    monkeypatch.setattr("app.services.cv_export_service.measure_pages", _unavailable)
+    monkeypatch.setattr(CvExportService, "_measured_pages", _stale)
+    metrics = (await CvExportService(db).lint_report(cv))["metrics"]
+    assert metrics["pages_actual"] == 1
+    assert metrics["page_count_source"] == "last_export"
+
+
+def test_gate_blocks_on_pages_actual_over_budget():
+    """A measured/estimated over-budget metric blocks — the reviewer's
+    opinion cannot clear a page overflow (plan 64 §3)."""
+    state = _review_state(review_lint={"checks": [], "pages_actual_over_budget": True})
+    assert route_after_review(state) == "fix"
+
+
+def test_gate_finalizes_a_clean_budget():
+    state = _review_state(review_lint={"checks": [], "pages_actual_over_budget": False})
+    assert route_after_review(state) == "finalize"
+
+
+def test_review_pages_truth_uses_the_worst_count():
+    """The review's own PNG count overrides the lint story; when the two
+    disagree the WORSE number stands — a tiny spillover always fails."""
+    summary = {"checks": [], "pages_actual": 1, "pages_actual_over_budget": False}
+    cv_draft._review_pages_truth(summary, 2, 1)
+    assert summary["pages_actual"] == 2
+    assert summary["pages_actual_over_budget"] is True
+
+    flipped = {"checks": [], "pages_actual": 2, "pages_actual_over_budget": True}
+    cv_draft._review_pages_truth(flipped, 1, 1)
+    assert flipped["pages_actual"] == 2, "the flaked measure never downgrades"
+
+    untouched = {"checks": [], "pages_actual": 1, "pages_actual_over_budget": False}
+    cv_draft._review_pages_truth(untouched, 0, 1)
+    assert untouched["pages_actual"] == 1, "no engine capture → lint stays"

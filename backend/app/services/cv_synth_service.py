@@ -307,6 +307,7 @@ class CvSynthService:
         request: CvSynthItemGenerate,
         *,
         run: Optional[RunRef] = None,
+        base_texts: Optional[dict[tuple[str, str], str]] = None,
     ) -> list[CvSynthItem]:
         """One CV_SYNTH run → AI draft rows (verified, committed audit).
 
@@ -316,7 +317,11 @@ class CvSynthService:
         translated (tailoring carries over) while the new row keeps the
         master's source refs + fresh source hashes. AI items must cite
         the request's refs — anything out of the allowlist is dropped.
-        Commits before returning (ai_generations audit rule)."""
+        `base_texts` optionally replaces a ref's evidence description
+        with the caller's current text (the polish loop grounds its
+        compaction restyles from the CV's rendered text, not the raw
+        profile text), keeping prior tailoring across rounds. Commits
+        before returning (ai_generations audit rule)."""
         from app.ai.agents.cv_synthetizer import synthesize
 
         if request.action == "translate":
@@ -340,6 +345,14 @@ class CvSynthService:
                 user_id, request.posting_id, request.action
             )
         evidence = [_evidence_entry(context, ref) for ref in refs]
+        for index, ref in enumerate(refs):
+            base = (base_texts or {}).get(_ref_tuple(ref))
+            if base:
+                entry = evidence[index]
+                entry["payload"] = {
+                    **(entry.get("payload") or {}),
+                    "description": base,
+                }
         language = (request.language or "en").strip().lower()[:10]
         if not (2 <= len(language) <= 10):
             raise ValidationError("Invalid language code")
@@ -494,13 +507,29 @@ class CvSynthService:
         language: str,
         variant_key: str | None = None,
     ) -> list[CvSynthItem]:
-        """Verified draft persistence for one batch (the honesty gate)."""
+        """Verified draft persistence for one batch (the honesty gate).
+
+        The model's echoed refs drive attribution; an out-of-allowlist
+        citation is cut — an in-allowlist subset persists, a single-ref
+        request falls back to the authoritative request refs (the draft
+        text was grounded on exactly that evidence), and a multi-ref
+        request with no usable citation is dropped (the target is
+        ambiguous)."""
         allowlist = {_ref_tuple(ref) for ref in refs}
+        request_refs = [_ref_tuple(ref) for ref in refs]
+        fallback = request_refs if len(allowlist) == 1 else None
         created: list[CvSynthItem] = []
         for item in batch.items:
             listed = [(str(r.source_key), str(r.item_id)) for r in item.refs]
-            if not listed or any(ref not in allowlist for ref in listed):
+            cited = list(dict.fromkeys(listed))
+            cited_valid = [ref for ref in cited if ref in allowlist]
+            if cited_valid:
+                refs_out = _refs_dump(cited_valid)
+            elif fallback is not None:
+                refs_out = _refs_dump(fallback)
+            else:
                 continue
+            final_refs = [_ref_tuple(ref) for ref in refs_out]
             payload = item.payload.model_dump(mode="json")
             if (
                 not payload.get("description")
@@ -508,7 +537,6 @@ class CvSynthService:
                 and not payload.get("bullets")
             ):
                 continue
-            refs_out = _refs_dump(listed)
             evidence_refs = [
                 {"source_key": str(r.source_key), "item_id": str(r.item_id)}
                 for r in item.evidence_refs
@@ -533,7 +561,7 @@ class CvSynthService:
                 status=CvSynthStatus.DRAFT.value,
                 source=CvSynthSource.AI.value,
                 verified=bool(evidence_refs)
-                and all(ref in allowlist for ref in listed),
+                and all(ref in allowlist for ref in final_refs),
             )
             self.db.add(row)
             created.append(row)
@@ -635,15 +663,14 @@ class CvSynthService:
     # ------------------------- resolution overlay -------------------------
 
     async def apply_to_resolution(
-        self, cv, resolution, mode: str, pins: dict | None = None
+        self, cv, resolution, pins: dict | None = None
     ) -> dict:
-        """Plan-62 overlay for a stored CV; delegates to `apply_to_items`."""
+        """Per-item overlay for a stored CV; delegates to `apply_to_items`."""
         return await self.apply_to_items(
             cv.user_id,
             cv.language,
             cv.target_posting_id,
             resolution,
-            mode,
             pins=pins,
         )
 
@@ -653,19 +680,18 @@ class CvSynthService:
         language: str,
         target_posting_id: Optional[uuid.UUID],
         resolution,
-        mode: str,
         pins: dict | None = None,
     ) -> dict:
-        """Plan-62 overlay: swap matched variants' text into the snapshot.
+        """Overlay: swap the per-ref pinned variants' text into the snapshot.
 
-        Only in `prefer` mode, or when the CV has per-item pins (a pin
-        replaces that item's text on its own). Precedence
-        `override > synth > source` holds because the editor's
+        Pins-only semantics (V2): a starred variant replaces that item's
+        text on its own; unpinned items render verbatim profile text.
+        Precedence `override > synth > source` holds because the editor's
         `apply_overrides` runs AFTER this (the builder calls it in
         `render_state`), so a manual field patch always wins. Returns
         the `synth_applied` trace map (`{ref_key: synth_id}`) recorded
         into `CvVersion` `context_resolution` at compile."""
-        if mode != "prefer" and not pins:
+        if not pins:
             return {}
         ref_by_id: dict[str, str] = {}
         for key, ids in resolution.snapshot_index.items():
@@ -678,14 +704,11 @@ class CvSynthService:
             refs=[(key, item_id) for item_id, key in ref_by_id.items()],
             pins=pins,
         )
-        if mode != "prefer" and pins:
-            matches = {
-                ref: variant
-                for ref, variant in matches.items()
-                if str(pins.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
-            }
-            if not matches:
-                return {}
+        matches = {
+            ref: variant
+            for ref, variant in matches.items()
+            if str(pins.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
+        }
         if not matches:
             return {}
         for (source_key, item_id), variant in matches.items():

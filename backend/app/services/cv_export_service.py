@@ -3,8 +3,8 @@
 Every export compiles the current state first (auto-version,
 `created_by=export`), then serializes the compiled snapshot — an exported
 file is always exactly an immutable version. PDF is the renderer's
-print-ready HTML (browser print path; a headless renderer may slot in
-later without changing this contract).
+print-ready HTML printed through headless Chromium (capability-detected;
+without it the client falls back to the print view).
 """
 
 import json
@@ -19,8 +19,9 @@ from app.services.cv_builder_service import CvBuilderService
 from app.services.cv_languages import is_proficiency_cert, proficiency_for
 from app.services.cv_pdf_service import (
     PDFEngineUnavailable,
+    count_pdf_pages,
     html_to_pdf,
-    pdf_page_count,
+    measure_pages,
 )
 from app.services.cv_renderer import (
     SOURCE_DEFAULT_TITLES,
@@ -580,8 +581,10 @@ def lint(
         add(
             "page_overflow",
             "warn",
-            f"Estimated {metrics.get('estimated_pages')} pages exceed max "
-            f"{metrics.get('max_pages')}.",
+            f"Estimated at {metrics.get('estimated_pages')} pages vs the "
+            f"{metrics.get('max_pages')}-page budget — the estimate drifts on "
+            "dense layouts; the measured count (when the PDF engine is "
+            "available) is authoritative.",
         )
     ats_safe = getattr(template, "ats_safe", None)
     if ats_safe is False:
@@ -644,7 +647,7 @@ class CvExportService:
                 pdf = await html_to_pdf(html)
             except PDFEngineUnavailable:
                 raise
-            actual = pdf_page_count(pdf)
+            actual = count_pdf_pages(pdf)
             if actual is not None:
                 await self._stamp_pages_actual(version, actual, cv.max_pages)
             return ExportFile(filename, MEDIA_TYPES[fmt], pdf, False)
@@ -665,17 +668,40 @@ class CvExportService:
         )
 
     async def lint_report(self, cv: CvDocument) -> dict:
-        """Deterministic lint over the current state (no version created)."""
+        """Deterministic lint over the current state (no version created).
+
+        When the PDF engine is present the page count is MEASURED live by
+        printing the current state — renderer estimates drift (especially
+        for dense two-column layouts), and the polish gate must judge the
+        truth. A live measure always beats the last export's stamp (which
+        ages with every edit); the stamp only speaks when no engine can.
+        """
         html, payload, resolution, metrics = await self.builder.render_state(cv)
         report = lint(
             payload, html, asdict(metrics), await self.builder.template_row(cv)
         )
         report["resolved_items"] = len(resolution.items)
         report["checks"].extend(await self._synth_checks(cv, resolution))
-        actual = await self._measured_pages(cv)
+        actual, source = await self._live_measure(cv, html)
+        if actual is None:
+            actual = await self._measured_pages(cv)
+            source = "last_export" if actual is not None else None
+        report["metrics"]["page_count_source"] = source
         if actual is not None:
             report["metrics"]["pages_actual"] = actual
             report["metrics"]["pages_actual_over_budget"] = actual > cv.max_pages
+            if actual > cv.max_pages:
+                report["checks"].append(
+                    {
+                        "id": "page_budget",
+                        "level": "fail",
+                        "message": (
+                            f"Measured {actual} pages exceed the {cv.max_pages}-page "
+                            "budget — densify (update_design) or trim; the "
+                            "budget never grows."
+                        ),
+                    }
+                )
         return report
 
     async def _synth_checks(self, cv: CvDocument, resolution) -> list[dict]:
@@ -702,22 +728,27 @@ class CvExportService:
             entry.update(extra)
             checks.append(entry)
 
-        if selection.synth_mode == "off":
-            ref_by_id: dict[str, str] = {}
-            for key, ids in resolution.snapshot_index.items():
-                for item_id in ids:
-                    ref_by_id.setdefault(item_id, key)
-            matches = await synth.match_for_cv(
-                cv, refs=[(key, item_id) for item_id, key in ref_by_id.items()]
+        pins = selection.synth_pins
+        ref_by_id: dict[str, str] = {}
+        for key, ids in resolution.snapshot_index.items():
+            for item_id in ids:
+                ref_by_id.setdefault(item_id, key)
+        matches = await synth.match_for_cv(
+            cv, refs=[(key, item_id) for item_id, key in ref_by_id.items()]
+        )
+        unpinned = {
+            ref: variant
+            for ref, variant in matches.items()
+            if not pins or str(pins.get(f"{ref[0]}:{ref[1]}", "")) != str(variant.id)
+        }
+        if unpinned:
+            add(
+                "synth_available",
+                "info",
+                f"{len(unpinned)} matching synthesized variant(s) exist — "
+                "star one on this CV to use it.",
+                count=len(unpinned),
             )
-            if matches:
-                add(
-                    "synth_available",
-                    "info",
-                    f"{len(matches)} matching synthesized variant(s) exist — "
-                    "enable 'prefer synthesized' to use them.",
-                    count=len(matches),
-                )
             return checks
 
         trace: dict[str, str] = resolution.synth_applied or {}
@@ -752,6 +783,24 @@ class CvExportService:
                     ref=ref,
                 )
         return checks
+
+    async def _live_measure(
+        self, cv: CvDocument, html: str
+    ) -> tuple[int | None, str | None]:
+        """Real page count of the current state, printed through the engine.
+
+        The measure prints the exact HTML an export would produce, so the
+        count includes margins and CSS print fragmentation. Attempted
+        ungated — probing availability separately would double-launch the
+        engine for one lint call.
+        """
+        try:
+            measure = await measure_pages(html, page_size=cv.page_size, max_images=0)
+        except PDFEngineUnavailable:
+            return None, None
+        except Exception:  # noqa: BLE001 — engine missing/flaky → estimate stays
+            return None, None
+        return measure.pages, measure.source
 
     async def _measured_pages(self, cv: CvDocument) -> int | None:
         """The real page count record from the CV's latest PDF export.

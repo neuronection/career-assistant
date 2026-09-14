@@ -49,6 +49,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-0 libwebkit2gtk-4.1-0 gir1.2-webkit2-4.1 \
             libgirepository1.0-dev libcairo2-dev pkg-config file xvfb \
+            libnss3 libnspr4 libasound2 libgbm1 libxkbcommon0 \
             "$PIXBUF_BIN" "$GI2_DEV"
 
       - uses: actions/setup-python@v5
@@ -172,12 +173,18 @@ jobs:
         working-directory: backend
         run: |
           python -m venv venv
-          ./venv/Scripts/pip install -r requirements.txt aiosqlite pywebview pyinstaller
+          ./venv/Scripts/pip install -r requirements.txt -r requirements-pdf.txt aiosqlite pywebview pyinstaller
 
       - name: Build PyInstaller onefile exe
         env:
           CA_ONEFILE: "1"
         run: backend/venv/Scripts/pyinstaller --clean --noconfirm --distpath backend/dist packaging/career-assistant.spec
+
+      - name: Smoke test frozen PDF engine (system Edge channel)
+        shell: pwsh
+        run: |
+          & "backend/dist/CareerAssistant.exe" enginecheck
+          if ($LASTEXITCODE -ne 0) { throw "frozen enginecheck failed" }
 
       - name: Smoke test frozen bundle (headless web mode)
         env:
