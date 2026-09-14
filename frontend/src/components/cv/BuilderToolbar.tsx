@@ -85,6 +85,8 @@ interface BuilderToolbarProps {
   onOpenPolish: (() => void) | null;
   onOpenPalette: () => void;
   onOpenAssistant: () => void;
+  onCreateLetter: (() => void) | null;
+  letterBusy?: boolean;
   onUndo: () => void;
   onRedo: () => void;
 }
@@ -110,6 +112,8 @@ export function BuilderToolbar({
   onOpenPolish,
   onOpenPalette,
   onOpenAssistant,
+  onCreateLetter,
+  letterBusy = false,
   onUndo,
   onRedo,
 }: BuilderToolbarProps) {
@@ -219,6 +223,16 @@ export function BuilderToolbar({
             </Button>
           </MenuTrigger>
           <MenuContent align="end">
+            {onCreateLetter && (
+              <MenuItem
+                data-testid="create-matching-letter"
+                pending={letterBusy}
+                disabled={letterBusy}
+                onSelect={onCreateLetter}
+              >
+                Matching cover letter
+              </MenuItem>
+            )}
             {EXPORT_FORMATS.map((format) => (
               <MenuItem
                 key={format}

@@ -8,6 +8,7 @@ import { apiDetail } from "@/api/client";
 import {
   aiAction,
   compileCv,
+  createCoverLetter,
   createSynthItem,
   draftCoverLetter,
   duplicateCv,
@@ -836,6 +837,24 @@ export function CvBuilder() {
     [id]
   );
 
+  async function createMatchingLetter() {
+    if (!cv?.target_posting_id) return;
+    setBusy("letter");
+    setError("");
+    try {
+      const letter = await createCoverLetter({
+        posting_id: cv.target_posting_id,
+        base_cv_id: cv.id,
+        title: `Matching cover letter — ${cv.title}`.slice(0, 200),
+      });
+      navigate(`/cv/${letter.id}`);
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function saveVersion() {
     setBusy("save");
     setError("");
@@ -1022,6 +1041,10 @@ export function CvBuilder() {
         canRedo={history.future.length > 0}
         onSaveVersion={() => void saveVersion()}
         onExport={(format) => void handleExport(format)}
+        onCreateLetter={
+          !isLetter && cv.target_posting_id ? () => void createMatchingLetter() : null
+        }
+        letterBusy={busy === "letter"}
         onOpenVersions={() => setVersionsOpen(true)}
         onOpenRuns={() => setRunsOpen(true)}
         onOpenPolish={polishVersion ? () => setRunsOpen(true) : null}        onOpenPalette={() => setPaletteOpen(true)}

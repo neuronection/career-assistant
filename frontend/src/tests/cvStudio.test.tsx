@@ -67,6 +67,7 @@ const publishTemplateVersion = vi.fn();
 const previewTemplateDraft = vi.fn();
 const fetchCvDesign = vi.fn();
 const applyCvOps = vi.fn();
+const createCoverLetter = vi.fn();
 const createAssistantSession = vi.fn();
 const fetchAssistantMessages = vi.fn();
 const streamAssistantTurn = vi.fn();
@@ -168,6 +169,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     patchSynthItem: (...args: unknown[]) => patchSynthItem(...args),
     fetchCvDesign: (...args: unknown[]) => fetchCvDesign(...args),
     applyCvOps: (...args: unknown[]) => applyCvOps(...args),
+    createCoverLetter: (...args: unknown[]) => createCoverLetter(...args),
   };
 });
 
@@ -2077,5 +2079,31 @@ describe("CvBuilder — measured pages override the estimate", () => {
     await waitFor(() =>
       expect(toolbar.textContent).toMatch(/~2\/1 page/),
     );
+  });
+});
+
+describe("builder: matching cover letter entry", () => {
+  it("offers the dropdown item when a posting is attached and hands off creation", async () => {
+    const user = userEvent.setup();
+    createCoverLetter.mockResolvedValue({ id: "letter-1", kind: "cover_letter" });
+    fetchCv.mockResolvedValue({ ...cv, target_posting_id: "posting-9" });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await user.click(screen.getByTestId("export-dropdown"));
+    await user.click(await screen.findByTestId("create-matching-letter"));
+    await waitFor(() =>
+      expect(createCoverLetter).toHaveBeenCalledWith({
+        posting_id: "posting-9",
+        base_cv_id: "cv-1",
+        title: "Matching cover letter — Backend Intern CV",
+      })
+    );
+  });
+
+  it("hides the entry when the CV has no posting attached", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(screen.getByTestId("export-dropdown"));
+    expect(screen.queryByTestId("create-matching-letter")).not.toBeInTheDocument();
   });
 });

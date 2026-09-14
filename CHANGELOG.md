@@ -28,6 +28,13 @@ All notable changes to **Career Assistant** are documented here.
   (single-column templates ignore it), exposed to the copilot as well;
   previews of photo-enabled templates pair with a neutral placeholder
   portrait, and bank previews now sell the photo layout.
+- **One-click matching cover letters from the builder** (plan 79.3):
+  CVs with an attached posting get a "Matching cover letter" action in the
+  Download menu — it creates the letter document bound to that posting,
+  inheriting the CV's template (accent/typography/design tokens carry
+  over automatically through the shared pipeline) plus its context
+  selection and language, and lands you in the letter editor. Hidden for
+  letters themselves and when no posting is attached.
 - **New CV templates inspired by magazine-style layouts**: "Coral Banner"
   (warm coral header band with a circular photo, soft gray sidebar with
   profile, skill bars and CEFR languages) and "Charcoal & Amber" (dark
