@@ -35,6 +35,32 @@ describe("createChatTransport", () => {
     await expect(transport.send({ text: "hi" })).rejects.toThrow("No active chat session");
   });
 
+  it("forwards proposal cards to the onProposal dep", async () => {
+    const card = {
+      id: "prop-1",
+      kind: "user_skill",
+      action: "create",
+      status: "pending",
+      title: "Add skill · docker",
+      diff: [],
+      destructive: false,
+      source: "chat",
+      created_at: "2026-09-14T12:00:00Z",
+    };
+    const received: unknown[] = [];
+    streamChatMessage.mockImplementation(
+      async (_id: string, _content: string, callbacks: ChatStreamCallbacks) => {
+        callbacks.onProposal?.(card as never);
+      },
+    );
+    const transport = createChatTransport({
+      getSessionId: () => "s1",
+      onProposal: (payload) => received.push(payload),
+    });
+    await transport.send({ text: "add docker" });
+    expect(received).toEqual([card]);
+  });
+
   it("diffs accumulated deltas into incremental family events", async () => {
     const events: ChatStreamEvent[] = [];
     streamChatMessage.mockImplementation(

@@ -8,6 +8,8 @@ import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
+import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
+import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import {
   ChatBranchTree,
   ChatComposer,
@@ -365,12 +367,20 @@ function MessageList({ compact }: { compact: boolean }) {
         variants={message.variants}
         onSelectVariant={(id) => void chat.selectVariant(id)}
         chips={raw && raw.role === "assistant" ? <ReferenceChips message={raw} /> : undefined}
-        meta={raw && raw.role === "assistant" ? <MessageTrace message={raw} /> : undefined}
+        meta={
+          raw && raw.role === "assistant" ? (
+            <>
+              <MessageTrace message={raw} />
+              <MessageProposals message={raw} />
+            </>
+          ) : undefined
+        }
       />
     );
   };
 
   const live = chat.stream.live !== null;
+  const proposalCards = useProfileProposalsStore((state) => state.live);
   const runningNode = [...chat.stream.nodes]
     .reverse()
     .find((node) => node.status === "running");
@@ -419,6 +429,7 @@ function MessageList({ compact }: { compact: boolean }) {
             content={
               <>
                 {toolCards}
+                <ProposalCards cards={proposalCards} />
                 {chat.stream.text !== null ? (
                   <>
                     <MarkdownSurface value={chat.stream.text} streaming />

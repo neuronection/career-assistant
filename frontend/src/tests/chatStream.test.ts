@@ -23,6 +23,35 @@ describe("streamChatMessage", () => {
     vi.restoreAllMocks();
   });
 
+  it("emits proposal cards through onProposal", async () => {
+    const card = {
+      id: "prop-1",
+      kind: "experience_item",
+      action: "update",
+      status: "pending",
+      title: "Update experience · X",
+      diff: [],
+      destructive: false,
+      source: "chat",
+      created_at: "2026-09-14T12:00:00Z",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        sseResponse([
+          event("delta", { text: "ok" }),
+          event("proposal", card),
+          event("done", { ok: true }),
+        ]),
+      ),
+    );
+    const proposals: unknown[] = [];
+    await streamChatMessage("s1", "hi", {
+      onProposal: (payload) => proposals.push(payload),
+    });
+    expect(proposals).toEqual([card]);
+  });
+
   it("reassembles events split across chunk boundaries", async () => {
     const statusBody = JSON.stringify({
       stage: "searching the catalog",

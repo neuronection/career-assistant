@@ -596,7 +596,40 @@ export interface ChatMessage {
       safe_token_fixes: Record<string, string>;
     } | null;
     version?: number | null;
+    /** HITL profile proposals created by this turn (plan 77). */
+    proposals?: ProfileProposalCardData[];
+    proposals_dropped?: number;
   } | null;
+  created_at: string;
+}
+
+export type ProfileProposalStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "conflict"
+  | "expired";
+
+export interface ProfileProposalDiffRow {
+  field: string;
+  label?: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+/** Wire shape of one HITL card (SSE `proposal` event, list endpoint and
+ * persisted message metadata all share it — the backend serializes once). */
+export interface ProfileProposalCardData {
+  id: string;
+  kind: string;
+  action: string;
+  status: ProfileProposalStatus;
+  title: string;
+  entity_id?: string | null;
+  entity_label?: string;
+  diff: ProfileProposalDiffRow[];
+  destructive: boolean;
+  source: string;
   created_at: string;
 }
 

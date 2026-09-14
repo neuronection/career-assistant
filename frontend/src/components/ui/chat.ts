@@ -65,6 +65,16 @@ export type { ChatReasoningProps, ChatReasoningLabels } from "@neuronection/assi
 export { ChatToolCard } from "@neuronection/assistant-ui/chat-tool-card";
 export type { ChatToolCardProps, ChatToolCardLabels } from "@neuronection/assistant-ui/chat-tool-card";
 
+export { HitlProposalCard, FieldDiff } from "@neuronection/assistant-ui/chat-hitl";
+export type {
+  HitlProposalCardProps,
+  HitlProposalCardLabels,
+  HitlProposalStatus,
+  FieldDiffProps,
+  FieldDiffValue,
+  FieldDiffLabels,
+} from "@neuronection/assistant-ui/chat-hitl";
+
 export { ChatComposer } from "@neuronection/assistant-ui/chat-composer";
 export type { ChatComposerProps, ChatComposerLabels, ChatComposerIcons } from "@neuronection/assistant-ui/chat-composer";
 

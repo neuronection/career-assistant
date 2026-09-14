@@ -5,6 +5,7 @@ import {
 } from "@/api/chatStream";
 import type { ChatFlowEvent } from "@/lib/chatFlow";
 import type { ChatStreamEvent, ChatStreamTransport } from "@/components/ui/chat";
+import type { ProfileProposalCardData } from "@/types";
 
 function mapFlowEvent(event: ChatFlowEvent): ChatStreamEvent {
   switch (event.event) {
@@ -43,6 +44,8 @@ export interface ChatTransportDeps {
   getSessionId: () => string | null;
   /**: the CV builder copilot's terminal `builder_state` payload. */
   onBuilderState?: (state: Record<string, unknown>) => void;
+  /**: one persisted HITL proposal card mid-stream (plan 77). */
+  onProposal?: (card: ProfileProposalCardData) => void;
 }
 
 export interface CareerChatTransport extends ChatStreamTransport {
@@ -75,6 +78,7 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
       },
       onFlowEvent: (event) => onEvent?.(mapFlowEvent(event)),
       onBuilderState: (state) => deps.onBuilderState?.(state),
+      onProposal: (card) => deps.onProposal?.(card),
     });
   };
 

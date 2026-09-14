@@ -7,20 +7,21 @@ All notable changes to **Career Assistant** are documented here.
 ### Added
 - **Profile editing through the chatbot, reviewed on HITL cards**: ask the
   chatbot to add a project, end an internship, set a language level or
-  delete a certification and the change lands as a persisted proposal
-  card you approve or reject — never auto-applied. Each card carries a
-  field-level before/after diff, deletes keep a full entity snapshot,
-  resolution is idempotent, and approving re-validates against current
-  data (changed data → a `conflict` card inviting a fresh proposal;
-  deleted data → the card expires). Applying goes through the same
-  services the profile forms use, so validation rules are identical
-  everywhere. The chatbot grounds every edit in read-only profile
-  digests (real ids only — nothing is invented), ambiguous requests get
-  a clarifying question instead of a proposal, at most 5 cards per turn
-  (excess ops are reported as dropped), and cards survive session
-  deletion with a 14-day TTL (`GET /me/profile-proposals` +
-  approve/reject/dismiss endpoints). The card UI lands with the next
-  plan-77 slices.
+  delete a certification and the change lands as a proposal card right in
+  the chat that you approve or reject — never auto-applied. Each card
+  shows a field-level before/after diff (long texts as a proper line
+  diff), destructive changes require an explicit confirm step, and
+  resolution is idempotent. Approving re-validates against current data:
+  changed data turns the card into a "changed since proposed" review
+  state, deleted data expires it. Applying goes through the same services
+  the profile forms use, so validation rules are identical everywhere.
+  The chatbot grounds every edit in read-only profile digests (real ids
+  only — nothing is invented), ambiguous requests get a clarifying
+  question instead of a proposal, at most 5 cards per turn (excess ops
+  are reported as dropped), and cards survive session deletion with a
+  14-day TTL (`GET /me/profile-proposals` + approve/reject/dismiss
+  endpoints). Cards render on every chat surface (bubble, docked, page)
+  and stay in sync across them.
 
 ### Fixed
 - **Accurate CV page counts — the printed PDF is now the truth**: the

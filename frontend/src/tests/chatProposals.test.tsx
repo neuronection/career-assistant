@@ -1,0 +1,197 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
+import type { ChatMessage, ProfileProposalCardData } from "@/types";
+
+const approveApi = vi.hoisted(() => vi.fn());
+const rejectApi = vi.hoisted(() => vi.fn());
+const listApi = vi.hoisted(() => vi.fn());
+
+vi.mock("@/api/profileProposals", () => ({
+  approveProfileProposal: (id: string) => approveApi(id),
+  rejectProfileProposal: (id: string) => rejectApi(id),
+  fetchProfileProposals: () => listApi(),
+  dismissProfileProposal: vi.fn(),
+}));
+
+import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
+
+const CARD: ProfileProposalCardData = {
+  id: "prop-1",
+  kind: "experience_item",
+  action: "update",
+  status: "pending",
+  title: "Update experience · Siemens internship",
+  entity_id: "item-1",
+  entity_label: "Siemens internship",
+  diff: [
+    { field: "end", label: "End date", before: null, after: "2026-06-30" },
+    { field: "hours_per_week", label: "Hours per week", before: 35, after: 20 },
+  ],
+  destructive: false,
+  source: "chat",
+  created_at: "2026-09-14T12:00:00Z",
+};
+
+function messageWith(cards: ProfileProposalCardData[], dropped = 0): ChatMessage {
+  return {
+    id: "m1",
+    role: "assistant",
+    content: "I've prepared the changes",
+    parent_id: "u1",
+    metadata_json: {
+      proposals: cards,
+      proposals_dropped: dropped,
+    },
+    created_at: "2026-09-14T12:00:00Z",
+  };
+}
+
+function resetStore() {
+  useProfileProposalsStore.setState({
+    live: [],
+    overrides: {},
+    pendingCount: 0,
+  });
+}
+
+describe("MessageProposals / ProposalCards", () => {
+  beforeEach(() => {
+    resetStore();
+    approveApi.mockReset();
+    rejectApi.mockReset();
+    listApi.mockReset().mockResolvedValue({ proposals: [], pending_count: 0 });
+  });
+
+  it("renders persisted cards with their diff rows", () => {
+    render(<MessageProposals message={messageWith([CARD])} />);
+    expect(screen.getByTestId("hitl-cards")).toBeInTheDocument();
+    expect(
+      screen.getByText("Update experience · Siemens internship"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("End date")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-30")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
+  it("renders nothing without proposals", () => {
+    const { container } = render(
+      <MessageProposals message={messageWith([])} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("approve resolves through the store and flips the card", async () => {
+    const user = userEvent.setup();
+    approveApi.mockResolvedValue({
+      proposal: { ...CARD, status: "approved" },
+      applied: { id: "item-1", kind: "experience_item", label: "Siemens" },
+      already: false,
+    });
+    render(<MessageProposals message={messageWith([CARD])} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(approveApi).toHaveBeenCalledWith("prop-1");
+    await waitFor(() => {
+      expect(screen.getByText("Approved")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+  });
+
+  it("a 409 conflict flips the card to the conflict state with the detail", async () => {
+    const user = userEvent.setup();
+    approveApi.mockRejectedValue({
+      response: { data: { detail: "Changed since it was proposed — review the updated diff" } },
+    });
+    render(<MessageProposals message={messageWith([CARD])} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => {
+      expect(screen.getByText("Changed since proposed")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+  });
+
+  it("destructive cards arm a confirm before approving", async () => {
+    const user = userEvent.setup();
+    const destructive: ProfileProposalCardData = { ...CARD, action: "delete", destructive: true };
+    render(<MessageProposals message={messageWith([destructive])} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(approveApi).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Confirm delete" })).toBeInTheDocument();
+    approveApi.mockResolvedValue({
+      proposal: { ...destructive, status: "approved" },
+      applied: null,
+      already: false,
+    });
+    await user.click(screen.getByRole("button", { name: "Confirm delete" }));
+    expect(approveApi).toHaveBeenCalledWith("prop-1");
+  });
+
+  it("reject keeps the card visible in the rejected state", async () => {
+    const user = userEvent.setup();
+    rejectApi.mockResolvedValue({
+      proposal: { ...CARD, status: "rejected" },
+      applied: null,
+    });
+    render(<MessageProposals message={messageWith([CARD])} />);
+    await user.click(screen.getByRole("button", { name: "Reject" }));
+    expect(rejectApi).toHaveBeenCalledWith("prop-1");
+    await waitFor(() => {
+      expect(screen.getByText("Rejected")).toBeInTheDocument();
+    });
+  });
+
+  it("live cards render through the same stack", async () => {
+    useProfileProposalsStore.setState({ live: [CARD] });
+    render(<ProposalCards cards={useProfileProposalsStore.getState().live} />);
+    expect(
+      screen.getByText("Update experience · Siemens internship"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the dropped-ops note", () => {
+    render(<MessageProposals message={messageWith([CARD], 2)} />);
+    expect(screen.getByTestId("hitl-dropped-note")).toHaveTextContent(
+      /2 suggestion/,
+    );
+  });
+});
+
+describe("profileProposalsStore", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("resolve maps a generic failure to pending with the error", async () => {
+    approveApi.mockRejectedValue({
+      response: { data: { detail: "Apply failed: validation" } },
+    });
+    const { resolve } = useProfileProposalsStore.getState();
+    await resolve("prop-9", "approve");
+    expect(useProfileProposalsStore.getState().overrides["prop-9"]).toMatchObject({
+      status: "pending",
+      error: "Apply failed: validation",
+      busy: false,
+    });
+  });
+
+  it("hydrate merges non-pending statuses without clobbering local overrides", async () => {
+    listApi.mockResolvedValue({
+      proposals: [
+        { ...CARD, id: "a", status: "approved" },
+        { ...CARD, id: "b", status: "pending" },
+      ],
+      pending_count: 1,
+    });
+    useProfileProposalsStore.setState({
+      overrides: { b: { status: "rejected" } },
+    });
+    const { hydrate } = useProfileProposalsStore.getState();
+    await hydrate();
+    const overrides = useProfileProposalsStore.getState().overrides;
+    expect(overrides.a).toMatchObject({ status: "approved" });
+    expect(overrides.b).toMatchObject({ status: "rejected" });
+    expect(useProfileProposalsStore.getState().pendingCount).toBe(1);
+  });
+});

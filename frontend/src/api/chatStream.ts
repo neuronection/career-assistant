@@ -1,4 +1,5 @@
 import type { ChatFlowEvent } from "@/lib/chatFlow";
+import type { ProfileProposalCardData } from "@/types";
 
 export interface ChatStreamCallbacks {
   onStatus?: (stage: string, found?: number) => void;
@@ -9,6 +10,8 @@ export interface ChatStreamCallbacks {
   onFlowEvent?: (event: ChatFlowEvent) => void;
   /**: the CV builder copilot's final full-state payload. */
   onBuilderState?: (state: Record<string, unknown>) => void;
+  /**: one persisted HITL proposal card (plan 77). */
+  onProposal?: (card: ProfileProposalCardData) => void;
 }
 
 interface SseBlock {
@@ -78,6 +81,8 @@ export async function streamChatRequest(
         });
       } else if (block.event === "builder_state") {
         callbacks.onBuilderState?.(payload);
+      } else if (block.event === "proposal") {
+        callbacks.onProposal?.(payload as ProfileProposalCardData);
       } else if (block.event === "error") {
         throw new Error(payload.detail ?? "AI error");
       } else if (block.event === "done") {

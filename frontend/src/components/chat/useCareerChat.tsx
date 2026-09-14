@@ -6,6 +6,7 @@ import { createChatTransport, type CareerChatTransport } from "@/components/chat
 import { getDraft, writeDraft } from "@/components/chat/drafts";
 import { activeCvId } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
+import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import type { CvAssistantState } from "@/types/cvAssistant";
 import {
   useChatStream,
@@ -51,11 +52,22 @@ export function useCareerChat() {
         useCvBuilderLink
           .getState()
           .applyBuilderState(state as unknown as CvAssistantState),
+      // HITL proposal cards (plan 77): stream into the shared store so
+      // every surface renders them live; the persisted pair that lands
+      // with `refresh` takes over rendering.
+      onProposal: (card) => useProfileProposalsStore.getState().receiveLive(card),
     });
   }
   const stream = useChatStream({ transport: transportRef.current });
   const reset = stream.reset;
   const sending = stream.status === "pending" || stream.status === "streaming";
+
+  useEffect(() => {
+    // Reconcile card statuses from the list endpoint (metadata is a
+    // snapshot; resolves elsewhere — other surface, session deleted —
+    // must flip cards here too).
+    void useProfileProposalsStore.getState().hydrate();
+  }, []);
 
   useEffect(() => {
     // Done turns refetch the persisted pair; interrupted turns now persist
@@ -73,6 +85,8 @@ export function useCareerChat() {
       await refresh(sessionId);
       if (!cancelled) {
         reset();
+        useProfileProposalsStore.getState().clearLive();
+        void useProfileProposalsStore.getState().hydrate();
       }
     })();
     return () => {

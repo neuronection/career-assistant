@@ -1815,7 +1815,20 @@
     "closePanelAria": "Close panel",
     "closeChat": "Close chat",
     "launcherLabel": "Open chat assistant",
-    "resizeAria": "Resize chat panel"
+    "resizeAria": "Resize chat panel",
+    "proposals": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "confirmDelete": "Confirm delete",
+      "cancel": "Cancel",
+      "pending": "Pending review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "conflict": "Changed since proposed",
+      "expired": "Expired",
+      "conflictHint": "The data changed — review the diff and ask again if still wanted.",
+      "dropped": "{{count}} suggestion(s) skipped — the data didn't validate."
+    }
   },
   "demand": {
     "hot": "hot",
