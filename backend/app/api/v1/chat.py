@@ -114,10 +114,30 @@ async def send_message(
     return await _send_stream(session_id, data, user, db)
 
 
+async def _resolve_attachments(db, user, data) -> list[dict] | None:
+    """Validated attachment snapshots (plan 78); 422 on unresolvable —
+    never silently dropped."""
+    from app.core.errors import ValidationError as DomainValidationError
+    from app.services.chat_attachments import resolve_attachments
+
+    if not data.attachments:
+        return None
+    try:
+        return await resolve_attachments(db, user.id, data.attachments)
+    except DomainValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+
 async def _send_sync(session_id, data, user, db) -> list[MessageOut]:
     profile = await get_profile_for_user(db, user.id)
     try:
-        await ChatService(db).send_message(user.id, session_id, data.content, profile)
+        await ChatService(db).send_message(
+            user.id,
+            session_id,
+            data.content,
+            profile,
+            attachments=await _resolve_attachments(db, user, data),
+        )
     except AINotConfiguredError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     except DomainError as exc:
@@ -233,6 +253,12 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
 
     turn_started = time.monotonic()
     profile = await get_profile_for_user(db, user.id)
+    # CV reference attachments (plan 78): explicit or inherited from the
+    # conversation's most recent attached message (AD2b). Builder-bound
+    # legacy sessions keep their dedicated loop — no references there.
+    from app.services.chat_attachments import build_turn_references
+
+    cv_references = await build_turn_references(db, session, user_message_id)
     prompt, tool_metadata = await prepare_chat_prompt(
         db,
         profile_summary=await ProfileService(db).profile_summary(profile),
@@ -240,7 +266,10 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
         message=content,
         page_context=session.context,
         user_id=user.id,
+        cv_references=cv_references or None,
     )
+    if cv_references:
+        tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in cv_references]
 
     stream = StructuredStream()
 
@@ -483,9 +512,10 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
 
 
 async def _send_stream(session_id, data, user, db):
+    attachments = await _resolve_attachments(db, user, data)
     try:
         session, history, message_id = await ChatService(db).begin_message(
-            user.id, session_id, data.content
+            user.id, session_id, data.content, attachments
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -504,7 +534,10 @@ async def edit_message(
     sibling, then stream a fresh reply for the edited prompt."""
     try:
         session, history, edited_id = await ChatService(db).edit_message(
-            user.id, message_id, data.content
+            user.id,
+            message_id,
+            data.content,
+            attachments=await _resolve_attachments(db, user, data),
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

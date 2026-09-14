@@ -1875,6 +1875,27 @@
         "title": "CertificationPatch",
         "type": "object"
       },
+      "ChatAttachmentIn": {
+        "description": "One reference attachment on a chat message (plan 78).\n\nv1 kind: `cv` \u2014 the CV/cover-letter document enters the prompt as a\ndeterministic reference block (never auto-edited by the chat turn).",
+        "properties": {
+          "cv_id": {
+            "format": "uuid",
+            "title": "Cv Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "cv",
+            "default": "cv",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cv_id"
+        ],
+        "title": "ChatAttachmentIn",
+        "type": "object"
+      },
       "CheckinIn": {
         "properties": {
           "skills": {
@@ -8497,6 +8518,14 @@
       },
       "MessageIn": {
         "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/ChatAttachmentIn"
+            },
+            "maxItems": 2,
+            "title": "Attachments",
+            "type": "array"
+          },
           "content": {
             "maxLength": 8000,
             "minLength": 1,

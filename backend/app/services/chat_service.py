@@ -214,6 +214,7 @@ class ChatService:
         user_id: uuid.UUID,
         session_id: uuid.UUID,
         content: str,
+        attachments: Optional[list[dict]] = None,
     ) -> tuple[ChatSession, list[dict], uuid.UUID]:
         """Persist the user message at the active tip; returns
         (session, history, message id)."""
@@ -226,7 +227,12 @@ class ChatService:
             if m.role in ("user", "assistant")
         ]
 
-        message = ChatMessage(session_id=session.id, role="user", content=content)
+        message = ChatMessage(
+            session_id=session.id,
+            role="user",
+            content=content,
+            metadata_json={"attachments": attachments} if attachments else None,
+        )
         self.db.add(message)
         await self.db.flush()
 
@@ -338,7 +344,11 @@ class ChatService:
         return session, message
 
     async def edit_message(
-        self, user_id: uuid.UUID, message_id: uuid.UUID, content: str
+        self,
+        user_id: uuid.UUID,
+        message_id: uuid.UUID,
+        content: str,
+        attachments: Optional[list[dict]] = None,
     ) -> tuple[ChatSession, list[dict], uuid.UUID]:
         """Branch a user message: new sibling with the edited content, flip
         the parent's active-child pointer, return context for a fresh turn."""
@@ -348,11 +358,17 @@ class ChatService:
         all_messages = await self._all_messages(session)
         by_id = {m.id: m for m in all_messages}
 
+        # Edited resend: body attachments replace; absent body inherits
+        # the original message's attachments (the edit changed the text).
+        stored = attachments
+        if stored is None:
+            stored = (message.metadata_json or {}).get("attachments") or []
         edited = ChatMessage(
             session_id=session.id,
             role="user",
             content=content,
             parent_id=message.parent_id,
+            metadata_json={"attachments": stored} if stored else None,
         )
         self.db.add(edited)
         await self.db.flush()
@@ -468,6 +484,11 @@ class ChatService:
             return await self._finish_interview_turn(
                 session, history, parent_user_message_id, content
             )
+        from app.services.chat_attachments import build_turn_references
+
+        cv_references = await build_turn_references(
+            self.db, session, parent_user_message_id
+        )
         reply, tool_metadata = await chat_reply(
             self.db,
             session.user_id,
@@ -475,7 +496,10 @@ class ChatService:
             history=history,
             message=content,
             page_context=session.context,
+            cv_references=cv_references or None,
         )
+        if cv_references:
+            tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in cv_references]
         return await self.complete_message(
             session, parent_user_message_id, reply, tool_metadata
         )
@@ -552,9 +576,10 @@ class ChatService:
         session_id: uuid.UUID,
         content: str,
         profile: Profile,
+        attachments: Optional[list[dict]] = None,
     ) -> ChatMessage:
         """Append a user message and generate the assistant reply."""
         session, history, message_id = await self.begin_message(
-            user_id, session_id, content
+            user_id, session_id, content, attachments
         )
         return await self.finish_turn(session, history, message_id, content, profile)

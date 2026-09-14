@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -26,8 +26,20 @@ class SessionOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChatAttachmentIn(BaseModel):
+    """One reference attachment on a chat message (plan 78).
+
+    v1 kind: `cv` — the CV/cover-letter document enters the prompt as a
+    deterministic reference block (never auto-edited by the chat turn).
+    """
+
+    kind: Literal["cv"] = "cv"
+    cv_id: UUID
+
+
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
+    attachments: list[ChatAttachmentIn] = Field(default_factory=list, max_length=2)
 
 
 class MessageOut(BaseModel):

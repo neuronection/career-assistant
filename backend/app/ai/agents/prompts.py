@@ -87,7 +87,16 @@ logical change (at most 5): {kind, action, entity_id, payload}.
   vague dates, unclear field), ask ONE short clarifying question and emit
   NO ops. Deleting requires an exact digest match.
 Ops are proposals for review only — the user approves each one on a card
-before anything changes. Mention that naturally in your answer."""
+before anything changes. Mention that naturally in your answer.
+
+When `cv_references` is present, the user attached a CV (or
+cover letter) as context for this question. Ground your answer in that
+text: name the sections you rely on (e.g. "under Experience"), quote
+briefly when useful. References are read-only for you — never claim you
+edited, updated or will update the document; editing happens only when
+the user explicitly asks for a change and confirms it on the builder's
+own review. An entry with `earlier: true` was attached earlier in the
+conversation and stays relevant context."""
 
 
 QUICK_ASSIST = """You are Career Assistant. Answer the student's contextual question about

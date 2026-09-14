@@ -5,6 +5,18 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **CVs as chat references**: attach a CV (or cover letter) to any chat
+  message and the answer is grounded in it — the composer chip and Studio
+  entry points land with the next slices; this release adds the
+  foundation. Attachments are per-message (max 2), validated for
+  ownership, and rendered into the prompt as a plain-text reference of
+  the document's current state (latest saved version, or a live render
+  for never-compiled CVs — reading never creates versions). Follow-up
+  questions keep the grounding: a message sent without attachments
+  inherits the conversation's most recent ones as an "attached earlier"
+  reference, and regenerating or editing a message preserves its
+  attachments. Replies carry `referenced_cv_ids` so the UI can deep-link
+  the documents they used.
 - **Profile editing through the chatbot, reviewed on HITL cards**: ask the
   chatbot to add a project, end an internship, set a language level or
   delete a certification and the change lands as a proposal card right in

@@ -72,6 +72,12 @@ def _check_chat_delete_cert(reply: ChatReply) -> None:
     assert op.entity_id == "cert-1"
 
 
+def _check_chat_cv_reference(reply: ChatReply) -> None:
+    assert "Backend CV" in reply.answer
+    assert "Reference only" in reply.answer
+    assert not reply.profile_ops
+
+
 def _check_match(result: MatchResult) -> None:
     assert 0 <= result.score <= 10
     assert 0 <= result.confidence <= 1
@@ -192,6 +198,19 @@ def _build_cases() -> list[GoldenCase]:
             ),
             prompt_version=_blessed(AITaskType.CHAT.value),
             check=_check_chat_delete_cert,
+        ),
+        GoldenCase(
+            task=AITaskType.CHAT.value,
+            schema=ChatReply,
+            system=CHATBOT,
+            user=(
+                'CONTEXT_JSON: {"message": "which jobs fit this CV?", '
+                '"tool_results": {}, "cv_references": [{"cv_id": "c1", '
+                '"title": "Backend CV", "text": "EXPERIENCE\\nBackend '
+                'Intern - Sample Corp", "earlier": false}]}'
+            ),
+            prompt_version=_blessed(AITaskType.CHAT.value),
+            check=_check_chat_cv_reference,
         ),
         GoldenCase(
             task=AITaskType.MATCH_SCORE.value,

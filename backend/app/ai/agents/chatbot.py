@@ -121,6 +121,7 @@ def _build_user_prompt(
     message: str,
     tool_results: dict,
     page_context: Optional[dict],
+    cv_references: Optional[list[dict]] = None,
 ) -> str:
     data = {
         "profile_summary": profile_summary,
@@ -128,6 +129,7 @@ def _build_user_prompt(
         "message": message,
         "tool_results": tool_results,
         "page_context": page_context or {},
+        "cv_references": cv_references or [],
     }
     return context_json(data)
 
@@ -728,6 +730,22 @@ def _mock_chat_reply(schema: type, user_prompt: str) -> dict:
     tools = ctx.get("tool_results", {})
     message = ctx.get("message", "")
 
+    cv_references = ctx.get("cv_references") or []
+    if cv_references:
+        reference = cv_references[0]
+        title = str(reference.get("title") or "CV")
+        noted = "attached earlier" if reference.get("earlier") else "attached"
+        return {
+            "answer": (
+                f"Grounded in your {title} ({noted}): the document lists "
+                "the experience and skills sections I'm reading from — ask "
+                "me anything about fit, gaps or wording. (Reference only: "
+                "nothing was edited.)"
+            ),
+            "referenced_job_codes": [],
+            "referenced_posting_refs": [],
+        }
+
     profile_ops = _mock_profile_ops(tools, message)
     if profile_ops:
         return {
@@ -864,6 +882,7 @@ async def prepare_chat_prompt(
     message: str,
     page_context: Optional[dict] = None,
     user_id=None,
+    cv_references: Optional[list[dict]] = None,
 ) -> tuple[str, dict]:
     """Run the server-side tools and build the user prompt.
 
@@ -962,7 +981,7 @@ async def prepare_chat_prompt(
                 metadata_tools.append(meta)
 
     prompt = _build_user_prompt(
-        profile_summary, history, message, tool_results, page_context
+        profile_summary, history, message, tool_results, page_context, cv_references
     )
     metadata: dict = {
         # Turn-trace cap (family): the UI trace never grows
@@ -983,6 +1002,7 @@ async def chat_reply(
     history: list[dict],
     message: str,
     page_context: Optional[dict] = None,
+    cv_references: Optional[list[dict]] = None,
 ) -> tuple[ChatReply, dict]:
     """Produce a chatbot reply; returns (reply, tool_metadata)."""
     prompt, metadata = await prepare_chat_prompt(
@@ -992,6 +1012,7 @@ async def chat_reply(
         message=message,
         page_context=page_context,
         user_id=user_id,
+        cv_references=cv_references,
     )
     reply: ChatReply = await ainvoke_structured(
         db,
