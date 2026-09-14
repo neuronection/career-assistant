@@ -8,6 +8,7 @@ import { activeCvId } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import type { CvAssistantState } from "@/types/cvAssistant";
+import type { ChatCvAttachment } from "@/types";
 import {
   useChatStream,
   type ChatMessageView,
@@ -31,14 +32,28 @@ export function useCareerChat() {
   const refresh = useChatStore((state) => state.refresh);
 
   const [draft, setDraftState] = useState(() => getDraft(activeSessionId));
+  const [attachments, setAttachments] = useState<ChatCvAttachment[]>([]);
 
   useEffect(() => {
     setDraftState(getDraft(activeSessionId));
+    setAttachments([]);
   }, [activeSessionId]);
 
   const changeDraft = (value: string) => {
     setDraftState(value);
     writeDraft(useChatStore.getState().activeSessionId, value);
+  };
+
+  const attachCv = (cv: { id: string; title: string }) => {
+    setAttachments((current) =>
+      current.some((entry) => entry.cv_id === cv.id) || current.length >= 2
+        ? current
+        : [...current, { kind: "cv", cv_id: cv.id, title: cv.title }],
+    );
+  };
+
+  const detachCv = (cvId: string) => {
+    setAttachments((current) => current.filter((entry) => entry.cv_id !== cvId));
   };
 
   const transportRef = useRef<CareerChatTransport | null>(null);
@@ -133,6 +148,10 @@ export function useCareerChat() {
     }
     writeDraft(store.activeSessionId, "");
     setDraftState("");
+    transportRef.current?.setPendingAttachments(
+      attachments.map(({ kind, cv_id }) => ({ kind, cv_id })),
+    );
+    setAttachments([]);
     await stream.send(content);
   };
 
@@ -206,6 +225,9 @@ export function useCareerChat() {
     flowSteps: currentFlowSteps,
     draft,
     setDraft: changeDraft,
+    attachments,
+    attachCv,
+    detachCv,
     submit,
     submitEdit,
     regenerate,

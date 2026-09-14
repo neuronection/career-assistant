@@ -6,6 +6,7 @@ import {
 import type { ChatFlowEvent } from "@/lib/chatFlow";
 import type { ChatStreamEvent, ChatStreamTransport } from "@/components/ui/chat";
 import type { ProfileProposalCardData } from "@/types";
+import type { ChatCvAttachmentInput } from "@/api/chatStream";
 
 function mapFlowEvent(event: ChatFlowEvent): ChatStreamEvent {
   switch (event.event) {
@@ -53,6 +54,8 @@ export interface CareerChatTransport extends ChatStreamTransport {
   beginEdit: (messageId: string) => void;
   /** Route the next `send` to the regenerate endpoint. */
   beginRegenerate: (messageId: string) => void;
+  /** CV attachments riding the NEXT send (cleared by the send). */
+  setPendingAttachments: (attachments: ChatCvAttachmentInput[] | null) => void;
 }
 
 /**
@@ -66,6 +69,7 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
   let onEvent: ((event: ChatStreamEvent) => void) | null = null;
   let controller: AbortController | null = null;
   let intent: Intent = { kind: "send" };
+  let pendingAttachments: ChatCvAttachmentInput[] | null = null;
 
   const run = (stream: (callbacks: Parameters<typeof streamChatMessage>[2]) => Promise<void>) => {
     let sent = 0;
@@ -92,6 +96,8 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
     send: async ({ text }) => {
       const current = intent;
       intent = { kind: "send" };
+      const attachments = pendingAttachments ?? [];
+      pendingAttachments = null;
       const sessionId = deps.getSessionId();
       if (current.kind === "send") {
         if (sessionId === null) {
@@ -99,7 +105,11 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
         }
         controller = new AbortController();
         try {
-          await run((callbacks) => streamChatMessage(sessionId, text, callbacks, controller!.signal));
+          await run((callbacks) =>
+            streamChatMessage(
+              sessionId, text, callbacks, controller!.signal, attachments,
+            ),
+          );
           onEvent?.({ event: "flow_finished" });
         } finally {
           controller = null;
@@ -109,7 +119,11 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
       controller = new AbortController();
       try {
         if (current.kind === "edit") {
-          await run((callbacks) => streamChatEdit(current.messageId, text, callbacks, controller!.signal));
+          await run((callbacks) =>
+            streamChatEdit(
+              current.messageId, text, callbacks, controller!.signal, attachments,
+            ),
+          );
         } else {
           await run((callbacks) => streamChatRegenerate(current.messageId, callbacks, controller!.signal));
         }
@@ -126,6 +140,9 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
     },
     beginRegenerate: (messageId) => {
       intent = { kind: "regenerate", messageId };
+    },
+    setPendingAttachments: (attachments) => {
+      pendingAttachments = attachments && attachments.length > 0 ? attachments : null;
     },
   };
 }

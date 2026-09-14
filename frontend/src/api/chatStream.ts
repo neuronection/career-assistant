@@ -1,6 +1,11 @@
 import type { ChatFlowEvent } from "@/lib/chatFlow";
 import type { ProfileProposalCardData } from "@/types";
 
+export interface ChatCvAttachmentInput {
+  kind: "cv";
+  cv_id: string;
+}
+
 export interface ChatStreamCallbacks {
   onStatus?: (stage: string, found?: number) => void;
   /** Receives the accumulated assistant text so far. */
@@ -111,10 +116,11 @@ export async function streamChatMessage(
   content: string,
   callbacks: ChatStreamCallbacks,
   signal?: AbortSignal,
+  attachments: ChatCvAttachmentInput[] = [],
 ): Promise<void> {
   return streamChatRequest(
     `/api/v1/chat/sessions/${sessionId}/messages?stream=true`,
-    { content },
+    { content, attachments },
     callbacks,
     signal,
   );
@@ -125,10 +131,11 @@ export async function streamChatEdit(
   content: string,
   callbacks: ChatStreamCallbacks,
   signal?: AbortSignal,
+  attachments: ChatCvAttachmentInput[] = [],
 ): Promise<void> {
   return streamChatRequest(
     `/api/v1/chat/messages/${messageId}/edit?stream=true`,
-    { content },
+    { content, attachments },
     callbacks,
     signal,
   );

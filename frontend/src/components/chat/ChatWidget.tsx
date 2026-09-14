@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
 import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
+import { CvAttachBar } from "@/components/chat/CvAttachBar";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import {
   ChatBranchTree,
@@ -179,7 +180,31 @@ function builderVersionChip(
 }
 
 
-function ReferenceChips({ message }: { message: ChatMessageRow }) {
+function CvRefChip({
+  cvId,
+  title,
+}: {
+  cvId: string;
+  title?: string;
+}) {
+  return (
+    <Link
+      to={`/cv/${cvId}`}
+      data-testid={`cv-ref-chip-${cvId}`}
+      className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full hover:bg-primary-100"
+    >
+      {title}
+    </Link>
+  );
+}
+
+function ReferenceChips({
+  message,
+  cvTitles,
+}: {
+  message: ChatMessageRow;
+  cvTitles?: Record<string, string>;
+}) {
   const { t } = useTranslation();
   const meta = message.metadata_json;
   if (meta === null) {
@@ -210,6 +235,27 @@ function ReferenceChips({ message }: { message: ChatMessageRow }) {
               data-testid={`chat-posting-ref-${ref}`}
             >
               {ref}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+      {(meta.referenced_cv_ids ?? []).length > 0 ? (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {meta.referenced_cv_ids!.map((cvId) => (
+            <CvRefChip key={cvId} cvId={cvId} title={cvTitles?.[cvId]} />
+          ))}
+        </div>
+      ) : null}
+      {(meta.attachments ?? []).length > 0 ? (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {meta.attachments!.map((entry) => (
+            <Link
+              key={entry.cv_id}
+              to={`/cv/${entry.cv_id}`}
+              data-testid={`cv-ref-chip-${entry.cv_id}`}
+              className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full hover:bg-primary-100"
+            >
+              {entry.title}
             </Link>
           ))}
         </div>
@@ -330,6 +376,12 @@ function MessageList({ compact }: { compact: boolean }) {
       raw?.role === "assistant"
         ? chat.messages.find((candidate) => candidate.id === raw.parent_id)
         : undefined;
+    const cvTitles = Object.fromEntries(
+      ((parentUser ?? raw)?.metadata_json?.attachments ?? []).map((entry) => [
+        entry.cv_id,
+        entry.title,
+      ]),
+    );
     return (
       <ChatMessage
         key={message.id}
@@ -366,7 +418,7 @@ function MessageList({ compact }: { compact: boolean }) {
         }}
         variants={message.variants}
         onSelectVariant={(id) => void chat.selectVariant(id)}
-        chips={raw && raw.role === "assistant" ? <ReferenceChips message={raw} /> : undefined}
+        chips={raw ? <ReferenceChips message={raw} cvTitles={cvTitles} /> : undefined}
         meta={
           raw && raw.role === "assistant" ? (
             <>
@@ -482,6 +534,7 @@ function ComposerBar() {
       sending={chat.sending}
       onStop={() => void chat.stream.stop()}
       placeholder={t("chat.composerPlaceholder")}
+      toolbarStart={<CvAttachBar />}
       toolbarEnd={
         micHidden ? undefined : (
           <DictationButton

@@ -1828,6 +1828,13 @@
       "expired": "Expired",
       "conflictHint": "The data changed — review the diff and ask again if still wanted.",
       "dropped": "{{count}} suggestion(s) skipped — the data didn't validate."
+    },
+    "attach": {
+      "open": "Attach a CV as reference",
+      "none": "No CVs yet — create one in CV Studio.",
+      "suggest": "Reference: {{title}}",
+      "remove": "Remove {{title}}",
+      "openCv": "this CV"
     }
   },
   "demand": {

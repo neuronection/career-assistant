@@ -599,8 +599,18 @@ export interface ChatMessage {
     /** HITL profile proposals created by this turn (plan 77). */
     proposals?: ProfileProposalCardData[];
     proposals_dropped?: number;
+    /** CV reference attachments stored on this (user) message (plan 78). */
+    attachments?: ChatCvAttachment[];
+    /** CVs the reply grounded in (plan 78). */
+    referenced_cv_ids?: string[];
   } | null;
   created_at: string;
+}
+
+export interface ChatCvAttachment {
+  kind: "cv";
+  cv_id: string;
+  title: string;
 }
 
 export type ProfileProposalStatus =

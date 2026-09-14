@@ -112,6 +112,7 @@ describe("ChatWidget branching UI", () => {
       "find nursing jobs",
       expect.anything(),
       expect.anything(),
+      [],
     );
     finish();
   });
