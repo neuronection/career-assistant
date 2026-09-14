@@ -293,6 +293,25 @@ TTL swept daily by the `system_proposal_sweep` schedule slot,
 (library `chat-hitl` module) and the Profile sidebar entry badges the
 pending count.
 
+**One chat, CVs as references, builder on demand** (plan 78): chat
+sessions are never re-routed by a CV binding for new sessions (plan 53's
+`surface: "cv_builder"` context is a legacy read path only). CVs /
+cover letters enter as per-message **attachments** (`MessageIn
+.attachments`, ≤2, ownership-validated, snapshots on the user message
+metadata) and resolve into a deterministic `cv_references` prompt block
+(`to_ats_text` of the latest `cv_versions` payload, or a no-write
+`render_state` for never-compiled CVs — reading never compiles).
+Follow-ups without their own attachments inherit the conversation's most
+recent ones (earlier reference). A build-intent message (deterministic
+word gate) WITH an effective attachment delegates that single turn to
+`builder_turn_events` — the builder copilot loop is reused verbatim, the
+session context stays untouched; the copilot keeps auto-applying ops
+(immutable `cv_versions` + `ai_apply` recovery are the undo), while
+profile mutations stay HITL (plan 77). Copilot turns must make the user
+message durable BEFORE ops (op failures roll the transaction back) and
+revive shared instances after rollbacks (rollbacks expire ORM identity —
+the on-demand path made both edges visible).
+
 PDF parsing and AI generation run as FastAPI background tasks; Redis ships
 in the compose file for a later worker split (no Celery in v1).
 
