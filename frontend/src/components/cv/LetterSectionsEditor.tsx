@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui";
-import { FormRow, TextField, ToggleRow, TextareaField } from "@/components/cv/formPrimitives";
+import { FormRow, TextField, ToggleRow } from "@/components/cv/formPrimitives";
+import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
 
 export interface LetterProps {
   recipient_name?: string;
@@ -90,13 +91,10 @@ export function LetterSectionsEditor({
       <div className="space-y-2">
         {paragraphs.map((text, index) => (
           <FormRow key={index} testId={`letter-para-${index}`}>
-            <TextareaField
-              label={`Paragraph ${index + 1}`}
+            <CvRichTextEditor
               value={text}
               onChange={(value) => setParagraph(index, value)}
-              rows={4}
-              maxLength={2000}
-              counter
+              ariaLabel={`Paragraph ${index + 1}`}
               testId={`letter-para-input-${index}`}
             />
             <div className="flex gap-1">

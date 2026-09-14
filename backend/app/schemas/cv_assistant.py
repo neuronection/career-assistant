@@ -8,7 +8,7 @@ application time — the schema only fixes the shape, never the values.
 
 from typing import Annotated, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.cv import CvContextRef
 
@@ -100,6 +100,13 @@ class SetOverrideOp(BaseModel):
     item_id: str = Field(min_length=1, max_length=64)
     field: str = Field(min_length=1, max_length=80)
     value: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("value")
+    @classmethod
+    def _rich(cls, value: str) -> str:
+        from app.services.rich_text import validate_rich_text
+
+        return validate_rich_text(value, 4000)
 
 
 BuilderOp = Annotated[

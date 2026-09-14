@@ -14,6 +14,28 @@ async function openInspectorTab(testid: string) {
   await user.click(screen.getByTestId(`inspector-tab-${testid}`));
 }
 
+/**
+ * Drive a library `RichTextEditor` from tests: jsdom typing doesn't
+ * run through prosemirror's transaction pipeline (beforeinput is
+ * unimplemented), so `userEvent.type` changes the DOM without emitting
+ * markdown. The editor instance (via `onReady` → the component tree's
+ * live editor) accepts commands; insertContent goes through the real
+ * dispatch → `onValueChange` fires like a real keystroke burst.
+ */
+async function typeIntoRichText(_container: HTMLElement, text: string) {
+  const { act } = await import("@testing-library/react");
+  const holders = [
+    ...document.querySelectorAll<HTMLElement>("[data-rich-editor-holder]"),
+  ];
+  const holder = holders[holders.length - 1];
+  expect(holder).toBeTruthy();
+  const editor = (holder as unknown as { __editor?: unknown }).__editor;
+  expect(editor).toBeTruthy();
+  await act(async () => {
+    (editor as { commands: { insertContent: (content: string) => boolean } }).commands.insertContent(text);
+  });
+}
+
 const fetchCvs = vi.fn();
 const createCv = vi.fn();
 const duplicateCv = vi.fn();
@@ -924,47 +946,23 @@ describe("CvBuilder", () => {
     );
   });
 
-  it("edits custom-text blocks with the markdown-lite toolbar", async () => {
+  it("edits custom-text blocks with the rich-text editor", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-custom_text"));
     fireEvent.click(await screen.findByTestId("edit-custom-text"));
-    const editor = (await screen.findByTestId("custom-text-editor")) as HTMLTextAreaElement;
-    expect(editor).toHaveValue("");
-    const setSelection = (start: number, end: number) => {
-      editor.focus();
-      editor.setSelectionRange(start, end);
-    };
-
-    fireEvent.change(editor, { target: { value: "Hello world" } });
-    setSelection(0, 5);
-    fireEvent.click(screen.getByTestId("md-tool-bold"));
-    expect(editor).toHaveValue("**Hello** world");
-
-    fireEvent.change(editor, { target: { value: "Hello world" } });
-    setSelection(0, 5);
-    fireEvent.click(screen.getByTestId("md-tool-italic"));
-    expect(editor).toHaveValue("*Hello* world");
-
-    fireEvent.change(editor, { target: { value: "Hello world" } });
-    setSelection(0, 11);
-    fireEvent.click(screen.getByTestId("md-tool-bullet"));
-    expect(editor).toHaveValue("- Hello world");
-    setSelection(0, 13);
-    fireEvent.click(screen.getByTestId("md-tool-bullet"));
-    expect(editor).toHaveValue("Hello world");
-
-    fireEvent.change(editor, { target: { value: "Hello world" } });
-    setSelection(0, 5);
-    fireEvent.click(screen.getByTestId("md-tool-link"));
-    expect(editor).toHaveValue("[Hello](https://) world");
-
-    expect(screen.getByTestId("custom-text-counter")).toHaveTextContent(
-      `${editor.value.length}/2000`
-    );
-    await waitFor(() => expect(patchCv).toHaveBeenCalled(), { timeout: 3000 });
+    const editor = await screen.findByTestId("custom-text-editor");
+    expect(within(editor).getByRole("toolbar")).toBeInTheDocument();
+    expect(within(editor).getByRole("button", { name: "Bold (**bold**)" })).toBeInTheDocument();
+    expect(within(editor).getByRole("button", { name: "Italic (*italic*)" })).toBeInTheDocument();
+    await typeIntoRichText(editor, "Hello world");
+    await waitFor(() => {
+      const calls = patchCv.mock.calls;
+      const blocks = calls[calls.length - 1]?.[1]?.working_content?.blocks;
+      expect(blocks?.[blocks.length - 1]?.props?.text).toBe("Hello world");
+    }, { timeout: 3000 });
   });
 
   it("autosaves custom-text edits into working_content", async () => {
@@ -975,7 +973,7 @@ describe("CvBuilder", () => {
     fireEvent.click(await screen.findByTestId("add-block-custom_text"));
     fireEvent.click(await screen.findByTestId("edit-custom-text"));
     const editor = await screen.findByTestId("custom-text-editor");
-    fireEvent.change(editor, { target: { value: "Few words about me" } });
+    await typeIntoRichText(editor, "Few words about me");
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(2), { timeout: 3000 });
     const blocks = patchCv.mock.calls[1][1].working_content.blocks;
     expect(blocks[blocks.length - 1].props.text).toBe("Few words about me");
@@ -1984,7 +1982,12 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     fireEvent.click(await screen.findByTestId("context-variant-edit-syn-1"));
     const text = await screen.findByTestId("synth-editor-description-input");
-    expect((text as HTMLTextAreaElement).value).toBe("Nested under its item");
+    await typeIntoRichText(text, "Nested under its item");
+    await waitFor(() =>
+      expect(
+        (text.querySelector(".ProseMirror") as HTMLElement | null)?.textContent,
+      ).toContain("Nested under its item"),
+    );
   });
 
   it("finds variants nested under their own item row, not the group bottom", async () => {

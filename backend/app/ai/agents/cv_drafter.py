@@ -29,7 +29,11 @@ PLAN_SYSTEM = (
     "merged into work experience. For the skills section, select only "
     "the skills relevant to the target role (ideally 8-16 ids) — never "
     "list every skill the profile holds; without a target role, keep the "
-    "strongest and most substantial ones. Lead with the strongest "
+    "strongest and most substantial ones. Also propose a short `title` "
+    "for the CV document (shown in the CV list): name the target role "
+    "when one exists (e.g. \"CV — ICU Nurse\"), otherwise the "
+    "candidate's strongest profile angle; max 60 characters, no "
+    "placeholders. Lead with the strongest "
     "evidence for the target role (summary first, then "
     "experience/education, then supporting sections). If the target role "
     "demands emphasis an experience item's text cannot show, propose at "
@@ -46,7 +50,11 @@ WRITE_SYSTEM = (
     "taxonomy labels verbatim. Items marked synth already carry tailored "
     "text: keep it unless it conflicts with the target; never re-tailor "
     "it away. Write in the CV's language, no first-person pronouns, "
-    "tight and skimmable. Respond with JSON only."
+    "tight and skimmable. You may use sparing inline markdown for "
+    "emphasis and links — **bold** for the strongest fact or metric, "
+    "*italic* for nuance, [text](https://url) only for URLs the context "
+    "carries; never headings, lists, images or raw HTML. Respond with "
+    "JSON only."
 )
 
 TONES = {
@@ -183,7 +191,12 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
                     "rationale": "profile evidence for this section",
                 }
             )
-        return {"sections": sections}
+        target = ctx.get("target") or {}
+        title = str(target.get("title") or "").strip()
+        return {
+            "title": f"CV — {title}"[:120] if title else "My CV",
+            "sections": sections,
+        }
     if schema is CvDraftTexts:
         section: dict = ctx.get("section") or {}
         section_items: list = ctx.get("items") or []

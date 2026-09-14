@@ -10,6 +10,7 @@ import {
 } from "@/components/ui";
 import type { CvSynthItem } from "@/types/cv";
 import type { CvContextSourceOut } from "@/types/cv";
+import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
 
 const MAX_REFS = 5;
 
@@ -238,13 +239,11 @@ export function VariantEditor({
             <span className="text-xs text-[var(--as-muted-fg)]">
               {t("cvSynth.editor.textLabel")}
             </span>
-            <textarea
+            <CvRichTextEditor
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              aria-label={t("cvSynth.editor.textLabel")}
-              data-testid="synth-editor-description-input"
-              rows={4}
-              className={`${FIELD_CLASS} resize-y leading-relaxed`}
+              onChange={setDescription}
+              ariaLabel={t("cvSynth.editor.textLabel")}
+              testId="synth-editor-description-input"
             />
           </section>
 

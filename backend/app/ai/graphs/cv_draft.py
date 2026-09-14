@@ -93,6 +93,7 @@ class CvDraftState(TypedDict, total=False):
     request: dict
     context: dict
     plan: dict
+    cv_title: str
     plan_fallback: bool
     texts: list
     fallback_sections: list
@@ -166,6 +167,18 @@ def _default_plan(enabled: list[str], items_by_kind: dict[str, list[dict]]) -> d
             if items_by_kind.get(kind)
         ]
     }
+
+
+def _clamp_title(title: str, target: dict) -> str:
+    """The planner's CV title, sanitized + bounded (fallback: target
+    role, else "My CV")."""
+    from app.services.rich_text import normalize_rich_text
+
+    clean = normalize_rich_text(title, 120).strip().rstrip(" -—–")
+    if clean:
+        return clean[:120]
+    posting_title = str(target.get("title") or "").strip()
+    return f"CV — {posting_title}"[:200] if posting_title else "My CV"
 
 
 def _clamp_plan(
@@ -428,12 +441,19 @@ def make_plan_node(deps: GraphDeps):
                 raise ValueError("plan contained no usable sections")
             proposals = _clamp_proposals(structure, state, plan=clamped)
             await _report(deps, PROGRESS_PLAN, "planned sections")
-            return {"plan": clamped, "synth_proposals": proposals}
+            return {
+                "plan": clamped,
+                "cv_title": _clamp_title(
+                    str(structure.title or ""), context.get("target") or {}
+                ),
+                "synth_proposals": proposals,
+            }
         except Exception as exc:  # noqa: BLE001 — deterministic plan fallback
             logger.warning("cv_draft plan fell back to canonical order: %s", exc)
             await _report(deps, PROGRESS_PLAN, "planned sections")
             return {
                 "plan": _default_plan(enabled, items_by_kind),
+                "cv_title": _clamp_title("", context.get("target") or {}),
                 "plan_fallback": True,
                 "synth_proposals": [],
                 "warnings": [
@@ -791,7 +811,9 @@ def make_assemble_node(deps: GraphDeps):
         posting_title = str(
             ((state.get("context") or {}).get("target") or {}).get("title") or ""
         )
-        title = f"CV — {posting_title}"[:200] if posting_title else "My CV"
+        title = str(state.get("cv_title") or "").strip()
+        if not title:
+            title = f"CV — {posting_title}"[:200] if posting_title else "My CV"
         cv = CvDocument(
             user_id=UUID(state["user_id"]),
             title=title,

@@ -9,6 +9,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import EducationLevel
+from app.services.rich_text import validate_rich_text
 
 GRADE_BANDS = ("low", "below_average", "average", "good", "excellent", "unknown")
 
@@ -30,6 +31,11 @@ class EducationItemIn(BaseModel):
     university_id: Optional[uuid.UUID] = None
     department_id: Optional[uuid.UUID] = None
 
+    @field_validator("description")
+    @classmethod
+    def _rich(cls, value: str) -> str:
+        return validate_rich_text(value, 4000)
+
 
 class EducationItemPatch(BaseModel):
     institution: Optional[str] = Field(default=None, min_length=1, max_length=200)
@@ -47,6 +53,11 @@ class EducationItemPatch(BaseModel):
     status: Optional[Literal["draft", "active"]] = None
     university_id: Optional[uuid.UUID] = None
     department_id: Optional[uuid.UUID] = None
+
+    @field_validator("description")
+    @classmethod
+    def _rich(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else validate_rich_text(value, 4000)
 
 
 class EducationItemOut(BaseModel):

@@ -4,6 +4,30 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **AI-generated CVs name themselves**: the section planner now also
+  proposes the CV's title — the target role when one exists ("CV — ICU
+  Nurse"), otherwise the profile's strongest angle — shown in the CV
+  Studio list and the builder; sanitized through the rich-text gate with
+  the deterministic "CV — {posting}" fallback when planning fails.
+- **Rich text in the variant editor**: writing or editing a synthesized
+  variant's description now uses the visual editor (bold, italic, links)
+  instead of a plain textarea.
+
+### Added
+- **Rich text in CV prose (bold, italic, links)**: experience, education,
+  project descriptions, achievements, summaries and custom-text sections
+  now support a bounded markdown subset — `**bold**`, `*italic*`,
+  `[text](url)` and line breaks — rendered consistently in the HTML/PDF
+  preview, DOCX and markdown exports (ATS text strips the markup). The
+  visual editor (library `RichTextEditor`, toolbar limited to the
+  supported subset) replaces the plain textareas in the experience and
+  education workspaces, cover-letter paragraphs and the builder's
+  custom-text sections. A single normalization gate strips everything
+  else (headings, lists, images, raw HTML, unsafe links) from every
+  write path — user input and AI output alike — and the AI drafter is
+  instructed to use the subset sparingly for emphasis and links.
+
 ### Changed
 - **AI template redesign is now area-aware and escalates**: the template
   designer understands layout areas (it assigns compact sections to the

@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import (
     DemandOutlook,
@@ -237,8 +237,11 @@ class CvDraftStructure(BaseModel):
 
     Clamped server-side against the request's enabled kinds and the
     resolved context — the model only chooses among real items.
+    `title` names the CV document (shown in CV lists); clamped to the
+    bound with a deterministic fallback.
     """
 
+    title: str = Field(default="", max_length=120)
     sections: list[CvDraftSectionPlan] = Field(default_factory=list, max_length=12)
     synth_proposals: list[CvDraftSynthProposal] = Field(
         default_factory=list, max_length=6
@@ -251,6 +254,20 @@ class CvDraftItemText(BaseModel):
     item_id: str = Field(min_length=1, max_length=64)
     text: str = Field(default="", max_length=2000)
     bullets: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("text")
+    @classmethod
+    def _rich_text(cls, value: str) -> str:
+        from app.services.rich_text import validate_rich_text
+
+        return validate_rich_text(value, 2000)
+
+    @field_validator("bullets")
+    @classmethod
+    def _rich_bullets(cls, bullets: list[str]) -> list[str]:
+        from app.services.rich_text import validate_rich_text
+
+        return [validate_rich_text(bullet, 500) for bullet in bullets]
 
 
 class CvDraftSectionText(BaseModel):
@@ -266,6 +283,13 @@ class CvDraftSectionText(BaseModel):
     title: str = Field(default="", max_length=60)
     text: str = Field(default="", max_length=2000)
     items: list[CvDraftItemText] = Field(default_factory=list, max_length=50)
+
+    @field_validator("text")
+    @classmethod
+    def _rich_text(cls, value: str) -> str:
+        from app.services.rich_text import validate_rich_text
+
+        return validate_rich_text(value, 2000)
 
 
 class CvDraftTexts(BaseModel):

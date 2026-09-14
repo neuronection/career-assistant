@@ -12,6 +12,7 @@ import {
   TextareaField,
   ToggleRow,
 } from "@/components/cv/formPrimitives";
+import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
 import {
   Button,
   Modal,
@@ -536,14 +537,10 @@ export function EducationEditor({
           />
         </div>
       </div>
-      <TextareaField
-        label={t("education.descriptionLabel")}
+      <CvRichTextEditor
         value={form.description}
         onChange={(v) => patch({ description: v })}
-        rows={4}
-        maxLength={4000}
-        counter
-        placeholder={t("education.descriptionPlaceholder")}
+        ariaLabel={t("education.descriptionLabel")}
         testId="education-description"
       />
     </EditorFrame>

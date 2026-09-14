@@ -4,7 +4,9 @@ from datetime import date, datetime
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.services.rich_text import validate_rich_text
 
 
 class ExperienceSkillIn(BaseModel):
@@ -24,6 +26,11 @@ class AchievementIn(BaseModel):
     text: str = Field(min_length=1, max_length=500)
     metric: Optional[AchievementMetric] = None
 
+    @field_validator("text")
+    @classmethod
+    def _rich(cls, value: str) -> str:
+        return validate_rich_text(value, 500)
+
 
 class ExperienceItemIn(BaseModel):
     title: str = Field(min_length=1, max_length=160)
@@ -40,6 +47,11 @@ class ExperienceItemIn(BaseModel):
     status: Literal["draft", "active"] = "active"
     skills: list[ExperienceSkillIn] = Field(default_factory=list, max_length=15)
     achievements: list[AchievementIn] = Field(default_factory=list, max_length=15)
+
+    @field_validator("description")
+    @classmethod
+    def _rich(cls, value: str) -> str:
+        return validate_rich_text(value, 2000)
 
     @model_validator(mode="after")
     def _period_sane(self):
@@ -68,6 +80,11 @@ class ExperienceItemUpdate(BaseModel):
     status: Optional[Literal["draft", "active"]] = None
     skills: Optional[list[ExperienceSkillIn]] = None
     achievements: Optional[list[AchievementIn]] = None
+
+    @field_validator("description")
+    @classmethod
+    def _rich(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else validate_rich_text(value, 2000)
 
 
 class ExperienceSkillOut(BaseModel):

@@ -11,7 +11,7 @@ cannot drift.
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import AchievementMetricKind, ExperienceKind
 from app.services.stages_service import max_birth_year
@@ -123,6 +123,14 @@ class CvExtract(BaseModel):
     experience: list[ExtractedExperience] = Field(default_factory=list, max_length=15)
     skills: list[ExtractedSkill] = Field(default_factory=list, max_length=30)
     languages: list[ExtractedLanguage] = Field(default_factory=list, max_length=10)
+
+    @field_validator("summary")
+    @classmethod
+    def _rich(cls, value: str) -> str:
+        from app.services.rich_text import validate_rich_text
+
+        return validate_rich_text(value, 2000)
+
     certifications: list[ExtractedCertification] = Field(
         default_factory=list, max_length=10
     )

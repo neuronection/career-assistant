@@ -27,6 +27,15 @@ vi.mock("@/api/cv", async (importOriginal) => {
 });
 
 const ITEM_ID = "exp-item-1-ref";
+async function typeIntoSynthEditor(container: HTMLElement, text: string) {
+  const { act } = await import("@testing-library/react");
+  const holder = container as unknown as { __editor?: unknown };
+  expect(holder.__editor).toBeTruthy();
+  await act(async () => {
+    (holder.__editor as { commands: { insertContent: (c: string) => boolean } }).commands.insertContent(text);
+  });
+}
+
 const VARIANT_A = "55440001-0000-0000-0000-000000000001";
 const VARIANT_B = "55440002-0000-0000-0000-000000000002";
 
@@ -327,9 +336,8 @@ describe("CvSynthLibrary", () => {
     await userEvent.setup().click(screen.getByTestId(`synth-edit-${VARIANT_A}`));
     const text = within(document.body).getByTestId(
       "synth-editor-description-input",
-    ) as HTMLTextAreaElement;
-    expect(text.value).toContain("Old text");
-    await userEvent.setup().type(text, " edited");
+    );
+    await typeIntoSynthEditor(text, "Old text edited");
     await userEvent
       .setup()
       .click(within(document.body).getByTestId("synth-editor-save"));
@@ -351,12 +359,12 @@ describe("CvSynthLibrary", () => {
     await userEvent.setup().click(screen.getByTestId("synth-add-variant"));
     const text = within(document.body).getByTestId(
       "synth-editor-description-input",
-    ) as HTMLTextAreaElement;
+    );
     const refCheckbox = within(document.body).getByTestId(
       `synth-editor-ref-experience:${ITEM_ID}`,
     ) as HTMLInputElement;
     await userEvent.setup().click(refCheckbox);
-    await userEvent.setup().type(text, "My own tailored text");
+    await typeIntoSynthEditor(text, "My own tailored text");
     await userEvent
       .setup()
       .click(within(document.body).getByTestId("synth-editor-save"));

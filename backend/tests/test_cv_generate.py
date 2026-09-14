@@ -605,6 +605,56 @@ async def test_plan_skill_subset_reaches_the_block(
     assert len(subset) < len(skills_items)
 
 
+async def test_plan_titles_the_cv(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """The planner's `title` names the CV document (shown in CV lists);
+    sanitized through the rich-text gate, with a deterministic fallback
+    when the plan fails or omits it."""
+    from app.ai.schemas import CvDraftStructure
+
+    await _experience(client, auth_headers)
+    import app.ai.graphs.cv_draft as graph
+
+    async def fake_plan_structure(db, user_id, **kwargs):
+        return CvDraftStructure.model_validate(
+            {
+                "title": "## <b>DevOps</b> — Platform Projects",
+                "sections": [
+                    {"kind": "experience", "item_ids": [], "rationale": ""},
+                ],
+            }
+        )
+
+    monkeypatch.setattr(graph, "plan_structure", fake_plan_structure)
+    result = await _service(db).generate(
+        UUID(_uid(auth_headers)), CvGenerateRequest(), run_id=uuid.uuid4()
+    )
+    await db.commit()
+    assert result["status"] == "completed", result
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    assert cv.title == "DevOps — Platform Projects"
+
+    async def empty_plan(db, user_id, **kwargs):
+        return CvDraftStructure.model_validate(
+            {
+                "sections": [
+                    {"kind": "experience", "item_ids": [], "rationale": ""},
+                ],
+            }
+        )
+
+    monkeypatch.setattr(graph, "plan_structure", empty_plan)
+    fallback = await _service(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(posting_text="Senior ICU Nurse"),
+        run_id=uuid.uuid4(),
+    )
+    await db.commit()
+    cv2 = await db.get(CvDocument, UUID(fallback["cv_id"]))
+    assert cv2.title == "CV — Senior ICU Nurse"
+
+
 async def test_template_pick_ai_resolves_in_the_run(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):

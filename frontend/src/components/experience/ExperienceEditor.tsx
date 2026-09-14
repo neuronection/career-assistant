@@ -5,9 +5,9 @@ import {
   OptionalStepper,
   SegmentedRow,
   TextField,
-  TextareaField,
   ToggleRow,
 } from "@/components/cv/formPrimitives";
+import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
 import { Button, EmptyState } from "@/components/ui";
 import type {
   AchievementIn,
@@ -324,14 +324,10 @@ export function ExperienceEditor({
             }
           />
         </div>
-        <TextareaField
-          label={t("experience.descriptionLabel")}
+        <CvRichTextEditor
           value={form.description}
           onChange={(v) => patch({ description: v })}
-          rows={4}
-          maxLength={2000}
-          counter
-          placeholder={t("experience.descriptionPlaceholder")}
+          ariaLabel={t("experience.descriptionLabel")}
           testId="experience-description"
         />
 
