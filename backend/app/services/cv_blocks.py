@@ -136,6 +136,7 @@ class HeaderProps(BaseModel):
 
 
 class SummaryProps(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="Summary", max_length=60)
     max_chars: int = Field(default=600, ge=200, le=1200)
     container: BlockContainer = Field(default_factory=BlockContainer)
@@ -144,6 +145,7 @@ class SummaryProps(BaseModel):
 class ItemsBlockProps(BaseModel):
     """Experience / education / certifications style item lists."""
 
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="", max_length=60)
     source_key: str = Field(min_length=1, max_length=60)
     # Optional kind filter (empty = all kinds). Lets one template split
@@ -170,6 +172,7 @@ class ItemsBlockProps(BaseModel):
 
 
 class SkillsProps(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="Skills", max_length=60)
     display: Literal["chips", "list", "grouped", "bars"] = "chips"
     show_levels: bool = False
@@ -181,6 +184,7 @@ class SkillsProps(BaseModel):
 
 
 class LanguagesProps(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="Languages", max_length=60)
     display: Literal["chips", "list"] = "chips"
     # "English — Advanced (C1)": representative CEFR band next to the level.
@@ -193,6 +197,7 @@ class LanguagesProps(BaseModel):
 
 
 class AchievementsProps(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="Achievements", max_length=60)
     kinds: list[Literal["award", "honor", "publication", "extracurricular"]] = Field(
         default_factory=lambda: ["award", "honor", "publication", "extracurricular"],
@@ -202,12 +207,14 @@ class AchievementsProps(BaseModel):
 
 
 class InterestsProps(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="Interests", max_length=60)
     max_items: int = Field(default=6, ge=1, le=20)
     container: BlockContainer = Field(default_factory=BlockContainer)
 
 
 class CustomTextProps(BaseModel):
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(min_length=1, max_length=60)
     text: str = Field(default="", max_length=2000)
     container: BlockContainer = Field(default_factory=BlockContainer)
@@ -244,6 +251,7 @@ class SynthItemsProps(BaseModel):
     with the overlay) — the config UI surfaces staleness.
     """
 
+    icon: Optional[str] = Field(default=None, max_length=30)
     title: str = Field(default="Highlights", max_length=60)
     selected: list[str] = Field(default_factory=list, max_length=40)
     show_source_chips: bool = True

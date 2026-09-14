@@ -4,12 +4,16 @@ export interface CvDesignTokens {
   muted_color: string;
   heading_color: string;
   background_color: string;
-  font_stack: "sans" | "serif" | "mixed" | "geometric";
+  font_stack: "sans" | "serif" | "mixed" | "geometric" | "embedded-sans" | "embedded-serif";
   base_size_pt: number;
   line_height: number;
   spacing_scale: number;
   header_style: "left" | "centered" | "banner" | "band";
   show_photo: boolean;
+  name_style: "plain" | "accent_surname";
+  show_heading_icons: boolean;
+  main_columns: number;
+  sidebar_columns: number;
   density: "compact" | "normal" | "roomy";
   margin_mm: number | null;
   section_style: "flat" | "card";
@@ -19,7 +23,7 @@ export interface CvDesignTokens {
   heading_rule: "line" | "none" | "accent";
   show_icons: boolean;
   icon_size_mm: number;
-  photo_shape: "circle" | "rounded" | "square";
+  photo_shape: "circle" | "rounded" | "square" | "arch";
   photo_size_mm: number;
   section_gap_mm: number | null;
   item_gap_mm: number | null;

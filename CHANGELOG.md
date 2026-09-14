@@ -5,6 +5,19 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **CV Studio power pack, slice 1 — template capabilities (plan 79.1)**:
+  grouped skills now render as true category sections with subheadings
+  (the "Grouped" option previously fell back to plain chips), sections can
+  carry small heading icons (per-block `icon` override or `""` to clear,
+  toggled by a new `show_heading_icons` token), the profile photo gains an
+  "arch" shape, the header name can split into two tones
+  (`name_style: "accent_surname"`, with a readable lighter tint inside
+  accent bands), the main/dashboard column can flow in two newspaper
+  columns (`main_columns` / `sidebar_columns`), and two bundled OFL font
+  stacks ("Embedded Sans" = Inter, "Embedded Serif" = Source Serif 4) ship
+  inline — zero network, license text included. All capabilities are
+  additive and default-stable: existing templates render byte-identically,
+  and the designer/copilot vocabulary learned every new token.
 - **New CV templates inspired by magazine-style layouts**: "Coral Banner"
   (warm coral header band with a circular photo, soft gray sidebar with
   profile, skill bars and CEFR languages) and "Charcoal & Amber" (dark

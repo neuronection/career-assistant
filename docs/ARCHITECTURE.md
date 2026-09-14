@@ -134,7 +134,17 @@ There is no side door around it.
   page; `header_style: "band"` paints the name/contact header as a
   filled accent panel. The bank (`app/seeds/cv_templates.py`) ships
   photo + skill-bar magazine layouts (`coral-banner`, `charcoal-amber`)
-  alongside the classic/sidebar rows.
+  alongside the classic/sidebar rows. Plan 79.1 token additions (all
+  additive, default = today's rendering): real `grouped` skills
+  categories with `.skill-cat` subheadings, `show_heading_icons` +
+  per-block `icon` (NULL = kind default, `""` = clear; glyphs from
+  `cv_icons.SECTION_KIND_ICONS`), `photo_shape: "arch"`,
+  `name_style: "accent_surname"` (a lighter tint wins inside band
+  headers), `main_columns`/`sidebar_columns` newspaper flow (CSS
+  multi-column; the overflow estimator halves the column share), and
+  `font_stack: "embedded-sans" / "embedded-serif"` — vendored OFL WOFF2
+  subsets inlined as data URIs by `cv_fonts.py` (files missing ⇒ the
+  system stack trails, capability-detected).
 - **CV polish loop** (plan 64) rides the same `cv_generate` background
   job after the `cv_draft` assemble node: the `cv_build_review` vision
   task (`app/ai/agents/cv_build_reviewer.py`) critiques the rendered

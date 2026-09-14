@@ -24,12 +24,24 @@ class DesignTokens(BaseModel):
     muted_color: str = Field(default="#6b7280", pattern=HEX_COLOR)
     heading_color: str = Field(default="#0f172a", pattern=HEX_COLOR)
     background_color: str = Field(default="#ffffff", pattern=HEX_COLOR)
-    font_stack: Literal["sans", "serif", "mixed", "geometric"] = "sans"
+    font_stack: Literal[
+        "sans", "serif", "mixed", "geometric", "embedded-sans", "embedded-serif"
+    ] = "sans"
     base_size_pt: int = Field(default=10, ge=7, le=14)
     line_height: float = Field(default=1.35, ge=1.0, le=2.0)
     spacing_scale: float = Field(default=1.0, ge=0.6, le=1.8)
     header_style: Literal["left", "centered", "banner", "band"] = "left"
     show_photo: bool = False
+    # Two-tone name: plain, or split on the last space and color the
+    # surname with the accent (magazine-style mastheads).
+    name_style: Literal["plain", "accent_surname"] = "plain"
+    # Section headings may carry a per-block icon glyph (cv_icons registry;
+    # a per-block `icon=""` clears it for that section).
+    show_heading_icons: bool = False
+    # Newspaper-style body flow inside a column (multi-column CVs keep
+    # their per-column background intact — CSS multi-column).
+    main_columns: int = Field(default=1, ge=1, le=2)
+    sidebar_columns: int = Field(default=1, ge=1, le=2)
     density: Literal["compact", "normal", "roomy"] = "normal"
     margin_mm: Optional[int] = Field(default=None, ge=0, le=25)
     # Modern-layout tokens: section containers, corners, heading style.
@@ -41,7 +53,7 @@ class DesignTokens(BaseModel):
     heading_rule: Literal["line", "none", "accent"] = "line"
     show_icons: bool = True
     icon_size_mm: float = Field(default=3.2, ge=2.0, le=6.0)
-    photo_shape: Literal["circle", "rounded", "square"] = "circle"
+    photo_shape: Literal["circle", "rounded", "square", "arch"] = "circle"
     photo_size_mm: int = Field(default=22, ge=10, le=40)
     section_gap_mm: Optional[int] = Field(default=None, ge=0, le=14)
     item_gap_mm: Optional[int] = Field(default=None, ge=0, le=8)

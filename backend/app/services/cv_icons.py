@@ -53,6 +53,45 @@ PATHS: dict[str, str] = {
         '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>'
         '<circle cx="12" cy="7" r="4"/>'
     ),
+    "briefcase": (
+        '<rect x="2" y="7" width="20" height="14" rx="2"/>'
+        '<path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'
+    ),
+    "gradcap": (
+        '<path d="M22 10 12 5 2 10l10 5 10-5z"/>'
+        '<path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/>'
+    ),
+    "wrench": (
+        '<path d="M14.7 6.3a4.5 4.5 0 0 0 5.7 5.7l2-2a7 7 0 1 1-9.3-9.3l-2 2a4 4 0 '
+        '0 0 3.6 3.6z"/>'
+        '<path d="M13.5 10.5 2 22l4 2L17.5 12.5z"/>'
+    ),
+    "award": (
+        '<circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/>'
+    ),
+    "heart": (
+        '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 19l6.6-6.4 1-1a5.5 5.5 0 0 0 0-7.8z"/>'
+    ),
+    "chat": (
+        '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
+    ),
+    "flag": (
+        '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>'
+        '<line x1="4" y1="22" x2="4" y2="15"/>'
+    ),
+}
+
+# Default section-heading glyph per block kind (heading-icons feature);
+# plain, print-safe Feather geometry keyed off the same stroke template.
+SECTION_KIND_ICONS: dict[str, str] = {
+    "summary": "chat",
+    "items": "briefcase",
+    "skills": "wrench",
+    "languages": "globe",
+    "achievements": "award",
+    "interests": "heart",
+    "custom_text": "chat",
+    "synth_items": "award",
 }
 
 LINK_KIND_ICONS = {"linkedin": "linkedin", "github": "github"}

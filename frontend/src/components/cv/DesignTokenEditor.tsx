@@ -13,6 +13,8 @@ const FONTS = [
   { value: "serif", label: "Serif" },
   { value: "mixed", label: "Mixed" },
   { value: "geometric", label: "Geometric" },
+  { value: "embedded-sans", label: "Embedded Sans" },
+  { value: "embedded-serif", label: "Embedded Serif" },
 ];
 const HEADER_STYLES = [
   { value: "left", label: "Left" },
@@ -46,6 +48,11 @@ const LAYOUTS = [
 const SIDEBAR_SIDES = [
   { value: "left", label: "Left" },
   { value: "right", label: "Right" },
+];
+
+const NAME_STYLES = [
+  { value: "plain", label: "Plain" },
+  { value: "accent_surname", label: "Accent surname" },
 ];
 
 function Group({
@@ -110,6 +117,17 @@ export function DesignTokenEditor({
 
       <Group title={t("templateEditor.headings", { defaultValue: "Headings" })} testId="token-headings">
         <SelectField label={t("templateEditor.headerStyleLabel")} value={design.header_style} onChange={(header_style) => onChange({ header_style: header_style as CvDesignTokens["header_style"] })} options={HEADER_STYLES} />
+        <SelectField label={t("templateEditor.nameStyle")} value={design.name_style} onChange={(name_style) => onChange({ name_style: name_style as CvDesignTokens["name_style"] })} options={NAME_STYLES} testId="name-style-select" />
+        <ToggleRow
+          label={t("templateEditor.headingIcons", { defaultValue: "Heading icons" })}
+          checked={design.show_heading_icons}
+          onChange={(show_heading_icons) => onChange({ show_heading_icons })}
+        />
+        <ToggleRow
+          label={t("templateEditor.headingIcons", { defaultValue: "Heading icons" })}
+          checked={design.show_heading_icons}
+          onChange={(show_heading_icons) => onChange({ show_heading_icons })}
+        />
         <SelectField label={t("templateEditor.headingCaseLabel")} value={design.heading_case} onChange={(heading_case) => onChange({ heading_case: heading_case as CvDesignTokens["heading_case"] })} options={HEADING_CASES} />
         <RangeField label={t("templateEditor.headingWeight")} value={design.heading_weight} min={400} max={800} step={100} onChange={(heading_weight) => onChange({ heading_weight })} />
         <SelectField label={t("templateEditor.headingRuleLabel")} value={design.heading_rule} onChange={(heading_rule) => onChange({ heading_rule: heading_rule as CvDesignTokens["heading_rule"] })} options={HEADING_RULES} />
@@ -138,6 +156,8 @@ export function DesignTokenEditor({
               <RangeField label={t("templateEditor.sidebarWidth")} value={design.sidebar_width_pct} min={25} max={45} onChange={(sidebar_width_pct) => onChange({ sidebar_width_pct })} suffix="%" />
               <GapsField label={t("templateEditor.mainPadding")} value={design.main_padding_mm} options={[0, 4, 6, 8, 10, 12]} onChange={(main_padding_mm) => onChange({ main_padding_mm })} />
               <GapsField label={t("templateEditor.sidebarPadding")} value={design.sidebar_padding_mm} options={[0, 2, 4, 6, 8, 10]} onChange={(sidebar_padding_mm) => onChange({ sidebar_padding_mm })} />
+              <SelectField label={t("templateEditor.mainColumns", { defaultValue: "Main columns" })} value={String(design.main_columns)} onChange={(raw) => onChange({ main_columns: Number(raw) as CvDesignTokens["main_columns"] })} options={[{ value: "1", label: "1" }, { value: "2", label: "2" }]} testId="main-columns-select" />
+              <SelectField label={t("templateEditor.sidebarColumns", { defaultValue: "Sidebar columns" })} value={String(design.sidebar_columns)} onChange={(raw) => onChange({ sidebar_columns: Number(raw) as CvDesignTokens["sidebar_columns"] })} options={[{ value: "1", label: "1" }, { value: "2", label: "2" }]} testId="sidebar-columns-select" />
             </div>
           )}
         </Group>
@@ -160,6 +180,7 @@ export function DesignTokenEditor({
                   { value: "circle", label: "Circle" },
                   { value: "rounded", label: "Rounded" },
                   { value: "square", label: "Square" },
+                  { value: "arch", label: "Arch" },
                 ]}
               />
               <RangeField label={t("templateEditor.size")} value={design.photo_size_mm} min={10} max={40} onChange={(photo_size_mm) => onChange({ photo_size_mm })} suffix="mm" />

@@ -1,5 +1,7 @@
 """Template design system: themes, tokens, date formats, card style."""
 
+import re
+
 import pytest
 from pydantic import ValidationError
 
@@ -958,3 +960,187 @@ def test_area_padding_feeds_pagination_heuristic():
         SAMPLE_SNAPSHOT,
     ).metrics
     assert padded.estimated_lines >= bare.estimated_lines
+
+
+def test_grouped_skills_render_by_category():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "skills", "props": {"display": "grouped", "max_items": 18}}
+            ],
+            "design": {},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "skill-cat" in html
+    assert "skill-group" in html
+    assert "Programming" in html and "Tooling" in html
+
+
+def test_grouped_skills_feed_the_overflow_estimate():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "skills", "props": {"display": "grouped", "max_items": 18}}
+            ],
+            "design": {},
+        }
+    )
+    chips = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "skills", "props": {"display": "chips", "max_items": 18}}
+            ],
+            "design": {},
+        }
+    )
+    grouped = render_cv(content, SAMPLE_SNAPSHOT).metrics.estimated_lines
+    flat = render_cv(chips, SAMPLE_SNAPSHOT).metrics.estimated_lines
+    categories = len(
+        {s.get("category") for s in SAMPLE_SNAPSHOT["skills"] if s.get("category")}
+    )
+    assert grouped > flat
+    assert grouped >= flat + categories, "each category heading costs a line"
+
+
+def test_heading_icons_default_and_clearing():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "items",
+                    "props": {"title": "Work", "source_key": "experience"},
+                },
+                {
+                    "kind": "skills",
+                    "props": {"title": "Skills", "display": "chips", "icon": ""},
+                },
+            ],
+            "design": {"show_heading_icons": True},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "h-icn" in html, "default briefcase glyph on the items section"
+    assert "color: var(--accent)" in html
+    headings = re.findall(r"<h2>(.*?)</h2>", html, re.S)
+    skills_heading = next((h for h in headings if "Skills" in h), "")
+    assert "h-icn" not in skills_heading, "icon='' clears the glyph for that section"
+    unknown = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "items",
+                    "props": {
+                        "title": "Work",
+                        "source_key": "experience",
+                        "icon": "notaicon",
+                    },
+                }
+            ],
+            "design": {"show_heading_icons": True},
+        }
+    )
+    assert "<span class='h-icn'>" not in render_cv(unknown, SAMPLE_SNAPSHOT).html
+    off = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "items",
+                    "props": {"title": "Work", "source_key": "experience"},
+                }
+            ],
+            "design": {},
+        }
+    )
+    off_html = render_cv(off, SAMPLE_SNAPSHOT).html
+    assert "<span class='h-icn'>" not in off_html, (
+        "the toggle's default is off — only the CSS rule exists"
+    )
+
+
+def test_arch_photo_and_accent_surname():
+    from copy import deepcopy
+
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    snapshot = deepcopy(SAMPLE_SNAPSHOT)
+    snapshot["basics"]["photo"] = "data:image/svg+xml,svg"
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "header", "props": {}}],
+            "design": {
+                "show_photo": True,
+                "photo_shape": "arch",
+                "name_style": "accent_surname",
+            },
+        }
+    )
+    html = render_cv(content, snapshot).html
+    assert "border-radius:50% 50% 0 0" in html
+    assert "<span class='name-accent'>Sample</span>" in html
+    single = deepcopy(SAMPLE_SNAPSHOT)
+    single["basics"]["name"] = "Madonna"
+    html = render_cv(
+        TemplateContent.model_validate(
+            {
+                "blocks": [{"kind": "header", "props": {}}],
+                "design": {"name_style": "accent_surname"},
+            }
+        ),
+        single,
+    ).html
+    body = html.split("<body>", 1)[1]
+    assert "name-accent" not in body, "single-word names stay plain"
+
+
+def test_embedded_font_stack_emits_inline_face():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "header", "props": {}}],
+            "design": {"font_stack": "embedded-sans"},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "font-family: 'Inter Embedded'" in html
+    assert "src: url('data:font/woff2;base64," in html
+    assert "unicode-range:" in html
+    serif = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "header", "props": {}}],
+            "design": {"font_stack": "serif"},
+        }
+    )
+    assert "data:font/woff2" not in render_cv(serif, SAMPLE_SNAPSHOT).html
+
+
+def test_main_columns_tokens_flow_into_css_and_estimate():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    long_snapshot = {**SAMPLE_SNAPSHOT, "summary": "word " * 400}
+    single = render_cv(
+        TemplateContent.model_validate(
+            {"blocks": [{"kind": "summary", "props": {}}], "design": {}}
+        ),
+        long_snapshot,
+    )
+    double = render_cv(
+        TemplateContent.model_validate(
+            {
+                "blocks": [{"kind": "summary", "props": {}}],
+                "design": {"main_columns": 2},
+            }
+        ),
+        long_snapshot,
+    )
+    assert "column-count: 2" in double.html
+    assert double.metrics.estimated_lines > single.metrics.estimated_lines, (
+        "two half-width columns wrap sooner"
+    )

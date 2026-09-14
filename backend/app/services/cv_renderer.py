@@ -26,6 +26,11 @@ FONT_STACKS = {
     "serif": "Georgia, 'Times New Roman', serif",
     "mixed": None,  # headings serif, body sans
     "geometric": "'Century Gothic', 'Avenir Next', 'Futura', Verdana, sans-serif",
+    # Embedded OFL stacks (cv_fonts): inline @font-face, zero network.
+    # The system stacks trail as graceful degradation when the vendored
+    # files are absent.
+    "embedded-sans": "'Inter Embedded', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "embedded-serif": "'Source Serif 4 Embedded', Georgia, 'Times New Roman', serif",
 }
 
 DATE_FORMATS = {"mon_yyyy", "iso", "eu", "year"}
@@ -323,7 +328,14 @@ def _block_lines(
             ]
         count = min(len(skill_rows), props.max_items)
         chips_per_row = max(2, chars // 14)
-        return math.ceil(count / chips_per_row) + 1
+        lines = math.ceil(count / chips_per_row)
+        if getattr(props, "display", "chips") == "grouped":
+            lines += sum(
+                1
+                for skill in skill_rows[: props.max_items]
+                if isinstance(skill, dict) and skill.get("category")
+            )
+        return lines + 1
     if kind == "languages":
         count = 1 if snapshot.get("languages") else 0
         extra = 0
@@ -523,7 +535,17 @@ def _section_tag(
     classes, style = (
         _container_of(props, design) if props is not None else ("cv-block", "")
     )
-    heading = f"<h2>{esc(title)}</h2>" if title else ""
+    marker = ""
+    if title and getattr(design, "show_heading_icons", False):
+        from app.services.cv_icons import SECTION_KIND_ICONS, icon
+
+        name = getattr(props, "icon", None)
+        if name is None:
+            name = SECTION_KIND_ICONS.get(kind, "")
+        glyph = icon(name)
+        if glyph:
+            marker = f"<span class='h-icn'>{glyph}</span>"
+    heading = f"<h2>{marker}{esc(title)}</h2>" if title else ""
     return f"<section class='{classes}'{style}>{heading}{body}</section>"
 
 
@@ -535,19 +557,36 @@ def _render_block(
     if kind == "header":
         basics = snapshot.get("basics") or {}
         headline = esc(basics.get("headline") or "")
+        name_raw = str(basics.get("name") or "")
+        if (
+            getattr(design, "name_style", "plain") == "accent_surname"
+            and " " in name_raw
+        ):
+            head, surname = name_raw.rsplit(" ", 1)
+            name_html = f"{esc(head)} <span class='name-accent'>{esc(surname)}</span>"
+        else:
+            name_html = esc(name_raw)
         contact = _contact_line(basics, props, design)
         photo = ""
         if design.show_photo and basics.get("photo"):
-            radius = {"circle": "50%", "rounded": "3mm", "square": "0"}[
-                design.photo_shape
-            ]
+            radius = {
+                "circle": "50%",
+                "rounded": "3mm",
+                "square": "0",
+                "arch": "50% 50% 0 0",
+            }[design.photo_shape]
+            photo_h = (
+                round(design.photo_size_mm * 1.15, 1)
+                if design.photo_shape == "arch"
+                else design.photo_size_mm
+            )
             photo = (
                 f"<img class='cv-photo' src='{esc(basics['photo'])}' alt='' "
-                f"style='width:{design.photo_size_mm}mm;height:{design.photo_size_mm}mm;"
+                f"style='width:{design.photo_size_mm}mm;height:{photo_h}mm;"
                 f"border-radius:{radius}'/>"
             )
         inner = (
-            f"<h1>{esc(basics.get('name') or '')}</h1>"
+            f"<h1>{name_html}</h1>"
             + (f"<p class='headline'>{headline}</p>" if headline else "")
             + (f"<p class='contact'>{contact}</p>" if contact else "")
         )
@@ -653,6 +692,16 @@ def _render_block(
             if not skills:
                 return "", False
         shown = skills[: props.max_items]
+
+        def _chip(skill: Any) -> str:
+            label = esc(skill.get("label") if isinstance(skill, dict) else skill)
+            level = (
+                f" <em>{skill['level']}/10</em>"
+                if props.show_levels and isinstance(skill, dict) and skill.get("level")
+                else ""
+            )
+            return f"<span class='chip'>{label}{level}</span>"
+
         if props.display == "list":
             body = (
                 "<ul class='items'>"
@@ -679,15 +728,24 @@ def _render_block(
                     f"<span class='bar'><span class='bar-fill' style='width:{pct}%'></span></span></div>"
                 )
             body = "<div class='bars'>" + "".join(rows) + "</div>"
-        else:
-            body = (
-                "<div class='chips'>"
-                + "".join(
-                    f"<span class='chip'>{esc(s.get('label') if isinstance(s, dict) else s)}{'' if not (props.show_levels and isinstance(s, dict) and s.get('level')) else f' <em>{s['level']}/10</em>'}</span>"
-                    for s in shown
+        elif props.display == "grouped":
+            groups: dict[str, list[str]] = {}
+            for skill in shown:
+                category = (
+                    str(skill.get("category") or "").strip()
+                    if isinstance(skill, dict)
+                    else ""
                 )
-                + "</div>"
+                groups.setdefault(category.title() or "General", []).append(
+                    _chip(skill)
+                )
+            body = "".join(
+                f"<div class='skill-group'><p class='skill-cat'>{esc(category)}</p>"
+                f"<div class='chips'>{''.join(chips)}</div></div>"
+                for category, chips in groups.items()
             )
+        else:
+            body = "<div class='chips'>" + "".join(_chip(s) for s in shown) + "</div>"
         return _section_tag("skills", props.title, body, design, props), True
     if kind == "languages":
         languages = snapshot.get("languages") or []
@@ -838,6 +896,12 @@ def _render_block(
     return "", False
 
 
+def _font_face_css(font_stack: str) -> str:
+    from app.services.cv_fonts import font_face_css
+
+    return font_face_css(font_stack)
+
+
 def _css(design: DesignTokens, page_size: str, shrink: float) -> str:
     width_mm, height_mm = PAGE_MM[page_size]
     margin = _page_margin_mm(design)
@@ -871,10 +935,12 @@ def _css(design: DesignTokens, page_size: str, shrink: float) -> str:
             "header.cv-header h1, header.cv-header .headline, "
             "header.cv-header .contact { color: inherit; }"
             "header.cv-header .contact a { color: inherit; }"
+            "header.cv-header .name-accent { color: color-mix(in srgb, #ffffff 65%, var(--accent)); }"
         )
     return f"""
 @page {{ size: {width_mm}mm {height_mm}mm; margin: {margin}mm; }}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+{_font_face_css(design.font_stack)}
 :root {{
   --accent: {design.accent_color}; --text: {design.text_color};
   --muted: {design.muted_color}; --heading: {design.heading_color};
@@ -893,6 +959,8 @@ h2 {{ font-family: {heading_font}; font-size: {round(base * 1.15, 2)}pt; color: 
      {"border-bottom: 1px solid var(--muted);padding-bottom: 2px;" if design.heading_rule == "line" else ""}
      }}
 .icn {{ width: {design.icon_size_mm}mm; height: {design.icon_size_mm}mm; vertical-align: -0.6mm; margin-right: 1mm; }}
+.h-icn .icn {{ color: var(--accent); vertical-align: -0.9mm; }}
+.name-accent {{ color: var(--accent); }}
 .contact-icons .cpi {{ margin-right: 3mm; white-space: nowrap; }}
 .contact-icons .cpi.lnk {{ display: inline-block; max-width: 100%;
      vertical-align: bottom; white-space: nowrap;
@@ -950,11 +1018,20 @@ ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
 .chip {{ background: color-mix(in srgb, var(--accent) 12%, var(--background));
         color: var(--heading); border-radius: {max(1, design.corner_radius)}mm;
         padding: 0 1.6mm; font-size: {round(base * 0.95, 2)}pt; }}
+.skill-group {{ break-inside: avoid; }}
+.skill-cat {{ font-weight: 600; color: var(--heading);
+     margin: calc(0.4em * var(--spacing)) 0 0.5mm;
+     text-transform: {heading_transform}; font-size: {round(base * 0.95, 2)}pt; }}
+.cv-sidebar .skill-cat {{ color: inherit; }}
+.cv-main {{{" column-count: " + str(design.main_columns) + "; column-gap: 7mm;" if design.main_columns > 1 else ""}{" padding: " + str(design.main_padding_mm) + "mm;" if design.main_padding_mm is not None else ""} }}
+.cv-main h2 {{ break-inside: avoid; }}
 .cv-columns {{ display: table; width: 100%; table-layout: fixed;
      border-spacing: {round(design.spacing_scale * 5, 1)}mm 0; margin: 0 -{round(design.spacing_scale * 5, 1)}mm; }}
 .cv-sidebar {{ display: table-cell; vertical-align: top; width: {design.sidebar_width_pct}%; background: {design.sidebar_color};
      color: {design.sidebar_text_color}; border-radius: {design.corner_radius}mm;
-     padding: {f"{design.sidebar_padding_mm}mm" if design.sidebar_padding_mm is not None else "4mm 4.5mm"}; }}
+     padding: {f"{design.sidebar_padding_mm}mm" if design.sidebar_padding_mm is not None else "4mm 4.5mm"};
+     {"column-count:" + str(design.sidebar_columns) + "; column-gap: 5mm;" if design.sidebar_columns > 1 else ""} }}
+.cv-sidebar h2 {{ break-inside: avoid; }}
 .cv-main {{ display: table-cell; vertical-align: top;{" padding: " + str(design.main_padding_mm) + "mm;" if design.main_padding_mm is not None else ""} }}
 .cv-sidebar h2 {{ color: inherit;
      border-bottom-color: color-mix(in srgb, currentColor 35%, transparent); }}
@@ -1041,8 +1118,10 @@ def render_cv(
         _effective_share(design.sidebar_width_pct / 100, design.sidebar_padding_mm)
         if use_sidebar
         else 0.0
+    ) / max(1, design.sidebar_columns)
+    main_share = _effective_share(1.0, design.main_padding_mm) / max(
+        1, design.main_columns
     )
-    main_share = _effective_share(1.0, design.main_padding_mm)
     main_bodies, main_entries = render_column(main_blocks, main_share)
     sidebar_bodies, sidebar_entries = (
         render_column(sidebar_blocks, sidebar_share)

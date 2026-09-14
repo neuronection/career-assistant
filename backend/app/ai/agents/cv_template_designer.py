@@ -160,7 +160,19 @@ AREA_RULES = (
     '`area`="sidebar" — and every sidebar-assigned block implies a '
     "sidebar layout. For sidebar layouts prefer margin_mm=0 with "
     "per-area padding (main_padding_mm, sidebar_padding_mm) so the "
-    "colored column runs to the page edge."
+    "colored column runs to the page edge. "
+    "Available capabilities when the brief asks for them: "
+    '`design.name_style`="accent_surname" colors the surname in the '
+    "header; `design.show_heading_icons`=true gives every titled "
+    "section a small glyph (per-block `icon` may override the default "
+    'or clear it with ""); `design.main_columns`="2" flows the main '
+    "column in two newspaper columns (sidebar_columns for the "
+    "sidebar; only for chip-heavy layouts with light content); "
+    '`design.photo_shape` accepts "arch" for a rounded-top portrait; '
+    '`design.font_stack` accepts "embedded-sans" / "embedded-serif" '
+    "(bundled OFL fonts) alongside sans/serif/mixed/geometric. "
+    '`design.header_style`="band" paints the header as a filled '
+    "accent panel."
 )
 
 
