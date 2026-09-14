@@ -864,6 +864,30 @@ PROFILE_DIGEST_KEYWORDS = {
     "about me",
 }
 
+# Builder-handoff intent (plan 78 AD3): word-matched against the message;
+# only meaningful together with a CV attachment — the safe default is the
+# question path, so the verbs stay conservative.
+BUILD_INTENT_WORDS = {
+    "rewrite",
+    "rephrase",
+    "shorten",
+    "tighten",
+    "reorder",
+    "restructure",
+    "restyle",
+    "reformat",
+    "redesign",
+    "polish",
+    "tailor",
+    "regenerate",
+    "reword",
+}
+
+
+def is_build_intent(message: str) -> bool:
+    words = {token.strip(".,!?;:()[]\"'").lower() for token in message.split()}
+    return bool(words & BUILD_INTENT_WORDS)
+
 
 def _summarize(value) -> str:
     """Serialized, truncated tool detail for the SSE + storage trace."""

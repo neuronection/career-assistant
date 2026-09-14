@@ -484,6 +484,29 @@ class ChatService:
             return await self._finish_interview_turn(
                 session, history, parent_user_message_id, content
             )
+        from app.models.chat_model import ChatMessage as ChatMessageModel
+
+        turn_message = await self.db.get(ChatMessageModel, parent_user_message_id)
+        if turn_message is not None:
+            from app.ai.agents.chatbot import is_build_intent
+            from app.services.chat_attachments import (
+                attachment_cv,
+                effective_attachments,
+            )
+
+            attachments = await effective_attachments(self.db, session, turn_message)
+            if attachments and is_build_intent(content):
+                target = await attachment_cv(
+                    self.db, session.user_id, attachments[0].get("cv_id")
+                )
+                if target is not None:
+                    return await self._finish_builder_turn(
+                        session,
+                        history,
+                        parent_user_message_id,
+                        content,
+                        cv=target,
+                    )
         from app.services.chat_attachments import build_turn_references
 
         cv_references = await build_turn_references(
@@ -510,17 +533,21 @@ class ChatService:
         history: list[dict],
         parent_user_message_id: uuid.UUID,
         content: str,
+        cv=None,
     ) -> ChatMessage:
-        """Drain one copilot turn (ops + review + persistence)."""
+        """Drain one copilot turn (ops + review + persistence). The CV is
+        the on-demand handoff target when passed; the session context's
+        binding resolves it otherwise (legacy bound sessions)."""
         import uuid as uuid_mod
 
         from app.ai.agents.cv_builder_chat import builder_turn_events
         from app.services.cv_service import CvService
 
-        cv = await CvService(self.db).get_owned(
-            uuid_mod.UUID(str((session.context or {}).get("cv_id"))),
-            session.user_id,
-        )
+        if cv is None:
+            cv = await CvService(self.db).get_owned(
+                uuid_mod.UUID(str((session.context or {}).get("cv_id"))),
+                session.user_id,
+            )
         async for _event, _payload in builder_turn_events(
             self.db,
             cv,

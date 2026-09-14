@@ -81,6 +81,43 @@ async def cv_reference_text(db: AsyncSession, cv: CvDocument) -> str:
         return ""
 
 
+async def effective_attachments(db: AsyncSession, session, user_message) -> list[dict]:
+    """The message's own attachments, or the conversation's most recent
+    (earlier reference, AD2b) — the effective turn attachments."""
+    from app.models.chat_model import ChatMessage
+
+    attachments = (user_message.metadata_json or {}).get("attachments") or []
+    if attachments:
+        return attachments
+    rows = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session.id, ChatMessage.role == "user")
+        .order_by(desc(ChatMessage.created_at))
+        .limit(20)
+    )
+    for candidate in rows.scalars():
+        if candidate.id == user_message.id:
+            continue
+        found = (candidate.metadata_json or {}).get("attachments") or []
+        if found:
+            return found
+    return []
+
+
+async def attachment_cv(
+    db: AsyncSession, user_id: uuid.UUID, cv_id
+) -> CvDocument | None:
+    """The owned CV behind one attachment entry, or None."""
+    try:
+        parsed = uuid.UUID(str(cv_id))
+    except (ValueError, TypeError):
+        return None
+    rows = await db.execute(
+        select(CvDocument).where(CvDocument.id == parsed, CvDocument.user_id == user_id)
+    )
+    return rows.scalars().first()
+
+
 async def turn_references(
     db: AsyncSession, session, user_message
 ) -> tuple[list[dict], list[dict]]:
@@ -90,37 +127,16 @@ async def turn_references(
     with none inherits the most recent attached user message on the
     session's active path (earlier reference, AD2b).
     """
-    from app.models.chat_model import ChatMessage
-
-    attachments = (user_message.metadata_json or {}).get("attachments") or []
-    earlier = False
-    if not attachments:
-        rows = await db.execute(
-            select(ChatMessage)
-            .where(ChatMessage.session_id == session.id, ChatMessage.role == "user")
-            .order_by(desc(ChatMessage.created_at))
-            .limit(20)
-        )
-        for candidate in rows.scalars():
-            if candidate.id == user_message.id:
-                continue
-            found = (candidate.metadata_json or {}).get("attachments") or []
-            if found:
-                attachments = found
-                earlier = True
-                break
+    attachments = await effective_attachments(db, session, user_message)
+    earlier = not bool(
+        (user_message.metadata_json or {}).get("attachments") or []
+    ) and bool(attachments)
     if not attachments:
         return [], []
 
     references: list[dict] = []
     for entry in attachments[:2]:
-        cv_id = uuid.UUID(str(entry.get("cv_id")))
-        rows = await db.execute(
-            select(CvDocument).where(
-                CvDocument.id == cv_id, CvDocument.user_id == session.user_id
-            )
-        )
-        cv = rows.scalars().first()
+        cv = await attachment_cv(db, session.user_id, entry.get("cv_id"))
         if cv is None:
             continue
         text = await cv_reference_text(db, cv)

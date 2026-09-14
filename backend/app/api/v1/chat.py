@@ -224,32 +224,27 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
 
     cv = await _cv_builder_cv(session, db)
     if cv is not None:
-        from app.ai.agents.cv_builder_chat import builder_turn_events
-
-        async def builder_events():
-            try:
-                async for event, payload in builder_turn_events(
-                    db,
-                    cv,
-                    session=session,
-                    user_id=user.id,
-                    message=content,
-                    history=history,
-                    user_message_id=user_message_id,
-                ):
-                    yield _sse(event, payload)
-            except DomainError as exc:
-                yield _sse(
-                    "flow_failed",
-                    {"code": "ai_unavailable", "message": str(exc), "retryable": True},
-                )
-                yield _sse("error", {"detail": str(exc)})
-
-        return StreamingResponse(
-            builder_events(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        return await _builder_stream_response(
+            cv, session, history, content, user_message_id, user, db
         )
+
+    # On-demand builder handoff (plan 78 AD3): a CV attachment plus
+    # build-intent wording runs the copilot loop for THIS turn only —
+    # the session itself stays a normal chat session.
+    from app.models.chat_model import ChatMessage
+
+    turn_message = await db.get(ChatMessage, user_message_id)
+    if turn_message is not None:
+        from app.ai.agents.chatbot import is_build_intent
+        from app.services.chat_attachments import attachment_cv, effective_attachments
+
+        attachments = await effective_attachments(db, session, turn_message)
+        if attachments and is_build_intent(content):
+            target = await attachment_cv(db, user.id, attachments[0].get("cv_id"))
+            if target is not None:
+                return await _builder_stream_response(
+                    target, session, history, content, user_message_id, user, db
+                )
 
     turn_started = time.monotonic()
     profile = await get_profile_for_user(db, user.id)
@@ -506,6 +501,39 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
 
     return StreamingResponse(
         events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _builder_stream_response(
+    cv, session, history, content, user_message_id, user, db
+):
+    """Stream one builder copilot turn (legacy bound sessions AND the
+    plan-78 on-demand handoff share this path)."""
+    from app.ai.agents.cv_builder_chat import builder_turn_events
+
+    async def builder_events():
+        try:
+            async for event, payload in builder_turn_events(
+                db,
+                cv,
+                session=session,
+                user_id=user.id,
+                message=content,
+                history=history,
+                user_message_id=user_message_id,
+            ):
+                yield _sse(event, payload)
+        except DomainError as exc:
+            yield _sse(
+                "flow_failed",
+                {"code": "ai_unavailable", "message": str(exc), "retryable": True},
+            )
+            yield _sse("error", {"detail": str(exc)})
+
+    return StreamingResponse(
+        builder_events(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
