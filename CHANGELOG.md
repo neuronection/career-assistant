@@ -5,20 +5,22 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
-- **Profile editing through the chatbot, reviewed on HITL cards (backend
-  foundation)**: chat-proposed changes to work experience, projects,
-  education, certifications, achievements, skills and profile sections
-  (incl. languages) now land as persisted proposals the user approves or
-  rejects — never auto-applied. Each card carries a field-level
-  before/after diff, deletes keep a full entity snapshot, resolution is
-  idempotent, and approving re-validates against the current data
-  (changed data → a `conflict` card inviting a fresh proposal; deleted
-  data → the card expires). Applying goes through the same services the
-  profile forms use, so validation rules are identical everywhere.
-  Proposals are first-class data: they outlive the chat session that
-  produced them (14-day TTL) and expose
-  `GET /me/profile-proposals` + approve/reject/dismiss endpoints. Chat
-  wiring and the card UI land with the follow-up slices of plan 77.
+- **Profile editing through the chatbot, reviewed on HITL cards**: ask the
+  chatbot to add a project, end an internship, set a language level or
+  delete a certification and the change lands as a persisted proposal
+  card you approve or reject — never auto-applied. Each card carries a
+  field-level before/after diff, deletes keep a full entity snapshot,
+  resolution is idempotent, and approving re-validates against current
+  data (changed data → a `conflict` card inviting a fresh proposal;
+  deleted data → the card expires). Applying goes through the same
+  services the profile forms use, so validation rules are identical
+  everywhere. The chatbot grounds every edit in read-only profile
+  digests (real ids only — nothing is invented), ambiguous requests get
+  a clarifying question instead of a proposal, at most 5 cards per turn
+  (excess ops are reported as dropped), and cards survive session
+  deletion with a 14-day TTL (`GET /me/profile-proposals` +
+  approve/reject/dismiss endpoints). The card UI lands with the next
+  plan-77 slices.
 
 ### Fixed
 - **Accurate CV page counts — the printed PDF is now the truth**: the

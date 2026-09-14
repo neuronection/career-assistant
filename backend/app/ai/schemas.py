@@ -150,12 +150,35 @@ class UniversityExtraction(BaseModel):
     )
 
 
+class ProfileOp(BaseModel):
+    """One proposed profile mutation (HITL — the user resolves each card).
+
+    Payload is validated against the entity's REST schema server-side;
+    ``entity_id`` must come verbatim from a profile digest tool result.
+    """
+
+    kind: Literal[
+        "experience_item",
+        "education_item",
+        "certification",
+        "profile_achievement",
+        "user_skill",
+        "profile_section",
+    ]
+    action: Literal["create", "update", "delete"]
+    entity_id: Optional[str] = Field(default=None, max_length=64)
+    payload: dict = Field(default_factory=dict)
+
+
 class ChatReply(BaseModel):
     """Chatbot answer with optional deep-links into the catalog + postings."""
 
     answer: str = Field(min_length=1, max_length=8000)
     referenced_job_codes: list[str] = Field(default_factory=list, max_length=20)
     referenced_posting_refs: list[str] = Field(default_factory=list, max_length=20)
+    # Proposed profile edits — never applied by the model; each becomes a
+    # HITL card. The stream runner caps this at MAX_PROFILE_OPS (5).
+    profile_ops: list[ProfileOp] = Field(default_factory=list, max_length=8)
 
 
 class DraftPathStep(BaseModel):

@@ -180,6 +180,34 @@ def _jsonish(value: Any) -> Any:
     return text
 
 
+def proposal_title(proposal: ProfileProposal) -> str:
+    """Card title: "Update experience · Siemens internship"."""
+    spec = KIND_SPECS.get(proposal.kind)
+    noun = spec.label if spec is not None else proposal.kind
+    verb = ACTION_VERBS.get(proposal.action, proposal.action.title())
+    return f"{verb} {noun}" + (
+        f" · {proposal.entity_label}" if proposal.entity_label else ""
+    )
+
+
+def proposal_event(proposal: ProfileProposal) -> dict:
+    """SSE/metadata card payload — the one serialization shared by the
+    chat stream and the list endpoint (never drift between the two)."""
+    return {
+        "id": str(proposal.id),
+        "kind": proposal.kind,
+        "action": proposal.action,
+        "status": proposal.status,
+        "title": proposal_title(proposal),
+        "entity_id": str(proposal.entity_id) if proposal.entity_id else None,
+        "entity_label": proposal.entity_label,
+        "diff": proposal.diff_json or [],
+        "destructive": proposal.action == ProposalAction.DELETE.value,
+        "source": proposal.source,
+        "created_at": proposal.created_at.isoformat(),
+    }
+
+
 def _ts(value: Optional[datetime]) -> Optional[str]:
     return value.isoformat() if value is not None else None
 
@@ -305,19 +333,27 @@ class ProfileProposalService:
         dropped: list[dict] = []
         for op in ops:
             try:
+                entity_id = op.get("entity_id")
+                if isinstance(entity_id, str) and entity_id:
+                    entity_id = uuid.UUID(entity_id)
                 created.append(
                     await self.create(
                         user_id,
                         kind=op.get("kind", ""),
                         action=op.get("action", ""),
                         payload=op.get("payload") or {},
-                        entity_id=op.get("entity_id"),
+                        entity_id=entity_id,
                         chat_session_id=chat_session_id,
                         chat_message_id=chat_message_id,
                         ai_generation_id=ai_generation_id,
                     )
                 )
-            except (DomainError, PydanticValidationError, ValueError, KeyError) as exc:
+            except (
+                DomainError,
+                PydanticValidationError,
+                ValueError,
+                KeyError,
+            ) as exc:
                 dropped.append({"op": op, "reason": str(exc)})
         return created, dropped
 

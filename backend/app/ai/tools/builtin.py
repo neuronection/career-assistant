@@ -49,6 +49,12 @@ class CompareJobsInput(BaseModel):
     refs: list[str] = Field(min_length=2, max_length=4)
 
 
+class ProfileDigestInput(BaseModel):
+    """User-scoped digest read; cap how many items per list."""
+
+    limit: int = Field(default=12, ge=1, le=25)
+
+
 async def _search_jobs(db, ctx: ToolContext, args: SearchJobsInput):
     from app.ai.agents.chatbot import search_jobs_tool
 
@@ -133,6 +139,34 @@ async def _my_autopilot(db, ctx: ToolContext, args: AutopilotGoalRefInput):
             for g in goals
         ]
     }
+
+
+async def _my_profile_digest(db, ctx: ToolContext, args: ProfileDigestInput):
+    from app.ai.agents.chatbot import my_profile_digest_tool
+
+    assert ctx.user_id is not None, "my_profile_digest requires a user"
+    return await my_profile_digest_tool(db, ctx.user_id, limit=args.limit)
+
+
+async def _my_experience(db, ctx: ToolContext, args: ProfileDigestInput):
+    from app.ai.agents.chatbot import my_experience_tool
+
+    assert ctx.user_id is not None, "my_experience requires a user"
+    return await my_experience_tool(db, ctx.user_id, limit=args.limit)
+
+
+async def _my_skills(db, ctx: ToolContext, args: ProfileDigestInput):
+    from app.ai.agents.chatbot import my_skills_tool
+
+    assert ctx.user_id is not None, "my_skills requires a user"
+    return await my_skills_tool(db, ctx.user_id, limit=args.limit)
+
+
+async def _my_education(db, ctx: ToolContext, args: ProfileDigestInput):
+    from app.ai.agents.chatbot import my_education_tool
+
+    assert ctx.user_id is not None, "my_education requires a user"
+    return await my_education_tool(db, ctx.user_id, limit=args.limit)
 
 
 async def _compare_jobs(db, ctx: ToolContext, args: CompareJobsInput):
@@ -268,6 +302,58 @@ BUILTIN_TOOLS: list[AITool] = [
         ),
         input_model=CompareJobsInput,
         handler=_compare_jobs,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_profile_digest",
+        title="My profile overview",
+        description=(
+            "Counts + basics + languages of the user's profile (grounding"
+            " for chat-proposed profile edits)."
+        ),
+        input_model=ProfileDigestInput,
+        handler=_my_profile_digest,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_experience",
+        title="My experience items",
+        description=(
+            "The user's work/project/internship/volunteer items with ids —"
+            " grounding for experience edit proposals."
+        ),
+        input_model=ProfileDigestInput,
+        handler=_my_experience,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_skills",
+        title="My skills",
+        description=(
+            "The user's claimed skills with row ids and levels — grounding"
+            " for skill edit proposals."
+        ),
+        input_model=ProfileDigestInput,
+        handler=_my_skills,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_education",
+        title="My education & credentials",
+        description=(
+            "Education, certifications and achievements with ids —"
+            " grounding for those edit proposals."
+        ),
+        input_model=ProfileDigestInput,
+        handler=_my_education,
         scope=ToolScope.READ,
         cost_hint="cheap",
         requires_user=True,

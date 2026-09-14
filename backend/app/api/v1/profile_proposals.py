@@ -13,21 +13,14 @@ from app.schemas.profile_proposal import (
 )
 from app.services.deps import get_current_user
 from app.services.profile_proposal_service import (
-    ACTION_VERBS,
-    KIND_SPECS,
     ProfileProposalService,
+    proposal_title,
 )
 
 router = APIRouter(tags=["profile-proposals"])
 
 
 def _out(proposal) -> ProfileProposalOut:
-    spec = KIND_SPECS.get(proposal.kind)
-    noun = spec.label if spec is not None else proposal.kind
-    verb = ACTION_VERBS.get(proposal.action, proposal.action.title())
-    title = f"{verb} {noun}" + (
-        f" · {proposal.entity_label}" if proposal.entity_label else ""
-    )
     return ProfileProposalOut(
         id=proposal.id,
         kind=proposal.kind,
@@ -35,7 +28,7 @@ def _out(proposal) -> ProfileProposalOut:
         status=proposal.status,
         entity_id=proposal.entity_id,
         entity_label=proposal.entity_label,
-        title=title,
+        title=proposal_title(proposal),
         payload=proposal.payload_json or {},
         diff=proposal.diff_json or [],
         destructive=proposal.action == "delete",

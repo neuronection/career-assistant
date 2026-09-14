@@ -39,6 +39,11 @@ def test_builtin_registry_declarations():
         "run_autopilot",
         "my_autopilot",
         "compare_jobs",
+        # — profile digest family (plan 77)
+        "my_profile_digest",
+        "my_experience",
+        "my_skills",
+        "my_education",
         # — CV builder copilot family
         "cv_read_state",
         "cv_review_visual",

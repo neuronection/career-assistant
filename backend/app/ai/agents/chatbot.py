@@ -474,10 +474,271 @@ async def my_notifications_tool(
     }
 
 
+DIGEST_ITEM_CAP = 12
+DIGEST_TEXT_CAP = 140
+
+
+async def my_profile_digest_tool(
+    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
+) -> dict:
+    """Privacy-minimized profile overview for edit grounding."""
+    from app.services.experience_service import ExperienceService
+    from app.services.profile_entities_service import ProfileEntitiesService
+    from app.services.profile_service import ProfileService
+    from app.services.skills_service import SkillService
+
+    profile = await ProfileService(db).get(user_id)
+    basics = profile.basics or {}
+    academics = profile.academics or {}
+    entities = ProfileEntitiesService(db)
+    return {
+        "full_name": basics.get("full_name", ""),
+        "languages": academics.get("languages", []),
+        "counts": {
+            "experience": len(await ExperienceService(db).list_items(user_id)),
+            "skills": len(
+                [s for s in await SkillService(db).user_skills(user_id) if not s.hidden]
+            ),
+            "education": len(await entities.list_education(user_id)),
+            "certifications": len(await entities.list_certifications(user_id)),
+            "achievements": len(await entities.list_achievements(user_id)),
+        },
+        "sections": ["basics", "academics", "work_preferences", "constraints"],
+        "note": (
+            "profile_section payload = {section, value: full section object};"
+            " languages live in academics"
+        ),
+    }
+
+
+async def my_experience_tool(
+    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
+) -> dict:
+    """The user's experience items: ids + key fields (edit grounding)."""
+    from app.services.experience_service import ExperienceService
+
+    items = (await ExperienceService(db).list_items(user_id))[:limit]
+    return {
+        "items": [
+            {
+                "id": str(item.id),
+                "kind": item.kind,
+                "title": item.title,
+                "org_name": item.org_name,
+                "start": item.start.isoformat() if item.start else None,
+                "end": item.end.isoformat() if item.end else None,
+                "open_ended": item.open_ended,
+                "hours_per_week": item.hours_per_week,
+                "status": item.status,
+                "description": (item.description or "")[:DIGEST_TEXT_CAP],
+                "skills": [link.skill.key for link in (item.skills or [])[:6]],
+            }
+            for item in items
+        ],
+        "note": "ids are required verbatim in update/delete profile_ops",
+    }
+
+
+async def my_skills_tool(
+    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
+) -> dict:
+    """The user's claimed skills with row ids (edit grounding)."""
+    from app.services.skills_service import SkillService
+
+    rows = [r for r in await SkillService(db).user_skills(user_id) if not r.hidden]
+    return {
+        "skills": [
+            {
+                "row_id": str(row.id),
+                "skill_key": row.skill.key,
+                "label": row.skill.label,
+                "level": row.level,
+                "source": row.source,
+                "derive_enabled": row.derive_enabled,
+            }
+            for row in rows[:limit]
+        ],
+        "note": "row_id is the entity_id for user_skill update/delete ops",
+    }
+
+
+async def my_education_tool(
+    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
+) -> dict:
+    """Education + certifications + achievements (edit grounding)."""
+    from app.services.profile_entities_service import ProfileEntitiesService
+
+    service = ProfileEntitiesService(db)
+    education = await service.list_education(user_id)
+    certifications = await service.list_certifications(user_id)
+    achievements = await service.list_achievements(user_id)
+    return {
+        "education": [
+            {
+                "id": str(item.id),
+                "institution": item.institution,
+                "program": item.program,
+                "level": item.level,
+                "start": item.start.isoformat() if item.start else None,
+                "end": item.end.isoformat() if item.end else None,
+                "in_progress": item.in_progress,
+                "status": item.status,
+            }
+            for item in education[:limit]
+        ],
+        "certifications": [
+            {
+                "id": str(item.id),
+                "name": item.name,
+                "issuer": item.issuer,
+                "issued": item.issued.isoformat() if item.issued else None,
+                "expires": item.expires.isoformat() if item.expires else None,
+                "status": item.status,
+            }
+            for item in certifications[:limit]
+        ],
+        "achievements": [
+            {"id": str(item.id), "kind": item.kind, "title": item.title}
+            for item in achievements[:limit]
+        ],
+    }
+
+
+_LANGUAGE_CODES = {
+    "german": "de",
+    "deutsch": "de",
+    "english": "en",
+    "french": "fr",
+    "spanish": "es",
+}
+
+_EDIT_VERBS = {
+    "add",
+    "create",
+    "record",
+    "update",
+    "edit",
+    "set",
+    "mark",
+    "delete",
+    "remove",
+    "ended",
+    "finish",
+    "finished",
+    "completed",
+}
+
+
+def _mock_profile_ops(tools: dict, message: str) -> list[dict]:
+    """Deterministic edit proposals for the mock provider (tests/E2E).
+
+    Mirrors the prompt rules: ops only when the matching digest ran AND
+    the message carries an explicit edit verb (word-matched).
+    """
+    lowered = f" {message.lower()} "
+    words = {token.strip(".,!?;:()[]\"'") for token in lowered.split()}
+    if not (words & _EDIT_VERBS):
+        return []
+    items = (tools.get("my_experience") or {}).get("items") or []
+    skill_rows = (tools.get("my_skills") or {}).get("skills") or []
+    education = tools.get("my_education") or {}
+    certs = education.get("certifications") or []
+    digest = tools.get("my_profile_digest") or {}
+
+    if "my_experience" in tools and words & {"add", "create", "record"}:
+        return [
+            {
+                "kind": "experience_item",
+                "action": "create",
+                "payload": {
+                    "title": "New project",
+                    "kind": "project",
+                    "open_ended": True,
+                },
+            }
+        ]
+    if items and words & {"delete", "remove"}:
+        return [
+            {
+                "kind": "experience_item",
+                "action": "delete",
+                "entity_id": items[0]["id"],
+            }
+        ]
+    if certs and words & {"delete", "remove"}:
+        return [
+            {
+                "kind": "certification",
+                "action": "delete",
+                "entity_id": certs[0]["id"],
+            }
+        ]
+    if items and words & {"ended", "finish", "finished", "completed", "mark"}:
+        return [
+            {
+                "kind": "experience_item",
+                "action": "update",
+                "entity_id": items[0]["id"],
+                "payload": {"end": "2026-06-30", "open_ended": False},
+            }
+        ]
+    if skill_rows and "set" in words:
+        return [
+            {
+                "kind": "user_skill",
+                "action": "update",
+                "entity_id": skill_rows[0]["row_id"],
+                "payload": {"level": 7},
+            }
+        ]
+    if digest and (words & set(_LANGUAGE_CODES) or "language" in words):
+        code = "en"
+        for word, candidate in _LANGUAGE_CODES.items():
+            if word in words:
+                code = candidate
+                break
+        level = (
+            "native"
+            if "native" in words
+            else "advanced"
+            if "advanced" in words or "fluent" in words
+            else "basic"
+            if "basic" in words
+            else "intermediate"
+        )
+        languages = [
+            {"code": entry["code"], "level": entry["level"]}
+            for entry in digest.get("languages") or []
+        ]
+        languages = [row for row in languages if row["code"] != code] + [
+            {"code": code, "level": level}
+        ]
+        return [
+            {
+                "kind": "profile_section",
+                "action": "update",
+                "payload": {"section": "academics", "value": {"languages": languages}},
+            }
+        ]
+    return []
+
+
 def _mock_chat_reply(schema: type, user_prompt: str) -> dict:
     ctx = parse_context(user_prompt)
     tools = ctx.get("tool_results", {})
     message = ctx.get("message", "")
+
+    profile_ops = _mock_profile_ops(tools, message)
+    if profile_ops:
+        return {
+            "answer": (
+                f"I've prepared {len(profile_ops)} proposed change(s) to your"
+                " profile — review the card(s) and approve the ones you want."
+            ),
+            "referenced_job_codes": [],
+            "referenced_posting_refs": [],
+            "profile_ops": profile_ops,
+        }
 
     postings = tools.get("search_postings", {})
     posting_cards = postings.get("results", []) if isinstance(postings, dict) else []
@@ -541,9 +802,49 @@ TOOL_TITLES = {
     "get_posting": "Fetching a live posting",
     "my_notifications": "Checking notifications",
     "search_postings": "Searching live postings",
+    "my_profile_digest": "Reading your profile",
+    "my_experience": "Reading your experience",
+    "my_skills": "Reading your skills",
+    "my_education": "Reading your education & credentials",
 }
 SUMMARY_LIMIT = 300
 MAX_TRACE_TOOLS = 12
+MAX_PROFILE_OPS = 5
+
+EXPERIENCE_KEYWORDS = {
+    "experience",
+    "internship",
+    "intern",
+    "project",
+    "volunteer",
+    "freelance",
+    "job at",
+    "worked",
+    "work history",
+}
+SKILL_KEYWORDS = {"skill", "skills", "python", "docker", "sql"}
+EDUCATION_KEYWORDS = {
+    "education",
+    "university",
+    "degree",
+    "study",
+    "studies",
+    "certification",
+    "certificate",
+    "achievement",
+    "award",
+}
+PROFILE_DIGEST_KEYWORDS = {
+    "profile",
+    "language",
+    "languages",
+    "german",
+    "english",
+    "french",
+    "spanish",
+    "basics",
+    "about me",
+}
 
 
 def _summarize(value) -> str:
@@ -642,6 +943,23 @@ async def prepare_chat_prompt(
             meta["result_summary"] = _summarize(meta["results"])
             metadata_tools.append(meta)
             explore_query = postings.get("explore_query")
+
+    # Profile digests ground edit ops: entity keywords pull the matching
+    # digest so the model references real ids (never invented).
+    if user_id is not None:
+        digest_plan: list[tuple[str, set[str]]] = [
+            ("my_experience", EXPERIENCE_KEYWORDS),
+            ("my_skills", SKILL_KEYWORDS),
+            ("my_education", EDUCATION_KEYWORDS),
+            ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
+        ]
+        for name, keywords in digest_plan:
+            if any(keyword in lowered for keyword in keywords):
+                digest, meta = await _timed(name, {})
+                tool_results[name] = digest
+                meta["results"] = [name.replace("my_", "")]
+                meta["result_summary"] = _summarize(meta["results"])
+                metadata_tools.append(meta)
 
     prompt = _build_user_prompt(
         profile_summary, history, message, tool_results, page_context

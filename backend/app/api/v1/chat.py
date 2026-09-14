@@ -9,12 +9,16 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import quick_assist
-from app.ai.agents.chatbot import CHATBOT, prepare_chat_prompt
+from app.ai.agents.chatbot import CHATBOT, MAX_PROFILE_OPS, prepare_chat_prompt
 from app.ai.gateway import StructuredStream, partial_answer_text
 from app.ai.schemas import ChatReply
 from app.core.database import get_db
 from app.core.errors import AINotConfiguredError, DomainError
 from app.models.enums import AITaskType
+from app.services.profile_proposal_service import (
+    ProfileProposalService,
+    proposal_event,
+)
 from app.schemas.chat import (
     AssistIn,
     AssistOut,
@@ -339,6 +343,22 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 yield _sse(
                     "node_started", {"id": "generate", "label": steps[1]["label"]}
                 )
+            # HITL profile ops (plan 77): the reply validates ops, the
+            # stream persists them as proposal cards — apply never happens
+            # here; the user resolves each card.
+            ops = stream.reply.profile_ops or []
+            created_proposals: list = []
+            dropped_ops: list = []
+            overflow = max(0, len(ops) - MAX_PROFILE_OPS)
+            if ops:
+                created_proposals, dropped_ops = await ProfileProposalService(
+                    db
+                ).create_from_ops(
+                    user.id,
+                    [op.model_dump() for op in ops[:MAX_PROFILE_OPS]],
+                    chat_session_id=session.id,
+                )
+            proposals_dropped = len(dropped_ops) + overflow
             generate_ended = time.monotonic()
             yield _sse(
                 "node_finished",
@@ -364,9 +384,19 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 tool_metadata["tokens_in"] = stream.tokens_in
             if stream.tokens_out is not None:
                 tool_metadata["tokens_out"] = stream.tokens_out
+            if created_proposals:
+                tool_metadata["proposals"] = [
+                    proposal_event(p) for p in created_proposals
+                ]
+            if proposals_dropped:
+                tool_metadata["proposals_dropped"] = proposals_dropped
             message = await ChatService(db).complete_message(
                 session, user_message_id, stream.reply, tool_metadata
             )
+            if created_proposals:
+                for proposal in created_proposals:
+                    proposal.chat_message_id = message.id
+                await db.commit()
             yield _sse(
                 "meta",
                 {
@@ -374,8 +404,11 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     "referenced_job_codes": stream.reply.referenced_job_codes,
                     "referenced_posting_refs": tool_metadata.get("refs", []),
                     "explore_query": tool_metadata.get("explore_query"),
+                    "proposals_dropped": proposals_dropped or None,
                 },
             )
+            for proposal in created_proposals:
+                yield _sse("proposal", proposal_event(proposal))
             yield _sse(
                 "flow_finished",
                 {
@@ -383,6 +416,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     "model": stream.model,
                     "total_ms": total_ms,
                     "tool_count": len(tools),
+                    "proposal_count": len(created_proposals),
                 },
             )
             yield _sse("done", {"ok": True})

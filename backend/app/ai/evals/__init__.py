@@ -50,6 +50,28 @@ def _check_chat(reply: ChatReply) -> None:
     assert reply.referenced_job_codes == ["nurse", "teacher"]
 
 
+def _check_chat_add_project(reply: ChatReply) -> None:
+    assert not reply.profile_ops or reply.profile_ops[0].kind == "experience_item"
+
+
+def _check_chat_language_op(reply: ChatReply) -> None:
+    ops = reply.profile_ops
+    assert len(ops) == 1
+    op = ops[0]
+    assert op.kind == "profile_section" and op.action == "update"
+    assert op.payload["section"] == "academics"
+    languages = op.payload["value"]["languages"]
+    assert {"code": "de", "level": "native"} in languages
+
+
+def _check_chat_delete_cert(reply: ChatReply) -> None:
+    ops = reply.profile_ops
+    assert len(ops) == 1
+    op = ops[0]
+    assert op.kind == "certification" and op.action == "delete"
+    assert op.entity_id == "cert-1"
+
+
 def _check_match(result: MatchResult) -> None:
     assert 0 <= result.score <= 10
     assert 0 <= result.confidence <= 1
@@ -131,6 +153,45 @@ def _build_cases() -> list[GoldenCase]:
             ),
             prompt_version=_blessed(AITaskType.CHAT.value),
             check=_check_chat,
+        ),
+        GoldenCase(
+            task=AITaskType.CHAT.value,
+            schema=ChatReply,
+            system=CHATBOT,
+            user=(
+                'CONTEXT_JSON: {"message": "please add a new project: crew '
+                'AI chatbot", "tool_results": {"my_experience": '
+                '{"items": []}}}'
+            ),
+            prompt_version=_blessed(AITaskType.CHAT.value),
+            check=_check_chat_add_project,
+        ),
+        GoldenCase(
+            task=AITaskType.CHAT.value,
+            schema=ChatReply,
+            system=CHATBOT,
+            user=(
+                'CONTEXT_JSON: {"message": "set german to native please", '
+                '"tool_results": {"my_profile_digest": {"full_name": "Ann", '
+                '"languages": [{"code": "en", "level": "native"}], '
+                '"counts": {}, "sections": []}}}'
+            ),
+            prompt_version=_blessed(AITaskType.CHAT.value),
+            check=_check_chat_language_op,
+        ),
+        GoldenCase(
+            task=AITaskType.CHAT.value,
+            schema=ChatReply,
+            system=CHATBOT,
+            user=(
+                'CONTEXT_JSON: {"message": "delete that certification", '
+                '"tool_results": {"my_education": {"education": [], '
+                '"certifications": [{"id": "cert-1", "name": "AWS CCP", '
+                '"issuer": "Amazon", "issued": null, "expires": null, '
+                '"status": "active"}], "achievements": []}}}'
+            ),
+            prompt_version=_blessed(AITaskType.CHAT.value),
+            check=_check_chat_delete_cert,
         ),
         GoldenCase(
             task=AITaskType.MATCH_SCORE.value,
