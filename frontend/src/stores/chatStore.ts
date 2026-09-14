@@ -34,6 +34,10 @@ interface ChatState {
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   pinAsk: (key: string, sessionId: string) => void;
+  /** One-shot CV attachment request (plan 78): set by openCvChat,
+   * consumed by the chat hook once a session is active. */
+  pendingCvAttach: { id: string; title: string } | null;
+  setPendingCvAttach: (cv: { id: string; title: string } | null) => void;
   setChatMode: (mode: ChatMode) => void;
   /** Refetch the persisted turn after a streamed reply lands. */
   refresh: (sessionId: string) => Promise<void>;
@@ -48,6 +52,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   chatMode: loadPersistedChatMode(),
   pinnedAsks: {},
+  pendingCvAttach: null,
 
   loadSessions: async () => {
     const sessions = await uniApi.fetchChatSessions();
@@ -92,6 +97,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   pinAsk: (key, sessionId) => {
     set({ pinnedAsks: { ...get().pinnedAsks, [key]: sessionId } });
+  },
+
+  setPendingCvAttach: (cv) => {
+    set({ pendingCvAttach: cv });
   },
 
   setChatMode: (mode) => {

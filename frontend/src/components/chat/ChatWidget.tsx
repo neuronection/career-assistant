@@ -4,7 +4,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useMatch } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
@@ -281,10 +281,17 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
   const sessions = useChatStore((state) => state.sessions);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const cvId = activeCvId(sessions, activeSessionId);
+  // Plan 78: with a CV open in Studio, the CV prompt chips replace the
+  // generic suggestions — the suggested attach chip rides in the composer.
+  const studioMatch = useMatch("/cv/:id");
+  const studioCv =
+    cvId === null && studioMatch?.params.id !== undefined
+      ? studioMatch.params.id
+      : null;
   const [savedPrompts, setSavedPrompts] = useState(() =>
     cvId ? cvPromptChips("resume").filter((chip) => chip.custom).map((chip) => chip.prompt) : [],
   );
-  if (cvId) {
+  if (cvId || studioCv !== null) {
     const chips = [
       ...cvPromptChips("resume").filter((chip) => !chip.custom),
       ...savedPrompts.map((prompt) => ({ prompt, custom: true })),
@@ -346,7 +353,7 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
         <Bot className="size-5 text-primary-600" aria-hidden />
       </span>
       <p className={`text-sm text-slate-400 ${compact ? "max-w-[16rem]" : "max-w-sm"}`}>
-        {t("chat.emptyBody")}
+        {studioCv !== null ? t("chat.studioEmptyBody") : t("chat.emptyBody")}
       </p>
       <div className="flex flex-col gap-1.5">
         {GENERIC_SUGGESTIONS.map((suggestion) => (

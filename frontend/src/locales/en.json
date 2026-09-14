@@ -1835,7 +1835,8 @@
       "suggest": "Reference: {{title}}",
       "remove": "Remove {{title}}",
       "openCv": "this CV"
-    }
+    },
+    "studioEmptyBody": "Ask anything about the CV you have open — attach it below and I'll ground the answer in it."
   },
   "demand": {
     "hot": "hot",

@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
-import { openCvChat, cvAskKey } from "@/components/chat/cvChatLink";
+import { openCvChat } from "@/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import type { CvAssistantState } from "@/types/cvAssistant";
@@ -10,6 +10,7 @@ import type { CvAssistantState } from "@/types/cvAssistant";
 const createChatSession = vi.fn();
 const fetchMessages = vi.fn();
 const fetchChatSessions = vi.fn();
+const fetchCvs = vi.fn();
 
 vi.mock("@/api/universities", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/universities")>();
@@ -20,6 +21,10 @@ vi.mock("@/api/universities", async (importOriginal) => {
     fetchChatSessions: (...args: unknown[]) => fetchChatSessions(...args),
   };
 });
+
+vi.mock("@/api/cv", () => ({
+  fetchCvs: (...args: unknown[]) => fetchCvs(...args),
+}));
 
 const state: CvAssistantState = {
   document: {
@@ -57,6 +62,9 @@ beforeEach(() => {
   createChatSession.mockResolvedValue({ id: "s-1", title: "CV assistant" });
   fetchMessages.mockResolvedValue([]);
   fetchChatSessions.mockResolvedValue([]);
+  fetchCvs.mockResolvedValue([
+    { id: "cv-1", title: "Backend Intern CV" },
+  ]);
 });
 
 afterEach(() => {
@@ -71,24 +79,65 @@ afterEach(() => {
   useCvBuilderLink.setState({ lastBuilderState: null, flushCallback: null });
 });
 
-describe("openCvChat (the one chatbot, bound to a CV)", () => {
-  it("creates a CV-bound session, pins it and docks by default", async () => {
+describe("openCvChat (plan 78: normal chat + CV attachment)", () => {
+  it("creates a NORMAL session (no builder binding), requests the attachment and docks", async () => {
     await openCvChat("cv-1");
     expect(createChatSession).toHaveBeenCalledWith({
-      title: "CV assistant",
-      context: { surface: "cv_builder", cv_id: "cv-1" },
+      title: "CV chat",
+      context: undefined,
     });
-    expect(useChatStore.getState().pinnedAsks[cvAskKey("cv-1")]).toBe("s-1");
     expect(useChatStore.getState().activeSessionId).toBe("s-1");
     expect(useChatStore.getState().chatMode).toBe("docked");
+    expect(useChatStore.getState().pendingCvAttach).toEqual({
+      id: "cv-1",
+      title: "Backend Intern CV",
+    });
   });
 
-  it("adopts the pinned session on later calls", async () => {
-    await openCvChat("cv-1");
-    await openCvChat("cv-1", "bubble");
-    expect(createChatSession).toHaveBeenCalledTimes(1);
+  it("prefills the draft when asked", async () => {
+    await openCvChat("cv-1", "docked", "polish the summary");
     expect(useChatStore.getState().activeSessionId).toBe("s-1");
-    expect(useChatStore.getState().chatMode).toBe("bubble");
+  });
+
+  it("reuses an existing normal session instead of creating one", async () => {
+    useChatStore.setState({
+      sessions: [
+        {
+          id: "s-9",
+          title: "Existing",
+          context: null,
+          created_at: "2026-09-14T12:00:00Z",
+          last_activity_at: "2026-09-14T12:00:00Z",
+        },
+      ],
+    });
+    await openCvChat("cv-1");
+    expect(createChatSession).not.toHaveBeenCalled();
+    expect(useChatStore.getState().activeSessionId).toBe("s-9");
+  });
+
+  it("never adopts a builder-bound (legacy) or interview session", async () => {
+    useChatStore.setState({
+      sessions: [
+        {
+          id: "s-bound",
+          title: "Legacy",
+          context: { surface: "cv_builder", cv_id: "other" },
+          created_at: "2026-09-14T12:00:00Z",
+          last_activity_at: "2026-09-14T12:00:00Z",
+        },
+        {
+          id: "s-int",
+          title: "Interview",
+          context: { surface: "interview", interview_id: "i-1" },
+          created_at: "2026-09-14T12:00:00Z",
+          last_activity_at: "2026-09-14T12:00:00Z",
+        },
+      ],
+    });
+    await openCvChat("cv-1");
+    expect(useChatStore.getState().activeSessionId).toBe("s-1");
+    expect(createChatSession).toHaveBeenCalledTimes(1);
   });
 });
 

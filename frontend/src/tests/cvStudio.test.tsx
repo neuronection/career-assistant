@@ -674,13 +674,19 @@ describe("CvBuilder", () => {
     await userEvent.click(screen.getByTestId("cv-ask-ai"));
     await waitFor(() =>
       expect(createAssistantSession).toHaveBeenCalledWith({
-        title: "CV assistant",
-        context: { surface: "cv_builder", cv_id: "cv-1" },
+        title: "CV chat",
+        context: undefined,
       }),
     );
     await waitFor(() => expect(useChatStore.getState().chatMode).toBe("docked"));
     await waitFor(() => expect(useChatStore.getState().activeSessionId).toBe("s-assist"));
     expect(fetchAssistantMessages).toHaveBeenCalledWith("s-assist");
+    await waitFor(() =>
+      expect(useChatStore.getState().pendingCvAttach).toEqual({
+        id: "cv-1",
+        title: "Backend Intern CV",
+      }),
+    );
   });
 
   it("Runs & metrics popup lists runs with the LLM-call ledger and ops", async () => {

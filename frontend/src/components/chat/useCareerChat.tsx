@@ -52,6 +52,16 @@ export function useCareerChat() {
     );
   };
 
+  const pendingCvAttach = useChatStore((state) => state.pendingCvAttach);
+  useEffect(() => {
+    if (pendingCvAttach === null || activeSessionId === null) {
+      return;
+    }
+    attachCv(pendingCvAttach);
+    useChatStore.getState().setPendingCvAttach(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCvAttach, activeSessionId]);
+
   const detachCv = (cvId: string) => {
     setAttachments((current) => current.filter((entry) => entry.cv_id !== cvId));
   };

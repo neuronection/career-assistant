@@ -164,8 +164,8 @@ describe("builder run progress card (plan 67.3)", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     api.createChatSession.mockReset().mockResolvedValue({
       id: "s-new",
-      title: "CV assistant",
-      context: { surface: "cv_builder", cv_id: "cv-1" },
+      title: "CV chat",
+      context: undefined,
       created_at: "2026-09-11T09:10:00Z",
     });
     api.fetchCvRuns.mockResolvedValue([runRow()]);
@@ -176,8 +176,8 @@ describe("builder run progress card (plan 67.3)", () => {
     });
     await vi.advanceTimersByTimeAsync(0);
     expect(api.createChatSession).toHaveBeenCalledWith({
-      title: "CV assistant",
-      context: { surface: "cv_builder", cv_id: "cv-1" },
+      title: "CV chat",
+      context: undefined,
     });
   });
 
