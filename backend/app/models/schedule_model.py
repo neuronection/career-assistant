@@ -45,8 +45,9 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint(
             "kind IN ('system_source_sync', 'system_digest', "
             "'system_demand_import', 'system_refit_sweep', "
-            "'system_catalog_enrich', "
-            "'user_saved_search', 'user_checkin')",
+            "'system_catalog_enrich', 'system_followups', "
+            "'system_market_history', 'system_proposal_sweep', "
+            "'user_saved_search', 'user_checkin', 'user_autopilot')",
             name="kind_allowed",
         ),
         CheckConstraint(
@@ -55,7 +56,9 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint(
             "task IS NULL OR task IN ('posting_sync', 'digest', "
-            "'saved_search_run', 'fit_refit', 'catalog_enrich')",
+            "'saved_search_run', 'fit_refit', 'catalog_enrich', "
+            "'autopilot_run', 'followup_sweep', 'market_history_capture', "
+            "'proposal_sweep')",
             name="task_allowed",
         ),
         Index("ix_schedules_next_run", "next_run_at"),

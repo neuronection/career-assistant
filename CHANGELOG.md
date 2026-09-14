@@ -19,9 +19,10 @@ All notable changes to **Career Assistant** are documented here.
   only — nothing is invented), ambiguous requests get a clarifying
   question instead of a proposal, at most 5 cards per turn (excess ops
   are reported as dropped), and cards survive session deletion with a
-  14-day TTL (`GET /me/profile-proposals` + approve/reject/dismiss
-  endpoints). Cards render on every chat surface (bubble, docked, page)
-  and stay in sync across them.
+  14-day TTL, swept daily by the scheduler. Cards render on every chat
+  surface (bubble, docked, page), stay in sync across them, and the
+  Profile sidebar entry shows a count badge while cards await review
+  (`GET /me/profile-proposals` + approve/reject/dismiss endpoints).
 
 ### Fixed
 - **Accurate CV page counts — the printed PDF is now the truth**: the

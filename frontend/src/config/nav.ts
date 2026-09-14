@@ -49,6 +49,28 @@ export const NAV: AppNavItem[] = [
   { to: "/settings/ai", labelKey: "nav.settings", icon: Settings2, studentOnly: false, matchPrefix: "/settings" },
 ];
 
+
+/**
+ * Map a registry entry onto the library SidebarNav item shape. The
+ * Profile entry carries the pending HITL-proposal badge (plan 77) when
+ * the count is positive.
+ */
+export function toNavItem(
+  item: AppNavItem,
+  t: (key: string) => string,
+  pendingProposals = 0,
+): { id: string; label: string; icon: LucideIcon; section?: string; badge?: number } {
+  return {
+    id: item.to,
+    label: t(item.labelKey),
+    icon: item.icon,
+    ...(item.section ? { section: t(item.section) } : {}),
+    ...(item.to === "/profile" && pendingProposals > 0
+      ? { badge: pendingProposals }
+      : {}),
+  };
+}
+
 /**
  * Resolve the active nav id for a pathname: the root matches only
  * exactly, everything else matches by prefix (using `matchPrefix` when

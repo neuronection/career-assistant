@@ -528,6 +528,15 @@ async def _run_market_history_capture(
     return {"captured": captured}
 
 
+async def _run_proposal_sweep(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Daily HITL proposal TTL sweep (plan 77): pending cards older than
+    14 days expire so the list endpoint stays authoritative."""
+    from app.services.profile_proposal_service import ProfileProposalService
+
+    expired = await ProfileProposalService(db).sweep_expired()
+    return {"expired": expired}
+
+
 async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """A scheduled saved search: evaluate filters, notify on new matches."""
     from app.services.digest_service import run_saved_search
@@ -756,6 +765,7 @@ HANDLERS: dict[str, Handler] = {
     "digest": _run_digest,
     "followup_sweep": _run_followup_sweep,
     "market_history_capture": _run_market_history_capture,
+    "proposal_sweep": _run_proposal_sweep,
     "saved_search_run": _run_saved_search,
     "cv_extract_text": _run_cv_extract_text,
     "cv_ocr": _run_cv_ocr,

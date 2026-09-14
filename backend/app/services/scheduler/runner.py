@@ -106,6 +106,16 @@ class SchedulerService:
                 {"limit": 500},
                 MisfirePolicy.SKIP.value,
             ),
+            (
+                ScheduleKind.SYSTEM_PROPOSAL_SWEEP,
+                BackgroundJobType.PROPOSAL_SWEEP.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60 * 24, "jitter_minutes": 60},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
         ]
         for kind, task, trigger, payload, misfire in defaults:
             await self.ensure_schedule(

@@ -14,7 +14,8 @@ import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
 import { CompareTray } from "@/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
-import { NAV, resolveActiveId } from "@/config/nav";
+import { NAV, resolveActiveId, toNavItem } from "@/config/nav";
+import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useDevModeStore } from "@/stores/devModeStore";
 import { DevMenu } from "@/components/DevMenu";
 
@@ -59,14 +60,17 @@ export function Layout() {
   const enabled = (item: (typeof NAV)[number]) =>
     (devModeEnabled || !item.inDev) &&
     !(item.studentOnly && bootstrap && !bootstrap.features.universities);
-  const toNavItem = ({ to, labelKey, icon, section }: (typeof NAV)[number]) => ({
-    id: to,
-    label: t(labelKey),
-    icon,
-    ...(section ? { section: t(section) } : {}),
-  });
+  const pendingProposals = useProfileProposalsStore((state) => state.pendingCount);
 
-  const items = NAV.filter(enabled).map(toNavItem);
+  useEffect(() => {
+    // Pending HITL cards (plan 77) badge the Profile nav entry app-wide —
+    // the chat surfaces keep the count fresh afterwards.
+    void useProfileProposalsStore.getState().hydrate();
+  }, []);
+
+  const items = NAV.filter(enabled).map((item) =>
+    toNavItem(item, t, pendingProposals),
+  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">

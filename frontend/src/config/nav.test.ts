@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Briefcase, LayoutDashboard } from "lucide-react";
-import { NAV, resolveActiveId, type AppNavItem } from "./nav";
+import { NAV, resolveActiveId, toNavItem, type AppNavItem } from "./nav";
 
 describe("resolveActiveId", () => {
   it("matches the root only exactly", () => {
@@ -61,5 +61,17 @@ describe("resolveActiveId", () => {
     // Hidden entries stay in the registry so deep links still resolve.
     expect(resolveActiveId("/postings/search")).toBe("/postings");
     expect(resolveActiveId("/autopilot")).toBe("/autopilot");
+  });
+});
+
+describe("toNavItem", () => {
+  it("badges the Profile entry only when proposals are pending", () => {
+    const t = (key: string) => key;
+    const profile = NAV.find((item) => item.to === "/profile")!;
+    expect(toNavItem(profile, t, 0).badge).toBeUndefined();
+    expect(toNavItem(profile, t, 3).badge).toBe(3);
+    const chat = NAV.find((item) => item.to === "/chat")!;
+    expect(toNavItem(chat, t, 3).badge).toBeUndefined();
+    expect(toNavItem(chat, t).label).toBe("nav.chat");
   });
 });

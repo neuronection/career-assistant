@@ -68,7 +68,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0033"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0034"], (
         "revision chain stays linear on one head"
     )
 
@@ -93,6 +93,52 @@ def test_0033_profile_proposals_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present("profile_proposals"), "re-upgrade restores the table"
+
+
+def _schedules_checks() -> dict[str, str]:
+    """kind/task CHECK expressions on `schedules` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            async with engine.connect() as conn:
+                checks = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints(
+                        "schedules"
+                    )
+                )
+            # The metadata naming convention renders prefixed names
+            # (ck_schedules_kind_allowed) — normalize to the short name.
+            return {
+                c["name"].replace("ck_schedules_", ""): c["sqltext"] for c in checks
+            }
+        finally:
+            await engine.dispose()
+
+    import asyncio
+
+    return asyncio.run(run())
+
+
+def test_0034_proposal_sweep_checks_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "system_proposal_sweep" in checks["kind_allowed"]
+    assert "proposal_sweep" in checks["task_allowed"]
+
+    command.downgrade(config, "0033")
+    checks = _schedules_checks()
+    assert "system_proposal_sweep" not in checks["kind_allowed"]
+    assert "proposal_sweep" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")
 
 
 def test_0026_language_code_roundtrip():
