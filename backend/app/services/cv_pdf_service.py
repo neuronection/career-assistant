@@ -122,7 +122,13 @@ async def html_to_pngs(
                         "width": width,
                         "height": height,
                     }
-                    shots.append(("image/png", await page.screenshot(clip=clip)))
+                    # full_page: clips beyond the first viewport (a CV
+                    # spilling to page 2) are otherwise "outside the
+                    # resulting image" — the page screenshot only covers
+                    # the viewport unless the capture spans the document.
+                    shots.append(
+                        ("image/png", await page.screenshot(clip=clip, full_page=True))
+                    )
                 return shots
             finally:
                 await browser.close()

@@ -61,6 +61,7 @@ DATA_URI_RE = re.compile(r"data:image/[^\"'\s)]+")
 
 TEXT_KINDS = (
     "summary",
+    "about",
     "experience",
     "projects",
     "volunteer",
@@ -307,12 +308,20 @@ def _clamp_proposals(
 
 
 def _section_usable(section: Optional[dict], kind: str) -> bool:
-    """A section is usable when it carries grounded text to apply."""
+    """A section is usable when it carries grounded text to apply.
+
+    Items sections accept bullets-only drafts: a rewrite that lands as
+    achievement bullets (no `text`) is still a real rewrite — treating
+    it as empty dropped the section (and its bullets) to profile text."""
     if section is None:
         return False
     if kind == "summary":
         return bool(str(section.get("text") or "").strip())
-    return any(str(item.get("text") or "").strip() for item in section["items"])
+    return any(
+        str(item.get("text") or "").strip()
+        or any(str(bullet).strip() for bullet in item.get("bullets") or [])
+        for item in section["items"]
+    )
 
 
 # -------------------------------------------------------------------- nodes
@@ -434,6 +443,9 @@ def make_plan_node(deps: GraphDeps):
                 language=request.language,
                 notes=request.notes,
                 tone=request.tone,
+                about_requested="about" in request.notes.lower()
+                or "profile" in request.notes.lower()
+                or "summary" in request.notes.lower(),
                 run=_run_ref(state, "cv_draft.plan"),
             )
             clamped = _clamp_plan(structure, enabled, items_by_kind)
@@ -609,6 +621,11 @@ def make_draft_node(deps: GraphDeps):
                 texts.append(usable)
             else:
                 fallback.append(kind)
+                warnings.append(
+                    f"{kind}: the AI rewrite was not usable"
+                    + (f" ({retry_note})" if retry_note else "")
+                    + " — the section kept the profile text"
+                )
             await _report(
                 deps,
                 PROGRESS_DRAFT_START
@@ -737,6 +754,16 @@ def make_assemble_node(deps: GraphDeps):
                 text = str((drafted or {}).get("text") or "").strip()
                 if text:
                     overrides["summary:summary"] = {"summary": text}
+            elif kind == "about":
+                drafted = section_of("about")
+                text = str((drafted or {}).get("text") or "").strip()
+                if text:
+                    generated.append(
+                        {
+                            "kind": "custom_text",
+                            "props": {"title": "About", "text": text},
+                        }
+                    )
             elif kind in ITEM_TITLE:
                 generated.append(
                     {

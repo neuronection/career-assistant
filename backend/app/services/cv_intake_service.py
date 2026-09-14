@@ -505,6 +505,24 @@ class CvIntakeService:
                 selections, "certifications", len(extract.certifications)
             ):
                 item = extract.certifications[index]
+                name = str(item.name or "").strip()
+                issuer = str(item.issuer or "").strip()
+                dup_condition = [
+                    Certification.user_id == user_id,
+                    func.lower(Certification.name) == name.lower(),
+                ]
+                if issuer:
+                    dup_condition.append(
+                        func.lower(Certification.issuer) == issuer.lower()
+                    )
+                existing = (
+                    (await self.db.execute(select(Certification).where(*dup_condition)))
+                    .scalars()
+                    .first()
+                )
+                if existing is not None:
+                    report["duplicates"].append(f"{name} @ {issuer or '?'}")
+                    continue
                 certification = Certification(
                     user_id=user_id,
                     name=item.name,

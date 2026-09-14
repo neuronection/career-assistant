@@ -253,7 +253,7 @@ describe("GenerateCvFlow", () => {
     expect(generateCv.mock.calls[0][0].context.synth_mode).toBe("prefer");
   });
 
-  it("shows the variant review banner before opening the builder", async () => {
+  it("opens the builder automatically when the run finishes (with variants)", async () => {
     fetchBackgroundJob.mockResolvedValue({
       ...succeededJob,
       result: {
@@ -271,13 +271,6 @@ describe("GenerateCvFlow", () => {
     });
     renderStudio("/cv?generate=1");
     fireEvent.click(await screen.findByTestId("cv-generate-submit"));
-    expect(
-      await screen.findByTestId("cv-generate-finished")
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("builder-probe")
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("cv-generate-open-finished"));
     expect(await screen.findByTestId("builder-probe")).toBeInTheDocument();
     await waitFor(() => expect(useChatStore.getState().chatMode).toBe("docked"));
   });

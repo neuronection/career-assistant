@@ -12,7 +12,6 @@ import {
 } from "@/api/cv";
 import type {
   CvGeneratePreviewOut,
-  CvGenerateResult,
   CvPolishTrace,
 } from "@/types/cv";
 import { fetchPostings } from "@/api/postings";
@@ -98,11 +97,6 @@ export function GenerateCvFlow({
   const [notes, setNotes] = useState("");
   const [preferSynth, setPreferSynth] = useState(false);
   const [synthMatches, setSynthMatches] = useState<number | null>(null);
-  const [finishedCv, setFinishedCv] = useState<{
-    cvId: string;
-    applied: number;
-    proposed: number;
-  } | null>(null);
   const [preview, setPreview] = useState<CvGeneratePreviewOut | null>(null);
 
   const previewActive = Boolean(preview?.html);
@@ -133,15 +127,6 @@ export function GenerateCvFlow({
     if (finished.status === "succeeded") {
       const cvId = finished.result?.cv_id;
       if (typeof cvId === "string" && cvId) {
-        const result = (finished.result ?? {}) as unknown as CvGenerateResult;
-        const applied = Object.keys(result.synth_applied ?? {}).length;
-        const proposed = result.synth_proposed?.length ?? 0;
-        if (applied > 0 || proposed > 0) {
-          // Plan 69.4: surface what the library contributed before the
-          // builder hands over (advance is an explicit click).
-          setFinishedCv({ cvId, applied, proposed });
-          return;
-        }
         navigate(`/cv/${cvId}`);
         // Land in the builder with the copilot docked on this CV's
         // session — chat is the driver for the freshly generated draft
@@ -302,48 +287,6 @@ export function GenerateCvFlow({
     }
   }
 
-
-  if (finishedCv) {
-    return (
-      <div className="space-y-4 p-4 pt-0" data-testid="cv-generate-finished">
-        <div className="rounded border border-[var(--as-border)] bg-[var(--as-muted)] p-3 text-xs">
-          <p className="font-medium">{t("cvGenerate.synthSuccess")}</p>
-          {finishedCv.applied > 0 && (
-            <p className="mt-1 text-[var(--as-muted-fg)]">
-              {t("cvGenerate.synthAppliedCount", { n: finishedCv.applied })}
-            </p>
-          )}
-          {finishedCv.proposed > 0 && (
-            <p className="mt-1 text-[var(--as-muted-fg)]">
-              {t("cvGenerate.synthProposedCount", { n: finishedCv.proposed })}
-            </p>
-          )}
-        </div>
-        <div className="flex justify-end gap-2">
-          {finishedCv.proposed > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => navigate("/cv/synth")}
-              data-testid="cv-generate-review-variants"
-            >
-              {t("cvGenerate.reviewVariants")}
-            </Button>
-          )}
-          <Button
-            onClick={() => {
-              const cvId = finishedCv.cvId;
-              setFinishedCv(null);
-              navigate(`/cv/${cvId}`);
-              void openCvChat(cvId, "docked");
-            }}
-            data-testid="cv-generate-open-finished"
-          >
-            {t("cvGenerate.openBuilder")}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (phase === "running") {
     const trace = (preview?.trace as CvPolishTrace | undefined) ?? (job?.result?.polish as CvPolishTrace | undefined);

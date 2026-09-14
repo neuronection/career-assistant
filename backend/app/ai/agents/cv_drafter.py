@@ -31,9 +31,11 @@ PLAN_SYSTEM = (
     "list every skill the profile holds; without a target role, keep the "
     "strongest and most substantial ones. Also propose a short `title` "
     "for the CV document (shown in the CV list): name the target role "
-    "when one exists (e.g. \"CV — ICU Nurse\"), otherwise the "
+    'when one exists (e.g. "CV — ICU Nurse"), otherwise the '
     "candidate's strongest profile angle; max 60 characters, no "
-    "placeholders. Lead with the strongest "
+    "placeholders. When ABOUT_REQUESTED is set, add one section with "
+    'kind "about": a first-person narrative paragraph the assembler '
+    "turns into a custom-text block. Lead with the strongest "
     "evidence for the target role (summary first, then "
     "experience/education, then supporting sections). If the target role "
     "demands emphasis an experience item's text cannot show, propose at "
@@ -95,6 +97,7 @@ def build_plan_user_prompt(
     target: dict | None = None,
     language: str = "en",
     notes: str = "",
+    about_requested: bool = False,
 ) -> str:
     """Section-plan brief; the mock reads the same CONTEXT_JSON."""
     return "\n".join(
@@ -102,6 +105,11 @@ def build_plan_user_prompt(
             f"CV_LANGUAGE: {language}",
             f"ENABLED_KINDS: {', '.join(enabled_kinds)}",
             *([f"CANDIDATE NOTES: {notes}"] if notes.strip() else []),
+            *(
+                ["ABOUT_REQUESTED: include a short About section"]
+                if about_requested
+                else []
+            ),
             "",
             "AVAILABLE CONTEXT ITEMS (per source):",
             context_json(
@@ -123,6 +131,7 @@ def build_plan_user_prompt(
                     "target": target or {},
                     "language": language,
                     "notes": notes,
+                    "about_requested": about_requested,
                 }
             ),
         ]
@@ -193,6 +202,15 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
             )
         target = ctx.get("target") or {}
         title = str(target.get("title") or "").strip()
+        if ctx.get("about_requested"):
+            sections.append(
+                {
+                    "kind": "about",
+                    "source_key": "about",
+                    "item_ids": [],
+                    "rationale": "requested About section",
+                }
+            )
         return {
             "title": f"CV — {title}"[:120] if title else "My CV",
             "sections": sections,
@@ -201,6 +219,16 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
         section: dict = ctx.get("section") or {}
         section_items: list = ctx.get("items") or []
         kind = str(section.get("kind") or "")
+        if kind == "about":
+            return {
+                "sections": [
+                    {
+                        "kind": "about",
+                        "source_key": "about",
+                        "text": "Profile summary drafted from the candidate's context.",
+                    }
+                ]
+            }
         if kind == "summary":
             summary = ""
             for item in section_items:
@@ -254,6 +282,7 @@ async def plan_structure(
     language: str = "en",
     notes: str = "",
     tone: str | None = None,
+    about_requested: bool = False,
     run: RunRef | None = None,
 ) -> CvDraftStructure:
     """One audited CV_DRAFT plan call."""
@@ -268,6 +297,7 @@ async def plan_structure(
             target=target,
             language=language,
             notes=notes,
+            about_requested=about_requested,
         ),
         user_id=user_id,
         run=run,

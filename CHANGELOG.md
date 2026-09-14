@@ -4,6 +4,29 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Vision review actually sees the pages now**: the screenshot path
+  clipped beyond the viewport for CVs spilling past one page ("Clipped
+  area is either empty or outside the resulting image") — every
+  multi-page review silently degraded to lint-only facts. The capture
+  now spans the full document.
+- **Bullets-only rewrites are no longer dropped**: a draft that lands as
+  achievement bullets (no paragraph text) counted as empty and the
+  section silently fell back to the unformatted profile text — the
+  "rewrite anything needed" ask appeared ignored. Bullets now count as
+  usable content, and when a section still falls back the run's
+  warnings name the exact reason (visible in the AI runs panel).
+- **An About section can be generated**: asking for an "about"/profile
+  narrative in the emphasis notes makes the planner add an About
+  section, drafted as a first-person paragraph into a custom-text block.
+
+### Changed
+- **Generation lands in the builder automatically**: when an AI
+  generation finishes, the flow opens the builder directly (with the
+  copilot docked) instead of showing an intermediate "Open the builder"
+  step — including runs that applied or proposed synthesized variants;
+  the variant info surfaces in the builder and the synth library.
+
 ### Added
 - **AI-generated CVs name themselves**: the section planner now also
   proposes the CV's title — the target role when one exists ("CV — ICU
@@ -47,6 +70,11 @@ All notable changes to **Career Assistant** are documented here.
   target role when reordering.
 
 ### Fixed
+- **CV import no longer duplicates certifications**: re-intaking the same
+  CV created a second copy of every certification (the renderer then
+  printed each pair twice); the intake apply now dedupes on name +
+  issuer, case-insensitive, reporting skipped duplicates like experience
+  items already do.
 - **Section-order lint is area-aware**: sidebar layouts render the
   sidebar column before/after the main flow — the lint now compares
   against that reading order instead of failing every sidebar template
@@ -97,7 +125,13 @@ All notable changes to **Career Assistant** are documented here.
   renders an empty period segment instead.
 
 ### Fixed
-- **Backend logging now configured at boot**: app warnings (plan
+- **CV import no longer duplicates certifications**: re-intaking the same
+  CV created a second copy of every certification (the renderer then
+  printed each pair twice); the intake apply now dedupes on name +
+  issuer, case-insensitive, reporting skipped duplicates like experience
+  items already do.
+
+### Fixed
   fallbacks, rejected ops, degraded subsystems) reach stderr in every
   launch mode — uvicorn only configured its own loggers and the desktop
   shell none, so AI-flow failures could vanish silently.

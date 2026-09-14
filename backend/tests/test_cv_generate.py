@@ -59,6 +59,16 @@ def test_mock_fixture_covers_both_calls():
     ]
     assert structure.sections[1].item_ids == ["exp-1"]
 
+    about_prompt = plan_prompt.replace(
+        '[{"item_id": "exp-1", "label": "Intern"}]}}',
+        '[{"item_id": "exp-1", "label": "Intern"}]}, "about_requested": true}',
+    )
+    about = CvDraftStructure.model_validate(
+        _mock_cv_draft(CvDraftStructure, about_prompt)
+    )
+    assert about.sections[-1].kind == "about"
+    assert about.title
+
     write_prompt = (
         '"WRITE"\n\nCONTEXT_JSON: {"call": "write", "section":'
         ' {"kind": "experience", "item_ids": ["exp-1"]}, "items":'

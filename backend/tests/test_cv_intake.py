@@ -613,3 +613,24 @@ async def test_apply_active_by_default_and_drafts_spec(client, db, auth_headers)
     assert other_items and all(i.status == "draft" for i in other_items), (
         "drafts:true drafts every applied education item"
     )
+
+
+async def test_apply_certifications_twice_dedupes(client, db, auth_headers):
+    """Re-intaking the same CV must not duplicate certifications — the
+    renderer would print each pair twice (title + description line)."""
+    doc_id = await _upload_and_parse(client, db, auth_headers)
+    payload = {"selections": {"certifications": True}}
+    first = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers
+    )
+    assert first.json()["report"]["created"]["certifications"] == 1
+    second = await client.post(
+        f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers
+    )
+    report = second.json()["report"]
+    assert report["created"].get("certifications", 0) == 0
+    assert report["duplicates"], "re-intake must dedupe certifications"
+    from app.models.profile_entities_model import Certification
+
+    rows = (await db.execute(select(Certification))).scalars().all()
+    assert len(rows) == 1
