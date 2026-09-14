@@ -9,7 +9,11 @@ import { useTranslation } from "react-i18next";
 import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
 import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
-import { CvAttachBar } from "@/components/chat/CvAttachBar";
+import {
+  CvAttachButton,
+  CvAttachChips,
+  useOpenStudioCv,
+} from "@/components/chat/CvAttachBar";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import {
   ChatBranchTree,
@@ -533,6 +537,25 @@ function ComposerBar() {
     }
   }, [errorKind, dictation]);
 
+  // Reference chips + dictation share the composer's context strip —
+  // rendered only when either has content (an always-truthy fragment
+  // would leave an empty rail above the input).
+  const openCvId = useOpenStudioCv();
+  const dictationStrip =
+    dictation.status !== "idle" || dictation.error !== null ? (
+      <DictationStrip
+        status={dictation.status}
+        seconds={dictation.seconds}
+        levelRef={dictation.levelRef}
+        error={dictation.error}
+        onStop={() => void dictation.stop()}
+        onCancel={dictation.cancel}
+        onDismissError={dictation.dismissError}
+      />
+    ) : undefined;
+  const attachStripVisible =
+    chat.attachments.length > 0 || openCvId !== null;
+
   return (
     <ChatComposer
       value={chat.draft}
@@ -541,7 +564,7 @@ function ComposerBar() {
       sending={chat.sending}
       onStop={() => void chat.stream.stop()}
       placeholder={t("chat.composerPlaceholder")}
-      toolbarStart={<CvAttachBar />}
+      toolbarStart={<CvAttachButton />}
       toolbarEnd={
         micHidden ? undefined : (
           <DictationButton
@@ -551,16 +574,11 @@ function ComposerBar() {
         )
       }
       suggestions={
-        dictation.status !== "idle" || dictation.error !== null ? (
-          <DictationStrip
-            status={dictation.status}
-            seconds={dictation.seconds}
-            levelRef={dictation.levelRef}
-            error={dictation.error}
-            onStop={() => void dictation.stop()}
-            onCancel={dictation.cancel}
-            onDismissError={dictation.dismissError}
-          />
+        attachStripVisible || dictationStrip !== undefined ? (
+          <>
+            {attachStripVisible ? <CvAttachChips /> : null}
+            {dictationStrip}
+          </>
         ) : undefined
       }
     />
