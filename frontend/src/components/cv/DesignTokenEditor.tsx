@@ -18,6 +18,7 @@ const HEADER_STYLES = [
   { value: "left", label: "Left" },
   { value: "centered", label: "Centered" },
   { value: "banner", label: "Banner" },
+  { value: "band", label: "Accent band" },
 ];
 const DENSITIES = [
   { value: "compact", label: "Compact" },

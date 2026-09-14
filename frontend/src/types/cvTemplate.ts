@@ -8,7 +8,7 @@ export interface CvDesignTokens {
   base_size_pt: number;
   line_height: number;
   spacing_scale: number;
-  header_style: "left" | "centered" | "banner";
+  header_style: "left" | "centered" | "banner" | "band";
   show_photo: boolean;
   density: "compact" | "normal" | "roomy";
   margin_mm: number | null;

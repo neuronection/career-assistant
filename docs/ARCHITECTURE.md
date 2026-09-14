@@ -123,12 +123,18 @@ There is no side door around it.
 - **CV block kinds** register in `app/services/cv_blocks.py`
   (`register_block_kind`): a kind binds a props schema + renderer
   behavior; blocks carry an `area` mark (`main`/`sidebar`, legacy
-  `column` accepted) that sidebar layouts honor when grouping columns;
-  cover letters reuse the pipeline through the `letter` kind. Design
-  tokens include per-area paddings (plan 70): `main_padding_mm` /
+  `column` accepted) that sidebar layouts honor when grouping columns
+  (a `header` block may live in either column — the sidebar column
+  inherits its text color for name/photo/contact, and skill bars/
+  contact pieces switch to `currentColor` mixes for contrast). Cover
+  letters reuse the pipeline through the `letter` kind. Design tokens
+  include per-area paddings (plan 70): `main_padding_mm` /
   `sidebar_padding_mm` (unset = legacy defaults); sidebar templates pair
   them with `margin_mm: 0` so each area owns its spacing instead of the
-  page.
+  page; `header_style: "band"` paints the name/contact header as a
+  filled accent panel. The bank (`app/seeds/cv_templates.py`) ships
+  photo + skill-bar magazine layouts (`coral-banner`, `charcoal-amber`)
+  alongside the classic/sidebar rows.
 - **CV polish loop** (plan 64) rides the same `cv_generate` background
   job after the `cv_draft` assemble node: the `cv_build_review` vision
   task (`app/ai/agents/cv_build_reviewer.py`) critiques the rendered

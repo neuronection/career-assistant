@@ -1,7 +1,7 @@
-"""Seeded CV template bank: five starter layouts.
+"""Seeded CV template bank: starter layouts.
 
 Bank rows carry author_key='bank', source='bank' and are read-only for
-users (duplicate to edit). Idempotent by (key, version=1).
+users (duplicate to edit). Idempotent per (key, version).
 """
 
 from sqlalchemy import select
@@ -24,15 +24,19 @@ def _content(
     max_pages: int = 1,
     overflow: str = "warn",
     field_prompts: dict | None = None,
+    design: dict | None = None,
 ) -> dict:
+    base = {
+        "accent_color": accent,
+        "font_stack": font,
+        "density": density,
+        "header_style": header,
+    }
+    if design:
+        base.update(design)
     return {
         "blocks": blocks,
-        "design": {
-            "accent_color": accent,
-            "font_stack": font,
-            "density": density,
-            "header_style": header,
-        },
+        "design": base,
         "pages": {"default_max_pages": max_pages, "overflow_policy": overflow},
         "prompts": {"field_prompts": field_prompts or {}, "field_handling": ""},
     }
@@ -107,9 +111,10 @@ BANK_TEMPLATES: list[dict] = [
     },
     {
         "key": "modern-two-column",
-        "version": 2,
+        "version": 3,
         "title": "Modern Two-Column",
-        "description": "Accent-colored headings with chips and a compact feel.",
+        "description": "Accent-colored headings with chips, skill levels, "
+        "CEFR languages and a certifications section.",
         "page_size": "a4",
         "ats_safe": False,
         "content": _content(
@@ -120,7 +125,18 @@ BANK_TEMPLATES: list[dict] = [
                 },
                 {"kind": "summary", "props": {}},
                 _items("Work Experience", "experience", max_items=8),
-                {"kind": "skills", "props": {"display": "chips", "max_items": 18}},
+                _items(
+                    "Certifications",
+                    "certifications",
+                    max_items=5,
+                    show_skills=False,
+                    show_achievements=False,
+                    show_description=False,
+                ),
+                {
+                    "kind": "skills",
+                    "props": {"display": "chips", "max_items": 18, "show_levels": True},
+                },
                 _items(
                     "Education",
                     "education",
@@ -128,16 +144,20 @@ BANK_TEMPLATES: list[dict] = [
                     show_skills=False,
                     show_achievements=False,
                 ),
-                {"kind": "languages", "props": {}},
+                {
+                    "kind": "languages",
+                    "props": {"display": "chips", "show_cefr": True},
+                },
                 {"kind": "interests", "props": {"max_items": 6}},
             ],
             accent="#0f766e",
             density="compact",
+            design={"heading_rule": "accent"},
         ),
     },
     {
         "key": "compact-onepage",
-        "version": 2,
+        "version": 3,
         "title": "Compact One-Page",
         "description": "Tight spacing that squeezes a full profile onto one page.",
         "page_size": "a4",
@@ -165,6 +185,10 @@ BANK_TEMPLATES: list[dict] = [
                     show_skills=False,
                     show_achievements=False,
                 ),
+                {
+                    "kind": "languages",
+                    "props": {"display": "chips", "show_cefr": True},
+                },
             ],
             density="compact",
             overflow="shrink",
@@ -172,7 +196,7 @@ BANK_TEMPLATES: list[dict] = [
     },
     {
         "key": "academic",
-        "version": 2,
+        "version": 3,
         "title": "Academic",
         "description": "Serif typography with publications and achievements up front.",
         "page_size": "a4",
@@ -190,9 +214,26 @@ BANK_TEMPLATES: list[dict] = [
                     show_skills=False,
                     show_achievements=False,
                 ),
-                {"kind": "achievements", "props": {"title": "Publications & Awards"}},
+                {
+                    "kind": "achievements",
+                    "props": {
+                        "title": "Publications & Awards",
+                        "kinds": ["publication", "award", "honor"],
+                    },
+                },
                 _items("Work Experience", "experience", max_items=8),
-                {"kind": "languages", "props": {}},
+                {
+                    "kind": "languages",
+                    "props": {"display": "list", "show_cefr": True},
+                },
+                _items(
+                    "Certifications",
+                    "certifications",
+                    max_items=5,
+                    show_skills=False,
+                    show_achievements=False,
+                    show_description=False,
+                ),
             ],
             accent="#111827",
             font="serif",
@@ -202,7 +243,7 @@ BANK_TEMPLATES: list[dict] = [
     },
     {
         "key": "student-first",
-        "version": 2,
+        "version": 3,
         "title": "Student First",
         "description": "Leads with projects and skills — built for light work history.",
         "page_size": "a4",
@@ -233,6 +274,11 @@ BANK_TEMPLATES: list[dict] = [
                     show_skills=False,
                     show_achievements=False,
                 ),
+                {"kind": "achievements", "props": {"title": "Awards & Activities"}},
+                {
+                    "kind": "languages",
+                    "props": {"display": "chips", "show_cefr": True},
+                },
                 {"kind": "interests", "props": {"max_items": 6}},
             ],
             accent="#7c3aed",
@@ -298,47 +344,78 @@ def _sidebar_content(
     heading_color: str,
     font: str = "sans",
     sidebar_side: str = "left",
+    skills_display: str = "chips",
+    show_photo: bool = False,
 ) -> dict:
-    """Two-column layout: sidebar (contact, education, skills, languages)
-    + main column (profile, work, projects) — the modern magazine pattern.
+    """Two-column layout: sidebar (education, skills, languages,
+    certifications) + main column (profile, work, projects) — the modern
+    magazine pattern.
 
     Plan 70 area styling: the page margin is zero and each area owns its
-    own padding, so the colored sidebar runs full-bleed to the page edge."""
+    own padding, so the colored sidebar runs full-bleed to the page edge.
+    `show_photo` renders the profile photo in the header (only when the
+    user has one attached — empty otherwise)."""
     return {
         "blocks": [
-            {"kind": "header"},
-            {"kind": "summary", "column": "main"},
+            {"kind": "header", "area": "main", "props": {}},
+            {"kind": "summary", "area": "main", "props": {}},
             {
                 "kind": "items",
-                "column": "main",
+                "area": "main",
                 "props": {
                     "title": "Work Experience",
                     "source_key": "experience",
                     "date_format": "mon_yyyy",
+                    "show_skills": False,
                 },
             },
             {
                 "kind": "items",
-                "column": "main",
+                "area": "main",
                 "props": {
                     "title": "Projects",
                     "source_key": "projects",
                     "date_format": "mon_yyyy",
                     "show_org": False,
+                    "show_skills": False,
                 },
             },
             {
                 "kind": "items",
-                "column": "sidebar",
+                "area": "sidebar",
                 "props": {
                     "title": "Education",
                     "source_key": "education",
                     "show_description": False,
                 },
             },
-            {"kind": "skills", "column": "sidebar"},
-            {"kind": "languages", "column": "sidebar"},
-            {"kind": "interests", "column": "sidebar"},
+            {
+                "kind": "skills",
+                "area": "sidebar",
+                "props": {
+                    "display": skills_display,
+                    "show_levels": True,
+                    "max_items": 10,
+                },
+            },
+            {
+                "kind": "languages",
+                "area": "sidebar",
+                "props": {"display": "chips", "show_cefr": True},
+            },
+            {
+                "kind": "items",
+                "area": "sidebar",
+                "props": {
+                    "title": "Certifications",
+                    "source_key": "certifications",
+                    "max_items": 5,
+                    "show_skills": False,
+                    "show_achievements": False,
+                    "show_description": False,
+                },
+            },
+            {"kind": "interests", "area": "sidebar", "props": {"max_items": 6}},
         ],
         "design": {
             "accent_color": accent,
@@ -353,6 +430,9 @@ def _sidebar_content(
             "margin_mm": 0,
             "main_padding_mm": 8,
             "sidebar_padding_mm": 6,
+            "show_photo": show_photo,
+            "photo_shape": "circle",
+            "photo_size_mm": 24,
         },
         "pages": {"default_max_pages": 1, "overflow_policy": "warn"},
         "prompts": {"field_prompts": {}, "field_handling": ""},
@@ -363,9 +443,9 @@ BANK_TEMPLATES.extend(
     [
         {
             "key": "navy-sidebar",
-            "version": 2,
+            "version": 3,
             "title": "Navy Sidebar",
-            "description": "Two-column magazine layout: dark navy sidebar for contact, education and skills; main column for profile and experience.",
+            "description": "Two-column magazine layout: dark navy sidebar with photo, education and skills; main column for profile and experience.",
             "page_size": "a4",
             "ats_safe": False,
             "content": _sidebar_content(
@@ -374,9 +454,9 @@ BANK_TEMPLATES.extend(
         },
         {
             "key": "teal-sidebar",
-            "version": 2,
+            "version": 3,
             "title": "Teal Sidebar",
-            "description": "Modern teal two-column layout with rounded sidebar.",
+            "description": "Modern teal two-column layout with skill bars and a rounded photo.",
             "page_size": "a4",
             "ats_safe": False,
             "content": _sidebar_content(
@@ -384,6 +464,214 @@ BANK_TEMPLATES.extend(
                 accent="#0f766e",
                 heading_color="#134e4a",
                 sidebar_side="left",
+                skills_display="bars",
+                show_photo=True,
+            ),
+        },
+        {
+            "key": "coral-banner",
+            "version": 1,
+            "title": "Coral Banner",
+            "description": "Warm coral header band with a circular photo and a soft "
+            "gray sidebar for profile, skill bars and languages.",
+            "page_size": "a4",
+            "ats_safe": False,
+            "content": _content(
+                [
+                    {
+                        "kind": "header",
+                        "area": "main",
+                        "props": {"show_links": True, "show_location": True},
+                    },
+                    {
+                        "kind": "summary",
+                        "area": "sidebar",
+                        "props": {"title": "Profile", "max_chars": 500},
+                    },
+                    {
+                        "kind": "skills",
+                        "area": "sidebar",
+                        "props": {
+                            "title": "Tech Skills",
+                            "display": "bars",
+                            "show_levels": True,
+                            "max_items": 8,
+                        },
+                    },
+                    {
+                        "kind": "languages",
+                        "area": "sidebar",
+                        "props": {"display": "list", "show_cefr": True},
+                    },
+                    {"kind": "interests", "area": "sidebar", "props": {"max_items": 6}},
+                    {
+                        "kind": "items",
+                        "area": "main",
+                        "props": {
+                            "title": "Experience",
+                            "source_key": "experience",
+                            "date_format": "mon_yyyy",
+                            "show_skills": False,
+                            "style": "timeline",
+                        },
+                    },
+                    {
+                        "kind": "items",
+                        "area": "main",
+                        "props": {
+                            "title": "Projects",
+                            "source_key": "projects",
+                            "date_format": "mon_yyyy",
+                            "show_org": False,
+                            "show_skills": False,
+                        },
+                    },
+                    {
+                        "kind": "items",
+                        "area": "main",
+                        "props": {
+                            "title": "Education",
+                            "source_key": "education",
+                            "max_items": 4,
+                            "show_skills": False,
+                            "show_achievements": False,
+                        },
+                    },
+                    {
+                        "kind": "items",
+                        "area": "main",
+                        "props": {
+                            "title": "Certifications",
+                            "source_key": "certifications",
+                            "max_items": 5,
+                            "show_skills": False,
+                            "show_achievements": False,
+                            "show_description": False,
+                        },
+                    },
+                ],
+                accent="#e2793f",
+                font="geometric",
+                header="band",
+                design={
+                    "heading_color": "#7c2d12",
+                    "layout": "sidebar",
+                    "sidebar_side": "left",
+                    "sidebar_color": "#f2efeb",
+                    "sidebar_text_color": "#4b4236",
+                    "sidebar_width_pct": 34,
+                    "corner_radius": 3,
+                    "margin_mm": 0,
+                    "main_padding_mm": 8,
+                    "sidebar_padding_mm": 6,
+                    "show_photo": True,
+                    "photo_shape": "circle",
+                    "photo_size_mm": 24,
+                    "heading_case": "uppercase",
+                    "heading_weight": 700,
+                    "heading_rule": "none",
+                },
+            ),
+        },
+        {
+            "key": "charcoal-amber",
+            "version": 1,
+            "title": "Charcoal & Amber",
+            "description": "Dark charcoal sidebar with the photo, contact and skill "
+            "bars; amber accents over a timeline main column.",
+            "page_size": "a4",
+            "ats_safe": False,
+            "content": _content(
+                [
+                    {
+                        "kind": "header",
+                        "area": "sidebar",
+                        "props": {"show_links": True, "show_location": True},
+                    },
+                    {
+                        "kind": "items",
+                        "area": "sidebar",
+                        "props": {
+                            "title": "Education",
+                            "source_key": "education",
+                            "show_description": False,
+                            "show_skills": False,
+                            "show_achievements": False,
+                        },
+                    },
+                    {
+                        "kind": "skills",
+                        "area": "sidebar",
+                        "props": {
+                            "title": "Tech Skills",
+                            "display": "bars",
+                            "show_levels": True,
+                            "max_items": 8,
+                        },
+                    },
+                    {
+                        "kind": "languages",
+                        "area": "sidebar",
+                        "props": {"display": "chips", "show_cefr": True},
+                    },
+                    {
+                        "kind": "interests",
+                        "area": "sidebar",
+                        "props": {"max_items": 6},
+                    },
+                    {
+                        "kind": "summary",
+                        "area": "main",
+                        "props": {"title": "About Me", "max_chars": 500},
+                    },
+                    {
+                        "kind": "items",
+                        "area": "main",
+                        "props": {
+                            "title": "Job Experience",
+                            "source_key": "experience",
+                            "date_format": "mon_yyyy",
+                            "show_skills": False,
+                            "style": "timeline",
+                        },
+                    },
+                    {
+                        "kind": "items",
+                        "area": "main",
+                        "props": {
+                            "title": "Projects",
+                            "source_key": "projects",
+                            "date_format": "mon_yyyy",
+                            "show_org": False,
+                            "show_skills": False,
+                        },
+                    },
+                    {
+                        "kind": "achievements",
+                        "area": "main",
+                        "props": {"title": "Awards"},
+                    },
+                ],
+                accent="#d99a2b",
+                font="sans",
+                design={
+                    "heading_color": "#1f2937",
+                    "layout": "sidebar",
+                    "sidebar_side": "left",
+                    "sidebar_color": "#26262b",
+                    "sidebar_text_color": "#ffffff",
+                    "sidebar_width_pct": 38,
+                    "corner_radius": 0,
+                    "margin_mm": 0,
+                    "main_padding_mm": 8,
+                    "sidebar_padding_mm": 6,
+                    "show_photo": True,
+                    "photo_shape": "circle",
+                    "photo_size_mm": 24,
+                    "heading_case": "uppercase",
+                    "heading_weight": 700,
+                    "heading_rule": "none",
+                },
             ),
         },
     ]

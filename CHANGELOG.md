@@ -5,6 +5,15 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **New CV templates inspired by magazine-style layouts**: "Coral Banner"
+  (warm coral header band with a circular photo, soft gray sidebar with
+  profile, skill bars and CEFR languages) and "Charcoal & Amber" (dark
+  charcoal sidebar holding the photo, contact, education and skill bars
+  with amber accents over a timeline main column). Both are full
+  two-column sidebar templates using areas, timeline items, icons and
+  the new `header_style: "band"` token (also editable in the Design
+  Token editor and shipped as the two new `coral_banner` / `amber_charcoal`
+  themes). Bank previews pair with any profile photo the user attaches.
 - **CVs as chat references**: attach a CV (or cover letter) to any chat
   message and the answer is grounded in it — the composer chip and Studio
   entry points land with the next slices; this release adds the
@@ -63,6 +72,14 @@ All notable changes to **Career Assistant** are documented here.
   `RenderMetrics` now carries the real page budget.
 
 ### Changed
+- **Richer bank templates (spec version 3)**: "Modern Two-Column",
+  "Compact One-Page", "Academic" and "Student First" gain certifications
+  sections, skill levels and CEFR language bands; "Navy Sidebar" and
+  "Teal Sidebar" upgrade to explicit `area` marks with photo support,
+  skill bars and certifications in the sidebar. The renderer now keeps
+  header text, contact links and skill bars legible inside dark sidebar
+  columns (currentColor contrast) and wraps long contact links within
+  the narrow column instead of overflowing onto the page.
 - **Robustness-first polish runs**: the generation loop's safety cap
   rises from 3 to 6 review→fix rounds (pending judgements still extend
   by one) and each round may apply up to 8 builder ops instead of 6 —

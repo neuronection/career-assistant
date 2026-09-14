@@ -28,7 +28,7 @@ class DesignTokens(BaseModel):
     base_size_pt: int = Field(default=10, ge=7, le=14)
     line_height: float = Field(default=1.35, ge=1.0, le=2.0)
     spacing_scale: float = Field(default=1.0, ge=0.6, le=1.8)
-    header_style: Literal["left", "centered", "banner"] = "left"
+    header_style: Literal["left", "centered", "banner", "band"] = "left"
     show_photo: bool = False
     density: Literal["compact", "normal", "roomy"] = "normal"
     margin_mm: Optional[int] = Field(default=None, ge=0, le=25)

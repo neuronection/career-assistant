@@ -1,5 +1,6 @@
 """— CV template system: versioning, registry, renderer, AI, review."""
 
+import copy
 import io
 import uuid
 from uuid import UUID
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from app.models.cv_template_model import CvTemplate
 from app.schemas.cv_template import CvTemplateExport, TemplateContent
 from app.seeds.cv_templates import BANK_TEMPLATES, seed_cv_template_bank
-from app.services.cv_blocks import REGISTRY, validate_blocks
+from app.services.cv_blocks import REGISTRY, SAMPLE_SNAPSHOT, validate_blocks
 from app.services.cv_renderer import render_cv
 from app.services.cv_template_service import CvTemplateService
 from app.services.engagement_service import canonical_hash
@@ -463,30 +464,92 @@ async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
 
 async def test_sidebar_bank_template_uses_area_paddings(db):
     await seed_cv_template_bank(db)
-    row = (
+    rows = (
         (
             await db.execute(
                 select(CvTemplate).where(
                     CvTemplate.author_key == "bank",
                     CvTemplate.key == "navy-sidebar",
-                    CvTemplate.version == 2,
                 )
             )
         )
         .scalars()
-        .first()
+        .all()
     )
-    assert row is not None
+    row = max(rows, key=lambda template: template.version)
+    assert row.version == 3
     design = row.content["design"]
     assert design["margin_mm"] == 0
     assert design["main_padding_mm"] > 0
     assert design["sidebar_padding_mm"] > 0
+    blocks = row.content["blocks"]
+    assert all(block.get("area") in {"main", "sidebar"} for block in blocks)
     source_keys = [
         block.get("props", {}).get("source_key")
-        for block in row.content["blocks"]
+        for block in blocks
         if block.get("kind") == "items"
     ]
     assert "experience" in source_keys and "projects" in source_keys
+    assert "certifications" in source_keys
+    teal_rows = (
+        (
+            await db.execute(
+                select(CvTemplate).where(
+                    CvTemplate.author_key == "bank",
+                    CvTemplate.key == "teal-sidebar",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    teal = max(teal_rows, key=lambda r: r.version)
+    assert teal.content["design"]["show_photo"] is True
+    skills = next(
+        block for block in teal.content["blocks"] if block.get("kind") == "skills"
+    )
+    assert skills["props"]["display"] == "bars"
+
+
+async def test_new_reference_templates_seed_and_render(db):
+    """The bank grows with photo + skill-bar layouts inspired by popular
+    magazine CVs: a coral banner (header band in the main column) and a
+    charcoal-amber split (header living inside the dark sidebar)."""
+    from app.services.cv_renderer import render_cv
+
+    await seed_cv_template_bank(db)
+    for key in ("coral-banner", "charcoal-amber"):
+        row = (
+            (
+                await db.execute(
+                    select(CvTemplate).where(
+                        CvTemplate.author_key == "bank",
+                        CvTemplate.key == key,
+                    )
+                )
+            )
+            .scalars()
+            .one()
+        )
+        content = TemplateContent.model_validate(row.content)
+        assert content.design.layout == "sidebar"
+        assert content.design.show_photo is True
+        result = render_cv(content, SAMPLE_SNAPSHOT)
+        assert "<aside class='cv-sidebar'>" in result.html
+        assert not result.metrics.overflow
+
+    snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
+    snapshot["basics"]["photo"] = "data:image/svg+xml,svg"
+    coral = next(t for t in BANK_TEMPLATES if t["key"] == "coral-banner")
+    html = render_cv(TemplateContent.model_validate(coral["content"]), snapshot).html
+    assert "padding: 4mm 5mm" in html, "band header paints its accent panel"
+    assert "<img class='cv-photo'" in html
+    charcoal = next(t for t in BANK_TEMPLATES if t["key"] == "charcoal-amber")
+    html = render_cv(TemplateContent.model_validate(charcoal["content"]), snapshot).html
+    sidebar = html.split("<aside class='cv-sidebar'>", 1)[1].split("</aside>", 1)[0]
+    assert "<img class='cv-photo'" in sidebar, "photo lives in the dark sidebar"
+    assert "cv-header" in sidebar
+    assert "color: inherit" in html, "sidebar header text inherits column color"
 
 
 async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_headers):

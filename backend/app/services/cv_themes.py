@@ -102,6 +102,31 @@ CV_THEMES: list[CvTheme] = [
             heading_weight=700,
         ),
     ),
+    CvTheme(
+        "coral_banner",
+        "Coral Banner",
+        "Warm coral accents with a filled header band and bold headings.",
+        DesignTokens(
+            accent_color="#e2793f",
+            heading_color="#7c2d12",
+            header_style="band",
+            font_stack="geometric",
+            heading_case="uppercase",
+            heading_weight=700,
+        ),
+    ),
+    CvTheme(
+        "amber_charcoal",
+        "Amber Charcoal",
+        "Amber accents with uppercase headings — pairs well with a dark sidebar.",
+        DesignTokens(
+            accent_color="#d99a2b",
+            heading_color="#26262b",
+            heading_case="uppercase",
+            heading_weight=700,
+            heading_rule="none",
+        ),
+    ),
 ]
 
 THEMES_BY_KEY = {theme.key: theme for theme in CV_THEMES}

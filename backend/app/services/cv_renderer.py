@@ -856,11 +856,22 @@ def _css(design: DesignTokens, page_size: str, shrink: float) -> str:
         "title": "capitalize",
         "none": "none",
     }[design.heading_case]
-    header_rule = (
-        "border-bottom:2px solid var(--accent);padding-bottom:4mm;"
-        if design.header_style == "banner"
-        else ""
-    )
+    header_rule = ""
+    band_rule = ""
+    band_text = ""
+    if design.header_style == "banner":
+        header_rule = "border-bottom:2px solid var(--accent);padding-bottom:4mm;"
+    if design.header_style == "band":
+        band_rule = (
+            "background: color-mix(in srgb, var(--accent) 88%, var(--background));"
+            f" color: #ffffff; border-radius: {max(2, design.corner_radius)}mm;"
+            " padding: 4mm 5mm;"
+        )
+        band_text = (
+            "header.cv-header h1, header.cv-header .headline, "
+            "header.cv-header .contact { color: inherit; }"
+            "header.cv-header .contact a { color: inherit; }"
+        )
     return f"""
 @page {{ size: {width_mm}mm {height_mm}mm; margin: {margin}mm; }}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -904,7 +915,8 @@ ul.items.items-timeline {{ border-left: 0.4mm solid var(--accent); }}
 section.cv-card {{ background: color-mix(in srgb, var(--accent) 6%, var(--background));
      border-radius: {design.corner_radius}mm; padding: 2.5mm 3.5mm; }}
 section.cv-card h2 {{ border-bottom: none; }}
-header.cv-header {{ text-align: {align}; {header_rule} }}
+header.cv-header {{ text-align: {align}; {header_rule}{band_rule} }}
+{band_text}
 .cv-header-row {{ display: flex; align-items: center; gap: 4mm;
      {"flex-direction: row-reverse;" if align == "center" else ""} text-align: left; }}
 .cv-photo {{ object-fit: cover; flex-shrink: 0; }}
@@ -946,6 +958,13 @@ ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
 .cv-main {{ display: table-cell; vertical-align: top;{" padding: " + str(design.main_padding_mm) + "mm;" if design.main_padding_mm is not None else ""} }}
 .cv-sidebar h2 {{ color: inherit;
      border-bottom-color: color-mix(in srgb, currentColor 35%, transparent); }}
+.cv-sidebar h1 {{ color: inherit; }}
+.cv-sidebar .headline {{ color: inherit; opacity: 0.8; }}
+.cv-sidebar .contact {{ color: inherit; opacity: 0.9; }}
+.cv-sidebar .contact a {{ color: inherit; }}
+.cv-sidebar .contact .cpi {{ white-space: normal; overflow-wrap: anywhere; }}
+.cv-sidebar .bar {{ background: color-mix(in srgb, currentColor 25%, transparent); }}
+.cv-sidebar .bar-fill {{ background: currentColor; }}
 .cv-sidebar .item-org, .cv-sidebar .item-period {{ color: inherit; opacity: 0.8; }}
 .cv-sidebar .item-title {{ color: inherit; }}
 .cv-sidebar .chip {{ background: color-mix(in srgb, currentColor 20%, transparent);
