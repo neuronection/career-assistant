@@ -1331,7 +1331,7 @@ describe("ProfileEdit (settings-shell restructure)", () => {
     expect(screen.getByText("Completeness: 62%")).toBeInTheDocument();
   });
 
-  it("summarizes experience (years + latest entries) with a link to the workspace", async () => {
+  it("summarizes experience (years + kind-split sections) with a workspace button", async () => {
     render(
       <MemoryRouter>
         <ProfileEdit />
@@ -1343,10 +1343,16 @@ describe("ProfileEdit (settings-shell restructure)", () => {
       "href",
       "/profile/experience"
     );
+    expect(screen.getByTestId("experience-group-summary-internship")).toHaveTextContent(
+      "Internship"
+    );
+    expect(screen.getByTestId("experience-group-summary-project")).toHaveTextContent(
+      "Project"
+    );
     expect(screen.getByText(/DevOps intern/)).toBeInTheDocument();
     const summaries = screen.getAllByTestId(/^experience-summary-/);
     expect(summaries[0]).toHaveTextContent("DevOps intern");
-    expect(summaries[1]).toHaveTextContent("Capstone");
+    expect(summaries[1]).toHaveTextContent("Capstone"); // e0 — kind groups sort jobs first
   });
 
   it("summarizes education (derived level + entries) with a link to the workspace", async () => {

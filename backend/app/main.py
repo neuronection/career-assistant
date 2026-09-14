@@ -13,7 +13,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_router
-from app.core.boot import validate_boot_config
+from app.core.boot import configure_logging, validate_boot_config
 from app.core.config import settings
 from app.core.errors import (
     AINotConfiguredError,
@@ -152,6 +152,7 @@ class SpaStaticFiles(StaticFiles):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Validate boot config (production fails fast), then serve."""
+    configure_logging()
     try:
         for warning in validate_boot_config():
             logger.warning("Boot config warning: %s", warning)

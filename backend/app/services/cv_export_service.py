@@ -27,6 +27,7 @@ from app.services.cv_renderer import (
     _display_link,
     custom_text_blocks,
 )
+from app.services.cv_blocks import block_area
 
 ExportFormat = Literal["pdf", "docx", "md", "json", "ats_text"]
 
@@ -470,6 +471,32 @@ def to_json_export(cv: CvDocument, version: CvVersion) -> bytes:
     return json.dumps(package, indent=2, sort_keys=True).encode()
 
 
+def _render_order(blocks: list[dict], template: object | None) -> list[dict]:
+    """Blocks in the order the renderer emits their headings.
+
+    A sidebar layout renders the sidebar column before (side=left) or
+    after (side=right) the main flow — the section-order lint must
+    compare against that reading order, not the stored block order.
+    Single layouts (or sidebar layouts with no sidebar-assigned block —
+    the renderer flattens those) keep the stored order."""
+    layout, side = "single", "left"
+    if template is not None:
+        try:
+            from app.schemas.cv_template import TemplateContent
+
+            design = TemplateContent.model_validate(template.content).design
+            layout, side = design.layout, design.sidebar_side
+        except Exception:  # noqa: BLE001 — lint never fails on a bad row
+            pass
+    if layout != "sidebar":
+        return blocks
+    sidebar = [block for block in blocks if block_area(block) == "sidebar"]
+    if not sidebar:
+        return blocks
+    main = [block for block in blocks if block_area(block) != "sidebar"]
+    return sidebar + main if side == "left" else main + sidebar
+
+
 def lint(
     version_payload: dict,
     html: str,
@@ -494,7 +521,9 @@ def lint(
 
     expected = [
         _heading_of(kind, props).strip().lower()
-        for kind, props, _data in _visible_blocks(blocks, snapshot)
+        for kind, props, _data in _visible_blocks(
+            _render_order(blocks, template), snapshot
+        )
         if kind not in ("header", "letter")
     ]
     rendered = [

@@ -160,6 +160,17 @@ describe("Experience workspace", () => {
     expect(panel).toHaveTextContent("level 3.2");
   });
 
+  it("renders a startless project card without crashing (start: null)", async () => {
+    vi.mocked(fetchExperience).mockResolvedValue({
+      items: [{ ...ITEM2, start: null }, ITEM],
+      years_of_experience: 0.9,
+    });
+    renderPage();
+    const card = await screen.findByTestId("experience-item-e2");
+    expect(card).toHaveTextContent("Capstone");
+    expect(card).toHaveTextContent("→");
+  });
+
   it("opens an item in the editor pane and saves edits in place", async () => {
     const user = userEvent.setup();
     renderPage();

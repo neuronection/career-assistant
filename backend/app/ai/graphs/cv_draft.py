@@ -617,7 +617,10 @@ def _merge_onto_template(skeleton: list[dict], generated: list[dict]) -> list[di
     match on `source_key` when both declare one), reusing the skeleton
     block verbatim — including its `area` and title. Skeleton blocks of
     kinds the plan did not include are dropped, and generated blocks
-    that match nothing append in the main flow.
+    that match nothing append in the main flow. Exception: a skills
+    block's generation intent (`selected`, `show_levels`, `max_items`)
+    overlays the skeleton's props — the run's relevance subset and the
+    no-levels default must not be silently inherited from the template.
     """
     pending = list(generated)
     merged: list[dict] = []
@@ -629,7 +632,14 @@ def _merge_onto_template(skeleton: list[dict], generated: list[dict]) -> list[di
                 continue
             if source_key and _block_source_key(entry) not in ("", source_key):
                 continue
-            merged.append(copy.deepcopy(block))
+            merged_block = copy.deepcopy(block)
+            if kind == "skills":
+                props = merged_block.setdefault("props", {})
+                entry_props = entry.get("props") or {}
+                for key in ("selected", "show_levels", "max_items"):
+                    if key in entry_props:
+                        props[key] = copy.deepcopy(entry_props[key])
+            merged.append(merged_block)
             del pending[index]
             break
     merged.extend(pending)
@@ -668,6 +678,7 @@ async def _resolve_template_for_run(
             UUID(user_id),
             language=request.language,
             posting=posting,
+            notes=request.notes,
         )
     except Exception:  # noqa: BLE001 — the pick is advice, never the run
         return None, "AI template pick unavailable — using the studio default"
@@ -732,11 +743,12 @@ def make_assemble_node(deps: GraphDeps):
                 all_skills = [
                     str(x.get("item_id")) for x in items_by_kind.get("skills") or []
                 ]
-                props: dict = {"title": "Skills"}
+                props: dict = {"title": "Skills", "show_levels": False}
                 if chosen and len(chosen) < len(all_skills):
                     # The plan picked a relevance subset — carry it to the
                     # block so the renderer lists only those skills.
                     props["selected"] = chosen
+                    props["max_items"] = max(len(chosen), 1)
                 generated.append({"kind": "skills", "props": props})
             elif kind == "languages":
                 generated.append({"kind": "languages", "props": {"title": "Languages"}})
@@ -977,7 +989,10 @@ def route_after_review(state: CvDraftState) -> str:
 
     Blocking findings are fail-level vision/lint issues or uncovered
     usable items; warns never block. Cancelled runs and the iteration
-    cap finalize what is committed instead of looping.
+    cap finalize what is committed instead of looping — a pending
+    keep-or-revert judgement (variant/redesign) extends the cap by one
+    so the judgement is actually resolved and the redesign ladder can
+    escalate (modified → fresh) within one run.
     """
     if state.get("abort_reason"):
         return "end"
@@ -1002,7 +1017,9 @@ def route_after_review(state: CvDraftState) -> str:
         if pending_judgements and iteration <= POLISH_MAX_ITERATIONS:
             return "fix"
         return "finalize"
-    if iteration >= POLISH_MAX_ITERATIONS or not issues:
+    if iteration >= POLISH_MAX_ITERATIONS + (1 if pending_judgements else 0):
+        return "finalize"
+    if not issues:
         return "finalize"
     return "fix"
 
@@ -1380,24 +1397,36 @@ def make_fix_node(deps: GraphDeps):
         critique = state.get("critique") or {}
         if not _structural_fail(critique):
             redesign["pending"] = False
-            return {"verdict": "kept", "template_id": redesign.get("template")}
-        await _apply(
-            db,
-            cv,
-            {"op": "set_template", "template_id": redesign.get("from")},
-        )
+            return {
+                "verdict": "kept",
+                "template_id": redesign.get("template"),
+                "mode": redesign.get("mode"),
+            }
+        if redesign.get("from"):
+            await _apply(
+                db,
+                cv,
+                {"op": "set_template", "template_id": redesign.get("from")},
+            )
+        else:
+            cv.template_id = None
         redesign["pending"] = False
-        return {"verdict": "reverted", "to": redesign.get("from")}
+        return {
+            "verdict": "reverted",
+            "to": redesign.get("from"),
+            "mode": redesign.get("mode"),
+        }
 
-    async def _redesign_once(db, state, cv) -> Optional[dict]:
-        """The structural escape hatch: one AI-drafted private template.
+    async def _redesign_once(db, state, cv, mode: str) -> Optional[dict]:
+        """The structural escape hatch, two rungs (escalating ladder).
 
-        Trigger: a layout fail persisted across an iteration despite
-        applied ops (`layout_fails` ≥ 2). Drafts a fresh private
-        template via the existing designer, publishes it DRAFT through
-        the template version control, switches to it and re-merges the
+        `modified` (first): a copy of the current template patched by the
+        designer against the critique — keeps the template's identity.
+        `fresh` (only if the modified copy also fails): a from-scratch
+        AI-drafted private template. Both publish DRAFT through the
+        template version control, switch to the result and re-merge the
         current content onto the new skeleton — the next review judges
-        it; the hatch is spent once per run."""
+        keep-or-revert."""
         from sqlalchemy.orm.attributes import flag_modified
 
         from app.ai.agents.cv_template_designer import draft_template
@@ -1413,21 +1442,39 @@ def make_fix_node(deps: GraphDeps):
             for block in (cv.working_content or {}).get("blocks") or []
         ]
         previous_template_id = str(cv.template_id) if cv.template_id else ""
-        template_content = await draft_template(
-            db,
-            UUID(state["user_id"]),
-            brief=(
-                f"Redesign a CV template for an existing draft. Current"
-                f" problem: {message}. Current block mix: {block_mix}."
-                f" Keep readable typography and honor the blocks' areas."
-            ),
-            density=current.design.density,
-            page_budget=int(request.max_pages),
-            run=_run_ref(state, "cv_template_design"),
-        )
+        if mode == "modified":
+            template_content = await draft_template(
+                db,
+                UUID(state["user_id"]),
+                brief=(
+                    f"Adapt this CV template so the persistent layout "
+                    f"problem goes away. Problem: {message}. Current "
+                    f"block mix: {block_mix}. Preserve the design; "
+                    f"restructure areas/sections as needed."
+                ),
+                density=current.design.density,
+                page_budget=int(request.max_pages),
+                base_content=current,
+                critique_message=message,
+                run=_run_ref(state, "cv_template_design"),
+            )
+        else:
+            template_content = await draft_template(
+                db,
+                UUID(state["user_id"]),
+                brief=(
+                    f"Redesign a CV template for an existing draft. Current"
+                    f" problem: {message}. Current block mix: {block_mix}."
+                    f" Keep readable typography and assign each block to "
+                    f"the area the layout supports."
+                ),
+                density=current.design.density,
+                page_budget=int(request.max_pages),
+                run=_run_ref(state, "cv_template_design"),
+            )
         template = await CvTemplateService(db).create(
             UUID(state["user_id"]),
-            f"AI-polished layout ({state['run_id'][:8]})",
+            f"AI-polished layout ({state['run_id'][:8]} {mode})",
             template_content,
             description="Polish-loop redesign draft",
             source=CvTemplateSource.AI,
@@ -1445,6 +1492,7 @@ def make_fix_node(deps: GraphDeps):
             "pending": True,
             "template": str(template.id),
             "from": previous_template_id,
+            "mode": mode,
             "op": result,
         }
 
@@ -1475,14 +1523,18 @@ def make_fix_node(deps: GraphDeps):
             if _structural_fail(critique)
             else 0
         )
+        redesign_pending = bool((polish.get("redesign") or {}).get("pending"))
+        stage = str(polish.get("redesign_stage") or "")
         if (
             _structural_fail(critique)
-            and not polish.get("redesign_spent")
+            and stage != "fresh"
+            and not redesign_pending
             and polish["layout_fails"] >= 2
             and applied < MAX_OPS_PER_ITERATION
         ):
-            polish["redesign_spent"] = True
-            polish["redesign"] = await _redesign_once(deps.db, state, cv) or {
+            mode = "modified" if stage == "" else "fresh"
+            polish["redesign_stage"] = "modified" if mode == "modified" else "fresh"
+            polish["redesign"] = await _redesign_once(deps.db, state, cv, mode) or {
                 "drafted": True
             }
         for issue in critique.get("issues") or []:

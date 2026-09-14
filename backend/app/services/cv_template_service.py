@@ -26,6 +26,7 @@ from app.services.cv_renderer import render_cv
 from app.services.engagement_service import canonical_hash
 
 TEMPLATE_SCHEMA_VERSION = 1
+VISUAL_PICK_CANDIDATES = 4
 
 
 def slugify_key(name: str) -> str:
@@ -357,14 +358,18 @@ class CvTemplateService:
         user_id: uuid.UUID,
         language: str = "en",
         posting=None,
+        notes: str = "",
     ) -> dict:
         """Rank readable templates for a new CV (deterministic + AI).
 
         Signal scores (language match, sidebar layout, ATS-safety)
         form the baseline; the CV_TEMPLATE_PICK call may only reorder
         and explain — its output is validated against the candidate
-        refs, never a substitute template.
-        """
+        refs, never a substitute template. The user's emphasis notes
+        and, with the PDF engine present, the top candidates' sample
+        renders ride along so the ranking judges the request and the
+        actual LOOK, not the metadata; without them it degrades to the
+        metadata-only baseline."""
         from app.ai.agents.cv_template_advisor import (
             TemplateCandidate,
             rank_templates,
@@ -403,7 +408,12 @@ class CvTemplateService:
         target: dict = {}
         if posting is not None:
             target = {"title": posting.title, "org": posting.org or ""}
-        ranking = await rank_templates(self.db, user_id, candidates, target or None)
+        if notes.strip():
+            target["notes"] = notes.strip()[:2000]
+        images = await self._candidate_thumbnails(ordered[:VISUAL_PICK_CANDIDATES])
+        ranking = await rank_templates(
+            self.db, user_id, candidates, target or None, images=images or None
+        )
         by_ref = {f"t{index}": row for index, row in enumerate(ordered)}
         picks = [
             {"template_id": str(row.id), "title": row.title, "reason": pick.reason}
@@ -411,6 +421,32 @@ class CvTemplateService:
             if (row := by_ref.get(pick.template_ref)) is not None
         ]
         return {"picks": picks, "candidates_considered": len(ordered)}
+
+    async def _candidate_thumbnails(
+        self, rows: list[CvTemplate]
+    ) -> list[tuple[str, bytes]]:
+        """First-page PNG per candidate, in candidate order ([] = skip).
+
+        The (mime, bytes) images ride to the model in candidate-ref
+        order (t0, t1, …) — the prompt ties order to refs.
+        Capability-detected: no PDF engine or any render failure simply
+        drops the images — the ranking falls back to metadata-only."""
+        from app.services.cv_pdf_service import html_to_pngs, pdf_engine_available
+
+        if not pdf_engine_available():
+            return []
+        images: list[tuple[str, bytes]] = []
+        for row in rows:
+            try:
+                html, _metrics = self.preview_html_content(
+                    TemplateContent.model_validate(row.content)
+                )
+                pages = await html_to_pngs(html, page_size=str(row.page_size))
+            except Exception:  # noqa: BLE001 — one bad candidate degrades
+                continue
+            if pages:
+                images.append(pages[0])
+        return images
 
     # ------------------------------------------------------ visual review
 

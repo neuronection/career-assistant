@@ -3866,6 +3866,13 @@
             ],
             "title": "Error"
           },
+          "fallback_sections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fallback Sections",
+            "type": "array"
+          },
           "final_version": {
             "anyOf": [
               {
@@ -3924,6 +3931,11 @@
             ],
             "title": "Outcome"
           },
+          "plan_fallback": {
+            "default": false,
+            "title": "Plan Fallback",
+            "type": "boolean"
+          },
           "resumed_from": {
             "anyOf": [
               {
@@ -3957,6 +3969,13 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [

@@ -26,12 +26,16 @@ PLAN_SYSTEM = (
     "skip sections with no items. The experience source is paid work "
     "(jobs, internships, freelance) only — projects and volunteering "
     "arrive as their own sources and each gets its own section, never "
-    "merged into work experience. Lead with the strongest evidence for "
-    "the target role (summary first, then experience/education, then "
-    "supporting sections). If the target role demands emphasis an "
-    "experience item's text cannot show, propose at most three synth "
-    "variants for those items (action posting_fit when a saved posting "
-    "exists, otherwise detail or restyle). Respond with JSON only."
+    "merged into work experience. For the skills section, select only "
+    "the skills relevant to the target role (ideally 8-16 ids) — never "
+    "list every skill the profile holds; without a target role, keep the "
+    "strongest and most substantial ones. Lead with the strongest "
+    "evidence for the target role (summary first, then "
+    "experience/education, then supporting sections). If the target role "
+    "demands emphasis an experience item's text cannot show, propose at "
+    "most three synth variants for those items (action posting_fit when "
+    "a saved posting exists, otherwise detail or restyle). Respond with "
+    "JSON only."
 )
 
 WRITE_SYSTEM = (

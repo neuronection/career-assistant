@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { Eye, FileText, Sparkles } from "lucide-react";
-import { Button, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle, PanelModal } from "@/components/ui";
+import { Button, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 import {
@@ -33,7 +33,6 @@ import { fetchTemplates } from "@/api/cvTemplates";
 import { fetchPostings } from "@/api/postings";
 import { fetchPhotoGallery, uploadGalleryPhoto, type GalleryPhoto } from "@/api/mePhoto";
 import { BuilderToolbar, EXPORT_FORMATS, type ExportFormat } from "@/components/cv/BuilderToolbar";
-import { PolishTraceCard } from "@/components/cv/PolishTrace";
 import { BuildProgressCard } from "@/components/cv/BuildProgress";
 import { RunsPanelModal } from "@/components/cv/RunsPanel";
 import { openCvChat } from "@/components/chat/cvChatLink";
@@ -105,13 +104,12 @@ export function CvBuilder() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
-  const [polishOpen, setPolishOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tone, setTone] = useState("");
   const [length, setLength] = useState("");
   const [versionPreview, setVersionPreview] = useState<{ version: number; html: string } | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("design");
-  const [activePane, setActivePane] = useState<"context" | "canvas" | "inspector">("canvas");
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("context");
+  const [activePane, setActivePane] = useState<"canvas" | "inspector">("canvas");
   const [previewLoading, setPreviewLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [history, setHistory] = useState<{
@@ -1008,7 +1006,7 @@ export function CvBuilder() {
         onExport={(format) => void handleExport(format)}
         onOpenVersions={() => setVersionsOpen(true)}
         onOpenRuns={() => setRunsOpen(true)}
-        onOpenPolish={polishVersion ? () => setPolishOpen(true) : null}        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenPolish={polishVersion ? () => setRunsOpen(true) : null}        onOpenPalette={() => setPaletteOpen(true)}
         onOpenAssistant={() => void openCvChat(id, "docked")}
         onUndo={undo}
         onRedo={redo}
@@ -1045,7 +1043,6 @@ export function CvBuilder() {
       <div className="mb-2 flex shrink-0 gap-1 lg:hidden" role="group" aria-label={t("experience.panesAria")} data-testid="pane-switcher">
         {(
           [
-            ["context", t("cvBuilder.pane.context")],
             ["canvas", t("cvBuilder.pane.preview")],
             ["inspector", t("cvBuilder.pane.inspector")],
           ] as const
@@ -1069,59 +1066,7 @@ export function CvBuilder() {
         )}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(230px,280px)_minmax(0,1fr)_minmax(290px,340px)] lg:gap-4">
-        <div
-          className={`${
-            activePane === "context" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-2.5 lg:flex`}
-          data-testid="builder-side"
-        >
-          {isLetter ? (
-            <LetterBriefPanel brief={brief} loading={briefLoading} />
-          ) : (
-            <ContextPanel
-              sources={sources ?? []}
-              selected={selected}
-              onToggle={toggleItem}
-              onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
-              onBullet={(sourceKey, itemId) => void runAction("bullet", { source_key: sourceKey, item_id: itemId })}
-              synthMode={(cv?.context?.synth_mode as "off" | "prefer") ?? "off"}
-              onSynthModeChange={(mode) => void commitSynthMode(mode)}
-              synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
-              onPinVariant={(sourceKey, itemId, synthId) =>
-                void commitSynthPin(
-                  sourceKey,
-                  itemId,
-                  synthId,
-                  (cv?.context?.synth_mode as "off" | "prefer") ?? "off",
-                )
-              }
-              variants={synthItems}
-              onAddVariant={(sourceKey) =>
-                setVariantEditor({ open: true, initial: null, sourceKey })
-              }
-              onEditVariant={(variant) =>
-                setVariantEditor({ open: true, initial: variant, sourceKey: "" })
-              }
-              busy={busy !== ""}
-            />
-          )}
-        </div>
-
-        <div
-          className={`${
-            activePane === "canvas" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col lg:flex`}
-          data-testid="builder-canvas"
-        >
-          <PreviewCanvas
-            html={html}
-            loading={previewLoading}
-            pageSize={cv?.page_size}
-            pages={Number(metrics.estimated_pages) || 1}
-          />
-        </div>
-
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(230px,280px)_minmax(0,1fr)] lg:gap-4">
         <div
           className={`${
             activePane === "inspector" ? "flex" : "hidden"
@@ -1132,6 +1077,38 @@ export function CvBuilder() {
             tab={inspectorTab}
             onTabChange={setInspectorTab}
             mode={isLetter ? "cover_letter" : "resume"}
+            context={
+              isLetter ? (
+                <LetterBriefPanel brief={brief} loading={briefLoading} />
+              ) : (
+                <ContextPanel
+                  sources={sources ?? []}
+                  selected={selected}
+                  onToggle={toggleItem}
+                  onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
+                  onBullet={(sourceKey, itemId) => void runAction("bullet", { source_key: sourceKey, item_id: itemId })}
+                  synthMode={(cv?.context?.synth_mode as "off" | "prefer") ?? "off"}
+                  onSynthModeChange={(mode) => void commitSynthMode(mode)}
+                  synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
+                  onPinVariant={(sourceKey, itemId, synthId) =>
+                    void commitSynthPin(
+                      sourceKey,
+                      itemId,
+                      synthId,
+                      (cv?.context?.synth_mode as "off" | "prefer") ?? "off",
+                    )
+                  }
+                  variants={synthItems}
+                  onAddVariant={(sourceKey) =>
+                    setVariantEditor({ open: true, initial: null, sourceKey })
+                  }
+                  onEditVariant={(variant) =>
+                    setVariantEditor({ open: true, initial: variant, sourceKey: "" })
+                  }
+                  busy={busy !== ""}
+                />
+              )
+            }
             letterProps={currentLetter?.props ?? null}
             onUpdateLetterProps={(patch) => {
               if (currentLetter) updateBlockProps(currentLetter.index, patch);
@@ -1205,6 +1182,20 @@ export function CvBuilder() {
             onApplyCritiqueFixes={(fixes) => void applyCritiqueFixes(fixes)}
           />
         </div>
+
+        <div
+          className={`${
+            activePane === "canvas" ? "flex" : "hidden"
+          } cv-pane-enter min-h-0 flex-col lg:flex`}
+          data-testid="builder-canvas"
+        >
+          <PreviewCanvas
+            html={html}
+            loading={previewLoading}
+            pageSize={cv?.page_size}
+            pages={Number(metrics.estimated_pages) || 1}
+          />
+        </div>
       </div>
 
       {notice && (
@@ -1225,21 +1216,12 @@ export function CvBuilder() {
         </div>
       )}
 
-      <RunsPanelModal open={runsOpen} onOpenChange={setRunsOpen} cv={cv} />
-      <PanelModal
-        open={polishOpen}
-        onOpenChange={setPolishOpen}
-        title={t("cvBuilder.polishReview.title")}
-        data-testid="polish-review-panel"
-      >
-        <div className="max-h-[70vh] overflow-y-auto px-4 pb-4 pt-2" data-testid="polish-review-body">
-          {polishVersion ? (
-            <PolishTraceCard version={polishVersion} />
-          ) : (
-            <p className="text-xs text-[var(--as-muted-fg)]">{t("cvBuilder.polishReview.empty")}</p>
-          )}
-        </div>
-      </PanelModal>
+      <RunsPanelModal
+        open={runsOpen}
+        onOpenChange={setRunsOpen}
+        cv={cv}
+        polishVersion={polishVersion}
+      />
       <Modal open={versionsOpen} onOpenChange={(open) => !open && setVersionsOpen(false)}>
         <ModalContent size="md" aria-describedby={undefined}>
           <ModalHeader>

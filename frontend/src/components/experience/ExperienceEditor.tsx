@@ -85,7 +85,7 @@ export function formFromItem(item: ExperienceItemOut): ExperienceEditorForm {
     title: item.title,
     kind: item.kind,
     org_name: item.org_name,
-    start: item.start,
+    start: item.start ?? "",
     end: item.end ?? "",
     open_ended: item.open_ended,
     hours_per_week: item.hours_per_week,

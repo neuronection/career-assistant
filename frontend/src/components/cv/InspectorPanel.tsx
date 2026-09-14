@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   Eye,
   Languages,
   Scissors,
@@ -12,6 +13,10 @@ import {
 } from "lucide-react";
 import {
   AiActionsDropdown,
+  Menu,
+  MenuCheckboxItem,
+  MenuContent,
+  MenuTrigger,
   PopoverAnchor,
   type AiAction,
 } from "@neuronection/assistant-ui";
@@ -42,9 +47,10 @@ import type { CvAssistantCritique } from "@/types/cvAssistant";
 import { CritiqueCard } from "@/components/cv/CritiqueCard";
 import { apiDetail } from "@/api/client";
 
-export type InspectorTab = "design" | "template" | "sections" | "ai" | "lint";
+export type InspectorTab = "context" | "design" | "template" | "sections" | "ai" | "lint";
 
 const TABS: { id: InspectorTab; label: string }[] = [
+  { id: "context", label: "Context" },
   { id: "design", label: "Design" },
   { id: "template", label: "Template" },
   { id: "sections", label: "Sections" },
@@ -55,6 +61,8 @@ const TABS: { id: InspectorTab; label: string }[] = [
 interface InspectorPanelProps {
   tab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
+  /** The context slot: ContextPanel (resume) / LetterBriefPanel (letter). */
+  context?: React.ReactNode;
   mode?: "resume" | "cover_letter";
   letterProps: LetterProps | null;
   onUpdateLetterProps: (patch: Record<string, unknown>) => void;
@@ -125,32 +133,39 @@ interface InspectorPanelProps {
 
 export function InspectorPanel(props: InspectorPanelProps) {
   const { tab, onTabChange } = props;
+  const current = TABS.find((entry) => entry.id === tab) ?? TABS[0];
 
   return (
     <div className="flex min-h-0 flex-col" data-testid="inspector-panel">
-      <div
-        role="tablist"
-        aria-label="Inspector panels"
-        className="mb-2 flex shrink-0 gap-1 rounded-lg bg-[var(--as-muted)] p-1"
-      >
-        {TABS.map((entry) => (
-          <button
-            key={entry.id}
-            role="tab"
-            type="button"
-            aria-selected={tab === entry.id}
-            onClick={() => onTabChange(entry.id)}
-            data-testid={`inspector-tab-${entry.id}`}
-            className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors duration-150 ${
-              tab === entry.id
-                ? "bg-[var(--as-surface)] text-[var(--as-fg)] shadow-sm"
-                : "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
-            }`}
+      <Menu>
+        <MenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Inspector panels"
+            data-testid="inspector-tab-menu"
+            className="mb-2 w-full justify-between"
           >
-            {entry.label}
-          </button>
-        ))}
-      </div>
+            <span className="flex items-center gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--as-accent)]" aria-hidden />
+              {current.label}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 text-[var(--as-muted-fg)]" aria-hidden />
+          </Button>
+        </MenuTrigger>
+        <MenuContent align="start">
+          {TABS.map((entry) => (
+            <MenuCheckboxItem
+              key={entry.id}
+              checked={tab === entry.id}
+              onCheckedChange={() => onTabChange(entry.id)}
+              data-testid={`inspector-tab-${entry.id}`}
+            >
+              {entry.label}
+            </MenuCheckboxItem>
+          ))}
+        </MenuContent>
+      </Menu>
 
       <div
         key={tab}
@@ -159,6 +174,7 @@ export function InspectorPanel(props: InspectorPanelProps) {
         }`}
         data-testid={`inspector-body-${tab}`}
       >
+        {tab === "context" && (props.context ?? null)}
         {tab === "design" && <DesignTab {...props} />}
         {tab === "template" && <TemplateTab {...props} />}
         {tab === "sections" &&

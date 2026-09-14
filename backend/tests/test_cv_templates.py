@@ -13,6 +13,7 @@ from app.services.cv_blocks import REGISTRY, validate_blocks
 from app.services.cv_renderer import render_cv
 from app.services.cv_template_service import CvTemplateService
 from app.services.engagement_service import canonical_hash
+from tests.conftest import _uid
 
 
 VALID_CONTENT = {
@@ -486,3 +487,117 @@ async def test_sidebar_bank_template_uses_area_paddings(db):
         if block.get("kind") == "items"
     ]
     assert "experience" in source_keys and "projects" in source_keys
+
+
+async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_headers):
+    """The designer is area-capable: a sidebar brief yields sidebar-
+    assigned compact blocks with layout=sidebar, and a draft that
+    declares a layout its blocks contradict gets normalized."""
+    from app.ai.gateway import MOCK_FIXTURES
+    from app.ai.agents.cv_template_designer import draft_template
+    from app.models.enums import AITaskType
+    from app.schemas.cv_template import TemplateContent
+
+    response = await client.post(
+        "/api/v1/cv/templates/draft-ai",
+        json={"brief": "two-column sidebar layout for a dev intern", "page_budget": 1},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201, response.text
+    content = response.json()["content"]
+    assert content["design"]["layout"] == "sidebar"
+    sidebar_kinds = {
+        block["kind"] for block in content["blocks"] if block.get("area") == "sidebar"
+    }
+    assert sidebar_kinds, "the sidebar brief assigns blocks to the sidebar"
+    assert sidebar_kinds <= {"skills", "languages", "interests", "certifications"}
+
+    def _contradictory(schema, prompt):
+        return {
+            "blocks": [
+                {"kind": "header", "props": {}},
+                {"kind": "summary", "props": {"title": "Summary"}},
+            ],
+            "design": {"layout": "sidebar"},
+            "pages": {"default_max_pages": 1, "overflow_policy": "warn"},
+            "prompts": {"field_prompts": {}},
+        }
+
+    monkey_style = MOCK_FIXTURES
+    previous = monkey_style.get(AITaskType.CV_TEMPLATE_DESIGN.value)
+    monkey_style[AITaskType.CV_TEMPLATE_DESIGN.value] = _contradictory
+    try:
+        draft = await draft_template(
+            db, UUID(_uid(auth_headers)), brief="any", page_budget=1
+        )
+    finally:
+        if previous is not None:
+            monkey_style[AITaskType.CV_TEMPLATE_DESIGN.value] = previous
+    assert draft.design.layout == "single", "no sidebar blocks → single layout"
+    TemplateContent.model_validate(draft.model_dump(mode="json"))
+
+
+async def test_suggest_passes_candidate_thumbnails_when_engine_available(
+    client, db, auth_headers, monkeypatch
+):
+    """Visual pick: with the PDF engine present the top candidates'
+    sample renders ride to the ranking as page images; the metadata-only
+    path stays the fallback (engine off → no images)."""
+    import app.ai.agents.cv_template_advisor as advisor
+    import app.services.cv_pdf_service as pdf_service
+    from tests.conftest import _uid
+
+    await seed_cv_template_bank(db)
+    real_rank = advisor.rank_templates
+    seen: dict[str, object] = {}
+
+    async def _spy_rank(db, user_id, candidates, target=None, images=None):
+        seen["images"] = images
+        return await real_rank(db, user_id, candidates, target)
+
+    async def _png(html: str, page_size: str = "a4", max_pages: int = 4):
+        return [("image/png", b"\x89PNG-fake")]
+
+    monkeypatch.setattr(pdf_service, "pdf_engine_available", lambda: True)
+    monkeypatch.setattr(pdf_service, "html_to_pngs", _png)
+    monkeypatch.setattr(advisor, "rank_templates", _spy_rank)
+    result = await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)), language="en"
+    )
+    assert result["picks"]
+    images = seen["images"]
+    assert images and all(mime == "image/png" for mime, _data in images)
+
+    monkeypatch.setattr(pdf_service, "pdf_engine_available", lambda: False)
+    seen.clear()
+    result = await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)), language="en"
+    )
+    assert result["picks"]
+    assert seen.get("images") in (None, []), "engine off degrades to metadata-only"
+
+
+async def test_suggest_carries_the_emphasis_notes_into_the_ranking(
+    client, db, auth_headers, monkeypatch
+):
+    """The generate modal's "what should this CV emphasize" notes reach
+    the ranking call's target context — the AI ranks on the request,
+    not metadata alone."""
+    import app.ai.agents.cv_template_advisor as advisor
+
+    await seed_cv_template_bank(db)
+    seen: dict[str, object] = {}
+    real_rank = advisor.rank_templates
+
+    async def _spy(db, user_id, candidates, target=None, images=None):
+        seen["target"] = target
+        return await real_rank(db, user_id, candidates, target)
+
+    monkeypatch.setattr(advisor, "rank_templates", _spy)
+    await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)),
+        language="en",
+        notes="Emphasize open-source projects and MCP tooling",
+    )
+    target = seen["target"] or {}
+    assert target.get("notes") == "Emphasize open-source projects and MCP tooling"

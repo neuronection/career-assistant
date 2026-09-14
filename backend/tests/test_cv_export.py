@@ -288,3 +288,46 @@ async def test_pdf_export_503_when_engine_unavailable(
     assert response.status_code == 503, response.text
     assert "print" in response.json()["detail"].lower()
     assert "attachment" not in response.headers.get("content-disposition", "")
+
+
+def test_lint_section_order_is_area_aware():
+    """A sidebar layout renders the sidebar column first (side=left) —
+    the section-order check compares against that reading order, not
+    the stored block order (the AI redesigns assign sidebar areas)."""
+    from types import SimpleNamespace
+
+    from app.services.cv_export_service import lint
+
+    blocks = [
+        {"kind": "header", "props": {}},
+        {"kind": "summary", "props": {"title": "Summary"}},  # main, stored first
+        {"kind": "skills", "props": {"title": "Skills"}, "area": "sidebar"},
+    ]
+    snapshot = {
+        "basics": {"name": "Test", "email": "t@example.com"},
+        "summary": "x",
+        "skills": [{"label": "Python", "level": 5}],
+    }
+    template = SimpleNamespace(
+        content={
+            "blocks": blocks,
+            "design": {"layout": "sidebar", "sidebar_side": "left"},
+            "pages": {"default_max_pages": 1, "overflow_policy": "warn"},
+        }
+    )
+    html = "<h2>Skills</h2><h2>Summary</h2>"  # sidebar column renders first
+    report = lint({"snapshot": snapshot, "blocks": blocks}, html, {}, template)
+    order = next(check for check in report["checks"] if check["id"] == "section_order")
+    assert order["level"] == "pass", report["checks"]
+
+    right = SimpleNamespace(
+        content={
+            "blocks": blocks,
+            "design": {"layout": "sidebar", "sidebar_side": "right"},
+            "pages": {"default_max_pages": 1, "overflow_policy": "warn"},
+        }
+    )
+    html_right = "<h2>Summary</h2><h2>Skills</h2>"
+    report = lint({"snapshot": snapshot, "blocks": blocks}, html_right, {}, right)
+    order = next(check for check in report["checks"] if check["id"] == "section_order")
+    assert order["level"] == "pass", report["checks"]

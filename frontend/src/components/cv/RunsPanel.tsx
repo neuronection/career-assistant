@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { History } from "lucide-react";
 
-import type { CvDocumentOut, CvPolishTrace, CvRunOut } from "@/types/cv";
+import type { CvDocumentOut, CvPolishTrace, CvRunOut, CvVersionOut } from "@/types/cv";
 import { fetchCvRuns } from "@/api/cv";
+import { PolishTraceCard } from "@/components/cv/PolishTrace";
 import {
   FlowTelemetryStrip,
   FlowTraceCard,
@@ -61,10 +62,13 @@ export function RunsPanelModal({
   open,
   onOpenChange,
   cv,
+  polishVersion,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cv: CvDocumentOut;
+  /** The version carrying the polish trace — its Notes card renders at the top. */
+  polishVersion?: CvVersionOut | null;
 }) {
   const { t } = useTranslation();
   const [runs, setRuns] = useState<CvRunOut[] | null>(null);
@@ -98,6 +102,7 @@ export function RunsPanelModal({
         className="max-h-[70vh] space-y-3 overflow-y-auto px-4 pb-4 pt-2"
         data-testid="cv-runs-list"
       >
+        {polishVersion && <PolishTraceCard version={polishVersion} />}
         {error ? (
           <p role="alert" className="text-xs text-red-700">
             {error}
@@ -122,6 +127,7 @@ function RunRow({ run }: { run: CvRunOut }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const trace = runTrace(run, t);
+  const warnings = run.warnings ?? [];
   return (
     <div
       className="rounded-[var(--as-radius)] border border-[var(--as-border)] p-3"
@@ -158,6 +164,14 @@ function RunRow({ run }: { run: CvRunOut }) {
               : ""}
           </span>
         </button>
+        {warnings.length > 0 && (
+          <span
+            className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800"
+            data-testid="cv-runs-warning-count"
+          >
+            {t("cvBuilder.runs.warningCount", { count: warnings.length })}
+          </span>
+        )}
         {run.outcome ? (
           <span
             className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
@@ -179,6 +193,23 @@ function RunRow({ run }: { run: CvRunOut }) {
               {run.error}
             </p>
           ) : null}
+          {warnings.length > 0 && (
+            <div data-testid="cv-runs-warnings">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                {t("cvBuilder.runs.warnings")}
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {warnings.map((warning) => (
+                  <li
+                    key={warning}
+                    className="whitespace-pre-wrap break-words text-[10px] text-amber-700"
+                  >
+                    {warning}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <FlowTraceCard
             trace={trace}
             labels={{

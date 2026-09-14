@@ -4,6 +4,80 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **AI template redesign is now area-aware and escalates**: the template
+  designer understands layout areas (it assigns compact sections to the
+  sidebar and narrative ones to main, with layout↔area consistency
+  normalization), the polish loop's structural escape hatch first tries
+  a modified copy of the current template before drafting from scratch
+  (modified → fresh ladder, one extra review iteration while a judgement
+  is pending), and template picking renders candidate page thumbnails so
+  the AI ranks the actual look when the PDF engine is present.
+
+### Fixed
+- **AI template pick now honors the emphasis notes**: the generate
+  modal's "what should this CV emphasize" text reaches the template
+  ranking prompt (previously it was dropped — the pick ranked on
+  metadata alone and the sidebar+ATS baseline always crowned the same
+  template); the ranking is also instructed to weigh the emphasis and
+  target role when reordering.
+
+### Fixed
+- **Section-order lint is area-aware**: sidebar layouts render the
+  sidebar column before/after the main flow — the lint now compares
+  against that reading order instead of failing every sidebar template
+  whose sidebar blocks aren't stored at the edges.
+
+### Changed
+- **AI runs and Notes consolidated into one toolbar entry**: the separate
+  "Notes" button is gone — when the CV carries an AI polish trace, its
+  full review log (request, per-iteration issues/ops/coverage) renders at
+  the top of the AI runs panel; the toolbar button badges "· Notes" so
+  the trace is discoverable without a second control.
+
+### Changed
+- **Profile experience summary is kind-split with a workspace button**:
+  the Experience section on the profile page now groups its entries under
+  labelled sub-sections (Jobs, Internships, Freelance, Projects,
+  Volunteering — each with a count) instead of one flat latest-three list,
+  and the workspace entry is a proper outline button in the card header.
+
+### Changed
+- **Builder tool panel unified on the left with a picker menu**: the
+  context panel (and the cover-letter brief) moved into the inspector as
+  its first tab, and the six inspector areas (Context, Design, Template,
+  Sections, AI, Lint) now live in a dropdown picker instead of a cramped
+  tab row — the canvas gets the full center, and the docked chatbot has
+  a clear home as an optional right column (open it from the toolbar's
+  assistant button; the mobile pane switcher is now preview/panel only).
+
+### Changed
+- **AI-generated CVs pick relevant skills only and drop skill levels**:
+  the section planner is now instructed to select only the skills
+  relevant to the target role (8-16) instead of listing every profile
+  skill, generated skills blocks default to level-free display, and the
+  run's skills intent (subset, levels off, cap) now overrides the
+  template's skills props instead of being silently inherited.
+
+### Added
+- **AI runs panel surfaces run warnings**: generation/polish runs show a
+  warning badge and, expanded, the full warnings list (plan fallbacks,
+  skipped variant groundings, sections that kept profile text, rejected
+  polish ops context) — previously this data was persisted but invisible.
+
+### Fixed
+- **Experience workspace no longer crashes on startless projects**: a
+  project saved without a start date crashed the whole `/profile/experience`
+  page on render (the period line assumed `start` is always set — the
+  backend deliberately allows null starts for projects). The list now
+  renders an empty period segment instead.
+
+### Fixed
+- **Backend logging now configured at boot**: app warnings (plan
+  fallbacks, rejected ops, degraded subsystems) reach stderr in every
+  launch mode — uvicorn only configured its own loggers and the desktop
+  shell none, so AI-flow failures could vanish silently.
+
 ### Fixed
 - **CV Builder chat no longer produces untitled sections**: sections added
   by the assistant now get the block registry's defaults (e.g. "Skills")

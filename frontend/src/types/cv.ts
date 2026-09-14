@@ -495,6 +495,9 @@ export interface CvRunOut {
     };
   }[];
   llm_calls: CvRunCall[];
+  warnings: string[];
+  fallback_sections: string[];
+  plan_fallback: boolean;
   aggregate: {
     calls: number;
     tokens_in: number;

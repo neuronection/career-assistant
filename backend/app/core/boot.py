@@ -25,6 +25,23 @@ class BootConfigError(Exception):
     """Fatal configuration problem — the app must not boot."""
 
 
+_configured = False
+
+
+def configure_logging() -> None:
+    """Root logging config so app warnings reach stderr in every launch
+    mode (uvicorn configures only its own loggers; the desktop shell
+    none at all). Idempotent — the first call wins."""
+    global _configured
+    if _configured:
+        return
+    logging.basicConfig(
+        level=logging.DEBUG if settings.DEBUG else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    _configured = True
+
+
 def validate_boot_config() -> list[str]:
     """Validate config; raise ``BootConfigError`` on fatal problems.
 

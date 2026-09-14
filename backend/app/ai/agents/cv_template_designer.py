@@ -20,51 +20,95 @@ from app.schemas.cv_template import CvVisualCritique, TemplateContent
 
 
 def _mock_template_content(schema: type, user_prompt: str) -> dict:
-    """Deterministic template draft: registry-valid, brief-aware accents."""
+    """Deterministic template draft: registry-valid, brief-aware accents.
+
+    Modify mode (the polish loop's copy-rung): a `base_blocks` context
+    echoes the base package back with the critique's structural ask
+    applied — a sidebar mention moves the trailing compact blocks into
+    the sidebar area."""
     ctx = parse_context(user_prompt)
     brief = str(ctx.get("brief", ""))
     density = str(ctx.get("density") or "normal")
+    base_blocks = ctx.get("base_blocks")
+    if base_blocks:
+        blocks = [dict(block) for block in base_blocks]
+        critique = str(ctx.get("critique") or "").lower()
+        if "sidebar" in critique or "column" in critique:
+            compact = {"skills", "languages", "interests", "certifications"}
+            moved = 0
+            for block in blocks:
+                if moved >= 2:
+                    break
+                if str(block.get("kind")) in compact:
+                    block["area"] = "sidebar"
+                    moved += 1
+            if moved:
+                return {
+                    "blocks": blocks,
+                    "design": {"layout": "sidebar", "density": density},
+                    "pages": {
+                        "default_max_pages": int(ctx.get("page_budget") or 1),
+                        "overflow_policy": "warn",
+                    },
+                    "prompts": {"field_prompts": {}},
+                }
+        return {
+            "blocks": blocks,
+            "design": {"density": density},
+            "pages": {
+                "default_max_pages": int(ctx.get("page_budget") or 1),
+                "overflow_policy": "warn",
+            },
+            "prompts": {"field_prompts": {}},
+        }
     accent = "#0f766e" if "green" in brief.lower() else "#1d4ed8"
     font = "serif" if "serif" in brief.lower() else "sans"
+    sidebar = "sidebar" in brief.lower()
+    blocks = [
+        {"kind": "header", "props": {"show_links": True, "show_location": True}},
+        {"kind": "summary", "props": {"title": "Summary", "max_chars": 600}},
+        {
+            "kind": "items",
+            "props": {
+                "title": "Work Experience",
+                "source_key": "experience",
+                "max_items": 8,
+                "show_skills": True,
+                "show_achievements": True,
+            },
+        },
+        {
+            "kind": "items",
+            "props": {
+                "title": "Education",
+                "source_key": "education",
+                "max_items": 5,
+                "show_skills": False,
+                "show_achievements": False,
+            },
+        },
+        {
+            "kind": "skills",
+            "props": {
+                "title": "Skills",
+                "display": "chips",
+                "show_levels": False,
+                "max_items": 18,
+            },
+        },
+        {
+            "kind": "languages",
+            "props": {"title": "Languages"},
+        },
+    ]
+    design: dict = {"accent_color": accent, "font_stack": font, "density": density}
+    if sidebar:
+        blocks[-1]["area"] = "sidebar"
+        blocks[-2]["area"] = "sidebar"
+        design["layout"] = "sidebar"
     return {
-        "blocks": [
-            {"kind": "header", "props": {"show_links": True, "show_location": True}},
-            {"kind": "summary", "props": {"title": "Summary", "max_chars": 600}},
-            {
-                "kind": "items",
-                "props": {
-                    "title": "Work Experience",
-                    "source_key": "experience",
-                    "max_items": 8,
-                    "show_skills": True,
-                    "show_achievements": True,
-                },
-            },
-            {
-                "kind": "items",
-                "props": {
-                    "title": "Education",
-                    "source_key": "education",
-                    "max_items": 5,
-                    "show_skills": False,
-                    "show_achievements": False,
-                },
-            },
-            {
-                "kind": "skills",
-                "props": {
-                    "title": "Skills",
-                    "display": "chips",
-                    "show_levels": False,
-                    "max_items": 18,
-                },
-            },
-            {
-                "kind": "languages",
-                "props": {"title": "Languages"},
-            },
-        ],
-        "design": {"accent_color": accent, "font_stack": font, "density": density},
+        "blocks": blocks,
+        "design": design,
         "pages": {
             "default_max_pages": int(ctx.get("page_budget") or 1),
             "overflow_policy": "warn",
@@ -105,6 +149,39 @@ register_mock_fixture(AITaskType.CV_TEMPLATE_DESIGN, _mock_template_content)
 register_mock_fixture(AITaskType.CV_TEMPLATE_REVIEW, _mock_visual_critique)
 
 
+AREA_RULES = (
+    'Templates have layout areas: `design.layout` is "single" or '
+    '"sidebar"; a sidebar layout splits blocks between two columns '
+    'through each block\'s `area` field ("main" or "sidebar"). Assign '
+    "compact scan-friendly sections (skills, languages, interests, "
+    "certifications) to the sidebar and narrative sections (summary, "
+    "experience, projects, education) to main. Declare "
+    '`design.layout`="sidebar" only when at least one block carries '
+    '`area`="sidebar" — and every sidebar-assigned block implies a '
+    "sidebar layout. For sidebar layouts prefer margin_mm=0 with "
+    "per-area padding (main_padding_mm, sidebar_padding_mm) so the "
+    "colored column runs to the page edge."
+)
+
+
+def _normalize_areas(content: TemplateContent) -> TemplateContent:
+    """Make `design.layout` and the blocks' areas agree.
+
+    The renderer degrades gracefully either way, but a draft declaring
+    `layout: sidebar` with no sidebar block (or the inverse) silently
+    loses the designer's intent — align the token with the blocks."""
+    has_sidebar = any(
+        str(block.get("area") or block.get("column") or "") == "sidebar"
+        for block in content.blocks
+    )
+    layout = "sidebar" if has_sidebar else "single"
+    if content.design.layout != layout:
+        return content.model_copy(
+            update={"design": content.design.model_copy(update={"layout": layout})}
+        )
+    return content
+
+
 async def draft_template(
     db: AsyncSession,
     user_id,
@@ -113,35 +190,59 @@ async def draft_template(
     target_role: str = "",
     density: str = "normal",
     page_budget: int = 1,
+    base_content: Optional[TemplateContent] = None,
+    critique_message: str = "",
     run: Optional[RunRef] = None,
 ) -> TemplateContent:
-    """Brief → validated template draft (author reviews before publish)."""
-    prompt = context_json(
-        {
-            "brief": brief,
-            "target_role": target_role,
-            "density": density,
-            "page_budget": page_budget,
-        }
-    )
-    return await ainvoke_structured(
-        db,
-        AITaskType.CV_TEMPLATE_DESIGN,
-        TemplateContent,
-        system=(
+    """Brief → validated template draft (author reviews before publish).
+
+    With `base_content` this is the polish loop's modify-copy rung: the
+    model returns the same package with the minimal structural changes
+    the critique asks for, keeping the template's identity."""
+    if base_content is not None:
+        prompt = context_json(
+            {
+                "brief": brief,
+                "critique": critique_message,
+                "density": density,
+                "page_budget": page_budget,
+                "base_blocks": base_content.blocks,
+                "base_design": base_content.design.model_dump(mode="json"),
+                "base_pages": base_content.pages.model_dump(mode="json"),
+            }
+        )
+        system = (
+            "You modify an existing CV template package. Keep its "
+            "identity — typography, accent, density — and change only "
+            "what the critique requires. Return the FULL modified "
+            "package. " + AREA_RULES
+        )
+    else:
+        prompt = context_json(
+            {
+                "brief": brief,
+                "target_role": target_role,
+                "density": density,
+                "page_budget": page_budget,
+            }
+        )
+        system = (
             "You design CV templates as structured packages of blocks. "
             "Use only the registered block kinds provided in the brief; "
             "respect the page budget; keep typography readable. Leave "
             "design.margin_mm unset unless the brief explicitly asks for "
-            "full-bleed or unusual margins; it is bounded 0-25mm. For "
-            "sidebar layouts prefer margin_mm=0 with per-area padding "
-            "(main_padding_mm, sidebar_padding_mm) so the colored column "
-            "runs to the page edge."
-        ),
+            "full-bleed or unusual margins; it is bounded 0-25mm. " + AREA_RULES
+        )
+    content = await ainvoke_structured(
+        db,
+        AITaskType.CV_TEMPLATE_DESIGN,
+        TemplateContent,
+        system=system,
         user=prompt,
         user_id=user_id,
         run=run,
     )
+    return _normalize_areas(content)
 
 
 async def critique_pages(

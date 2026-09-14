@@ -65,8 +65,13 @@ async def rank_templates(
     user_id,
     candidates: list[TemplateCandidate],
     target: Optional[dict] = None,
+    images: Optional[list[tuple[str, bytes]]] = None,
 ) -> TemplateRanking:
-    """Rank template refs best-first; output filtered to the allowlist."""
+    """Rank template refs best-first; output filtered to the allowlist.
+
+    With `images` (candidate ref → first-page PNG, capability-detected
+    upstream) the ranking judges the rendered look; without, metadata
+    only."""
     refs = [candidate.ref for candidate in candidates]
     result = await ainvoke_structured(
         db,
@@ -77,7 +82,18 @@ async def rank_templates(
             "candidate arrives with deterministic signal scores; the "
             "signals are the baseline — reorder them only for qualities "
             "the scores cannot see, and give one short reason per pick. "
-            "Return only template_ref values from the provided list, "
+            "The request may carry the user's emphasis notes (what this "
+            "CV should highlight) and a target role: weigh both — e.g. "
+            "an emphasis on projects or skills favors layouts that "
+            "surface them early. "
+            + (
+                "Page images ride along in candidate-ref order: judge the "
+                "actual look — density, hierarchy, use of the sidebar, "
+                "readability — not the metadata. "
+                if images
+                else ""
+            )
+            + "Return only template_ref values from the provided list, "
             "each at most once."
         ),
         user=context_json(
@@ -87,6 +103,7 @@ async def rank_templates(
             }
         ),
         user_id=user_id,
+        images=images,
     )
     known = set(refs)
     seen: set[str] = set()

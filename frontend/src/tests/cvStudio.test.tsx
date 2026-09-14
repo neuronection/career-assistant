@@ -8,6 +8,12 @@ import { CvBuilder } from "@/pages/CvBuilder";
 import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
 import { useChatStore } from "@/stores/chatStore";
 
+async function openInspectorTab(testid: string) {
+  const user = userEvent.setup();
+  await user.click(await screen.findByTestId("inspector-tab-menu"));
+  await user.click(screen.getByTestId(`inspector-tab-${testid}`));
+}
+
 const fetchCvs = vi.fn();
 const createCv = vi.fn();
 const duplicateCv = vi.fn();
@@ -853,7 +859,7 @@ describe("CvBuilder", () => {
         })
     );
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     const moveButtons = screen.getAllByLabelText("Move up");
     fireEvent.click(moveButtons[moveButtons.length - 1]);
     await waitFor(() =>
@@ -868,7 +874,7 @@ describe("CvBuilder", () => {
   it("undoes and redoes section changes through the 20-step local stack", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-languages"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -885,7 +891,7 @@ describe("CvBuilder", () => {
   it("offers an Undo notice after removing a section", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     const removeButtons = screen.getAllByLabelText("Remove section");
     fireEvent.click(removeButtons[removeButtons.length - 1]);
     const host = await screen.findByTestId("undo-notice-host");
@@ -921,7 +927,7 @@ describe("CvBuilder", () => {
   it("edits custom-text blocks with the markdown-lite toolbar", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-custom_text"));
     fireEvent.click(await screen.findByTestId("edit-custom-text"));
@@ -964,7 +970,7 @@ describe("CvBuilder", () => {
   it("autosaves custom-text edits into working_content", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-custom_text"));
     fireEvent.click(await screen.findByTestId("edit-custom-text"));
@@ -992,7 +998,7 @@ describe("CvBuilder", () => {
   it("adds sections from the card picker with previews", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     const menu = await screen.findByTestId("add-section-menu");
     expect(within(menu).getByTestId("block-preview-skills")).toBeInTheDocument();
@@ -1006,7 +1012,7 @@ describe("CvBuilder", () => {
   it("duplicates a section with its configuration", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     const duplicates = screen.getAllByLabelText("Duplicate section");
     fireEvent.click(duplicates[1]);
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1018,7 +1024,7 @@ describe("CvBuilder", () => {
   it("configures a section inline via stepper and toggle", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-skills"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1034,7 +1040,7 @@ describe("CvBuilder", () => {
   it("dims the dragged card and restores it on drag end", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     const cards = await screen.findAllByTestId(/section-card-\d+/);
     fireEvent.dragStart(cards[1]);
     expect(cards[1]).toHaveClass("opacity-40");
@@ -1047,7 +1053,7 @@ describe("CvBuilder", () => {
     fetchCv.mockResolvedValue({ ...cv, template_id: "tpl-1" });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     expect(await screen.findByTestId("area-group-sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("area-group-main")).toBeInTheDocument();
     expect(screen.getByTestId("area-count-sidebar")).toHaveTextContent("0");
@@ -1089,7 +1095,7 @@ describe("CvBuilder", () => {
     fetchCv.mockResolvedValue({ ...cv, template_id: "tpl-1" });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(await screen.findByTestId("add-section-button"));
     const menu = await screen.findByTestId("add-section-menu");
     expect(await screen.findByText("Add to")).toBeInTheDocument();
@@ -1108,11 +1114,12 @@ describe("CvBuilder", () => {
     });
   });
 
-  it("moves the AI polish notes off the canvas: hidden without polish, opens from the toolbar", async () => {
+  it("shows the polish notes inside the AI runs panel, not as a separate button", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
     expect(screen.queryByTestId("polish-trace-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("open-polish")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("open-runs")[0]).toHaveTextContent("AI runs");
 
     fetchVersions.mockResolvedValue([
       {
@@ -1139,10 +1146,12 @@ describe("CvBuilder", () => {
     ]);
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    const notesButton = await screen.findByTestId("open-polish");
+    const allRunsButtons = await screen.findAllByTestId("open-runs");
+    const runsButton = allRunsButtons[allRunsButtons.length - 1];
+    expect(runsButton).toHaveTextContent("Notes");
     expect(screen.queryByTestId("polish-trace-card")).not.toBeInTheDocument();
-    await userEvent.click(notesButton);
-    expect(await screen.findByTestId("polish-review-panel")).toBeInTheDocument();
+    await userEvent.click(runsButton);
+    expect(await screen.findByTestId("runs-panel")).toBeInTheDocument();
     expect(screen.getByTestId("polish-trace-card")).toHaveTextContent(
       "Lead with the internship."
     );
@@ -1152,7 +1161,7 @@ describe("CvBuilder", () => {
   it("keeps a flat single-layout list with no area controls", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     await screen.findByTestId("sections-list");
     expect(screen.queryByTestId(/area-group-/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("section-area-0")).not.toBeInTheDocument();
@@ -1161,7 +1170,7 @@ describe("CvBuilder", () => {
   it("configures a languages block format with CEFR and proficiency toggles", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-languages"));
     await waitFor(() => expect(patchCv).toHaveBeenCalled());
@@ -1184,7 +1193,7 @@ describe("CvBuilder", () => {
 
   it("opens the template style editor from the Design tab Customize button", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     expect(screen.getByTestId("customize-template")).toBeDisabled();
     fireEvent.change(await screen.findByTestId("template-picker"), {
       target: { value: "tpl-1" },
@@ -1201,7 +1210,7 @@ describe("CvBuilder", () => {
   it("opens the template style editor from the gallery Customize button", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     fireEvent.click(screen.getByTestId("browse-templates"));
     fireEvent.click(await screen.findByTestId("edit-template-tpl-1"));
     expect(await screen.findByTestId("template-title")).toHaveValue(
@@ -1212,9 +1221,21 @@ describe("CvBuilder", () => {
   it("renders the full-bleed workspace shell with toolbar, side rail and canvas", async () => {
     renderBuilder();
     expect(await screen.findByTestId("builder-toolbar")).toBeInTheDocument();
-    expect(screen.getByTestId("builder-side")).toBeInTheDocument();
+    expect(screen.getByTestId("builder-inspector")).toBeInTheDocument();
     expect(screen.getByTestId("builder-canvas")).toBeInTheDocument();
     expect(screen.getByTestId("ats-chip")).toHaveTextContent("ATS 92");
+  });
+
+  it("hosts the context panel as the inspector's first tab", async () => {
+    renderBuilder();
+    expect(await screen.findByTestId("builder-inspector")).toBeInTheDocument();
+    expect(screen.getByTestId("inspector-body-context")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("context-group-toggle-skills"),
+    ).toBeInTheDocument();
+    await openInspectorTab("design");
+    expect(screen.getByTestId("inspector-body-design")).toBeInTheDocument();
+    expect(screen.queryByTestId("inspector-body-context")).toBeNull();
   });
 
   it("exports via the Download dropdown", async () => {
@@ -1247,11 +1268,13 @@ describe("CvBuilder", () => {
 
   it("switches inspector tabs and shows the matching panel body", async () => {
     renderBuilder();
-    expect(await screen.findByTestId("inspector-body-design")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("inspector-tab-ai"));
+    expect(await screen.findByTestId("inspector-body-context")).toBeInTheDocument();
+    await openInspectorTab("design");
+    expect(screen.getByTestId("inspector-body-design")).toBeInTheDocument();
+    await openInspectorTab("ai");
     expect(screen.getByTestId("inspector-body-ai")).toBeInTheDocument();
     expect(screen.getByTestId("ai-presets")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("inspector-tab-lint"));
+    await openInspectorTab("lint");
     expect(screen.getByTestId("lint-panel")).toBeInTheDocument();
   });
 
@@ -1373,7 +1396,7 @@ describe("CvBuilder", () => {
 
   it("picks a per-CV photo from the gallery with a live preview", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     const strip = await screen.findByTestId("photo-gallery-strip");
     expect(strip).toBeInTheDocument();
     await waitFor(() => expect(fetchPhotoBlobUrl).toHaveBeenCalledWith("photo-2"));
@@ -1385,7 +1408,7 @@ describe("CvBuilder", () => {
 
   it("uploads a photo from the Design tab and selects it for this CV", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, {
       target: {
@@ -1403,7 +1426,7 @@ describe("CvBuilder", () => {
 
   it("returns the photo choice to the profile default", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     fireEvent.click(await screen.findByTestId("photo-choice-photo-2"));
     await waitFor(() =>
       expect(patchCv).toHaveBeenCalledWith("cv-1", { photo_document_id: "photo-2" })
@@ -1416,7 +1439,7 @@ describe("CvBuilder", () => {
 
   it("applies a template via the picker", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     const picker = await screen.findByTestId("template-picker");
     fireEvent.change(picker, { target: { value: "tpl-1" } });
     await waitFor(() => expect(patchCv).toHaveBeenCalledWith("cv-1", { template_id: "tpl-1" }));
@@ -1424,7 +1447,7 @@ describe("CvBuilder", () => {
 
   it("browses templates in the builder and applies with a preview", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     fireEvent.click(await screen.findByTestId("browse-templates"));
     const card = await screen.findByTestId("template-card");
     expect(card).toHaveTextContent("Classic Serif");
@@ -1463,7 +1486,7 @@ describe("CvBuilder", () => {
     });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     await user.click(screen.getByRole("button", { name: "More AI actions" }));
     await user.click(await screen.findByRole("menuitem", { name: /Tailor to saved posting/ }));
     const picker = await screen.findByTestId("tailor-picker");
@@ -1489,7 +1512,7 @@ describe("CvBuilder", () => {
     const user = userEvent.setup();
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     await user.click(screen.getByTestId("ai-presets"));
     fireEvent.change(await screen.findByTestId("tone-select"), {
       target: { value: "confident" },
@@ -1510,7 +1533,7 @@ describe("CvBuilder", () => {
 
   it("runs the summary action from the split-button and applies a proposal from the slide-over", async () => {
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     fireEvent.click(await screen.findByRole("button", { name: "Improve summary" }));
     const slideOver = await screen.findByTestId("proposals-slideover");
     const card = within(slideOver).getByTestId("proposal-card");
@@ -1541,7 +1564,7 @@ describe("CvBuilder", () => {
       gaps: [],
     });
     renderBuilder();
-    fireEvent.click(await screen.findByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     fireEvent.click(await screen.findByRole("button", { name: "Improve summary" }));
     const slideOver = await screen.findByTestId("proposals-slideover");
     const applyButtons = within(slideOver).getAllByTestId("apply-proposal");
@@ -1614,7 +1637,7 @@ describe("CvBuilder — plan 70 items kinds filter", () => {
   it("toggles experience kinds on an items section and saves the filter", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-items"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1637,7 +1660,7 @@ describe("CvBuilder — plan 71 Template tab", () => {
   it("renders the Template tab with token controls and meta", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-template"));
+    await openInspectorTab("template");
     const body = await screen.findByTestId("inspector-body-template");
     expect(within(body).getByTestId("design-token-editor")).toBeInTheDocument();
     expect(within(body).getByTestId("template-meta")).toHaveTextContent(
@@ -1655,7 +1678,7 @@ describe("CvBuilder — plan 71 Template tab", () => {
   it("applies a design change through the ops endpoint and re-syncs", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-template"));
+    await openInspectorTab("template");
     const body = await screen.findByTestId("inspector-body-template");
     fireEvent.change(within(body).getByLabelText("Accent"), {
       target: { value: "#b91c1c" },
@@ -1675,7 +1698,7 @@ describe("CvBuilder — plan 71 container styling", () => {
   it("configures a block container in the builder sections panel", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-skills"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1720,7 +1743,7 @@ describe("CvBuilder — plan 71 critique card", () => {
     });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     const card = await screen.findByTestId("critique-card");
     expect(within(card).getByTestId("critique-issue-0")).toHaveTextContent("page_budget");
     applyCvOps.mockResolvedValueOnce({
@@ -1747,7 +1770,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
   it("adds the Custom highlights section from the add-section card", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-synth_items"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1780,7 +1803,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     ]);
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-synth_items"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1838,7 +1861,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     fireEvent.click(screen.getByTestId("add-section-button"));
     fireEvent.click(await screen.findByTestId("add-block-items"));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
@@ -1882,7 +1905,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     ]);
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("pane-context"));
+    await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     fireEvent.click(screen.getByTestId("context-group-header-skills"));
     expect(
@@ -1915,7 +1938,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("pane-context"));
+    await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     const star = await screen.findByTestId("context-pin-star-syn-1");
     expect(star.getAttribute("aria-pressed")).toBe("false");
@@ -1957,7 +1980,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     ]);
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("pane-context"));
+    await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     fireEvent.click(await screen.findByTestId("context-variant-edit-syn-1"));
     const text = await screen.findByTestId("synth-editor-description-input");
@@ -1986,7 +2009,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     ]);
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("pane-context"));
+    await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     expect(await screen.findByTestId("context-variant-syn-1")).toBeTruthy();
   });
@@ -1994,7 +2017,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
   it("opens the variant editor from the context panel add-variant button", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    fireEvent.click(screen.getByTestId("pane-context"));
+    await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     fireEvent.click(await screen.findByTestId("ai-add-variant-exp-1"));
     expect(

@@ -162,4 +162,7 @@ class CvRunOut(BaseModel):
     stages: list[dict] = Field(default_factory=list)
     iterations: list[dict] = Field(default_factory=list)
     llm_calls: list[CvRunCallOut] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    fallback_sections: list[str] = Field(default_factory=list)
+    plan_fallback: bool = False
     aggregate: CvRunAggregateOut

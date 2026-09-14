@@ -703,19 +703,35 @@ function ExperienceSummaryCard() {
       .catch(() => setLoaded(true));
   }, []);
 
-  const top = useMemo(
-    () =>
-      [...items]
-        .sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""))
-        .slice(0, 3),
-    [items]
-  );
+  const groups = useMemo(() => {
+    const KIND_ORDER: ExperienceItemOut["kind"][] = [
+      "job",
+      "internship",
+      "freelance",
+      "project",
+      "volunteer",
+    ];
+    return KIND_ORDER.map((kind) => ({
+      kind,
+      list: [...items]
+        .filter((item) => item.kind === kind)
+        .sort((a, b) => (b.start ?? "").localeCompare(a.start ?? "")),
+    })).filter((group) => group.list.length > 0);
+  }, [items]);
 
   return (
     <ProfileSectionCard
       name="experience"
       title={t("experience.title")}
       description={t("profileEdit.experienceBody")}
+      actions={
+        <Button asChild variant="outline" size="sm" data-testid="experience-link">
+          <Link to="/profile/experience">
+            <Briefcase className="mr-1 h-3.5 w-3.5" aria-hidden />
+            {t("profileEdit.experienceLink")}
+          </Link>
+        </Button>
+      }
     >
       {loaded && items.length === 0 ? (
         <p className="text-sm text-[var(--as-muted-fg)]">
@@ -729,39 +745,43 @@ function ExperienceSummaryCard() {
           })}
         </p>
       )}
-      {top.length > 0 && (
-        <ul className="mt-2 space-y-1 text-sm text-[var(--as-fg)]">
-          {top.map((item) => (
-            <li
-              key={item.id}
-              className="flex items-center gap-2"
-              data-testid={`experience-summary-${item.id}`}
-            >
-              <Briefcase className="h-3.5 w-3.5 shrink-0 text-[var(--as-muted-fg)]" aria-hidden />
-              <span className="truncate">
-                {item.title}
-                {item.org_name ? ` · ${item.org_name}` : ""}
-              </span>
-              <span className="ml-auto shrink-0 text-xs text-[var(--as-muted-fg)]">
-                {item.start
-                  ? `${item.start.slice(0, 7)} → ${
-                      item.open_ended
-                        ? t("experience.present")
-                        : (item.end ?? "").slice(0, 7)
-                    }`
-                  : t("experience.noDates")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <Link
-        to="/profile/experience"
-        className="mt-3 inline-block text-sm text-[var(--as-accent)] hover:underline"
-        data-testid="experience-link"
-      >
-        {t("profileEdit.experienceLink")}
-      </Link>
+      {groups.map(({ kind, list }) => (
+        <div key={kind} className="mt-3" data-testid={`experience-group-summary-${kind}`}>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t(`experience.kind.${kind}`, { defaultValue: kind })}
+            </span>
+            <span className="rounded-full bg-[var(--as-muted)] px-1.5 text-[10px] font-medium tabular-nums text-[var(--as-muted-fg)]">
+              {list.length}
+            </span>
+            <span className="h-px flex-1 bg-[var(--as-border)]" aria-hidden />
+          </div>
+          <ul className="mt-1.5 space-y-1 text-sm text-[var(--as-fg)]">
+            {list.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-center gap-2"
+                data-testid={`experience-summary-${item.id}`}
+              >
+                <Briefcase className="h-3.5 w-3.5 shrink-0 text-[var(--as-muted-fg)]" aria-hidden />
+                <span className="truncate">
+                  {item.title}
+                  {item.org_name ? ` · ${item.org_name}` : ""}
+                </span>
+                <span className="ml-auto shrink-0 text-xs text-[var(--as-muted-fg)]">
+                  {item.start
+                    ? `${item.start.slice(0, 7)} → ${
+                        item.open_ended
+                          ? t("experience.present")
+                          : (item.end ?? "").slice(0, 7)
+                      }`
+                    : t("experience.noDates")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </ProfileSectionCard>
   );
 }

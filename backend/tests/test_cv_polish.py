@@ -404,12 +404,53 @@ async def test_structural_redesign_escape_hatch_triggers_and_keeps(
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
     trace = (await _latest_final_version(db, cv)).content["polish"]
     assert trace["outcome"]["status"] == "completed"
-    assert trace.get("redesign_spent") is True
+    assert trace.get("redesign_stage") == "modified"
     redesigns = [
         r for iteration in trace["iterations"] for r in iteration.get("redesign") or []
     ]
     assert any(r["verdict"] == "kept" for r in redesigns), redesigns
+    assert any(r.get("mode") == "modified" for r in redesigns), redesigns
     assert trace["redesign"].get("pending") is False
+
+
+async def test_redesign_ladder_escapes_to_fresh_when_modified_reverts(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """The escalating ladder: the modified copy reverts (the critique
+    keeps failing), the NEXT persistent fail drafts a from-scratch
+    template — the stage advances modified → fresh and the run caps
+    with the fresh redesign pending (plan 64 §3 ladder)."""
+
+    def _critique(schema, prompt):
+        return {
+            "summary": "Layout keeps fighting the content.",
+            "issues": [
+                {
+                    "level": "fail",
+                    "area": "layout",
+                    "message": "The sidebar starves the main column.",
+                }
+            ],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    monkeypatch.setitem(MOCK_FIXTURES, AITaskType.CV_BUILD_REVIEW.value, _critique)
+    await _experience(client, auth_headers)
+    result = await _generate(db, auth_headers)
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    trace = (await _latest_final_version(db, cv)).content["polish"]
+    assert trace.get("redesign_stage") == "fresh"
+    redesigns = [
+        r for iteration in trace["iterations"] for r in iteration.get("redesign") or []
+    ]
+    assert any(
+        r.get("verdict") == "reverted" and r.get("mode") == "modified"
+        for r in redesigns
+    ), redesigns
+    fresh = trace.get("redesign") or {}
+    assert fresh.get("mode") == "fresh" and fresh.get("pending") is True, fresh
+    assert trace["outcome"]["status"] == "cap"
 
 
 # ------------------------------------------------- live preview + resume

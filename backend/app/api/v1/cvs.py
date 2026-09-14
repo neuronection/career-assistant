@@ -454,7 +454,8 @@ async def list_cv_runs(
     )
     runs = []
     for job in jobs:
-        polish = (job.result or {}).get("polish") or {}
+        result = job.result or {}
+        polish = result.get("polish") or {}
         run_meta = (polish.get("run") or {}).get("resumed_from") or {}
         calls = await _run_calls(db, job.id)
         runs.append(
@@ -472,6 +473,11 @@ async def list_cv_runs(
                 stages=(polish.get("run") or {}).get("stages") or [],
                 iterations=polish.get("iterations") or [],
                 llm_calls=calls,
+                warnings=[str(w) for w in result.get("warnings") or []],
+                fallback_sections=[
+                    str(x) for x in result.get("fallback_sections") or []
+                ],
+                plan_fallback=bool(result.get("plan_fallback")),
                 aggregate=_run_aggregate(calls),
             )
         )

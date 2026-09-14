@@ -64,7 +64,7 @@ export interface ExperienceItemOut {
   title: string;
   org_name: string;
   org_id: string | null;
-  start: string;
+  start: string | null;
   end: string | null;
   open_ended: boolean;
   hours_per_week: number | null;

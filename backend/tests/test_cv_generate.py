@@ -127,6 +127,52 @@ def test_merge_onto_template_drops_unplanned_skeleton_blocks():
     assert merged[0] == {"kind": "skills", "column": "sidebar", "props": {}}
 
 
+def test_merge_onto_template_overlays_skills_generation_intent():
+    """The run's skills intent (relevance subset, no levels, cap)
+    overrides the template skeleton's props — the template keeps its
+    area, title and styling keys."""
+    from app.ai.graphs.cv_draft import _merge_onto_template
+
+    merged = _merge_onto_template(
+        [
+            {
+                "kind": "skills",
+                "column": "sidebar",
+                "props": {
+                    "title": "Toolkit",
+                    "display": "bars",
+                    "show_levels": True,
+                    "max_items": 40,
+                },
+            }
+        ],
+        [
+            {
+                "kind": "skills",
+                "props": {
+                    "title": "Skills",
+                    "show_levels": False,
+                    "selected": ["sk-1", "sk-2"],
+                    "max_items": 2,
+                },
+            }
+        ],
+    )
+    assert merged == [
+        {
+            "kind": "skills",
+            "column": "sidebar",
+            "props": {
+                "title": "Toolkit",
+                "display": "bars",
+                "show_levels": False,
+                "selected": ["sk-1", "sk-2"],
+                "max_items": 2,
+            },
+        }
+    ]
+
+
 def _items_by_kind_context() -> dict:
     return {
         "items": [
@@ -554,6 +600,8 @@ async def test_plan_skill_subset_reaches_the_block(
         b for b in cv.working_content["blocks"] if b["kind"] == "skills"
     )
     assert sorted(skills_block["props"]["selected"]) == subset
+    assert skills_block["props"]["show_levels"] is False
+    assert skills_block["props"]["max_items"] == len(subset)
     assert len(subset) < len(skills_items)
 
 
@@ -824,6 +872,9 @@ async def test_cv_runs_endpoint_assembles_the_run_ledger(
     assert run["aggregate"]["tokens_in"] == sum(
         call["tokens_in"] or 0 for call in calls
     )
+    assert isinstance(run["warnings"], list)
+    assert isinstance(run["fallback_sections"], list)
+    assert isinstance(run["plan_fallback"], bool)
     by_draft = run["aggregate"]["by_task"]["cv_draft"]
     assert by_draft["calls"] >= 1
 

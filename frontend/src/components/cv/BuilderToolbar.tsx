@@ -5,7 +5,6 @@ import {
   Command,
   Download,
   History,
-  NotebookPen,
   Redo2,
   Save,
   Sparkles,
@@ -196,18 +195,8 @@ export function BuilderToolbar({
           title="Runs & metrics"
         >
           <Activity className="mr-1 h-4 w-4" /> AI runs
+          {onOpenPolish ? " · Notes" : ""}
         </Button>
-        {onOpenPolish && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenPolish}
-            data-testid="open-polish"
-            title="AI polish review log"
-          >
-            <NotebookPen className="mr-1 h-4 w-4" /> Notes
-          </Button>
-        )}
 
         <Menu>
           <MenuTrigger asChild>

@@ -87,7 +87,7 @@ function sortByRecency(items: ExperienceItemOut[]): ExperienceItemOut[] {
 }
 
 function formatPeriod(item: ExperienceItemOut): string {
-  return `${item.start.slice(0, 7)} → ${periodEnd(item)}`;
+  return `${(item.start ?? "").slice(0, 7)} → ${periodEnd(item)}`;
 }
 
 function periodEnd(item: ExperienceItemOut): string {

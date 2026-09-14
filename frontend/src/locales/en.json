@@ -392,7 +392,7 @@
     "experienceBody": "Structured history — jobs, internships and projects with derived skill levels.",
     "yearsSummary_one": "≈ {{years}}y of experience across {{count}} item.",
     "yearsSummary_other": "≈ {{years}}y of experience across {{count}} items.",
-    "experienceLink": "Open the experience workspace →",
+    "experienceLink": "Open workspace",
     "educationBody": "Schools, universities and ongoing degrees — job fit compares against your education history.",
     "highestShort": "highest: {{level}}",
     "ongoing": "ongoing",
@@ -1423,6 +1423,8 @@
       "calls": "LLM calls",
       "ops": "Operations",
       "chained": "Resumed from the earlier run — the loop re-entered at review.",
+      "warnings": "Warnings",
+      "warningCount": "{{count}} warning(s)",
       "finalVersion": "final v{{version}}",
       "meta": "{{calls}} call(s) · {{tokensIn}} in / {{tokensOut}} out",
       "type": {

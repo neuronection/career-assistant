@@ -269,6 +269,12 @@ describe("CvStudio cover letters", () => {
   });
 });
 
+async function openInspectorTab(testid: string) {
+  const user = userEvent.setup();
+  await user.click(await screen.findByTestId("inspector-tab-menu"));
+  await user.click(screen.getByTestId(`inspector-tab-${testid}`));
+}
+
 describe("CvBuilder cover-letter mode", () => {
   it("shows the brief pane, letter editor and no photo picker", async () => {
     fetchCvs.mockResolvedValue([letterCv]);
@@ -286,14 +292,14 @@ describe("CvBuilder cover-letter mode", () => {
     await user.click(screen.getByTestId("brief-skill-docker-quote-toggle"));
     expect(screen.getByTestId("brief-skill-docker-quote")).toHaveTextContent("ships containers daily");
 
-    await user.click(screen.getByTestId("inspector-tab-sections"));
+    await openInspectorTab("sections");
     expect(await screen.findByTestId("letter-editor")).toBeInTheDocument();
     expect(screen.getByTestId("letter-recipient-org")).toHaveValue("Acme");
 
-    await user.click(screen.getByTestId("inspector-tab-design"));
+    await openInspectorTab("design");
     expect(screen.queryByText("Profile photo")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     expect(await screen.findByTestId("draft-letter")).toBeInTheDocument();
   });
 
@@ -306,7 +312,7 @@ describe("CvBuilder cover-letter mode", () => {
     renderApp("/cv/letter-1");
 
     await screen.findByTestId("letter-brief");
-    await user.click(screen.getByTestId("inspector-tab-ai"));
+    await openInspectorTab("ai");
     await user.click(await screen.findByTestId("draft-letter"));
 
     const slideover = await screen.findByTestId("letter-slideover");
