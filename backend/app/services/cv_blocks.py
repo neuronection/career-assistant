@@ -58,6 +58,16 @@ SAMPLE_SNAPSHOT: dict = {
                 "label": "github",
             }
         ],
+        # Deterministic neutral placeholder so gallery previews of
+        # photo-enabled templates sell the layout (renders only when a
+        # template enables the photo).
+        "photo": (
+            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
+            "viewBox='0 0 100 100'%3E%3Crect width='100' height='100' "
+            "fill='%23dbe3ea'/%3E%3Ccircle cx='50' cy='38' r='17' "
+            "fill='%238fa3b5'/%3E%3Cpath d='M18 96a32 32 0 0 1 64 0z' "
+            "fill='%238fa3b5'/%3E%3C/svg%3E"
+        ),
     },
     "summary": (
         "Motivated computer-science student with hands-on internship "

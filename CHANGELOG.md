@@ -18,6 +18,16 @@ All notable changes to **Career Assistant** are documented here.
   inline — zero network, license text included. All capabilities are
   additive and default-stable: existing templates render byte-identically,
   and the designer/copilot vocabulary learned every new token.
+- **Template gallery gets filters, comparison and your-data previews**
+  (plan 79.2): filter the picker by two-column/single layout, one-page
+  budget or ATS safety; select up to two templates and open a
+  side-by-side comparison rendered against **your own CV's resolved
+  data** (with a fits/over-budget page chip per side — an empty profile
+  gracefully falls back to the deterministic sample); a new
+  `set_block_area` builder op swaps any section between the columns
+  (single-column templates ignore it), exposed to the copilot as well;
+  previews of photo-enabled templates pair with a neutral placeholder
+  portrait, and bank previews now sell the photo layout.
 - **New CV templates inspired by magazine-style layouts**: "Coral Banner"
   (warm coral header band with a circular photo, soft gray sidebar with
   profile, skill bars and CEFR languages) and "Charcoal & Amber" (dark

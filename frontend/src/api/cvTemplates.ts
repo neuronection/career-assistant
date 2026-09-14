@@ -13,6 +13,23 @@ export async function fetchTemplatePreview(templateId: string): Promise<string> 
   return typeof data === "string" ? data : String(data);
 }
 
+export interface PreviewMetrics {
+  estimated_pages?: number;
+  empty_blocks?: string[];
+  overflow?: boolean;
+  lines_per_page?: number;
+}
+
+export async function fetchTemplatePreviewWith(
+  templateId: string,
+  cvId?: string | null
+): Promise<{ html: string; metrics: PreviewMetrics }> {
+  const { data } = await api.post(`/cv/templates/${templateId}/preview-with`,
+    cvId ? { cv_id: cvId } : {}
+  );
+  return data;
+}
+
 export async function draftTemplateAi(brief: string): Promise<CvTemplateSummary> {
   const { data } = await api.post<CvTemplateSummary>("/cv/templates/draft-ai", {
     brief,

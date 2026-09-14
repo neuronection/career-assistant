@@ -238,6 +238,25 @@ class CvBuilderService:
         html, payload, resolution, metrics = await self.render_state(cv)
         return html, asdict(metrics), resolution, payload["blocks"]
 
+    async def snapshot_for_cv(
+        self, cv: CvDocument, *, with_overrides: bool = True
+    ) -> dict:
+        """The CV's resolved snapshot (editor overrides on by default).
+
+        Readers other than the builder (template gallery previews,
+        copier experiments) render the same data full-state renderers
+        see — resolution + working-state overrides — without touching
+        templates or versions."""
+        resolution = await self.resolution(cv)
+        if not with_overrides:
+            return resolution.snapshot
+        working = cv.working_content or {}
+        return apply_overrides(
+            resolution.snapshot,
+            resolution.snapshot_index,
+            working.get("overrides") or {},
+        )
+
     async def compile(
         self,
         cv: CvDocument,

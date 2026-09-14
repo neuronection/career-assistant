@@ -1,10 +1,104 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Pencil, Sparkles } from "lucide-react";
+import { Check, GitCompare, Pencil, Sparkles, X } from "lucide-react";
 import { Button, Card, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import { draftTemplateAi, fetchTemplatePreview, fetchTemplates } from "@/api/cvTemplates";
+import {
+  draftTemplateAi,
+  fetchTemplatePreview,
+  fetchTemplatePreviewWith,
+  fetchTemplates,
+  type PreviewMetrics,
+} from "@/api/cvTemplates";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
+
+type GalleryFilter = "all" | "sidebar" | "single" | "one-page" | "ats-safe";
+
+const FILTERS: { value: GalleryFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "sidebar", label: "Two-column" },
+  { value: "single", label: "Single" },
+  { value: "one-page", label: "One page" },
+  { value: "ats-safe", label: "ATS-safe" },
+];
+
+export function galleryFilter(template: CvTemplateSummary, filter: GalleryFilter): boolean {
+  const design = (template.content?.design ?? {}) as Record<string, unknown>;
+  const pages = template.content?.pages ?? {};
+  if (filter === "sidebar") return design["layout"] === "sidebar";
+  if (filter === "single") return design["layout"] !== "sidebar";
+  if (filter === "one-page") return pages["default_max_pages"] === 1;
+  if (filter === "ats-safe") return template.ats_safe;
+  return true;
+}
+
+function OwnSnapshotPreviewFrame({
+  template,
+  cvId,
+}: {
+  template: CvTemplateSummary;
+  cvId?: string | null;
+}) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<PreviewMetrics | null>(null);
+  const [failed, setFailed] = useState(false);
+  const aspect =
+    template.page_size === "letter" ? "aspect-[216/279]" : "aspect-[210/297]";
+
+  useEffect(() => {
+    let cancelled = false;
+    setHtml(null);
+    setMetrics(null);
+    setFailed(false);
+    fetchTemplatePreviewWith(template.id, cvId || null)
+      .then((value) => {
+        if (cancelled) return;
+        setHtml(value.html);
+        setMetrics(value.metrics ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [template.id, cvId]);
+
+  return (
+    <div className="relative">
+      {failed ? (
+        <div className={`flex ${aspect} w-full items-center justify-center border-b bg-white text-xs text-[var(--as-muted-fg)]`}>
+          Preview unavailable
+        </div>
+      ) : html === null ? (
+        <div className={`${aspect} w-full cv-shimmer border-b bg-[var(--as-muted)]`} />
+      ) : (
+        <iframe
+          title={`Preview of ${template.title} with your data`}
+          srcDoc={html}
+          sandbox=""
+          loading="lazy"
+          scrolling="no"
+          style={{ pointerEvents: "none" }}
+          className={`${aspect} w-full overflow-hidden border-b bg-white`}
+        />
+      )}
+      {metrics && metrics.estimated_pages != null && (
+        <span
+          data-testid="compare-metrics"
+          className={`absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-[10px] font-medium shadow ${
+            metrics.overflow
+              ? "bg-amber-100 text-amber-800"
+              : "bg-emerald-100 text-emerald-800"
+          }`}
+        >
+          ~{metrics.estimated_pages} page{metrics.estimated_pages === 1 ? "" : "s"}
+          {metrics.overflow ? " · over budget" : " · fits"}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function TemplatePreviewFrame({ template }: { template: CvTemplateSummary }) {
   const [html, setHtml] = useState<string | null>(null);
@@ -57,12 +151,16 @@ function TemplateCard({
   actionLabel,
   onUse,
   onCustomize,
+  compareSelected,
+  onToggleCompare,
 }: {
   template: CvTemplateSummary;
   current: boolean;
   actionLabel: string;
   onUse: () => void;
   onCustomize: () => void;
+  compareSelected: boolean;
+  onToggleCompare: () => void;
 }) {
   const isBank = template.author_key === "bank";
   return (
@@ -120,7 +218,18 @@ function TemplateCard({
           {template.description && (
             <p className="line-clamp-2 text-xs text-[var(--as-muted-fg)]">{template.description}</p>
           )}
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={compareSelected}
+              data-testid={`compare-template-${template.id}`}
+              onClick={onToggleCompare}
+              title="Add to template comparison"
+            >
+              <GitCompare className={`mr-1 h-3 w-3 ${compareSelected ? "" : "opacity-60"}`} aria-hidden />
+              {compareSelected ? "Selected" : "Compare"}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -143,6 +252,7 @@ interface TemplateGalleryProps {
   onClose: () => void;
   actionLabel: string;
   currentTemplateId?: string | null;
+  cvId?: string | null;
   onUse: (template: CvTemplateSummary) => void;
 }
 
@@ -151,12 +261,16 @@ export function TemplateGallery({
   onClose,
   actionLabel,
   currentTemplateId,
+  cvId,
   onUse,
 }: TemplateGalleryProps) {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState<CvTemplateSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState<GalleryFilter>("all");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [draftBrief, setDraftBrief] = useState("");
   const [drafting, setDrafting] = useState(false);
 
@@ -175,6 +289,10 @@ export function TemplateGallery({
   useEffect(() => {
     if (open) {
       void load();
+    } else {
+      setCompareIds([]);
+      setCompareOpen(false);
+      setFilter("all");
     }
   }, [open, load]);
 
@@ -192,6 +310,16 @@ export function TemplateGallery({
       setDrafting(false);
     }
   }
+
+  function toggleCompare(id: string) {
+    setCompareIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      return [...current, id].slice(-2);
+    });
+  }
+
+  const compared = templates.filter((template) => compareIds.includes(template.id));
+  const visible = templates.filter((template) => galleryFilter(template, filter));
 
   return (
     <Modal open={open} onOpenChange={(next) => !next && onClose()}>
@@ -213,6 +341,55 @@ export function TemplateGallery({
           </div>
         </ModalHeader>
         <div className="max-h-[82vh] space-y-4 overflow-y-auto p-4 pt-0">
+          <div className="flex flex-wrap gap-1.5" data-testid="gallery-filters">
+            {FILTERS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                aria-pressed={filter === item.value}
+                data-testid={`gallery-filter-${item.value}`}
+                onClick={() => setFilter(item.value)}
+                className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  filter === item.value
+                    ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
+                    : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {compared.length > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-[var(--as-border)] bg-[var(--as-muted)] p-2" data-testid="compare-tray">
+              <p className="pl-1 text-xs text-[var(--as-muted-fg)]">
+                {compared.length === 2
+                  ? "Two templates selected"
+                  : "Pick one more template to compare"}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={compared.length !== 2}
+                  data-testid="compare-open"
+                  onClick={() => setCompareOpen(true)}
+                >
+                  <GitCompare className="mr-1 h-3 w-3" aria-hidden />
+                  Compare preview
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Clear template comparison"
+                  data-testid="compare-clear"
+                  onClick={() => setCompareIds([])}
+                >
+                  <X className="h-3 w-3" aria-hidden />
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2" data-testid="ai-template-draft">
             <input
               value={draftBrief}
@@ -249,18 +426,20 @@ export function TemplateGallery({
                 </Card>
               ))}
             </div>
-          ) : templates.length === 0 ? (
+          ) : visible.length === 0 ? (
             <p className="text-sm text-[var(--as-muted-fg)]">
-              No templates available — create one with AI above.
+              No templates match this filter.
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="gallery-grid">
-              {templates.map((template) => (
+              {visible.map((template) => (
                 <TemplateCard
                   key={template.id}
                   template={template}
                   current={currentTemplateId === template.id}
                   actionLabel={actionLabel}
+                  compareSelected={compareIds.includes(template.id)}
+                  onToggleCompare={() => toggleCompare(template.id)}
                   onUse={() => {
                     onUse(template);
                     onClose();
@@ -272,6 +451,45 @@ export function TemplateGallery({
           )}
         </div>
       </ModalContent>
+
+      <Modal open={compareOpen} onOpenChange={(next) => !next && setCompareOpen(false)}>
+        <ModalContent
+          size="xl"
+          className="w-[96vw] max-w-[min(1600px,96vw)]"
+          aria-describedby={undefined}
+        >
+          <ModalHeader>
+            <ModalTitle>Template comparison · your data</ModalTitle>
+          </ModalHeader>
+          <div
+            className="max-h-[82vh] overflow-y-auto p-4 pt-0"
+            data-testid="compare-grid"
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {compared.map((template) => (
+                <div key={template.id} className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate font-medium text-[var(--as-fg)]">{template.title}</p>
+                    <Button
+                      size="sm"
+                      data-testid={`compare-use-${template.id}`}
+                      onClick={() => {
+                        onUse(template);
+                        setCompareOpen(false);
+                        onClose();
+                      }}
+                    >
+                      <Check className="mr-1 h-3 w-3" aria-hidden />
+                      Use
+                    </Button>
+                  </div>
+                  <OwnSnapshotPreviewFrame template={template} cvId={cvId} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </ModalContent>
+      </Modal>
     </Modal>
   );
 }

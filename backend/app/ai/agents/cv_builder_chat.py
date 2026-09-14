@@ -68,9 +68,11 @@ SYSTEM = (
     "item's default; its text replaces the profile text at resolution. "
     "Omit the key to keep the current stars.\n"
     "- set_doc_options {title, page_size, max_pages, language}.\n"
-    "- add_block {kind, props, position} / remove_block {block_index} / "
-    "move_block {block_index, to_index} / update_block_props {block_index, "
-    "props} — sections come from `blocks` with their 0-based index; kinds "
+    "- add_block {kind, props, position, area?} / remove_block {block_index} / "
+    "move_block {block_index, to_index} / set_block_area {block_index, "
+    "area} — sidebar/main column swaps (single-column templates ignore "
+    "the area) / update_block_props {block_index, props} — sections come "
+    "from `blocks` with their 0-based index; kinds "
     "and props follow the block registry (header, summary, items with "
     "source_key — experience for paid work, projects, volunteer for "
     "volunteering, education, certifications — skills with display, "
@@ -114,6 +116,7 @@ OP_TITLES = {
     "add_block": "Adding section",
     "remove_block": "Removing section",
     "move_block": "Reordering sections",
+    "set_block_area": "Switching columns",
     "update_block_props": "Configuring section",
     "set_override": "Rewriting text",
     "visual_review": "Reviewing the rendered preview",
@@ -512,6 +515,20 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
             _save_working(cv, blocks, overrides)
             await db.commit()
             return OpResult(op=kind, ok=True, detail=f"moved to position {target}")
+
+        if kind == "set_block_area":
+            if op.block_index >= len(blocks):
+                raise ValidationError(f"block_index {op.block_index} out of range")
+            blocks[op.block_index] = {**blocks[op.block_index], "area": op.area}
+            from app.services.cv_blocks import validate_blocks
+
+            validate_blocks(blocks)
+            _save_working(cv, blocks, overrides)
+            await db.commit()
+            detail = (
+                f"moved to the {'sidebar' if op.area == 'sidebar' else 'main column'}"
+            )
+            return OpResult(op=kind, ok=True, detail=detail)
 
         if kind == "update_block_props":
             from app.services.cv_blocks import validate_blocks
@@ -1037,13 +1054,22 @@ def _mock_builder_turn(schema: type, user_prompt: str) -> dict:
     elif any(word in lowered for word in ("levels", "skills")):
         skills = next((b for b in blocks if b.get("kind") == "skills"), None)
         if skills is not None:
-            ops.append(
-                {
-                    "op": "update_block_props",
-                    "block_index": skills["index"],
-                    "props": {"show_levels": True},
-                }
-            )
+            if "sidebar" in lowered or "column" in lowered:
+                ops.append(
+                    {
+                        "op": "set_block_area",
+                        "block_index": skills["index"],
+                        "area": "sidebar",
+                    }
+                )
+            else:
+                ops.append(
+                    {
+                        "op": "update_block_props",
+                        "block_index": skills["index"],
+                        "props": {"show_levels": True},
+                    }
+                )
     if not ops:
         ops.append({"op": "update_design", "design": {"accent_color": "#0f766e"}})
     listed = ", ".join(op["op"] for op in ops)

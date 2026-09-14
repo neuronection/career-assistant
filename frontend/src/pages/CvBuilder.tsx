@@ -1441,6 +1441,7 @@ export function CvBuilder() {
         onClose={() => setGalleryOpen(false)}
         actionLabel={t("cvBuilder.applyToCv")}
         currentTemplateId={cv.template_id}
+        cvId={cv.id}
         onUse={(template) => void applyTemplate(template.id)}
       />
 

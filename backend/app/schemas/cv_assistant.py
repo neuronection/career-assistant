@@ -81,6 +81,14 @@ class MoveBlockOp(BaseModel):
     to_index: int = Field(ge=0, le=24)
 
 
+class SetBlockAreaOp(BaseModel):
+    """Assign one block to a layout area (quick-swap sidebar/main)."""
+
+    op: Literal["set_block_area"]
+    block_index: int = Field(ge=0, le=24)
+    area: Literal["main", "sidebar"]
+
+
 class UpdateBlockPropsOp(BaseModel):
     """Merge a props patch into the block at a context-listed index."""
 
@@ -118,6 +126,7 @@ BuilderOp = Annotated[
         AddBlockOp,
         RemoveBlockOp,
         MoveBlockOp,
+        SetBlockAreaOp,
         UpdateBlockPropsOp,
         SetOverrideOp,
     ],

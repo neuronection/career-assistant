@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.models.cv_model import CvDocument
 from app.models.cv_template_model import CvTemplate
 from app.schemas.cv_template import CvTemplateExport, TemplateContent
 from app.seeds.cv_templates import BANK_TEMPLATES, seed_cv_template_bank
@@ -687,3 +688,75 @@ async def test_suggest_layout_hint_boosts_sidebar_candidates(client, db, auth_he
     top = await db.get(CvTemplate, UUID(top_id))
     content = TemplateContent.model_validate(top.content)
     assert content.design.layout == "sidebar", "the layout hint wins the baseline"
+
+
+async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
+    """preview-with renders the template against one of the caller's CVs —
+    an empty profile falls back to the deterministic sample (the gallery
+    never renders a blank page) and a filled one renders THAT data."""
+    from app.models.user_model import Profile
+    from app.services.cv_builder_service import CvBuilderService
+
+    await seed_cv_template_bank(db)
+    listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
+    template = [t for t in listing.json() if t["source"] == "bank"][0]
+
+    created = await client.post(
+        "/api/v1/cv", json={"title": "Preview me"}, headers=auth_headers
+    )
+    assert created.status_code == 201, created.text
+    cv_id = created.json()["id"]
+
+    response = await client.post(
+        f"/api/v1/cv/templates/{template['id']}/preview-with",
+        json={"cv_id": cv_id},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert "<h1>" in body["html"]
+    assert "Alex Sample" in body["html"], "empty profile falls back to the sample"
+    assert "metrics" in body
+
+    profile = (
+        (await db.execute(select(Profile).where(Profile.user_id == _uid(auth_headers))))
+        .scalars()
+        .first()
+    )
+    profile.aspirations = [
+        {"label": "Backend intern", "notes": "I care about the details."}
+    ]
+    db.add(profile)
+    await db.commit()
+    response = await client.post(
+        f"/api/v1/cv/templates/{template['id']}/preview-with",
+        json={"cv_id": cv_id},
+        headers=auth_headers,
+    )
+    body = response.json()
+    assert "Backend intern" in body["html"], "the own snapshot renders"
+
+    cv_row = (
+        (await db.execute(select(CvDocument).where(CvDocument.id == UUID(cv_id))))
+        .scalars()
+        .one()
+    )
+    snapshot = await CvBuilderService(db).snapshot_for_cv(cv_row)
+    assert "Backend intern" in str(snapshot.get("summary"))
+
+    # foreign CVs are unreachable (404, not a leak)
+    second = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "other@example.com", "password": "supersecret1"},
+    )
+    other_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    other_cv = await client.post(
+        "/api/v1/cv", json={"title": "Theirs"}, headers=other_headers
+    )
+    assert other_cv.status_code == 201, other_cv.text
+    leak = await client.post(
+        f"/api/v1/cv/templates/{template['id']}/preview-with",
+        json={"cv_id": other_cv.json()["id"]},
+        headers=auth_headers,
+    )
+    assert leak.status_code == 404, "other users' CVs are unreachable"

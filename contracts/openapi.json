@@ -3532,6 +3532,7 @@
                   "apply_theme": "#/components/schemas/ApplyThemeOp",
                   "move_block": "#/components/schemas/MoveBlockOp",
                   "remove_block": "#/components/schemas/RemoveBlockOp",
+                  "set_block_area": "#/components/schemas/SetBlockAreaOp",
                   "set_context": "#/components/schemas/SetContextOp",
                   "set_doc_options": "#/components/schemas/SetDocOptionsOp",
                   "set_override": "#/components/schemas/SetOverrideOp",
@@ -3565,6 +3566,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/MoveBlockOp"
+                },
+                {
+                  "$ref": "#/components/schemas/SetBlockAreaOp"
                 },
                 {
                   "$ref": "#/components/schemas/UpdateBlockPropsOp"
@@ -11887,6 +11891,37 @@
           "title"
         ],
         "title": "SessionUpdate",
+        "type": "object"
+      },
+      "SetBlockAreaOp": {
+        "description": "Assign one block to a layout area (quick-swap sidebar/main).",
+        "properties": {
+          "area": {
+            "enum": [
+              "main",
+              "sidebar"
+            ],
+            "title": "Area",
+            "type": "string"
+          },
+          "block_index": {
+            "maximum": 24.0,
+            "minimum": 0.0,
+            "title": "Block Index",
+            "type": "integer"
+          },
+          "op": {
+            "const": "set_block_area",
+            "title": "Op",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "block_index",
+          "area"
+        ],
+        "title": "SetBlockAreaOp",
         "type": "object"
       },
       "SetContextOp": {
@@ -21229,6 +21264,75 @@
           }
         ],
         "summary": "Preview Template",
+        "tags": [
+          "cv-templates"
+        ]
+      }
+    },
+    "/api/v1/cv/templates/{template_id}/preview-with": {
+      "post": {
+        "description": "Render the template against a CV's own resolved snapshot.\n\n`body.cv_id` optionally selects one of the caller's CVs; an empty\nor unknown-selection CV falls back to the deterministic sample so\nthe gallery preview is never blank.",
+        "operationId": "preview_template_with_cv_api_v1_cv_templates__template_id__preview_with_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Template With Cv Api V1 Cv Templates  Template Id  Preview With Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Template With Cv",
         "tags": [
           "cv-templates"
         ]

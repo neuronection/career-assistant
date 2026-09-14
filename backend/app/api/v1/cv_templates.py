@@ -15,6 +15,7 @@ from app.schemas.cv_template import (
     CvTemplateOut,
     TemplateContent,
 )
+from app.services.cv_service import CvService
 from app.services.cv_template_service import CvTemplateService
 from app.services.deps import get_current_user
 
@@ -215,6 +216,40 @@ async def preview_template(
     template = await service.get_readable(template_id, user.id)
     html, _metrics = service.preview_html(template)
     return HTMLResponse(html)
+
+
+@router.post("/{template_id}/preview-with")
+async def preview_template_with_cv(
+    template_id: uuid.UUID,
+    body: dict | None = None,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Render the template against a CV's own resolved snapshot.
+
+    `body.cv_id` optionally selects one of the caller's CVs; an empty
+    or unknown-selection CV falls back to the deterministic sample so
+    the gallery preview is never blank."""
+    from app.services.cv_builder_service import CvBuilderService
+
+    service = CvTemplateService(db)
+    template = await service.get_readable(template_id, user.id)
+    snapshot = None
+    cv_id = (body or {}).get("cv_id")
+    if cv_id is not None:
+        cv = await CvService(db).get_owned(uuid.UUID(str(cv_id)), user.id)
+        snapshot = await CvBuilderService(db).snapshot_for_cv(cv)
+        if not _snapshot_visible(snapshot):
+            snapshot = None
+    html, metrics = service.preview_html(template, snapshot)
+    return {"html": html, "metrics": metrics}
+
+
+def _snapshot_visible(snapshot: dict) -> bool:
+    """A snapshot is preview-worthy when something beyond the header
+    resolves (an empty profile renders an empty page otherwise)."""
+    scalar_keys = ("summary", "experience", "education", "skills", "projects")
+    return any(snapshot.get(key) for key in scalar_keys)
 
 
 @router.get("/{template_id}/export")
