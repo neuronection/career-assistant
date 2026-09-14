@@ -1,0 +1,105 @@
+"""HITL profile proposals API (plan 77): list + idempotent resolve."""
+
+from typing import Literal, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.schemas.profile_proposal import (
+    ProfileProposalOut,
+    ProfileProposalResolveOut,
+)
+from app.services.deps import get_current_user
+from app.services.profile_proposal_service import (
+    ACTION_VERBS,
+    KIND_SPECS,
+    ProfileProposalService,
+)
+
+router = APIRouter(tags=["profile-proposals"])
+
+
+def _out(proposal) -> ProfileProposalOut:
+    spec = KIND_SPECS.get(proposal.kind)
+    noun = spec.label if spec is not None else proposal.kind
+    verb = ACTION_VERBS.get(proposal.action, proposal.action.title())
+    title = f"{verb} {noun}" + (
+        f" · {proposal.entity_label}" if proposal.entity_label else ""
+    )
+    return ProfileProposalOut(
+        id=proposal.id,
+        kind=proposal.kind,
+        action=proposal.action,
+        status=proposal.status,
+        entity_id=proposal.entity_id,
+        entity_label=proposal.entity_label,
+        title=title,
+        payload=proposal.payload_json or {},
+        diff=proposal.diff_json or [],
+        destructive=proposal.action == "delete",
+        source=proposal.source,
+        chat_session_id=proposal.chat_session_id,
+        chat_message_id=proposal.chat_message_id,
+        ai_generation_id=proposal.ai_generation_id,
+        created_at=proposal.created_at,
+        resolved_at=proposal.resolved_at,
+        resolve_error=proposal.resolve_error,
+    )
+
+
+@router.get("/me/profile-proposals")
+async def list_profile_proposals(
+    status: Optional[
+        Literal["pending", "approved", "rejected", "conflict", "expired"]
+    ] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> dict:
+    service = ProfileProposalService(db)
+    proposals = await service.list_(user.id, status=status, limit=limit)
+    return {
+        "proposals": [_out(p).model_dump(mode="json") for p in proposals],
+        "pending_count": await service.pending_count(user.id),
+    }
+
+
+@router.post(
+    "/me/profile-proposals/{proposal_id}/approve",
+    response_model=ProfileProposalResolveOut,
+)
+async def approve_profile_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> ProfileProposalResolveOut:
+    proposal, applied, already = await ProfileProposalService(db).approve(
+        user.id, proposal_id
+    )
+    return ProfileProposalResolveOut(
+        proposal=_out(proposal), applied=applied, already=already
+    )
+
+
+@router.post(
+    "/me/profile-proposals/{proposal_id}/reject",
+    response_model=ProfileProposalResolveOut,
+)
+async def reject_profile_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> ProfileProposalResolveOut:
+    proposal = await ProfileProposalService(db).reject(user.id, proposal_id)
+    return ProfileProposalResolveOut(proposal=_out(proposal))
+
+
+@router.delete("/me/profile-proposals/{proposal_id}", status_code=204)
+async def dismiss_profile_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> None:
+    await ProfileProposalService(db).reject(user.id, proposal_id)

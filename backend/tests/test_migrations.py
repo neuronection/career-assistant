@@ -68,7 +68,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0032"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0033"], (
         "revision chain stays linear on one head"
     )
 
@@ -80,6 +80,19 @@ def test_0027_cv_synth_items_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present(), "re-upgrade restores the table"
+
+
+def test_0033_profile_proposals_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _table_present("profile_proposals"), "profile_proposals exists at head"
+
+    command.downgrade(config, "0032")
+    assert not _table_present("profile_proposals"), "downgrade 0032 drops the table"
+
+    command.upgrade(config, "head")
+    assert _table_present("profile_proposals"), "re-upgrade restores the table"
 
 
 def test_0026_language_code_roundtrip():

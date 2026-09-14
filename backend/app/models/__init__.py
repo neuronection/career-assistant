@@ -40,6 +40,7 @@ from app.models.profile_entities_model import (
     EducationItem,
     ProfileAchievement,
 )
+from app.models.profile_proposal_model import ProfileProposal
 from app.models.experience_model import (
     ExperienceAchievement,
     ExperienceItem,
@@ -144,4 +145,5 @@ __all__ = [
     "InterviewSession",
     "AIEmbedding",
     "AIMCPServer",
+    "ProfileProposal",
 ]

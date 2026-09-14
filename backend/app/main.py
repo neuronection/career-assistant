@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.errors import (
     AINotConfiguredError,
     AccountLockedError,
+    ConflictError,
     DomainError,
     NotFoundError,
     PermissionDeniedError,
@@ -258,6 +259,11 @@ def create_app() -> FastAPI:
     async def permission_denied_handler(request: Request, exc: PermissionDeniedError):
         """Ownership violations → 403."""
         return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+    @application.exception_handler(ConflictError)
+    async def conflict_error_handler(request: Request, exc: ConflictError):
+        """Concurrent modification → 409."""
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @application.exception_handler(AINotConfiguredError)
     async def ai_not_configured_handler(request: Request, exc: AINotConfiguredError):

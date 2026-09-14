@@ -732,3 +732,34 @@ class AutopilotFeedback(str, Enum):
 
     MORE_LIKE_THIS = "more_like_this"
     HIDE_LIKE_THIS = "hide_like_this"
+
+
+class ProposalKind(str, Enum):
+    """Entity kinds a HITL profile proposal can mutate (plan 77)."""
+
+    EXPERIENCE_ITEM = "experience_item"
+    EDUCATION_ITEM = "education_item"
+    CERTIFICATION = "certification"
+    PROFILE_ACHIEVEMENT = "profile_achievement"
+    USER_SKILL = "user_skill"
+    PROFILE_SECTION = "profile_section"
+
+
+class ProposalAction(str, Enum):
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
+class ProposalStatus(str, Enum):
+    """Detached-card lifecycle: resolve is idempotent per terminal state."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CONFLICT = "conflict"
+    EXPIRED = "expired"
+
+
+class ProposalSource(str, Enum):
+    CHAT = "chat"

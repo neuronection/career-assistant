@@ -273,6 +273,17 @@ the real work (state read, operations, visual review) shows as tool
 cards, and an error turn records the node windows it reached before
 failing.
 
+**Chat-proposed profile mutations are HITL proposals, never
+auto-applied** (plan 77): the chatbot emits typed ops that land in
+`profile_proposals` (kind/action/payload reusing the REST schemas,
+field-level `diff_json`, `base_updated_at` for conflict detection, full
+entity snapshots for deletes) as pending cards resolved via idempotent
+`approve`/`reject` endpoints — detached cards + events, deliberately not
+`interrupt()` (interrupts pause a whole graph and cannot serve
+multi-card turns). Applying dispatches to the same services the REST
+forms use; cards are first-class rows (SET NULL chat lineage, 14-day
+TTL, `ProfileProposalService`).
+
 PDF parsing and AI generation run as FastAPI background tasks; Redis ships
 in the compose file for a later worker split (no Celery in v1).
 

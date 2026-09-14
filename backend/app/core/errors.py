@@ -18,5 +18,9 @@ class ValidationError(DomainError):
     """Payload failed domain validation."""
 
 
+class ConflictError(DomainError):
+    """Target changed since it was proposed — review before applying."""
+
+
 class AccountLockedError(DomainError):
     """Too many failed logins; the account is temporarily locked."""

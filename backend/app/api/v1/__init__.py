@@ -28,6 +28,7 @@ from app.api.v1 import (
     onboarding,
     paths,
     postings,
+    profile_proposals,
     scheduler,
     profile,
     skills,
@@ -58,6 +59,7 @@ api_router.include_router(cvs.router)
 api_router.include_router(matching.router)
 api_router.include_router(engagement.router)
 api_router.include_router(experience.router)
+api_router.include_router(profile_proposals.router)
 api_router.include_router(notifications.router)
 api_router.include_router(growth.router)
 api_router.include_router(postings.router)

@@ -4,6 +4,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Profile editing through the chatbot, reviewed on HITL cards (backend
+  foundation)**: chat-proposed changes to work experience, projects,
+  education, certifications, achievements, skills and profile sections
+  (incl. languages) now land as persisted proposals the user approves or
+  rejects — never auto-applied. Each card carries a field-level
+  before/after diff, deletes keep a full entity snapshot, resolution is
+  idempotent, and approving re-validates against the current data
+  (changed data → a `conflict` card inviting a fresh proposal; deleted
+  data → the card expires). Applying goes through the same services the
+  profile forms use, so validation rules are identical everywhere.
+  Proposals are first-class data: they outlive the chat session that
+  produced them (14-day TTL) and expose
+  `GET /me/profile-proposals` + approve/reject/dismiss endpoints. Chat
+  wiring and the card UI land with the follow-up slices of plan 77.
+
 ### Fixed
 - **Accurate CV page counts — the printed PDF is now the truth**: the
   polish loop, lint and copilot visual review used to count pages from

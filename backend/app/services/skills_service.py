@@ -160,6 +160,38 @@ class SkillService:
         await self.db.commit()
         return await self.user_skills(user_id)
 
+    async def upsert_user_skill(
+        self,
+        user_id: UUID,
+        skill_key: str,
+        level: int,
+        confidence: float = 1.0,
+    ) -> UserSkill:
+        """Add or update ONE self_report row (chat/HITL path — never wipes
+        the user's other skills the way ``put_user_skills`` does)."""
+        skill, _created = await self.propose(
+            skill_key,
+            origin=SkillOrigin.USER,
+            provenance={"via": "chat_proposal"},
+        )
+        rows = await self.db.execute(
+            select(UserSkill).where(
+                UserSkill.user_id == user_id, UserSkill.skill_id == skill.id
+            )
+        )
+        row = rows.scalars().first()
+        if row is None:
+            row = UserSkill(user_id=user_id, skill_id=skill.id)
+            self.db.add(row)
+        row.level = int(level)
+        row.confidence = float(confidence)
+        row.source = "self_report"
+        row.derive_enabled = True
+        row.hidden = False
+        await self.db.commit()
+        await self.db.refresh(row)
+        return row
+
     async def set_derive_enabled(
         self, user_id: UUID, skill_id: UUID, derive_enabled: bool
     ) -> UserSkill:

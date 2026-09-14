@@ -91,6 +91,7 @@ TABLES = [
     "ai_task_assignments",
     "ai_models",
     "ai_providers",
+    "profile_proposals",
     "chat_messages",
     "chat_sessions",
     "ai_skill_packs",
