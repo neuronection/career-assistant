@@ -282,7 +282,10 @@ entity snapshots for deletes) as pending cards resolved via idempotent
 `interrupt()` (interrupts pause a whole graph and cannot serve
 multi-card turns). Applying dispatches to the same services the REST
 forms use; cards are first-class rows (SET NULL chat lineage, 14-day
-TTL, `ProfileProposalService`).
+TTL swept daily by the `system_proposal_sweep` schedule slot,
+`ProfileProposalService`). The chat surfaces render the cards
+(library `chat-hitl` module) and the Profile sidebar entry badges the
+pending count.
 
 PDF parsing and AI generation run as FastAPI background tasks; Redis ships
 in the compose file for a later worker split (no Celery in v1).

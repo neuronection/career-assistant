@@ -16,26 +16,31 @@ from playwright.sync_api import Page
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8111")
 API = f"{BASE_URL}/api/v1"
 
-# (list path, wrapped) — `wrapped` for payloads shaped {"items": [...]}.
-# Single-user mode means no Authorization header: requests without a
-# token resolve to the default user.
+# (list path, key) — `key` for payloads wrapping the rows ("items",
+# "proposals"); None for bare-array payloads. Single-user mode means no
+# Authorization header: requests without a token resolve to the default
+# user.
 _COLLECTIONS = (
-    ("/cv", False),
-    ("/cv/synth", False),
-    ("/chat/sessions", False),
-    ("/me/experience", True),
+    ("/cv", None),
+    ("/cv/synth", None),
+    ("/chat/sessions", None),
+    ("/me/experience", "items"),
+    # HITL cards (plan 77): dismissible only while pending — resolved
+    # rows 4xx harmlessly and never affect other specs.
+    ("/me/profile-proposals", "proposals"),
 )
 
 
 def reset_workspace(page: Page) -> None:
     """Delete every workspace artifact (CVs, synth variants, chat
-    sessions, experience entries) so each spec starts pristine."""
-    for path, wrapped in _COLLECTIONS:
+    sessions, experience entries, pending HITL cards) so each spec
+    starts pristine."""
+    for path, key in _COLLECTIONS:
         response = page.request.get(f"{API}{path}")
         if not response.ok:
             continue
         payload = response.json()
-        rows = payload["items"] if wrapped else payload
+        rows = payload[key] if key else payload
         for row in rows:
             page.request.delete(f"{API}{path}/{row['id']}")
 

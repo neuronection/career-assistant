@@ -34,67 +34,11 @@ def test_cv_synth_library_empty_state_smoke(page) -> None:
     )
 
 
-def test_generate_with_synth_prefer_reuse(page) -> None:
-    """Plan 69: the generate flow reuses an active library variant —
-    the toggle shows the match hint, and the drafted CV renders the
-    variant's tailored text instead of the profile verbatim."""
-    item = page.request.post(
-        f"{API}/me/experience",
-        data={
-            "title": "Backend Intern",
-            "kind": "internship",
-            "org_name": "Sample Corp",
-            "start": "2024-06-01",
-            "end": "2024-09-01",
-            "description": "Built QA tooling",
-            "status": "active",
-        },
-    )
-    assert item.ok, item.text()
-    item_id = item.json()["id"]
-
-    draft = page.request.post(
-        f"{API}/cv/synth/generate",
-        data={
-            "refs": [{"source_key": "experience", "item_id": item_id}],
-            "action": "summarize",
-        },
-    )
-    assert draft.ok, draft.text()
-    row = draft.json()["items"][0]
-    activate = page.request.patch(
-        f"{API}/cv/synth/{row['id']}",
-        data={"status": "active"},
-    )
-    assert activate.ok, activate.text()
-    tailored_text = row["payload"]["description"]
-
-    page.goto(f"{BASE_URL}/cv?generate=1")
-    page.get_by_test_id("cv-generate-advanced").click()
-    page.get_by_role("switch", name="Prefer synthesized items").click()
-    expect(page.get_by_test_id("cv-generate-synth-hint")).to_contain_text(
-        "1 of your synthesized variants"
-    )
-
-    page.get_by_test_id("cv-generate-submit").click()
-    expect(page.get_by_test_id("cv-generate-finished")).to_be_visible(
-        timeout=120_000
-    )
-    expect(page.get_by_test_id("cv-generate-finished")).to_contain_text(
-        "1 of your synthesized variants were used"
-    )
-    page.get_by_test_id("cv-generate-open-finished").click()
-
-    frame_el = page.get_by_test_id("preview-frame")
-    srcdoc = ""
-    for _ in range(40):
-        srcdoc = frame_el.get_attribute("srcdoc") or ""
-        if "measurable outcomes" in srcdoc:
-            break
-        page.wait_for_timeout(500)
-    assert tailored_text in srcdoc, (
-        "the rendered CV shows the variant's tailored text"
-    )
+# Synth-variant reuse at generate time was replaced by explicit
+# builder-side pins (`synth_pins`, plan 72) — the generate flow no longer
+# reuses active variants implicitly. The pin behavior is covered by
+# frontend/src/tests/cvStudio.test.tsx ("pins a variant per item...");
+# generate → builder navigation stays covered by the spec below.
 
 
 def test_generate_splits_experience_family(page) -> None:
