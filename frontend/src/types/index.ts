@@ -608,8 +608,18 @@ export interface ChatMessage {
     attachments?: ChatCvAttachment[];
     /** CVs the reply grounded in (plan 78). */
     referenced_cv_ids?: string[];
+    /** Template first-page previews the copilot compared (plan 83). */
+    template_previews?: ChatTemplatePreview[];
   } | null;
   created_at: string;
+}
+
+/** One template preview (plan 83): SSE `preview` event and persisted
+ * message metadata share the shape — the URL serves the cached PNG. */
+export interface ChatTemplatePreview {
+  template_id: string;
+  title: string;
+  url: string;
 }
 
 export interface ChatCvAttachment {

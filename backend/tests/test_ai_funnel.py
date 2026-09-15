@@ -339,3 +339,43 @@ async def test_stream_failure_names_token_cap(db, monkeypatch):
             db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
         ):
             pass
+
+
+async def test_stream_carries_image_parts(db, monkeypatch):
+    """Plan 83A: images ride the streaming path as multimodal parts —
+    the same encoding the non-streaming invoke uses."""
+    user = await _assign_real_model(db)
+    fake = _FakeStreamModel(['{"answer": "seen"}'])
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
+
+    stream = StructuredStream()
+    pieces = [
+        piece
+        async for piece in stream.chunks(
+            db,
+            AITaskType.ASSIST,
+            _Out,
+            "s",
+            "look",
+            user_id=user.id,
+            images=[("image/png", b"png-bytes")],
+        )
+    ]
+    assert stream.reply.answer == "seen"
+    assert pieces == ['{"answer": "seen"}']
+
+    user_message = fake.calls[0][1]
+    assert user_message.content[0] == {"type": "text", "text": "look"}
+    assert user_message.content[1]["type"] == "image_url"
+    assert user_message.content[1]["image_url"]["url"].startswith(
+        "data:image/png;base64,"
+    )
+
+
+async def test_invoke_and_stream_share_user_content_encoding():
+    from app.ai.gateway import _user_content
+
+    assert _user_content("hi", None) == "hi"
+    parts = _user_content("hi", [("image/png", b"x")])
+    assert parts[0] == {"type": "text", "text": "hi"}
+    assert parts[1]["image_url"]["url"] == "data:image/png;base64,eA=="

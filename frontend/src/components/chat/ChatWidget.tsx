@@ -10,6 +10,10 @@ import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
 import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
 import {
+  LiveTemplatePreviews,
+  MessageTemplatePreviews,
+} from "@/components/chat/TemplatePreviews";
+import {
   CvAttachButton,
   CvAttachChips,
   useOpenStudioCv,
@@ -434,6 +438,7 @@ function MessageList({ compact }: { compact: boolean }) {
           raw && raw.role === "assistant" ? (
             <>
               <MessageTrace message={raw} />
+              <MessageTemplatePreviews message={raw} />
               <MessageProposals message={raw} />
             </>
           ) : undefined
@@ -466,6 +471,7 @@ function MessageList({ compact }: { compact: boolean }) {
         ))}
       </div>
     ) : null;
+  const livePreviews = live ? <LiveTemplatePreviews /> : null;
 
   return (
     <ChatTranscript
@@ -492,6 +498,7 @@ function MessageList({ compact }: { compact: boolean }) {
             content={
               <>
                 {toolCards}
+                {livePreviews}
                 <ProposalCards cards={proposalCards} />
                 {chat.stream.text !== null ? (
                   <>

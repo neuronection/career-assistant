@@ -107,8 +107,9 @@ logical change (at most 5): {kind, action, entity_id, payload}.
   source_key following the item kind (project → "projects", volunteer →
   "volunteer", paid work → "experience"). At most 10 refs — bigger asks
   belong to the Synth Library page. Include posting_id only when a real
-  posting is in context. Drafts land in the CV Synth Library as
-  review-only drafts.
+  posting is in context. Approving activates the variants into the CV
+  Synth Library (the newest active per item wins; the previous one
+  retires).
 Digests may be marked "_cached": true — they were read earlier in this
 conversation and were verified current for this turn; treat them like
 fresh results (ids still verbatim-or-nothing).

@@ -2,7 +2,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -279,6 +279,32 @@ async def preview_template(
     template = await service.get_readable(template_id, user.id)
     html, _metrics = service.preview_html(template)
     return HTMLResponse(html)
+
+
+@router.get("/{template_id}/preview.png")
+async def preview_template_png(
+    template_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """First-page PNG thumbnail (plan 83): content-hash cached, printed
+    through the PDF engine — 503 with the capability message when it is
+    missing."""
+    from app.services.cv_pdf_service import PDFEngineUnavailable
+
+    service = CvTemplateService(db)
+    try:
+        png, content_hash = await service.preview_png_cached(template_id, user.id)
+    except PDFEngineUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "ETag": f'"{content_hash}"',
+        },
+    )
 
 
 @router.post("/{template_id}/preview-with")

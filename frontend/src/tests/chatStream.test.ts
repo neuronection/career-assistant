@@ -52,6 +52,28 @@ describe("streamChatMessage", () => {
     expect(proposals).toEqual([card]);
   });
 
+  it("emits template previews through onPreview (plan 83)", async () => {
+    const preview = {
+      template_id: "t-1",
+      title: "ATS Classic",
+      url: "/api/v1/cv/templates/t-1/preview.png",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        sseResponse([
+          event("preview", preview),
+          event("done", { ok: true }),
+        ]),
+      ),
+    );
+    const previews: unknown[] = [];
+    await streamChatMessage("s1", "hi", {
+      onPreview: (payload) => previews.push(payload),
+    });
+    expect(previews).toEqual([preview]);
+  });
+
   it("reassembles events split across chunk boundaries", async () => {
     const statusBody = JSON.stringify({
       stage: "searching the catalog",

@@ -384,7 +384,7 @@ async def test_builder_turn_failure_persists_partial_trace(
     monkeypatch.setattr(StructuredStream, "chunks", _explode)
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "switch template"},
+        json={"content": "rewrite the summary section"},
         params={"stream": "true"},
         headers=auth_headers,
     )

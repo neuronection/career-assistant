@@ -112,6 +112,25 @@ def _stream_failure_message(finish_reason: str) -> str:
     return detail + " — please retry."
 
 
+def _user_content(
+    user: str, images: Optional[list[tuple[str, bytes]]]
+) -> str | list[str | dict[str, Any]]:
+    """The user message as sent: plain text, or text + base64 image
+    parts (the vision path shared by invoke and stream)."""
+    if not images:
+        return user
+    parts: list[str | dict[str, Any]] = [{"type": "text", "text": user}]
+    for mime, data in images:
+        encoded = base64.b64encode(data).decode("ascii")
+        parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{encoded}"},
+            }
+        )
+    return parts
+
+
 async def _invoke_model(
     schema: type[T],
     system: str,
@@ -124,25 +143,13 @@ async def _invoke_model(
     `images` are (mime, bytes) parts appended to the user message as
     base64 data URLs — the vision path used by OCR-style tasks.
     """
-    content: str | list[str | dict[str, Any]] = user
-    if images:
-        parts: list[str | dict[str, Any]] = [{"type": "text", "text": user}]
-        for mime, data in images:
-            encoded = base64.b64encode(data).decode("ascii")
-            parts.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime};base64,{encoded}"},
-                }
-            )
-        content = parts
     model = build_chat_model(resolved)
     message = await model.ainvoke(
         [
             SystemMessage(
                 content=f"{system}\n\nReply with JSON matching this schema:\n{_schema_hint(schema)}"
             ),
-            HumanMessage(content=content),
+            HumanMessage(content=_user_content(user, images)),
         ]
     )
     usage: dict[str, Any] = dict(message.usage_metadata or {})
@@ -555,6 +562,7 @@ class StructuredStream:
         system: str,
         user: str,
         user_id=None,
+        images: Optional[list[tuple[str, bytes]]] = None,
     ):
         from app.ai.providers.resolution import resolve_task_model
 
@@ -609,7 +617,7 @@ class StructuredStream:
                     SystemMessage(
                         content=f"{effective_system}\n\nReply with JSON matching this schema:\n{_schema_hint(schema)}"
                     ),
-                    HumanMessage(content=user),
+                    HumanMessage(content=_user_content(user, images)),
                 ]
                 async for chunk in model.astream(messages):
                     piece = _message_text(chunk)

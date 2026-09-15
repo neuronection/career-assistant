@@ -619,6 +619,26 @@ async def test_cv_synth_card_inline_drafts(db, auth_headers):
         .all()
     )
     assert len(rows) >= 1
+    assert all(row.status == "active" for row in rows)
+
+    second = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "summarize",
+        },
+    )
+    await ProfileProposalService(db).approve(user.id, second.id)
+    rows = (
+        (await db.execute(select(CvSynthItem).where(CvSynthItem.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert sum(row.status == "active" for row in rows) == 1
+    assert sum(row.status == "archived" for row in rows) == len(rows) - 1
 
 
 async def test_cv_synth_card_queues_large_batch(db, auth_headers):
@@ -658,6 +678,7 @@ async def test_cv_synth_card_queues_large_batch(db, auth_headers):
         .all()
     )
     assert len(jobs) == 1
+    assert jobs[0].payload["activate"] is True
 
 
 async def test_cv_synth_stale_refs_fail_with_resolve_error(db, auth_headers):

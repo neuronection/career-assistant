@@ -7,6 +7,7 @@ import { getDraft, writeDraft } from "@/components/chat/drafts";
 import { activeCvId } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
+import { useTemplatePreviewsStore } from "@/stores/templatePreviewsStore";
 import type { CvAssistantState } from "@/types/cvAssistant";
 import type { ChatCvAttachment } from "@/types";
 import {
@@ -81,6 +82,15 @@ export function useCareerChat() {
       // every surface renders them live; the persisted pair that lands
       // with `refresh` takes over rendering.
       onProposal: (card) => useProfileProposalsStore.getState().receiveLive(card),
+      // Template previews (plan 83): stream into the live store; the
+      // persisted metadata takes over once the turn completes.
+      onPreview: (preview) =>
+        useTemplatePreviewsStore.getState().receiveLive(preview),
+      onFlowEvent: (event) => {
+        if (event.event === "flow_started") {
+          useTemplatePreviewsStore.getState().reset();
+        }
+      },
     });
   }
   const stream = useChatStream({ transport: transportRef.current });

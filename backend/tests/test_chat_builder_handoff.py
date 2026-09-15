@@ -190,3 +190,95 @@ async def test_sync_path_hands_off_too(client, db, auth_headers, builder_env):
     )
     assistant = _messages(rows.scalars().all())[-1]
     assert assistant.metadata_json["surface"] == "cv_builder"
+
+
+async def test_preview_intent_persists_and_emits(
+    client, db, auth_headers, builder_env, monkeypatch
+):
+    """Plan 83C/D: a template-look turn renders previews, emits `preview`
+    events + a trace card, and persists template_previews metadata."""
+    from app.ai.gateway import register_mock_fixture
+    from app.ai.agents.cv_builder_chat import _mock_builder_turn
+    from app.models.enums import AITaskType
+    from app.services.cv_template_service import CvTemplateService
+
+    async def fake_first_page_png(self, template):
+        return b"fake-png"
+
+    monkeypatch.setattr(CvTemplateService, "first_page_png", fake_first_page_png)
+
+    seen_prompts: list[str] = []
+
+    def prompt_capture(schema, user_prompt):
+        seen_prompts.append(user_prompt)
+        return _mock_builder_turn(schema, user_prompt)
+
+    register_mock_fixture(AITaskType.CV_BUILDER_CHAT, prompt_capture)
+    try:
+        user = await _auth_user(db)
+        cv = await _cv(db, user)
+        session = await _session(client, auth_headers)
+        events = await _send(
+            client,
+            session["id"],
+            auth_headers,
+            "restyle the CV — switch to a more modern template",
+            attachments=[{"kind": "cv", "cv_id": str(cv.id)}],
+        )
+    finally:
+        register_mock_fixture(AITaskType.CV_BUILDER_CHAT, _mock_builder_turn)
+
+    previews = [payload for name, payload in events if name == "preview"]
+    assert len(previews) >= 1
+    assert {"template_id", "title", "url"} <= set(previews[0])
+    assert previews[0]["url"].endswith("/preview.png")
+
+    cards = [
+        payload
+        for name, payload in events
+        if name == "tool_call" and payload.get("name") == "template_previews"
+    ]
+    assert len(cards) == 1
+
+    assert seen_prompts and "template_previews" in seen_prompts[0], (
+        "the model prompt must map the attached images"
+    )
+
+    rows = await db.execute(
+        select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session["id"]))
+    )
+    assistant = _messages(rows.scalars().all())[-1]
+    persisted = assistant.metadata_json["template_previews"]
+    assert [e["template_id"] for e in persisted] == [e["template_id"] for e in previews]
+
+
+async def test_no_preview_intent_skips_previews(
+    client, db, auth_headers, builder_env, monkeypatch
+):
+    from app.services.cv_template_service import CvTemplateService
+
+    calls = {"n": 0}
+
+    async def fake_first_page_png(self, template):
+        calls["n"] += 1
+        return b"fake-png"
+
+    monkeypatch.setattr(CvTemplateService, "first_page_png", fake_first_page_png)
+
+    user = await _auth_user(db)
+    cv = await _cv(db, user)
+    session = await _session(client, auth_headers)
+    events = await _send(
+        client,
+        session["id"],
+        auth_headers,
+        "please shorten the summary section",
+        attachments=[{"kind": "cv", "cv_id": str(cv.id)}],
+    )
+    assert "builder_state" in names_of(events)
+    assert [p for name, p in events if name == "preview"] == []
+    assert calls["n"] == 0
+
+
+def names_of(events):
+    return [name for name, _ in events]

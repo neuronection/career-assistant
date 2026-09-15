@@ -15,6 +15,7 @@ import asyncio
 import copy
 import json
 import time
+import uuid
 from typing import AsyncIterator, Optional, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -89,6 +90,12 @@ SYSTEM = (
     "item_id values exactly as listed in the state. Set "
     "`need_visual_review` true when the user asks about looks, layout, "
     "spacing or page fit — or after visual changes you want to verify. "
+    "When `template_previews` is present, the same number of first-page "
+    "images ride along in that exact order (first entry = first image): "
+    "judge candidates by what you SEE in them (density, whitespace, "
+    "typography, fit for the user's request) and say which preview you "
+    "recommend and why. set_template remains the only switching op "
+    "and ids must come from `templates`. "
     "Answer concisely, list what you changed, and suggest one next step. "
     "If the request is conversational, return no operations."
 )
@@ -98,6 +105,34 @@ _PROP_CAP = 240
 TRACE_SUMMARY_CAP = 160
 TRACE_TOOL_CAP = 16
 TRACE_NODE_CAP = 12
+
+# Plan 83C: first-page template renders for turns that ask about the
+# look. The gate is a hint (a miss costs nothing); the cap bounds the
+# image budget per turn (current template + up to 3 candidates).
+MAX_TEMPLATE_PREVIEWS = 4
+PREVIEW_INTENT_WORDS = {
+    "template",
+    "templates",
+    "theme",
+    "themes",
+    "style",
+    "styling",
+    "styled",
+    "font",
+    "fonts",
+    "serif",
+    "sans",
+    "color",
+    "colors",
+    "colour",
+    "layout",
+    "modern",
+    "minimal",
+    "restyle",
+    "redesign",
+    "look",
+    "appearance",
+}
 
 OVERRIDE_FIELD_HINTS = {
     "basics": ["headline"],
@@ -676,6 +711,72 @@ async def builder_state_payload(
 # --------------------------------------------------------------- turn
 
 
+def _is_template_preview_intent(message: str) -> bool:
+    """Deterministic hint that this turn asks about the template look."""
+    words = {token.strip(".,!?;:()[]\"'").lower() for token in message.split()}
+    return bool(words & PREVIEW_INTENT_WORDS)
+
+
+async def _template_previews(
+    db: AsyncSession,
+    digest: dict,
+    message: str,
+    user_id,
+) -> Optional[dict]:
+    """First-page renders so the copilot sees template candidates.
+
+    Gate on template-intent words; the current template renders first,
+    then up to three candidates in context order. Behavior-based
+    degrade (advisor precedent): any render failure shrinks the set and
+    an empty set returns None — the turn runs metadata-only, never
+    fails. `entries` map the images' fixed order to template ids and
+    chat-renderable preview URLs."""
+    if not _is_template_preview_intent(message):
+        return None
+    from app.services.cv_template_service import CvTemplateService
+
+    service = CvTemplateService(db)
+    started = time.monotonic()
+    current = (digest.get("template") or {}).get("id")
+    candidate_ids = [
+        str(row["id"])
+        for row in (digest.get("templates") or [])[: MAX_TEMPLATE_PREVIEWS - 1]
+    ]
+    ordered = ([str(current)] if current else []) + candidate_ids
+    titles = {
+        str(row["id"]): row.get("title") or "candidate"
+        for row in digest.get("templates") or []
+    }
+    current_title = (digest.get("template") or {}).get("title") or "current"
+    entries: list[dict] = []
+    images: list[tuple[str, bytes]] = []
+    for template_id in ordered[:MAX_TEMPLATE_PREVIEWS]:
+        try:
+            row = await service.get_readable(uuid.UUID(template_id), user_id)
+            png = await service.first_page_png(row)
+        except Exception:  # noqa: BLE001 — behavior-based degrade
+            continue
+        if png is None:
+            continue
+        entries.append(
+            {
+                "template_id": template_id,
+                "title": current_title
+                if template_id == current
+                else titles.get(template_id, "candidate"),
+                "url": f"/api/v1/cv/templates/{template_id}/preview.png",
+            }
+        )
+        images.append(("image/png", png))
+    if not entries:
+        return None
+    return {
+        "entries": entries,
+        "images": images,
+        "render_ms": int((time.monotonic() - started) * 1000),
+    }
+
+
 async def builder_turn_events(
     db: AsyncSession,
     cv,
@@ -769,33 +870,60 @@ async def builder_turn_events(
                 duration_ms=ground["duration_ms"] if ground else 0,
             ),
         )
+        previews = await _template_previews(db, digest, message, user_id)
+        if previews is not None:
+            for entry in previews["entries"]:
+                yield "preview", entry
+            yield (
+                "tool_call",
+                _tool_event(
+                    tools_trace,
+                    id="template-previews",
+                    name="template_previews",
+                    title="Comparing template previews",
+                    status="done",
+                    args=f"{len(previews['entries'])} first-page render(s)",
+                    result=" · ".join(entry["title"] for entry in previews["entries"]),
+                    start_ms=int((time.monotonic() - turn_started) * 1000),
+                    duration_ms=previews["render_ms"],
+                ),
+            )
         for round_index in range(MAX_REFINE_ROUNDS):
             label = steps[1]["label"] if round_index == 0 else "refining changes"
             _open_node("plan", label)
             yield "node_started", {"id": "plan", "label": label}
             stream = StructuredStream()
             sent = 0
-            prompt = context_json(
-                {
-                    "message": message,
-                    "history": history[-6:],
-                    "builder_state": digest,
-                    "applied_operations": all_results,
-                    "visual_critique": _critique_digest(critique)
-                    if critique is not None
-                    else critique_note,
-                    "round": round_index + 1,
-                    "instruction": (
-                        "Propose the next operations. Round 1 plans from the "
-                        "user's message; a later round fixes the issues the "
-                        "visual critique found (prefer its safe_token_fixes "
-                        "via update_design). Return an empty operation list "
-                        "when nothing is left to change."
-                    ),
-                }
-            )
+            prompt_payload: dict = {
+                "message": message,
+                "history": history[-6:],
+                "builder_state": digest,
+                "applied_operations": all_results,
+                "visual_critique": _critique_digest(critique)
+                if critique is not None
+                else critique_note,
+                "round": round_index + 1,
+                "instruction": (
+                    "Propose the next operations. Round 1 plans from the "
+                    "user's message; a later round fixes the issues the "
+                    "visual critique found (prefer its safe_token_fixes "
+                    "via update_design). Return an empty operation list "
+                    "when nothing is left to change."
+                ),
+            }
+            turn_images: Optional[list[tuple[str, bytes]]] = None
+            if round_index == 0 and previews is not None:
+                prompt_payload["template_previews"] = previews["entries"]
+                turn_images = previews["images"]
+            prompt = context_json(prompt_payload)
             async for _chunk in stream.chunks(
-                db, AITaskType.CV_BUILDER_CHAT, CvBuilderTurn, SYSTEM, prompt, user_id
+                db,
+                AITaskType.CV_BUILDER_CHAT,
+                CvBuilderTurn,
+                SYSTEM,
+                prompt,
+                user_id,
+                images=turn_images,
             ):
                 partial = partial_answer_text("".join(stream._raw))
                 if len(partial) > sent:
@@ -923,6 +1051,11 @@ async def builder_turn_events(
                 "model": (stream.model if stream else "") or "",
                 "tools": tools_trace[:TRACE_TOOL_CAP],
                 "nodes": nodes_trace[:TRACE_NODE_CAP],
+                **(
+                    {"template_previews": previews["entries"]}
+                    if previews is not None
+                    else {}
+                ),
             },
         )
         yield "builder_state", state

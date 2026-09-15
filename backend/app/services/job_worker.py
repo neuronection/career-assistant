@@ -715,9 +715,34 @@ async def _run_cv_synth(
     request = CvSynthItemGenerate.model_validate(
         (job.payload or {}).get("request") or {}
     )
-    rows = await CvSynthService(db).generate(_require_user(job), request)
+    service = CvSynthService(db)
+    rows = await service.generate(_require_user(job), request)
+    activate = bool((job.payload or {}).get("activate"))
+    if activate:
+        from app.schemas.cv_synth import CvSynthItemUpdate
+
+        settled = []
+        for row in rows:
+            if row.status == CvSynthStatus.DRAFT.value:
+                row = await service.update(
+                    row.id, _require_user(job), CvSynthItemUpdate(status="active")
+                )
+            settled.append(row)
+        rows = settled
     drafts = [row for row in rows if row.status == CvSynthStatus.DRAFT.value]
-    if drafts:
+    if activate and rows:
+        from app.services.notification_service import NotificationService
+
+        await NotificationService(db).emit(
+            "cv_synth_ready",
+            [_require_user(job)],
+            title="Synthesized variants are active",
+            body=f"{len(rows)} new variants were activated — find them in "
+            "the CV synth library.",
+            payload={"count": len(rows), "ids": [str(r.id) for r in rows]},
+            source_ref={"kind": "cv_synth", "job_id": str(job.id)},
+        )
+    elif drafts:
         from app.services.notification_service import NotificationService
 
         await NotificationService(db).emit(

@@ -1,5 +1,6 @@
 """— CV template system: versioning, registry, renderer, AI, review."""
 
+import pytest
 import copy
 import io
 import uuid
@@ -940,3 +941,89 @@ def test_items_block_links_opt_in_and_print_safe():
     assert "https://" not in html.split("item-links")[1].split("</p>")[0]
     assert "x.io/3" in html
     assert "x.io/4" not in html  # capped at 3
+
+
+async def test_preview_png_cached_and_capability_gated(
+    client, db, auth_headers, monkeypatch
+):
+    """Plan 83B: the PNG route renders once, caches by content hash, and
+    answers 503 with the capability message when the engine is missing."""
+    from app.services.cv_pdf_service import PDFEngineUnavailable
+    from app.services.cv_template_service import CvTemplateService
+
+    await seed_cv_template_bank(db)
+    listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
+    template = next(t for t in listing.json() if t["key"] == "ats-classic")
+
+    calls = {"n": 0}
+
+    async def fake_first_page_png(self, template_row):
+        calls["n"] += 1
+        return b"png-bytes-1"
+
+    monkeypatch.setattr(CvTemplateService, "first_page_png", fake_first_page_png)
+
+    first = await client.get(
+        f"/api/v1/cv/templates/{template['id']}/preview.png", headers=auth_headers
+    )
+    assert first.status_code == 200, first.text
+    assert first.headers["content-type"] == "image/png"
+    etag = first.headers["etag"]
+
+    second = await client.get(
+        f"/api/v1/cv/templates/{template['id']}/preview.png", headers=auth_headers
+    )
+    assert second.status_code == 200
+    assert second.headers["etag"] == etag
+    assert calls["n"] == 1, "the content-hash cache must skip the second render"
+
+    fresh = next(t for t in listing.json() if t["key"] == "modern-two-column")
+
+    async def render_failed(self, template_row):
+        return None
+
+    monkeypatch.setattr(CvTemplateService, "first_page_png", render_failed)
+    missing = await client.get(
+        f"/api/v1/cv/templates/{fresh['id']}/preview.png", headers=auth_headers
+    )
+    assert missing.status_code == 503
+    assert "engine" in missing.json()["detail"].lower()
+
+    async def engine_missing(self, template_row):
+        raise PDFEngineUnavailable("The print engine is not installed.")
+
+    monkeypatch.setattr(CvTemplateService, "first_page_png", engine_missing)
+    uncached = next(t for t in listing.json() if t["key"] == "compact-onepage")
+    capability = await client.get(
+        f"/api/v1/cv/templates/{uncached['id']}/preview.png", headers=auth_headers
+    )
+    assert capability.status_code == 503
+    assert "print engine" in capability.json()["detail"]
+
+
+async def test_preview_png_hides_foreign_templates(db, auth_headers):
+    """A private template owned by someone else is invisible to the PNG
+    route exactly like the HTML preview (404, not 403)."""
+    from app.core.config import settings
+    from app.core.errors import NotFoundError
+    from app.models.user_model import User
+    from app.services.cv_template_service import CvTemplateService
+
+    owner_rows = await db.execute(
+        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
+    )
+    owner = owner_rows.scalars().first()
+    private = await CvTemplateService(db).create(
+        owner.id,
+        title="Private template",
+        content=TemplateContent.model_validate(VALID_CONTENT),
+    )
+
+    outsider = User(email=f"prev-{uuid.uuid4().hex[:8]}@example.com")
+    outsider.password_hash = "x"
+    db.add(outsider)
+    await db.commit()
+
+    service = CvTemplateService(db)
+    with pytest.raises(NotFoundError):
+        await service.preview_png_cached(private.id, outsider.id)

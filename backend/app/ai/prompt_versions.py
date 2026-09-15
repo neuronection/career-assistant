@@ -32,7 +32,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.CV_BUILD_REVIEW.value: 1,
     AITaskType.CV_SUGGEST.value: 1,
     AITaskType.CV_COVER_LETTER.value: 1,
-    AITaskType.CV_BUILDER_CHAT.value: 1,
+    AITaskType.CV_BUILDER_CHAT.value: 2,
     AITaskType.CV_DRAFT.value: 1,
     AITaskType.CV_SYNTH.value: 1,
     AITaskType.CATALOG_ENRICH.value: 1,

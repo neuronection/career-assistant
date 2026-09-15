@@ -9,10 +9,12 @@ private/imported. AI outputs are drafts until the author publishes them.
 
 import re
 import uuid
+from pathlib import Path
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import NotFoundError, ValidationError
 from app.models.cv_template_model import CvTemplate
 from app.models.enums import (
@@ -568,6 +570,55 @@ class CvTemplateService:
             if measure.images:
                 images.append(measure.images[0])
         return images
+
+    async def first_page_png(self, template: CvTemplate) -> bytes | None:
+        """First-page PNG of one template, rendered on demand.
+
+        `None` on any render failure or without the PDF engine —
+        callers degrade (the advisor drops the image, the chat preview
+        route answers 503). `PDFEngineUnavailable` propagates so the
+        capability message stays precise."""
+        from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
+
+        try:
+            html, _metrics = self.preview_html_content(
+                TemplateContent.model_validate(template.content)
+            )
+            measure = await measure_pages(
+                html, page_size=str(template.page_size), max_images=1
+            )
+        except PDFEngineUnavailable:
+            raise
+        except Exception:  # noqa: BLE001 — one bad template degrades
+            return None
+        return measure.images[0] if measure.images else None
+
+    async def preview_png_cached(
+        self, template_id: uuid.UUID, user_id: uuid.UUID
+    ) -> tuple[bytes, str]:
+        """First-page PNG with a content-hash cache (plan 83B).
+
+        `previews/{template_id}/{content_hash}-p1.png` under the data
+        dir — a template edit renders once, versions coexist while a
+        diff is open. Invisible templates raise NotFoundError; a cache
+        miss without the print engine raises PDFEngineUnavailable."""
+        template = await self.get_readable(template_id, user_id)
+        content_hash = canonical_hash(template.content or {})
+        cache_dir = Path(settings.data_dir_path) / "previews" / str(template_id)
+        cache_path = cache_dir / f"{content_hash}-p1.png"
+        if cache_path.exists():
+            return cache_path.read_bytes(), content_hash
+        png = await self.first_page_png(template)
+        if png is None:
+            from app.services.cv_pdf_service import PDFEngineUnavailable
+
+            raise PDFEngineUnavailable(
+                "The template preview could not be rendered — the print "
+                "engine may be missing."
+            )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path.write_bytes(png)
+        return png, content_hash
 
     # ------------------------------------------------------ visual review
 

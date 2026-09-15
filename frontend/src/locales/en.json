@@ -1828,7 +1828,7 @@
       "cancel": "Cancel",
       "pending": "Pending review",
       "approved": "Approved",
-      "approvedVariants": "Drafted — see the Synth Library",
+      "approvedVariants": "Activated — see the Synth Library",
       "rejected": "Rejected",
       "conflict": "Changed since proposed",
       "expired": "Expired",
@@ -1843,7 +1843,11 @@
       "remove": "Remove {{title}}",
       "openCv": "this CV"
     },
-    "studioEmptyBody": "Ask anything about the CV you have open — attach it below and I'll ground the answer in it."
+    "studioEmptyBody": "Ask anything about the CV you have open — attach it below and I'll ground the answer in it.",
+    "previews": {
+      "imageTitle": "Template preview: {{title}}",
+      "imageAlt": "First page of the {{title}} template"
+    }
   },
   "demand": {
     "hot": "hot",

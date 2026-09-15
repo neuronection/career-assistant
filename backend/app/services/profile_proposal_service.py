@@ -667,15 +667,19 @@ class ProfileProposalService:
     async def _apply_cv_synth(self, user_id: uuid.UUID, payload: dict) -> dict:
         """Draft variants for an approved cv_synth card (plan 82).
 
-        Small batches run inline through the same service the Synth
-        Library REST endpoint calls; larger ones enqueue the existing
-        `cv_synth` background job (its completion notification announces
-        the drafts). Refs resolve against the user's context inside the
-        service — stale/foreign ids surface as a resolve_error.
+        The card approval is the human review, so rows are activated
+        through the same `update` path the Synth Library button uses —
+        slot supersede retires the previous owner (plan-62 semantics),
+        never draft-purgatory. Small batches run inline; larger ones
+        enqueue the existing `cv_synth` job with `activate` set (the
+        completion notification announces active variants). Refs resolve
+        against the user's context inside the service — stale/foreign
+        ids surface as a resolve_error.
         """
-        from app.schemas.cv_synth import CvSynthItemGenerate
+        from app.schemas.cv_synth import CvSynthItemGenerate, CvSynthItemUpdate
         from app.services.cv_synth_service import CvSynthService, SYNC_LIMIT
 
+        service = CvSynthService(self.db)
         request = CvSynthItemGenerate.model_validate(payload)
         if len(request.refs) > SYNC_LIMIT:
             from app.services.job_worker import enqueue
@@ -683,16 +687,23 @@ class ProfileProposalService:
             job = await enqueue(
                 self.db,
                 "cv_synth",
-                {"request": payload},
+                {"request": payload, "activate": True},
                 user_id=user_id,
             )
             return {"queued": True, "job_id": str(job.id), "kind": "cv_synth"}
-        rows = await CvSynthService(self.db).generate(user_id, request)
+        rows = await service.generate(user_id, request)
+        activated = []
+        for row in rows:
+            if row.status == "draft":
+                row = await service.update(
+                    row.id, user_id, CvSynthItemUpdate(status="active")
+                )
+            activated.append(row)
         return {
             "queued": False,
             "kind": "cv_synth",
             "items": [
-                {"id": str(row.id), "variant_key": row.variant_key} for row in rows
+                {"id": str(row.id), "variant_key": row.variant_key} for row in activated
             ],
         }
 

@@ -199,7 +199,7 @@ describe("MessageProposals / ProposalCards", () => {
     expect(approveApi).toHaveBeenCalledWith("prop-1");
     await waitFor(() => {
       expect(
-        screen.getByText("Drafted — see the Synth Library"),
+        screen.getByText("Activated — see the Synth Library"),
       ).toBeInTheDocument();
     });
   });

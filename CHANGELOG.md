@@ -5,13 +5,24 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **The CV copilot can see templates now (plan 83)**: ask it to "switch to
+  a more modern template" and it renders first-page previews of the
+  current template plus up to three candidates and judges them visually
+  (density, whitespace, typography) — capability-detected, degrading to
+  metadata-only advice without the print engine. The chat shows you the
+  same previews as clickable thumbnails during the turn and keeps them in
+  the message history. Previews are served from a content-hash cache
+  (`GET /cv/templates/{id}/preview.png`, 503 without the engine).
 - **Chat-proposed CV variants (plan 82A)**: ask the chatbot to "generate
   variants for my projects" and it proposes a single review card (refs
   copied verbatim from your profile digests, at most 10 items) — approving
-  it drafts synthesized variants into the CV Synth Library (inline for up
-  to 5 items, via the background queue for more). Card resolution is
-  terminal before drafting: a failure leaves an approved card with the
-  error recorded, never a retryable card that would duplicate drafts.
+  it creates the synthesized variants **active** in the CV Synth Library
+  (the card approval is the review; the previous variant in the slot
+  retires). Up to 5 items draft inline, more ride the background queue
+  (the completion notification announces the active variants). Card
+  resolution is terminal before drafting: a failure leaves an approved
+  card with the error recorded, never a retryable card that would
+  duplicate drafts.
 
 - **Chat proposals can link skills, achievements and links (plan 82B)**:
   experience-item suggestions now understand the child collections the

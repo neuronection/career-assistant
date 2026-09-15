@@ -21597,6 +21597,53 @@
         ]
       }
     },
+    "/api/v1/cv/templates/{template_id}/preview.png": {
+      "get": {
+        "description": "First-page PNG thumbnail (plan 83): content-hash cached, printed\nthrough the PDF engine \u2014 503 with the capability message when it is\nmissing.",
+        "operationId": "preview_template_png_api_v1_cv_templates__template_id__preview_png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Template Png",
+        "tags": [
+          "cv-templates"
+        ]
+      }
+    },
     "/api/v1/cv/templates/{template_id}/versions": {
       "get": {
         "description": "All version rows of this template key (newest first).",

@@ -1,5 +1,5 @@
 import type { ChatFlowEvent } from "@/lib/chatFlow";
-import type { ProfileProposalCardData } from "@/types";
+import type { ChatTemplatePreview, ProfileProposalCardData } from "@/types";
 
 export interface ChatCvAttachmentInput {
   kind: "cv";
@@ -17,6 +17,8 @@ export interface ChatStreamCallbacks {
   onBuilderState?: (state: Record<string, unknown>) => void;
   /**: one persisted HITL proposal card (plan 77). */
   onProposal?: (card: ProfileProposalCardData) => void;
+  /**: one template first-page preview (plan 83). */
+  onPreview?: (preview: ChatTemplatePreview) => void;
 }
 
 interface SseBlock {
@@ -88,6 +90,8 @@ export async function streamChatRequest(
         callbacks.onBuilderState?.(payload);
       } else if (block.event === "proposal") {
         callbacks.onProposal?.(payload as ProfileProposalCardData);
+      } else if (block.event === "preview") {
+        callbacks.onPreview?.(payload as ChatTemplatePreview);
       } else if (block.event === "error") {
         throw new Error(payload.detail ?? "AI error");
       } else if (block.event === "done") {

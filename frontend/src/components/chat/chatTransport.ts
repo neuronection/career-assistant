@@ -5,7 +5,7 @@ import {
 } from "@/api/chatStream";
 import type { ChatFlowEvent } from "@/lib/chatFlow";
 import type { ChatStreamEvent, ChatStreamTransport } from "@/components/ui/chat";
-import type { ProfileProposalCardData } from "@/types";
+import type { ChatTemplatePreview, ProfileProposalCardData } from "@/types";
 import type { ChatCvAttachmentInput } from "@/api/chatStream";
 
 function mapFlowEvent(event: ChatFlowEvent): ChatStreamEvent {
@@ -47,6 +47,10 @@ export interface ChatTransportDeps {
   onBuilderState?: (state: Record<string, unknown>) => void;
   /**: one persisted HITL proposal card mid-stream (plan 77). */
   onProposal?: (card: ProfileProposalCardData) => void;
+  /**: one template first-page preview mid-stream (plan 83). */
+  onPreview?: (preview: ChatTemplatePreview) => void;
+  /**: raw family flow events (in addition to the mapped stream state). */
+  onFlowEvent?: (event: ChatFlowEvent) => void;
 }
 
 export interface CareerChatTransport extends ChatStreamTransport {
@@ -80,9 +84,13 @@ export function createChatTransport(deps: ChatTransportDeps): CareerChatTranspor
           sent = accumulated.length;
         }
       },
-      onFlowEvent: (event) => onEvent?.(mapFlowEvent(event)),
+      onFlowEvent: (event) => {
+        onEvent?.(mapFlowEvent(event));
+        deps.onFlowEvent?.(event);
+      },
       onBuilderState: (state) => deps.onBuilderState?.(state),
       onProposal: (card) => deps.onProposal?.(card),
+      onPreview: (preview) => deps.onPreview?.(preview),
     });
   };
 

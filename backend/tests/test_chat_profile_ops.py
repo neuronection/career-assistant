@@ -646,3 +646,4 @@ async def test_chat_cv_synth_op_flows_to_library(client, db, auth_headers):
         .all()
     )
     assert len(rows) >= 1
+    assert all(row.status == "active" for row in rows)
