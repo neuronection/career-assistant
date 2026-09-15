@@ -100,6 +100,49 @@ def cefr_of(level: str) -> str:
     return LEVEL_CEFR.get(str(level).strip().lower(), "")
 
 
+CEFR_BAND_RANK: dict[str, int] = {
+    "A1": 1,
+    "A2": 2,
+    "B1": 3,
+    "B2": 4,
+    "C1": 5,
+    "C2": 6,
+}
+
+# Band tokens stand alone ("ECPE - C2", "B2 First"): boundaries exclude
+# alphanumerics so "B2B" or a score like "110" never half-match.
+_CEFR_BAND_RE = re.compile(r"(?<![A-Za-z0-9])([ABC][12])(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+def cefr_band_of(cert: dict) -> str:
+    """CEFR band a certificate declares in its title/issuer ("" when none)."""
+    match = _CEFR_BAND_RE.search(f"{cert.get('title') or ''} {cert.get('org') or ''}")
+    return match.group(1).upper() if match else ""
+
+
+def _band_ceiling(band: str) -> int:
+    """Rank of the highest CEFR token in a band string (0 when none)."""
+    tokens = _CEFR_BAND_RE.findall(band)
+    return max((CEFR_BAND_RANK[token.upper()] for token in tokens), default=0)
+
+
+def display_cefr(level: str, cert: dict | None = None) -> str:
+    """CEFR band shown for a language.
+
+    The matched proficiency certificate's band is objective evidence and
+    wins when it proves more than the self-reported level's
+    representative band (upgrade-only: an old lower-band certificate
+    never downgrades the claim). "Native" is not a CEFR band and stays.
+    """
+    band = cefr_of(level)
+    if cert is None or band == "Native":
+        return band
+    cert_band = cefr_band_of(cert)
+    if cert_band and CEFR_BAND_RANK[cert_band] > _band_ceiling(band):
+        return cert_band
+    return band
+
+
 def _implied_language(haystack: str) -> str:
     lowered = haystack.lower()
     for keyword, code in PROFICIENCY_EXAMS.items():
