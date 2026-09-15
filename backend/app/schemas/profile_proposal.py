@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.cv import CvContextRef
+
 ProposalActionLiteral = Literal["create", "update", "delete"]
 ProposalStatusLiteral = Literal[
     "pending", "approved", "rejected", "conflict", "expired"
@@ -22,6 +24,7 @@ ProposalKindLiteral = Literal[
     "profile_achievement",
     "user_skill",
     "profile_section",
+    "cv_synth",
 ]
 
 PROFILE_SECTIONS: tuple[str, ...] = (
@@ -59,6 +62,25 @@ class ProfileSectionPatchIn(BaseModel):
         "constraints",
     ]
     value: dict[str, Any]
+
+
+class CvSynthOpPayload(BaseModel):
+    """Chat-proposed variant drafting (plan 82): refs + action only.
+
+    Batches stay small enough to review as one card; library-owned
+    concerns (`translate`, `regenerate` of existing rows) are rejected —
+    they belong to the Synth Library surface.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    refs: list[CvContextRef] = Field(min_length=1, max_length=10)
+    action: Literal["summarize", "detail", "restyle", "posting_fit"] = "summarize"
+    posting_id: Optional[UUID] = None
+    language: str = Field(default="en", min_length=2, max_length=10)
+    tone: Optional[str] = Field(default=None, max_length=60)
+    length: Optional[str] = Field(default=None, max_length=20)
+    variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
 
 
 class ProfileProposalOut(BaseModel):

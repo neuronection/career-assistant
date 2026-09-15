@@ -68,7 +68,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0034"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0035"], (
         "revision chain stays linear on one head"
     )
 
@@ -274,3 +274,45 @@ def test_fresh_sqlite_migrates_to_head(monkeypatch):
     finally:
         if Path(path).exists():
             Path(path).unlink()
+
+
+def _proposal_kinds_check() -> str:
+    """kind CHECK expression on `profile_proposals` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            async with engine.connect() as conn:
+                checks = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints(
+                        "profile_proposals"
+                    )
+                )
+            return {
+                c["name"].replace("ck_profile_proposals_", ""): c["sqltext"]
+                for c in checks
+            }["kind_allowed"]
+        finally:
+            await engine.dispose()
+
+    import asyncio
+
+    return asyncio.run(run())
+
+
+def test_0035_chat_cv_synth_kind_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert "cv_synth" in _proposal_kinds_check()
+
+    command.downgrade(config, "0034")
+    assert "cv_synth" not in _proposal_kinds_check()
+
+    command.upgrade(config, "head")
+    assert "cv_synth" in _proposal_kinds_check()

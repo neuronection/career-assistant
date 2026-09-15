@@ -1822,11 +1822,13 @@
     "resizeAria": "Resize chat panel",
     "proposals": {
       "approve": "Approve",
+      "approveVariants": "Draft variants",
       "reject": "Reject",
       "confirmDelete": "Confirm delete",
       "cancel": "Cancel",
       "pending": "Pending review",
       "approved": "Approved",
+      "approvedVariants": "Drafted — see the Synth Library",
       "rejected": "Rejected",
       "conflict": "Changed since proposed",
       "expired": "Expired",

@@ -48,6 +48,7 @@ from app.schemas.profile_entities import (
     ProfileAchievementPatch,
 )
 from app.schemas.profile_proposal import (
+    CvSynthOpPayload,
     ProfileSectionPatchIn,
     UserSkillAddIn,
     UserSkillPatchIn,
@@ -161,6 +162,13 @@ KIND_SPECS: dict[str, KindSpec] = {
         model=Profile,
         create_model=None,
         update_model=ProfileSectionPatchIn,
+        fields=(),
+    ),
+    ProposalKind.CV_SYNTH.value: KindSpec(
+        label="CV variants",
+        model=None,
+        create_model=None,
+        update_model=None,
         fields=(),
     ),
 }
@@ -367,6 +375,11 @@ class ProfileProposalService:
         if kind == ProposalKind.PROFILE_SECTION.value:
             if action != ProposalAction.UPDATE.value:
                 raise ValidationError("Profile sections support update only")
+        elif kind == ProposalKind.CV_SYNTH.value:
+            if action != ProposalAction.CREATE.value:
+                raise ValidationError("CV variant ops support create only")
+            if entity_id is not None:
+                raise ValidationError("cv_synth ops carry no entity_id")
         elif action == ProposalAction.CREATE.value:
             if entity_id is not None:
                 raise ValidationError("create ops carry no entity_id")
@@ -393,6 +406,11 @@ class ProfileProposalService:
             base_updated_at = profile.updated_at
             label = patch.section.replace("_", " ")
             diff = self._section_diff(profile, patch.section, patch.value)
+        elif kind == ProposalKind.CV_SYNTH.value:
+            op_payload = CvSynthOpPayload.model_validate(payload)
+            stored_payload = op_payload.model_dump(mode="json")
+            label = self._cv_synth_label(stored_payload)
+            diff = self._cv_synth_diff(stored_payload)
         elif action == ProposalAction.CREATE.value:
             model = spec.create_model
             assert model is not None
@@ -544,6 +562,16 @@ class ProfileProposalService:
             return proposal, None, True
         if proposal.status != ProposalStatus.PENDING.value:
             raise ValidationError(f"Cannot approve a {proposal.status} proposal")
+        # cv_synth apply drafts rows in a self-committing service (the
+        # audit rule), so the card must reach its terminal state BEFORE
+        # the apply — a crash mid-apply leaves an approved card with a
+        # resolve_error, never a retryable pending one (a retry would
+        # duplicate the whole batch).
+        terminal_first = proposal.kind == ProposalKind.CV_SYNTH.value
+        if terminal_first:
+            proposal.status = ProposalStatus.APPROVED.value
+            proposal.resolved_at = datetime.now(timezone.utc)
+            await self.db.commit()
         try:
             applied = await self._apply_checked(proposal)
         except ConflictError:
@@ -636,6 +664,38 @@ class ProfileProposalService:
         validated = model.model_validate(payload)
         return validated.model_dump(mode="json", exclude_unset=True)
 
+    async def _apply_cv_synth(self, user_id: uuid.UUID, payload: dict) -> dict:
+        """Draft variants for an approved cv_synth card (plan 82).
+
+        Small batches run inline through the same service the Synth
+        Library REST endpoint calls; larger ones enqueue the existing
+        `cv_synth` background job (its completion notification announces
+        the drafts). Refs resolve against the user's context inside the
+        service — stale/foreign ids surface as a resolve_error.
+        """
+        from app.schemas.cv_synth import CvSynthItemGenerate
+        from app.services.cv_synth_service import CvSynthService, SYNC_LIMIT
+
+        request = CvSynthItemGenerate.model_validate(payload)
+        if len(request.refs) > SYNC_LIMIT:
+            from app.services.job_worker import enqueue
+
+            job = await enqueue(
+                self.db,
+                "cv_synth",
+                {"request": payload},
+                user_id=user_id,
+            )
+            return {"queued": True, "job_id": str(job.id), "kind": "cv_synth"}
+        rows = await CvSynthService(self.db).generate(user_id, request)
+        return {
+            "queued": False,
+            "kind": "cv_synth",
+            "items": [
+                {"id": str(row.id), "variant_key": row.variant_key} for row in rows
+            ],
+        }
+
     async def _apply(
         self,
         kind: str,
@@ -651,6 +711,8 @@ class ProfileProposalService:
         from app.services.skills_service import SkillService
 
         entity: Any = None
+        if kind == ProposalKind.CV_SYNTH.value:
+            return await self._apply_cv_synth(user_id, payload)
         if kind == ProposalKind.EXPERIENCE_ITEM.value:
             service = ExperienceService(self.db)
             if action == ProposalAction.CREATE.value:
@@ -813,6 +875,42 @@ class ProfileProposalService:
         if kind == ProposalKind.USER_SKILL.value:
             return str(payload.get("skill_key") or "")
         return ""
+
+    def _cv_synth_label(self, payload: dict) -> str:
+        refs = payload.get("refs") or []
+        posting = " · posting fit" if payload.get("posting_id") else ""
+        return f"{len(refs)} item(s) · {payload.get('action', 'summarize')}{posting}"
+
+    def _cv_synth_diff(self, payload: dict) -> list[dict]:
+        refs = [
+            f"{ref.get('source_key')}:{ref.get('item_id')}"
+            for ref in payload.get("refs") or []
+        ]
+        rows: list[dict] = [
+            {"field": "refs", "label": "Items", "before": None, "after": refs[:15]},
+            {
+                "field": "action",
+                "label": "Action",
+                "before": None,
+                "after": payload.get("action") or "summarize",
+            },
+            {
+                "field": "language",
+                "label": "Language",
+                "before": None,
+                "after": payload.get("language") or "en",
+            },
+        ]
+        if payload.get("posting_id"):
+            rows.append(
+                {
+                    "field": "posting_id",
+                    "label": "Target posting",
+                    "before": None,
+                    "after": str(payload["posting_id"]),
+                }
+            )
+        return rows
 
     def _create_diff(self, spec: KindSpec, payload: dict) -> list[dict]:
         labels = dict(spec.fields)

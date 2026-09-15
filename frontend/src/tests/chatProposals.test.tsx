@@ -171,6 +171,39 @@ describe("MessageProposals / ProposalCards", () => {
     expect(container.querySelector('[data-as="text-diff-view"]')).toBeNull();
   });
 
+  it("variant cards use the draft-variants labels (plan 82A)", async () => {
+    const user = userEvent.setup();
+    const card: ProfileProposalCardData = {
+      ...CARD,
+      kind: "cv_synth",
+      action: "create",
+      title: "Add CV variants · 2 item(s) · summarize",
+      diff: [
+        {
+          field: "refs",
+          label: "Items",
+          before: null,
+          after: ["projects:p-1", "experience:p-2"],
+        },
+        { field: "action", label: "Action", before: null, after: "summarize" },
+      ],
+    };
+    approveApi.mockResolvedValue({
+      proposal: { ...card, status: "approved" },
+      applied: { queued: false, kind: "cv_synth", items: [{ id: "v1" }] },
+      already: false,
+    });
+    render(<MessageProposals message={messageWith([card])} />);
+    expect(screen.getByText('["projects:p-1","experience:p-2"]')).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Draft variants" }));
+    expect(approveApi).toHaveBeenCalledWith("prop-1");
+    await waitFor(() => {
+      expect(
+        screen.getByText("Drafted — see the Synth Library"),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("live cards render through the same stack", async () => {
     useProfileProposalsStore.setState({ live: [CARD] });
     render(<ProposalCards cards={useProfileProposalsStore.getState().live} />);

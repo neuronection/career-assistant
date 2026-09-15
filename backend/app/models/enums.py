@@ -737,7 +737,7 @@ class AutopilotFeedback(str, Enum):
 
 
 class ProposalKind(str, Enum):
-    """Entity kinds a HITL profile proposal can mutate (plan 77)."""
+    """Entity kinds a HITL profile proposal can mutate (plan 77, 82)."""
 
     EXPERIENCE_ITEM = "experience_item"
     EDUCATION_ITEM = "education_item"
@@ -745,6 +745,7 @@ class ProposalKind(str, Enum):
     PROFILE_ACHIEVEMENT = "profile_achievement"
     USER_SKILL = "user_skill"
     PROFILE_SECTION = "profile_section"
+    CV_SYNTH = "cv_synth"
 
 
 class ProposalAction(str, Enum):

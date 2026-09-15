@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar, ove
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import build_chat_model
@@ -92,6 +93,23 @@ def _message_text(message: BaseMessage) -> str:
 def _schema_hint(schema: type[BaseModel]) -> str:
     """The system-prompt suffix asking for schema-conforming JSON."""
     return json.dumps(schema.model_json_schema(), ensure_ascii=False)
+
+
+def _finish_reason(message: BaseMessage) -> str:
+    """The provider finish reason of a reply chunk/message ('' if absent)."""
+    meta = getattr(message, "response_metadata", None) or {}
+    return str(meta.get("finish_reason") or "")
+
+
+def _stream_failure_message(finish_reason: str) -> str:
+    """User-facing failure text; names the token cap when it fired."""
+    detail = "The model's reply was not usable structured output"
+    if finish_reason.upper().startswith("MAX_TOKENS"):
+        detail += (
+            " (the reply hit the token cap — raise the model's max_tokens "
+            "in Settings → AI Configuration)"
+        )
+    return detail + " — please retry."
 
 
 async def _invoke_model(
@@ -570,6 +588,9 @@ class StructuredStream:
         pack = await resolve_pack(db, task.value, user_id=user_id)
         effective_system = compose_system(system, pack)
 
+        model = None
+        messages: Optional[list] = None
+        finish_reason = ""
         try:
             if resolved.provider_type == "mock":
                 raw = json.dumps(
@@ -595,32 +616,66 @@ class StructuredStream:
                     if piece:
                         self._raw.append(piece)
                         yield piece
+                    finish_reason = _finish_reason(chunk) or finish_reason
                     usage = chunk.usage_metadata
                     if usage:
                         self.tokens_in = usage.get("input_tokens")
                         self.tokens_out = usage.get("output_tokens")
-                if not self._raw:
-                    # Some replies stream zero text chunks (safety block,
-                    # or the answer lands outside the text parts) — one
-                    # non-streaming attempt before failing, else every
-                    # such turn died on json.loads("") downstream.
+                if not "".join(self._raw).strip():
+                    # Some replies stream zero usable text (whitespace
+                    # only, safety block, or the answer lands outside the
+                    # text parts) — one non-streaming attempt before
+                    # failing, else every such turn died on
+                    # json.loads("") downstream.
                     message = await model.ainvoke(messages)
                     text = _message_text(message)
                     if text:
                         self._raw.append(text)
                         yield text
+                    finish_reason = _finish_reason(message) or finish_reason
                     usage = getattr(message, "usage_metadata", None)
                     if usage:
                         self.tokens_in = usage.get("input_tokens")
                         self.tokens_out = usage.get("output_tokens")
 
             latency = (time.perf_counter() - started) * 1000
-            if not self._raw:
+            if not "".join(self._raw).strip():
                 raise StructuredAIError(
                     "The model returned no text content (it may have been "
                     "safety-blocked) — please retry."
                 )
-            self.reply = schema.model_validate(_extract_json("".join(self._raw)))
+            accumulated = "".join(self._raw)
+            try:
+                self.reply = schema.model_validate(_extract_json(accumulated))
+            except (json.JSONDecodeError, PydanticValidationError) as exc:
+                # One non-streaming rescue — but never when answer text
+                # already streamed (the UI showed it; a diverging retry
+                # would contradict it).
+                if model is None or partial_answer_text(accumulated).strip():
+                    raise StructuredAIError(
+                        _stream_failure_message(finish_reason)
+                    ) from exc
+                message = await model.ainvoke(messages)
+                text = _message_text(message)
+                finish_reason = _finish_reason(message) or finish_reason
+                usage = getattr(message, "usage_metadata", None)
+                if usage:
+                    self.tokens_in = usage.get("input_tokens")
+                    self.tokens_out = usage.get("output_tokens")
+                if not text.strip():
+                    raise StructuredAIError(
+                        _stream_failure_message(finish_reason)
+                    ) from exc
+                self._raw.append(text)
+                yield text
+                try:
+                    self.reply = schema.model_validate(
+                        _extract_json("".join(self._raw))
+                    )
+                except (json.JSONDecodeError, PydanticValidationError) as rescue_exc:
+                    raise StructuredAIError(
+                        _stream_failure_message(finish_reason)
+                    ) from rescue_exc
             await _record(
                 db,
                 user_id,
@@ -639,6 +694,11 @@ class StructuredStream:
             )
         except Exception as exc:  # noqa: BLE001 — failures audited, then raised
             self.error = f"{type(exc).__name__}: {exc}"
+            audit_error = self.error
+            if self.reply is None:
+                raw_snippet = "".join(self._raw).strip()
+                if raw_snippet:
+                    audit_error = f"{audit_error} | raw={raw_snippet[:300]!r}"
             if self.reply is None and "AINotConfigured" not in self.error:
                 latency = (time.perf_counter() - started) * 1000
                 await _record(
@@ -652,7 +712,7 @@ class StructuredStream:
                     None,
                     latency,
                     "error",
-                    self.error,
+                    audit_error,
                     provider_type=resolved.provider_type,
                 )
             raise

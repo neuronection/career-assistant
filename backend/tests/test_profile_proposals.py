@@ -484,3 +484,233 @@ async def test_ops_caps_and_unknown_kind_rejected(db, auth_headers):
             action="update",
             payload={"hours_per_week": 5},
         )
+
+
+async def test_experience_create_with_skill_links_applies(db, auth_headers):
+    """Plan 82B: a create op can carry the linking collections the REST
+    schema accepts — label-string skills normalize and apply as rows."""
+    from app.models.experience_model import ExperienceSkill
+
+    user = await _auth_user(db)
+    created, dropped = await ProfileProposalService(db).create_from_ops(
+        user.id,
+        [
+            {
+                "kind": "experience_item",
+                "action": "create",
+                "payload": {
+                    "title": "Neuronection platform",
+                    "kind": "project",
+                    "open_ended": True,
+                    "skills": ["python", {"skill_key": "fastapi"}],
+                    "links": ["https://github.com/example/platform"],
+                },
+            }
+        ],
+    )
+    assert dropped == []
+    proposal = created[0]
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert by_field["skills"]["after"] == ["python", "fastapi"]
+    assert by_field["links"]["after"] == ["https://github.com/example/platform"]
+
+    _, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
+    refreshed = await db.execute(
+        select(ExperienceItem)
+        .options(
+            selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill)
+        )
+        .where(ExperienceItem.id == uuid.UUID(applied["id"]))
+    )
+    item = refreshed.scalars().one()
+    assert {link.skill.key for link in item.skills} == {"python", "fastapi"}
+    assert [link["url"] for link in item.links] == [
+        "https://github.com/example/platform"
+    ]
+
+
+async def test_experience_update_replaces_skill_list(db, auth_headers):
+    """Plan 82B: update ops REPLACE the skill list in full (REST patch
+    semantics) — the prompt documents this and apply honors it."""
+    from app.models.experience_model import ExperienceSkill
+
+    user = await _auth_user(db)
+    item = await _experience(db, user, skills=[{"skill_key": "python"}])
+    proposal = await _propose(
+        db,
+        user,
+        action="update",
+        payload={"skills": [{"skill_key": "fastapi"}]},
+        entity_id=item.id,
+    )
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert by_field["skills"]["before"] == ["python"]
+    assert by_field["skills"]["after"] == ["fastapi"]
+
+    await ProfileProposalService(db).approve(user.id, proposal.id)
+    refreshed = await db.execute(
+        select(ExperienceItem)
+        .options(
+            selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill)
+        )
+        .where(ExperienceItem.id == item.id)
+    )
+    replaced = refreshed.scalars().one()
+    assert {link.skill.key for link in replaced.skills} == {"fastapi"}
+
+
+async def test_mock_fixture_emits_skill_link_op(db, auth_headers):
+    """Plan 82B: the mock chat fixture proposes a skill-linked create when
+    the message names skills (offline tests/E2E parity for the prompt)."""
+    from app.ai.agents.chatbot import _mock_chat_reply
+
+    user_prompt = "CONTEXT_JSON: " + json.dumps(
+        {
+            "message": "add a project with my skills",
+            "tool_results": {
+                "my_experience": {"items": []},
+                "my_skills": {
+                    "skills": [
+                        {"row_id": "r1", "skill_key": "python"},
+                        {"row_id": "r2", "skill_key": "docker"},
+                    ]
+                },
+            },
+        }
+    )
+    reply = _mock_chat_reply(object, user_prompt)
+    ops = reply["profile_ops"]
+    assert ops[0]["kind"] == "experience_item"
+    assert [s["skill_key"] for s in ops[0]["payload"]["skills"]] == ["python", "docker"]
+
+
+async def test_cv_synth_card_inline_drafts(db, auth_headers):
+    """Plan 82A: an approved cv_synth card drafts library rows inline
+    (≤5 refs) through the same service the Synth Library uses."""
+    from app.models.cv_synth_model import CvSynthItem
+
+    user = await _auth_user(db)
+    item = await _experience(db, user)
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "summarize",
+        },
+    )
+    assert proposal.status == "pending"
+    assert proposal.entity_label == "1 item(s) · summarize"
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert by_field["refs"]["after"] == [f"experience:{item.id}"]
+
+    resolved, applied, _ = await ProfileProposalService(db).approve(
+        user.id, proposal.id
+    )
+    assert resolved.status == "approved"
+    assert applied["queued"] is False
+    assert len(applied["items"]) >= 1
+
+    rows = (
+        (await db.execute(select(CvSynthItem).where(CvSynthItem.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) >= 1
+
+
+async def test_cv_synth_card_queues_large_batch(db, auth_headers):
+    """Plan 82A: >5 refs ride the existing cv_synth background job; the
+    card is terminal BEFORE the apply (no duplicate-draft retries)."""
+    from app.models.background_job_model import BackgroundJob
+
+    user = await _auth_user(db)
+    refs = [
+        {"source_key": "experience", "item_id": f"00000000-0000-0000-0000-{i:012d}"}
+        for i in range(6)
+    ]
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={"refs": refs, "action": "restyle"},
+    )
+    resolved, applied, _ = await ProfileProposalService(db).approve(
+        user.id, proposal.id
+    )
+    assert resolved.status == "approved"
+    assert applied["queued"] is True
+    assert applied["job_id"]
+
+    jobs = (
+        (
+            await db.execute(
+                select(BackgroundJob).where(
+                    BackgroundJob.user_id == user.id,
+                    BackgroundJob.job_type == "cv_synth",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(jobs) == 1
+
+
+async def test_cv_synth_stale_refs_fail_with_resolve_error(db, auth_headers):
+    """Terminal-first: refs that no longer resolve leave an APPROVED card
+    with a resolve_error — never a retryable pending one."""
+    user = await _auth_user(db)
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [
+                {
+                    "source_key": "experience",
+                    "item_id": "00000000-0000-0000-0000-999999999999",
+                }
+            ],
+        },
+    )
+    with pytest.raises(DomainError):
+        await ProfileProposalService(db).approve(user.id, proposal.id)
+    resolved = await ProfileProposalService(db).get(user.id, proposal.id)
+    assert resolved.status == "approved"
+    assert "context" in resolved.resolve_error
+
+
+async def test_cv_synth_card_validates_shape(db, auth_headers):
+    from pydantic import ValidationError as PydanticValidationError
+
+    user = await _auth_user(db)
+    with pytest.raises(DomainError):
+        await _propose(db, user, kind="cv_synth", action="update", payload={})
+    with pytest.raises(PydanticValidationError):
+        await _propose(
+            db,
+            user,
+            kind="cv_synth",
+            action="create",
+            payload={
+                "refs": [{"source_key": "experience", "item_id": "x"}],
+                "translate_of": "00000000-0000-0000-0000-000000000000",
+            },
+        )
+    with pytest.raises(PydanticValidationError):
+        await _propose(
+            db,
+            user,
+            kind="cv_synth",
+            action="create",
+            payload={
+                "refs": [
+                    {"source_key": "experience", "item_id": str(i)} for i in range(11)
+                ]
+            },
+        )

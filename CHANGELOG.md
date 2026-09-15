@@ -5,6 +5,19 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Chat-proposed CV variants (plan 82A)**: ask the chatbot to "generate
+  variants for my projects" and it proposes a single review card (refs
+  copied verbatim from your profile digests, at most 10 items) — approving
+  it drafts synthesized variants into the CV Synth Library (inline for up
+  to 5 items, via the background queue for more). Card resolution is
+  terminal before drafting: a failure leaves an approved card with the
+  error recorded, never a retryable card that would duplicate drafts.
+
+- **Chat proposals can link skills, achievements and links (plan 82B)**:
+  experience-item suggestions now understand the child collections the
+  forms already support — skill links (keys copied from your skills
+  digest), achievements and links — with replace semantics on updates
+  documented for the model.
 - **Links on work experience & projects**: experience items now support
   up to 10 attachable links (label + URL + kind: GitHub / LinkedIn /
   demo / web) with scheme validation — the experience editor gains a
@@ -125,6 +138,14 @@ All notable changes to **Career Assistant** are documented here.
   (`GET /me/profile-proposals` + approve/reject/dismiss endpoints).
 
 ### Fixed
+- **Chat turns no longer fail with "Expecting value: line 1 column 1"**
+  (plan 82C): whitespace-only model replies now trigger the non-streaming
+  fallback, a reply that arrives as plain prose gets one automatic
+  non-streaming retry, and a genuine failure surfaces a clear, retryable
+  message (naming the token cap when the reply was truncated) instead of a
+  raw JSON parse error. The model's raw output is now recorded on the
+  audit trail when a reply can't be parsed, making flaky-provider
+  diagnosis possible after the fact.
 - **Chat turns no longer die on "Expecting value: line 1 column 1"**:
   when a model streams zero text chunks (safety-blocked replies, or the
   answer landing outside the text parts), the structured stream used to
@@ -574,6 +595,7 @@ All notable changes to **Career Assistant** are documented here.
   checkpoints live in their own `checkpoints.db` so live AI runs no
   longer deadlock the app database under WAL.
 
+### Fixed
 ## [v0.8.3] - 2026-09-12
 
 ### Fixed

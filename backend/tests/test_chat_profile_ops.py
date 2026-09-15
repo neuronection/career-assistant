@@ -608,3 +608,41 @@ def test_profile_op_schema_caps():
         }
     )
     assert op.entity_id is None
+
+
+async def test_chat_cv_synth_op_flows_to_library(client, db, auth_headers):
+    """Plan 82A: a variant ask proposes ONE cv_synth card; approving it
+    drafts review-only rows in the Synth Library."""
+    from app.models.cv_synth_model import CvSynthItem
+
+    user = await _auth_user(db)
+    await ExperienceService(db).create_item(
+        user.id, {"title": "Neuronection", "kind": "project", "open_ended": True}
+    )
+    session = await _session(client, auth_headers)
+    events = await _send(
+        client, session["id"], auth_headers, "generate variants for my projects"
+    )
+    cards = [p for n, p in events if n == "proposal"]
+    assert len(cards) == 1
+    assert cards[0]["kind"] == "cv_synth"
+    assert cards[0]["title"].startswith("Add CV variants")
+    fields = {row["field"]: row for row in cards[0]["diff"]}
+    assert fields["action"]["after"] == "summarize"
+    assert len(fields["refs"]["after"]) == 1
+
+    response = await client.post(
+        f"/api/v1/me/profile-proposals/{cards[0]['id']}/approve",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["applied"]["queued"] is False
+    assert len(body["applied"]["items"]) >= 1
+
+    rows = (
+        (await db.execute(select(CvSynthItem).where(CvSynthItem.user_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) >= 1

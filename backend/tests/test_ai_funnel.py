@@ -207,3 +207,135 @@ async def test_stream_yields_pieces_and_audits_once(db, monkeypatch):
     assert rows[0].status == "ok"
     assert rows[0].tokens_in == 12
     assert rows[0].tokens_out == 34
+
+
+class _FakeRecoveryModel:
+    """Streams scripted pieces, then answers `ainvoke` rescues."""
+
+    def __init__(self, pieces, replies, finish_reason="STOP"):
+        self.pieces = list(pieces)
+        self.replies = list(replies)
+        self.finish_reason = finish_reason
+        self.invoke_calls = 0
+
+    def astream(self, messages):
+        pieces = self.pieces
+        finish_reason = self.finish_reason
+
+        async def _gen():
+            for piece in pieces:
+                yield AIMessageChunk(
+                    content=piece, response_metadata={"finish_reason": finish_reason}
+                )
+            yield AIMessageChunk(content="", usage_metadata=dict(USAGE))
+
+        return _gen()
+
+    async def ainvoke(self, messages):
+        self.invoke_calls += 1
+        reply = self.replies[min(self.invoke_calls - 1, len(self.replies) - 1)]
+        if isinstance(reply, Exception):
+            raise reply
+        return AIMessage(
+            content=reply,
+            usage_metadata=dict(USAGE),
+            response_metadata={"finish_reason": self.finish_reason},
+        )
+
+
+async def test_stream_whitespace_chunks_fall_back_to_invoke(db, monkeypatch):
+    user = await _assign_real_model(db)
+    fake = _FakeRecoveryModel([" ", " \n"], ['{"answer": "recovered"}'])
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
+
+    stream = StructuredStream()
+    pieces = [
+        piece
+        async for piece in stream.chunks(
+            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
+        )
+    ]
+    assert stream.reply is not None
+    assert stream.reply.answer == "recovered"
+    assert fake.invoke_calls == 1
+    assert pieces[-1] == '{"answer": "recovered"}'
+
+
+async def test_stream_prose_reply_rescued_by_invoke(db, monkeypatch):
+    user = await _assign_real_model(db)
+    fake = _FakeRecoveryModel(
+        ["Sure — here is my take, no JSON at all."], ['{"answer": "rescued"}']
+    )
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
+
+    stream = StructuredStream()
+    pieces = [
+        piece
+        async for piece in stream.chunks(
+            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
+        )
+    ]
+    assert stream.reply is not None
+    assert stream.reply.answer == "rescued"
+    assert fake.invoke_calls == 1
+    assert '{"answer": "rescued"}' in pieces
+
+
+async def test_stream_rescue_failure_audits_raw_snippet(db, monkeypatch):
+    user = await _assign_real_model(db)
+    fake = _FakeRecoveryModel(
+        ["Plain prose, still no braces."], ["Still prose on the retry."]
+    )
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
+
+    stream = StructuredStream()
+    with pytest.raises(StructuredAIError, match="not usable structured output"):
+        async for _ in stream.chunks(
+            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
+        ):
+            pass
+    assert fake.invoke_calls == 1
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration).where(AIGeneration.task_type == "assist")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].status == "error"
+    assert "raw=" in rows[0].error
+    assert "Plain prose" in rows[0].error
+
+
+async def test_stream_no_rescue_after_answer_text_streamed(db, monkeypatch):
+    user = await _assign_real_model(db)
+    fake = _FakeRecoveryModel(['{"answer": "Hel'], [])
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
+
+    stream = StructuredStream()
+    with pytest.raises(StructuredAIError, match="not usable structured output"):
+        async for _ in stream.chunks(
+            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
+        ):
+            pass
+    assert fake.invoke_calls == 0
+
+
+async def test_stream_failure_names_token_cap(db, monkeypatch):
+    user = await _assign_real_model(db)
+    fake = _FakeRecoveryModel(
+        ["Prose only."],
+        ["Prose again."],
+        finish_reason="MAX_TOKENS",
+    )
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
+
+    stream = StructuredStream()
+    with pytest.raises(StructuredAIError, match="token cap"):
+        async for _ in stream.chunks(
+            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
+        ):
+            pass

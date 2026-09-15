@@ -164,6 +164,7 @@ class ProfileOp(BaseModel):
         "profile_achievement",
         "user_skill",
         "profile_section",
+        "cv_synth",
     ]
     action: Literal["create", "update", "delete"]
     entity_id: Optional[str] = Field(default=None, max_length=64)

@@ -654,6 +654,12 @@ _EDIT_VERBS = {
     "finish",
     "finished",
     "completed",
+    # variant-generation asks (cv_synth ops)
+    "generate",
+    "variant",
+    "variants",
+    "synth",
+    "synthesize",
 }
 
 
@@ -673,7 +679,44 @@ def _mock_profile_ops(tools: dict, message: str) -> list[dict]:
     certs = education.get("certifications") or []
     digest = tools.get("my_profile_digest") or {}
 
+    if items and words & {"variant", "variants", "synth", "synthesize", "generate"}:
+        source_by_kind = {
+            "project": "projects",
+            "volunteer": "volunteer",
+        }
+        return [
+            {
+                "kind": "cv_synth",
+                "action": "create",
+                "payload": {
+                    "refs": [
+                        {
+                            "source_key": source_by_kind.get(
+                                item.get("kind"), "experience"
+                            ),
+                            "item_id": item["id"],
+                        }
+                        for item in items[:3]
+                    ],
+                    "action": "summarize",
+                },
+            }
+        ]
     if "my_experience" in tools and words & {"add", "create", "record"}:
+        if words & {"skill", "skills"}:
+            keys = [row["skill_key"] for row in skill_rows[:2]] or ["python"]
+            return [
+                {
+                    "kind": "experience_item",
+                    "action": "create",
+                    "payload": {
+                        "title": "New project",
+                        "kind": "project",
+                        "open_ended": True,
+                        "skills": [{"skill_key": key} for key in keys],
+                    },
+                }
+            ]
         return [
             {
                 "kind": "experience_item",

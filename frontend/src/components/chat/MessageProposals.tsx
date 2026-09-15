@@ -52,6 +52,7 @@ export function ProposalCards({
     <div className="mt-1 flex w-full flex-col gap-1.5" data-testid="hitl-cards">
       {cards.map((card) => {
         const state = cardStatus(card, overrides[card.id]);
+        const variantCard = card.kind === "cv_synth";
         return (
           <HitlProposalCard
             key={card.id}
@@ -71,12 +72,16 @@ export function ProposalCards({
               void resolve(card.id, "reject");
             }}
             labels={{
-              approve: t("chat.proposals.approve"),
+              approve: variantCard
+                ? t("chat.proposals.approveVariants")
+                : t("chat.proposals.approve"),
               reject: t("chat.proposals.reject"),
               confirm: t("chat.proposals.confirmDelete"),
               cancel: t("chat.proposals.cancel"),
               pending: t("chat.proposals.pending"),
-              approved: t("chat.proposals.approved"),
+              approved: variantCard
+                ? t("chat.proposals.approvedVariants")
+                : t("chat.proposals.approved"),
               rejected: t("chat.proposals.rejected"),
               conflict: t("chat.proposals.conflict"),
               expired: t("chat.proposals.expired"),

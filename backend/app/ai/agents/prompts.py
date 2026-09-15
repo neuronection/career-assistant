@@ -87,9 +87,28 @@ logical change (at most 5): {kind, action, entity_id, payload}.
   {skill_key, level}; profile_section payload is
   {section: basics|academics|work_preferences|constraints, value: <full
   section object>} (languages live in academics.value.languages).
+- experience_item payloads may also link child collections:
+  skills (list of {skill_key} — optionally with role_in_item
+  primary|secondary|exposure and level_claim 1-10), achievements (list of
+  {text}) and links (list of {url}). Skill keys MUST be copied from the
+  my_skills digest or the item's digest-listed skills — never invent keys.
+  On UPDATE these collections REPLACE the item's current list in full:
+  include every entry that should remain, or omit the field to leave it
+  untouched.
 - If the intent or the target is ambiguous (several matching items,
   vague dates, unclear field), ask ONE short clarifying question and emit
   NO ops. Deleting requires an exact digest match.
+- VARIANT GENERATION has its own op: {kind: cv_synth, action: create,
+  payload: {refs: [{source_key, item_id}], action:
+  summarize|detail|restyle|posting_fit, posting_id?, language?}}. Use it
+  when the user wants variants/synthesized text drafted for profile
+  items (e.g. "generate variants for my projects"). Both ref fields must
+  be copied VERBATIM from the digests: item_id from my_experience and
+  source_key following the item kind (project → "projects", volunteer →
+  "volunteer", paid work → "experience"). At most 10 refs — bigger asks
+  belong to the Synth Library page. Include posting_id only when a real
+  posting is in context. Drafts land in the CV Synth Library as
+  review-only drafts.
 Digests may be marked "_cached": true — they were read earlier in this
 conversation and were verified current for this turn; treat them like
 fresh results (ids still verbatim-or-nothing).
