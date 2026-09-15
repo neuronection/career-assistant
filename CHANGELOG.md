@@ -5,6 +5,11 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Sunken workspace panes (plan 90)**: the builder's inspector is now a
+  slightly darker tray, so the section cards, context groups and inputs
+  inside it visibly float instead of blending into the pane — a
+  three-step elevation ladder (tray → surface → raised) using the
+  existing theme tokens, in both light and dark themes.
 - **Context panel at a glance (plan 89)**: the builder's Context tab now
   opens with a coverage summary ("N / M items on the CV"), every group
   header shows how many of its items are included (accent-highlighted

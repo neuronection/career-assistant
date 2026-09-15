@@ -17,8 +17,15 @@ centered `max-w-7xl` column:
 - Structure: **toolbar row → three-pane grid**
   `lg:grid-cols-[minmax(230px,280px)_minmax(0,1fr)_minmax(290px,340px)]`
   (context | canvas hero | inspector; two panes for the template editor).
-- Panes are rounded `border border-[var(--as-border)] bg-[var(--as-surface)]`
-  cards; the canvas pane is the hero (largest, live preview).
+- Panes are rounded
+  `border border-[var(--as-border)]` cards; the canvas pane is the hero
+  (largest, live preview). **Elevation is a three-step ladder** (plan
+  90): workspace panes are *sunken trays* (`bg-[var(--as-muted)]`),
+  cards/inputs inside them float on `--as-surface`, popover-grade
+  elements use `--as-surface-raised` — never give a tray and its
+  contents the same background. The token ladder
+  (`muted` tone-100 → `surface` tone-50 → `surface-raised` tone-0)
+  already encodes this.
 - Below `lg`, a **pane switcher** (segmented buttons, `lg:hidden`,
   `data-testid="pane-switcher"`) toggles one pane at a time — every
   feature stays reachable on tablet/mobile. Panes render with

@@ -114,7 +114,7 @@ export function InspectorPanel(props: InspectorPanelProps) {
         items={TAB_ITEMS}
         value={tab}
         onValueChange={(next) => onTabChange(next as InspectorTab)}
-        className="mb-2"
+        className="mb-2 bg-[color-mix(in_srgb,var(--as-fg)_7%,transparent)]"
       />
 
       <div
@@ -338,7 +338,7 @@ function DesignTab({
         )}
       </div>
       <div
-        className="mt-2 flex shrink-0 items-center gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] pt-2"
+        className="mt-2 flex shrink-0 items-center gap-2 border-t border-[var(--as-border)] pt-2"
         data-testid="design-footer"
       >
         <Button

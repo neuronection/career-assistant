@@ -1143,7 +1143,7 @@ export function CvBuilder() {
         <div
           className={`${
             activePane === "inspector" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-2.5 lg:flex`}
+          } cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-muted)] p-2.5 lg:flex`}
           data-testid="builder-inspector"
         >
           <InspectorPanel
