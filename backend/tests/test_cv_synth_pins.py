@@ -302,3 +302,139 @@ async def test_pin_applies_even_with_prefer_off(client, db, auth_headers):
     html = preview.json()["html"]
     assert "Starred text" in html, "a pin replaces the item text on its own"
     assert "Built QA tooling" not in html, "the original text never renders"
+
+
+async def test_pin_applies_for_project_items(client, db, auth_headers):
+    """Plan 83 follow-up repro: pins on PROJECT items must swap text like
+    experience pins do (source_key 'projects', not 'experience')."""
+    uid = _uid_of(auth_headers)
+    item = ExperienceItem(
+        user_id=uuid.UUID(uid),
+        kind="project",
+        title="Neuronection",
+        start=date(2025, 1, 1),
+        open_ended=True,
+        description="Original project description",
+        status="active",
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    variant = await _variant(
+        client,
+        auth_headers,
+        item,
+        variant_key="default",
+        text="Synthesized project description",
+    )
+    import json as _json
+
+    print("VARIANT_REFS:", _json.dumps(variant.get("source_refs")))
+    cv = await _cv(client, auth_headers)
+    await _set_context(
+        client,
+        auth_headers,
+        cv,
+        synth_pins={"projects:" + str(item.id): str(variant["id"])},
+    )
+    await client.patch(
+        f"/api/v1/cv/{cv['id']}",
+        json={
+            "working_content": {
+                "blocks": [
+                    {
+                        "kind": "items",
+                        "props": {"title": "Projects", "source_key": "projects"},
+                    }
+                ],
+                "overrides": {},
+            }
+        },
+        headers=auth_headers,
+    )
+    preview = await client.post(
+        "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
+    )
+    assert preview.status_code == 200, preview.text
+    html = preview.json()["html"]
+    assert "Synthesized project description" in html, "the pinned project variant must render"
+    assert "Original project description" not in html
+
+
+async def test_pin_applies_for_activated_ai_project_variant(
+    client, db, auth_headers, monkeypatch
+):
+    """Plan 83 follow-up: the exact user flow — AI-generate a project
+    variant, Activate it, star it — must swap the rendered text."""
+    from app.services.cv_template_service import CvTemplateService
+
+    uid = _uid_of(auth_headers)
+    item = ExperienceItem(
+        user_id=uuid.UUID(uid),
+        kind="project",
+        title="Neuronection",
+        start=date(2025, 1, 1),
+        open_ended=True,
+        description="Original project description",
+        status="active",
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+
+    async def fake_first_page_png(self, template):
+        return b"png"
+
+    monkeypatch.setattr(CvTemplateService, "first_page_png", fake_first_page_png)
+
+    generate = await client.post(
+        "/api/v1/cv/synth/generate",
+        json={
+            "refs": [{"source_key": "projects", "item_id": str(item.id)}],
+            "action": "summarize",
+            "language": "en",
+        },
+        headers=auth_headers,
+    )
+    assert generate.status_code == 200, generate.text
+    drafts = generate.json()["items"]
+    assert len(drafts) >= 1
+
+    activated = await client.patch(
+        f"/api/v1/cv/synth/{drafts[0]['id']}",
+        json={"status": "active"},
+        headers=auth_headers,
+    )
+    assert activated.status_code == 200, activated.text
+    assert activated.json()["status"] == "active"
+
+    cv = await _cv(client, auth_headers)
+    await _set_context(
+        client,
+        auth_headers,
+        cv,
+        synth_pins={"projects:" + str(item.id): str(drafts[0]["id"])},
+    )
+    await client.patch(
+        f"/api/v1/cv/{cv['id']}",
+        json={
+            "working_content": {
+                "blocks": [
+                    {
+                        "kind": "items",
+                        "props": {"title": "Projects", "source_key": "projects"},
+                    }
+                ],
+                "overrides": {},
+            }
+        },
+        headers=auth_headers,
+    )
+    preview = await client.post(
+        "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
+    )
+    assert preview.status_code == 200, preview.text
+    html = preview.json()["html"]
+    assert "delivered measurable outcomes" in html, (
+        "the pinned activated project variant must render"
+    )

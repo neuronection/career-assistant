@@ -199,3 +199,70 @@ async def test_lint_flags_override_conflict(client, db, auth_headers):
     ).json()
     checks = {c["id"]: c for c in lint["checks"]}
     assert "synth_conflict" in checks, "override beats synth; lint tells the story"
+
+
+async def test_lint_warns_when_pin_points_at_draft(client, db, auth_headers):
+    """Plan 83 follow-up: a starred variant that can't render (still a
+    draft) must surface a warn — silence reads as 'variants are broken'."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    row = (
+        await client.post(
+            "/api/v1/cv/synth/generate",
+            json={"refs": _refs(item), "action": "summarize"},
+            headers=auth_headers,
+        )
+    ).json()["items"][0]
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=row["id"]
+    )
+    lint = (
+        await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
+    ).json()
+    checks = {c["id"]: c for c in lint["checks"]}
+    assert "synth_pin_inactive" in checks
+    assert checks["synth_pin_inactive"]["level"] == "warn"
+    assert "draft" in checks["synth_pin_inactive"]["message"]
+    assert checks["synth_pin_inactive"]["ref"] == f"experience:{item.id}"
+
+
+async def test_lint_warns_when_pin_variant_is_archived_by_activation(
+    client, db, auth_headers
+):
+    """Activating a second variant archives the slot's previous owner —
+    a pin still pointing at the archived row must warn, not fail silently."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    first = (
+        await client.post(
+            "/api/v1/cv/synth/generate",
+            json={"refs": _refs(item), "action": "summarize"},
+            headers=auth_headers,
+        )
+    ).json()["items"][0]
+    await client.patch(
+        f"/api/v1/cv/synth/{first['id']}", json={"status": "active"},
+        headers=auth_headers,
+    )
+    second = (
+        await client.post(
+            "/api/v1/cv/synth/generate",
+            json={"refs": _refs(item), "action": "detail"},
+            headers=auth_headers,
+        )
+    ).json()["items"][0]
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=first["id"]
+    )
+    # Activating the second retires the first (slot supersede) — the pin
+    # now points at an archived row.
+    await client.patch(
+        f"/api/v1/cv/synth/{second['id']}", json={"status": "active"},
+        headers=auth_headers,
+    )
+    lint = (
+        await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
+    ).json()
+    checks = {c["id"]: c for c in lint["checks"]}
+    assert "synth_pin_inactive" in checks
+    assert "archived" in checks["synth_pin_inactive"]["message"]

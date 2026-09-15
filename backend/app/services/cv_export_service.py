@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from app.core.errors import ValidationError
 from app.models.cv_model import CvDocument, CvVersion
-from app.models.enums import CvVersionCreator
+from app.models.enums import CvSynthStatus, CvVersionCreator
 from app.services.cv_builder_service import CvBuilderService
 from app.services.cv_languages import is_proficiency_cert, proficiency_for
 from app.services.cv_pdf_service import (
@@ -736,6 +736,47 @@ class CvExportService:
         matches = await synth.match_for_cv(
             cv, refs=[(key, item_id) for item_id, key in ref_by_id.items()]
         )
+
+        # Pin honesty (plan 83 follow-up): a starred variant that is not
+        # rendering must say WHY — silent no-ops read as "variants are
+        # broken" (draft not yet activated, archived by a newer
+        # activation, language/posting gated out, or deleted).
+        trace: dict[str, str] = resolution.synth_applied or {}
+        for ref_key, synth_id in (pins or {}).items():
+            if ref_key in trace:
+                continue
+            reason: str | None = None
+            try:
+                row = await synth.get_owned(uuid.UUID(synth_id), cv.user_id)
+            except ValueError:
+                reason = "the pin is malformed"
+            except Exception:  # noqa: BLE001 — missing/foreign variant
+                reason = "the pinned variant no longer exists"
+            if reason is None:
+                if row.status != CvSynthStatus.ACTIVE.value:
+                    reason = (
+                        f"the pinned variant is a {row.status} — activate it "
+                        "to use it here"
+                    )
+                elif row.voice.get("language") != cv.language:
+                    reason = (
+                        "the pinned variant is "
+                        f"{row.voice.get('language') or 'unlabeled'}, this CV "
+                        f"renders in {cv.language or 'en'}"
+                    )
+                elif (
+                    row.target_posting_id is not None
+                    and row.target_posting_id != cv.target_posting_id
+                ):
+                    reason = "the pinned variant targets another posting"
+            if reason is not None:
+                add(
+                    "synth_pin_inactive",
+                    "warn",
+                    f"Starred variant for {ref_key} is not used: {reason}.",
+                    ref=ref_key,
+                )
+
         unpinned = {
             ref: variant
             for ref, variant in matches.items()
@@ -751,7 +792,6 @@ class CvExportService:
             )
             return checks
 
-        trace: dict[str, str] = resolution.synth_applied or {}
         add(
             "synth_share",
             "pass",

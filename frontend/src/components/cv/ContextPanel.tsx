@@ -103,9 +103,27 @@ function VariantsForItem({
       (ref) => ref.source_key === sourceKey && ref.item_id === itemId,
     ),
   );
-  if (rows.length === 0) return null;
+  const pinned = pinnedId ? variants.find((v) => v.id === pinnedId) : undefined;
+  const pinInactive =
+    pinnedId !== undefined &&
+    (pinned === undefined ||
+      pinned.status !== "active" ||
+      !rows.some((variant) => variant.id === pinnedId));
+  if (rows.length === 0 && !pinInactive) return null;
   return (
-    <ul className="ml-5 space-y-0.5 border-l border-dashed border-[var(--as-border)] pl-2">
+    <div className="ml-5 space-y-0.5">
+      {pinInactive && (
+        <p
+          className="flex items-center gap-1.5 px-0.5 py-1 text-xs text-[var(--as-muted-fg)]"
+          data-testid="context-pin-inactive"
+        >
+          <AmberBadge testId="context-pin-inactive-badge">pin inactive</AmberBadge>
+          The starred variant isn't active for this item — activate it or
+          re-star.
+        </p>
+      )}
+      {rows.length > 0 && (
+        <ul className="space-y-0.5 border-l border-dashed border-[var(--as-border)] pl-2">
       {rows.map((variant) => (
         <li
           key={`${sourceKey}-${itemId}-${variant.id}`}
@@ -173,7 +191,9 @@ function VariantsForItem({
           )}
         </li>
       ))}
-    </ul>
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -1915,6 +1915,40 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
       void screen.queryByTestId("context-variant-toggle-syn-1");
   });
 
+  it("flags a pin whose variant is not active (plan 83 follow-up)", async () => {
+    cv.context = {
+      mode: "all",
+      include: [],
+      exclude: [],
+      synth_pins: { "experience:exp-1": "syn-gone" },
+    };
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Active text" },
+        voice: { language: "en" },
+        status: "active",
+        source: "manual",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    expect(await screen.findByTestId("context-pin-inactive")).toBeInTheDocument();
+    cv.context = { mode: "all", include: [], exclude: [] };
+  });
+
   it("pins a variant per item with the star and persists synth_pins", async () => {
     fetchSynthItems.mockResolvedValue([
       {

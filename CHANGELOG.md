@@ -149,6 +149,14 @@ All notable changes to **Career Assistant** are documented here.
   (`GET /me/profile-proposals` + approve/reject/dismiss endpoints).
 
 ### Fixed
+- **Starred variants that can't render now say why** (projects included):
+  starring a variant whose row is still a draft — or one archived when a
+  newer activation retired the slot — used to fail silently and the CV
+  kept showing the original text. The builder lint now warns
+  ("synth_pin_inactive") naming the item and the reason (draft /
+  archived / language or posting mismatch), and the context panel shows a
+  visible "pin inactive" badge on the item.
+### Fixed
 - **Chat turns no longer fail with "Expecting value: line 1 column 1"**
   (plan 82C): whitespace-only model replies now trigger the non-streaming
   fallback, a reply that arrives as plain prose gets one automatic
