@@ -18,8 +18,8 @@ from typing import Any
 
 from app.models.enums import CvOverflowPolicy, CvPageSize
 from app.schemas.cv_template import DesignTokens, TemplateContent
-from app.services.cv_blocks import block_area, validate_blocks
-from app.services.cv_languages import is_proficiency_cert, proficiency_for
+from app.services.cv_blocks import block_area, block_hidden, validate_blocks
+from app.services.cv_languages import display_cefr, is_proficiency_cert, proficiency_for
 
 FONT_STACKS = {
     "sans": "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
@@ -790,7 +790,7 @@ def _render_block(
             return "", False
         proficiency = (
             proficiency_for(languages, snapshot.get("certifications") or [])
-            if props.show_proficiency
+            if (props.show_cefr or props.show_proficiency)
             else {}
         )
 
@@ -799,10 +799,12 @@ def _render_block(
 
         def _text(entry: dict) -> str:
             label = esc(entry.get("label") or entry.get("code") or "")
-            level = esc(entry.get("level", ""))
-            text = f"{label} — {level}" if level else label
-            if props.show_cefr and entry.get("cefr"):
-                text = f"{text} ({esc(entry['cefr'])})"
+            level = str(entry.get("level") or "")
+            text = f"{label} — {esc(level)}" if level else label
+            if props.show_cefr:
+                band = display_cefr(level, proficiency.get(entry.get("code") or ""))
+                if band:
+                    text = f"{text} ({esc(band)})"
             if props.show_proficiency:
                 cert = proficiency.get(entry.get("code") or "")
                 if cert:
@@ -1217,6 +1219,8 @@ def render_cv(
     sidebar_blocks: list[tuple[str, Any]] = []
     main_blocks: list[tuple[str, Any]] = []
     for index, (kind, props) in enumerate(validated):
+        if block_hidden(content.blocks[index]):
+            continue
         target = (
             sidebar_blocks
             if (use_sidebar and block_area(content.blocks[index]) == "sidebar")

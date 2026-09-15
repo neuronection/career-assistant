@@ -44,6 +44,40 @@ def test_custom_text_docx_runs_bullets_and_ats_stripping():
     assert "Loves Python: https://python.org" in ats
 
 
+def test_language_line_cefr_upgrades_to_certificate_band():
+    from app.services.cv_export_service import _language_line
+
+    lang = {"label": "English", "code": "en", "level": "advanced", "cefr": "C1"}
+    ecpe = {
+        "title": (
+            "Examination for the Certificate of Proficiency in English (ECPE) - C2"
+        ),
+        "org": "University of Michigan",
+        "start": "May 2025",
+        "end": "",
+    }
+    snapshot = {"certifications": [ecpe]}
+
+    assert _language_line(lang, {}, snapshot) == "English — advanced"
+    assert _language_line(lang, {"show_cefr": True}, snapshot) == (
+        "English — advanced (C2)"
+    )
+    assert _language_line(
+        lang, {"show_cefr": True, "show_proficiency": True}, snapshot
+    ) == (
+        "English — advanced (C2) · Examination for the Certificate of "
+        "Proficiency in English (ECPE) - C2, May 2025"
+    )
+    assert (
+        _language_line(
+            {"label": "Greek", "code": "el", "level": "native"},
+            {"show_cefr": True},
+            snapshot,
+        )
+        == "Greek — native (Native)"
+    )
+
+
 async def _experience(client, headers, **overrides) -> dict:
     body = {
         "title": "DevOps intern",
@@ -331,3 +365,43 @@ def test_lint_section_order_is_area_aware():
     report = lint({"snapshot": snapshot, "blocks": blocks}, html_right, {}, right)
     order = next(check for check in report["checks"] if check["id"] == "section_order")
     assert order["level"] == "pass", report["checks"]
+
+
+def test_hidden_blocks_skip_exports_and_keep_lint_order_pass():
+    from dataclasses import asdict
+
+    from app.schemas.cv_template import TemplateContent
+    from app.services.cv_export_service import lint, to_ats_text, to_docx, to_markdown
+    from app.services.cv_renderer import render_cv
+
+    payload = {
+        "snapshot": {},
+        "blocks": [
+            {
+                "kind": "custom_text",
+                "props": {"title": "About me", "text": "Visible **text**."},
+            },
+            {
+                "kind": "custom_text",
+                "props": {"title": "Secret", "text": "Hidden text."},
+                "hidden": True,
+            },
+        ],
+    }
+
+    markdown = to_markdown(payload)
+    assert "About me" in markdown and "Visible **text**." in markdown
+    assert "Secret" not in markdown and "Hidden text." not in markdown
+
+    ats = to_ats_text(payload)
+    assert "Secret" not in ats and "Hidden text." not in ats
+
+    document = open_docx(BytesIO(to_docx(payload, "CV")))
+    assert "Secret" not in "\n".join(p.text for p in document.paragraphs)
+
+    content = TemplateContent.model_validate({"blocks": payload["blocks"]})
+    rendered = render_cv(content, {})
+    report = lint(payload, rendered.html, asdict(rendered.metrics), None)
+    by_id = {check["id"]: check for check in report["checks"]}
+    assert by_id["section_order"]["level"] == "pass", report["checks"]
+    assert all("Secret" not in check["message"] for check in report["checks"])

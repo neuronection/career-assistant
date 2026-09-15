@@ -5,6 +5,19 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Sections panel redesign (plan 84)**: CV Studio section cards are
+  rebuilt — every card shows a config summary line ("Work Experience ·
+  List · Jan 2025 · max 10") at a glance, titles no longer truncate
+  (all section titles rename in place now), and the actions moved from
+  hover-only buttons to an always-visible menu (move / duplicate /
+  remove) with keyboard reorder on the drag handle (↑/↓). Sidebar
+  template groups got real headers with a compact "+" per area instead
+  of the triplicated full-width "Add section" buttons.
+- **Hide sections without deleting (plan 84)**: each section card has an
+  eye toggle — hidden sections stay configured in the builder but drop
+  out of the preview, the printed PDF and every export (PDF/DOCX/MD/ATS
+  text), and the lint stays consistent with what is rendered. Toggle it
+  back on anytime; duplicates always start visible.
 - **The CV copilot can see templates now (plan 83)**: ask it to "switch to
   a more modern template" and it renders first-page previews of the
   current template plus up to three candidates and judges them visually
@@ -149,6 +162,15 @@ All notable changes to **Career Assistant** are documented here.
   (`GET /me/profile-proposals` + approve/reject/dismiss endpoints).
 
 ### Fixed
+- **Language CEFR bands follow the certificate, not just the self-reported
+  level**: when the "Show CEFR band" toggle is on and your latest
+  proficiency certificate for a language declares a higher band than the
+  profile level implies (e.g. an ECPE certificate proving C2 while the
+  profile says advanced → C1), the CV now shows the certificate's band
+  ("English — advanced (C2)"). Upgrade-only — an older lower-band
+  certificate never downgrades your claim, "native" stays untouched, and
+  a certificate band fills the gap when no level is set. Applies to the
+  rendered CV and every text export.
 - **Starred variants that can't render now say why** (projects included):
   starring a variant whose row is still a draft — or one archived when a
   newer activation retired the slot — used to fail silently and the CV

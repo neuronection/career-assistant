@@ -728,6 +728,13 @@ export function CvBuilder() {
     persistWorking({ blocks: next, overrides });
   }
 
+  function setBlockHidden(index: number, hidden: boolean) {
+    const next = blocks.map((block, position) =>
+      position === index ? { ...block, hidden } : block
+    );
+    persistWorking({ blocks: next, overrides });
+  }
+
   const itemOptions = useMemo(() => {
     const out: Record<string, { id: string; label: string }[]> = {};
     for (const [key, rows] of Object.entries(snapshotRows)) {
@@ -1191,6 +1198,7 @@ export function CvBuilder() {
             onDuplicateBlock={duplicateBlock}
             onRemoveBlock={removeBlock}
             onUpdateBlockProps={updateBlockProps}
+            onSetBlockHidden={setBlockHidden}
             dragIndexRef={dragIndex}
             onDragReorder={(target) => {
               if (dragIndex.current !== null) moveBlockTo(dragIndex.current, target);

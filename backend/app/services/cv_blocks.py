@@ -374,6 +374,11 @@ def block_area(block: dict) -> str:
     return "sidebar" if area == "sidebar" else "main"
 
 
+def block_hidden(block: dict) -> bool:
+    """Whether the block is hidden from rendering/exports (`hidden` flag)."""
+    return block.get("hidden") is True
+
+
 def register_block_kind(spec: BlockSpec) -> None:
     """Register a new block kind (entry-point extensible later)."""
     if spec.kind in REGISTRY:

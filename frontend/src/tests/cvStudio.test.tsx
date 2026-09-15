@@ -7,6 +7,7 @@ import { CvStudio } from "@/pages/CvStudio";
 import { CvBuilder } from "@/pages/CvBuilder";
 import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
 import { useChatStore } from "@/stores/chatStore";
+import type { CvContextSelection } from "@/types/cv";
 
 async function openInspectorTab(testid: string) {
   const user = userEvent.setup();
@@ -187,7 +188,7 @@ const cv = {
   max_pages: 1,
   status: "draft",
   working_content: {},
-  context: { mode: "all", include: [], exclude: [] },
+  context: { mode: "all", include: [], exclude: [] } as CvContextSelection,
   source_document_id: null,
   created_at: "2026-09-04T10:00:00Z",
   updated_at: "2026-09-04T10:00:00Z",
@@ -894,8 +895,8 @@ describe("CvBuilder", () => {
     );
     renderBuilder();
     await openInspectorTab("sections");
-    const moveButtons = screen.getAllByLabelText("Move up");
-    fireEvent.click(moveButtons[moveButtons.length - 1]);
+    await userEvent.click(screen.getByTestId("section-menu-1"));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Move up" }));
     await waitFor(() =>
       expect(screen.getByTestId("autosave-indicator")).toHaveTextContent("Saving…")
     );
@@ -926,8 +927,9 @@ describe("CvBuilder", () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("sections");
-    const removeButtons = screen.getAllByLabelText("Remove section");
-    fireEvent.click(removeButtons[removeButtons.length - 1]);
+    const menus = screen.getAllByTestId(/section-menu-\d+/);
+    await userEvent.click(menus[menus.length - 1]);
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
     const host = await screen.findByTestId("undo-notice-host");
     expect(host).toHaveTextContent("Section removed");
     fireEvent.click(within(host).getByRole("button", { name: "Undo" }));
@@ -1023,12 +1025,50 @@ describe("CvBuilder", () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("sections");
-    const duplicates = screen.getAllByLabelText("Duplicate section");
-    fireEvent.click(duplicates[1]);
+    await userEvent.click(screen.getByTestId("section-menu-1"));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Duplicate" }));
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
     const blocks = patchCv.mock.calls[0][1].working_content.blocks;
     expect(blocks).toHaveLength(3);
     expect(blocks[2].kind).toBe("summary");
+  });
+
+  it("summarizes a section's configuration at a glance", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("sections");
+    expect(screen.queryByTestId("section-summary-0")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("add-section-button"));
+    fireEvent.click(await screen.findByTestId("add-block-skills"));
+    expect(await screen.findByTestId("section-summary-2")).toHaveTextContent("Chips");
+    expect(screen.getByTestId("section-summary-2")).toHaveTextContent("max 18");
+  });
+
+  it("hides a section with the eye toggle and persists the flag", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("sections");
+    fireEvent.click(screen.getByTestId("section-hide-0"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    expect(patchCv.mock.calls[0][1].working_content.blocks[0].hidden).toBe(true);
+    expect(screen.getByTestId("section-card-0")).toHaveClass("opacity-60");
+    expect(screen.getByTestId("section-summary-0")).toHaveTextContent("Hidden");
+    fireEvent.click(await screen.findByTestId("section-hide-0"));
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(2));
+    expect(patchCv.mock.calls[1][1].working_content.blocks[0].hidden).toBe(false);
+  });
+
+  it("reorders sections with arrow keys on the drag handle", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("sections");
+    fireEvent.keyDown(screen.getByTestId("section-handle-1"), { key: "ArrowUp" });
+    await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(1));
+    const blocks = patchCv.mock.calls[0][1].working_content.blocks;
+    expect(blocks.map((block: { kind: string }) => block.kind)).toEqual([
+      "summary",
+      "header",
+    ]);
   });
 
   it("configures a section inline via stepper and toggle", async () => {

@@ -107,6 +107,7 @@ interface InspectorPanelProps {
   onAssignArea?: (index: number, area: CvAreaId) => void;
   onRemoveBlock: (index: number) => void;
   onUpdateBlockProps: (index: number, patch: Record<string, unknown>) => void;
+  onSetBlockHidden: (index: number, hidden: boolean) => void;
   dragIndexRef: { current: number | null };
   onDragReorder: (target: number) => void;
 

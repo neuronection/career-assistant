@@ -42,14 +42,23 @@ Pickers/cards that follow the same recipe:
 - `BlockTypePicker` — "Add X" opens a popover grid of **cards with mini
   schematic previews** (`TypePreview`), icon + name + one-line
   description; extend with `extraTypes` instead of adding raw selects.
-- `SectionsPanel` — the card pattern for ordered lists: drag handle,
-  kind icon, inline title, gear-configured collapsible panel
-  (`cv-collapse` animation), duplicate/move/remove actions. When the
-  active template is sidebar-layout, the panel switches to an
-  **area-grouped** variant (plan 61): dashed group shells with a per-area
-  count, drop-target styling, and a compact area chip per card (popover
-  picker) — sections drag across groups to reassign; the Add-section
-  picker footer carries an "Add to" area toggle.
+- `SectionsPanel` — the card pattern for ordered lists (plan 84): a
+  two-zone card — header row (drag handle with ArrowUp/Down keyboard move,
+  accent icon tile, rename-in-place title for every kind that supports a
+  `title` prop, always-visible eye → overflow `⋯` menu (move/duplicate/
+  remove) → chevron) over a muted **config summary strip** (`summaryFor`,
+  e.g. "Work Experience · List · Jan 2025 · max 10"); hover-reveal actions
+  are banned here — discoverability over hover. The chevron (or the custom
+  text "Edit" toggle) expands a `cv-collapse` config region grouped with
+  small field-set labels ("Content" / "Display" / "Container"). A
+  block-level `hidden` flag (the `area` precedent, renderer + exports +
+  lint honor it) drives the eye toggle; hidden cards render dimmed with a
+  "Hidden" summary. When the active template is sidebar-layout, the panel
+  switches to an **area-grouped** variant (plan 61): solid group shells
+  with a header row (icon, label, count pill, compact "+" opening the
+  picker with `presetArea`), dashed accent border only while a drag hovers,
+  and drop-target styling — sections drag across groups to reassign; the
+  top Add-section picker keeps the "Add to" area toggle.
 - Cards use tokens everywhere; hover = accent border + surface-raised.
 
 When a second family app needs the primitives, promote

@@ -16,7 +16,11 @@ from app.core.errors import ValidationError
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.enums import CvSynthStatus, CvVersionCreator
 from app.services.cv_builder_service import CvBuilderService
-from app.services.cv_languages import is_proficiency_cert, proficiency_for
+from app.services.cv_languages import (
+    display_cefr,
+    is_proficiency_cert,
+    proficiency_for,
+)
 from app.services.cv_pdf_service import (
     PDFEngineUnavailable,
     count_pdf_pages,
@@ -28,7 +32,7 @@ from app.services.cv_renderer import (
     _display_link,
     custom_text_blocks,
 )
-from app.services.cv_blocks import block_area
+from app.services.cv_blocks import block_area, block_hidden
 
 ExportFormat = Literal["pdf", "docx", "md", "json", "ats_text"]
 
@@ -99,6 +103,8 @@ def _visible_blocks(blocks: list[dict], snapshot: dict) -> list[tuple[str, dict,
     visible: list[tuple[str, dict, dict]] = []
     for block in blocks:
         kind, props = str(block.get("kind")), dict(block.get("props") or {})
+        if block_hidden(block):
+            continue
         if kind == "spacer":
             continue
         if kind == "header":
@@ -151,16 +157,20 @@ def _language_line(lang: dict, props: dict, snapshot: dict) -> str:
     label = str(lang.get("label") or lang.get("code") or "")
     level = str(lang.get("level") or "")
     line = f"{label} — {level}" if level else label
-    if props.get("show_cefr") and lang.get("cefr"):
-        line = f"{line} ({lang.get('cefr')})"
-    if props.get("show_proficiency"):
+    show_proficiency = bool(props.get("show_proficiency"))
+    cert = None
+    if props.get("show_cefr") or show_proficiency:
         cert = proficiency_for([lang], snapshot.get("certifications") or []).get(
             lang.get("code") or ""
         )
-        if cert:
-            line = f"{line} · {cert.get('title') or ''}" + (
-                f", {cert.get('start')}" if cert.get("start") else ""
-            )
+    if props.get("show_cefr"):
+        band = display_cefr(level, cert)
+        if band:
+            line = f"{line} ({band})"
+    if show_proficiency and cert:
+        line = f"{line} · {cert.get('title') or ''}" + (
+            f", {cert.get('start')}" if cert.get("start") else ""
+        )
     return line
 
 

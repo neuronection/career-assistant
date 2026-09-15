@@ -146,12 +146,14 @@ export function BlockTypePicker({
   areas,
   presetArea,
   testId = "add-section-button",
+  iconOnly = false,
 }: {
   onAdd: (kind: string, area?: CvAreaId) => void;
   extraTypes?: BlockTypeSpec[];
   areas?: CvArea[];
   presetArea?: CvAreaId;
   testId?: string;
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [targetArea, setTargetArea] = useState<CvAreaId>("main");
@@ -168,15 +170,28 @@ export function BlockTypePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          data-testid={testId}
-          aria-expanded={open}
-          className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-xs font-medium text-[var(--as-muted-fg)] transition-colors duration-150 hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden />
-          Add section
-        </button>
+        {iconOnly ? (
+          <button
+            type="button"
+            data-testid={testId}
+            aria-expanded={open}
+            aria-label="Add section"
+            title="Add section"
+            className="flex cursor-pointer items-center gap-1 rounded-md p-1 text-[var(--as-muted-fg)] transition-colors duration-150 hover:bg-[var(--as-muted)] hover:text-[var(--as-accent)]"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid={testId}
+            aria-expanded={open}
+            className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-xs font-medium text-[var(--as-muted-fg)] transition-colors duration-150 hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            Add section
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="start"

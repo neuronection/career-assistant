@@ -217,6 +217,7 @@ export interface CvBlock {
   props?: Record<string, unknown>;
   area?: CvAreaId;
   column?: CvAreaId;
+  hidden?: boolean;
 }
 
 export interface CvDocumentOut {

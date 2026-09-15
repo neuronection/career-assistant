@@ -201,6 +201,58 @@ def test_custom_text_blank_is_skipped_and_validates_empty():
     assert result.metrics.empty_blocks == ["custom_text", "custom_text"]
 
 
+def test_hidden_block_is_skipped_from_render_and_metrics():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "custom_text",
+                    "props": {"title": "About me", "text": "Visible text."},
+                },
+                {
+                    "kind": "custom_text",
+                    "props": {"title": "Secret", "text": "Hidden text."},
+                    "hidden": True,
+                },
+            ]
+        }
+    )
+    result = render_cv(content, SAMPLE_SNAPSHOT)
+    assert "Visible text." in result.html
+    assert "Secret" not in result.html
+    assert "Hidden text." not in result.html
+    assert result.metrics.empty_blocks == []
+
+
+def test_hidden_block_defaults_to_visible_when_absent_or_false():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT, block_hidden
+
+    assert block_hidden({"kind": "header"}) is False
+    assert block_hidden({"kind": "header", "hidden": False}) is False
+    assert block_hidden({"kind": "header", "hidden": True}) is True
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "custom_text",
+                    "props": {"title": "Kept", "text": "Still here."},
+                },
+                {
+                    "kind": "custom_text",
+                    "props": {"title": "Also kept", "text": "Visible again."},
+                    "hidden": False,
+                },
+            ]
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    assert "Still here." in html
+    assert "Visible again." in html
+
+
 async def test_preview_draft_renders_unsaved_content(client, auth_headers):
     response = await client.post(
         "/api/v1/cv/templates/preview-draft",
@@ -444,7 +496,7 @@ CERTS = [
 ]
 
 
-def _languages_cv(**props) -> str:
+def _languages_cv(certs: list[dict] | None = None, **props) -> str:
     from app.services.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
@@ -453,7 +505,11 @@ def _languages_cv(**props) -> str:
             "design": {},
         }
     )
-    snapshot = {**SAMPLE_SNAPSHOT, "languages": LANGS, "certifications": CERTS}
+    snapshot = {
+        **SAMPLE_SNAPSHOT,
+        "languages": LANGS,
+        "certifications": certs if certs is not None else CERTS,
+    }
     return render_cv(content, snapshot).html
 
 
@@ -474,6 +530,82 @@ def test_languages_proficiency_certificate_inline_and_latest():
     html = _languages_cv(show_proficiency=True)
     assert "English — advanced · EF SET Proficiency Certificate, Jun 2025" in html
     assert "Greek — native</span>" in html
+
+
+ECPE = {
+    "title": ("Examination for the Certificate of Proficiency in English (ECPE) - C2"),
+    "org": "University of Michigan",
+    "start": "May 2025",
+    "end": "",
+}
+
+
+def test_cefr_band_upgrades_to_certificate_band():
+    html = _languages_cv(certs=[ECPE, *CERTS], show_cefr=True, show_proficiency=True)
+    assert (
+        "English — advanced (C2) · Examination for the Certificate of "
+        "Proficiency in English (ECPE) - C2, May 2025" in html
+    )
+    assert "Greek — native (Native)" in html
+
+
+def test_cefr_band_never_downgrades_and_native_stays():
+    b2_first = {
+        "title": "Cambridge B2 First",
+        "org": "Cambridge",
+        "start": "Jan 2024",
+        "end": "",
+    }
+    html = _languages_cv(certs=[b2_first, *CERTS], show_cefr=True)
+    assert "English — advanced (C1)" in html
+    assert "Greek — native (Native)" in html
+    assert "B2" not in html
+
+
+def test_cefr_band_fills_missing_level():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {
+                    "kind": "languages",
+                    "props": {
+                        "title": "Languages",
+                        "display": "list",
+                        "show_cefr": True,
+                    },
+                }
+            ],
+            "design": {},
+        }
+    )
+    snapshot = {
+        **SAMPLE_SNAPSHOT,
+        "languages": [{"label": "English", "code": "en", "level": ""}],
+        "certifications": [ECPE],
+    }
+    html = render_cv(content, snapshot).html
+    assert "<li>English (C2)</li>" in html
+
+
+def test_cefr_band_helpers():
+    from app.services.cv_languages import cefr_band_of, display_cefr
+
+    assert cefr_band_of(ECPE) == "C2"
+    assert cefr_band_of({"title": "Cambridge B2 First", "org": ""}) == "B2"
+    assert cefr_band_of({"title": "B2B sales course", "org": ""}) == ""
+    assert cefr_band_of(CERTS[0]) == ""
+    assert cefr_band_of({"title": "TOEFL iBT score 110", "org": "ETS"}) == ""
+
+    assert display_cefr("advanced", ECPE) == "C2"
+    assert display_cefr("advanced", CERTS[0]) == "C1"
+    assert display_cefr("advanced", None) == "C1"
+    assert display_cefr("native", ECPE) == "Native"
+    assert display_cefr("basic", ECPE) == "C2"
+    assert display_cefr("intermediate", {"title": "B1 exam"}) == "B1–B2"
+    assert display_cefr("", ECPE) == "C2"
+    assert display_cefr("", None) == ""
 
 
 def test_explicit_language_link_beats_derived_matching():

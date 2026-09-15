@@ -2,9 +2,11 @@ import {
   AlignLeft,
   Briefcase,
   Heart,
+  IdCard,
   Languages,
   MoveVertical,
   PenLine,
+  QrCode,
   Sparkles,
   Trophy,
   Wrench,
@@ -103,6 +105,30 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
 
 export function blockTypeOf(kind: string): BlockTypeSpec | undefined {
   return BLOCK_TYPES.find((type) => type.value === kind);
+}
+
+const KIND_FALLBACK_ICONS: Record<string, LucideIcon> = {
+  header: IdCard,
+  qr: QrCode,
+};
+
+const KIND_FALLBACK_LABELS: Record<string, string> = {
+  header: "Header",
+  qr: "QR code",
+};
+
+export function blockIconOf(kind: string): LucideIcon {
+  return blockTypeOf(kind)?.icon ?? KIND_FALLBACK_ICONS[kind] ?? Sparkles;
+}
+
+export function blockLabelOf(kind: string): string {
+  const spec = blockTypeOf(kind);
+  return spec ? spec.label : KIND_FALLBACK_LABELS[kind] ?? kind;
+}
+
+export function blockHasTitle(kind: string): boolean {
+  const spec = blockTypeOf(kind);
+  return Boolean(spec && "title" in spec.props);
 }
 
 export const ITEM_SOURCE_OPTIONS = [
