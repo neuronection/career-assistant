@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job_model import Job
 from app.models.posting_model import JobSource
+from app.services.chat_digest_cache import context_without_cache
 
 
 def _job_search_query():
@@ -129,7 +130,9 @@ def _build_user_prompt(
         "history": history[-10:],
         "message": message,
         "tool_results": tool_results,
-        "page_context": page_context or {},
+        # The cache lives in the same dict the UI surface bindings ride —
+        # never leak reserved keys into the model's page context.
+        "page_context": (context_without_cache(page_context) or {}),
         "cv_references": cv_references or [],
     }
     return context_json(data)
@@ -376,7 +379,6 @@ async def search_postings_tool(
 
 async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
     """Structured summary of one posting (extract + provenance + source)."""
-    from app.models.posting_model import JobSource
     from app.services.postings_service import resolve_posting
 
     posting = await resolve_posting(db, ref)
@@ -848,6 +850,7 @@ TOOL_TITLES = {
     "my_experience": "Reading your experience",
     "my_skills": "Reading your skills",
     "my_education": "Reading your education & credentials",
+    "profile_digests": "Profile digests from earlier in this chat",
     "web_search": "Searching the web",
     "fetch_url": "Fetching the linked page",
     "github_repo": "Looking up the GitHub repo",
@@ -883,6 +886,11 @@ EXPERIENCE_KEYWORDS = {
     "job at",
     "worked",
     "work history",
+    # generic entity words so "create new items and update existing too"
+    # still grounds the digests even when no kind is named
+    "items",
+    "entries",
+    "existing",
 }
 SKILL_KEYWORDS = {"skill", "skills", "python", "docker", "sql"}
 EDUCATION_KEYWORDS = {
@@ -906,6 +914,9 @@ PROFILE_DIGEST_KEYWORDS = {
     "spanish",
     "basics",
     "about me",
+    "items",
+    "entries",
+    "existing",
 }
 
 # Builder-handoff intent (plan 78 AD3): word-matched against the message;
@@ -951,6 +962,7 @@ async def prepare_chat_prompt(
     page_context: Optional[dict] = None,
     user_id=None,
     cv_references: Optional[list[dict]] = None,
+    session=None,
 ) -> tuple[str, dict]:
     """Run the server-side tools and build the user prompt.
 
@@ -958,7 +970,10 @@ async def prepare_chat_prompt(
     same grounding and produce the same tool metadata. Tools execute
     through the registry (``run_tool``) — the contract (results
     in ``tool_results``, metadata for the UI) carries over from
-    the posting tools.
+    the posting tools. ``session`` enables the plan-81 digest cache:
+    cached, signature-current digests ride ``tool_results`` and refreshes
+    persist back onto ``session.context`` — the caller's turn commit
+    persists them.
     """
     from app.ai.tools import run_tool
 
@@ -1032,29 +1047,83 @@ async def prepare_chat_prompt(
             explore_query = postings.get("explore_query")
 
     # Profile digests ground edit ops: entity keywords pull the matching
-    # digest so the model references real ids (never invented).
+    # digest so the model references real ids (never invented). Keywords
+    # are a refresh HINT (plan 81): cached digests persist in the session
+    # and get reused whenever their data signature still matches, so a
+    # later turn without any keyword hit is grounded all the same.
     if user_id is not None:
+        from app.services import chat_digest_cache
+        from app.services.chat_digest_cache import DIGEST_SEQUENCE
+
         digest_plan: list[tuple[str, set[str]]] = [
             ("my_experience", EXPERIENCE_KEYWORDS),
             ("my_skills", SKILL_KEYWORDS),
             ("my_education", EDUCATION_KEYWORDS),
             ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
         ]
-        for name, keywords in digest_plan:
-            if any(keyword in lowered for keyword in keywords):
+        cached_entries = chat_digest_cache.load(session)
+        keyword_requested = [
+            name
+            for name, keywords in digest_plan
+            if any(keyword in lowered for keyword in keywords)
+        ]
+        want_sigs = [
+            name
+            for name in DIGEST_SEQUENCE
+            if name in cached_entries or name in keyword_requested
+        ]
+        signatures = (
+            await chat_digest_cache.digest_signatures(db, user_id, want_sigs)
+            if want_sigs
+            else {}
+        )
+        refreshed: dict[str, dict] = {}
+        cached_names: list[str] = []
+        for name, _keywords in digest_plan:
+            if name in tool_results:
+                continue
+            entry = cached_entries.get(name)
+            sig = signatures.get(name)
+            if entry is not None and sig and entry.get("sig") == sig:
+                payload = dict(entry.get("payload") or {})
+                payload["_cached"] = True
+                payload["fetched_at"] = entry.get("fetched_at")
+                tool_results[name] = payload
+                cached_names.append(name)
+            elif name in keyword_requested or entry is not None:
+                # Keyword hit (fresh request) or a cached entry that has
+                # gone stale — either way, rebuild silently; freshness is
+                # the whole point of carrying the digest in the session.
                 digest, meta = await _timed(name, {})
                 tool_results[name] = digest
                 meta["results"] = [name.replace("my_", "")]
                 meta["result_summary"] = _summarize(meta["results"])
                 metadata_tools.append(meta)
+                if sig:
+                    refreshed[name] = chat_digest_cache.fresh_entry(digest, sig)
+        if refreshed and session is not None:
+            chat_digest_cache.save(session, refreshed)
+        if cached_names:
+            metadata_tools.append(
+                {
+                    "name": "profile_digests",
+                    "title": TOOL_TITLES.get("profile_digests", "profile digests"),
+                    "status": "cached",
+                    "start_ms": 0,
+                    "duration_ms": 0,
+                    "args_summary": "",
+                    "results": cached_names,
+                    "result_summary": _summarize(cached_names),
+                }
+            )
 
     # Web tools (plan 80): pasted links resolve through fetch/github_repo;
     # an explicit search ask runs the optional SearXNG web_search.
     lowered_urls = _detect_web_urls(message)
     for index, url in enumerate(lowered_urls[:2]):
         if "github.com/" in url.lower():
+            key = "github_repo" if index == 0 else f"github_repo_{index}"
             tool_result, meta = await _timed("github_repo", {"repo": url})
-            key = "github_repo"
         else:
             tool_result, meta = await _timed("fetch_url", {"url": url})
             key = "fetch_url" if index == 0 else f"fetch_url_{index}"
@@ -1094,6 +1163,7 @@ async def chat_reply(
     message: str,
     page_context: Optional[dict] = None,
     cv_references: Optional[list[dict]] = None,
+    session=None,
 ) -> tuple[ChatReply, dict]:
     """Produce a chatbot reply; returns (reply, tool_metadata)."""
     prompt, metadata = await prepare_chat_prompt(
@@ -1104,6 +1174,7 @@ async def chat_reply(
         page_context=page_context,
         user_id=user_id,
         cv_references=cv_references,
+        session=session,
     )
     reply: ChatReply = await ainvoke_structured(
         db,

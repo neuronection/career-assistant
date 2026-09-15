@@ -124,6 +124,11 @@ function configFor(
             checked={props.show_achievements !== false}
             onChange={(show_achievements) => onUpdate({ show_achievements })}
           />
+          <ToggleRow
+            label="Show links (repo, demo…)"
+            checked={props.show_links === true}
+            onChange={(show_links) => onUpdate({ show_links })}
+          />
           {String(props.source_key) === "certifications" && (
             <ToggleRow
               label="Hide proficiency certificates"

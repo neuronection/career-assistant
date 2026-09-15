@@ -31,6 +31,7 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
       max_items: 10,
       show_skills: true,
       show_achievements: true,
+      show_links: false,
       show_org: true,
       show_description: true,
       date_format: "mon_yyyy",

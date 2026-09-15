@@ -1,6 +1,7 @@
 """HITL profile proposals (plan 77): diff correctness, idempotent resolve,
 conflict/expiry lifecycle, one-apply-path parity, tenant isolation."""
 
+import json
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -299,8 +300,62 @@ async def test_cross_user_isolation(client, db, auth_headers):
     assert await ProfileProposalService(db).list_(other.id) == []
 
 
+async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
+    """The card diff must not render `<module.Object at 0x…>`: the
+    before-side of relationship fields reads as payload-shaped dicts, and
+    unchanged/removed collections drop out of the diff."""
+    user = await _auth_user(db)
+    item = await ExperienceService(db).create_item(
+        user.id,
+        {
+            "title": "Neuronection",
+            "kind": "project",
+            "open_ended": True,
+            "skills": [{"skill_key": "electron"}],
+        },
+    )
+
+    # Identical skills → the "skills" field produces no diff row at all.
+    same, dropped = await ProfileProposalService(db).create_from_ops(
+        user.id,
+        [
+            {
+                "kind": "experience_item",
+                "action": "update",
+                "entity_id": str(item.id),
+                "payload": {
+                    "description": "New text.",
+                    "skills": ["electron"],
+                },
+            }
+        ],
+    )
+    assert dropped == []
+    fields_same = {r["field"] for r in same[0].diff_json}
+    assert "description" in fields_same
+
+    # An added skill → one clean row, before side in payload shape.
+    added, _ = await ProfileProposalService(db).create_from_ops(
+        user.id,
+        [
+            {
+                "kind": "experience_item",
+                "action": "update",
+                "entity_id": str(item.id),
+                "payload": {"skills": ["electron", "typescript"]},
+            }
+        ],
+    )
+    rows = {r["field"]: r for r in added[0].diff_json}
+    assert "skills" in rows
+    assert rows["skills"]["before"] == ["electron"]
+    assert rows["skills"]["after"] == ["electron", "typescript"]
+    assert "ExperienceSkill object" not in json.dumps(added[0].diff_json, default=str)
+
+
 async def test_create_from_ops_drops_invalid(db, auth_headers):
     user = await _auth_user(db)
+
     item = await _experience(db, user)
     created, dropped = await ProfileProposalService(db).create_from_ops(
         user.id,

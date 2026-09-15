@@ -9,6 +9,7 @@ session deletion and expire after ``PROPOSAL_TTL``.
 """
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -21,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, DomainError, NotFoundError, ValidationError
 from app.models.enums import ProposalAction, ProposalKind, ProposalStatus
-from app.models.experience_model import ExperienceItem
+from app.models.experience_model import ExperienceItem, ExperienceSkill
 from app.models.profile_entities_model import (
     Certification,
     EducationItem,
@@ -54,6 +55,7 @@ from app.schemas.profile_proposal import (
 
 PROPOSAL_TTL = timedelta(days=14)
 DIFF_VALUE_CAP = 200
+logger = logging.getLogger(__name__)
 ACTION_VERBS = {
     ProposalAction.CREATE.value: "Add",
     ProposalAction.UPDATE.value: "Update",
@@ -180,6 +182,63 @@ def _jsonish(value: Any) -> Any:
     return text
 
 
+def _instance_jsonish(value: Any) -> Any:
+    """One ORM child row as the payload shape the after-side uses —
+    `getattr(entity, "skills")` returns ``ExperienceSkill`` rows whose
+    ``json.dumps(default=str)`` repr is the ugly `<module … object>`
+    diff the user once saw."""
+    if isinstance(value, ExperienceSkill):
+        return {
+            "skill_key": value.skill.key if value.skill is not None else None,
+            "role_in_item": value.role_in_item,
+            "level_claim": value.level_claim,
+            "last_used": value.last_used.isoformat() if value.last_used else None,
+        }
+    if hasattr(value, "text"):
+        return {"text": value.text}
+    return value
+
+
+def _before_value(value: Any) -> Any:
+    """``before`` rendering for update diffs: relationship collections of
+    ORM rows become payload-shaped dicts instead of the debug
+    ``<module.Object at 0x…>`` strings."""
+    if isinstance(value, list):
+        return [_instance_jsonish(entry) for entry in value]
+    return value
+
+
+# Collection fields render as scalar lists (skill keys, achievement
+# texts, link urls) — chips in the card UI, and shape-equal comparisons
+# drop unchanged collections from update diffs.
+_LIST_FIELDS = {"skills", "achievements", "links"}
+_LIST_FIELD_KEYS = {"skills": "skill_key", "achievements": "text", "links": "url"}
+
+
+def _scalar_list(value: Any) -> list[str]:
+    entries: list[str] = []
+    for entry in value or []:
+        if isinstance(entry, dict):
+            entry = next(
+                (
+                    entry[key]
+                    for key in ("skill_key", "text", "url", "name")
+                    if isinstance(entry.get(key), str)
+                ),
+                "",
+            )
+        text = str(entry).strip()
+        if text:
+            entries.append(text)
+    return entries[:15]
+
+
+def _payload_value(field: str, value: Any) -> Any:
+    if field in _LIST_FIELDS and isinstance(value, list):
+        return _scalar_list(value)
+    return value
+
+
 def proposal_title(proposal: ProfileProposal) -> str:
     """Card title: "Update experience · Siemens internship"."""
     spec = KIND_SPECS.get(proposal.kind)
@@ -204,12 +263,78 @@ def proposal_event(proposal: ProfileProposal) -> dict:
         "diff": proposal.diff_json or [],
         "destructive": proposal.action == ProposalAction.DELETE.value,
         "source": proposal.source,
+        "chat_session_id": (
+            str(proposal.chat_session_id) if proposal.chat_session_id else None
+        ),
         "created_at": proposal.created_at.isoformat(),
     }
 
 
 def _ts(value: Optional[datetime]) -> Optional[str]:
     return value.isoformat() if value is not None else None
+
+
+def _as_skill_entry(raw: Any) -> dict:
+    """Model-emitted skill labels (`"electron"`, `{"name": "…"}`) become
+    `{skill_key}` — the apply path finds or proposes free-text keys."""
+    if isinstance(raw, str):
+        return {"skill_key": raw}
+    if isinstance(raw, dict) and not raw.get("skill_key"):
+        label = raw.get("key") or raw.get("name") or raw.get("label")
+        if isinstance(label, str):
+            entry = dict(raw)
+            entry["skill_key"] = label
+            return entry
+    return raw
+
+
+def _as_achievement_entry(raw: Any) -> dict:
+    """Model-emitted achievement strings become `{"text": …}`."""
+    if isinstance(raw, str):
+        return {"text": raw}
+    if isinstance(raw, dict) and not raw.get("text"):
+        text = raw.get("description") or raw.get("title")
+        if isinstance(text, str):
+            entry = dict(raw)
+            entry["text"] = text
+            return entry
+    return raw
+
+
+def _as_link_entry(raw: Any) -> dict:
+    """Model-emitted bare URLs become `{"url": …}` link objects."""
+    if isinstance(raw, str):
+        return {"url": raw}
+    return raw
+
+
+def _normalize_experience_payload(payload: dict, *, action: str) -> dict:
+    """Trust-boundary normalization for chat-sourced experience ops.
+
+    Real providers routinely emit looser shapes than the REST schema
+    accepts: label-string skills (`["electron", …]` vs
+    `{skill_key, …}` rows), prose-string achievements and bare-URL
+    links. Normalizing here keeps them reviewable as cards instead of
+    dropping every suggestion; genuine field errors still drop with
+    their reason. Projects without dates default to open-ended (the
+    model cannot know the schema's period rule).
+    """
+    payload = dict(payload)
+    if (
+        action == ProposalAction.CREATE.value
+        and not (payload.get("end"))
+        and not payload.get("open_ended")
+    ):
+        payload["open_ended"] = True
+    if isinstance(payload.get("skills"), list):
+        payload["skills"] = [_as_skill_entry(s) for s in payload["skills"]]
+    if isinstance(payload.get("achievements"), list):
+        payload["achievements"] = [
+            _as_achievement_entry(a) for a in payload["achievements"]
+        ]
+    if isinstance(payload.get("links"), list):
+        payload["links"] = [_as_link_entry(link) for link in payload["links"]]
+    return payload
 
 
 class ProfileProposalService:
@@ -336,12 +461,18 @@ class ProfileProposalService:
                 entity_id = op.get("entity_id")
                 if isinstance(entity_id, str) and entity_id:
                     entity_id = uuid.UUID(entity_id)
+                payload = op.get("payload") or {}
+                if op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value:
+                    payload = _normalize_experience_payload(
+                        payload,
+                        action=op.get("action", ""),
+                    )
                 created.append(
                     await self.create(
                         user_id,
                         kind=op.get("kind", ""),
                         action=op.get("action", ""),
-                        payload=op.get("payload") or {},
+                        payload=payload,
                         entity_id=entity_id,
                         chat_session_id=chat_session_id,
                         chat_message_id=chat_message_id,
@@ -354,6 +485,12 @@ class ProfileProposalService:
                 ValueError,
                 KeyError,
             ) as exc:
+                logger.warning(
+                    "Profile op dropped (kind=%r action=%r): %s",
+                    op.get("kind"),
+                    op.get("action"),
+                    str(exc)[:500],
+                )
                 dropped.append({"op": op, "reason": str(exc)})
         return created, dropped
 
@@ -628,9 +765,17 @@ class ProfileProposalService:
             return profile, profile.updated_at
         model = KIND_SPECS[kind].model
         assert model is not None
-        rows = await self.db.execute(
-            select(model).where(model.id == entity_id, model.user_id == user_id)
-        )
+        query = select(model).where(model.id == entity_id, model.user_id == user_id)
+        if model is ExperienceItem:
+            # The update diff reads every patched field via getattr — the
+            # skill/achievement collections lazy-load and would raise
+            # MissingGreenlet in this async context unless eager-loaded;
+            # the skill key needs the nested ExperienceSkill.skill join.
+            query = query.options(
+                selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill),
+                selectinload(ExperienceItem.achievements),
+            )
+        rows = await self.db.execute(query)
         entity = rows.scalars().first()
         if entity is None:
             raise NotFoundError("Target entity not found")
@@ -673,16 +818,19 @@ class ProfileProposalService:
         labels = dict(spec.fields)
         rows = []
         for field, value in payload.items():
-            if field in {"source", "status", "skills", "achievements"} and (
+            if field in {"source", "status"} and (
                 value in (None, "", [], "self_report", "active")
             ):
+                continue
+            after = _payload_value(field, value)
+            if after in (None, "", []):
                 continue
             rows.append(
                 {
                     "field": field,
                     "label": labels.get(field, field.replace("_", " ").title()),
                     "before": None,
-                    "after": _jsonish(value),
+                    "after": after if isinstance(after, list) else _jsonish(after),
                 }
             )
         return rows
@@ -693,15 +841,16 @@ class ProfileProposalService:
         labels = dict(spec.fields)
         rows = []
         for field, after in patch_fields.items():
-            before = getattr(entity, field, None)
+            before = _payload_value(field, _before_value(getattr(entity, field, None)))
+            after = _payload_value(field, after)
             if _jsonish(before) == _jsonish(after):
                 continue
             rows.append(
                 {
                     "field": field,
                     "label": labels.get(field, field.replace("_", " ").title()),
-                    "before": _jsonish(before),
-                    "after": _jsonish(after),
+                    "before": before if isinstance(before, list) else _jsonish(before),
+                    "after": after if isinstance(after, list) else _jsonish(after),
                 }
             )
         return rows

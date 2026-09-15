@@ -176,6 +176,9 @@ class ItemsBlockProps(BaseModel):
     order: list[str] = Field(default_factory=list, max_length=40)
     show_skills: bool = True
     show_achievements: bool = True
+    # Per-item links (repo / demo / article) — print-first short urls.
+    # Off by default so existing templates never shift.
+    show_links: bool = False
     show_org: bool = True
     show_description: bool = True
     date_format: Literal["mon_yyyy", "iso", "eu", "year"] = "mon_yyyy"

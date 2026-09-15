@@ -255,6 +255,14 @@ def _experience_item_of(row: ExperienceItem) -> CvContextItem:
             "achievements": [
                 {"text": achievement.text} for achievement in row.achievements
             ],
+            "links": [
+                {
+                    "label": link.get("label") or "",
+                    "url": link.get("url") or "",
+                }
+                for link in (row.links or [])
+                if isinstance(link, dict) and link.get("url")
+            ],
         },
         updated_at=row.updated_at,
     )

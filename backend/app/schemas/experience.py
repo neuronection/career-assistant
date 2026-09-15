@@ -1,5 +1,6 @@
 """Experience profile API schemas."""
 
+import re
 from datetime import date, datetime
 from typing import Literal, Optional
 from uuid import UUID
@@ -14,6 +15,25 @@ class ExperienceSkillIn(BaseModel):
     role_in_item: Literal["primary", "secondary", "exposure"] = "primary"
     level_claim: Optional[int] = Field(default=None, ge=1, le=10)
     last_used: Optional[date] = None
+
+
+class ExperienceLinkIn(BaseModel):
+    """One attachable URL on an experience item (repo, demo, article…).
+
+    Scheme-allowlisted like the renderer's `_safe_href` so nothing
+    javascript:-shaped can enter through any path."""
+
+    label: str = Field(default="", max_length=80)
+    url: str = Field(min_length=1, max_length=500)
+    kind: Literal["github", "linkedin", "demo", "web"] = "web"
+
+    @field_validator("url")
+    @classmethod
+    def _scheme_allowlist(cls, value: str) -> str:
+        url = value.strip()
+        if not re.match(r"^(https?://|mailto:)", url, re.IGNORECASE):
+            raise ValueError("link url must be http(s) or mailto")
+        return url
 
 
 class AchievementMetric(BaseModel):
@@ -42,7 +62,7 @@ class ExperienceItemIn(BaseModel):
     hours_per_week: Optional[int] = Field(default=None, ge=1, le=80)
     onsite_policy: Optional[Literal["onsite", "hybrid", "remote"]] = None
     description: str = Field(default="", max_length=2000)
-    links: list[dict] = Field(default_factory=list, max_length=10)
+    links: list[ExperienceLinkIn] = Field(default_factory=list, max_length=10)
     source: Literal["self_report", "cv_parse", "assessment", "import"] = "self_report"
     status: Literal["draft", "active"] = "active"
     skills: list[ExperienceSkillIn] = Field(default_factory=list, max_length=15)
@@ -76,7 +96,7 @@ class ExperienceItemUpdate(BaseModel):
     hours_per_week: Optional[int] = Field(default=None, ge=1, le=80)
     onsite_policy: Optional[Literal["onsite", "hybrid", "remote"]] = None
     description: Optional[str] = Field(default=None, max_length=2000)
-    links: Optional[list[dict]] = Field(default=None, max_length=10)
+    links: Optional[list[ExperienceLinkIn]] = Field(default=None, max_length=10)
     status: Optional[Literal["draft", "active"]] = None
     skills: Optional[list[ExperienceSkillIn]] = None
     achievements: Optional[list[AchievementIn]] = None

@@ -672,3 +672,47 @@ async def test_postings_org_backfill_shape(db, seeded_catalog):
     from app.services.experience_service import slugify_org
 
     assert slugify_org("Acme Cloud GmbH!") == "acme-cloud-gmbh"
+
+
+async def test_item_links_validation_and_roundtrip(client, auth_headers):
+    """Links accept {label,url,kind} with an http(s)/mailto allowlist and
+    round-trip; javascript: urls and unknown kinds are rejected."""
+    body = {
+        "title": "Neuronection",
+        "kind": "project",
+        "open_ended": True,
+        "links": [
+            {"url": "https://github.com/you/app", "kind": "github", "label": "Repo"},
+            {"url": "mailto:me@x.io"},
+        ],
+    }
+    created = await client.post(
+        "/api/v1/me/experience", json=body, headers=auth_headers
+    )
+    assert created.status_code == 201, created.text
+    links = created.json()["links"]
+    assert links[0]["kind"] == "github"
+    assert links[1]["kind"] == "web"
+
+    bad_scheme = await client.post(
+        "/api/v1/me/experience",
+        json={
+            "title": "X",
+            "kind": "project",
+            "open_ended": True,
+            "links": [{"url": "javascript:alert(1)"}],
+        },
+        headers=auth_headers,
+    )
+    assert bad_scheme.status_code == 422
+    bad_kind = await client.post(
+        "/api/v1/me/experience",
+        json={
+            "title": "X",
+            "kind": "project",
+            "open_ended": True,
+            "links": [{"url": "https://x.io", "kind": "nope"}],
+        },
+        headers=auth_headers,
+    )
+    assert bad_kind.status_code == 422

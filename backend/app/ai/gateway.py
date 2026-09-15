@@ -599,8 +599,27 @@ class StructuredStream:
                     if usage:
                         self.tokens_in = usage.get("input_tokens")
                         self.tokens_out = usage.get("output_tokens")
+                if not self._raw:
+                    # Some replies stream zero text chunks (safety block,
+                    # or the answer lands outside the text parts) — one
+                    # non-streaming attempt before failing, else every
+                    # such turn died on json.loads("") downstream.
+                    message = await model.ainvoke(messages)
+                    text = _message_text(message)
+                    if text:
+                        self._raw.append(text)
+                        yield text
+                    usage = getattr(message, "usage_metadata", None)
+                    if usage:
+                        self.tokens_in = usage.get("input_tokens")
+                        self.tokens_out = usage.get("output_tokens")
 
             latency = (time.perf_counter() - started) * 1000
+            if not self._raw:
+                raise StructuredAIError(
+                    "The model returned no text content (it may have been "
+                    "safety-blocked) — please retry."
+                )
             self.reply = schema.model_validate(_extract_json("".join(self._raw)))
             await _record(
                 db,

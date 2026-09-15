@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Links on work experience & projects**: experience items now support
+  up to 10 attachable links (label + URL + kind: GitHub / LinkedIn /
+  demo / web) with scheme validation — the experience editor gains a
+  links repeater (and no longer silently wipes links that arrived via
+  chat proposals or intake when you edit an item), the CV template
+  editor gains a per-items-block "Show links" toggle (off by default —
+  when on, up to three links render print-first under the item), and
+  proposal cards show links as clean URL chips.
 - **Web tools for the AI chat (plan 80)**: pasted links are now read and
   reasoned about. A GitHub URL produces a repo lookup (metadata + README
   via the GitHub REST API), any other link is fetched, reduced to readable
@@ -117,6 +125,69 @@ All notable changes to **Career Assistant** are documented here.
   (`GET /me/profile-proposals` + approve/reject/dismiss endpoints).
 
 ### Fixed
+- **Chat turns no longer die on "Expecting value: line 1 column 1"**:
+  when a model streams zero text chunks (safety-blocked replies, or the
+  answer landing outside the text parts), the structured stream used to
+  fail on `json.loads("")` — it now retries once without streaming and,
+  if the model still returns nothing, fails with an explicit
+  "model returned no text content — please retry" message instead of a
+  JSON parser error. Two GitHub links in one message also no longer
+  overwrite each other's grounding, and a failed turn now still shows
+  your just-sent user message in the transcript (it was persisted
+  server-side all along — only the failed reply was missing).
+- **Skipped suggestions now say why**: when a chat turn proposes a
+  profile change that fails validation, the turn's note no longer stops
+  at "N suggestion(s) skipped — the data didn't validate" — the
+  per-op validation reason is persisted with the message and rendered
+  right under that note (e.g. "experience_item: end is required unless
+  open_ended"), so a bad model payload is diagnosable from the chat
+  itself instead of only in the backend log.
+- **Experience ops with loose model shapes now become cards**: models
+  routinely propose skills/achievements/links as label strings
+  (`skills: ["electron", …]`) or `{name: …}` dicts; those ops used to
+  drop with 5 raw validation errors — chat-sourced payloads now
+  normalize (`{skill_key}`, `{text}`, `{url}`) so the card renders and
+  approval find-or-proposes the free-text skills. **Also fixed a latent
+  async crash**: a proposal update touching an experience item's
+  `skills`/`achievements` fields hit lazy relationship loads and killed
+  the whole turn with a greenlet error — the diff loader now
+  eager-loads both collections.
+- **Cleaner update-card diffs**: the "before" side of an update card's
+  `skills`/`achievements` rows no longer renders the raw SQLAlchemy
+  repr (`<app.models.experience_model.ExperienceSkill object at
+  0x…>`) — relationship collections serialize as payload-shaped dicts,
+  and unchanged skill sets drop out of the diff entirely instead of
+  showing same-content noise.
+- **Proposal cards render skills/links as chips**: experience proposal
+  diffs now carry scalar lists (skill keys, achievement texts, link
+  urls) instead of raw payload JSON — the card body renders them as
+  tidy chips via the library's parsed-detail renderer, on create and
+  update cards alike, and update cards skip unchanged collections
+  instead of printing identical JSON on both sides.
+- **Chatbot project proposals no longer silently dropped**: when a real
+  model proposed new experience items without dates (the common case for
+  "add project X" turns), every card used to fail the experience-item
+  date validation and the turn only reported "N suggestion(s) skipped —
+  the data didn't validate". Undated creates now normalize to
+  open-ended (`open_ended: true`) so the card appears for review, the
+  chatbot prompt teaches the exact payload rule, and dropped ops are
+  logged with their validation reason for diagnosis.
+- **"Create new items" turns now ground the profile digests**: edit
+  requests that name no entity kind ("create new items and update
+  existing too") still pull the read-only profile digests so update ops
+  get their verbatim ids, and the prompt spells out that create ops
+  never need ids or a digest — the model no longer answers such turns
+  with copy-paste text instead of proposal cards.
+- **Session-scoped profile digest cache**: profile digests read for edit
+  grounding now persist on the chat session instead of vanishing between
+  turns — one keyword-bearing message ("tell me about my projects")
+  primes the cache, and every later turn ("update the existing ones")
+  is grounded even with zero keyword matches. Freshness is data-anchored:
+  a `(count, max(updated_at))` signature over each digest's source
+  tables is checked per turn, so approving a card (or any profile edit
+  from any path) auto-refreshes the affected digest — no TTLs, no
+  invalidation hooks. The turn trace distinguishes fresh reads from
+  cached reuse, and the session API never exposes cached payloads.
 - **Accurate CV page counts — the printed PDF is now the truth**: the
   polish loop, lint and copilot visual review used to count pages from
   screenshot-clipped scroll height, which ignored `@page` margins and CSS
@@ -143,6 +214,21 @@ All notable changes to **Career Assistant** are documented here.
   `RenderMetrics` now carries the real page budget.
 
 ### Changed
+- **The chat continues after you resolve your cards**: once the last
+  pending proposal card of a session is approved or rejected, the
+  assistant follows up automatically — from an honest, visible synthetic
+  user message ("(resolved card: … — approved)") run through the normal
+  chat turn, so the transcript explains itself and the chatbot can
+  confirm what changed. Guards: at most one follow-up per resolution
+  burst (never chains), fires only for the session you are actually
+  looking at, and cross-surface double-sends are impossible by a
+  store-level guard.
+- **Cleaner HITL create cards**: proposal cards for new items (e.g. "Add
+  project X" turns) now render a proper item summary instead of a
+  before→after diff — empty fields ("Organization —", "End date —") are
+  skipped, fields render as tidy label/value rows and long descriptions
+  as plain prose instead of red/green line diffs. Update and delete
+  cards keep the true field diff (library `chat-hitl` create-mode).
 - **Richer bank templates (spec version 3)**: "Modern Two-Column",
   "Compact One-Page", "Academic" and "Student First" gain certifications
   sections, skill levels and CEFR language bands; "Navy Sidebar" and

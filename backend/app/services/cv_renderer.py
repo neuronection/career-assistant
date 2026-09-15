@@ -498,6 +498,15 @@ def _render_items(items: list, props: Any) -> str:
                 f"<span class='chip'>{esc(s)}</span>" for s in item["skills"][:8]
             )
             fragments.append(f"<div class='chips'>{chips}</div>")
+        if getattr(props, "show_links", False) and item.get("links"):
+            shown = [
+                _display_link(link)
+                for link in item["links"][:3]
+                if isinstance(link, dict)
+            ]
+            shown = [text for text in shown if text]
+            if shown:
+                fragments.append(f"<p class='item-links'>{esc(' · '.join(shown))}</p>")
         fragments.append("</li>")
         rows.append("".join(fragments))
     ul_class = (
@@ -1140,6 +1149,7 @@ ul.items > li {{ margin-bottom: calc(0.6em * var(--spacing)); }}
 .item-org {{ color: var(--accent); }}
 .item-period {{ float: right; color: var(--muted); font-size: {round(base * 0.9, 2)}pt; }}
 .item-detail {{ margin-top: 0.5mm; }}
+.item-links {{ margin-top: 0.3mm; font-size: 0.92em; color: var(--muted, var(--text)); }}
 ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
 .chips {{ display: flex; flex-wrap: wrap; gap: 1.2mm; width: 100%; }}
 .chip {{ background: color-mix(in srgb, var(--accent) 12%, var(--background));

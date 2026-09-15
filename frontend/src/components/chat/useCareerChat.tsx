@@ -96,9 +96,16 @@ export function useCareerChat() {
 
   useEffect(() => {
     // Done turns refetch the persisted pair; interrupted turns now persist
-    // their partial server-side so they refresh
-    // too. Errors stay live until the user retries or sends again.
-    if (stream.status !== "done" && stream.status !== "interrupted") {
+    // their partial server-side so they refresh too. Error turns refresh
+    // WITHOUT resetting: the user message is already persisted server-side
+    // (the turn saves it before the LLM runs) — it must appear in the
+    // transcript even when the reply failed — while the live error tile
+    // (Retry) stays until the user retries or sends again.
+    if (
+      stream.status !== "done" &&
+      stream.status !== "interrupted" &&
+      stream.status !== "error"
+    ) {
       return;
     }
     const sessionId = useChatStore.getState().activeSessionId;
@@ -108,7 +115,7 @@ export function useCareerChat() {
     let cancelled = false;
     void (async () => {
       await refresh(sessionId);
-      if (!cancelled) {
+      if (!cancelled && stream.status !== "error") {
         reset();
         useProfileProposalsStore.getState().clearLive();
         void useProfileProposalsStore.getState().hydrate();
@@ -118,6 +125,49 @@ export function useCareerChat() {
       cancelled = true;
     };
   }, [stream.status, refresh, reset]);
+
+  const lastResolved = useProfileProposalsStore((state) => state.lastResolved);
+  useEffect(() => {
+    // Auto-continue (plan 77.1 follow-on): when the resolution burst for
+    // THIS session ends — its last card hit a terminal state and none are
+    // left pending — the assistant answers once from a visible synthetic
+    // user message (the transcript stays honest). The store's
+    // `claimFollowup` guard makes multiple mounted surfaces
+    // double-send-proof, the `(resolved card: …)` prefix on the previous
+    // user message prevents chaining, and a resolve that happened while
+    // this surface was mid-turn waits for the stream to idle.
+    if (
+      lastResolved === null ||
+      stream.status !== "idle" ||
+      lastResolved.sessionId === null ||
+      lastResolved.sessionId !== activeSessionId
+    ) {
+      return;
+    }
+    const proposalsStore = useProfileProposalsStore.getState();
+    if ((proposalsStore.pendingBySession[lastResolved.sessionId] ?? 0) > 0) {
+      return;
+    }
+    const messages = useChatStore.getState().messages;
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUser || lastUser.content.startsWith("(resolved card:")) {
+      return;
+    }
+    if (
+      lastResolved.status !== "approved" &&
+      lastResolved.status !== "rejected"
+    ) {
+      return;
+    }
+    const key = `${lastResolved.id}:${lastResolved.status}`;
+    if (!proposalsStore.claimFollowup(key)) {
+      return;
+    }
+    void stream.send(
+      `(resolved card: ${lastResolved.title} — ${lastResolved.status})`,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResolved, stream.status]);
 
   useEffect(() => {
     // Plan 67: the builder page mirrors the live turn's flow events

@@ -7,6 +7,14 @@ import {
 } from "@/api/profileProposals";
 import type { ProfileProposalCardData } from "@/types";
 
+export interface ResolvedProposalEvent {
+  id: string;
+  sessionId: string | null;
+  title: string;
+  action: "approve" | "reject";
+  status: ProfileProposalCardData["status"];
+}
+
 /**
  * HITL proposal cards (plan 77): live-turn cards stream in through the
  * transport (`receiveLive`, the builder_state pattern); persisted cards
@@ -14,6 +22,11 @@ import type { ProfileProposalCardData } from "@/types";
  * overrides so every surface (bubble/docked/page) flips in sync without
  * refetching the transcript — the list endpoint remains the source of
  * truth (`hydrate` reconciles stale metadata snapshots).
+ *
+ * Plan-81.1 auto-continue: `lastResolved` + `pendingBySession` let a chat
+ * surface detect that the resolution burst for ITS session ended and
+ * answer once (the guard keys live here so two mounted surfaces can never
+ * double-send — `lastFollowupKey` is consumed atomically).
  */
 interface ProfileProposalsState {
   /** Cards emitted by the current live turn (cleared once persisted). */
@@ -24,11 +37,18 @@ interface ProfileProposalsState {
     { status: ProfileProposalCardData["status"]; error?: string; busy?: boolean }
   >;
   pendingCount: number;
+  /** Pending cards per chat session (burst detection, auto-continue). */
+  pendingBySession: Record<string, number>;
+  /** Most recent successful terminal resolve — the burst watch signal. */
+  lastResolved: ResolvedProposalEvent | null;
+  /** Followup-sent guard, shared store → one send max per burst. */
+  lastFollowupKey: string | null;
   receiveLive: (card: ProfileProposalCardData) => void;
   clearLive: () => void;
   setBusy: (id: string, busy: boolean) => void;
   resolve: (id: string, action: "approve" | "reject") => Promise<void>;
   hydrate: () => Promise<void>;
+  claimFollowup: (key: string) => boolean;
 }
 
 export const useProfileProposalsStore = create<ProfileProposalsState>(
@@ -36,10 +56,20 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
     live: [],
     overrides: {},
     pendingCount: 0,
+    pendingBySession: {},
+    lastResolved: null,
+    lastFollowupKey: null,
     receiveLive: (card) => {
+      const sessionKey = card.chat_session_id ?? "";
       set((state) => ({
         live: [...state.live.filter((c) => c.id !== card.id), card],
         pendingCount: state.pendingCount + 1,
+        pendingBySession: sessionKey
+          ? {
+              ...state.pendingBySession,
+              [sessionKey]: (state.pendingBySession[sessionKey] ?? 0) + 1,
+            }
+          : state.pendingBySession,
       }));
     },
     clearLive: () => {
@@ -68,28 +98,43 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
           action === "approve"
             ? await approveProfileProposal(id)
             : await rejectProfileProposal(id);
-        const status = response.proposal.status;
+        const resolved = response.proposal;
+        const status = resolved.status;
         set((state) => {
           const live = state.live.map((card) =>
             card.id === id ? { ...card, status } : card,
           );
-          const delta =
-            action === "approve" && status === "approved"
-              ? state.live.some((card) => card.id === id && card.status === "pending")
-                ? -1
-                : 0
-              : state.live.some((card) => card.id === id && card.status === "pending")
-                ? -1
-                : 0;
+          const delta = current.status === "pending" ? -1 : 0;
+          const sessionKey = resolved.chat_session_id ?? null;
+          const pendingBySession = sessionKey
+            ? {
+                ...state.pendingBySession,
+                [sessionKey]: Math.max(
+                  0,
+                  (state.pendingBySession[sessionKey] ?? 0) - 1,
+                ),
+              }
+            : state.pendingBySession;
           return {
             live,
             pendingCount: Math.max(0, state.pendingCount + delta),
+            pendingBySession,
             overrides: {
               ...state.overrides,
               [id]: { status, busy: false },
             },
+            lastResolved: {
+              id,
+              sessionId: sessionKey,
+              title: resolved.title,
+              action,
+              status,
+            },
           };
         });
+        // Rebase from the server truth: live-card optimistic deltas can
+        // drift (conflict flips a card back, multi-device resolves).
+        await get().hydrate();
       } catch (error) {
         const detail =
           (error as { response?: { data?: { detail?: string } } })?.response?.data
@@ -112,18 +157,30 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
       try {
         const { proposals, pending_count } = await fetchProfileProposals();
         const overrides: ProfileProposalsState["overrides"] = {};
+        const pendingBySession: Record<string, number> = {};
         for (const card of proposals) {
           if (card.status !== "pending") {
             overrides[card.id] = { status: card.status };
+          } else if (card.chat_session_id) {
+            pendingBySession[card.chat_session_id] =
+              (pendingBySession[card.chat_session_id] ?? 0) + 1;
           }
         }
         set((state) => ({
           overrides: { ...overrides, ...state.overrides },
           pendingCount: pending_count,
+          pendingBySession,
         }));
       } catch {
         // Hydration is best-effort — cards still render from metadata.
       }
+    },
+    claimFollowup: (key) => {
+      if (get().lastFollowupKey === key) {
+        return false;
+      }
+      set({ lastFollowupKey: key });
+      return true;
     },
   }),
 );

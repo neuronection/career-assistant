@@ -377,6 +377,7 @@ export function Experience() {
       validateExperience(form).start ||
       validateExperience(form).end ||
       validateExperience(form).hours ||
+      validateExperience(form).links.some(Boolean) ||
       validateExperience(form).achievements.some(Boolean)
     ) {
       return;
@@ -388,7 +389,9 @@ export function Experience() {
         ...form,
         start: form.start || null,
         end: form.open_ended ? null : form.end || null,
-        links: [],
+        links: form.links
+          .filter((l) => l.url.trim())
+          .map((l) => ({ ...l, url: l.url.trim() })),
         source: "self_report",
       };
       if (isNew) {

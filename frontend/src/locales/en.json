@@ -1831,7 +1831,8 @@
       "conflict": "Changed since proposed",
       "expired": "Expired",
       "conflictHint": "The data changed — review the diff and ask again if still wanted.",
-      "dropped": "{{count}} suggestion(s) skipped — the data didn't validate."
+      "dropped": "{{count}} suggestion(s) skipped — the data didn't validate.",
+      "droppedReason": "{{kind}}: {{reason}}"
     },
     "attach": {
       "open": "Attach a CV as reference",
@@ -2172,12 +2173,26 @@
     "removeAchievementN": "Remove achievement {{index}}",
     "removeAchievement": "Remove achievement",
     "addAchievement": "Add achievement",
+    "linksLabel": "Links (repo, demo, article — up to 10, first 3 show on the CV)",
+    "linkN": "Link {{index}} URL",
+    "linkPlaceholder": "https://github.com/you/project",
+    "linkKindAria": "Link {{index}} kind",
+    "removeLinkN": "Remove link {{index}}",
+    "removeLink": "Remove link",
+    "addLink": "Add link",
+    "linkKind": {
+      "github": "GitHub",
+      "linkedin": "LinkedIn",
+      "demo": "Demo",
+      "web": "Web"
+    },
     "nothingSelected": "Nothing selected",
     "emptyBody": "Pick an entry on the left, or add a new one to get started.",
     "validation": {
       "endRequired": "End is required unless this is ongoing.",
       "endBeforeStart": "End cannot precede the start date.",
-      "achievementRequired": "Achievement text is required."
+      "achievementRequired": "Achievement text is required.",
+      "linkUrl": "Link URL must start with http(s)://"
     },
     "setLevelClaim": "+ Level",
     "claimDecreaseAria": "Decrease claimed level",

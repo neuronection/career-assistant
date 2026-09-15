@@ -54,8 +54,16 @@ function resetStore() {
     live: [],
     overrides: {},
     pendingCount: 0,
+    pendingBySession: {},
+    lastResolved: null,
+    lastFollowupKey: null,
   });
 }
+
+const LIVE_CARD: ProfileProposalCardData = {
+  ...CARD,
+  chat_session_id: "s1",
+};
 
 describe("MessageProposals / ProposalCards", () => {
   beforeEach(() => {
@@ -142,6 +150,27 @@ describe("MessageProposals / ProposalCards", () => {
     });
   });
 
+  it("create cards render a field summary instead of a before/after diff", () => {
+    const created: ProfileProposalCardData = {
+      ...CARD,
+      action: "create",
+      title: "Add experience · Desktop Assistant",
+      diff: [
+        { field: "title", label: "Title", before: null, after: "Desktop Assistant" },
+        { field: "kind", label: "Type", before: null, after: "project" },
+        { field: "org_name", label: "Organization", before: null, after: "" },
+        { field: "end", label: "End date", before: null, after: null },
+      ],
+    };
+    const { container } = render(<MessageProposals message={messageWith([created])} />);
+    expect(container.querySelector('[data-as="hitl-field-summary"]')).not.toBeNull();
+    expect(screen.getByText("Desktop Assistant")).toBeInTheDocument();
+    expect(screen.getByText("project")).toBeInTheDocument();
+    expect(screen.queryByText("Organization")).not.toBeInTheDocument();
+    expect(screen.queryByText("End date")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-as="text-diff-view"]')).toBeNull();
+  });
+
   it("live cards render through the same stack", async () => {
     useProfileProposalsStore.setState({ live: [CARD] });
     render(<ProposalCards cards={useProfileProposalsStore.getState().live} />);
@@ -156,11 +185,75 @@ describe("MessageProposals / ProposalCards", () => {
       /2 suggestion/,
     );
   });
+
+  it("shows the drop reasons under the note", () => {
+    const msg = messageWith([], 1);
+    msg.metadata_json!.proposals_dropped_reasons = [
+      {
+        kind: "experience_item",
+        reason: "end is required unless open_ended",
+      },
+    ];
+    render(<MessageProposals message={msg} />);
+    expect(screen.getByTestId("hitl-dropped-reasons")).toHaveTextContent(
+      "experience_item: end is required unless open_ended",
+    );
+  });
 });
+
+async function resolveOf(id: string) {
+  await useProfileProposalsStore.getState().resolve(id, "approve");
+}
 
 describe("profileProposalsStore", () => {
   beforeEach(() => {
     resetStore();
+  });
+
+  it("tracks pending cards per session and the last resolve burst signal", async () => {
+    useProfileProposalsStore.getState().receiveLive(LIVE_CARD);
+    expect(useProfileProposalsStore.getState().pendingBySession).toEqual({
+      s1: 1,
+    });
+
+    approveApi.mockResolvedValue({
+      proposal: { ...LIVE_CARD, status: "approved" },
+      applied: { id: "item-1", kind: "experience_item", label: "AI Launcher" },
+      already: false,
+    });
+    await resolveOf(LIVE_CARD.id);
+    const state = useProfileProposalsStore.getState();
+    // The post-resolve hydrate rebase takes the server truth: no pending
+    // s1 cards left (absent key reads as 0 for burst detection).
+    expect(state.pendingBySession["s1"] ?? 0).toBe(0);
+    expect(state.lastResolved).toMatchObject({
+      id: LIVE_CARD.id,
+      sessionId: "s1",
+      title: "Update experience · Siemens internship",
+      status: "approved",
+    });
+  });
+
+  it("rebuilds pendingBySession from the hydrate snapshot", async () => {
+    listApi.mockResolvedValue({
+      proposals: [
+        { ...CARD, id: "p-1", status: "pending", chat_session_id: "s1" },
+        { ...CARD, id: "p-2", status: "pending", chat_session_id: "s2" },
+        { ...CARD, id: "p-3", status: "approved", chat_session_id: "s2" },
+      ],
+      pending_count: 2,
+    });
+    await useProfileProposalsStore.getState().hydrate();
+    expect(
+      useProfileProposalsStore.getState().pendingBySession,
+    ).toEqual({ s1: 1, s2: 1 });
+  });
+
+  it("claimFollowup consumes a burst key exactly once", () => {
+    const store = useProfileProposalsStore.getState();
+    expect(store.claimFollowup("k1")).toBe(true);
+    expect(store.claimFollowup("k1")).toBe(false);
+    expect(store.claimFollowup("k2")).toBe(true);
   });
 
   it("resolve maps a generic failure to pending with the error", async () => {

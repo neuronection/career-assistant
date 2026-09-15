@@ -599,6 +599,11 @@ export interface ChatMessage {
     /** HITL profile proposals created by this turn (plan 77). */
     proposals?: ProfileProposalCardData[];
     proposals_dropped?: number;
+    /** Why each dropped op failed validation (plan 77 diagnosability). */
+    proposals_dropped_reasons?: {
+      kind?: string | null;
+      reason: string;
+    }[];
     /** CV reference attachments stored on this (user) message (plan 78). */
     attachments?: ChatCvAttachment[];
     /** CVs the reply grounded in (plan 78). */
@@ -640,6 +645,7 @@ export interface ProfileProposalCardData {
   diff: ProfileProposalDiffRow[];
   destructive: boolean;
   source: string;
+  chat_session_id?: string | null;
   created_at: string;
 }
 

@@ -315,6 +315,20 @@ TTL swept daily by the `system_proposal_sweep` schedule slot,
 (library `chat-hitl` module) and the Profile sidebar entry badges the
 pending count.
 
+**Profile-edit grounding persists in the session** (plan 81): the
+plan-77 read-only digests (`my_experience` / `my_skills` /
+`my_education` / `my_profile_digest`) are keyword-triggered only until
+the first one runs — then they are cached on
+`chat_sessions.context.profile_digests` (reserved key, server-written
+only, stripped from `page_context` and the session API by
+`context_without_cache`) and reused every turn whose data signature
+(`(count, max(updated_at))` per source table, `chat_digest_cache`) still
+matches. Any profile mutation anywhere bumps a table's count or
+timestamp, so approving a proposal card auto-refreshes the affected
+digest next turn — no TTLs, no write-path hooks. Cached digests ride
+`tool_results` marked `_cached` (mock provider parity is free) and the
+turn trace records a `profile_digests` tool row with status `cached`.
+
 **One chat, CVs as references, builder on demand** (plan 78): chat
 sessions are never re-routed by a CV binding for new sessions (plan 53's
 `surface: "cv_builder"` context is a legacy read path only). CVs /

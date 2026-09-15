@@ -29,6 +29,7 @@ from app.schemas.chat import (
     SessionUpdate,
     TreeOut,
 )
+from app.services.chat_digest_cache import context_without_cache
 from app.services.chat_service import ChatService
 from app.services.profile_service import ProfileService
 from app.services.deps import get_current_user, get_profile_for_user
@@ -40,7 +41,7 @@ def _session_out(session, last_activity: datetime) -> SessionOut:
     return SessionOut(
         id=session.id,
         title=session.title,
-        context=session.context,
+        context=context_without_cache(session.context),
         created_at=session.created_at,
         last_activity_at=last_activity,
     )
@@ -261,7 +262,8 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
         message=content,
         page_context=session.context,
         user_id=user.id,
-        cv_references=cv_references or None,
+        cv_references=cv_references,
+        session=session,
     )
     if cv_references:
         tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in cv_references]
@@ -414,6 +416,19 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 ]
             if proposals_dropped:
                 tool_metadata["proposals_dropped"] = proposals_dropped
+                # The notes must never be a mystery: persist WHY each op
+                # was dropped (counted elsewhere) so the UI can show it.
+                dropped_reasons = [
+                    {
+                        "kind": str(drop["op"].get("kind")),
+                        "reason": str(drop.get("reason", "")).removeprefix(
+                            "Value error, "
+                        )[:200],
+                    }
+                    for drop in dropped_ops[:5]
+                ]
+                if dropped_reasons:
+                    tool_metadata["proposals_dropped_reasons"] = dropped_reasons
             message = await ChatService(db).complete_message(
                 session, user_message_id, stream.reply, tool_metadata
             )
@@ -429,6 +444,9 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     "referenced_posting_refs": tool_metadata.get("refs", []),
                     "explore_query": tool_metadata.get("explore_query"),
                     "proposals_dropped": proposals_dropped or None,
+                    "proposals_dropped_reasons": tool_metadata.get(
+                        "proposals_dropped_reasons"
+                    ),
                 },
             )
             for proposal in created_proposals:

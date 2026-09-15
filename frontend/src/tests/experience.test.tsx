@@ -237,6 +237,57 @@ describe("Experience workspace", () => {
     );
   });
 
+  it("adds links through the editor and no longer wipes existing ones", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchExperience).mockResolvedValue({
+      items: [
+        {
+          ...ITEM,
+          links: [{ label: "Repo", url: "https://github.com/you/app", kind: "github" }],
+        },
+        ITEM2,
+      ],
+      years_of_experience: 0.9,
+    });
+    renderPage();
+    await openItem("e1");
+
+    // Existing link survives a save (regression: save used to hardcode
+    // links: [] and silently wipe chat/intake-added links).
+    await user.click(within(screen.getByTestId("experience-editor")).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(updateExperienceItem).toHaveBeenCalledWith(
+        "e1",
+        expect.objectContaining({
+          links: [{ label: "Repo", url: "https://github.com/you/app", kind: "github" }],
+        })
+      )
+    );
+
+    // Add a second link through the repeater; invalid urls block the save.
+    await openItem("e1");
+    const editor = screen.getByTestId("experience-editor");
+    await user.click(within(editor).getByTestId("add-link"));
+    await user.type(within(editor).getByTestId("link-url-1"), "not-a-url");
+    await user.click(within(editor).getByTestId("save-experience"));
+    expect(updateExperienceItem).toHaveBeenCalledTimes(1);
+
+    await user.clear(within(editor).getByTestId("link-url-1"));
+    await user.type(within(editor).getByTestId("link-url-1"), "https://neuronection.com");
+    await user.click(within(editor).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(updateExperienceItem).toHaveBeenLastCalledWith(
+        "e1",
+        expect.objectContaining({
+          links: [
+            { label: "Repo", url: "https://github.com/you/app", kind: "github" },
+            { label: "", url: "https://neuronection.com", kind: "web" },
+          ],
+        })
+      )
+    );
+  });
+
   it("claims a level on an experience skill and patches it through", async () => {
     const user = userEvent.setup();
     renderPage();

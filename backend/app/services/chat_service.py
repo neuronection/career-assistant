@@ -520,6 +520,7 @@ class ChatService:
             message=content,
             page_context=session.context,
             cv_references=cv_references or None,
+            session=session,
         )
         if cv_references:
             tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in cv_references]

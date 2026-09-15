@@ -896,3 +896,47 @@ async def test_template_version_listing_and_diff(client, db, auth_headers):
     )
     assert explicit.status_code == 200, explicit.text
     assert explicit.json()["from_version"] == 1
+
+
+def test_items_block_links_opt_in_and_print_safe():
+    """`show_links` renders per-item links print-first (short urls, max 3)
+    and defaults OFF so existing templates never shift."""
+    from app.schemas.cv_template import TemplateContent
+    from app.services.cv_renderer import render_cv
+
+    snapshot = {
+        "basics": {"name": "Jane Doe"},
+        "experience": [
+            {
+                "title": "Neuronection",
+                "org": "",
+                "description": "Ecosystem of assistants.",
+                "links": [
+                    {"url": "https://github.com/you/app?tab=readme", "label": "Repo"},
+                    {"url": "https://neuronection.com"},
+                    {"url": "https://x.io/3"},
+                    {"url": "https://x.io/4"},
+                ],
+            }
+        ],
+    }
+    content = TemplateContent.model_validate(VALID_CONTENT)
+    default_html = render_cv(content, snapshot).html
+    assert "github.com/you/app" not in default_html  # off by default
+
+    links_on = dict(VALID_CONTENT)
+    links_on["blocks"] = [
+        (
+            {"kind": "items", "props": {**b["props"], "show_links": True}}
+            if b["kind"] == "items"
+            else b
+        )
+        for b in VALID_CONTENT["blocks"]
+    ]
+    html = render_cv(TemplateContent.model_validate(links_on), snapshot).html
+    assert "item-links" in html
+    # print-first: scheme/www/query stripped, label wins over raw url
+    assert "github.com/you/app" in html
+    assert "https://" not in html.split("item-links")[1].split("</p>")[0]
+    assert "x.io/3" in html
+    assert "x.io/4" not in html  # capped at 3

@@ -97,7 +97,12 @@ describe("retry of failed turns", () => {
     vi.useRealTimers();
     streamChatMessage.mockReset();
     streamChatRegenerate.mockReset();
-    api.fetchMessages.mockReset().mockResolvedValue([]);
+    // Error turns now refresh the transcript (the user message is
+    // persisted server-side before the LLM runs) — the mock must return
+    // the persisted rows, not an empty transcript.
+    api.fetchMessages.mockReset().mockResolvedValue([
+      { id: "u1", role: "user", content: "find jobs", parent_id: null, variant_index: 1, variant_count: 1, sibling_ids: ["u1"], metadata_json: null, created_at: "2026-09-06T09:00:00Z" },
+    ]);
     api.fetchChatSessions.mockReset().mockResolvedValue([]);
     api.createChatSession.mockReset().mockResolvedValue({
       id: "s1",

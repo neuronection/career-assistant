@@ -13,6 +13,7 @@ import type {
   AchievementIn,
   ExperienceItemIn,
   ExperienceItemOut,
+  ExperienceLinkIn,
   ExperienceSkillIn,
 } from "@/types/experience";
 import { useMemo, useState } from "react";
@@ -61,6 +62,7 @@ export interface ExperienceEditorForm {
   onsite_policy: Exclude<ExperienceItemIn["onsite_policy"], null>;
   description: string;
   status: "draft" | "active";
+  links: ExperienceLinkIn[];
   skills: ExperienceSkillIn[];
   achievements: AchievementIn[];
 }
@@ -76,6 +78,7 @@ export const EMPTY_FORM: ExperienceEditorForm = {
   onsite_policy: "onsite",
   description: "",
   status: "active",
+  links: [],
   skills: [],
   achievements: [],
 };
@@ -95,6 +98,17 @@ export function formFromItem(item: ExperienceItemOut): ExperienceEditorForm {
     >,
     description: item.description,
     status: item.status,
+    links: item.links
+      .filter((l) => typeof l.url === "string" && l.url)
+      .map((l) => ({
+        label: typeof l.label === "string" ? l.label : "",
+        url: l.url as string,
+        kind: (
+          ["github", "linkedin", "demo", "web"].includes(String(l.kind))
+            ? String(l.kind)
+            : "web"
+        ) as ExperienceLinkIn["kind"],
+      })),
     skills: item.skills.map((s) => ({
       skill_key: s.skill_key,
       role_in_item: s.role_in_item,
@@ -110,9 +124,13 @@ export function validateExperience(form: ExperienceEditorForm): {
   start?: string;
   end?: string;
   hours?: string;
+  links: string[];
   achievements: string[];
 } {
-  const errors: ReturnType<typeof validateExperience> = { achievements: [] };
+  const errors: ReturnType<typeof validateExperience> = {
+    achievements: [],
+    links: [],
+  };
   const title = form.title.trim()
     ? null
     : i18next.t("validation.required", {
@@ -144,6 +162,11 @@ export function validateExperience(form: ExperienceEditorForm): {
           })
         : null;
   if (hours) errors.hours = hours;
+  form.links.forEach((l, i) => {
+    if (!/^https?:\/\//i.test(l.url.trim())) {
+      errors.links[i] = i18next.t("experience.validation.linkUrl");
+    }
+  });
   form.achievements.forEach((a, i) => {
     if (!a.text.trim())
       errors.achievements[i] = i18next.t(
@@ -457,6 +480,80 @@ export function ExperienceEditor({
             <Plus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
             {t("experience.addAchievement")}
           </button>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs text-[var(--as-muted-fg)]">
+            {t("experience.linksLabel")}
+          </p>
+          {form.links.map((l, i) => (
+            <FormRow key={i} error={err(errors.links[i])}>
+              <div className="flex items-end gap-2">
+                <div className="w-36 shrink-0">
+                  <select
+                    className="w-full cursor-pointer rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-xs outline-none transition-colors focus:border-[var(--as-accent)]"
+                    value={l.kind}
+                    aria-label={t("experience.linkKindAria", { index: i + 1 })}
+                    onChange={(e) =>
+                      patch({
+                        links: form.links.map((x, j) =>
+                          j === i
+                            ? { ...x, kind: e.target.value as ExperienceLinkIn["kind"] }
+                            : x
+                        ),
+                      })
+                    }
+                    data-testid={`link-kind-${i}`}
+                  >
+                    {(["github", "linkedin", "demo", "web"] as const).map((k) => (
+                      <option key={k} value={k}>
+                        {t(`experience.linkKind.${k}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <TextField
+                    label={t("experience.linkN", { index: i + 1 })}
+                    value={l.url}
+                    onChange={(url) =>
+                      patch({
+                        links: form.links.map((x, j) => (j === i ? { ...x, url } : x)),
+                      })
+                    }
+                    maxLength={500}
+                    placeholder={t("experience.linkPlaceholder")}
+                    testId={`link-url-${i}`}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => patch({ links: form.links.filter((_, j) => j !== i) })}
+                  aria-label={t("experience.removeLinkN", { index: i + 1 })}
+                  title={t("experience.removeLink")}
+                  data-testid={`link-remove-${i}`}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+              </div>
+            </FormRow>
+          ))}
+          {form.links.length < 10 && (
+            <button
+              type="button"
+              onClick={() =>
+                patch({
+                  links: [...form.links, { label: "", url: "", kind: "web" }],
+                })
+              }
+              className="cursor-pointer rounded-lg border border-dashed border-[var(--as-border)] px-3 py-1.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+              data-testid="add-link"
+            >
+              <Plus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+              {t("experience.addLink")}
+            </button>
+          )}
         </div>
       </div>
 

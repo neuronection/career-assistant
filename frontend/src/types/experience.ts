@@ -10,6 +10,12 @@ export interface ExperienceSkillIn {
   last_used: string | null;
 }
 
+export interface ExperienceLinkIn {
+  label: string;
+  url: string;
+  kind: "github" | "linkedin" | "demo" | "web";
+}
+
 export interface ExperienceItemIn {
   title: string;
   kind: "job" | "project" | "internship" | "volunteer" | "freelance";
@@ -20,7 +26,7 @@ export interface ExperienceItemIn {
   hours_per_week: number | null;
   onsite_policy: "onsite" | "hybrid" | "remote" | null;
   description: string;
-  links: Record<string, unknown>[];
+  links: ExperienceLinkIn[];
   source: "self_report" | "cv_parse" | "assessment" | "import";
   status: "draft" | "active";
   skills: ExperienceSkillIn[];
@@ -37,7 +43,7 @@ export interface ExperienceItemUpdate {
   hours_per_week?: number | null;
   onsite_policy?: ExperienceItemIn["onsite_policy"];
   description?: string;
-  links?: Record<string, unknown>[];
+  links?: ExperienceLinkIn[];
   status?: "draft" | "active";
   skills?: ExperienceSkillIn[];
   achievements?: AchievementIn[];
@@ -70,7 +76,7 @@ export interface ExperienceItemOut {
   hours_per_week: number | null;
   onsite_policy: string | null;
   description: string;
-  links: Record<string, unknown>[];
+  links: ExperienceLinkIn[];
   source: ExperienceItemIn["source"];
   status: "draft" | "active";
   created_at: string;

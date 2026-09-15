@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.ai.agents.chatbot import _mock_chat_reply
 from app.ai import gateway as gateway_module
 from app.models.enums import AITaskType
+from app.models.chat_model import ChatSession
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User
@@ -44,6 +45,160 @@ async def _send(client, session_id, headers, message: str):
     )
     assert response.status_code == 200, response.text
     return _parse_sse(response.text)
+
+
+async def test_generic_edit_words_still_ground_the_digest(client, db, auth_headers):
+    """'create new items and update existing too' names no entity kind —
+    the digests still run so update ops get verbatim ids (create ops
+    never needed them)."""
+    user = await _auth_user(db)
+    await ExperienceService(db).create_item(
+        user.id,
+        {"title": "AI Launcher", "kind": "project", "open_ended": True},
+    )
+    session = await _session(client, auth_headers)
+    events = await _send(
+        client, session["id"], auth_headers, "create new items and update existing too"
+    )
+    names = [p["name"] for n, p in events if n == "tool_call"]
+    assert "my_experience" in names
+    assert "my_profile_digest" in names
+
+
+async def test_cache_primes_and_followup_without_keywords(
+    client, db, auth_headers, monkeypatch
+):
+    """Plan 81 core flow: turn 1 (keyword) primes the session cache; turn 2
+    names NO entity keyword at all yet still grounds proposals, reusing
+    the cached digest ids."""
+
+    def edit_ops(schema, user_prompt: str) -> dict:
+        ctx = json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        tools = ctx.get("tool_results", {})
+        # The cached digest must never leak into the model's page context.
+        assert "profile_digests" not in (ctx.get("page_context") or {})
+        items = (tools.get("my_experience") or {}).get("items") or []
+        if not (tools.get("my_experience") or {}).get("_cached"):
+            return {"answer": f"items_count_{len(items)}"}
+        return {
+            "answer": f"items_count_{len(items)}",
+            "profile_ops": [
+                {
+                    "kind": "experience_item",
+                    "action": "delete",
+                    "entity_id": items[0]["id"],
+                }
+            ],
+        }
+
+    user = await _auth_user(db)
+    item = await ExperienceService(db).create_item(
+        user.id, {"title": "AI Launcher", "kind": "project", "open_ended": True}
+    )
+    session = await _session(client, auth_headers)
+
+    # Session API responses never expose the internal cache (it is only
+    # written server-side; this first GET happens before priming anyway).
+    listing = await client.get("/api/v1/chat/sessions", headers=auth_headers)
+    assert "profile_digests" not in (listing.json()[0].get("context") or {})
+
+    gateway_module.register_mock_fixture(AITaskType.CHAT, edit_ops)
+    try:
+        # Turn 1: keyword message ("project") — primes the cache.
+        fresh_events = await _send(
+            client, session["id"], auth_headers, "tell me about my projects"
+        )
+        fresh_names = [p["name"] for n, p in fresh_events if n == "tool_call"]
+        assert "my_experience" in fresh_names
+
+        # Turn 2: zero keyword matches — cache reuse grounds the op.
+        events = await _send(
+            client, session["id"], auth_headers, "apply the change to my first row"
+        )
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+
+    tool_names = [p["name"] for n, p in events if n == "tool_call"]
+    assert "my_experience" not in tool_names  # cached, not re-run
+    cards = [p for n, p in events if n == "proposal"]
+    assert len(cards) == 1, events
+    assert cards[0]["entity_id"] == str(item.id)
+    assert "items_count_1" in json.dumps(events, default=str)
+
+    rows = (
+        (
+            await db.execute(
+                select(ChatSession).where(ChatSession.id == uuid.UUID(session["id"]))
+            )
+        )
+        .scalars()
+        .one()
+    )
+    cached = rows.context["profile_digests"]
+    assert "my_experience" in cached
+    assert cached["my_experience"]["sig"]
+
+
+async def test_approved_card_staleness_refreshes_cache(
+    client, db, auth_headers, monkeypatch
+):
+    """Approving a card changes the data → the next turn's signature
+    mismatch forces a fresh digest; the model sees the NEW item."""
+
+    def count_ops(schema, user_prompt: str) -> dict:
+        ctx = json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        tools = ctx.get("tool_results", {})
+        query = (ctx.get("message") or "").strip().split(":", 1)[-1].strip()
+        if query == "state1":
+            items = (tools.get("my_experience") or {}).get("items") or []
+            op = {
+                "kind": "experience_item",
+                "action": "delete",
+                "entity_id": items[0]["id"],
+            }
+            return {"answer": "state1", "profile_ops": [op]}
+        return {"answer": query}
+
+    def refresh_probe(schema, user_prompt: str) -> dict:
+        ctx = json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        items = (ctx["tool_results"]["my_experience"] or {}).get("items") or []
+        return {"answer": ctx["message"].strip()[:4] + ":" + str(len(items))}
+
+    user = await _auth_user(db)
+    await ExperienceService(db).create_item(
+        user.id, {"title": "AI Launcher", "kind": "project", "open_ended": True}
+    )
+    await ExperienceService(db).create_item(
+        user.id, {"title": "Neuronection", "kind": "project", "open_ended": True}
+    )
+    session = await _session(client, auth_headers)
+
+    gateway_module.register_mock_fixture(AITaskType.CHAT, count_ops)
+    try:
+        events = await _send(
+            client, session["id"], auth_headers, "delete the project: state1"
+        )
+        card = next(p for n, p in events if n == "proposal")
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+    approve = await client.post(
+        f"/api/v1/me/profile-proposals/{card['id']}/approve", headers=auth_headers
+    )
+    assert approve.status_code == 200, approve.text
+
+    # Next turn: message has no keywords ("echo turn"), so grounding can
+    # only come from the cache — and it must have refreshed past the
+    # approved deletion (2 items before, 1 after) or the probe fails.
+    gateway_module.register_mock_fixture(AITaskType.CHAT, refresh_probe)
+    try:
+        probe = await _send(client, session["id"], auth_headers, "echo turn2: turn2")
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+    reply = next(p for n, p in probe if n == "delta")
+    assert reply["text"].endswith(":1"), probe
+    meta = next(p for n, p in probe if n == "meta")
+    turned_cached = meta.get("proposals_dropped") is None
+    assert turned_cached
 
 
 async def test_digest_tools_return_ids(db, auth_headers):
@@ -223,6 +378,125 @@ async def test_ops_cap_drops_overflow_with_note(client, db, auth_headers, monkey
         )
     ).json()
     assert messages[-1]["metadata_json"]["proposals_dropped"] == 2
+
+
+async def test_model_secondary_ops_period_normalized(
+    client, db, auth_headers, monkeypatch
+):
+    """Real providers often emit create ops without dates — the service
+    normalizes them to open_ended instead of dropping every card (the
+    prompt teaches the rule; this is the trust-boundary backstop)."""
+    user = await _auth_user(db)
+    session = await _session(client, auth_headers)
+
+    def undated_ops(schema, user_prompt: str) -> dict:
+        ctx = json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        if "my_experience" not in ctx.get("tool_results", {}):
+            return {"answer": "plain"}
+        return {
+            "answer": "four projects proposed",
+            "profile_ops": [
+                {
+                    "kind": "experience_item",
+                    "action": "create",
+                    "payload": {"title": f"Project {i}", "kind": "project"},
+                }
+                for i in range(4)
+            ],
+        }
+
+    gateway_module.register_mock_fixture(AITaskType.CHAT, undated_ops)
+    try:
+        events = await _send(client, session["id"], auth_headers, "create 4 projects")
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+
+    proposals = [p for n, p in events if n == "proposal"]
+    assert len(proposals) == 4
+    meta = next(p for n, p in events if n == "meta")
+    assert meta["proposals_dropped"] is None
+    rows = (
+        (
+            await db.execute(
+                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 4
+
+
+async def test_loose_skill_shapes_still_grade_a_card(
+    client, db, auth_headers, monkeypatch
+):
+    """Real providers emit skills as label strings / name dicts (the
+    logged failure behind 'the data didn't validate') — normalization
+    must produce a card, and a create needs no dates either."""
+
+    def loose_ops(schema, user_prompt: str) -> dict:
+        ctx = json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        tools = ctx.get("tool_results", {})
+        if "my_experience" not in tools:
+            return {"answer": "plain"}
+        ops: list[dict] = [
+            {
+                "kind": "experience_item",
+                "action": "create",
+                "payload": {
+                    "title": "Neuronection",
+                    "description": "Founded the ecosystem.",
+                    "skills": ["electron", {"name": "Model Context Protocol"}],
+                    "achievements": ["Four family assistants"],
+                    "links": ["https://neuronection.com"],
+                },
+            }
+        ]
+        items = (tools.get("my_experience") or {}).get("items") or []
+        if items:
+            ops.append(
+                {
+                    "kind": "experience_item",
+                    "action": "update",
+                    "entity_id": items[0]["id"],
+                    "payload": {
+                        "title": f"{items[0]['title']} → Desktop Assistant",
+                        "skills": ["electron", "typescript"],
+                    },
+                }
+            )
+        return {"answer": "loose shapes", "profile_ops": ops}
+
+    user = await _auth_user(db)
+    item = await ExperienceService(db).create_item(
+        user.id, {"title": "AI Launcher", "kind": "project", "open_ended": True}
+    )
+    session = await _session(client, auth_headers)
+
+    gateway_module.register_mock_fixture(AITaskType.CHAT, loose_ops)
+    try:
+        events = await _send(
+            client, session["id"], auth_headers, "add and refresh my projects"
+        )
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+
+    meta = next(p for n, p in events if n == "meta")
+    assert meta.get("proposals_dropped") is None
+    cards = [p for n, p in events if n == "proposal"]
+    assert len(cards) == 2
+    update_card = next(c for c in cards if c["action"] == "update")
+    assert update_card["entity_id"] == str(item.id)
+
+    # Collection fields render as scalar lists (chips in the UI), never
+    # raw payload dicts.
+    create_card = next(c for c in cards if c["action"] == "create")
+    diff = {row["field"]: row for row in create_card["diff"]}
+    assert diff["skills"]["after"] == ["electron", "Model Context Protocol"]
+    assert diff["links"]["after"] == ["https://neuronection.com"]
+    assert diff["achievements"]["after"] == ["Four family assistants"]
+    update_diff = {row["field"]: row for row in update_card["diff"]}
+    assert update_diff["skills"]["after"] == ["electron", "typescript"]
 
 
 async def test_session_delete_keeps_pending_proposals(client, db, auth_headers):

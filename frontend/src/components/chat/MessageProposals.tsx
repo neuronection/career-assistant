@@ -1,6 +1,9 @@
 import { useTranslation } from "react-i18next";
 
-import { HitlProposalCard } from "@/components/ui/chat";
+import {
+  HitlProposalCard,
+  type HitlProposalAction as ProfileProposalCardAction,
+} from "@/components/ui/chat";
 import type {
   ChatMessage,
   ProfileProposalCardData,
@@ -32,9 +35,11 @@ function cardStatus(
 export function ProposalCards({
   cards,
   droppedCount = 0,
+  droppedReasons = [],
 }: {
   cards: ProfileProposalCardData[];
   droppedCount?: number;
+  droppedReasons?: { kind?: string | null; reason: string }[];
 }) {
   const { t } = useTranslation();
   const overrides = useProfileProposalsStore((state) => state.overrides);
@@ -52,6 +57,7 @@ export function ProposalCards({
             key={card.id}
             title={card.title}
             status={state.status}
+            action={card.action as ProfileProposalCardAction}
             diff={card.diff}
             destructive={card.destructive}
             busy={state.busy}
@@ -80,9 +86,27 @@ export function ProposalCards({
         );
       })}
       {droppedCount > 0 ? (
-        <p className="text-xs text-[var(--as-muted-fg)]" data-testid="hitl-dropped-note">
+        <p
+          className="text-xs text-[var(--as-muted-fg)]"
+          data-testid="hitl-dropped-note"
+        >
           {t("chat.proposals.dropped", { count: droppedCount })}
         </p>
+      ) : null}
+      {droppedCount > 0 && droppedReasons.length > 0 ? (
+        <ul
+          className="flex flex-col gap-0.5 text-xs text-[var(--as-muted-fg)]"
+          data-testid="hitl-dropped-reasons"
+        >
+          {droppedReasons.map((drop, index) => (
+            <li key={index} className="break-words">
+              {t("chat.proposals.droppedReason", {
+                kind: drop.kind ?? "",
+                reason: drop.reason,
+              })}
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );
@@ -93,6 +117,7 @@ export function MessageProposals({ message }: { message: ChatMessage }) {
     <ProposalCards
       cards={message.metadata_json?.proposals ?? []}
       droppedCount={message.metadata_json?.proposals_dropped ?? 0}
+      droppedReasons={message.metadata_json?.proposals_dropped_reasons ?? []}
     />
   );
 }
