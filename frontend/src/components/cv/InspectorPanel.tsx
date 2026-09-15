@@ -216,7 +216,7 @@ function DesignTab({
     }
   };
   const sectionLabel =
-    "text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]";
+    "text-xs font-semibold text-[var(--as-muted-fg)]";
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
@@ -303,7 +303,7 @@ function DesignTab({
 
         {designTemplateMeta && (
           <div className="space-y-2 rounded-lg border border-[var(--as-border)] p-2.5" data-testid="printed-review">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+            <p className="text-[11px] font-semibold text-[var(--as-muted-fg)]">
               {t("cvBuilder.printedReview", { defaultValue: "Check a printed copy" })}
             </p>
             <input

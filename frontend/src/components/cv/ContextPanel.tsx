@@ -233,7 +233,7 @@ function GroupRow({
   const someIncluded = includedCount > 0 && !allIncluded;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)]">
+    <div className="overflow-hidden rounded-xl bg-[var(--as-surface)]">
       <div className="flex items-center gap-2 px-2 py-1.5">
         {items.length > 0 && (
           <CheckIndicator
@@ -250,7 +250,7 @@ function GroupRow({
           onClick={() => onOpenChange(!open)}
           data-testid={`context-group-header-${source.key}`}
         >
-          <span className="flex-1 truncate text-xs font-semibold uppercase tracking-wide text-[var(--as-fg)]">
+          <span className="flex-1 truncate text-xs font-semibold text-[var(--as-fg)]">
             {source.label}
           </span>
           <span

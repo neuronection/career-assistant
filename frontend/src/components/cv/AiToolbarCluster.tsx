@@ -180,7 +180,7 @@ export function AiToolbarCluster({
           </div>
         </PopoverAnchor>
         <PopoverContent align="start" className="w-64 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+          <p className="text-xs font-semibold text-[var(--as-muted-fg)]">
             Tailor to posting
           </p>
           {savedPostings.length > 0 ? (

@@ -143,7 +143,7 @@ export function summaryFor(block: CvBlock): string | null {
 function FieldGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+      <p className="text-[10px] font-semibold text-[var(--as-muted-fg)]">
         {label}
       </p>
       {children}
@@ -495,10 +495,10 @@ function SectionCard({
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`group rounded-xl border bg-[var(--as-surface)] transition-colors ${
+      className={`group rounded-xl bg-[var(--as-surface)] transition-colors ${
         dropTarget ? "cv-drop-slot" : ""
       } ${dragging ? "opacity-40" : ""} ${
-        hidden ? "border-dashed border-[var(--as-border)] opacity-60" : "border-[var(--as-border)]"
+        hidden ? "border border-dashed border-[var(--as-border)] opacity-60" : ""
       }`}
       data-testid={`section-card-${index}`}
     >
@@ -807,15 +807,15 @@ export function SectionsPanel({
                 handleDragEnd();
               }}
               data-testid={`area-group-${area.id}`}
-              className={`rounded-xl border transition-colors ${
+              className={`rounded-xl border border-transparent transition-colors ${
                 dragOverArea === area.id
                   ? "border-dashed border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_6%,transparent)]"
-                  : "border-[var(--as-border)] bg-[var(--as-surface)]"
+                  : ""
               }`}
             >
               <div className="flex items-center gap-1.5 border-b border-[var(--as-border)] px-2 py-1.5">
                 <Columns2 className="h-3.5 w-3.5 shrink-0 text-[var(--as-accent)]" aria-hidden />
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                <span className="text-[11px] font-semibold text-[var(--as-muted-fg)]">
                   {area.label}
                 </span>
                 <span
