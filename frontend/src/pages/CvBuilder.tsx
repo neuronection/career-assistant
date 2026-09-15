@@ -115,7 +115,7 @@ export function CvBuilder() {
   const [tone, setTone] = useState("");
   const [length, setLength] = useState("");
   const [versionPreview, setVersionPreview] = useState<{ version: number; html: string } | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("context");
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("sections");
   const [activePane, setActivePane] = useState<"canvas" | "inspector">("canvas");
   const [previewLoading, setPreviewLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -302,6 +302,10 @@ export function CvBuilder() {
   useEffect(() => {
     setCritiqueDismissed(false);
   }, [critique]);
+
+  useEffect(() => {
+    if (isLetter) setInspectorTab("context");
+  }, [isLetter]);
 
   useEffect(() => {
     let cancelled = false;

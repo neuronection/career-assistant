@@ -30,8 +30,10 @@ centered `max-w-7xl` column:
   `data-testid="pane-switcher"`) toggles one pane at a time — every
   feature stays reachable on tablet/mobile. Panes render with
   `` `${active ? "flex" : "hidden"} lg:flex` `` so CSS decides.
-- The inspector has **three tabs** (plans 85–87): Context, Design,
-  Sections — each a real workspace; one-off AI actions are NOT a tab
+- The inspector has **three tabs** (plans 85–87), ordered Sections →
+  Context → Design with **Sections as the default** (cover letters
+  default to Context, where the brief lives) — each a real workspace;
+  one-off AI actions are NOT a tab
   (they live in the toolbar's `AiToolbarCluster` next to "Ask AI") and
   read-only reports are NOT tabs either: the lint report opens from the
   toolbar's ATS score chip (`ats-chip` → popover with score, pass/warn/

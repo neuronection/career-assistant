@@ -793,6 +793,7 @@ describe("CvBuilder", () => {
     renderBuilder();
     expect(await screen.findByTestId("preview-frame")).toHaveAttribute("srcdoc", expect.stringContaining("Experience"));
     expect(await screen.findByText("ATS 92")).toBeInTheDocument();
+    await openInspectorTab("context");
     expect(screen.getByTestId("context-toggle-experience:exp-1")).toBeChecked();
     expect(screen.getByTestId("context-toggle-skills:sk-1")).toBeChecked();
   });
@@ -1287,16 +1288,14 @@ describe("CvBuilder", () => {
     expect(screen.getByTestId("ats-chip")).toHaveTextContent("ATS 92");
   });
 
-  it("hosts the context panel as the inspector's first tab", async () => {
+  it("hosts the sections panel as the inspector's default tab", async () => {
     renderBuilder();
     expect(await screen.findByTestId("builder-inspector")).toBeInTheDocument();
+    expect(screen.getByTestId("inspector-body-sections")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/section-card-\d+/).length).toBeGreaterThan(0);
+    await openInspectorTab("context");
     expect(screen.getByTestId("inspector-body-context")).toBeInTheDocument();
-    expect(
-      screen.getByRole("checkbox", { name: "Include all Skills" }),
-    ).toBeInTheDocument();
-    await openInspectorTab("design");
-    expect(screen.getByTestId("inspector-body-design")).toBeInTheDocument();
-    expect(screen.queryByTestId("inspector-body-context")).toBeNull();
+    expect(screen.queryByTestId("inspector-body-sections")).toBeNull();
   });
 
   it("exports via the Download dropdown", async () => {
@@ -1329,9 +1328,9 @@ describe("CvBuilder", () => {
 
   it("switches inspector tabs and shows the matching panel body", async () => {
     renderBuilder();
-    expect(await screen.findByTestId("inspector-body-context")).toBeInTheDocument();
-    await openInspectorTab("design");
-    expect(screen.getByTestId("inspector-body-design")).toBeInTheDocument();
+    expect(await screen.findByTestId("inspector-body-sections")).toBeInTheDocument();
+    await openInspectorTab("context");
+    expect(screen.getByTestId("inspector-body-context")).toBeInTheDocument();
     // The AI actions live in the toolbar cluster now — no AI tab.
     expect(screen.getByTestId("ai-toolbar-cluster")).toBeInTheDocument();
     expect(screen.getByTestId("ai-presets")).toBeInTheDocument();
@@ -1365,6 +1364,7 @@ describe("CvBuilder", () => {
       };
     });
     renderBuilder();
+    await openInspectorTab("context");
     const groupToggle = await screen.findByRole("checkbox", {
       name: "Include all Skills",
     });
@@ -1390,6 +1390,7 @@ describe("CvBuilder", () => {
 
   it("summarizes coverage and per-group inclusion at a glance", async () => {
     renderBuilder();
+    await openInspectorTab("context");
     await screen.findByTestId("context-summary");
     expect(screen.getByTestId("context-summary")).toHaveTextContent("2 / 2");
     expect(screen.getByTestId("context-group-count-skills")).toHaveTextContent(
@@ -1405,6 +1406,7 @@ describe("CvBuilder", () => {
 
   it("filters context items through the search box", async () => {
     renderBuilder();
+    await openInspectorTab("context");
     const search = await screen.findByTestId("context-search");
     fireEvent.change(search, { target: { value: "python" } });
     expect(screen.getByTestId("context-toggle-skills:sk-1")).toBeInTheDocument();
@@ -1413,6 +1415,7 @@ describe("CvBuilder", () => {
 
   it("collapses and expands context groups from the header", async () => {
     renderBuilder();
+    await openInspectorTab("context");
     const header = await screen.findByTestId("context-group-header-skills");
     const body = screen.getByTestId("context-group-body-skills");
     expect(header).toHaveAttribute("aria-expanded", "true");
@@ -1438,6 +1441,7 @@ describe("CvBuilder", () => {
 
   it("unticking an item switches the context to custom include-list", async () => {
     renderBuilder();
+    await openInspectorTab("context");
     const toggle = await screen.findByTestId("context-toggle-skills:sk-1");
     fireEvent.click(toggle);
     await waitFor(() => expect(setContext).toHaveBeenCalled());

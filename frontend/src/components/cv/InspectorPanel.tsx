@@ -36,9 +36,9 @@ import { apiDetail } from "@/api/client";
 export type InspectorTab = "context" | "design" | "sections";
 
 const TABS: { id: InspectorTab; label: string; icon: typeof Layers }[] = [
+  { id: "sections", label: "Sections", icon: LayoutList },
   { id: "context", label: "Context", icon: Layers },
   { id: "design", label: "Design", icon: Palette },
-  { id: "sections", label: "Sections", icon: LayoutList },
 ];
 
 interface InspectorPanelProps {
