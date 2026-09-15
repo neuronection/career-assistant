@@ -478,11 +478,13 @@ async def test_sidebar_bank_template_uses_area_paddings(db):
         .all()
     )
     row = max(rows, key=lambda template: template.version)
-    assert row.version == 3
+    assert row.version == 4
     design = row.content["design"]
     assert design["margin_mm"] == 0
     assert design["main_padding_mm"] > 0
     assert design["sidebar_padding_mm"] > 0
+    assert design["show_heading_icons"] is True
+    assert design["running_footer"] == "name"
     blocks = row.content["blocks"]
     assert all(block.get("area") in {"main", "sidebar"} for block in blocks)
     source_keys = [
@@ -505,11 +507,30 @@ async def test_sidebar_bank_template_uses_area_paddings(db):
         .all()
     )
     teal = max(teal_rows, key=lambda r: r.version)
+    assert teal.version == 4
     assert teal.content["design"]["show_photo"] is True
+    assert teal.content["design"]["show_heading_icons"] is True
     skills = next(
         block for block in teal.content["blocks"] if block.get("kind") == "skills"
     )
     assert skills["props"]["display"] == "bars"
+    modern_rows = (
+        (
+            await db.execute(
+                select(CvTemplate).where(
+                    CvTemplate.author_key == "bank",
+                    CvTemplate.key == "modern-two-column",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    modern = max(modern_rows, key=lambda r: r.version)
+    modern_skills = next(
+        block for block in modern.content["blocks"] if block.get("kind") == "skills"
+    )
+    assert modern_skills["props"]["display"] == "grouped"
 
 
 async def test_new_reference_templates_seed_and_render(db):
@@ -520,7 +541,7 @@ async def test_new_reference_templates_seed_and_render(db):
 
     await seed_cv_template_bank(db)
     for key in ("coral-banner", "charcoal-amber"):
-        row = (
+        rows = (
             (
                 await db.execute(
                     select(CvTemplate).where(
@@ -530,13 +551,16 @@ async def test_new_reference_templates_seed_and_render(db):
                 )
             )
             .scalars()
-            .one()
+            .all()
         )
+        row = max(rows, key=lambda r: r.version)
         content = TemplateContent.model_validate(row.content)
         assert content.design.layout == "sidebar"
         assert content.design.show_photo is True
+        assert content.design.show_heading_icons is True
         result = render_cv(content, SAMPLE_SNAPSHOT)
         assert "<aside class='cv-sidebar'>" in result.html
+        assert "h-icn" in result.html, "heading glyphs render"
         assert not result.metrics.overflow
 
     snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
@@ -551,6 +575,10 @@ async def test_new_reference_templates_seed_and_render(db):
     assert "<img class='cv-photo'" in sidebar, "photo lives in the dark sidebar"
     assert "cv-header" in sidebar
     assert "color: inherit" in html, "sidebar header text inherits column color"
+    assert "data:image/svg+xml;charset=utf-8" in sidebar, "QR panel in the sidebar"
+    coral = TemplateContent.model_validate(coral["content"])
+    assert coral.design.name_style == "accent_surname"
+    assert coral.design.photo_shape == "arch"
 
 
 async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_headers):
@@ -792,3 +820,79 @@ async def test_template_stats_admin_only(client, db, auth_headers):
             headers={"Authorization": f"Bearer {second.json()['access_token']}"},
         )
         assert denied.status_code == 403, denied.text
+
+
+async def test_refreshed_bank_lints_and_prints_within_budget(db):
+    """79.5 bank v4 refresh: every bank spec lints clean on the sample
+    snapshot, and the refreshed photo/sidebar layouts print within their
+    page budget on a real engine (plan-76 truth; skips without one)."""
+    import pytest as _pytest
+
+    from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
+
+    refreshed = {"navy-sidebar", "teal-sidebar", "coral-banner", "charcoal-amber"}
+    for spec in BANK_TEMPLATES:
+        content = TemplateContent.model_validate(spec["content"])
+        result = render_cv(content, SAMPLE_SNAPSHOT)
+        assert not result.metrics.overflow, (
+            f"{spec['key']} overflows its own budget on the sample snapshot"
+        )
+        if spec["key"] in refreshed:
+            try:
+                measure = await measure_pages(
+                    result.html, page_size=spec.get("page_size", "a4"), max_images=0
+                )
+            except (PDFEngineUnavailable, RuntimeError):
+                _pytest.skip("no PDF engine on this host")
+            assert measure.pages is not None
+            budget = content.pages.default_max_pages
+            assert measure.pages <= budget, (
+                f"{spec['key']} prints {measure.pages} pages over budget {budget}"
+            )
+
+
+async def test_template_version_listing_and_diff(client, db, auth_headers):
+    """79.2.6 stretch: version rows list newest-first and the diff
+    endpoint reports deterministic token/block changes (no prose)."""
+    import copy
+
+    template = await _make_template(client, auth_headers)
+    edited = copy.deepcopy(VALID_CONTENT)
+    edited["design"]["accent_color"] = "#0f766e"
+    edited["design"]["heading_rule"] = "accent"
+    edited["blocks"].append({"kind": "interests", "props": {"max_items": 4}})
+    updated = await client.patch(
+        f"/api/v1/cv/templates/{template['id']}",
+        json={"title": "My Layout", "content": edited},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 201, updated.text
+
+    versions = await client.get(
+        f"/api/v1/cv/templates/{template['id']}/versions", headers=auth_headers
+    )
+    assert versions.status_code == 200, versions.text
+    listed = versions.json()
+    assert [row["version"] for row in listed] == [2, 1]
+
+    diff = await client.get(
+        f"/api/v1/cv/templates/{updated.json()['id']}/diff", headers=auth_headers
+    )
+    assert diff.status_code == 200, diff.text
+    body = diff.json()
+    assert body["from_version"] == 1 and body["to_version"] == 2
+    paths = {change["path"]: change for change in body["token_changes"]}
+    assert paths["design.accent_color"]["to"] == "#0f766e"
+    assert paths["design.heading_rule"]["to"] == "accent"
+    assert "interests:" in body["block_changes"]["added"][0]
+
+    first = await client.get(
+        f"/api/v1/cv/templates/{template['id']}/diff", headers=auth_headers
+    )
+    assert first.status_code == 400, "v1 has no earlier version to diff against"
+    explicit = await client.get(
+        f"/api/v1/cv/templates/{updated.json()['id']}/diff?against={template['id']}",
+        headers=auth_headers,
+    )
+    assert explicit.status_code == 200, explicit.text
+    assert explicit.json()["from_version"] == 1

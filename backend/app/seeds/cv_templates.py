@@ -111,10 +111,10 @@ BANK_TEMPLATES: list[dict] = [
     },
     {
         "key": "modern-two-column",
-        "version": 3,
+        "version": 4,
         "title": "Modern Two-Column",
-        "description": "Accent-colored headings with chips, skill levels, "
-        "CEFR languages and a certifications section.",
+        "description": "Accent-colored headings with skills grouped by "
+        "category, skill levels, CEFR languages and a certifications section.",
         "page_size": "a4",
         "ats_safe": False,
         "content": _content(
@@ -135,7 +135,11 @@ BANK_TEMPLATES: list[dict] = [
                 ),
                 {
                     "kind": "skills",
-                    "props": {"display": "chips", "max_items": 18, "show_levels": True},
+                    "props": {
+                        "display": "grouped",
+                        "max_items": 18,
+                        "show_levels": True,
+                    },
                 },
                 _items(
                     "Education",
@@ -346,6 +350,8 @@ def _sidebar_content(
     sidebar_side: str = "left",
     skills_display: str = "chips",
     show_photo: bool = False,
+    show_heading_icons: bool = False,
+    running_footer: str = "none",
 ) -> dict:
     """Two-column layout: sidebar (education, skills, languages,
     certifications) + main column (profile, work, projects) — the modern
@@ -433,6 +439,8 @@ def _sidebar_content(
             "show_photo": show_photo,
             "photo_shape": "circle",
             "photo_size_mm": 24,
+            "show_heading_icons": show_heading_icons,
+            "running_footer": running_footer,
         },
         "pages": {"default_max_pages": 1, "overflow_policy": "warn"},
         "prompts": {"field_prompts": {}, "field_handling": ""},
@@ -443,20 +451,24 @@ BANK_TEMPLATES.extend(
     [
         {
             "key": "navy-sidebar",
-            "version": 3,
+            "version": 4,
             "title": "Navy Sidebar",
-            "description": "Two-column magazine layout: dark navy sidebar with photo, education and skills; main column for profile and experience.",
+            "description": "Two-column magazine layout: dark navy sidebar with photo, education and skills; heading glyphs and a running name footer on page 2+.",
             "page_size": "a4",
             "ats_safe": False,
             "content": _sidebar_content(
-                sidebar_color="#16324f", accent="#1e3a8a", heading_color="#16324f"
+                sidebar_color="#16324f",
+                accent="#1e3a8a",
+                heading_color="#16324f",
+                show_heading_icons=True,
+                running_footer="name",
             ),
         },
         {
             "key": "teal-sidebar",
-            "version": 3,
+            "version": 4,
             "title": "Teal Sidebar",
-            "description": "Modern teal two-column layout with skill bars and a rounded photo.",
+            "description": "Modern teal two-column layout with skill bars, a rounded photo and heading glyphs.",
             "page_size": "a4",
             "ats_safe": False,
             "content": _sidebar_content(
@@ -466,14 +478,15 @@ BANK_TEMPLATES.extend(
                 sidebar_side="left",
                 skills_display="bars",
                 show_photo=True,
+                show_heading_icons=True,
             ),
         },
         {
             "key": "coral-banner",
-            "version": 1,
+            "version": 2,
             "title": "Coral Banner",
-            "description": "Warm coral header band with a circular photo and a soft "
-            "gray sidebar for profile, skill bars and languages.",
+            "description": "Warm coral header band with an arch photo and accent "
+            "surname; soft gray sidebar for profile, skill bars and languages.",
             "page_size": "a4",
             "ats_safe": False,
             "content": _content(
@@ -567,6 +580,8 @@ BANK_TEMPLATES.extend(
                     "show_photo": True,
                     "photo_shape": "arch",
                     "photo_size_mm": 24,
+                    "name_style": "accent_surname",
+                    "show_heading_icons": True,
                     "heading_case": "uppercase",
                     "heading_weight": 700,
                     "heading_rule": "none",
@@ -575,10 +590,11 @@ BANK_TEMPLATES.extend(
         },
         {
             "key": "charcoal-amber",
-            "version": 1,
+            "version": 2,
             "title": "Charcoal & Amber",
-            "description": "Dark charcoal sidebar with the photo, contact and skill "
-            "bars; amber accents over a timeline main column.",
+            "description": "Dark charcoal sidebar with the photo, contact, skill "
+            "bars and a link QR; amber heading glyphs and accent surname "
+            "over a timeline main column.",
             "page_size": "a4",
             "ats_safe": False,
             "content": _content(
@@ -613,6 +629,11 @@ BANK_TEMPLATES.extend(
                         "kind": "languages",
                         "area": "sidebar",
                         "props": {"display": "chips", "show_cefr": True},
+                    },
+                    {
+                        "kind": "qr",
+                        "area": "sidebar",
+                        "props": {"link_kind": "web", "size_mm": 22},
                     },
                     {
                         "kind": "interests",
@@ -668,6 +689,8 @@ BANK_TEMPLATES.extend(
                     "show_photo": True,
                     "photo_shape": "circle",
                     "photo_size_mm": 24,
+                    "name_style": "accent_surname",
+                    "show_heading_icons": True,
                     "heading_case": "uppercase",
                     "heading_weight": 700,
                     "heading_rule": "none",

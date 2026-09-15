@@ -53,10 +53,15 @@ SAMPLE_SNAPSHOT: dict = {
         "location": "Athens, GR",
         "links": [
             {
+                "kind": "website",
+                "url": "https://alexsample.dev",
+                "label": "portfolio",
+            },
+            {
                 "kind": "github",
                 "url": "https://github.com/alexsample",
                 "label": "github",
-            }
+            },
         ],
         # Deterministic neutral placeholder so gallery previews of
         # photo-enabled templates sell the layout (renders only when a

@@ -57,6 +57,8 @@ const fetchTemplates = vi.fn();
 const fetchTemplatePreview = vi.fn();
 const draftTemplateAi = vi.fn();
 const suggestTemplates = vi.fn();
+const fetchTemplateVersions = vi.fn();
+const fetchTemplateDiff = vi.fn();
 const fetchCvRuns = vi.fn();
 const fetchPhotoGallery = vi.fn();
 const uploadGalleryPhoto = vi.fn();
@@ -129,6 +131,8 @@ vi.mock("@/api/cvTemplates", () => ({
   fetchTemplatePreview: (...args: unknown[]) => fetchTemplatePreview(...args),
   draftTemplateAi: (...args: unknown[]) => draftTemplateAi(...args),
   suggestTemplates: (...args: unknown[]) => suggestTemplates(...args),
+  fetchTemplateVersions: (...args: unknown[]) => fetchTemplateVersions(...args),
+  fetchTemplateDiff: (...args: unknown[]) => fetchTemplateDiff(...args),
 }));
 
 vi.mock("@/api/cvTemplateDraft", async (importOriginal) => {
@@ -2105,5 +2109,35 @@ describe("builder: matching cover letter entry", () => {
     await screen.findByTestId("preview-frame");
     fireEvent.click(screen.getByTestId("export-dropdown"));
     expect(screen.queryByTestId("create-matching-letter")).not.toBeInTheDocument();
+  });
+});
+
+describe("template editor: version history + diff", () => {
+  it("lists versions and renders the deterministic token/block diff", async () => {
+    fetchTemplateVersions.mockResolvedValue([
+      { id: "tpl-2", version: 2, title: "Classic Serif", created_at: "2026-09-15T10:00:00Z", content_hash: "h2" },
+      { id: "tpl-1", version: 1, title: "Classic Serif", created_at: "2026-09-14T10:00:00Z", content_hash: "h1" },
+    ]);
+    fetchTemplateDiff.mockResolvedValue({
+      from_version: 1,
+      to_version: 2,
+      token_changes: [
+        { path: "design.accent_color", from: "#1d4ed8", to: "#0f766e" },
+      ],
+      block_changes: {
+        added: ["interests:"],
+        removed: [],
+        props_changed: [],
+      },
+    });
+    renderEditor();
+    expect(await screen.findByTestId("template-title")).toHaveValue("Classic Serif");
+    fireEvent.click(screen.getByTestId("template-history-toggle"));
+    expect(await screen.findByTestId("template-history-v2")).toBeInTheDocument();
+    const diff = await screen.findByTestId("template-history-diff");
+    expect(diff).toHaveTextContent("Changes v1 → v2");
+    expect(diff).toHaveTextContent("design.accent_color");
+    expect(diff).toHaveTextContent("#1d4ed8 → #0f766e");
+    expect(diff).toHaveTextContent("+ interests:");
   });
 });

@@ -47,6 +47,20 @@ All notable changes to **Career Assistant** are documented here.
   export totals per template derived from the immutable version rows
   (no new telemetry pipeline). The Coral Banner template adopts the new
   arch photo shape and the token editor drops a duplicated control.
+- **Power pack slice 5 — bank refresh + version history (plan 79.5)**:
+  the template bank adopts the new capabilities — "Navy Sidebar" gains
+  heading glyphs and a running "Name — CV" footer (suppressed on page 1
+  where the header already carries it), "Teal Sidebar" gains glyphs,
+  "Modern Two-Column" groups skills by category, "Coral Banner" upgrades
+  to the arch photo with a two-tone accent surname, and "Charcoal &
+  Amber" adds heading glyphs, the accent surname and a scannable QR
+  panel for the portfolio link in its sidebar. Every refreshed layout
+  lints clean and prints within its page budget (engine-verified). The
+  template editor also gains a **Version history** panel: all version
+  rows of a template key plus a deterministic v(n−1)→v(n) diff (token
+  path changes and block add/remove/props) via new
+  `GET /cv/templates/{id}/versions` and `/diff` endpoints — no images,
+  so it works identically with or without a PDF engine.
 - **New CV templates inspired by magazine-style layouts**: "Coral Banner"
   (warm coral header band with a circular photo, soft gray sidebar with
   profile, skill bars and CEFR languages) and "Charcoal & Amber" (dark

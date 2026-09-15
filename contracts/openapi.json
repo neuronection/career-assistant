@@ -21134,6 +21134,74 @@
         ]
       }
     },
+    "/api/v1/cv/templates/{template_id}/diff": {
+      "get": {
+        "description": "Deterministic token/block diff against another version (default:\nthe previous one).",
+        "operationId": "template_diff_api_v1_cv_templates__template_id__diff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "against",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Against"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Template Diff Api V1 Cv Templates  Template Id  Diff Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Template Diff",
+        "tags": [
+          "cv-templates"
+        ]
+      }
+    },
     "/api/v1/cv/templates/{template_id}/duplicate": {
       "post": {
         "description": "Copy any readable template into your own private space.",
@@ -21365,6 +21433,60 @@
           }
         ],
         "summary": "Preview Template With Cv",
+        "tags": [
+          "cv-templates"
+        ]
+      }
+    },
+    "/api/v1/cv/templates/{template_id}/versions": {
+      "get": {
+        "description": "All version rows of this template key (newest first).",
+        "operationId": "template_versions_api_v1_cv_templates__template_id__versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Template Versions Api V1 Cv Templates  Template Id  Versions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Template Versions",
         "tags": [
           "cv-templates"
         ]

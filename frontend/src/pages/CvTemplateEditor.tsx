@@ -10,7 +10,13 @@ import {
 } from "lucide-react";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import { fetchTemplates } from "@/api/cvTemplates";
+import {
+  fetchTemplateDiff,
+  fetchTemplateVersions,
+  fetchTemplates,
+  type TemplateDiff,
+  type TemplateVersionRow,
+} from "@/api/cvTemplates";
 import type { CvTheme } from "@/api/cvTemplateDraft";
 import {
   createTemplate,
@@ -109,6 +115,116 @@ const EMPTY_CONTENT: TemplateContent = {
   pages: { default_max_pages: 1, overflow_policy: "warn" },
   prompts: { field_prompts: {}, field_handling: "" },
 };
+
+function VersionHistoryCard({ templateId }: { templateId: string }) {
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<TemplateVersionRow[]>([]);
+  const [diff, setDiff] = useState<TemplateDiff | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open || versions.length > 0) return;
+    let cancelled = false;
+    setBusy(true);
+    (async () => {
+      try {
+        const rows = await fetchTemplateVersions(templateId);
+        if (cancelled) return;
+        setVersions(rows);
+        if (rows.length > 1) {
+          setDiff(await fetchTemplateDiff(rows[0].id, rows[1].id));
+        }
+      } catch (err) {
+        if (!cancelled) setError(apiDetail(err));
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, templateId, versions.length]);
+
+  return (
+    <Card className="space-y-2 p-3" data-testid="template-history">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center justify-between text-left"
+        data-testid="template-history-toggle"
+      >
+        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+          Version history
+        </span>
+        <span className="text-xs text-[var(--as-muted-fg)]">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <div className="space-y-2">
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          {busy && <p className="text-xs text-[var(--as-muted-fg)]">Loading…</p>}
+          {!busy && versions.length === 0 && (
+            <p className="text-xs text-[var(--as-muted-fg)]" data-testid="template-history-empty">
+              No versions yet.
+            </p>
+          )}
+          <ul className="space-y-1">
+            {versions.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-2 text-xs"
+                data-testid={`template-history-v${row.version}`}
+              >
+                <span className="font-medium text-[var(--as-fg)]">v{row.version}</span>
+                <span className="truncate text-[var(--as-muted-fg)]">
+                  {new Date(row.created_at).toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {diff && (
+            <div
+              className="space-y-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-xs"
+              data-testid="template-history-diff"
+            >
+              <p className="font-medium text-[var(--as-fg)]">
+                Changes v{diff.from_version} → v{diff.to_version}
+              </p>
+              {diff.token_changes.length === 0 &&
+                diff.block_changes.added.length === 0 &&
+                diff.block_changes.removed.length === 0 &&
+                diff.block_changes.props_changed.length === 0 && (
+                  <p className="text-[var(--as-muted-fg)]">No differences.</p>
+                )}
+              {diff.token_changes.map((change) => (
+                <p key={change.path} className="text-[var(--as-muted-fg)]">
+                  <span className="font-medium text-[var(--as-fg)]">{change.path}</span>
+                  {": "}
+                  {String(change.from)} → {String(change.to)}
+                </p>
+              ))}
+              {diff.block_changes.added.length > 0 && (
+                <p className="text-emerald-700">
+                  + {diff.block_changes.added.join(", ")}
+                </p>
+              )}
+              {diff.block_changes.removed.length > 0 && (
+                <p className="text-red-700">− {diff.block_changes.removed.join(", ")}</p>
+              )}
+              {diff.block_changes.props_changed.length > 0 && (
+                <p className="text-[var(--as-muted-fg)]">
+                  ~ {diff.block_changes.props_changed.map((item) => item.block).join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 
 export function CvTemplateEditor() {
   const { t } = useTranslation();
@@ -563,6 +679,8 @@ export function CvTemplateEditor() {
               data-testid="template-summary-prompt"
             />
           </Card>
+
+          <VersionHistoryCard templateId={id} />
         </div>
 
         <div className="min-h-0 lg:overflow-hidden" data-testid="template-editor-canvas">

@@ -237,6 +237,99 @@ class CvTemplateService:
             page_size=source.page_size,
         )
 
+    async def diff_versions(
+        self,
+        template_id: uuid.UUID,
+        user_id: uuid.UUID,
+        against_id: uuid.UUID | None = None,
+    ) -> dict:
+        """Deterministic diff between two versions of one template key.
+
+        Compares the caller-readable template against another version row
+        of the same (author_key, key) — `against_id` defaults to the
+        previous version. Returns flat token changes (path, from, to) and
+        block-level structural changes; no prose, no images — the honest
+        degradation when no PDF engine exists for pixel diffs."""
+        template = await self.get_readable(template_id, user_id)
+        if against_id is not None:
+            other = (
+                (
+                    await self.db.execute(
+                        select(CvTemplate).where(
+                            CvTemplate.id == against_id,
+                            CvTemplate.author_key == template.author_key,
+                            CvTemplate.key == template.key,
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if other is None:
+                raise NotFoundError("Comparison version not found for this template")
+            if other.version > template.version:
+                template, other = other, template
+        else:
+            rows = await self.db.execute(
+                select(CvTemplate)
+                .where(
+                    CvTemplate.author_key == template.author_key,
+                    CvTemplate.key == template.key,
+                    CvTemplate.version < template.version,
+                )
+                .order_by(CvTemplate.version.desc())
+                .limit(1)
+            )
+            other = rows.scalars().first()
+            if other is None:
+                raise ValidationError("No earlier version to compare against")
+
+        newer = TemplateContent.model_validate(template.content)
+        older = TemplateContent.model_validate(other.content)
+        token_changes = []
+        new_design = newer.design.model_dump(mode="json")
+        old_design = older.design.model_dump(mode="json")
+        for path in sorted(set(new_design) | set(old_design)):
+            if new_design.get(path) != old_design.get(path):
+                token_changes.append(
+                    {
+                        "path": f"design.{path}",
+                        "from": old_design.get(path),
+                        "to": new_design.get(path),
+                    }
+                )
+
+        def _block_signature(block: dict) -> str:
+            props = block.get("props") or {}
+            return f"{block.get('kind')}:{props.get('title') or props.get('source_key') or ''}"
+
+        old_blocks = [_block_signature(block) for block in older.blocks]
+        new_blocks = [_block_signature(block) for block in newer.blocks]
+        block_changes = {
+            "added": [sig for sig in new_blocks if sig not in old_blocks],
+            "removed": [sig for sig in old_blocks if sig not in new_blocks],
+            "props_changed": [],
+        }
+        old_by_sig: dict[str, dict] = {}
+        for block, sig in zip(older.blocks, old_blocks):
+            old_by_sig.setdefault(sig, block)
+        for block, sig in zip(newer.blocks, new_blocks):
+            previous = old_by_sig.get(sig)
+            if previous is None:
+                continue
+            if previous.get("props") != block.get("props") or previous.get(
+                "area"
+            ) != block.get("area"):
+                block_changes["props_changed"].append(
+                    {"block": sig, "area": block.get("area", "main")}
+                )
+        return {
+            "from_version": other.version,
+            "to_version": template.version,
+            "token_changes": token_changes,
+            "block_changes": block_changes,
+        }
+
     async def delete(self, template_id: uuid.UUID, user_id: uuid.UUID) -> None:
         """Delete every version of one of the caller's template keys."""
         template = await self.get_owned(template_id, user_id)

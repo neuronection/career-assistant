@@ -4,11 +4,13 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.cv_template_designer import critique_pages, draft_template
 from app.core.database import get_db
 from app.core.errors import ValidationError
+from app.models.cv_template_model import CvTemplate
 from app.models.enums import CvTemplateSource
 from app.schemas.cv_template import (
     CvTemplateExport,
@@ -212,6 +214,58 @@ async def template_stats(
 ) -> list[dict]:
     """Anonymous export totals per template (admin telemetry view)."""
     return await CvTemplateService(db).export_stats()
+
+
+@router.get("/{template_id}/versions")
+async def template_versions(
+    template_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """All version rows of this template key (newest first)."""
+    service = CvTemplateService(db)
+    template = await service.get_readable(template_id, user.id)
+    rows = (
+        (
+            await db.execute(
+                select(CvTemplate)
+                .where(
+                    CvTemplate.author_key == template.author_key,
+                    CvTemplate.key == template.key,
+                )
+                .order_by(CvTemplate.version.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "version": row.version,
+            "title": row.title,
+            "created_at": row.created_at.isoformat(),
+            "content_hash": row.content_hash,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/{template_id}/diff")
+async def template_diff(
+    template_id: uuid.UUID,
+    against: uuid.UUID | None = None,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Deterministic token/block diff against another version (default:
+    the previous one)."""
+    try:
+        return await CvTemplateService(db).diff_versions(
+            template_id, user.id, against_id=against
+        )
+    except ValidationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
 @router.get("/{template_id}/preview", response_class=HTMLResponse)

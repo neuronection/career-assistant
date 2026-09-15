@@ -1178,6 +1178,9 @@ def test_running_footer_margin_boxes():
     )
     html = render_cv(content, SAMPLE_SNAPSHOT).html
     assert '@bottom-right { content: counter(page) " / " counter(pages);' in html
+    assert "@page :first { @bottom-left { content: none; }" in html, (
+        "the footer stays off page 1 where the header already names the owner"
+    )
     off = render_cv(
         TemplateContent.model_validate(
             {"blocks": [{"kind": "header", "props": {}}], "design": {}}

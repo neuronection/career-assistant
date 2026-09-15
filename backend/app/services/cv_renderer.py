@@ -990,29 +990,36 @@ def _font_face_css(font_stack: str) -> str:
     return font_face_css(font_stack)
 
 
-def _page_margin_boxes(design: DesignTokens, snapshot: dict | None) -> str:
+def _page_margin_boxes(design: DesignTokens, snapshot: dict | None) -> tuple[str, str]:
     """@page margin-box rules for the running-footer token.
 
-    Only exported to the CSS when `running_footer` is on; rendered
-    into the page's own margin area so footer lines never consume
-    body space."""
+    Returns (inner, standalone): `inner` nests inside the main `@page`
+    rule, `standalone` is the `@page :first` suppression that keeps the
+    footer off page 1 (the header already carries the name there). Only
+    exported when `running_footer` is on; rendered into the page's own
+    margin area so footer lines never consume body space."""
     mode = design.running_footer
     if mode == "none":
-        return ""
-    rules = []
+        return "", ""
+    inner = []
     if mode == "name":
         basics = (snapshot or {}).get("basics") or {}
         name = str(basics.get("name") or "").strip()
         label = f"{name} — CV" if name else "Curriculum vitae"
-        rules.append(
+        inner.append(
             "@bottom-left { content: '%s'; font-size: 8pt; color: #6b7280; }"
             % esc(label).replace("&#x27;", "\\'")
         )
     if mode == "numbers":
-        rules.append(
-            '@bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #6b7280; }'
+        inner.append(
+            '@bottom-right { content: counter(page) " / " counter(pages); '
+            "font-size: 8pt; color: #6b7280; }"
         )
-    return " ".join(rules)
+    standalone = (
+        "@page :first { @bottom-left { content: none; } "
+        "@bottom-right { content: none; } }"
+    )
+    return " ".join(inner), standalone
 
 
 def _css(
@@ -1055,9 +1062,10 @@ def _css(
             "header.cv-header .contact a { color: inherit; }"
             "header.cv-header .name-accent { color: color-mix(in srgb, #ffffff 65%, var(--accent)); }"
         )
-    margin_boxes = _page_margin_boxes(design, snapshot)
+    footer_inner, footer_standalone = _page_margin_boxes(design, snapshot)
     return f"""
-@page {{ {margin_boxes}size: {width_mm}mm {height_mm}mm; margin: {margin}mm; }}
+@page {{ {footer_inner}size: {width_mm}mm {height_mm}mm; margin: {margin}mm; }}
+{footer_standalone}
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 {_font_face_css(design.font_stack)}
 :root {{

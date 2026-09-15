@@ -30,6 +30,45 @@ export async function fetchTemplatePreviewWith(
   return data;
 }
 
+export interface TemplateVersionRow {
+  id: string;
+  version: number;
+  title: string;
+  created_at: string;
+  content_hash: string;
+}
+
+export async function fetchTemplateVersions(
+  templateId: string
+): Promise<TemplateVersionRow[]> {
+  const { data } = await api.get<TemplateVersionRow[]>(
+    `/cv/templates/${templateId}/versions`
+  );
+  return data;
+}
+
+export interface TemplateDiff {
+  from_version: number;
+  to_version: number;
+  token_changes: { path: string; from: unknown; to: unknown }[];
+  block_changes: {
+    added: string[];
+    removed: string[];
+    props_changed: { block: string; area: string }[];
+  };
+}
+
+export async function fetchTemplateDiff(
+  templateId: string,
+  against?: string
+): Promise<TemplateDiff> {
+  const { data } = await api.get<TemplateDiff>(
+    `/cv/templates/${templateId}/diff`,
+    { params: against ? { against } : {} }
+  );
+  return data;
+}
+
 export async function draftTemplateAi(brief: string): Promise<CvTemplateSummary> {
   const { data } = await api.post<CvTemplateSummary>("/cv/templates/draft-ai", {
     brief,
