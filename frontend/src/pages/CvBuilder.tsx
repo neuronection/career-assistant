@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { Eye, FileText, Sparkles } from "lucide-react";
+import { Copy, Eye, FileText, Sparkles, X } from "lucide-react";
 import { Button, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
@@ -36,6 +36,8 @@ import { fetchPhotoGallery, uploadGalleryPhoto, type GalleryPhoto } from "@/api/
 import { BuilderToolbar, EXPORT_FORMATS, type ExportFormat } from "@/components/cv/BuilderToolbar";
 import { BuildProgressCard } from "@/components/cv/BuildProgress";
 import { RunsPanelModal } from "@/components/cv/RunsPanel";
+import { AiToolbarCluster } from "@/components/cv/AiToolbarCluster";
+import { CritiqueCard } from "@/components/cv/CritiqueCard";
 import { openCvChat } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import type { CvAssistantCritique, CvAssistantState } from "@/types/cvAssistant";
@@ -123,6 +125,7 @@ export function CvBuilder() {
   }>({ past: [], future: [] });
   const [notice, setNotice] = useState<string | null>(null);
   const [critique, setCritique] = useState<CvAssistantCritique | null>(null);
+  const [critiqueDismissed, setCritiqueDismissed] = useState(false);
   const [snapshotRows, setSnapshotRows] = useState<Record<string, unknown>>({});
   const [designState, setDesignState] = useState<CvDesignTokens | null>(null);
   const [designSaved, setDesignSaved] = useState<CvDesignTokens | null>(null);
@@ -295,6 +298,10 @@ export function CvBuilder() {
       setError(apiDetail(err));
     }
   };
+
+  useEffect(() => {
+    setCritiqueDismissed(false);
+  }, [critique]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1052,6 +1059,24 @@ export function CvBuilder() {
           !isLetter && cv.target_posting_id ? () => void createMatchingLetter() : null
         }
         letterBusy={busy === "letter"}
+        aiCluster={
+          <AiToolbarCluster
+            mode={isLetter ? "cover_letter" : "resume"}
+            busy={busy}
+            translateLabel={`Translate → ${cv.language.toUpperCase()}`}
+            hasTargetPosting={Boolean(cv.target_posting_id)}
+            savedPostings={savedPostings}
+            tailorPostingId={tailorPostingId}
+            onTailorPostingChange={setTailorPostingId}
+            onTailorRequest={handleTailorRequest}
+            onRunAction={(action) => void runAction(action)}
+            onDraftLetter={() => void runLetterDraft()}
+            tone={tone}
+            onToneChange={setTone}
+            length={length}
+            onLengthChange={setLength}
+          />
+        }
         onOpenVersions={() => setVersionsOpen(true)}
         onOpenRuns={() => setRunsOpen(true)}
         onOpenPolish={polishVersion ? () => setRunsOpen(true) : null}        onOpenPalette={() => setPaletteOpen(true)}
@@ -1159,8 +1184,6 @@ export function CvBuilder() {
             onApplyLetterDraft={(paragraphs, draft) =>
               void applyLetterDraft(paragraphs, draft)
             }
-            onDraftLetter={() => void runLetterDraft()}
-            hasTargetPosting={Boolean(cv.target_posting_id)}
             templates={templates}
             templateId={cv.template_id ?? ""}
             onTemplate={(templateId) => void applyTemplate(templateId)}
@@ -1205,23 +1228,10 @@ export function CvBuilder() {
               dragIndex.current = null;
             }}
             busy={busy}
-            tone={tone}
-            onToneChange={setTone}
-            length={length}
-            onLengthChange={setLength}
-            savedPostings={savedPostings}
-            tailorPostingId={tailorPostingId}
-            onTailorPostingChange={setTailorPostingId}
-            onTailorRequest={handleTailorRequest}
-            translateLabel={`Translate → ${cv.language.toUpperCase()}`}
-            onRunAction={(action) => void runAction(action)}
-            onDuplicate={() => void handleDuplicate()}
             suggestion={suggestion}
             onCloseSuggestion={() => setSuggestion(null)}
             onApplyProposal={(entry) => void applyProposal(entry)}
             lint={lint}
-            critique={critique}
-            onApplyCritiqueFixes={(fixes) => void applyCritiqueFixes(fixes)}
           />
         </div>
 
@@ -1231,6 +1241,25 @@ export function CvBuilder() {
           } cv-pane-enter min-h-0 flex-col lg:flex`}
           data-testid="builder-canvas"
         >
+          {critique && !critiqueDismissed && (
+            <div className="relative mb-2 shrink-0" data-testid="canvas-critique">
+              <CritiqueCard
+                critique={critique}
+                onApplyFixes={(fixes) => void applyCritiqueFixes(fixes)}
+                busy={busy.startsWith("ai:")}
+              />
+              <button
+                type="button"
+                aria-label="Dismiss critique"
+                title="Dismiss"
+                onClick={() => setCritiqueDismissed(true)}
+                data-testid="dismiss-critique"
+                className="absolute right-1.5 top-1.5 cursor-pointer rounded p-0.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </div>
+          )}
           <PreviewCanvas
             html={html}
             loading={previewLoading}
@@ -1344,6 +1373,20 @@ export function CvBuilder() {
               </ul>
             )}
                     </div>
+          <div
+            className="flex items-center justify-end gap-2 border-t border-[var(--as-border)] p-4 pt-3"
+            data-testid="versions-footer"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleDuplicate()}
+              data-testid="duplicate-cv"
+            >
+              <Copy className="mr-1 h-3.5 w-3.5" />
+              {isLetter ? "Duplicate letter" : "Duplicate CV"}
+            </Button>
+          </div>
         </ModalContent>
       </Modal>
 

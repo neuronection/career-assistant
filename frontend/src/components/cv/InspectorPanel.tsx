@@ -3,24 +3,16 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
-  Eye,
-  Languages,
-  Scissors,
   SlidersHorizontal,
-  Sparkles,
-  Target,
   X,
 } from "lucide-react";
 import {
-  AiActionsDropdown,
   Menu,
   MenuCheckboxItem,
   MenuContent,
   MenuTrigger,
-  PopoverAnchor,
-  type AiAction,
 } from "@neuronection/assistant-ui";
-import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { PhotoPicker } from "@/components/cv/PhotoPicker";
 import { SectionsPanel } from "@/components/cv/SectionsPanel";
 import { DesignTokenEditor } from "@/components/cv/DesignTokenEditor";
@@ -47,13 +39,12 @@ import type { CvAssistantCritique } from "@/types/cvAssistant";
 import { CritiqueCard } from "@/components/cv/CritiqueCard";
 import { apiDetail } from "@/api/client";
 
-export type InspectorTab = "context" | "design" | "sections" | "ai" | "lint";
+export type InspectorTab = "context" | "design" | "sections" | "lint";
 
 const TABS: { id: InspectorTab; label: string }[] = [
   { id: "context", label: "Context" },
   { id: "design", label: "Design" },
   { id: "sections", label: "Sections" },
-  { id: "ai", label: "AI" },
   { id: "lint", label: "Lint" },
 ];
 
@@ -71,8 +62,6 @@ interface InspectorPanelProps {
     paragraphs: string[],
     draft: CoverLetterSuggestionOut["draft"]
   ) => void;
-  onDraftLetter: () => void;
-  hasTargetPosting: boolean;
 
   templates: CvTemplateSummary[];
   templateId: string;
@@ -111,24 +100,11 @@ interface InspectorPanelProps {
   onDragReorder: (target: number) => void;
 
   busy: string;
-  tone: string;
-  onToneChange: (tone: string) => void;
-  length: string;
-  onLengthChange: (length: string) => void;
-  savedPostings: { id: string; title: string; org: string }[];
-  tailorPostingId: string;
-  onTailorPostingChange: (postingId: string) => void;
-  onTailorRequest: () => void;
-  translateLabel: string;
-  onRunAction: (action: "summary" | "bullet" | "gaps" | "compaction" | "tailor" | "translate") => void;
-  onDuplicate: () => void;
   suggestion: CvSuggestionOut | null;
   onCloseSuggestion: () => void;
   onApplyProposal: (entry: CvProposal) => void;
 
   lint: CvLintReport | null;
-  critique?: CvAssistantCritique | null;
-  onApplyCritiqueFixes?: (fixes: Record<string, string>) => void;
 }
 
 export function InspectorPanel(props: InspectorPanelProps) {
@@ -187,9 +163,24 @@ export function InspectorPanel(props: InspectorPanelProps) {
           ) : (
             <SectionsPanel {...props} />
           ))}
-        {tab === "ai" && <AiTab {...props} />}
         {tab === "lint" && <LintTab {...props} />}
       </div>
+
+      {props.suggestion && (
+        <ProposalsSlideOver
+          suggestion={props.suggestion}
+          onClose={props.onCloseSuggestion}
+          onApply={props.onApplyProposal}
+        />
+      )}
+      {props.letterSuggestion && (
+        <LetterDraftSlideOver
+          suggestion={props.letterSuggestion}
+          busy={props.busy === "ai:cover_letter"}
+          onClose={props.onCloseLetterSuggestion}
+          onApply={props.onApplyLetterDraft}
+        />
+      )}
     </div>
   );
 }
@@ -403,172 +394,6 @@ function DesignTab({
   );
 }
 
-function AiTab(props: InspectorPanelProps) {
-  const [presetsOpen, setPresetsOpen] = useState(false);
-  const [tailorOpen, setTailorOpen] = useState(false);
-  if (props.mode === "cover_letter") return <LetterAiTab {...props} />;
-  const {
-    busy,
-    tone,
-    onToneChange,
-    length,
-    onLengthChange,
-    savedPostings,
-    tailorPostingId,
-    onTailorPostingChange,
-    onTailorRequest,
-    translateLabel,
-    onRunAction,
-    onDuplicate,
-    suggestion,
-    onCloseSuggestion,
-    onApplyProposal,
-  } = props;
-
-  return (
-    <div className="space-y-3">
-      {props.critique && (
-        <CritiqueCard
-          critique={props.critique}
-          onApplyFixes={props.onApplyCritiqueFixes}
-          busy={busy.startsWith("ai:")}
-        />
-      )}
-      <Popover open={tailorOpen} onOpenChange={setTailorOpen}>
-        <PopoverAnchor asChild>
-          <div>
-            <AiActionsDropdown
-              label="AI writing actions"
-              title="AI writing actions"
-              busy={busy.startsWith("ai:")}
-              error={null}
-              primaryAction={{ id: "summary", label: "Improve summary", icon: Sparkles }}
-              actions={[
-                { id: "compaction", label: "Tighten text", icon: Scissors },
-                { id: "gaps", label: "Find gaps", icon: Eye },
-                { id: "translate", label: translateLabel, icon: Languages },
-                {
-                  id: "tailor",
-                  label: "Tailor to saved posting",
-                  icon: Target,
-                  description: tailorPostingId ? "Uses the selected posting" : "Pick a posting first",
-                },
-              ]}
-              moreLabel="More AI actions"
-              onAction={(action: AiAction) => {
-                if (action.id === "tailor") {
-                  setTailorOpen(true);
-                  return;
-                }
-                onRunAction(action.id as "summary");
-              }}
-            />
-          </div>
-        </PopoverAnchor>
-        <PopoverContent align="start" className="w-64 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-            Tailor to posting
-          </p>
-          {savedPostings.length > 0 ? (
-            <div className="space-y-1.5" data-testid="tailor-picker">
-              <select
-                aria-label="Target posting"
-                className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1.5 text-sm"
-                value={tailorPostingId}
-                onChange={(event) => onTailorPostingChange(event.target.value)}
-              >
-                <option value="">Pick a posting…</option>
-                {savedPostings.map((posting) => (
-                  <option key={posting.id} value={posting.id}>
-                    {posting.title}
-                    {posting.org ? ` — ${posting.org}` : ""}
-                  </option>
-                ))}
-              </select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                disabled={!tailorPostingId || busy === "ai:tailor"}
-                onClick={onTailorRequest}
-                data-testid="tailor-run"
-              >
-                Tailor
-              </Button>
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--as-muted-fg)]">
-              Save a posting in Explore to tailor this CV against it.
-            </p>
-          )}
-        </PopoverContent>
-      </Popover>
-
-      <Popover open={presetsOpen} onOpenChange={setPresetsOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            data-testid="ai-presets"
-            aria-expanded={presetsOpen}
-            className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-            Tone: {tone || "default"} · Length: {length || "default"}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-56 space-y-2" data-testid="ai-presets-panel">
-          <label className="block space-y-1 text-xs">
-            <span className="text-[var(--as-muted-fg)]">Tone</span>
-            <select
-              aria-label="Tone"
-              className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1"
-              value={tone}
-              onChange={(event) => onToneChange(event.target.value)}
-              data-testid="tone-select"
-            >
-              <option value="">default</option>
-              {["professional", "warm", "concise", "confident"].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block space-y-1 text-xs">
-            <span className="text-[var(--as-muted-fg)]">Length</span>
-            <select
-              aria-label="Length"
-              className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1"
-              value={length}
-              onChange={(event) => onLengthChange(event.target.value)}
-              data-testid="length-select"
-            >
-              <option value="">default</option>
-              {["short", "medium", "long"].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-        </PopoverContent>
-      </Popover>
-
-      <Button variant="outline" size="sm" className="w-full" onClick={onDuplicate}>
-        Duplicate CV
-      </Button>
-
-      {suggestion && (
-        <ProposalsSlideOver
-          suggestion={suggestion}
-          onClose={onCloseSuggestion}
-          onApply={onApplyProposal}
-        />
-      )}
-    </div>
-  );
-}
-
 function ProposalsSlideOver({
   suggestion,
   onClose,
@@ -666,126 +491,6 @@ function ProposalsSlideOver({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function PresetsPopover({
-  tone,
-  onToneChange,
-  length,
-  onLengthChange,
-}: {
-  tone: string;
-  onToneChange: (tone: string) => void;
-  length: string;
-  onLengthChange: (length: string) => void;
-}) {
-  const [presetsOpen, setPresetsOpen] = useState(false);
-  return (
-    <Popover open={presetsOpen} onOpenChange={setPresetsOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          data-testid="ai-presets"
-          aria-expanded={presetsOpen}
-          className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-          Tone: {tone || "default"} · Length: {length || "default"}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 space-y-2" data-testid="ai-presets-panel">
-        <label className="block space-y-1 text-xs">
-          <span className="text-[var(--as-muted-fg)]">Tone</span>
-          <select
-            aria-label="Tone"
-            className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1"
-            value={tone}
-            onChange={(event) => onToneChange(event.target.value)}
-            data-testid="tone-select"
-          >
-            <option value="">default</option>
-            {["professional", "warm", "concise", "confident"].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block space-y-1 text-xs">
-          <span className="text-[var(--as-muted-fg)]">Length</span>
-          <select
-            aria-label="Length"
-            className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1"
-            value={length}
-            onChange={(event) => onLengthChange(event.target.value)}
-            data-testid="length-select"
-          >
-            <option value="">default</option>
-            {["short", "medium", "long"].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function LetterAiTab({
-  busy,
-  tone,
-  onToneChange,
-  length,
-  onLengthChange,
-  onDuplicate,
-  letterSuggestion,
-  onCloseLetterSuggestion,
-  onApplyLetterDraft,
-  onDraftLetter,
-  hasTargetPosting,
-}: InspectorPanelProps) {
-  return (
-    <div className="space-y-3">
-      <Button
-        className="w-full"
-        disabled={!hasTargetPosting || busy === "ai:cover_letter"}
-        onClick={onDraftLetter}
-        data-testid="draft-letter"
-      >
-        <Sparkles className="mr-1 h-4 w-4" />
-        {busy === "ai:cover_letter" ? "Drafting…" : "Draft with AI"}
-      </Button>
-      {!hasTargetPosting && (
-        <p className="text-xs text-[var(--as-muted-fg)]" data-testid="draft-needs-posting">
-          This cover letter has no target posting yet — the draft grounds on
-          the posting&apos;s requirements.
-        </p>
-      )}
-      <p className="text-xs text-[var(--as-muted-fg)]">
-        Drafts cite your profile evidence per paragraph; anything unbacked is
-        flagged before it can be applied.
-      </p>
-      <PresetsPopover
-        tone={tone}
-        onToneChange={onToneChange}
-        length={length}
-        onLengthChange={onLengthChange}
-      />
-      <Button variant="outline" size="sm" className="w-full" onClick={onDuplicate}>
-        Duplicate letter
-      </Button>
-      {letterSuggestion && (
-        <LetterDraftSlideOver
-          suggestion={letterSuggestion}
-          busy={busy === "ai:cover_letter"}
-          onClose={onCloseLetterSuggestion}
-          onApply={onApplyLetterDraft}
-        />
-      )}
     </div>
   );
 }

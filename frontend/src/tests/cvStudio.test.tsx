@@ -1321,9 +1321,10 @@ describe("CvBuilder", () => {
     expect(await screen.findByTestId("inspector-body-context")).toBeInTheDocument();
     await openInspectorTab("design");
     expect(screen.getByTestId("inspector-body-design")).toBeInTheDocument();
-    await openInspectorTab("ai");
-    expect(screen.getByTestId("inspector-body-ai")).toBeInTheDocument();
+    // The AI actions live in the toolbar cluster now — no AI tab.
+    expect(screen.getByTestId("ai-toolbar-cluster")).toBeInTheDocument();
     expect(screen.getByTestId("ai-presets")).toBeInTheDocument();
+    expect(screen.queryByTestId("inspector-body-ai")).not.toBeInTheDocument();
     await openInspectorTab("lint");
     expect(screen.getByTestId("lint-panel")).toBeInTheDocument();
   });
@@ -1526,7 +1527,6 @@ describe("CvBuilder", () => {
     });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    await openInspectorTab("ai");
     await user.click(screen.getByRole("button", { name: "More AI actions" }));
     await user.click(await screen.findByRole("menuitem", { name: /Tailor to saved posting/ }));
     const picker = await screen.findByTestId("tailor-picker");
@@ -1552,7 +1552,6 @@ describe("CvBuilder", () => {
     const user = userEvent.setup();
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    await openInspectorTab("ai");
     await user.click(screen.getByTestId("ai-presets"));
     fireEvent.change(await screen.findByTestId("tone-select"), {
       target: { value: "confident" },
@@ -1571,9 +1570,8 @@ describe("CvBuilder", () => {
     );
   });
 
-  it("runs the summary action from the split-button and applies a proposal from the slide-over", async () => {
+  it("runs the summary action from the toolbar split-button and applies a proposal from the slide-over", async () => {
     renderBuilder();
-    await openInspectorTab("ai");
     fireEvent.click(await screen.findByRole("button", { name: "Improve summary" }));
     const slideOver = await screen.findByTestId("proposals-slideover");
     const card = within(slideOver).getByTestId("proposal-card");
@@ -1604,7 +1602,6 @@ describe("CvBuilder", () => {
       gaps: [],
     });
     renderBuilder();
-    await openInspectorTab("ai");
     fireEvent.click(await screen.findByRole("button", { name: "Improve summary" }));
     const slideOver = await screen.findByTestId("proposals-slideover");
     const applyButtons = within(slideOver).getAllByTestId("apply-proposal");
@@ -1789,8 +1786,8 @@ describe("CvBuilder — plan 71 critique card", () => {
     });
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    await openInspectorTab("ai");
-    const card = await screen.findByTestId("critique-card");
+    const canvas = screen.getByTestId("builder-canvas");
+    const card = await within(canvas).findByTestId("critique-card");
     expect(within(card).getByTestId("critique-issue-0")).toHaveTextContent("page_budget");
     applyCvOps.mockResolvedValueOnce({
       results: [{ op: "update_design", ok: true, detail: "ok" }],

@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **AI actions moved to the toolbar (plan 86)**: the builder's AI tab is
+  gone — the one-click writing actions (Improve summary, Tighten text,
+  Find gaps, Translate, Tailor to posting) now sit next to the "Ask AI"
+  button as an always-reachable menu, with tone/length presets beside
+  them. Cover letters get a dedicated "Draft with AI" toolbar button.
+  The copilot's critique card now appears over the preview it critiques
+  (dismissible), and Duplicate CV/letter moved into the Versions panel.
+  The inspector is down to four tabs: Context, Design, Sections, Lint.
 - **One Design tab (plan 85)**: the CV builder inspector's split
   Design/Template tabs are merged into a single Design tab — template
   choice (picker, Browse…, Customize), style tokens + page size, profile

@@ -299,7 +299,6 @@ describe("CvBuilder cover-letter mode", () => {
     await openInspectorTab("design");
     expect(screen.queryByText("Profile photo")).not.toBeInTheDocument();
 
-    await openInspectorTab("ai");
     expect(await screen.findByTestId("draft-letter")).toBeInTheDocument();
   });
 
@@ -312,7 +311,6 @@ describe("CvBuilder cover-letter mode", () => {
     renderApp("/cv/letter-1");
 
     await screen.findByTestId("letter-brief");
-    await openInspectorTab("ai");
     await user.click(await screen.findByTestId("draft-letter"));
 
     const slideover = await screen.findByTestId("letter-slideover");

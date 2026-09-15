@@ -23,12 +23,17 @@ centered `max-w-7xl` column:
   `data-testid="pane-switcher"`) toggles one pane at a time — every
   feature stays reachable on tablet/mobile. Panes render with
   `` `${active ? "flex" : "hidden"} lg:flex` `` so CSS decides.
-- The inspector has **five tabs** (plan 85): Context, Design, Sections,
-  AI, Lint. "How my CV looks" lives in ONE Design tab — template card
+- The inspector has **four tabs** (plans 85/86): Context, Design,
+  Sections, Lint — each a real workspace; one-off AI actions are NOT a
+  tab. They live in the toolbar's `AiToolbarCluster` next to "Ask AI"
+  (split AiActionsDropdown + Tailor popover + tone/length presets;
+  cover letters get a dedicated "Draft with AI" button instead).
+  "How my CV looks" lives in ONE Design tab — template card
   (picker + Browse/Customize + meta), Style section (tokens + page size),
   profile photo (resume only), printed review — over a pinned
   Apply/Reset footer (`design-scroll` scrolls, `design-footer` stays).
-  Never split a single mental task across tabs.
+  Never split a single mental task across tabs; never give ephemeral
+  actions a persistent pane.
 - Content pages (lists, dashboards) stay in the centered column.
 
 ## 2. Shared primitives — never re-roll controls

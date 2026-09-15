@@ -87,6 +87,7 @@ interface BuilderToolbarProps {
   onOpenAssistant: () => void;
   onCreateLetter: (() => void) | null;
   letterBusy?: boolean;
+  aiCluster?: React.ReactNode;
   onUndo: () => void;
   onRedo: () => void;
 }
@@ -114,6 +115,7 @@ export function BuilderToolbar({
   onOpenAssistant,
   onCreateLetter,
   letterBusy = false,
+  aiCluster,
   onUndo,
   onRedo,
 }: BuilderToolbarProps) {
@@ -191,6 +193,7 @@ export function BuilderToolbar({
         <Button variant="outline" size="sm" onClick={onOpenPalette} data-testid="open-palette" title="Command palette (Ctrl+K)">
           <Command className="mr-1 h-4 w-4" /> Ctrl+K
         </Button>
+        {aiCluster}
         <Button size="sm" onClick={onOpenAssistant} data-testid="cv-ask-ai" title="Ask the CV assistant">
           <Sparkles className="mr-1 h-4 w-4" /> Ask AI
         </Button>
