@@ -23,6 +23,12 @@ centered `max-w-7xl` column:
   `data-testid="pane-switcher"`) toggles one pane at a time — every
   feature stays reachable on tablet/mobile. Panes render with
   `` `${active ? "flex" : "hidden"} lg:flex` `` so CSS decides.
+- The inspector has **five tabs** (plan 85): Context, Design, Sections,
+  AI, Lint. "How my CV looks" lives in ONE Design tab — template card
+  (picker + Browse/Customize + meta), Style section (tokens + page size),
+  profile photo (resume only), printed review — over a pinned
+  Apply/Reset footer (`design-scroll` scrolls, `design-footer` stays).
+  Never split a single mental task across tabs.
 - Content pages (lists, dashboards) stay in the centered column.
 
 ## 2. Shared primitives — never re-roll controls

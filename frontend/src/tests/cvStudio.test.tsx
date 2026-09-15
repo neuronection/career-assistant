@@ -1696,30 +1696,36 @@ describe("CvBuilder — plan 70 items kinds filter", () => {
   });
 });
 
-describe("CvBuilder — plan 71 Template tab", () => {
-  it("renders the Template tab with token controls and meta", async () => {
+describe("CvBuilder — plan 85 consolidated Design tab", () => {
+  it("renders the merged Design tab with template card, tokens and photo", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    await openInspectorTab("template");
-    const body = await screen.findByTestId("inspector-body-template");
+    await openInspectorTab("design");
+    const body = await screen.findByTestId("inspector-body-design");
     expect(within(body).getByTestId("design-token-editor")).toBeInTheDocument();
     expect(within(body).getByTestId("template-meta")).toHaveTextContent(
       "Classic Serif"
     );
+    expect(within(body).getByTestId("template-picker")).toBeInTheDocument();
+    expect(within(body).getByTestId("browse-templates")).toBeInTheDocument();
+    expect(within(body).getByTestId("photo-picker-card")).toBeInTheDocument();
     expect(within(body).getByTestId("apply-design")).toBeDisabled();
     // The action footer is pinned outside the scrollable body.
-    const scroll = within(body).getByTestId("template-scroll");
-    expect(scroll).not.toContainElement(within(body).getByTestId("template-footer"));
-    expect(within(body).getByTestId("template-footer")).toContainElement(
+    const scroll = within(body).getByTestId("design-scroll");
+    expect(scroll).not.toContainElement(within(body).getByTestId("design-footer"));
+    expect(within(body).getByTestId("design-footer")).toContainElement(
       within(body).getByTestId("apply-design")
     );
+    await userEvent.click(screen.getByTestId("inspector-tab-menu"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByText("Template")).not.toBeInTheDocument();
   });
 
   it("applies a design change through the ops endpoint and re-syncs", async () => {
     renderBuilder();
     await screen.findByTestId("preview-frame");
-    await openInspectorTab("template");
-    const body = await screen.findByTestId("inspector-body-template");
+    await openInspectorTab("design");
+    const body = await screen.findByTestId("inspector-body-design");
     fireEvent.change(within(body).getByLabelText("Accent"), {
       target: { value: "#b91c1c" },
     });

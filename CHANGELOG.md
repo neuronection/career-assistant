@@ -5,6 +5,11 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **One Design tab (plan 85)**: the CV builder inspector's split
+  Design/Template tabs are merged into a single Design tab — template
+  choice (picker, Browse…, Customize), style tokens + page size, profile
+  photo and the printed-copy check now live on one scroll with a pinned
+  Apply/Reset bar, instead of two backwards-named tabs.
 - **Sections panel redesign (plan 84)**: CV Studio section cards are
   rebuilt — every card shows a config summary line ("Work Experience ·
   List · Jan 2025 · max 10") at a glance, titles no longer truncate

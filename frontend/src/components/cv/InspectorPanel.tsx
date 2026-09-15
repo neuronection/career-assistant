@@ -47,12 +47,11 @@ import type { CvAssistantCritique } from "@/types/cvAssistant";
 import { CritiqueCard } from "@/components/cv/CritiqueCard";
 import { apiDetail } from "@/api/client";
 
-export type InspectorTab = "context" | "design" | "template" | "sections" | "ai" | "lint";
+export type InspectorTab = "context" | "design" | "sections" | "ai" | "lint";
 
 const TABS: { id: InspectorTab; label: string }[] = [
   { id: "context", label: "Context" },
   { id: "design", label: "Design" },
-  { id: "template", label: "Template" },
   { id: "sections", label: "Sections" },
   { id: "ai", label: "AI" },
   { id: "lint", label: "Lint" },
@@ -171,13 +170,12 @@ export function InspectorPanel(props: InspectorPanelProps) {
       <div
         key={tab}
         className={`cv-pane-enter min-h-0 flex-1 pr-0.5 ${
-          tab === "template" ? "flex flex-col overflow-hidden" : "overflow-y-auto"
+          tab === "design" ? "flex flex-col overflow-hidden" : "overflow-y-auto"
         }`}
         data-testid={`inspector-body-${tab}`}
       >
         {tab === "context" && (props.context ?? null)}
         {tab === "design" && <DesignTab {...props} />}
-        {tab === "template" && <TemplateTab {...props} />}
         {tab === "sections" &&
           (props.mode === "cover_letter" ? (
             props.letterProps && (
@@ -196,16 +194,27 @@ export function InspectorPanel(props: InspectorPanelProps) {
   );
 }
 
-function TemplateTab({
+function DesignTab({
+  templates,
+  templateId,
+  onTemplate,
+  onBrowseTemplates,
+  onCustomizeTemplate,
   design,
   designTemplateMeta,
   designDirty,
   onDesignChange,
   onDesignApply,
   onDesignReset,
-  pageSize,
   onPageSize,
+  pageSize,
+  photos,
+  photoId,
+  onPhoto,
+  photoUploading,
+  onUploadPhoto,
   onError,
+  mode,
 }: InspectorPanelProps) {
   const { t } = useTranslation();
   const [reviewFiles, setReviewFiles] = useState<File[]>([]);
@@ -214,7 +223,7 @@ function TemplateTab({
   const [reviewNote, setReviewNote] = useState("");
   if (!design) {
     return (
-      <p className="text-sm text-[var(--as-muted-fg)]" data-testid="template-loading">
+      <p className="text-sm text-[var(--as-muted-fg)]" data-testid="design-loading">
         {t("cvBuilder.templateLoading", { defaultValue: "Loading template…" })}
       </p>
     );
@@ -242,34 +251,92 @@ function TemplateTab({
       setReviewBusy(false);
     }
   };
+  const sectionLabel =
+    "text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]";
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5" data-testid="template-scroll">
-        {designTemplateMeta && (
-          <div
-            className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-2 text-xs"
-            data-testid="template-meta"
+      <div
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5"
+        data-testid="design-scroll"
+      >
+        <section className="space-y-1.5">
+          <h3 className={sectionLabel}>Template</h3>
+          {designTemplateMeta && (
+            <div
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-2 text-xs"
+              data-testid="template-meta"
+            >
+              <p className="font-medium text-[var(--as-fg)]">{designTemplateMeta.title}</p>
+              <p className="mt-0.5 text-[var(--as-muted-fg)]">
+                {designTemplateMeta.owned
+                  ? t("cvBuilder.templateOwned", { defaultValue: "Your customized template" })
+                  : t("cvBuilder.templateBank", { defaultValue: "Applying changes creates your own copy" })}
+                {designTemplateMeta.ats_safe ? "" : ` · ${t("cvBuilder.notAtsSafe", { defaultValue: "not ATS-safe" })}`}
+              </p>
+            </div>
+          )}
+          <select
+            aria-label="CV template"
+            className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1.5 text-sm"
+            value={templateId}
+            onChange={(event) => onTemplate(event.target.value)}
+            data-testid="template-picker"
           >
-            <p className="font-medium text-[var(--as-fg)]">{designTemplateMeta.title}</p>
-            <p className="mt-0.5 text-[var(--as-muted-fg)]">
-              {designTemplateMeta.owned
-                ? t("cvBuilder.templateOwned", { defaultValue: "Your customized template" })
-                : t("cvBuilder.templateBank", { defaultValue: "Applying changes creates your own copy" })}
-              {designTemplateMeta.ats_safe ? "" : ` · ${t("cvBuilder.notAtsSafe", { defaultValue: "not ATS-safe" })}`}
-            </p>
+            <option value="">Bank default</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.title}
+                {template.ats_safe ? "" : " (not ATS-safe)"}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="sm" className="flex-1" onClick={onBrowseTemplates} data-testid="browse-templates">
+              Browse…
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={onCustomizeTemplate}
+              disabled={!templateId}
+              title={templateId ? "Open this template in the style editor" : "Pick a template first"}
+              data-testid="customize-template"
+            >
+              Customize
+            </Button>
           </div>
+        </section>
+
+        {mode !== "cover_letter" && (
+          <section className="space-y-1.5">
+            <h3 className={sectionLabel}>Photo</h3>
+            <PhotoPicker
+              photos={photos}
+              photoId={photoId}
+              uploading={photoUploading}
+              onSelect={onPhoto}
+              onUpload={onUploadPhoto}
+              onError={onError}
+            />
+          </section>
         )}
-        <DesignTokenEditor design={design} onChange={onDesignChange} />
-        <SelectField
-          label={t("cvBuilder.pageSize", { defaultValue: "Page size" })}
-          value={pageSize}
-          onChange={onPageSize}
-          options={[
-            { value: "a4", label: "A4" },
-            { value: "letter", label: "Letter" },
-          ]}
-          testId="page-size-select"
-        />
+
+        <section className="space-y-1.5">
+          <h3 className={sectionLabel}>Style</h3>
+          <DesignTokenEditor design={design} onChange={onDesignChange} />
+          <SelectField
+            label={t("cvBuilder.pageSize", { defaultValue: "Page size" })}
+            value={pageSize}
+            onChange={onPageSize}
+            options={[
+              { value: "a4", label: "A4" },
+              { value: "letter", label: "Letter" },
+            ]}
+            testId="page-size-select"
+          />
+        </section>
+
         {designTemplateMeta && (
           <div className="space-y-2 rounded-lg border border-[var(--as-border)] p-2.5" data-testid="printed-review">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
@@ -308,7 +375,7 @@ function TemplateTab({
       </div>
       <div
         className="mt-2 flex shrink-0 items-center gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] pt-2"
-        data-testid="template-footer"
+        data-testid="design-footer"
       >
         <Button
           variant="default"
@@ -332,74 +399,6 @@ function TemplateTab({
           {t("common.reset", { defaultValue: "Reset" })}
         </Button>
       </div>
-    </div>
-  );
-}
-
-function DesignTab({
-  templates,
-  templateId,
-  onTemplate,
-  onBrowseTemplates,
-  onCustomizeTemplate,
-  photos,
-  photoId,
-  onPhoto,
-  photoUploading,
-  onUploadPhoto,
-  onError,
-  mode,
-}: InspectorPanelProps) {
-  return (
-    <div className="space-y-4">
-      <section className="space-y-1.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">Template</h3>
-        <select
-          aria-label="CV template"
-          className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1.5 text-sm"
-          value={templateId}
-          onChange={(event) => onTemplate(event.target.value)}
-          data-testid="template-picker"
-        >
-          <option value="">Bank default</option>
-          {templates.map((template) => (
-            <option key={template.id} value={template.id}>
-              {template.title}
-              {template.ats_safe ? "" : " (not ATS-safe)"}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-1.5">
-          <Button variant="outline" size="sm" className="flex-1" onClick={onBrowseTemplates} data-testid="browse-templates">
-            Browse…
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={onCustomizeTemplate}
-            disabled={!templateId}
-            title={templateId ? "Open this template in the style editor" : "Pick a template first"}
-            data-testid="customize-template"
-          >
-            Customize
-          </Button>
-        </div>
-      </section>
-
-      {mode !== "cover_letter" && (
-        <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">Profile photo</h3>
-          <PhotoPicker
-            photos={photos}
-            photoId={photoId}
-            uploading={photoUploading}
-            onSelect={onPhoto}
-            onUpload={onUploadPhoto}
-            onError={onError}
-          />
-        </section>
-      )}
     </div>
   );
 }
