@@ -275,6 +275,28 @@ async def test_preview_draft_renders_unsaved_content(client, auth_headers):
     assert bad.status_code == 400
 
 
+def test_sidebar_columns_fill_page_height():
+    import re
+
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv_renderer import _page_margin_mm
+
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "header"},
+                {"kind": "skills", "props": {"title": "Skills"}, "area": "sidebar"},
+            ],
+            "design": {"layout": "sidebar"},
+        }
+    )
+    html = render_cv(content, SAMPLE_SNAPSHOT).html
+    rule = re.search(r"\.cv-columns \{[^}]*min-height: ([\d.]+)mm", html)
+    assert rule, "cv-columns rule lost its page-height min-height"
+    page_margin = _page_margin_mm(content.design)
+    assert float(rule.group(1)) == round(297 - 2 * page_margin, 2)
+
+
 def test_sidebar_layout_renders_two_columns():
     from app.services.cv_blocks import SAMPLE_SNAPSHOT
 

@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Sidebar templates now paint the full page** (plan 92): on
+  sidebar-layout templates the colored side panel ran out where its
+  content ended, leaving a white strip at the bottom of the page — it
+  now always spans the full page height, on screen and in the printed
+  PDF.
+
 ### Added
 - **Sunken workspace panes (plan 90)**: the builder's inspector is now a
   slightly darker tray, so the section cards, context groups and inputs

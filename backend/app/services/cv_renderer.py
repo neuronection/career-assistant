@@ -1167,6 +1167,7 @@ ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
 .cv-main {{{" column-count: " + str(design.main_columns) + "; column-gap: 7mm;" if design.main_columns > 1 else ""}{" padding: " + str(design.main_padding_mm) + "mm;" if design.main_padding_mm is not None else ""} }}
 .cv-main h2 {{ break-inside: avoid; }}
 .cv-columns {{ display: table; width: 100%; table-layout: fixed;
+     min-height: {round(height_mm - 2 * margin, 2)}mm;
      border-spacing: {round(design.spacing_scale * 5, 1)}mm 0; margin: 0 -{round(design.spacing_scale * 5, 1)}mm; }}
 .cv-sidebar {{ display: table-cell; vertical-align: top; width: {design.sidebar_width_pct}%; background: {design.sidebar_color};
      color: {design.sidebar_text_color}; border-radius: {design.corner_radius}mm;
