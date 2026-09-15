@@ -269,9 +269,15 @@ describe("CvStudio cover letters", () => {
   });
 });
 
+const TAB_LABELS: Record<string, string> = {
+  context: "Context",
+  design: "Design",
+  sections: "Sections",
+};
+
 async function openInspectorTab(testid: string) {
   const user = userEvent.setup();
-  await user.click(await screen.findByTestId(`inspector-tab-${testid}`));
+  await user.click(await screen.findByRole("tab", { name: TAB_LABELS[testid] }));
 }
 
 describe("CvBuilder cover-letter mode", () => {

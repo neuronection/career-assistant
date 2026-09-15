@@ -9,9 +9,15 @@ import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
 import { useChatStore } from "@/stores/chatStore";
 import type { CvContextSelection } from "@/types/cv";
 
+const TAB_LABELS: Record<string, string> = {
+  context: "Context",
+  design: "Design",
+  sections: "Sections",
+};
+
 async function openInspectorTab(testid: string) {
   const user = userEvent.setup();
-  await user.click(await screen.findByTestId(`inspector-tab-${testid}`));
+  await user.click(await screen.findByRole("tab", { name: TAB_LABELS[testid] }));
 }
 
 /**
@@ -1329,10 +1335,10 @@ describe("CvBuilder", () => {
     expect(await screen.findByTestId("lint-panel")).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "Escape" });
     // The inspector exposes exactly three tabs — no Lint/AI anywhere.
-    const tablist = screen.getByTestId("inspector-tab-menu");
+    const tablist = screen.getByRole("tablist", { name: "Inspector panels" });
     expect(within(tablist).getAllByRole("tab")).toHaveLength(3);
-    expect(within(tablist).queryByText("Lint")).not.toBeInTheDocument();
-    expect(within(tablist).queryByText("AI")).not.toBeInTheDocument();
+    expect(within(tablist).queryByRole("tab", { name: "Lint" })).not.toBeInTheDocument();
+    expect(within(tablist).queryByRole("tab", { name: "AI" })).not.toBeInTheDocument();
   });
 
   it("toggles a whole context group with the tri-state header switch", async () => {
@@ -1720,8 +1726,8 @@ describe("CvBuilder — plan 85 consolidated Design tab", () => {
       within(body).getByTestId("apply-design")
     );
     // The inspector is a segmented tablist — no "Template" entry exists.
-    const tablist = screen.getByTestId("inspector-tab-menu");
-    expect(within(tablist).queryByText("Template")).not.toBeInTheDocument();
+    const tablist = screen.getByRole("tablist", { name: "Inspector panels" });
+    expect(within(tablist).queryByRole("tab", { name: "Template" })).not.toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: "Design" })).toHaveAttribute(
       "aria-selected",
       "true"

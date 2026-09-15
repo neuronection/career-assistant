@@ -168,11 +168,6 @@
   background-color: color-mix(in srgb, var(--as-accent) 45%, var(--as-muted));
 }
 
-/* Sliding thumb for segmented tab switchers (inspector tabs). */
-.cv-tab-thumb {
-  transition: transform 200ms ease-out;
-}
-
 .as-switch:indeterminate::after {
   transform: translateX(6px);
 }

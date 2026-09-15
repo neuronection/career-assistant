@@ -194,7 +194,8 @@ describe("MessageProposals / ProposalCards", () => {
       already: false,
     });
     render(<MessageProposals message={messageWith([card])} />);
-    expect(screen.getByText('["projects:p-1","experience:p-2"]')).toBeInTheDocument();
+    expect(screen.getByText("projects:p-1")).toBeInTheDocument();
+    expect(screen.getByText("experience:p-2")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Draft variants" }));
     expect(approveApi).toHaveBeenCalledWith("prop-1");
     await waitFor(() => {

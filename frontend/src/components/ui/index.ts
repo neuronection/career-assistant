@@ -26,6 +26,7 @@ export { default as Card } from "./Card";
 export { ConfirmationModal } from "./ConfirmationModal";
 export { EmptyState } from "./EmptyState";
 export { Spinner } from "@neuronection/assistant-ui";
+export { SegmentedTabs, type SegmentedTabsItem } from "@neuronection/assistant-ui";
 export { default as Table } from "./Table";
 export { RangeBar } from "./RangeBar";
 export { InfoTooltip } from "./InfoTooltip";
