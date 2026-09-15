@@ -216,6 +216,12 @@ const sources = {
       description: "Skills",
       items: [{ item_id: "sk-1", label: "Python", detail: "programming" }],
     },
+    {
+      key: "objective",
+      label: "Objective",
+      description: "Aspirations",
+      items: [],
+    },
   ],
 };
 
@@ -1286,7 +1292,7 @@ describe("CvBuilder", () => {
     expect(await screen.findByTestId("builder-inspector")).toBeInTheDocument();
     expect(screen.getByTestId("inspector-body-context")).toBeInTheDocument();
     expect(
-      screen.getByTestId("context-group-toggle-skills"),
+      screen.getByRole("checkbox", { name: "Include all Skills" }),
     ).toBeInTheDocument();
     await openInspectorTab("design");
     expect(screen.getByTestId("inspector-body-design")).toBeInTheDocument();
@@ -1359,21 +1365,41 @@ describe("CvBuilder", () => {
       };
     });
     renderBuilder();
-    const groupToggle = await screen.findByTestId("context-group-toggle-skills");
+    const groupToggle = await screen.findByRole("checkbox", {
+      name: "Include all Skills",
+    });
     fireEvent.click(groupToggle);
     await waitFor(() => expect(setContext).toHaveBeenCalled());
     expect(setContext.mock.calls[0][1].include).toEqual([
       { source_key: "experience", item_id: "exp-1" },
     ]);
     await waitFor(() =>
-      expect(screen.getByTestId("context-group-toggle-skills")).not.toBeChecked()
+      expect(
+        screen.getByRole("checkbox", { name: "Include all Skills" }),
+      ).not.toBeChecked(),
     );
-    fireEvent.click(screen.getByTestId("context-group-toggle-skills"));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Include all Skills" }),
+    );
     await waitFor(() => expect(setContext).toHaveBeenCalledTimes(2));
     expect(setContext.mock.calls[1][1].include).toEqual([
       { source_key: "experience", item_id: "exp-1" },
       { source_key: "skills", item_id: "sk-1" },
     ]);
+  });
+
+  it("summarizes coverage and per-group inclusion at a glance", async () => {
+    renderBuilder();
+    await screen.findByTestId("context-summary");
+    expect(screen.getByTestId("context-summary")).toHaveTextContent("2 / 2");
+    expect(screen.getByTestId("context-group-count-skills")).toHaveTextContent(
+      "1/1",
+    );
+    expect(screen.getByTestId("context-group-count-experience")).toHaveTextContent(
+      "1/1",
+    );
+    // Empty groups surface their hint without needing to expand.
+    expect(screen.getByText("Nothing recorded yet")).toBeInTheDocument();
   });
 
 

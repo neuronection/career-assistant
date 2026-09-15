@@ -31,7 +31,13 @@ centered `max-w-7xl` column:
   fail summary and the checks list). The switcher is a **segmented
   control with a sliding thumb** (plan 88, `.cv-tab-thumb` in
   motion.css, proper `role="tablist"` + roving-focus arrows) — never a
-  dropdown: tab state must be visible at a glance. "How my CV looks"
+  dropdown: tab state must be visible at a glance. The Context panel
+  follows the same rule (plan 89): a coverage summary strip
+  (`context-summary`, "N / M items on the CV"), group pills showing
+  `included/total` (accent-tinted when fully included), the library
+  `CheckIndicator` for the tri-state group header (role=checkbox with
+  `aria-checked="mixed"` — never a switch), and empty groups surface
+  their hint without expansion. "How my CV looks"
   lives in ONE Design tab — template card (picker + Browse/Customize +
   meta), Style section (tokens + page size), profile photo (resume
   only), printed review — over a pinned Apply/Reset footer

@@ -5,6 +5,12 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Context panel at a glance (plan 89)**: the builder's Context tab now
+  opens with a coverage summary ("N / M items on the CV"), every group
+  header shows how many of its items are included (accent-highlighted
+  when the whole group is on), and empty groups say "Nothing recorded
+  yet" without needing to expand. The include-all header control is now
+  a proper tri-state checkbox.
 - **Segmented inspector tabs (plan 88)**: the builder's inspector
   switcher is now a pill-style segmented control with icons and a
   sliding thumb (arrow keys work, reduced-motion safe) instead of a

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Pencil, Plus, ChevronDown, Search, Star, Wand2 } from "lucide-react";
+import { CheckIndicator } from "@neuronection/assistant-ui";
 import type { CvContextSourceOut, CvSynthItem } from "@/types/cv";
 
 interface ContextPanelProps {
@@ -232,21 +233,16 @@ function GroupRow({
   const someIncluded = includedCount > 0 && !allIncluded;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)]">
+    <div className="overflow-hidden rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)]">
       <div className="flex items-center gap-2 px-2 py-1.5">
-        <input
-          ref={(el) => {
-            if (el) el.indeterminate = someIncluded;
-          }}
-          type="checkbox"
-          role="switch"
-          checked={allIncluded}
-          onChange={() => onToggleGroup(source, !allIncluded)}
-          disabled={items.length === 0}
-          aria-label={`Include all ${source.label}`}
-          className="h-3.5 w-3.5 shrink-0 accent-[var(--as-accent)]"
-          data-testid={`context-group-toggle-${source.key}`}
-        />
+        {items.length > 0 && (
+          <CheckIndicator
+            checked={allIncluded}
+            mixed={someIncluded}
+            label={`Include all ${source.label}`}
+            onToggle={() => onToggleGroup(source, !allIncluded)}
+          />
+        )}
         <button
           type="button"
           className="flex flex-1 items-center gap-2 py-0.5 text-left"
@@ -257,8 +253,15 @@ function GroupRow({
           <span className="flex-1 truncate text-xs font-semibold uppercase tracking-wide text-[var(--as-fg)]">
             {source.label}
           </span>
-          <span className="rounded-full bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)]">
-            {items.length}
+          <span
+            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${
+              allIncluded
+                ? "bg-[color-mix(in_srgb,var(--as-accent)_14%,transparent)] text-[var(--as-accent)]"
+                : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
+            }`}
+            data-testid={`context-group-count-${source.key}`}
+          >
+            {includedCount}/{items.length}
           </span>
           <ChevronDown
             className={`h-3.5 w-3.5 text-[var(--as-muted-fg)] transition-transform duration-200 ${
@@ -267,12 +270,13 @@ function GroupRow({
           />
         </button>
       </div>
-      <div className="cv-collapse" data-open={open} data-testid={`context-group-body-${source.key}`}>
-        <div>
+      {items.length === 0 ? (
+        <div className="border-t border-[var(--as-border)] px-2" data-testid={`context-group-body-${source.key}`}>
+          <p className="py-1.5 text-xs text-[var(--as-muted-fg)]">Nothing recorded yet</p>
+        </div>
+      ) : (
+        <div className="cv-collapse" data-open={open} data-testid={`context-group-body-${source.key}`}>
           <div className="border-t border-[var(--as-border)] px-2 pb-1.5 pt-0.5">
-            {items.length === 0 && (
-              <p className="py-1 text-xs text-[var(--as-muted-fg)]">Nothing recorded yet</p>
-            )}
             {items.map((item) => {
               const key = refKeyOf(source.key, item.item_id);
               const writable =
@@ -337,7 +341,7 @@ function GroupRow({
             })}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -375,8 +379,29 @@ export function ContextPanel({
 
   const isEmpty = (source: CvContextSourceOut) => (source.items ?? []).length === 0;
 
+  const { totalItems, includedItems } = useMemo(() => {
+    let total = 0;
+    let included = 0;
+    for (const source of sources) {
+      for (const item of source.items ?? []) {
+        total += 1;
+        if (selected.has(refKeyOf(source.key, item.item_id))) included += 1;
+      }
+    }
+    return { totalItems: total, includedItems: included };
+  }, [sources, selected]);
+
   return (
     <div className="flex min-h-0 flex-col" data-testid="context-panel">
+      <p
+        className="mb-1.5 shrink-0 px-0.5 text-xs text-[var(--as-muted-fg)]"
+        data-testid="context-summary"
+      >
+        <span className="font-semibold tabular-nums text-[var(--as-accent)]">{includedItems}</span>
+        {" / "}
+        <span className="font-semibold tabular-nums">{totalItems}</span>
+        {" items on the CV"}
+      </p>
       <div className="relative mb-2 shrink-0">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--as-muted-fg)]" />
         <input
