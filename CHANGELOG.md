@@ -35,6 +35,18 @@ All notable changes to **Career Assistant** are documented here.
   over automatically through the shared pipeline) plus its context
   selection and language, and lands you in the letter editor. Hidden for
   letters themselves and when no posting is attached.
+- **Power pack slice 4 — print extras** (plan 79.4): templates can switch
+  on a running page-2+ footer (`running_footer: "name" | "numbers"`)
+  rendered through `@page` margin boxes — real `p/N` page numbers reach
+  the printed PDF (engine-verified; degraded engines simply omit them);
+  a new `qr` block kind renders the first matching profile link
+  (web/GitHub/LinkedIn, scheme-allowlisted) as an inline SVG QR panel —
+  deterministic, CSP-safe, hidden when no link matches; default section
+  titles localize per CV language (English/Greek/German built in,
+  English fallback); admins get `GET /cv/templates/stats` with anonymous
+  export totals per template derived from the immutable version rows
+  (no new telemetry pipeline). The Coral Banner template adopts the new
+  arch photo shape and the token editor drops a duplicated control.
 - **New CV templates inspired by magazine-style layouts**: "Coral Banner"
   (warm coral header band with a circular photo, soft gray sidebar with
   profile, skill bars and CEFR languages) and "Charcoal & Amber" (dark

@@ -565,7 +565,7 @@ BANK_TEMPLATES.extend(
                     "main_padding_mm": 8,
                     "sidebar_padding_mm": 6,
                     "show_photo": True,
-                    "photo_shape": "circle",
+                    "photo_shape": "arch",
                     "photo_size_mm": 24,
                     "heading_case": "uppercase",
                     "heading_weight": 700,

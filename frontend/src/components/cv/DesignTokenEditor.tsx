@@ -123,11 +123,6 @@ export function DesignTokenEditor({
           checked={design.show_heading_icons}
           onChange={(show_heading_icons) => onChange({ show_heading_icons })}
         />
-        <ToggleRow
-          label={t("templateEditor.headingIcons", { defaultValue: "Heading icons" })}
-          checked={design.show_heading_icons}
-          onChange={(show_heading_icons) => onChange({ show_heading_icons })}
-        />
         <SelectField label={t("templateEditor.headingCaseLabel")} value={design.heading_case} onChange={(heading_case) => onChange({ heading_case: heading_case as CvDesignTokens["heading_case"] })} options={HEADING_CASES} />
         <RangeField label={t("templateEditor.headingWeight")} value={design.heading_weight} min={400} max={800} step={100} onChange={(heading_weight) => onChange({ heading_weight })} />
         <SelectField label={t("templateEditor.headingRuleLabel")} value={design.heading_rule} onChange={(heading_rule) => onChange({ heading_rule: heading_rule as CvDesignTokens["heading_rule"] })} options={HEADING_RULES} />
