@@ -11,8 +11,7 @@ import type { CvContextSelection } from "@/types/cv";
 
 async function openInspectorTab(testid: string) {
   const user = userEvent.setup();
-  await user.click(await screen.findByTestId("inspector-tab-menu"));
-  await user.click(screen.getByTestId(`inspector-tab-${testid}`));
+  await user.click(await screen.findByTestId(`inspector-tab-${testid}`));
 }
 
 /**
@@ -1329,11 +1328,11 @@ describe("CvBuilder", () => {
     fireEvent.click(screen.getByTestId("ats-chip"));
     expect(await screen.findByTestId("lint-panel")).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "Escape" });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("inspector-tab-menu"));
-    const inspectorMenu = await screen.findByRole("menu");
-    expect(within(inspectorMenu).queryByText("Lint")).not.toBeInTheDocument();
-    expect(within(inspectorMenu).queryByText("AI")).not.toBeInTheDocument();
+    // The inspector exposes exactly three tabs — no Lint/AI anywhere.
+    const tablist = screen.getByTestId("inspector-tab-menu");
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(3);
+    expect(within(tablist).queryByText("Lint")).not.toBeInTheDocument();
+    expect(within(tablist).queryByText("AI")).not.toBeInTheDocument();
   });
 
   it("toggles a whole context group with the tri-state header switch", async () => {
@@ -1720,9 +1719,13 @@ describe("CvBuilder — plan 85 consolidated Design tab", () => {
     expect(within(body).getByTestId("design-footer")).toContainElement(
       within(body).getByTestId("apply-design")
     );
-    await userEvent.click(screen.getByTestId("inspector-tab-menu"));
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).queryByText("Template")).not.toBeInTheDocument();
+    // The inspector is a segmented tablist — no "Template" entry exists.
+    const tablist = screen.getByTestId("inspector-tab-menu");
+    expect(within(tablist).queryByText("Template")).not.toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: "Design" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("applies a design change through the ops endpoint and re-syncs", async () => {

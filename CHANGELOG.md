@@ -5,6 +5,11 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Segmented inspector tabs (plan 88)**: the builder's inspector
+  switcher is now a pill-style segmented control with icons and a
+  sliding thumb (arrow keys work, reduced-motion safe) instead of a
+  dropdown menu — all three tabs (Context, Design, Sections) are visible
+  at a glance and one click away.
 - **Lint report in the ATS chip (plan 87)**: clicking the ATS score chip
   in the builder toolbar now opens the full lint report (score,
   pass/warn/fail summary and every check) as a popover — the Lint tab is

@@ -28,13 +28,17 @@ centered `max-w-7xl` column:
   (they live in the toolbar's `AiToolbarCluster` next to "Ask AI") and
   read-only reports are NOT tabs either: the lint report opens from the
   toolbar's ATS score chip (`ats-chip` → popover with score, pass/warn/
-  fail summary and the checks list). "How my CV looks" lives in ONE
-  Design tab — template card (picker + Browse/Customize + meta), Style
-  section (tokens + page size), profile photo (resume only), printed
-  review — over a pinned Apply/Reset footer (`design-scroll` scrolls,
-  `design-footer` stays). Never split a single mental task across tabs;
-  never give ephemeral actions or passive reports a persistent pane —
-  toolbar chip/button + popover or modal, matched to content weight.
+  fail summary and the checks list). The switcher is a **segmented
+  control with a sliding thumb** (plan 88, `.cv-tab-thumb` in
+  motion.css, proper `role="tablist"` + roving-focus arrows) — never a
+  dropdown: tab state must be visible at a glance. "How my CV looks"
+  lives in ONE Design tab — template card (picker + Browse/Customize +
+  meta), Style section (tokens + page size), profile photo (resume
+  only), printed review — over a pinned Apply/Reset footer
+  (`design-scroll` scrolls, `design-footer` stays). Never split a single
+  mental task across tabs; never give ephemeral actions or passive
+  reports a persistent pane — toolbar chip/button + popover or modal,
+  matched to content weight.
 - Content pages (lists, dashboards) stay in the centered column.
 
 ## 2. Shared primitives — never re-roll controls

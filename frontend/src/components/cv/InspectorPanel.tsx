@@ -2,16 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
-  ChevronDown,
-  SlidersHorizontal,
+  Layers,
+  LayoutList,
+  Palette,
   X,
 } from "lucide-react";
-import {
-  Menu,
-  MenuCheckboxItem,
-  MenuContent,
-  MenuTrigger,
-} from "@neuronection/assistant-ui";
 import { Button } from "@/components/ui";
 import { PhotoPicker } from "@/components/cv/PhotoPicker";
 import { SectionsPanel } from "@/components/cv/SectionsPanel";
@@ -40,10 +35,10 @@ import { apiDetail } from "@/api/client";
 
 export type InspectorTab = "context" | "design" | "sections";
 
-const TABS: { id: InspectorTab; label: string }[] = [
-  { id: "context", label: "Context" },
-  { id: "design", label: "Design" },
-  { id: "sections", label: "Sections" },
+const TABS: { id: InspectorTab; label: string; icon: typeof Layers }[] = [
+  { id: "context", label: "Context", icon: Layers },
+  { id: "design", label: "Design", icon: Palette },
+  { id: "sections", label: "Sections", icon: LayoutList },
 ];
 
 interface InspectorPanelProps {
@@ -103,41 +98,82 @@ interface InspectorPanelProps {
   onApplyProposal: (entry: CvProposal) => void;
 }
 
+function InspectorTabs({
+  active,
+  onChange,
+}: {
+  active: InspectorTab;
+  onChange: (tab: InspectorTab) => void;
+}) {
+  const activeIndex = Math.max(
+    0,
+    TABS.findIndex((entry) => entry.id === active)
+  );
+  const handleKeyDown = (event: React.KeyboardEvent, index: number) => {
+    const delta =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (!delta) return;
+    event.preventDefault();
+    const next = TABS[(index + delta + TABS.length) % TABS.length];
+    onChange(next.id);
+    const list = event.currentTarget.closest('[role="tablist"]');
+    list?.querySelector<HTMLButtonElement>(`[data-testid="inspector-tab-${next.id}"]`)?.focus();
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label="Inspector panels"
+      className="relative mb-2 grid auto-cols-fr grid-flow-col rounded-full border border-[var(--as-border)] bg-[var(--as-muted)] p-0.5"
+      data-testid="inspector-tab-menu"
+    >
+      <span
+        aria-hidden
+        className="cv-tab-thumb absolute inset-y-0.5 left-0.5 rounded-full border border-[var(--as-border)] bg-[var(--as-surface-raised)] shadow-sm"
+        style={{
+          width: `calc((100% - 4px) / ${TABS.length})`,
+          transform: `translateX(${activeIndex * 100}%)`,
+        }}
+      />
+      {TABS.map((entry, index) => {
+        const selected = entry.id === active;
+        const Icon = entry.icon;
+        return (
+          <button
+            key={entry.id}
+            role="tab"
+            aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
+            data-testid={`inspector-tab-${entry.id}`}
+            onClick={() => onChange(entry.id)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            className={`relative z-[1] flex cursor-pointer items-center justify-center gap-1 rounded-full px-1 py-1.5 text-xs font-medium transition-colors duration-150 ${
+              selected
+                ? "text-[var(--as-fg)]"
+                : "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+            }`}
+          >
+            <Icon
+              className={`h-3.5 w-3.5 ${selected ? "text-[var(--as-accent)]" : ""}`}
+              aria-hidden
+            />
+            {entry.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function InspectorPanel(props: InspectorPanelProps) {
   const { tab, onTabChange } = props;
-  const current = TABS.find((entry) => entry.id === tab) ?? TABS[0];
 
   return (
     <div className="flex min-h-0 flex-col" data-testid="inspector-panel">
-      <Menu>
-        <MenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Inspector panels"
-            data-testid="inspector-tab-menu"
-            className="mb-2 w-full justify-between"
-          >
-            <span className="flex items-center gap-1.5">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--as-accent)]" aria-hidden />
-              {current.label}
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 text-[var(--as-muted-fg)]" aria-hidden />
-          </Button>
-        </MenuTrigger>
-        <MenuContent align="start">
-          {TABS.map((entry) => (
-            <MenuCheckboxItem
-              key={entry.id}
-              checked={tab === entry.id}
-              onCheckedChange={() => onTabChange(entry.id)}
-              data-testid={`inspector-tab-${entry.id}`}
-            >
-              {entry.label}
-            </MenuCheckboxItem>
-          ))}
-        </MenuContent>
-      </Menu>
+      <InspectorTabs active={tab} onChange={onTabChange} />
 
       <div
         key={tab}

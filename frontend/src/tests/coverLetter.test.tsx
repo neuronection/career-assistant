@@ -271,8 +271,7 @@ describe("CvStudio cover letters", () => {
 
 async function openInspectorTab(testid: string) {
   const user = userEvent.setup();
-  await user.click(await screen.findByTestId("inspector-tab-menu"));
-  await user.click(screen.getByTestId(`inspector-tab-${testid}`));
+  await user.click(await screen.findByTestId(`inspector-tab-${testid}`));
 }
 
 describe("CvBuilder cover-letter mode", () => {
