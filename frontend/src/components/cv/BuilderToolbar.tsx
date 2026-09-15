@@ -11,7 +11,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@neuronection/assistant-ui";
-import { Button } from "@/components/ui";
+import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import type { CvLintReport, CvVersionOut } from "@/types/cv";
 
 export type AutosaveState = "idle" | "saving" | "saved" | "error";
@@ -157,17 +157,51 @@ export function BuilderToolbar({
 
       <div className="flex flex-wrap items-center gap-2">
         {lint && (
-          <span
-            className={`rounded-full px-2 py-1 text-xs font-medium ${
-              lint.passed
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-amber-100 text-amber-800"
-            }`}
-            title={`ATS lint score ${lint.score}`}
-            data-testid="ats-chip"
-          >
-            ATS {lint.score}
-          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={`cursor-pointer rounded-full px-2 py-1 text-xs font-medium transition-colors duration-150 hover:brightness-95 ${
+                  lint.passed
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+                title={`ATS lint score ${lint.score}`}
+                aria-label={`ATS lint score ${lint.score} — show report`}
+                data-testid="ats-chip"
+              >
+                ATS {lint.score}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72" data-testid="lint-popover">
+              <div className="flex items-baseline justify-between gap-2 border-b border-[var(--as-border)] pb-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                  ATS lint · {lint.score}
+                </p>
+                <p className="text-[11px] tabular-nums text-[var(--as-muted-fg)]">
+                  {lint.checks.filter((check) => check.level === "fail").length} fail ·{" "}
+                  {lint.checks.filter((check) => check.level === "warn").length} warn ·{" "}
+                  {lint.checks.filter((check) => check.level === "pass").length} pass
+                </p>
+              </div>
+              <ul className="space-y-1 pt-1.5 text-xs" data-testid="lint-panel">
+                {lint.checks.map((check) => (
+                  <li
+                    key={check.id}
+                    className={
+                      check.level === "fail"
+                        ? "text-red-700"
+                        : check.level === "warn"
+                          ? "text-amber-700"
+                          : "text-[var(--as-muted-fg)]"
+                    }
+                  >
+                    {check.level === "pass" ? "✓" : "•"} {check.message}
+                  </li>
+                ))}
+              </ul>
+            </PopoverContent>
+          </Popover>
         )}
         <span
           className={`rounded-full px-2 py-1 text-xs font-medium ${

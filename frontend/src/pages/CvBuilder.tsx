@@ -1231,7 +1231,6 @@ export function CvBuilder() {
             suggestion={suggestion}
             onCloseSuggestion={() => setSuggestion(null)}
             onApplyProposal={(entry) => void applyProposal(entry)}
-            lint={lint}
           />
         </div>
 

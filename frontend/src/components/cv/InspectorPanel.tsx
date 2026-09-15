@@ -30,7 +30,6 @@ import type { CvArea, CvAreaId } from "@/components/cv/areas";
 import type {
   CoverLetterSuggestionOut,
   CvBlock,
-  CvLintReport,
   CvProposal,
   CvSuggestionOut,
 } from "@/types/cv";
@@ -39,13 +38,12 @@ import type { CvAssistantCritique } from "@/types/cvAssistant";
 import { CritiqueCard } from "@/components/cv/CritiqueCard";
 import { apiDetail } from "@/api/client";
 
-export type InspectorTab = "context" | "design" | "sections" | "lint";
+export type InspectorTab = "context" | "design" | "sections";
 
 const TABS: { id: InspectorTab; label: string }[] = [
   { id: "context", label: "Context" },
   { id: "design", label: "Design" },
   { id: "sections", label: "Sections" },
-  { id: "lint", label: "Lint" },
 ];
 
 interface InspectorPanelProps {
@@ -103,8 +101,6 @@ interface InspectorPanelProps {
   suggestion: CvSuggestionOut | null;
   onCloseSuggestion: () => void;
   onApplyProposal: (entry: CvProposal) => void;
-
-  lint: CvLintReport | null;
 }
 
 export function InspectorPanel(props: InspectorPanelProps) {
@@ -163,7 +159,6 @@ export function InspectorPanel(props: InspectorPanelProps) {
           ) : (
             <SectionsPanel {...props} />
           ))}
-        {tab === "lint" && <LintTab {...props} />}
       </div>
 
       {props.suggestion && (
@@ -495,28 +490,3 @@ function ProposalsSlideOver({
   );
 }
 
-function LintTab({ lint }: InspectorPanelProps) {
-  if (!lint) {
-    return <p className="text-xs text-[var(--as-muted-fg)]">Lint runs once the preview is compiled.</p>;
-  }
-  return (
-    <div data-testid="lint-panel">
-      <ul className="space-y-1 text-xs">
-        {lint.checks.map((check) => (
-          <li
-            key={check.id}
-            className={
-              check.level === "fail"
-                ? "text-red-700"
-                : check.level === "warn"
-                  ? "text-amber-700"
-                  : "text-[var(--as-muted-fg)]"
-            }
-          >
-            {check.level === "pass" ? "✓" : "•"} {check.message}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}

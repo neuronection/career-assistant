@@ -1325,8 +1325,15 @@ describe("CvBuilder", () => {
     expect(screen.getByTestId("ai-toolbar-cluster")).toBeInTheDocument();
     expect(screen.getByTestId("ai-presets")).toBeInTheDocument();
     expect(screen.queryByTestId("inspector-body-ai")).not.toBeInTheDocument();
-    await openInspectorTab("lint");
-    expect(screen.getByTestId("lint-panel")).toBeInTheDocument();
+    // The lint report lives in the ATS chip popover — no lint tab.
+    fireEvent.click(screen.getByTestId("ats-chip"));
+    expect(await screen.findByTestId("lint-panel")).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("inspector-tab-menu"));
+    const inspectorMenu = await screen.findByRole("menu");
+    expect(within(inspectorMenu).queryByText("Lint")).not.toBeInTheDocument();
+    expect(within(inspectorMenu).queryByText("AI")).not.toBeInTheDocument();
   });
 
   it("toggles a whole context group with the tri-state header switch", async () => {

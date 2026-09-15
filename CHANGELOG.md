@@ -5,6 +5,11 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Lint report in the ATS chip (plan 87)**: clicking the ATS score chip
+  in the builder toolbar now opens the full lint report (score,
+  pass/warn/fail summary and every check) as a popover — the Lint tab is
+  gone and the inspector is down to three workspaces: Context, Design,
+  Sections.
 - **AI actions moved to the toolbar (plan 86)**: the builder's AI tab is
   gone — the one-click writing actions (Improve summary, Tighten text,
   Find gaps, Translate, Tailor to posting) now sit next to the "Ask AI"
