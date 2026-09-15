@@ -212,6 +212,18 @@ There is no side door around it.
   `cv_builder` audience — read-scope state/visual-review plus write-scope
   builder mutations, all executing the same `cv_builder_chat` agent
   functions the turn loop uses.
+- **Web tools** (plan 80) `web_search` / `fetch_url` / `github_repo` are
+  read-scope members with the `chat` + `mcp` audiences. `fetch_url`
+  guards outbound requests (resolve-then-connect SSRF blocklist, manual
+  redirect hops, size/time caps) and reduces HTML to text; JS-shell pages
+  escalate to the plan-76 persistent browser when present. `web_search`
+  calls the user-hosted SearXNG instance
+  (`web.searxng_url` in `app_settings`, never bundled; probe status
+  `ok/unreachable/json_disabled`, and the tool answers its absence
+  gracefully). `github_repo` uses the GitHub REST API with an optional
+  Fernet-encrypted token (`web.github_token`). Fetched content is
+  untrusted: capped and wrapped as reference data in the prompt, never
+  treated as instructions.
 - **Skill packs** are versioned instruction data in
   `ai_skill_packs` (37-style immutable versions; bank seeds in
   `app/seeds/skill_packs.py`). `app/ai/packs.py` resolves the latest

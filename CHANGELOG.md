@@ -5,6 +5,15 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Web tools for the AI chat (plan 80)**: pasted links are now read and
+  reasoned about. A GitHub URL produces a repo lookup (metadata + README
+  via the GitHub REST API), any other link is fetched, reduced to readable
+  text and summarized — JS-heavy pages fall back to the plain fetch when
+  no Chromium engine is installed. A user-hosted SearXNG instance can now
+  back live web search: set the URL (plus optional GitHub API token) under
+  Settings → AI ("Web tools" card via `PUT /ai/web`); searches degrade
+  gracefully when it is unconfigured or unreachable. All fetched content
+  is SSRF-guarded, size-capped and treated strictly as reference data.
 - **CV Studio power pack, slice 1 — template capabilities (plan 79.1)**:
   grouped skills now render as true category sections with subheadings
   (the "Grouped" option previously fell back to plain chips), sections can

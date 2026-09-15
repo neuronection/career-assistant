@@ -13828,6 +13828,61 @@
         "title": "VerifiedProposal",
         "type": "object"
       },
+      "WebSettingsOut": {
+        "description": "Admin view of the AI web-tool configuration (plan 80).",
+        "properties": {
+          "github_token_set": {
+            "title": "Github Token Set",
+            "type": "boolean"
+          },
+          "searxng_probe": {
+            "additionalProperties": true,
+            "title": "Searxng Probe",
+            "type": "object"
+          },
+          "searxng_url": {
+            "title": "Searxng Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "searxng_url",
+          "searxng_probe",
+          "github_token_set"
+        ],
+        "title": "WebSettingsOut",
+        "type": "object"
+      },
+      "WebSettingsUpdate": {
+        "properties": {
+          "github_token": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Token"
+          },
+          "searxng_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Searxng Url"
+          }
+        },
+        "title": "WebSettingsUpdate",
+        "type": "object"
+      },
       "WorkPreferencesSection": {
         "properties": {
           "creativity_priority": {
@@ -17427,6 +17482,78 @@
           }
         ],
         "summary": "Usage Rollups",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/web": {
+      "get": {
+        "description": "SearXNG URL + probe status; GitHub token presence only (secret-safe).",
+        "operationId": "web_settings_api_v1_ai_web_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Web Settings",
+        "tags": [
+          "ai-settings"
+        ]
+      },
+      "put": {
+        "description": "Set the web-tool config; the GitHub token lands Fernet-encrypted.\n\nAn empty ``searxng_url`` clears the search config; an empty\n``github_token`` clears the stored token.",
+        "operationId": "update_web_settings_api_v1_ai_web_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Web Settings",
         "tags": [
           "ai-settings"
         ]

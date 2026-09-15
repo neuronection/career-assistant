@@ -161,3 +161,16 @@ class UsageRollup(BaseModel):
     calls: int
     tokens_in: int
     tokens_out: int
+
+
+class WebSettingsOut(BaseModel):
+    """Admin view of the AI web-tool configuration (plan 80)."""
+
+    searxng_url: str
+    searxng_probe: dict
+    github_token_set: bool
+
+
+class WebSettingsUpdate(BaseModel):
+    searxng_url: Optional[str] = Field(default=None, max_length=500)
+    github_token: Optional[str] = Field(default=None, max_length=200)

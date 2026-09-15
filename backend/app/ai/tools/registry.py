@@ -27,8 +27,9 @@ def _builtins() -> list[AITool]:
     from app.ai.tools.builtin import BUILTIN_TOOLS
     from app.ai.tools.cv_builder import CV_BUILDER_TOOLS
     from app.ai.tools.cv_synth import CV_SYNTH_TOOLS
+    from app.ai.tools.web import WEB_TOOLS
 
-    return [*BUILTIN_TOOLS, *CV_BUILDER_TOOLS, *CV_SYNTH_TOOLS]
+    return [*BUILTIN_TOOLS, *CV_BUILDER_TOOLS, *CV_SYNTH_TOOLS, *WEB_TOOLS]
 
 
 _registry: dict[str, AITool] = {}

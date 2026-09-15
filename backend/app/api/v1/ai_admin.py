@@ -30,6 +30,8 @@ from app.schemas.ai_admin import (
     ProviderUpdate,
     TestResult,
     UsageRollup,
+    WebSettingsOut,
+    WebSettingsUpdate,
 )
 from app.services.deps import get_current_user, require_admin
 
@@ -321,6 +323,86 @@ async def set_assignment(
 async def tools(user: User = Depends(get_current_user)) -> list[dict]:
     """Registered AI tools."""
     return list_tools()
+
+
+# --------------------------------------------------- web tools config (plan 80)
+
+
+async def _web_setting(db: AsyncSession, key: str) -> dict:
+    from app.models.settings_model import AppSetting
+
+    row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == key)))
+        .scalars()
+        .first()
+    )
+    return row.value if row is not None else {}
+
+
+async def _put_web_setting(db: AsyncSession, key: str, value: dict) -> None:
+    from app.models.settings_model import AppSetting
+
+    row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == key)))
+        .scalars()
+        .first()
+    )
+    if row is None:
+        db.add(AppSetting(key=key, value=value))
+    else:
+        row.value = value
+    await db.commit()
+
+
+@router.get("/web", response_model=WebSettingsOut)
+async def web_settings(
+    user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> WebSettingsOut:
+    """SearXNG URL + probe status; GitHub token presence only (secret-safe)."""
+    from app.services.webfetch import probe_searxng
+
+    value = await _web_setting(db, "web.searxng_url")
+    url = (value or {}).get("url") or ""
+    return WebSettingsOut(
+        searxng_url=url,
+        searxng_probe=await probe_searxng(url),
+        github_token_set=bool(
+            (await _web_setting(db, "web.github_token")).get("token")
+        ),
+    )
+
+
+@router.put("/web", response_model=WebSettingsOut)
+async def update_web_settings(
+    data: WebSettingsUpdate,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> WebSettingsOut:
+    """Set the web-tool config; the GitHub token lands Fernet-encrypted.
+
+    An empty ``searxng_url`` clears the search config; an empty
+    ``github_token`` clears the stored token."""
+    from app.core.encryption import encrypt_secret
+    from app.services.webfetch import probe_searxng
+
+    if data.searxng_url is not None:
+        url = data.searxng_url.strip()
+        await _put_web_setting(db, "web.searxng_url", {"url": url})
+    if data.github_token is not None:
+        await _put_web_setting(
+            db,
+            "web.github_token",
+            {"token": encrypt_secret(data.github_token) or ""},
+        )
+    value = await _web_setting(db, "web.searxng_url")
+    url = (value or {}).get("url") or ""
+    return WebSettingsOut(
+        searxng_url=url,
+        searxng_probe=await probe_searxng(url),
+        github_token_set=bool(
+            (await _web_setting(db, "web.github_token")).get("token")
+        ),
+    )
 
 
 @router.post("/embeddings/recompute")

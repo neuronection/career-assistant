@@ -10,10 +10,11 @@ import { EmptyState, Spinner } from "@/components/ui";
 import { ProvidersTab } from "@/components/settings/ProvidersTab";
 import { ModelsTab } from "@/components/settings/ModelsTab";
 import { TasksTab } from "@/components/settings/TasksTab";
+import { WebSettingsTab } from "@/components/settings/WebSettingsTab";
 import { ProviderModal } from "@/components/settings/ProviderModal";
 
-type AITab = "providers" | "models" | "tasks";
-const TABS: AITab[] = ["providers", "models", "tasks"];
+type AITab = "providers" | "models" | "tasks" | "web";
+const TABS: AITab[] = ["providers", "models", "tasks", "web"];
 
 /** AI configuration with URL-synced tabs (?tab=providers|models|tasks). */
 export function AIConfig() {
@@ -121,6 +122,7 @@ export function AIConfig() {
       {activeTab === "tasks" && (
         <TasksTab canManageGlobal={canManageGlobal} onChanged={() => void refresh()} />
       )}
+      {activeTab === "web" && user?.is_admin && <WebSettingsTab />}
 
       {editProvider && (
         <ProviderModal

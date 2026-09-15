@@ -199,3 +199,21 @@ export function classifyDictationError(error: unknown): { kind: "unsupported" | 
   }
   return { kind: "failed", detail: apiDetail(error) };
 }
+
+export interface WebSettings {
+  searxng_url: string;
+  searxng_probe: { status: string; status_code?: number };
+  github_token_set: boolean;
+}
+
+export async function fetchWebSettings(): Promise<WebSettings> {
+  const { data } = await api.get<WebSettings>("/ai/web");
+  return data;
+}
+
+export async function updateWebSettings(
+  payload: Partial<Pick<WebSettings, "searxng_url">> & { github_token?: string }
+): Promise<WebSettings> {
+  const { data } = await api.put<WebSettings>("/ai/web", payload);
+  return data;
+}

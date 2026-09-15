@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from typing import Optional
 
@@ -263,6 +264,29 @@ def _detect_explore_filters(
         if f" {word} " in lowered:
             filters.setdefault("seniority", []).append(seniority)
     return filters, source_error
+
+
+def _detect_web_urls(message: str) -> list[str]:
+    """http(s) links in the message; trailing punctuation stripped."""
+    urls = []
+    for match in URL_RE.finditer(message):
+        url = match.group(0).rstrip(".,!?;:")
+        if url not in urls:
+            urls.append(url)
+    return urls
+
+
+def _web_result_summary(key: str, result) -> list[str]:
+    """Short identifiers for the trace metadata (never the raw body)."""
+    if not isinstance(result, dict):
+        return [key]
+    if result.get("full_name"):
+        return [result["full_name"]]
+    if result.get("url"):
+        return [str(result["url"])[:120]]
+    if key == "web_search" and result.get("available"):
+        return [hit.get("url", "")[:120] for hit in (result.get("results") or [])]
+    return [result.get("reason", "unavailable")[:120]]
 
 
 async def _detect_posting_ref(db: AsyncSession, message: str) -> Optional[str]:
@@ -824,6 +848,26 @@ TOOL_TITLES = {
     "my_experience": "Reading your experience",
     "my_skills": "Reading your skills",
     "my_education": "Reading your education & credentials",
+    "web_search": "Searching the web",
+    "fetch_url": "Fetching the linked page",
+    "github_repo": "Looking up the GitHub repo",
+}
+
+URL_RE = re.compile(r"https?://[^\s<>\"'\]\)]+", re.IGNORECASE)
+WEB_SEARCH_KEYWORDS = {
+    "search the web",
+    "search online",
+    "search the internet",
+    "google it",
+    "look it up online",
+    "look up online",
+    "latest news",
+    "news about",
+    "recent news",
+    "recent developments",
+    "what's the latest",
+    "whats the latest",
+    "web search",
 }
 SUMMARY_LIMIT = 300
 MAX_TRACE_TOOLS = 12
@@ -1003,6 +1047,29 @@ async def prepare_chat_prompt(
                 meta["results"] = [name.replace("my_", "")]
                 meta["result_summary"] = _summarize(meta["results"])
                 metadata_tools.append(meta)
+
+    # Web tools (plan 80): pasted links resolve through fetch/github_repo;
+    # an explicit search ask runs the optional SearXNG web_search.
+    lowered_urls = _detect_web_urls(message)
+    for index, url in enumerate(lowered_urls[:2]):
+        if "github.com/" in url.lower():
+            tool_result, meta = await _timed("github_repo", {"repo": url})
+            key = "github_repo"
+        else:
+            tool_result, meta = await _timed("fetch_url", {"url": url})
+            key = "fetch_url" if index == 0 else f"fetch_url_{index}"
+            if key not in TOOL_TITLES:
+                TOOL_TITLES[key] = TOOL_TITLES["fetch_url"]
+        tool_results[key] = tool_result
+        meta["results"] = _web_result_summary(key, tool_result)
+        meta["result_summary"] = _summarize(meta["results"])
+        metadata_tools.append(meta)
+    if any(keyword in lowered for keyword in WEB_SEARCH_KEYWORDS):
+        tool_result, meta = await _timed("web_search", {"query": message[:200]})
+        tool_results["web_search"] = tool_result
+        meta["results"] = _web_result_summary("web_search", tool_result)
+        meta["result_summary"] = _summarize(meta["results"])
+        metadata_tools.append(meta)
 
     prompt = _build_user_prompt(
         profile_summary, history, message, tool_results, page_context, cv_references
