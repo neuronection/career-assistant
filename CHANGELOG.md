@@ -5,6 +5,33 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **Experience editor: bullets are now a first-class section** —
+  the structured highlights move up beside the description as
+  reorderable "Bullets" (↑/↓) with roomier inputs and an optional
+  schema-backed metric per bullet (kind / value / unit, rendered as
+  real bullets on CVs and kept by ATS exports). The free-text
+  description stays prose on purpose — the CV pipeline formats it.
+- **Redesigned the experience editor and kept the list in view**:
+  opening an entry now scrolls the rail so the selected card stays
+  visible; the form itself gets a next-gen layout — icon kind pills,
+  an inline display-style title and organization line, a grouped
+  "period & setup" panel (dates, ongoing toggle, hours, on-site
+  policy), sectioned labels and skill rows as individual elevated
+  chips. All controls and behavior are unchanged. The form body now
+  uses the pane's width (max-w-4xl) and on wide workspaces the
+  description editor and bullets sit side-by-side (container query —
+  chat-dock safe); the duplicated skills header is gone. The period
+  panel stacks into two labeled columns (ongoing/start/end and
+  hours/on-site) and the sticky Cancel/Save footer reserves the
+  bottom-right corner so the floating chat bubble no longer covers
+  the Save button.
+- **Experience workspace shows all entries in a full-width grid when
+  no entry is open**: closing the editor (or just landing on the
+  page) lays the entry cards out in a responsive multi-column grid
+  across the whole workspace instead of a narrow rail beside an
+  empty "Nothing selected" pane — opening an entry brings back the
+  master-detail split with the editor.
+
 - **Experience (and Education) workspaces give the item list more
   room**: the master-detail split now uses the wide rail (up to
   ~400px for navigating existing entries) instead of the default

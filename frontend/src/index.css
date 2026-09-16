@@ -57,3 +57,17 @@ body {
     display: flex;
   }
 }
+
+/* Experience editor body: description and bullets stack by default and
+ * sit side-by-side once the whole workspace is wide enough to also
+ * carry the rail plus a max-w-4xl form (container query — chat-dock
+ * safe). */
+.ca-editor-cols {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 80rem) {
+  .ca-editor-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  }
+}

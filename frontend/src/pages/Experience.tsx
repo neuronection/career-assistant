@@ -6,11 +6,7 @@ import {
   ArrowLeft,
   Briefcase,
   CalendarRange,
-  Coins,
   Copy,
-  GraduationCap,
-  Hammer,
-  HeartHandshake,
   Plus,
   Search,
   Trash2,
@@ -42,18 +38,10 @@ import {
 import {
   EMPTY_FORM,
   ExperienceEditor,
-  ExperienceEditorEmpty,
+  KIND_ICONS,
   formFromItem,
   validateExperience,
 } from "@/components/experience/ExperienceEditor";
-
-const KIND_ICONS: Record<ExperienceItemIn["kind"], typeof Briefcase> = {
-  job: Briefcase,
-  internship: GraduationCap,
-  project: Hammer,
-  freelance: Coins,
-  volunteer: HeartHandshake,
-};
 
 function toIn(item: ExperienceItemOut): ExperienceItemIn {
   return {
@@ -344,6 +332,7 @@ export function Experience() {
     setForm({ ...EMPTY_FORM });
     setDirty(false);
     setShowErrors(false);
+    setActivePane("list");
   };
 
   const openCreate = (kind?: ExperienceItemIn["kind"]) => {
@@ -364,6 +353,11 @@ export function Experience() {
     setDirty(false);
     setShowErrors(false);
     setActivePane("editor");
+    requestAnimationFrame(() => {
+      railRef.current
+        ?.querySelector(`[data-testid="experience-item-${item.id}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
   };
 
   const patchForm = (patch: Partial<typeof form>) => {
@@ -564,12 +558,13 @@ export function Experience() {
         </p>
       )}
 
-      <div
-        className="ca-ws-switcher mb-2 flex shrink-0 gap-1"
-        role="group"
-        aria-label={t("experience.panesAria")}
-        data-testid="pane-switcher"
-      >
+      {editorOpen && (
+        <div
+          className="ca-ws-switcher mb-2 flex shrink-0 gap-1"
+          role="group"
+          aria-label={t("experience.panesAria")}
+          data-testid="pane-switcher"
+        >
         {(
           [
             ["list", t("experience.pane.list")],
@@ -591,7 +586,8 @@ export function Experience() {
             {label}
           </button>
         ))}
-      </div>
+        </div>
+      )}
 
       <div
         className="shrink-0"
@@ -609,7 +605,10 @@ export function Experience() {
         />
       </div>
 
-      <div className="ca-ws-grid ca-ws-grid-wide grid min-h-0 flex-1 grid-cols-1 gap-3">
+      <div
+        className={`${editorOpen ? "ca-ws-grid ca-ws-grid-wide" : ""} grid min-h-0 flex-1 grid-cols-1 gap-3`}
+        data-testid="experience-grid"
+      >
         <div
           ref={railRef}
           tabIndex={-1}
@@ -620,7 +619,9 @@ export function Experience() {
         >
           {tab === "skills" ? (
             <section
-              className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              className={`rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3 ${
+                editorOpen ? "" : "mx-auto w-full max-w-3xl"
+              }`}
               data-testid="derivation-panel"
             >
               <h2 className="text-sm font-semibold text-[var(--as-fg)]">
@@ -835,26 +836,42 @@ export function Experience() {
                         </button>
                       </div>
                       {!collapsedGroups.includes(kind) && (
-                        <div className="mt-2 space-y-2.5">
+                        <div
+                          className={
+                            editorOpen
+                              ? "mt-2 space-y-2.5"
+                              : "mt-2 grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-2.5"
+                          }
+                        >
                           {list.map(renderCard)}
                         </div>
                       )}
                     </div>
                   ))
-              : visible.map((item) => renderCard(item))}
+              : (
+                  <div
+                    className={
+                      editorOpen
+                        ? "space-y-2.5"
+                        : "grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-2.5"
+                    }
+                  >
+                    {visible.map((item) => renderCard(item))}
+                  </div>
+                )}
           </section>
             </>
           )}
         </div>
 
-        <div
-          ref={editorPaneRef}
-          tabIndex={-1}
-          className={`${
-            activePane === "editor" ? "flex" : "hidden"
-          } ca-ws-pane cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none`}
-        >
-          {editorOpen ? (
+        {editorOpen && (
+          <div
+            ref={editorPaneRef}
+            tabIndex={-1}
+            className={`${
+              activePane === "editor" ? "flex" : "hidden"
+            } ca-ws-pane cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none`}
+          >
             <ExperienceEditor
               form={form}
               onChange={patchForm}
@@ -866,10 +883,8 @@ export function Experience() {
               saving={saving}
               isNew={isNew}
             />
-          ) : (
-            <ExperienceEditorEmpty onAdd={() => openCreate()} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {deleted && deleted.length > 0 && (

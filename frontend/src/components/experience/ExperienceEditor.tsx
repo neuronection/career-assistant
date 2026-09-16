@@ -5,10 +5,11 @@ import {
   OptionalStepper,
   SegmentedRow,
   TextField,
+  TextareaField,
   ToggleRow,
 } from "@/components/cv/formPrimitives";
 import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
-import { Button, EmptyState } from "@/components/ui";
+import { Button } from "@/components/ui";
 import type {
   AchievementIn,
   ExperienceItemIn,
@@ -19,8 +20,41 @@ import type {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
-import { Plus, X } from "lucide-react";
+import {
+  Briefcase,
+  ChevronDown,
+  ChevronUp,
+  Coins,
+  GraduationCap,
+  Hammer,
+  HeartHandshake,
+  Plus,
+  X,
+} from "lucide-react";
 import { slugifyKey } from "@/lib/slug";
+
+export const KIND_ICONS: Record<ExperienceItemIn["kind"], typeof Briefcase> = {
+  job: Briefcase,
+  internship: GraduationCap,
+  project: Hammer,
+  freelance: Coins,
+  volunteer: HeartHandshake,
+};
+
+const METRIC_KINDS = [
+  { value: "time_saved", labelKey: "experience.metricKind.time_saved" },
+  { value: "scale", labelKey: "experience.metricKind.scale" },
+  { value: "revenue", labelKey: "experience.metricKind.revenue" },
+  { value: "quality", labelKey: "experience.metricKind.quality" },
+] as const;
+
+function reorder<T>(list: T[], from: number, to: number): T[] {
+  if (to < 0 || to >= list.length) return list;
+  const next = [...list];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
 
 
 export const KINDS: {
@@ -115,7 +149,10 @@ export function formFromItem(item: ExperienceItemOut): ExperienceEditorForm {
       level_claim: s.level_claim,
       last_used: s.last_used,
     })),
-    achievements: item.achievements.map((a) => ({ text: a.text, metric: null })),
+    achievements: item.achievements.map((a) => ({
+      text: a.text,
+      metric: a.metric ? { ...a.metric } : null,
+    })),
   };
 }
 
@@ -268,91 +305,297 @@ export function ExperienceEditor({
         />
       </div>
 
-      <div className="mx-auto w-full max-w-2xl space-y-4 px-5 py-4">
-        <SegmentedRow
-          label={t("experience.kindLabel")}
-          value={form.kind}
-          options={KINDS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-          onChange={(v) => patch({ kind: v as ExperienceItemIn["kind"] })}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextField
-            label={t("experience.roleTitleLabel")}
+      <div className="mx-auto w-full max-w-4xl space-y-6 px-5 py-5">
+        <div className="flex flex-wrap gap-1.5" aria-label={t("experience.kindLabel")}>
+          {KINDS.map((o) => {
+            const KindIcon = KIND_ICONS[o.value];
+            const selected = form.kind === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => patch({ kind: o.value as ExperienceItemIn["kind"] })}
+                className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                  selected
+                    ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white shadow-sm"
+                    : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)] hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+                }`}
+              >
+                <KindIcon className="h-3.5 w-3.5" aria-hidden />
+                {t(o.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-1.5">
+          <input
             value={form.title}
-            onChange={(v) => patch({ title: v })}
+            onChange={(e) => patch({ title: e.target.value })}
             maxLength={160}
             placeholder={t("experience.roleTitlePlaceholder")}
-            error={err(errors.title)}
-            testId="experience-title"
+            aria-label={t("experience.roleTitleLabel")}
+            data-testid="experience-title"
+            className="w-full cursor-text rounded-lg border border-transparent bg-transparent px-2 py-1 text-xl font-semibold text-[var(--as-fg)] outline-none transition-colors duration-150 placeholder:text-[var(--as-muted-fg)]/50 hover:border-[var(--as-border)] focus:border-[var(--as-accent)] focus:bg-[var(--as-surface)]"
           />
-          <TextField
-            label={t("experience.orgLabel")}
+          {err(errors.title) && (
+            <p className="px-2 text-xs text-[var(--as-danger)]">{err(errors.title)}</p>
+          )}
+          <input
             value={form.org_name}
-            onChange={(v) => patch({ org_name: v })}
+            onChange={(e) => patch({ org_name: e.target.value })}
             maxLength={200}
-            placeholder={t("experience.orgPlaceholder")}
-            testId="experience-org"
+            placeholder={t("experience.orgLabel")}
+            aria-label={t("experience.orgLabel")}
+            data-testid="experience-org"
+            className="w-full cursor-text rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-[var(--as-fg)] outline-none transition-colors duration-150 placeholder:text-[var(--as-muted-fg)]/70 hover:border-[var(--as-border)] focus:border-[var(--as-accent)] focus:bg-[var(--as-surface)]"
           />
         </div>
-        <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-          <DateField
-            label={t("experience.field.start")}
-            value={form.start || null}
-            onChange={(v) => patch({ start: v })}
-            error={err(errors.start)}
-            testId="experience-start"
-          />
-          <DateField
-            label={t("experience.endLabel")}
-            value={form.end || null}
-            onChange={(v) => patch({ end: v })}
-            disabled={form.open_ended}
-            hint={form.open_ended ? t("experience.ongoingHint") : undefined}
-            error={err(errors.end)}
-            testId="experience-end"
-          />
-          <div className="pb-2">
-            <ToggleRow
-              label={t("experience.ongoingToggle")}
-              checked={form.open_ended}
-              onChange={(checked) =>
-                patch({ open_ended: checked, end: checked ? "" : form.end })
-              }
+
+        <section
+          className="space-y-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface-raised)]/40 p-3.5"
+          data-testid="experience-period"
+        >
+          <div className="grid items-start gap-x-4 gap-y-3 sm:grid-cols-2">
+            <div className="space-y-3">
+              <ToggleRow
+                label={t("experience.ongoingToggle")}
+                checked={form.open_ended}
+                onChange={(checked) =>
+                  patch({ open_ended: checked, end: checked ? "" : form.end })
+                }
+              />
+              <DateField
+                label={t("experience.field.start")}
+                value={form.start || null}
+                onChange={(v) => patch({ start: v })}
+                error={err(errors.start)}
+                testId="experience-start"
+              />
+              <DateField
+                label={t("experience.endLabel")}
+                value={form.end || null}
+                onChange={(v) => patch({ end: v })}
+                disabled={form.open_ended}
+                hint={form.open_ended ? t("experience.ongoingHint") : undefined}
+                error={err(errors.end)}
+                testId="experience-end"
+              />
+            </div>
+            <div className="space-y-3 sm:border-l sm:border-[var(--as-border)] sm:pl-4">
+              <div className="min-w-0" data-testid="experience-hours">
+                <OptionalStepper
+                  label={t("experience.field.hours")}
+                  value={form.hours_per_week}
+                  min={1}
+                  max={80}
+                  onChange={(v) => patch({ hours_per_week: v })}
+                  addValue={20}
+                  addLabel={t("experience.hoursSet")}
+                  suffix="1–80"
+                />
+                <FormRow error={err(errors.hours)} />
+              </div>
+              <SegmentedRow
+                label={t("experience.onsiteLabel")}
+                value={form.onsite_policy}
+                options={ONSITE_POLICIES.map((o) => ({
+                  value: o.value,
+                  label: t(o.labelKey),
+                }))}
+                onChange={(v) =>
+                  patch({ onsite_policy: v as Exclude<ExperienceItemIn["onsite_policy"], null> })
+                }
+              />
+            </div>
+          </div>
+        </section>
+
+        <div className="ca-editor-cols grid items-start gap-6">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t("experience.descriptionLabel")}
+            </p>
+            <CvRichTextEditor
+              value={form.description}
+              onChange={(v) => patch({ description: v })}
+              ariaLabel={t("experience.descriptionLabel")}
+              testId="experience-description"
             />
           </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="min-w-0" data-testid="experience-hours">
-            <OptionalStepper
-              label={t("experience.field.hours")}
-              value={form.hours_per_week}
-              min={1}
-              max={80}
-              onChange={(v) => patch({ hours_per_week: v })}
-              addValue={20}
-              addLabel={t("experience.hoursSet")}
-              suffix="1–80"
-            />
-            <FormRow error={err(errors.hours)} />
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t("experience.achievementsLabel")}
+            </p>
+            {form.achievements.map((a, i) => (
+              <FormRow key={i} error={err(errors.achievements[i])}>
+                <div
+                  className="space-y-1.5 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-2.5 transition-colors duration-150 hover:border-[var(--as-accent)]"
+                  data-testid={`achievement-${i}`}
+                >
+                  <TextareaField
+                    label={t("experience.achievementN", { index: i + 1 })}
+                    value={a.text}
+                    onChange={(text) =>
+                      patch({
+                        achievements: form.achievements.map((x, j) =>
+                          j === i ? { ...x, text } : x
+                        ),
+                      })
+                    }
+                    rows={2}
+                    maxLength={500}
+                    placeholder={t("experience.achievementPlaceholder")}
+                    testId={`achievement-text-${i}`}
+                  />
+                  {a.metric ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <select
+                        className="cursor-pointer rounded-full border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs text-[var(--as-fg)] outline-none transition-colors focus:border-[var(--as-accent)]"
+                        value={a.metric.kind}
+                        aria-label={t("experience.metricKindLabel")}
+                        onChange={(e) =>
+                          patch({
+                            achievements: form.achievements.map((x, j) =>
+                              j === i
+                                ? { ...x, metric: { ...x.metric!, kind: e.target.value } }
+                                : x
+                            ),
+                          })
+                        }
+                        data-testid={`achievement-metric-kind-${i}`}
+                      >
+                        {METRIC_KINDS.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {t(m.labelKey)}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        value={a.metric.value}
+                        aria-label={t("experience.metricValueLabel")}
+                        onChange={(e) =>
+                          patch({
+                            achievements: form.achievements.map((x, j) =>
+                              j === i
+                                ? { ...x, metric: { ...x.metric!, value: Number(e.target.value) } }
+                                : x
+                            ),
+                          })
+                        }
+                        className="w-20 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs tabular-nums outline-none transition-colors focus:border-[var(--as-accent)]"
+                        data-testid={`achievement-metric-value-${i}`}
+                      />
+                      <input
+                        value={a.metric.unit}
+                        aria-label={t("experience.metricUnitLabel")}
+                        placeholder="%"
+                        maxLength={12}
+                        onChange={(e) =>
+                          patch({
+                            achievements: form.achievements.map((x, j) =>
+                              j === i
+                                ? { ...x, metric: { ...x.metric!, unit: e.target.value } }
+                                : x
+                            ),
+                          })
+                        }
+                        className="w-16 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none transition-colors focus:border-[var(--as-accent)]"
+                        data-testid={`achievement-metric-unit-${i}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          patch({
+                            achievements: form.achievements.map((x, j) =>
+                              j === i ? { ...x, metric: null } : x
+                            ),
+                          })
+                        }
+                        className="cursor-pointer rounded-md p-1 text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-danger)]"
+                        aria-label={t("experience.metricRemove")}
+                        data-testid={`achievement-metric-remove-${i}`}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch({
+                          achievements: form.achievements.map((x, j) =>
+                            j === i
+                              ? { ...x, metric: { kind: "time_saved", value: 10, unit: "%" } }
+                              : x
+                          ),
+                        })
+                      }
+                      className="cursor-pointer rounded-md border border-dashed border-[var(--as-border)] px-2 py-0.5 text-[11px] text-[var(--as-muted-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+                      data-testid={`achievement-metric-add-${i}`}
+                    >
+                      <Plus className="mr-1 inline h-3 w-3" aria-hidden />
+                      {t("experience.metricAdd")}
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={i === 0}
+                      onClick={() =>
+                        patch({
+                          achievements: reorder(form.achievements, i, i - 1),
+                        })
+                      }
+                      className="cursor-pointer rounded-md p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)] disabled:pointer-events-none disabled:opacity-40"
+                      aria-label={t("experience.bulletUp")}
+                      data-testid={`achievement-up-${i}`}
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={i === form.achievements.length - 1}
+                      onClick={() =>
+                        patch({
+                          achievements: reorder(form.achievements, i, i + 1),
+                        })
+                      }
+                      className="cursor-pointer rounded-md p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)] disabled:pointer-events-none disabled:opacity-40"
+                      aria-label={t("experience.bulletDown")}
+                      data-testid={`achievement-down-${i}`}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                    <span className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => patch({ achievements: form.achievements.filter((_, j) => j !== i) })}
+                      className="cursor-pointer rounded-md p-1 text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-danger)]"
+                      aria-label={t("experience.removeAchievementN", { index: i + 1 })}
+                      title={t("experience.removeAchievement")}
+                      data-testid={`achievement-remove-${i}`}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
+                </div>
+              </FormRow>
+            ))}
+            <button
+              type="button"
+              onClick={() => patch({ achievements: [...form.achievements, { text: "", metric: null }] })}
+              className="cursor-pointer rounded-lg border border-dashed border-[var(--as-border)] px-3 py-1.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
+              data-testid="add-achievement"
+            >
+              <Plus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+              {t("experience.addAchievement")}
+            </button>
           </div>
-          <SegmentedRow
-            label={t("experience.onsiteLabel")}
-            value={form.onsite_policy}
-            options={ONSITE_POLICIES.map((o) => ({
-              value: o.value,
-              label: t(o.labelKey),
-            }))}
-            onChange={(v) =>
-              patch({ onsite_policy: v as Exclude<ExperienceItemIn["onsite_policy"], null> })
-            }
-          />
         </div>
-        <CvRichTextEditor
-          value={form.description}
-          onChange={(v) => patch({ description: v })}
-          ariaLabel={t("experience.descriptionLabel")}
-          testId="experience-description"
-        />
+
 
         <div className="space-y-2">
           <ComboboxMultiField
@@ -367,17 +610,17 @@ export function ExperienceEditor({
             testId="experience-skills"
           />
           {form.skills.length > 0 && (
-            <div className="space-y-1.5 rounded-lg border border-[var(--as-border)] p-2.5">
+            <div className="space-y-1.5">
               {form.skills.map((s, i) => (
                 <div
                   key={s.skill_key}
-                  className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2"
+                  className="flex items-center gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2.5 py-1.5 transition-colors duration-150 hover:border-[var(--as-accent)]"
                 >
-                  <span className="truncate text-xs text-[var(--as-fg)]">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--as-fg)]">
                     {skillChoices.find((o) => o.value === s.skill_key)?.label ?? s.skill_key}
                   </span>
                   <select
-                    className="w-28 cursor-pointer rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-1 text-xs outline-none transition-colors focus:border-[var(--as-accent)]"
+                    className="cursor-pointer rounded-full border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs text-[var(--as-fg)] outline-none transition-colors focus:border-[var(--as-accent)]"
                     value={s.role_in_item}
                     aria-label={t("experience.roleForAria", { skill: s.skill_key })}
                     onChange={(e) =>
@@ -436,54 +679,7 @@ export function ExperienceEditor({
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs text-[var(--as-muted-fg)]">
-            {t("experience.achievementsLabel")}
-          </p>
-          {form.achievements.map((a, i) => (
-            <FormRow key={i} error={err(errors.achievements[i])}>
-              <div className="flex items-end gap-2">
-                <div className="min-w-0 flex-1">
-                  <TextField
-                    label={t("experience.achievementN", { index: i + 1 })}
-                    value={a.text}
-                    onChange={(text) =>
-                      patch({
-                        achievements: form.achievements.map((x, j) =>
-                          j === i ? { ...x, text } : x
-                        ),
-                      })
-                    }
-                    maxLength={500}
-                    placeholder={t("experience.achievementPlaceholder")}
-                    testId={`achievement-text-${i}`}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => patch({ achievements: form.achievements.filter((_, j) => j !== i) })}
-                  aria-label={t("experience.removeAchievementN", { index: i + 1 })}
-                  title={t("experience.removeAchievement")}
-                  data-testid={`achievement-remove-${i}`}
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                </Button>
-              </div>
-            </FormRow>
-          ))}
-          <button
-            type="button"
-            onClick={() => patch({ achievements: [...form.achievements, { text: "", metric: null }] })}
-            className="cursor-pointer rounded-lg border border-dashed border-[var(--as-border)] px-3 py-1.5 text-xs text-[var(--as-muted-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
-            data-testid="add-achievement"
-          >
-            <Plus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
-            {t("experience.addAchievement")}
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-xs text-[var(--as-muted-fg)]">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
             {t("experience.linksLabel")}
           </p>
           {form.links.map((l, i) => (
@@ -557,7 +753,7 @@ export function ExperienceEditor({
         </div>
       </div>
 
-      <div className="sticky bottom-0 mt-auto flex shrink-0 items-center justify-end gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] px-5 py-3">
+      <div className="sticky bottom-0 mt-auto flex shrink-0 items-center justify-end gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] py-3 pl-5 pr-24 sm:pl-10">
         <Button variant="ghost" onClick={onCancel} data-testid="cancel-experience">
           {t("common.cancel")}
         </Button>
@@ -569,19 +765,3 @@ export function ExperienceEditor({
   );
 }
 
-export function ExperienceEditorEmpty({ onAdd }: { onAdd: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-6" data-testid="experience-editor">
-      <EmptyState
-        title={t("experience.nothingSelected")}
-        description={t("experience.emptyBody")}
-        action={
-          <Button variant="default" onClick={onAdd}>
-            {t("experience.addEntry")}
-          </Button>
-        }
-      />
-    </div>
-  );
-}

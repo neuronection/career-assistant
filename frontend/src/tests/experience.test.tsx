@@ -140,7 +140,7 @@ describe("Experience workspace", () => {
     );
   }
 
-  it("renders the full-bleed workspace shell with rail and empty editor", async () => {
+  it("renders the full-bleed workspace shell with a full-width grid when nothing is open", async () => {
     renderPage();
     expect(await screen.findByTestId("experience-toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("years-of-experience")).toHaveTextContent("0.9y");
@@ -148,16 +148,15 @@ describe("Experience workspace", () => {
       "href",
       "/profile"
     );
-    expect(screen.getByTestId("pane-switcher")).toBeInTheDocument();
-    expect(screen.getByTestId("pane-switcher").className).toContain("ca-ws-switcher");
     expect(screen.getByTestId("experience-page").className).toContain("ca-workspace");
     expect(screen.getByTestId("experience-rail").className).toContain("ca-ws-pane");
+    expect(screen.getByTestId("experience-grid").className).not.toContain("ca-ws-grid");
     expect(screen.getByTestId("experience-item-e1")).toHaveTextContent(
       "DevOps intern"
     );
     expect(screen.getByTestId("experience-item-e1")).toHaveTextContent("40h/wk");
-    const editor = screen.getByTestId("experience-editor");
-    expect(within(editor).getByText("Nothing selected")).toBeInTheDocument();
+    expect(screen.queryByTestId("experience-editor")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pane-switcher")).not.toBeInTheDocument();
     expect(screen.queryByTestId("derivation-panel")).toBeNull();
   });
 
@@ -186,6 +185,9 @@ describe("Experience workspace", () => {
     const user = userEvent.setup();
     renderPage();
     await openItem("e1");
+    expect(screen.getByTestId("experience-editor")).toBeInTheDocument();
+    expect(screen.getByTestId("pane-switcher")).toBeInTheDocument();
+    expect(screen.getByTestId("experience-grid").className).toContain("ca-ws-grid");
     const editor = screen.getByTestId("experience-editor");
     const title = within(editor).getByTestId("experience-title");
     expect(title).toHaveValue("DevOps intern");
@@ -404,7 +406,8 @@ describe("Experience workspace", () => {
     await openItem("e1");
     const editor = screen.getByTestId("experience-editor");
     await user.click(within(editor).getByTestId("cancel-experience"));
-    expect(await screen.findByText("Nothing selected")).toBeInTheDocument();
+    expect(await screen.findByTestId("experience-item-e1")).toBeInTheDocument();
+    expect(screen.queryByTestId("experience-editor")).not.toBeInTheDocument();
   });
 
   it("re-applies derivation automatically after a save and reports the outcome", async () => {
@@ -430,6 +433,36 @@ describe("Experience workspace", () => {
     await user.click(screen.getByText("Skills"));
     expect(screen.getByTestId("derivation-panel")).toHaveTextContent(
       "No skill estimates yet"
+    );
+  });
+
+  it("adds reorderable bullets with an optional metric and saves them", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openItem("e1");
+    await user.click(screen.getByTestId("add-achievement"));
+    await user.type(screen.getByTestId("achievement-text-0"), "Cut deploy time");
+    await user.click(screen.getByTestId("achievement-metric-add-0"));
+    await user.clear(screen.getByTestId("achievement-metric-value-0"));
+    await user.type(screen.getByTestId("achievement-metric-value-0"), "40");
+    await user.click(screen.getByTestId("add-achievement"));
+    await user.type(screen.getByTestId("achievement-text-1"), "Automated monitoring");
+    await user.click(screen.getByTestId("achievement-up-1"));
+    const texts = screen
+      .getAllByTestId(/^achievement-text-/)
+      .map((el) => (el as HTMLTextAreaElement).value);
+    expect(texts).toEqual(["Automated monitoring", "Cut deploy time"]);
+    await user.click(within(screen.getByTestId("experience-editor")).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(updateExperienceItem).toHaveBeenCalledWith(
+        "e1",
+        expect.objectContaining({
+          achievements: [
+            { text: "Automated monitoring", metric: null },
+            { text: "Cut deploy time", metric: { kind: "time_saved", value: 40, unit: "%" } },
+          ],
+        })
+      )
     );
   });
 
