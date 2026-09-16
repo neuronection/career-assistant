@@ -203,7 +203,12 @@ export function useCareerChat() {
   }, [stream.status, stream.nodes, stream.toolCalls, stream.startedAt, stream.error]);
 
   const submit = async () => {
-    const content = draft.trim();
+    // The state draft can lag the persisted one by a render (batched
+    // programmatic input events) — prefer whichever holds text so a
+    // submit pressed right after typing is never silently dropped.
+    const content =
+      draft.trim() ||
+      getDraft(useChatStore.getState().activeSessionId).trim();
     if (content === "" || sending) {
       return;
     }
