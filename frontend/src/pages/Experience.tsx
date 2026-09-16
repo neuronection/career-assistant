@@ -16,7 +16,7 @@ import {
   Trash2,
   ChevronRight,
 } from "lucide-react";
-import { Button, ConfirmationModal } from "@/components/ui";
+import { Button, ConfirmationModal, SegmentedTabs } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 import { fetchSkillOntology } from "@/api/skills";
@@ -114,7 +114,7 @@ export function Experience() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [applyState, setApplyState] = useState<string | null>(null);
-  const [derivationOpen, setDerivationOpen] = useState(true);
+  const [tab, setTab] = useState<"entries" | "skills">("entries");
   const [deleted, setDeleted] = useState<ExperienceItemOut[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -152,7 +152,7 @@ export function Experience() {
     return (
       <article
         key={item.id}
-        className={`group relative cursor-pointer rounded-xl border p-3 transition-colors duration-150 ${
+        className={`group relative cursor-pointer rounded-xl border p-2.5 transition-colors duration-150 ${
           active
             ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
             : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
@@ -168,7 +168,7 @@ export function Experience() {
         >
           <span className="flex min-w-0 items-start gap-2.5">
             <span
-              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
                 active
                   ? "bg-[color-mix(in_srgb,var(--as-accent)_15%,transparent)] text-[var(--as-accent)]"
                   : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
@@ -197,14 +197,15 @@ export function Experience() {
               </span>
               {item.description && (
                 <span
-                  className="mt-1 line-clamp-2 block text-xs leading-snug text-[var(--as-muted-fg)]/90"
+                  className="mt-0.5 line-clamp-1 block text-xs leading-snug text-[var(--as-muted-fg)]/90"
+                  title={item.description}
                 >
                   {item.description}
                 </span>
               )}
               {item.skills.length > 0 && (
-                <span className="mt-1.5 flex flex-wrap gap-1">
-                  {item.skills.slice(0, 4).map((s) => (
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {item.skills.slice(0, 3).map((s) => (
                     <span
                       key={s.skill_key}
                       className="rounded-full border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]"
@@ -212,9 +213,9 @@ export function Experience() {
                       {s.skill_label}
                     </span>
                   ))}
-                  {item.skills.length > 4 && (
+                  {item.skills.length > 3 && (
                     <span className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]">
-                      +{item.skills.length - 4}
+                      +{item.skills.length - 3}
                     </span>
                   )}
                 </span>
@@ -592,7 +593,23 @@ export function Experience() {
         ))}
       </div>
 
-      <div className="ca-ws-grid grid min-h-0 flex-1 grid-cols-1 gap-3">
+      <div
+        className="shrink-0"
+        data-testid="experience-tabs"
+      >
+        <SegmentedTabs
+          ariaLabel={t("experience.tabsAria")}
+          items={[
+            { value: "entries", label: t("experience.tab.entries") },
+            { value: "skills", label: t("experience.tab.skills") },
+          ]}
+          value={tab}
+          onValueChange={(next) => setTab(next as "entries" | "skills")}
+          className="max-w-xs"
+        />
+      </div>
+
+      <div className="ca-ws-grid ca-ws-grid-wide grid min-h-0 flex-1 grid-cols-1 gap-3">
         <div
           ref={railRef}
           tabIndex={-1}
@@ -601,27 +618,20 @@ export function Experience() {
           } ca-ws-pane cv-pane-enter min-h-0 flex-col gap-3 overflow-y-auto outline-none`}
           data-testid="experience-rail"
         >
-          {derived.length > 0 && (
+          {tab === "skills" ? (
             <section
               className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
               data-testid="derivation-panel"
             >
-              <button
-                type="button"
-                onClick={() => setDerivationOpen((v) => !v)}
-                aria-expanded={derivationOpen}
-                className="flex w-full cursor-pointer items-center justify-between gap-2"
-                data-testid="derivation-toggle"
-              >
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--as-fg)]">
-                  {t("experience.derivedTitle")}
-                </span>
-                <span className="text-xs text-[var(--as-muted-fg)]">
-                  {derivationOpen ? t("common.hide") : t("common.show")}
-                </span>
-              </button>
-              <div className="cv-collapse" data-open={derivationOpen}>
-                <div className="overflow-hidden">
+              <h2 className="text-sm font-semibold text-[var(--as-fg)]">
+                {t("experience.derivedTitle")}
+              </h2>
+              {derived.length === 0 ? (
+                <p className="mt-3 text-sm text-[var(--as-muted-fg)]">
+                  {t("experience.derivedEmpty")}
+                </p>
+              ) : (
+                <>
                   <div className="mt-3 space-y-2">
                     {derived.map((d) => (
                       <div key={d.skill_id} className="flex items-center gap-3 text-xs">
@@ -653,11 +663,11 @@ export function Experience() {
                       {t("experience.derivedHint")}
                     </p>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </section>
-          )}
-
+          ) : (
+            <>
           <section className="space-y-2.5" data-testid="experience-list">
             <div className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3" data-testid="experience-filters">
               <div className="relative">
@@ -833,6 +843,8 @@ export function Experience() {
                   ))
               : visible.map((item) => renderCard(item))}
           </section>
+            </>
+          )}
         </div>
 
         <div

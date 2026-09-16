@@ -72,6 +72,8 @@
     "fit": "fit",
     "aiScore": "AI",
     "yourScore": "you",
+    "match": "match",
+    "howScoresWork": "How scores work",
     "why": "why?",
     "hideBreakdown": "hide breakdown",
     "interested": "♥ interested",
@@ -82,6 +84,18 @@
     "sortAiScore": "AI score",
     "sortMyScore": "My score",
     "sortDemand": "Demand"
+  },
+  "scoreInfo": {
+    "title": "How scores work",
+    "matchLabel": "Match",
+    "matchBody": "— the headline number: 60% fit + 40% AI. Until an AI score exists, fit stands in for it.",
+    "fitLabel": "Fit",
+    "fitBody": "— a deterministic, dimension-by-dimension comparison (skills, education, interests, …) weighted by the sliders you set under “Adjust weights”.",
+    "aiLabel": "AI",
+    "aiBody": "— the rationale layer: an AI model reads your profile against this job and scores it 0–10 with pros and cons.",
+    "youLabel": "You",
+    "youBody": "— your own rating. It never changes the ranking order.",
+    "neutralNote": "Dimensions showing a neutral 7.0 (“no signal”) don't have enough data — they are skipped, not scored."
   },
   "dimensions": {
     "skills": "Skills",
@@ -2091,11 +2105,17 @@
     "addEntry": "Add entry",
     "yearsDerived": "≈ {{years}}y derived",
     "panesAria": "Workspace panes",
+    "tabsAria": "Experience sections",
     "pane": {
       "list": "List",
       "editor": "Editor"
     },
     "derivedTitle": "Skill level estimates",
+    "derivedEmpty": "No skill estimates yet — save an entry with skills and they appear here.",
+    "tab": {
+      "entries": "Entries",
+      "skills": "Skills"
+    },
     "levelOf": "≈ level {{level}} · {{months}}mo",
     "appliedClean": "Applied {{count}} skill level(s) from your experience.",
     "appliedWithConflicts": "Applied {{count}} skill level(s); {{conflicts}} conflict(s) need review.",

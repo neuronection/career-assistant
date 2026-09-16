@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recha
 import { fetchRankings, rateJob } from "@/api/matching";
 import { fetchProfile } from "@/api/profile";
 import { DemandBadge } from "@/components/DemandBadge";
+import { ScoreLegend } from "@/components/ScoreLegend";
 import { ScoreRing } from "@/components/ScoreRing";
 import { WeightsEditor } from "@/components/WeightsEditor";
 import { RecentSearches } from "@/components/RecentSearches";
@@ -128,6 +129,7 @@ export function Rankings() {
           {t(stretch ? "rankings.titleStretch" : "rankings.title")}
         </h1>
         <FitStaleBadge />
+        <ScoreLegend align="start" />
       </div>
       <div className="grid lg:grid-cols-[260px_1fr] gap-6">
         <aside className="bg-white border border-slate-200 rounded-xl p-4 space-y-4" data-testid="filter-bar">
@@ -256,7 +258,27 @@ export function Rankings() {
           ) : (
             items.map((r) => (
             <div key={r.job.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
-              <ScoreRing score={r.score} />
+              <div className="flex flex-col items-center gap-0.5 shrink-0">
+                <ScoreRing score={r.score} size={52} />
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.match")}</span>
+              </div>
+              <div
+                className="flex shrink-0 items-center gap-4 pr-4 border-r border-slate-100 self-stretch"
+                data-testid={`scores-${r.job.code}`}
+              >
+                <div className="text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.fit")}</p>
+                  <p className="text-sm font-semibold text-slate-700">{Number(r.fit_score).toFixed(1)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.aiScore")}</p>
+                  <p className="text-sm font-semibold text-slate-700">{r.ai_score != null ? Number(r.ai_score).toFixed(1) : "–"}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.yourScore")}</p>
+                  <p className="text-sm font-semibold text-slate-700">{r.user_score ?? "–"}</p>
+                </div>
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Link to={`/jobs/${r.job.code}`} className="font-medium text-slate-900 hover:text-primary-700 truncate">
@@ -275,18 +297,13 @@ export function Rankings() {
                   )}
                 </div>
                 <p className="text-sm text-slate-500 truncate">{r.job.short_description}</p>
-                <div className="flex gap-3 mt-1 text-xs text-slate-400">
-                  <span>{t("rankings.fit")} {Number(r.fit_score).toFixed(1)}</span>
-                  <span>{t("rankings.aiScore")} {r.ai_score != null ? Number(r.ai_score).toFixed(1) : "–"}</span>
-                  <span>{t("rankings.yourScore")} {r.user_score ?? "–"}</span>
-                  <button
-                    onClick={() => setExpanded(expanded === r.job.id ? null : r.job.id)}
-                    className="text-primary-700 hover:underline"
-                    data-testid={`breakdown-toggle-${r.job.code}`}
-                  >
-                    {expanded === r.job.id ? t("rankings.hideBreakdown") : t("rankings.why")}
-                  </button>
-                </div>
+                <button
+                  onClick={() => setExpanded(expanded === r.job.id ? null : r.job.id)}
+                  className="mt-1 text-xs text-primary-700 hover:underline"
+                  data-testid={`breakdown-toggle-${r.job.code}`}
+                >
+                  {expanded === r.job.id ? t("rankings.hideBreakdown") : t("rankings.why")}
+                </button>
                 {expanded === r.job.id && r.breakdown && (
                   <FitBars breakdown={r.breakdown} />
                 )}

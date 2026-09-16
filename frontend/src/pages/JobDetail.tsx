@@ -8,6 +8,7 @@ import { hideJob, markSeen, saveJob } from "@/api/engagement";
 import { fetchMarketSnapshot, fetchMarketTrend, type MarketTrendPoint } from "@/api/growth";
 import { AiButton } from "@/components/AiButton";
 import { DemandBadge } from "@/components/DemandBadge";
+import { ScoreLegend } from "@/components/ScoreLegend";
 import { ScoreRing } from "@/components/ScoreRing";
 import { MarketTrendStrip } from "@/components/MarketTrendStrip";
 import { FitBars } from "@/pages/Rankings";
@@ -127,6 +128,13 @@ export function JobDetail() {
     }
   };
 
+  const fitScore = insight?.fit_score != null ? Number(insight.fit_score) : null;
+  const aiScore = insight?.ai_score != null ? Number(insight.ai_score) : null;
+  const matchScore =
+    fitScore != null
+      ? Math.round((0.6 * fitScore + 0.4 * (aiScore ?? fitScore)) * 100) / 100
+      : null;
+
   const saveRating = async (nextScore: number | null, nextStatus: MatchStatus | null) => {
     if (!job) return;
     try {
@@ -214,22 +222,40 @@ export function JobDetail() {
             </button>
           </div>
         </div>
-        <div className="flex flex-col items-center gap-2 bg-white border border-slate-200 rounded-xl p-4">
-          <ScoreRing score={insight?.ai_score != null ? Number(insight.ai_score) : null} size={72} />
-          <span className="text-xs text-slate-400">AI match</span>
-          {insight?.ai_generated_at ? (
-            <span className="text-xs text-slate-400">{Number(insight.ai_score).toFixed(1)}/10</span>
-          ) : (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shrink-0" data-testid="job-score-card">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col items-center gap-0.5">
+              <ScoreRing score={matchScore} size={72} />
+              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
+                {t("rankings.match")}
+                <ScoreLegend />
+              </span>
+            </div>
+            <div className="flex items-center gap-4 px-4 border-l border-slate-100 self-stretch" data-testid="job-scores">
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.fit")}</p>
+                <p className="text-sm font-semibold text-slate-700">{fitScore != null ? fitScore.toFixed(1) : "–"}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.aiScore")}</p>
+                <p className="text-sm font-semibold text-slate-700">{aiScore != null ? aiScore.toFixed(1) : "–"}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.yourScore")}</p>
+                <p className="text-sm font-semibold text-slate-700">{userScore ?? "–"}</p>
+              </div>
+            </div>
+          </div>
+          {aiScore == null ? (
             <button
               onClick={() => void score()}
               disabled={busy}
-              className="text-xs bg-primary-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
+              className="mt-3 w-full text-xs bg-primary-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
             >
               {busy ? t("jobDetail.scoring") : t("jobDetail.scoreForMe")}
             </button>
-          )}
-          {insight?.ai_generated_at && (
-            <button onClick={() => void score()} disabled={busy} className="text-xs text-primary-700">
+          ) : (
+            <button onClick={() => void score()} disabled={busy} className="mt-3 w-full text-xs text-primary-700">
               re-score
             </button>
           )}

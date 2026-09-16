@@ -107,14 +107,21 @@ export function Layout() {
           compact={isShort}
           className="h-full border-slate-200 bg-white shadow-lg lg:shadow-none"
           header={
-            <div className={`flex h-14 items-center border-b border-slate-100 ${collapsed ? "justify-center px-2" : "gap-2.5 px-4"}`}>
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              aria-label={t("nav.dashboard")}
+              className={`flex h-14 w-full items-center border-b border-slate-100 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-600 ${
+                collapsed ? "justify-center px-2" : "gap-2.5 px-4"
+              }`}
+            >
               <img src="/icon-light.svg" alt="Career Assistant logo" className="h-8 w-8 shrink-0 rounded-lg" />
               {!collapsed && (
                 <span className="truncate text-[15px] font-bold text-slate-900">
                   Career <span className="text-primary-600">Assistant</span>
                 </span>
               )}
-            </div>
+            </button>
           }
           footer={
             <div className="flex flex-col gap-2">

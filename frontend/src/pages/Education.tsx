@@ -695,7 +695,7 @@ export function Education() {
         ))}
       </div>
 
-      <div className="ca-ws-grid grid min-h-0 flex-1 grid-cols-1 gap-3">
+      <div className="ca-ws-grid ca-ws-grid-wide grid min-h-0 flex-1 grid-cols-1 gap-3">
         <div
           ref={railRef}
           tabIndex={-1}

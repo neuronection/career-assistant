@@ -158,9 +158,17 @@ describe("Experience workspace", () => {
     expect(screen.getByTestId("experience-item-e1")).toHaveTextContent("40h/wk");
     const editor = screen.getByTestId("experience-editor");
     expect(within(editor).getByText("Nothing selected")).toBeInTheDocument();
-    const panel = screen.getByTestId("derivation-panel");
-    expect(panel).toHaveTextContent("Python");
-    expect(panel).toHaveTextContent("level 3.2");
+    expect(screen.queryByTestId("derivation-panel")).toBeNull();
+  });
+
+  it("shows the skill estimates on the Skills tab", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("experience-item-e1");
+    expect(screen.queryByTestId("derivation-panel")).toBeNull();
+    await user.click(screen.getByText("Skills"));
+    expect(screen.getByTestId("derivation-panel")).toHaveTextContent("Python");
+    expect(screen.getByTestId("derivation-panel")).toHaveTextContent("level 3.2");
   });
 
   it("renders a startless project card without crashing (start: null)", async () => {
@@ -405,22 +413,23 @@ describe("Experience workspace", () => {
     await openItem("e1");
     await user.click(screen.getByTestId("save-experience"));
     await waitFor(() => expect(applyDerivation).toHaveBeenCalled());
+    await user.click(screen.getByText("Skills"));
     expect(await screen.findByTestId("apply-state")).toHaveTextContent(
       "Applied 1 skill level(s)"
     );
   });
 
-  it("collapses the derivation panel", async () => {
+  it("shows the empty hint on the Skills tab without derived skills", async () => {
     const user = userEvent.setup();
+    vi.mocked(fetchDerivation).mockResolvedValue({
+      skills: [],
+      years_of_experience: 0,
+    }) as never;
     renderPage();
-    await screen.findByTestId("derivation-panel");
-    const toggle = screen.getByTestId("derivation-toggle");
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await screen.findByTestId("experience-item-e1");
+    await user.click(screen.getByText("Skills"));
     expect(screen.getByTestId("derivation-panel")).toHaveTextContent(
-      "Skill level estimates"
+      "No skill estimates yet"
     );
   });
 

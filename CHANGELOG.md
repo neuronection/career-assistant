@@ -4,6 +4,41 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Experience (and Education) workspaces give the item list more
+  room**: the master-detail split now uses the wide rail (up to
+  ~400px for navigating existing entries) instead of the default
+  260–340px — the editor form stays capped and centered, so the
+  reclaimed space comes out of its dead whitespace.
+- **Experience workspace: skills move to their own tab and entry
+  cards shrink**: the skill-level estimates panel (with the
+  auto-apply status) now lives under a dedicated Entries / Skills
+  tab switch instead of sitting above the entry list, and cards are
+  more compact — tighter padding, smaller icon, descriptions clamped
+  to one line (full text on hover) and at most three skill chips.
+
+- **Experience workspace: skills move to their own tab and entry
+  cards shrink**: the skill-level estimates panel (with the
+  auto-apply status) now lives under a dedicated Entries / Skills
+  tab switch instead of sitting above the entry list, and cards are
+  more compact — tighter padding, smaller icon, descriptions clamped
+  to one line (full text on hover) and at most three skill chips.
+
+- **The mock AI provider is now opt-in** (was auto-provisioned in
+  dev): set `MOCK_AI=1` or start the dev group with
+  `./scripts/run-dev.sh --mock-ai` to enable the built-in offline mock.
+  Without it, dev AI endpoints answer 503 until a real provider is
+  configured in Settings → AI Configuration — and already-seeded mock
+  rows in older dev databases are invisible to task resolution.
+  Production still blocks the mock provider entirely.
+- **Rankings and job page show all scores together**: the score ring
+  (now labeled "match" — the blended 0.6·fit + 0.4·AI score) sits
+  beside a compact fit / AI / your-score stat cluster on both the
+  Rankings rows and the job detail score card, with the sidebar logo
+  navigating back to the dashboard. A shared "How scores work" ⓘ
+  popover (Rankings header + job page score card) explains the score
+  layers, the blend and the neutral-dimension rule.
+
 ## [v0.10.0] - 2026-09-16
 
 ### Changed
