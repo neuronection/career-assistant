@@ -14,9 +14,12 @@ centered `max-w-7xl` column:
 - `Layout.tsx` keeps a route allow-list (`useMatch`) of full-bleed
   paths; those render `flex min-h-0 flex-col … lg:h-full` so panes
   scroll independently and the page owns the full viewport height.
-- Structure: **toolbar row → three-pane grid**
-  `lg:grid-cols-[minmax(230px,280px)_minmax(0,1fr)_minmax(290px,340px)]`
-  (context | canvas hero | inspector; two panes for the template editor).
+- Structure: **toolbar row → pane grid** (context | canvas hero |
+  inspector; two panes for the template editor). Rail widths are
+  per-page via the `ca-ws-grid` CSS var: default
+  `minmax(260px,340px)`, `ca-ws-grid-narrow` `minmax(230px,280px)`
+  (CvBuilder inspector), `ca-ws-grid-wide` `minmax(330px,400px)`
+  (template editor side).
 - Panes are rounded
   `border border-[var(--as-border)]` cards; the canvas pane is the hero
   (largest, live preview). **Elevation is a three-step ladder** (plan

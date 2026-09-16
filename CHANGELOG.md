@@ -5,6 +5,12 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **CV Studio panes follow the available width too**: the CV builder and
+  template editor panes now switch their layout by the space they actually
+  get (container query) instead of the window width — beside the chat
+  sidepanel the builder swaps to its List/Editor-style pane switcher and
+  the template editor keeps a sane settings/preview split instead of
+  crushing the panes.
 - **Catalog → Profile-style layout (plan 96)**: the job-catalog tree now
   uses the same two-pane section shell as the Profile page — job families
   sit in a left rail (with job counts) beside search and results, instead

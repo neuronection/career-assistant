@@ -1042,7 +1042,7 @@ export function CvBuilder() {
   ];
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:h-full" data-testid="cv-builder">
+    <div className="ca-workspace flex min-h-0 flex-col gap-3 lg:h-full" data-testid="cv-builder">
       <BuilderToolbar
         title={cv.title}
         onRename={(title) => void renameCv(title)}
@@ -1117,7 +1117,7 @@ export function CvBuilder() {
         onRunFinished={() => void refreshPreview().then(refreshMeta)}
       />
 
-      <div className="mb-2 flex shrink-0 gap-1 lg:hidden" role="group" aria-label={t("experience.panesAria")} data-testid="pane-switcher">
+      <div className="ca-ws-switcher mb-2 flex shrink-0 gap-1" role="group" aria-label={t("experience.panesAria")} data-testid="pane-switcher">
         {(
           [
             ["canvas", t("cvBuilder.pane.preview")],
@@ -1143,11 +1143,11 @@ export function CvBuilder() {
         )}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(230px,280px)_minmax(0,1fr)] lg:gap-4">
+      <div className="ca-ws-grid ca-ws-grid-narrow grid min-h-0 flex-1 grid-cols-1 gap-3">
         <div
           className={`${
             activePane === "inspector" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col rounded-xl border border-transparent bg-[var(--as-muted)] p-2.5 lg:flex`}
+          } ca-ws-pane cv-pane-enter min-h-0 flex-col rounded-xl border border-transparent bg-[var(--as-muted)] p-2.5`}
           data-testid="builder-inspector"
         >
           <InspectorPanel
@@ -1241,7 +1241,7 @@ export function CvBuilder() {
         <div
           className={`${
             activePane === "canvas" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col lg:flex`}
+          } ca-ws-pane cv-pane-enter min-h-0 flex-col`}
           data-testid="builder-canvas"
         >
           {critique && !critiqueDismissed && (

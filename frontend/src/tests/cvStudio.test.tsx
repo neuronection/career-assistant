@@ -1288,6 +1288,14 @@ describe("CvBuilder", () => {
     expect(screen.getByTestId("ats-chip")).toHaveTextContent("ATS 92");
   });
 
+  it("keys its panes off the workspace container, not the viewport", async () => {
+    renderBuilder();
+    expect(await screen.findByTestId("cv-builder")).toHaveClass("ca-workspace");
+    expect(screen.getByTestId("pane-switcher")).toHaveClass("ca-ws-switcher");
+    expect(screen.getByTestId("builder-inspector")).toHaveClass("ca-ws-pane");
+    expect(screen.getByTestId("builder-canvas")).toHaveClass("ca-ws-pane");
+  });
+
   it("hosts the sections panel as the inspector's default tab", async () => {
     renderBuilder();
     expect(await screen.findByTestId("builder-inspector")).toBeInTheDocument();

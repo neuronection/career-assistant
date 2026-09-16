@@ -34,9 +34,18 @@ body {
   container-type: inline-size;
 }
 
+/* Per-page rail width; consumed by the container rule below. */
+.ca-ws-grid-narrow {
+  --ca-ws-rail: minmax(230px, 280px);
+}
+
+.ca-ws-grid-wide {
+  --ca-ws-rail: minmax(330px, 400px);
+}
+
 @container (min-width: 48rem) {
   .ca-ws-grid {
-    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    grid-template-columns: var(--ca-ws-rail, minmax(260px, 340px)) minmax(0, 1fr);
     gap: 1rem;
   }
 

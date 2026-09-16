@@ -368,7 +368,7 @@ export function CvTemplateEditor() {
   const isBank = source.author_key === "bank";
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:h-full" data-testid="cv-template-editor">
+    <div className="ca-workspace flex min-h-0 flex-col gap-3 lg:h-full" data-testid="cv-template-editor">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-48 max-w-md flex-1 basis-64">
           <input
@@ -399,7 +399,7 @@ export function CvTemplateEditor() {
         </p>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(330px,400px)_minmax(0,1fr)] lg:gap-4">
+      <div className="ca-ws-grid ca-ws-grid-wide grid min-h-0 flex-1 grid-cols-1 gap-3">
         <div
           className="min-h-0 space-y-3 lg:overflow-y-auto lg:pr-1"
           data-testid="template-editor-side"
