@@ -357,7 +357,9 @@ async def test_pin_applies_for_project_items(client, db, auth_headers):
     )
     assert preview.status_code == 200, preview.text
     html = preview.json()["html"]
-    assert "Synthesized project description" in html, "the pinned project variant must render"
+    assert "Synthesized project description" in html, (
+        "the pinned project variant must render"
+    )
     assert "Original project description" not in html
 
 

@@ -119,7 +119,7 @@ function VariantsForItem({
           data-testid="context-pin-inactive"
         >
           <AmberBadge testId="context-pin-inactive-badge">pin inactive</AmberBadge>
-          The starred variant isn't active for this item — activate it or
+          The starred variant isn&apos;t active for this item — activate it or
           re-star.
         </p>
       )}

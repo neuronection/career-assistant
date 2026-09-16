@@ -241,7 +241,8 @@ async def test_lint_warns_when_pin_variant_is_archived_by_activation(
         )
     ).json()["items"][0]
     await client.patch(
-        f"/api/v1/cv/synth/{first['id']}", json={"status": "active"},
+        f"/api/v1/cv/synth/{first['id']}",
+        json={"status": "active"},
         headers=auth_headers,
     )
     second = (
@@ -257,7 +258,8 @@ async def test_lint_warns_when_pin_variant_is_archived_by_activation(
     # Activating the second retires the first (slot supersede) — the pin
     # now points at an archived row.
     await client.patch(
-        f"/api/v1/cv/synth/{second['id']}", json={"status": "active"},
+        f"/api/v1/cv/synth/{second['id']}",
+        json={"status": "active"},
         headers=auth_headers,
     )
     lint = (
