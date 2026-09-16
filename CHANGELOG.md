@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.10.0] - 2026-09-16
+
 ### Changed
 - **CV Studio panes follow the available width too**: the CV builder and
   template editor panes now switch their layout by the space they actually
