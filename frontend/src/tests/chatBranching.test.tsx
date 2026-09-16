@@ -75,6 +75,7 @@ describe("ChatWidget branching UI", () => {
       sessions: [],
       activeSessionId: "s1",
       chatMode: "bubble",
+      bubbleOpen: false,
       messages: branchedMessages(),
     });
   });

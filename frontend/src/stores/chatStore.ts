@@ -24,6 +24,10 @@ interface ChatState {
    * side column ( review — one chatbot, three shapes: bubble,
    *  docked, page). The page stays route-based (/chat). */
   chatMode: ChatMode;
+  /** Whether the bubble panel is expanded — transient, never persisted.
+   *  Store-owned so the /chat page can close the floating window and
+   *  take over its active conversation (one open surface at a time). */
+  bubbleOpen: boolean;
   /** One pinned chat session per entity surface, keyed `cv:{id}` —
    *  study's `viewerAsks` pattern: the CV-builder copilot reuses its
    *  session instead of spawning a new one per visit. */
@@ -40,6 +44,7 @@ interface ChatState {
   pendingCvAttach: { id: string; title: string } | null;
   setPendingCvAttach: (cv: { id: string; title: string } | null) => void;
   setChatMode: (mode: ChatMode) => void;
+  setBubbleOpen: (open: boolean) => void;
   /** Refetch the persisted turn after a streamed reply lands. */
   refresh: (sessionId: string) => Promise<void>;
   reset: () => void;
@@ -52,6 +57,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeSessionId: null,
   messages: [],
   chatMode: loadPersistedChatMode(),
+  bubbleOpen: false,
   pinnedAsks: {},
   pendingCvAttach: null,
 
@@ -113,6 +119,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ chatMode: mode });
   },
 
+  setBubbleOpen: (open) => {
+    set({ bubbleOpen: open });
+  },
+
   refresh: async (sessionId) => {
     const [messages, sessions] = await Promise.all([
       uniApi.fetchMessages(sessionId),
@@ -129,6 +139,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       pinnedAsks: {},
       chatMode: "docked",
+      bubbleOpen: false,
     });
   },
 }));

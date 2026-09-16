@@ -713,6 +713,15 @@ export function ChatWidget() {
     }
   }, [location.pathname]);
 
+  // Another shape taking over closes the floating window; entering
+  // /chat closes it on the page (ChatPage) so the close rides the
+  // route commit instead of racing the switcher's navigation.
+  useEffect(() => {
+    if (chatMode !== "bubble") {
+      useChatStore.getState().setBubbleOpen(false);
+    }
+  }, [chatMode]);
+
   if (location.pathname === "/chat" || chatMode !== "bubble") {
     return null;
   }
@@ -729,18 +738,21 @@ export function ChatWidget() {
 /**
  * The bubble owns its close inside the panel header (library
  * `showClose={false}`) — the launcher's overlaid close used to sit on
- * top of the header actions and intercept their clicks.
+ * top of the header actions and intercept their clicks. Open state
+ * lives in the chat store, so opening the /chat page closes the
+ * floating window and the page takes over its active conversation.
  */
 function BubbleLauncher() {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const open = useChatStore((state) => state.bubbleOpen);
+  const setBubbleOpen = useChatStore((state) => state.setBubbleOpen);
   return (
     <ChatLauncher
       label={t("chat.launcherLabel")}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={setBubbleOpen}
       showClose={false}
-      panel={<ChatSurface variant="bubble" onClose={() => setOpen(false)} />}
+      panel={<ChatSurface variant="bubble" onClose={() => setBubbleOpen(false)} />}
     />
   );
 }
@@ -765,6 +777,9 @@ function clampChatWidth(value: number): number {
  * Same provider, same surface, same session as bubble and page.
  * Closing the dock hands off to the bubble launcher (the quiet
  * re-open surface); only explicit user gestures switch chat mode.
+ * The dock yields to the /chat page (never mounted beside it) while
+ * chatMode persists — leaving the page brings the dock back with the
+ * conversation it had, which the interview hand-off relies on.
  * Width-aware: above lg the dock never takes more than the viewport
  * minus the expanded sidebar and a ~20rem content floor (the page
  * column must stay usable); below lg it becomes a full-screen chat
@@ -772,12 +787,17 @@ function clampChatWidth(value: number): number {
  * page to zero width).
  */
 export function ChatDock() {
+  const location = useLocation();
   const { t } = useTranslation();
   const [width, setWidth] = useState(() => {
     const stored = Number(localStorage.getItem(CHAT_DOCK_WIDTH_KEY));
     return Number.isFinite(stored) && stored >= 320 ? clampChatWidth(stored) : 400;
   });
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  if (location.pathname === "/chat") {
+    return null;
+  }
 
   const onResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     dragRef.current = { startX: event.clientX, startWidth: width };

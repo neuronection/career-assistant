@@ -73,7 +73,7 @@ const SESSION = {
   last_activity_at: "2026-09-14T12:00:00Z",
 };
 
-function mount(route = "/chat") {
+function mount(route = "/") {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <ChatDock />
@@ -104,7 +104,7 @@ describe("CV reference attachments (plan 78.3)", () => {
 
   it("attaches any CV through the popover and caps at two", async () => {
     const user = userEvent.setup();
-    mount("/chat");
+    mount("/");
     await user.click(screen.getByTestId("chat-attach-open"));
     await screen.findByTestId("chat-attach-cv-cv-1");
     await user.click(screen.getByTestId("chat-attach-cv-cv-1"));
@@ -117,7 +117,7 @@ describe("CV reference attachments (plan 78.3)", () => {
 
   it("sends attachments with the message and clears them", async () => {
     const user = userEvent.setup();
-    mount("/chat");
+    mount("/");
     await user.click(screen.getByTestId("chat-attach-open"));
     await screen.findByTestId("chat-attach-cv-cv-1");
     await user.click(screen.getByTestId("chat-attach-cv-cv-1"));
@@ -162,7 +162,7 @@ describe("CV reference attachments (plan 78.3)", () => {
         },
       ],
     });
-    mount("/chat");
+    mount("/");
     const chips = await screen.findAllByTestId("cv-ref-chip-cv-1");
     expect(chips.length).toBe(2);
     for (const chip of chips) {

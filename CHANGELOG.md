@@ -5,6 +5,15 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **One chat surface at a time: the chat page now takes over** —
+  opening `/chat` closes an expanded floating bubble (it stays closed
+  after leaving the page) and the docked side panel no longer renders
+  beside the page; the conversation that was open in either surface
+  opens on the page (the shared active session survives), and leaving
+  the page restores the dock with that same conversation (the
+  interview hand-off is unchanged). Choosing the popup shape from the
+  view switcher is now an explicit open gesture — the floating window
+  expands immediately instead of leaving only the launcher bubble.
 - **Experience editor: bullets are now a first-class section** —
   the structured highlights move up beside the description as
   reorderable "Bullets" (↑/↓) with roomier inputs and an optional

@@ -101,6 +101,7 @@ beforeEach(() => {
     activeSessionId: "s-cv",
     messages: [],
     chatMode: "bubble" as never,
+    bubbleOpen: false,
   });
   useCvBuilderLink.setState({ lastBuilderState: null, liveTurns: {}, flushCallback: null });
 });

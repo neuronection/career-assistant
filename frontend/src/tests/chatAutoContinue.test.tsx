@@ -133,7 +133,7 @@ function resetStores() {
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={["/chat"]}>
+    <MemoryRouter initialEntries={["/"]}>
       <ChatDock />
     </MemoryRouter>,
   );

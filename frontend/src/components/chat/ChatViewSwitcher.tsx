@@ -12,16 +12,27 @@ export type ChatSurfaceShape = "bubble" | "docked" | "page";
  * — floating bubble, docked side column, /chat page — shows this
  * switcher, so users can move the conversation between shapes without
  * losing the session. "Page" is route-based; "docked" vs "bubble" is
- * the persisted `chatMode` on the chat store.
+ * the persisted `chatMode` on the chat store. Choosing the popup is an
+ * explicit open gesture: the floating window expands immediately (the
+ * dock's close button keeps its quiet hand-off to a collapsed FAB).
  */
 export function ChatViewSwitcher({ surface }: { surface: ChatSurfaceShape }) {
   const { t } = useTranslation();
   const setChatMode = useChatStore((state) => state.setChatMode);
+  const setBubbleOpen = useChatStore((state) => state.setBubbleOpen);
   const navigate = useNavigate();
 
   const leavePage = (mode: "bubble" | "docked") => {
     navigate("/");
     setChatMode(mode);
+    if (mode === "bubble") {
+      setBubbleOpen(true);
+    }
+  };
+
+  const openPopup = () => {
+    setChatMode("bubble");
+    setBubbleOpen(true);
   };
 
   return (
@@ -46,7 +57,7 @@ export function ChatViewSwitcher({ surface }: { surface: ChatSurfaceShape }) {
         data-testid="chat-view-popup"
         title={t("chatView.popup")}
         aria-label={t("chatView.popup")}
-        onClick={() => (surface === "page" ? leavePage("bubble") : setChatMode("bubble"))}
+        onClick={() => (surface === "page" ? leavePage("bubble") : openPopup())}
       >
         <PictureInPicture2 className="size-4" />
       </Button>

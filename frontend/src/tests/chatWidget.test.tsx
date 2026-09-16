@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Link, Route, Routes } from "react-router-dom";
 
-import { ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatPage } from "@/pages/ChatPage";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
@@ -74,7 +75,7 @@ function renderWidget(path = "/") {
 describe("ChatWidget (library surface)", () => {
   beforeEach(() => {
     vi.useRealTimers()
-    useChatStore.setState({ chatMode: "bubble" });
+    useChatStore.setState({ chatMode: "bubble", bubbleOpen: false });
     streamChatMessage.mockReset();
     aiApi.fetchAiTools.mockReset().mockResolvedValue([
       {
@@ -107,7 +108,7 @@ describe("ChatWidget (library surface)", () => {
       context: null,
       created_at: "2026-09-06T10:00:00Z",
     });
-    useChatStore.setState({ sessions: [], activeSessionId: null, messages: [] });
+    useChatStore.setState({ sessions: [], activeSessionId: null, messages: [], bubbleOpen: false });
   });
 
   it("opens the bubble to a fresh composer and starts conversations lazily", async () => {
@@ -542,5 +543,110 @@ describe("opt-in bubble launcher (plan 75)", () => {
     expect(screen.getByTestId("chat-dock-resize-handle").className).toContain(
       "max-lg:hidden"
     );
+  });
+});
+
+describe("opening the chat page takes over overlay surfaces", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+    api.fetchChatSessions.mockReset().mockResolvedValue([]);
+    api.fetchMessages.mockReset().mockResolvedValue([]);
+    useChatStore.setState({
+      sessions: [],
+      activeSessionId: "s1",
+      messages: [],
+      chatMode: "docked",
+      bubbleOpen: false,
+    });
+  });
+
+  function renderShell() {
+    function Shell() {
+      const chatMode = useChatStore((state) => state.chatMode);
+      return (
+        <>
+          <Routes>
+            <Route
+              path="/chat"
+              element={
+                <div data-testid="chat-page">
+                  <ChatPage />
+                </div>
+              }
+            />
+            <Route path="*" element={<div data-testid="other-page" />} />
+          </Routes>
+          {chatMode === "docked" && <ChatDock />}
+          <ChatWidget />
+          <nav>
+            <Link to="/chat">Open chat page</Link>
+            <Link to="/">Leave chat page</Link>
+          </nav>
+        </>
+      );
+    }
+    return render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Shell />
+      </MemoryRouter>,
+    );
+  }
+
+  it("closes an expanded bubble and hands its conversation to the page", async () => {
+    const user = userEvent.setup();
+    useChatStore.getState().setChatMode("bubble");
+    renderShell();
+    await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    await screen.findByRole("textbox", { name: "Message" });
+    expect(useChatStore.getState().bubbleOpen).toBe(true);
+
+    await user.click(screen.getByText("Open chat page"));
+
+    expect(
+      screen.queryByRole("complementary", { name: "Open chat assistant" })
+    ).not.toBeInTheDocument();
+    expect(useChatStore.getState().bubbleOpen).toBe(false);
+    // The page opens the same conversation — the shared session survives.
+    expect(useChatStore.getState().activeSessionId).toBe("s1");
+
+    await user.click(screen.getByText("Leave chat page"));
+    expect(useChatStore.getState().chatMode).toBe("bubble");
+    expect(
+      screen.queryByRole("complementary", { name: "Open chat assistant" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open chat assistant" })).toBeInTheDocument();
+  });
+
+  it("closes the dock on the page and restores it with the same conversation after leaving", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    expect(screen.getByTestId("chat-dock")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Open chat page"));
+    expect(screen.queryByTestId("chat-dock")).not.toBeInTheDocument();
+    expect(useChatStore.getState().chatMode).toBe("docked");
+    expect(useChatStore.getState().activeSessionId).toBe("s1");
+
+    await user.click(screen.getByText("Leave chat page"));
+    expect(screen.getByTestId("chat-dock")).toBeInTheDocument();
+    expect(useChatStore.getState().activeSessionId).toBe("s1");
+  });
+
+  it("opens the floating window when the popup switcher leaves the page", async () => {
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByText("Open chat page"));
+    await user.click(within(screen.getByTestId("chat-page")).getByTestId("chat-view-popup"));
+
+    expect(screen.getByTestId("other-page")).toBeInTheDocument();
+    expect(useChatStore.getState().chatMode).toBe("bubble");
+    // The explicit popup choice expands the floating window, not just the FAB.
+    expect(useChatStore.getState().bubbleOpen).toBe(true);
+    expect(
+      await screen.findByRole("complementary", { name: "Open chat assistant" })
+    ).toBeInTheDocument();
+    expect(useChatStore.getState().activeSessionId).toBe("s1");
   });
 });

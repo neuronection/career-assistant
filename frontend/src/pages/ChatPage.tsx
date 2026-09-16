@@ -22,6 +22,10 @@ export function ChatPage() {
 
   useEffect(() => {
     void loadSessions();
+    // The page takes over the open chat surfaces: the bubble collapses
+    // (and stays collapsed after leaving) while the dock yields via its
+    // own /chat guard. The conversation itself is shared store state.
+    useChatStore.getState().setBubbleOpen(false);
   }, [loadSessions]);
 
   return (
