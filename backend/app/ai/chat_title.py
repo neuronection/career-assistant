@@ -53,8 +53,8 @@ async def generate_session_title(db, user_id, first_message: str) -> str:
     return fallback_title(first_message)
 
 
-def _mock_title(schema: type[ChatTitleOut], user: str) -> ChatTitleOut:
-    return schema(title="Mock generated title")
+def _mock_title(schema: type[ChatTitleOut], user: str) -> dict:
+    return {"title": "Mock generated title"}
 
 
 register_mock_fixture(AITaskType.CHAT_TITLE, _mock_title)

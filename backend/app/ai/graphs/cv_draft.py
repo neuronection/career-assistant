@@ -1219,7 +1219,7 @@ def make_review_node(deps: GraphDeps):
             measure = await measure_pages(html, page_size=cv.page_size)
         except Exception:  # noqa: BLE001 — engine missing/flaky → lint-only facts
             measure = None
-        measured_pages = measure.pages if measure is not None else 0
+        measured_pages = (measure.pages if measure is not None else 0) or 0
         _review_pages_truth(summary_lint, measured_pages, int(request.max_pages))
 
         critique, review_audit = await review_build(
@@ -1497,7 +1497,11 @@ def make_fix_node(deps: GraphDeps):
             .get("description")
             or ""
         )
-        base_texts = {tuple(ref_key.split(":", 1)): base_text} if base_text else None
+        base_texts = (
+            {(str(candidate["source_key"]), str(candidate["item_id"])): base_text}
+            if base_text
+            else None
+        )
         rows = await CvSynthService(db).generate(
             UUID(state["user_id"]),
             request,
@@ -1605,7 +1609,7 @@ def make_fix_node(deps: GraphDeps):
                 density=current.design.density,
                 page_budget=int(request.max_pages),
                 base_content=current,
-                critique_message=message,
+                critique_message=message or "",
                 run=_run_ref(state, "cv_template_design"),
             )
         else:

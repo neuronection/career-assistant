@@ -4,6 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Fixed** the CV polish review crashing when the PDF engine printed the
+  document but its page count came back unreadable — the review now falls
+  back to lint-only facts (the count stays `unverified`) instead of erroring
+  the run.
+
 ## [v0.9.0] - 2026-09-16
 
 ### Added

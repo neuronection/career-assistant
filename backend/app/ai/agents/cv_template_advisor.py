@@ -49,7 +49,7 @@ def _mock_rank(schema: type, user_prompt: str) -> dict:
         if str(candidate.get("layout") or "") == "sidebar"
     }
     hinted = "sidebar" in query or "modern" in query
-    ordered = []
+    ordered: list[str] = []
     if hinted:
         ordered.extend(ref for ref in refs if ref in sidebar_refs)
     ordered += [

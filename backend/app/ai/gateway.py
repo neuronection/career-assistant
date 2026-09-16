@@ -659,7 +659,11 @@ class StructuredStream:
                 # One non-streaming rescue — but never when answer text
                 # already streamed (the UI showed it; a diverging retry
                 # would contradict it).
-                if model is None or partial_answer_text(accumulated).strip():
+                if (
+                    model is None
+                    or messages is None
+                    or partial_answer_text(accumulated).strip()
+                ):
                     raise StructuredAIError(
                         _stream_failure_message(finish_reason)
                     ) from exc

@@ -54,15 +54,7 @@ vi.mock("@/api/cv", () => ({
 
 function seedStore() {
   useChatStore.setState({
-    sessions: [
-      {
-        id: "s1",
-        title: "Session",
-        context: null,
-        created_at: "2026-09-14T12:00:00Z",
-        last_activity_at: "2026-09-14T12:00:00Z",
-      },
-    ],
+    sessions: [SESSION],
     activeSessionId: "s1",
     messages: [],
   });
@@ -72,6 +64,14 @@ const CVS = [
   { id: "cv-1", title: "Backend CV" },
   { id: "cv-2", title: "Design CV" },
 ];
+
+const SESSION = {
+  id: "s1",
+  title: "Session",
+  context: null,
+  created_at: "2026-09-14T12:00:00Z",
+  last_activity_at: "2026-09-14T12:00:00Z",
+};
 
 function mount(route = "/chat") {
   return render(
@@ -87,6 +87,7 @@ describe("CV reference attachments (plan 78.3)", () => {
     seedStore();
     streamChatMessage.mockResolvedValue(undefined);
     cvApi.fetchCvs.mockResolvedValue(CVS);
+    api.fetchChatSessions.mockResolvedValue([SESSION]);
     api.fetchMessages.mockResolvedValue([]);
   });
 
