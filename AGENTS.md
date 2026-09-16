@@ -77,9 +77,11 @@ regenerating a baseline, drop+recreate instead).
 - JSONB mutations need `flag_modified(obj, "field")` before commit.
 - AI calls always go through `app.ai.gateway.ainvoke_structured` (audited in
   `ai_generations`). AI config is DB-only via Settings → AI Configuration —
-  never add AI_* env vars. The mock provider is dev/test-only and is
-  auto-provisioned there; production starts unconfigured (503 until an admin
-  configures a provider).
+  never add AI_* env vars. The mock provider is dev/test-only and opt-in via
+  `MOCK_AI=1` (an infra knob, not AI config; `./scripts/run-dev.sh --mock-ai`,
+  `.env.test` sets it for pytest) — off by default, mock rows are invisible
+  to resolution without it; production starts unconfigured (503 until an
+  admin configures a provider) and blocks the mock regardless.
 - **Extension points are registries**: posting sources only via the
   connector SDK (`app/connectors/`, entry-point group
   `career_assistant.connectors`, admin allowlist for plugins); periodic

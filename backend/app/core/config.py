@@ -64,8 +64,15 @@ class Settings(BaseSettings):
 
     # AI providers/models/assignments are configured exclusively through the
     # UI (Settings → AI Configuration) and stored in the database. There are
-    # deliberately NO AI_* env vars. AI_TIMEOUT is an infra knob, not config.
+    # deliberately NO AI_* env vars. AI_TIMEOUT / MOCK_AI are infra knobs,
+    # not config.
     AI_TIMEOUT: int = 120
+    # Opt-in offline AI for dev/test: when true, the built-in mock provider
+    # is auto-provisioned and mock providers resolve for AI tasks. Disabled
+    # by default — dev AI endpoints 503 until MOCK_AI=1 (scripts/run-dev.sh
+    # --mock-ai) or a real provider is configured in the UI. Production
+    # ignores this: the gateway blocks the mock provider there regardless.
+    MOCK_AI: bool = False
 
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_MB: int = 25

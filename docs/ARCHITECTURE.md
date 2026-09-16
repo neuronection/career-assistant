@@ -356,8 +356,12 @@ in the compose file for a later worker split (no Celery in v1).
 AI providers/models/task assignments live exclusively in the database
 (Settings → AI Configuration). There are deliberately no `AI_*` env vars.
 Production starts unconfigured (AI endpoints answer `503` until an admin
-adds a provider); in `APP_ENV=development` a mock provider is auto-provisioned
-so the app works without keys.
+adds a provider). The built-in mock provider is strictly opt-in: with the
+`MOCK_AI=1` infra knob (dev/test only — `./scripts/run-dev.sh --mock-ai`,
+`.env.test` sets it) a system mock provider is auto-provisioned so the app
+works without keys; with the knob off, mock rows are invisible to task
+resolution and dev AI stays unconfigured (503). The gateway refuses mock
+results in production regardless.
 
 ## Modes & data
 

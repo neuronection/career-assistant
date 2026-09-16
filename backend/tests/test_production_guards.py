@@ -44,15 +44,30 @@ async def test_production_without_providers_resolves_to_none(db, monkeypatch):
     assert await resolve_task_model(db, "match_score") is None
 
 
-async def test_dev_bootstraps_mock_provider_automatically(
-    db, monkeypatch, seeded_catalog
-):
+async def test_dev_without_mock_optin_resolves_to_none(db, monkeypatch):
+    """MOCK_AI is off by default: dev AI stays unconfigured (503 path)."""
+    monkeypatch.setattr(settings, "MOCK_AI", False)
+    assert settings.is_dev
+    assert await resolve_task_model(db, "match_score") is None
+
+
+async def test_dev_mock_optin_bootstraps_mock_provider(db, monkeypatch, seeded_catalog):
+    """MOCK_AI=1 restores the offline dev experience (run-dev.sh --mock-ai)."""
+    monkeypatch.setattr(settings, "MOCK_AI", True)
     assert settings.is_dev
     resolved = await resolve_task_model(db, "match_score")
     assert resolved is not None
     assert resolved.provider_type == "mock"
     assert resolved.model_name == "mock-large"
     assert "dev bootstrap" in resolved.source
+
+
+async def test_dev_mock_optin_hides_seeded_mock_rows(db, monkeypatch):
+    """With MOCK_AI off, already-seeded mock rows are invisible to resolution."""
+    monkeypatch.setattr(settings, "MOCK_AI", True)
+    assert await resolve_task_model(db, "match_score") is not None
+    monkeypatch.setattr(settings, "MOCK_AI", False)
+    assert await resolve_task_model(db, "match_score") is None
 
 
 async def test_production_ai_call_returns_503(

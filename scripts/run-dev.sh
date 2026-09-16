@@ -20,6 +20,11 @@
 #                                         # --yes to skip it
 #   ./scripts/run-dev.sh --no-bootstrap   # skip venv/deps bootstrap, just start
 #   ./scripts/run-dev.sh --no-migrate     # skip the alembic upgrade step
+#   ./scripts/run-dev.sh --mock-ai        # opt in to the built-in mock AI
+#                                         # provider (MOCK_AI=1) so AI features
+#                                         # work offline; default is off (AI
+#                                         # endpoints 503 until a real provider
+#                                         # is configured in Settings)
 #   ./scripts/run-dev.sh backend          # extra args pass through to honcho
 #   ./scripts/run-dev.sh -h | --help      # print this help and exit
 #
@@ -61,6 +66,10 @@ while [[ "$#" -gt 0 ]]; do
     --yes) RESET_ARGS+=(--yes) ;;
     --no-bootstrap) NO_BOOTSTRAP=true ;;
     --no-migrate) NO_MIGRATE=true ;;
+    --mock-ai)
+      export MOCK_AI=1
+      dc_warn "mock AI provider enabled (MOCK_AI=1) — scores/rationales are synthetic"
+      ;;
     -h|--help) dc_help "$SCRIPT_PATH" ;;
     *) break ;;
   esac

@@ -105,7 +105,7 @@ It is **beta** software, built for students and technical self-hosters first.
 - **Chat grounded in the catalog** — the chatbot can search jobs, pull job details and look up your matches through tool-calling over your own data.
 - **Contextual "Ask AI" buttons** — quick-assist endpoints power one-click explanations wherever they're useful in the UI.
 - **Bring your own LLM** — any OpenAI-compatible endpoint. Providers, models and per-task assignments (matching, generation, parsing, chat…) are managed in **Settings → AI Configuration** — stored in the database, encrypted at rest, with no AI environment variables at all.
-- **Dev-only mock provider** — development auto-provisions a deterministic mock so everything works offline; production refuses to serve mock results (503, audited).
+- **Dev-only mock provider** — opt-in via `MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`): the deterministic mock makes everything work offline; without it dev AI endpoints answer 503 until a provider is configured, and production refuses to serve mock results (503, audited) regardless.
 
 ### Private and auditable
 
@@ -210,7 +210,7 @@ First launch creates a strong `secret.key`, applies migrations and seeds the sta
 ### Prerequisites
 
 - **Docker** and Docker Compose (for the dev database), or **Python 3.12+ / Node 18+** for the app itself.
-- **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → AI Configuration**. In development a built-in mock provider is auto-provisioned, so the app works fully without one.
+- **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → AI Configuration**. For offline dev you can opt into the built-in mock provider with `./scripts/run-dev.sh --mock-ai` (or `MOCK_AI=1`), so the app works fully without one.
 - **PostgreSQL** — the dev compose ships one on port 5433; Redis (6380) is included for a future worker split.
 
 ## Architecture at a glance

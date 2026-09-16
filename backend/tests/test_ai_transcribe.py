@@ -1,8 +1,8 @@
 """Dictation speech-to-text endpoint.
 
-Dev/test environments auto-provision the mock provider, so the happy
-path exercises the mock branch; the unconfigured and unsupported
-branches are forced via monkeypatching.
+`.env.test` opts into the mock provider (MOCK_AI=1), so the happy path
+exercises the mock branch; the unconfigured and unsupported branches are
+forced via monkeypatching.
 """
 
 import io

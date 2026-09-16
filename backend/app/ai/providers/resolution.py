@@ -3,10 +3,12 @@
 in the database (managed via Settings → AI Configuration) — there are no
 env-var AI settings.
 
-In development/test, when nothing is configured, a system-scope mock
-provider is auto-provisioned so the whole app works offline out of the box.
-In production, unconfigured tasks resolve to ``None`` → AI endpoints return
-503 until an admin configures providers in the UI.
+The built-in mock provider is strictly opt-in via ``MOCK_AI=1`` (infra
+knob, dev/test only): when enabled, a system-scope mock provider is
+auto-provisioned and mock providers resolve for AI tasks; when disabled,
+mock rows are invisible to resolution. In production the gateway blocks
+the mock provider regardless. Unconfigured tasks resolve to ``None`` →
+AI endpoints return 503 until a provider is configured in the UI.
 """
 
 import logging
@@ -43,6 +45,13 @@ class ResolvedModel:
     tier: Optional[str] = None
 
 
+def _mock_excluded() -> list:
+    """Visibility filter: mock providers only exist when MOCK_AI is on."""
+    if settings.MOCK_AI:
+        return []
+    return [AIProvider.provider_type != "mock"]
+
+
 async def _find_assignment(
     db: AsyncSession, task_type: str, scope: str, user_id: Optional[UUID]
 ) -> Optional[tuple[AIProvider, AIModel]]:
@@ -53,6 +62,7 @@ async def _find_assignment(
         AITaskAssignment.scope == scope,
         AIModel.is_active.is_(True),
         AIProvider.is_active.is_(True),
+        *_mock_excluded(),
     ]
     if scope == "user":
         if user_id is None:
@@ -105,6 +115,7 @@ async def _find_tier_model(
             AIModel.tier == tier,
             AIProvider.is_active.is_(True),
             or_(*visibility),
+            *_mock_excluded(),
         )
         .order_by(
             case((AIProvider.scope == "user", 0), else_=1),
@@ -118,8 +129,8 @@ async def _find_tier_model(
 
 
 async def ensure_dev_bootstrap(db: AsyncSession) -> None:
-    """Dev/test convenience: seed a system mock provider once, if empty."""
-    if not settings.is_dev:
+    """Seed a system mock provider once, if empty and opted in (MOCK_AI=1)."""
+    if not settings.is_dev or not settings.MOCK_AI:
         return
     any_provider = await db.execute(select(AIProvider.id).limit(1))
     if any_provider.scalars().first() is not None:
@@ -203,8 +214,9 @@ async def resolve_task_model(
 ) -> Optional[ResolvedModel]:
     """Resolve the effective provider/model for a task and user.
 
-    Returns ``None`` when nothing is configured (production before an admin
-    sets up providers; dev auto-provisions the mock provider instead).
+    Returns ``None`` when nothing is configured (before an admin sets up
+    providers; the mock provider joins the pool only with MOCK_AI=1 in
+    dev/test).
     """
     resolved = await _resolve_scanned(db, task_type, user_id)
     if resolved is not None:
