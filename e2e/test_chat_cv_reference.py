@@ -77,22 +77,27 @@ def test_studio_ask_ai_references_cv_in_normal_chat(page) -> None:
     # The send is optimistic: the user message renders the moment submit
     # accepts it. Under CI load the composer's first Enter can be swallowed
     # before the composer state settles — recover the way a user would
-    # (refill + press again) when nothing landed.
+    # (refill + press again) when nothing landed. Guard on the bubble
+    # being absent: a slow-but-successful first send must NOT be doubled
+    # or the grounded-reply wait below hits a strict-mode duplicate.
     user_bubble = page.get_by_text("which jobs fit this CV?")
     for _ in range(3):
         try:
             user_bubble.first.wait_for(state="visible", timeout=5_000)
             break
         except PlaywrightTimeoutError:
+            if user_bubble.count() == 0:
+                composer.fill("which jobs fit this CV?")
+                composer.press("Enter")
+    else:
+        if user_bubble.count() == 0:
             composer.fill("which jobs fit this CV?")
             composer.press("Enter")
-    else:
-        composer.fill("which jobs fit this CV?")
-        composer.press("Enter")
         user_bubble.first.wait_for(state="visible", timeout=5_000)
 
-    # Mock answer: grounded in the title, explicitly read-only.
-    page.get_by_text(re.compile("Grounded in your E2E Ref CV")).wait_for(
+    # Mock answer: grounded in the title, explicitly read-only. A recovered
+    # send can legitimately produce two grounded replies — read the first.
+    page.get_by_text(re.compile("Grounded in your E2E Ref CV")).first.wait_for(
         state="visible", timeout=60_000
     )
     # Both chips render once the persisted pair lands (post-turn
