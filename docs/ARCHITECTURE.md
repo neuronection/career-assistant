@@ -30,7 +30,7 @@ flowchart LR
         FE[React SPA]
     end
     subgraph Server["One process: API + SPA (same origin)"]
-        API[FastAPI REST · single-user mode by default<br/>(JWT validated when presented; family auth later)]
+        API["FastAPI REST · single-user mode by default<br/>(JWT validated when presented; family auth later)"]
         BG[Background tasks<br/>PDF parsing · AI generation]
         REG[Registries<br/>connectors · scheduler triggers<br/>chat tools · skill packs]
         MCP[MCP server<br/>/mcp · read-scope tools]
