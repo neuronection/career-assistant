@@ -67,6 +67,28 @@ if [[ "$TARGET" == "deb" || "$TARGET" == "all" ]]; then
     "$STAGE/DEBIAN"
   install_bundle "$STAGE/usr/lib/$APP"
 
+  # The .deb runs against the SYSTEM GTK stack (see Depends below).
+  # PyInstaller collects the build host's GLib/GTK binaries, typelibs and
+  # GIO modules next to the executable, and a bundled old GLib hijacks
+  # newer hosts: the system webkit/gudev then fail with undefined symbols
+  # (g_once_init_enter_pointer, webkit_get_major_version) and pygobject
+  # dies at boot. Strip the stack so every GI/symbol resolution falls
+  # back to the system libraries the control file guarantees — the smoke
+  # in release.yml boots this exact stage under xvfb. The AppImage keeps
+  # its self-contained, internally consistent 22.04 stack instead.
+  INTERNAL="$STAGE/usr/lib/$APP/_internal"
+  rm -f "$INTERNAL"/libglib-2.0.so.* "$INTERNAL"/libgobject-2.0.so.* \
+    "$INTERNAL"/libgio-2.0.so.* "$INTERNAL"/libgmodule-2.0.so.* \
+    "$INTERNAL"/libgthread-2.0.so.* \
+    "$INTERNAL"/libgtk-3.so.* "$INTERNAL"/libgdk-3.so.* \
+    "$INTERNAL"/libgdk_pixbuf-2.0.so.* \
+    "$INTERNAL"/libgirepository-1.0.so.* \
+    "$INTERNAL"/libpango-1.0.so.* "$INTERNAL"/libpangocairo-1.0.so.* \
+    "$INTERNAL"/libpangoft2-1.0.so.* \
+    "$INTERNAL"/libcairo.so.* "$INTERNAL"/libcairo-gobject.so.*
+  rm -rf "$INTERNAL/gio_modules" "$INTERNAL/gi_typelibs" \
+    "$INTERNAL/share/glib-2.0"
+
   cat > "$STAGE/usr/bin/$APP" <<EOF
 #!/usr/bin/env bash
 exec /usr/lib/$APP/$APP "\$@"

@@ -5,6 +5,13 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **Fixed** the Linux `.deb` failing to start on newer distros (Ubuntu
+  24.04 / Mint 22+): the package accidentally shipped the build host's
+  GLib/GTK stack, which hijacked the system's newer libraries at startup
+  ("undefined symbol: g_once_init_enter_pointer" /
+  "webkit_get_major_version"). The `.deb` now uses the system GTK/WebKit
+  libraries it always declared as dependencies; the AppImage keeps its
+  self-contained stack.
 - **Fixed** the CV polish review crashing when the PDF engine printed the
   document but its page count came back unreadable — the review now falls
   back to lint-only facts (the count stays `unverified`) instead of erroring
