@@ -182,7 +182,7 @@ export function Interviews() {
 
   return (
     <div
-      className="flex min-h-0 flex-col gap-3 lg:h-full"
+      className="ca-workspace flex min-h-0 flex-col gap-3 lg:h-full"
       data-testid="interviews-page"
     >
       <div
@@ -213,9 +213,9 @@ export function Interviews() {
         </p>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:gap-4">
+      <div className="ca-ws-grid grid min-h-0 flex-1 grid-cols-1 gap-3">
         <div
-          className="cv-pane-enter min-h-0 flex-col gap-2.5 overflow-y-auto lg:flex"
+          className="ca-ws-pane cv-pane-enter min-h-0 flex-col gap-2.5 overflow-y-auto"
           data-testid="interviews-rail"
         >
           {sessions.length === 0 ? (
@@ -264,7 +264,7 @@ export function Interviews() {
         </div>
 
         <div
-          className="cv-pane-enter min-h-0 flex-col overflow-y-auto rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none lg:flex"
+          className="ca-ws-pane cv-pane-enter min-h-0 flex-col overflow-y-auto rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none"
           data-testid="interview-detail"
         >
           {!detail ? (

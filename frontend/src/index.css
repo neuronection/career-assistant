@@ -19,3 +19,32 @@ body {
 .cv-intake-pill-low {
   @apply bg-slate-200 text-slate-600;
 }
+
+/*
+ * Workspace master-detail panes keyed off the workspace's OWN width
+ * (container query) instead of the viewport: with the chat dock open the
+ * page column is narrow even on wide screens, and viewport media queries
+ * cannot see it. Below 48rem of workspace width the pane switcher shows
+ * and one pane renders at a time (the flex/hidden utilities win because
+ * this @container block is inactive); at or above it, rail + editor sit
+ * side by side and the switcher hides. Must stay AFTER @tailwind
+ * utilities so the container rules win the equal-specificity cascade.
+ */
+.ca-workspace {
+  container-type: inline-size;
+}
+
+@container (min-width: 48rem) {
+  .ca-ws-grid {
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .ca-ws-switcher {
+    display: none;
+  }
+
+  .ca-ws-pane {
+    display: flex;
+  }
+}

@@ -765,6 +765,11 @@ function clampChatWidth(value: number): number {
  * Same provider, same surface, same session as bubble and page.
  * Closing the dock hands off to the bubble launcher (the quiet
  * re-open surface); only explicit user gestures switch chat mode.
+ * Width-aware: above lg the dock never takes more than the viewport
+ * minus the expanded sidebar and a ~20rem content floor (the page
+ * column must stay usable); below lg it becomes a full-screen chat
+ * overlay instead of stealing the whole flex row (which collapsed the
+ * page to zero width).
  */
 export function ChatDock() {
   const { t } = useTranslation();
@@ -796,7 +801,7 @@ export function ChatDock() {
   return (
     <aside
       data-testid="chat-dock"
-      className="relative flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-[var(--as-border)] bg-[var(--as-surface)] max-lg:!w-full"
+      className="relative flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-[var(--as-border)] bg-[var(--as-surface)] max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:!w-full lg:max-w-[calc(100vw-36rem)]"
       style={{ width }}
     >
       <div
@@ -805,7 +810,7 @@ export function ChatDock() {
         aria-label={t("chat.resizeAria")}
         title={t("chat.resizeAria")}
         data-testid="chat-dock-resize-handle"
-        className="absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize transition-colors hover:bg-[var(--as-accent)]"
+        className="absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize transition-colors hover:bg-[var(--as-accent)] max-lg:hidden"
         onPointerDown={onResizeStart}
         onPointerMove={onResizeMove}
         onPointerUp={onResizeEnd}

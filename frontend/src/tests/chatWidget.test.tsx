@@ -526,4 +526,21 @@ describe("opt-in bubble launcher (plan 75)", () => {
     await user.click(screen.getByRole("button", { name: "Close panel" }));
     expect(useChatStore.getState().chatMode).toBe("bubble");
   });
+
+  it("stays width-aware: page floor above lg, full-screen overlay below lg", async () => {
+    const { ChatDock } = await import("@/components/chat/ChatWidget");
+    render(
+      <MemoryRouter>
+        <ChatDock />
+      </MemoryRouter>,
+    );
+    const dock = screen.getByTestId("chat-dock");
+    expect(dock.className).toContain("lg:max-w-[calc(100vw-36rem)]");
+    expect(dock.className).toContain("max-lg:fixed");
+    expect(dock.className).toContain("max-lg:inset-0");
+    expect(dock.className).toContain("max-lg:!w-full");
+    expect(screen.getByTestId("chat-dock-resize-handle").className).toContain(
+      "max-lg:hidden"
+    );
+  });
 });

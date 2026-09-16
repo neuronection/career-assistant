@@ -149,6 +149,9 @@ describe("Experience workspace", () => {
       "/profile"
     );
     expect(screen.getByTestId("pane-switcher")).toBeInTheDocument();
+    expect(screen.getByTestId("pane-switcher").className).toContain("ca-ws-switcher");
+    expect(screen.getByTestId("experience-page").className).toContain("ca-workspace");
+    expect(screen.getByTestId("experience-rail").className).toContain("ca-ws-pane");
     expect(screen.getByTestId("experience-item-e1")).toHaveTextContent(
       "DevOps intern"
     );

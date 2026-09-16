@@ -524,7 +524,7 @@ export function Experience() {
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:h-full" data-testid="experience-page">
+    <div className="ca-workspace flex min-h-0 flex-col gap-3 lg:h-full" data-testid="experience-page">
       <div
         className="flex shrink-0 flex-wrap items-center justify-between gap-3"
         data-testid="experience-toolbar"
@@ -564,7 +564,7 @@ export function Experience() {
       )}
 
       <div
-        className="mb-2 flex shrink-0 gap-1 lg:hidden"
+        className="ca-ws-switcher mb-2 flex shrink-0 gap-1"
         role="group"
         aria-label={t("experience.panesAria")}
         data-testid="pane-switcher"
@@ -592,13 +592,13 @@ export function Experience() {
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:gap-4">
+      <div className="ca-ws-grid grid min-h-0 flex-1 grid-cols-1 gap-3">
         <div
           ref={railRef}
           tabIndex={-1}
           className={`${
             activePane === "list" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col gap-3 overflow-y-auto outline-none lg:flex`}
+          } ca-ws-pane cv-pane-enter min-h-0 flex-col gap-3 overflow-y-auto outline-none`}
           data-testid="experience-rail"
         >
           {derived.length > 0 && (
@@ -840,7 +840,7 @@ export function Experience() {
           tabIndex={-1}
           className={`${
             activePane === "editor" ? "flex" : "hidden"
-          } cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none lg:flex`}
+          } ca-ws-pane cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none`}
         >
           {editorOpen ? (
             <ExperienceEditor

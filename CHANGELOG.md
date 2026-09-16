@@ -5,6 +5,17 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **Fixed the UI breaking on narrow windows with the chat sidepanel
+  open** (plan 95): the Settings/Profile section rails no longer
+  truncate their labels ("AI C…", "Ba…") when the sidepanel squeezes
+  the page — the rails now respond to the space they actually get
+  (assistant-ui `SettingsShell` container-query modes: wrapping chip
+  row when narrow, classic rail when wide). The chat sidepanel itself
+  never pushes the page below a usable width on wide screens, and on
+  small screens it opens as a full-screen chat instead of collapsing
+  the page to zero width. The Experience/Education/Interview
+  workspaces switch their list/editor panes by available width too,
+  so the editor is no longer crushed beside the sidepanel.
 - **Fixed** the Linux `.deb` failing to start on newer distros (Ubuntu
   24.04 / Mint 22+): the package accidentally shipped the build host's
   GLib/GTK stack, which hijacked the system's newer libraries at startup

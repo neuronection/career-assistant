@@ -26,10 +26,20 @@ centered `max-w-7xl` column:
   contents the same background. The token ladder
   (`muted` tone-100 → `surface` tone-50 → `surface-raised` tone-0)
   already encodes this.
-- Below `lg`, a **pane switcher** (segmented buttons, `lg:hidden`,
-  `data-testid="pane-switcher"`) toggles one pane at a time — every
-  feature stays reachable on tablet/mobile. Panes render with
-  `` `${active ? "flex" : "hidden"} lg:flex` `` so CSS decides.
+- Below the container breakpoint, a **pane switcher** (segmented
+  buttons, `data-testid="pane-switcher"`) toggles one pane at a time —
+  every feature stays reachable on tablet/mobile. Panes render with
+  `` `${active ? "flex" : "hidden"}` `` plus the `ca-ws-pane` class so
+  CSS decides. **Responsiveness is container-based, not viewport-based
+  (plan 95):** the workspace root carries `ca-workspace`
+  (`container-type: inline-size`); `ca-ws-grid` / `ca-ws-switcher` /
+  `ca-ws-pane` flip their layout in an `@container (min-width: 48rem)`
+  block in `index.css` (after the utilities — cascade wins). Viewport
+  `lg:` classes cannot see the chat dock stealing width from the page
+  column, container queries can. Experience/Education/Interviews are
+  the reference pages. The same rule drives the library
+  `SettingsShell` (Profile/Settings rails): its chip-row ↔ rail modes
+  key off the shell's own width.
 - The inspector has **three tabs** (plans 85–87), ordered Sections →
   Context → Design with **Sections as the default** (cover letters
   default to Context, where the brief lives) — each a real workspace;
