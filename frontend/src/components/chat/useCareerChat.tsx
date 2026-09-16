@@ -222,6 +222,20 @@ export function useCareerChat() {
       attachments.map(({ kind, cv_id }) => ({ kind, cv_id })),
     );
     setAttachments([]);
+    // Optimistic user message: the transcript shows it immediately; the
+    // done-turn refresh replaces it with the persisted pair.
+    useChatStore.setState({
+      messages: [
+        ...store.messages,
+        {
+          id: `local-${Date.now()}`,
+          role: "user",
+          content,
+          metadata_json: null,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
     await stream.send(content);
   };
 

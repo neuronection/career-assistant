@@ -1170,7 +1170,7 @@ ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
      min-height: {round(height_mm - 2 * margin, 2)}mm;
      border-spacing: {round(design.spacing_scale * 5, 1)}mm 0; margin: 0 -{round(design.spacing_scale * 5, 1)}mm; }}
 .cv-sidebar {{ display: table-cell; vertical-align: top; width: {design.sidebar_width_pct}%; background: {design.sidebar_color};
-     color: {design.sidebar_text_color}; border-radius: {design.corner_radius}mm;
+     color: {design.sidebar_text_color};
      padding: {f"{design.sidebar_padding_mm}mm" if design.sidebar_padding_mm is not None else "4mm 4.5mm"};
      {"column-count:" + str(design.sidebar_columns) + "; column-gap: 5mm;" if design.sidebar_columns > 1 else ""} }}
 .cv-sidebar h2 {{ break-inside: avoid; }}

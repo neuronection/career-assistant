@@ -5,11 +5,17 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Fixed
-- **Sidebar templates now paint the full page** (plan 92): on
+- **Your message shows instantly when you send it** (plan 94): the user
+  bubble appears in the transcript the moment you hit send, not after the
+  reply finishes streaming.
+- **Sidebar templates paint the full page** (plan 92): on
   sidebar-layout templates the colored side panel ran out where its
   content ended, leaving a white strip at the bottom of the page — it
   now always spans the full page height, on screen and in the printed
-  PDF.
+  PDF. Full-height side panels also drop their rounded corners.
+- **Chat bubbles softened**: one-line messages no longer render as
+  capsules — bubbles use the standard corner radius with the small tail
+  corner, and session-list titles wrap to two lines before truncating.
 
 ### Added
 - **Auto-generated chat titles (plan 93)**: a chat session's title is now
