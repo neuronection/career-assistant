@@ -9,6 +9,8 @@ builder loop IN THE SAME session (no session re-routing).
 import json
 import re
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
 from conftest import API, BASE_URL
 
 
@@ -62,6 +64,20 @@ def test_studio_ask_ai_references_cv_in_normal_chat(page) -> None:
 
     composer.fill("which jobs fit this CV?")
     composer.press("Enter")
+
+    # The send is optimistic: the user message renders the moment submit
+    # accepts it. Under CI load the composer's first Enter can be swallowed
+    # before the composer state settles — recover the way a user would
+    # (press again) when nothing landed.
+    user_bubble = page.get_by_text("which jobs fit this CV?")
+    for _ in range(3):
+        try:
+            user_bubble.first.wait_for(state="visible", timeout=5_000)
+            break
+        except PlaywrightTimeoutError:
+            composer.press("Enter")
+    else:
+        user_bubble.first.wait_for(state="visible", timeout=5_000)
 
     # Mock answer: grounded in the title, explicitly read-only.
     page.get_by_text(re.compile("Grounded in your E2E Ref CV")).wait_for(
