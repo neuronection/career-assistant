@@ -4,6 +4,8 @@ Both verbs are tenant-scoped through `_owned_session` (the established
 career convention: foreign sessions yield 403, missing ones 404).
 """
 
+from datetime import datetime, timedelta, timezone
+
 from app.models.chat_model import ChatMessage, ChatSession
 from sqlalchemy import select
 
@@ -105,6 +107,18 @@ async def test_list_reports_last_activity_and_orders_by_it(client, db, auth_head
     db.add(
         ChatMessage(
             session_id=older["id"], role="user", content="keep this thread alive"
+        )
+    )
+    # Empty sessions (never chatted) are invisible in the list (plan 93),
+    # so the "newer" thread needs a message to be listed at all. Its
+    # message is explicitly an hour old: the test asserts the older
+    # thread's fresh message wins the recency ordering.
+    db.add(
+        ChatMessage(
+            session_id=newer["id"],
+            role="user",
+            content="newer thread alive",
+            created_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
     )
     await db.commit()

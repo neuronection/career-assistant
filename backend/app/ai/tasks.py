@@ -177,6 +177,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.STRONG.value,
     ),
     TaskDef(
+        AITaskType.CHAT_TITLE.value,
+        "Chat session title from the first message",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.AUTOPILOT_RUN.value,
         "Autopilot search planning/curation for a career goal",
         AICapability.TEXT.value,

@@ -143,6 +143,7 @@ async def _send_sync(session_id, data, user, db) -> list[MessageOut]:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    await ChatService(db).autotitle_if_first_turn(user.id, session_id, data.content)
     rows = await ChatService(db).messages(user.id, session_id)
     return [MessageOut.model_validate(m) for m in rows[-2:]]
 
@@ -436,6 +437,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 for proposal in created_proposals:
                     proposal.chat_message_id = message.id
                 await db.commit()
+            await ChatService(db).autotitle_if_first_turn(user.id, session.id, content)
             yield _sse(
                 "meta",
                 {

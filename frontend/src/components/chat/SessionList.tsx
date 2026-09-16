@@ -31,7 +31,7 @@ export function SessionList({
   const sessions = useChatStore((state) => state.sessions);
   const activeSessionId = useChatStore((state) => state.activeSessionId);
   const openSession = useChatStore((state) => state.openSession);
-  const newSession = useChatStore((state) => state.newSession);
+  const resetToDraft = useChatStore((state) => state.resetToDraft);
   const renameSession = useChatStore((state) => state.renameSession);
   const deleteSession = useChatStore((state) => state.deleteSession);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export function SessionList({
           onPick?.();
         }}
         onNew={() => {
-          void newSession();
+          resetToDraft();
           onPick?.();
         }}
         searchable={searchable}

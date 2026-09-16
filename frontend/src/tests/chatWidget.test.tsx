@@ -110,14 +110,17 @@ describe("ChatWidget (library surface)", () => {
     useChatStore.setState({ sessions: [], activeSessionId: null, messages: [] });
   });
 
-  it("opens the bubble, lists sessions, and starts a new conversation", async () => {
+  it("opens the bubble to a fresh composer and starts conversations lazily", async () => {
     const user = userEvent.setup();
     renderWidget();
     await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
-    expect(await screen.findByText("Nursing roles")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "New chat" }));
-    expect(useChatStore.getState().activeSessionId).toBe("s2");
+    // Fresh chat: the composer is immediately usable, no history rows shown.
     expect(await screen.findByRole("textbox", { name: "Message" })).toBeInTheDocument();
+    expect(screen.queryByText("Nursing roles")).not.toBeInTheDocument();
+    // "New chat" is a client-side reset — no session row until a message is sent.
+    await user.click(screen.getByRole("button", { name: "New chat" }));
+    expect(useChatStore.getState().activeSessionId).toBeNull();
+    expect(api.createChatSession).not.toHaveBeenCalled();
   });
 
   it("closes the bubble from the header close (no overlaid launcher close)", async () => {
@@ -393,6 +396,7 @@ describe("ChatWidget (library surface)", () => {
     const user = userEvent.setup();
     renderWidget();
     await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    await user.click(await screen.findByRole("button", { name: "Chat history" }));
     await screen.findByText("Nursing roles");
 
     await user.click(screen.getByRole("button", { name: "Rename" }));

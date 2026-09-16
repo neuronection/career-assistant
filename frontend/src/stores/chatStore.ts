@@ -31,6 +31,7 @@ interface ChatState {
   loadSessions: () => Promise<void>;
   openSession: (id: string) => Promise<void>;
   newSession: () => Promise<ChatSession>;
+  resetToDraft: () => void;
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   pinAsk: (key: string, sessionId: string) => void;
@@ -68,6 +69,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const session = await uniApi.createChatSession({});
     set({ sessions: [session, ...get().sessions], activeSessionId: session.id, messages: [] });
     return session;
+  },
+
+  resetToDraft: () => {
+    set({ activeSessionId: null, messages: [], pendingCvAttach: null });
   },
 
   renameSession: async (id, title) => {

@@ -120,7 +120,14 @@ class ChatService:
     ) -> list[tuple[ChatSession, datetime]]:
         """Sessions of the caller with computed last activity, most recent
         first. `updated_at` only moves on session-row writes (rename), so
-        the real recency signal is the newest message timestamp."""
+        the real recency signal is the newest message timestamp. Sessions
+        without any message (opened but never used) stay invisible."""
+        message_count = (
+            select(func.count(ChatMessage.id))
+            .where(ChatMessage.session_id == ChatSession.id)
+            .correlate(ChatSession)
+            .scalar_subquery()
+        )
         last_message_at = (
             select(func.max(ChatMessage.created_at))
             .where(ChatMessage.session_id == ChatSession.id)
@@ -128,7 +135,9 @@ class ChatService:
             .scalar_subquery()
         )
         rows = await self.db.execute(
-            select(ChatSession, last_message_at).where(ChatSession.user_id == user_id)
+            select(ChatSession, last_message_at).where(
+                ChatSession.user_id == user_id, message_count > 0
+            )
         )
         items = [
             (session, self._last_activity(session, last_message))
@@ -193,6 +202,29 @@ class ChatService:
         """Delete a session owned by the caller; messages cascade."""
         session = await self._owned_session(user_id, session_id)
         await self.db.delete(session)
+        await self.db.commit()
+
+    async def message_count(self, session_id: uuid.UUID) -> int:
+        """Number of messages already persisted in the session."""
+        rows = await self.db.execute(
+            select(func.count(ChatMessage.id)).where(
+                ChatMessage.session_id == session_id
+            )
+        )
+        return int(rows.scalar_one())
+
+    async def autotitle_if_first_turn(
+        self, user_id: uuid.UUID, session_id: uuid.UUID, content: str
+    ) -> None:
+        """After the first exchange (user + assistant), replace the default
+        title with an auto-generated one — LLM task with a deterministic
+        truncation fallback. Later turns are no-ops."""
+        if await self.message_count(session_id) != 2:
+            return
+        session = await self._owned_session(user_id, session_id)
+        from app.ai.chat_title import generate_session_title
+
+        session.title = await generate_session_title(self.db, user_id, content)
         await self.db.commit()
 
     async def _all_messages(self, session: ChatSession) -> list[ChatMessage]:

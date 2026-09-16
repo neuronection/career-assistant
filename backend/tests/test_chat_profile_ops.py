@@ -98,9 +98,10 @@ async def test_cache_primes_and_followup_without_keywords(
     session = await _session(client, auth_headers)
 
     # Session API responses never expose the internal cache (it is only
-    # written server-side; this first GET happens before priming anyway).
+    # written server-side). Empty sessions are invisible in the list
+    # (plan 93) — this session has no messages yet.
     listing = await client.get("/api/v1/chat/sessions", headers=auth_headers)
-    assert "profile_digests" not in (listing.json()[0].get("context") or {})
+    assert listing.json() == []
 
     gateway_module.register_mock_fixture(AITaskType.CHAT, edit_ops)
     try:

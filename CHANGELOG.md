@@ -12,6 +12,15 @@ All notable changes to **Career Assistant** are documented here.
   PDF.
 
 ### Added
+- **Auto-generated chat titles (plan 93)**: a chat session's title is now
+  generated from your first message by a small fast AI task (assignable in
+  Settings → AI Configuration); when no AI model is configured it falls
+  back to the first line of your message — sessions never sit untitled as
+  "New chat".
+- **Fresh chat on open (plan 93)**: opening the chat page, bubble or dock
+  now starts a clean composer immediately — sessions are only created when
+  you actually send the first message, and empty sessions no longer appear
+  in the history list.
 - **Sunken workspace panes (plan 90)**: the builder's inspector is now a
   slightly darker tray, so the section cards, context groups and inputs
   inside it visibly float instead of blending into the pane — a

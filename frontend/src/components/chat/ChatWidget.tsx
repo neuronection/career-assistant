@@ -592,14 +592,6 @@ function ComposerBar() {
   );
 }
 
-function SessionPicker() {
-  return (
-    <div className="p-2">
-      <SessionList searchable={false} />
-    </div>
-  );
-}
-
 function HistoryButton() {
   const loadSessions = useChatStore((state) => state.loadSessions);
   return (
@@ -684,7 +676,6 @@ function ChatSurface({
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const chat = useCareerChatContext();
   const compact = variant === "bubble";
   return (
     <ChatPanel
@@ -696,7 +687,7 @@ function ChatSurface({
           <ToolsButton />
           <ChatViewSwitcher surface={variant === "sidebar" ? "docked" : variant} />
           <BranchTreeButton />
-          <Button variant="ghost" size="sm" aria-label={t("chat.newChatAria")} onClick={() => void chat.newSession()}>
+          <Button variant="ghost" size="sm" aria-label={t("chat.newChatAria")} onClick={() => useChatStore.getState().resetToDraft()}>
             <Plus className="size-4" />
           </Button>
           {onClose && (
@@ -706,8 +697,8 @@ function ChatSurface({
           )}
         </>
       }
-      transcript={chat.activeSessionId ? <MessageList compact={compact} /> : <SessionPicker />}
-      composer={chat.activeSessionId ? <ComposerBar /> : undefined}
+      transcript={<MessageList compact={compact} />}
+      composer={<ComposerBar />}
     />
   );
 }

@@ -43,6 +43,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.EMBED.value: 1,
     AITaskType.MCP_TOOL_CALL.value: 1,
     AITaskType.TRANSCRIBE.value: 1,
+    AITaskType.CHAT_TITLE.value: 1,
 }
 
 

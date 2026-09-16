@@ -72,7 +72,36 @@ async def test_quick_assist(client, auth_headers, profile_ready, seeded_catalog)
     assert body["answer"]
 
 
-async def test_sessions_listed_newest_first(client, auth_headers):
+async def test_sessions_listed_newest_first(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    first = (
+        await client.post(
+            "/api/v1/chat/sessions", json={"title": "One"}, headers=auth_headers
+        )
+    ).json()
+    second = (
+        await client.post(
+            "/api/v1/chat/sessions", json={"title": "Two"}, headers=auth_headers
+        )
+    ).json()
+    await client.post(
+        f"/api/v1/chat/sessions/{first['id']}/messages",
+        json={"content": "I like software and games, what jobs exist?"},
+        headers=auth_headers,
+    )
+    await client.post(
+        f"/api/v1/chat/sessions/{second['id']}/messages",
+        json={"content": "hello there"},
+        headers=auth_headers,
+    )
+    listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
+    assert [s["id"] for s in listed] == [second["id"], first["id"]]
+
+
+async def test_sessions_without_messages_are_not_listed(
+    client, auth_headers, profile_ready, seeded_catalog
+):
     first = (
         await client.post(
             "/api/v1/chat/sessions", json={"title": "One"}, headers=auth_headers
@@ -84,4 +113,64 @@ async def test_sessions_listed_newest_first(client, auth_headers):
         )
     ).json()
     listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
+    assert listed == []
+
+    await client.post(
+        f"/api/v1/chat/sessions/{first['id']}/messages",
+        json={"content": "I like software and games, what jobs exist?"},
+        headers=auth_headers,
+    )
+    listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
+    assert [s["id"] for s in listed] == [first["id"]]
+
+    await client.post(
+        f"/api/v1/chat/sessions/{second['id']}/messages",
+        json={"content": "what about data roles?"},
+        headers=auth_headers,
+    )
+    listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
     assert [s["id"] for s in listed] == [second["id"], first["id"]]
+
+
+async def test_first_exchange_autotitles_the_session(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    session = (
+        await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)
+    ).json()
+    await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": "How do I become a data analyst?"},
+        headers=auth_headers,
+    )
+    listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
+    assert [s["title"] for s in listed] == ["Mock generated title"]
+
+
+async def test_autotitle_falls_back_to_the_message_text(
+    client, auth_headers, profile_ready, seeded_catalog, monkeypatch
+):
+    from app.ai import chat_title
+    from app.core.errors import AINotConfiguredError
+
+    async def unconfigured(*args, **kwargs):
+        raise AINotConfiguredError("no ai provider configured")
+
+    monkeypatch.setattr(chat_title, "ainvoke_structured", unconfigured)
+
+    session = (
+        await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)
+    ).json()
+    content = (
+        "I want to move from retail into backend engineering, "
+        "where should I start learning Python and system design?"
+    )
+    await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": content},
+        headers=auth_headers,
+    )
+    listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
+    expected = chat_title.fallback_title(content)
+    assert [s["title"] for s in listed] == [expected]
+    assert len(expected) <= 60
