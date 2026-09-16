@@ -55,28 +55,40 @@ def test_studio_ask_ai_references_cv_in_normal_chat(page) -> None:
 
     # The open CV is suggested in the composer; the pending-attach bridge
     # may already have attached it — either way it rides the message.
+    # Under load the bridge and the manual chip race: the suggestion can
+    # unmount mid-click (element detached) once the bridge lands, so the
+    # click failure is not fatal — the pending chip is the source of truth.
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)
     attached = dock.locator(f'[data-testid="chat-attachment-{cv_id}"]')
     if attached.count() == 0:
-        dock.get_by_test_id("chat-attach-cv").click()
-        attached.wait_for(state="visible", timeout=10_000)
+        try:
+            dock.get_by_test_id("chat-attach-cv").click(timeout=5_000)
+        except PlaywrightTimeoutError:
+            pass
+    attached.wait_for(state="visible", timeout=10_000)
 
+    # The composer remount race can also wipe the draft after fill —
+    # re-establish the text before every (re)send so a submit never runs
+    # against an empty composer.
     composer.fill("which jobs fit this CV?")
     composer.press("Enter")
 
     # The send is optimistic: the user message renders the moment submit
     # accepts it. Under CI load the composer's first Enter can be swallowed
     # before the composer state settles — recover the way a user would
-    # (press again) when nothing landed.
+    # (refill + press again) when nothing landed.
     user_bubble = page.get_by_text("which jobs fit this CV?")
     for _ in range(3):
         try:
             user_bubble.first.wait_for(state="visible", timeout=5_000)
             break
         except PlaywrightTimeoutError:
+            composer.fill("which jobs fit this CV?")
             composer.press("Enter")
     else:
+        composer.fill("which jobs fit this CV?")
+        composer.press("Enter")
         user_bubble.first.wait_for(state="visible", timeout=5_000)
 
     # Mock answer: grounded in the title, explicitly read-only.
