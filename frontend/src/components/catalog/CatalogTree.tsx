@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { LayoutGrid } from "lucide-react";
+import { SettingsShell, type SettingsNavItem } from "@neuronection/assistant-ui";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { JobCard } from "@/components/JobCard";
 import { RecentSearches } from "@/components/RecentSearches";
@@ -49,72 +51,102 @@ export function CatalogTree() {
     setHistoryKey((k) => k + 1);
   };
 
+  const selectFamily = (key: string | null) => {
+    setOpenFamily(key);
+    void loadJobs(key ? { family_key: key } : {});
+  };
+
+  const nav: SettingsNavItem[] = useMemo(
+    () =>
+      families.map((f) => ({
+        id: f.key,
+        label: f.label,
+        trailing: (
+          <span
+            className="text-xs tabular-nums text-[var(--as-muted-fg)]"
+            data-testid={`family-count-${f.key}`}
+          >
+            {f.job_count}
+          </span>
+        ),
+      })),
+    [families]
+  );
+  const activeTopLevel = useMemo(
+    () => topLevelAncestorKey(families, openFamily),
+    [families, openFamily]
+  );
+  const activeNode = useMemo(() => findNode(families, openFamily), [families, openFamily]);
+
   return (
-    <div className="grid lg:grid-cols-[320px_1fr] gap-6">
-      <aside className="bg-white border border-slate-200 rounded-xl p-3 space-y-1 max-h-[70vh] overflow-y-auto">
-        {families.map((f) => (
-          <FamilyNode
-            key={f.key}
-            family={f}
-            openKey={openFamily}
-            onToggle={(key) => {
-              setOpenFamily(key === openFamily ? null : key);
-              void loadJobs({ family_key: key });
-            }}
-          />
-        ))}
-      </aside>
-      <section>
+    <SettingsShell
+      nav={nav}
+      active={activeTopLevel ?? ""}
+      onNavigate={(key) => selectFamily(key)}
+      header={{ icon: LayoutGrid, title: t("catalog.families") }}
+      navTestId="catalog-families"
+    >
+      <div className="space-y-4" data-testid="catalog-tree">
         <input
           placeholder={t("catalog.searchPlaceholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full mb-4 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+          aria-label={t("catalog.searchPlaceholder")}
+          className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)] outline-none transition-colors focus:border-[var(--as-primary)]"
         />
-        <div className="mb-4">
-          <RecentSearches scope="catalog" onApply={applySearch} refreshKey={historyKey} />
-        </div>
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <RecentSearches scope="catalog" onApply={applySearch} refreshKey={historyKey} />
+        {activeNode && activeNode.children.length > 0 && (
+          <div className="flex flex-wrap gap-2" data-testid="catalog-subfamilies">
+            {activeNode.children.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => selectFamily(c.key)}
+                data-testid={`subfamily-${c.key}`}
+                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-1.5 text-xs font-medium text-[var(--as-fg)] transition-colors hover:bg-[var(--as-muted)]"
+              >
+                {c.label}
+                <span className="tabular-nums text-[var(--as-muted-fg)]">{c.job_count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filteredJobs.map((job) => (
             <JobCard key={job.id} job={job} onSelect={(j) => navigate(`/jobs/${j.code}`)} />
           ))}
         </div>
-      </section>
-    </div>
+      </div>
+    </SettingsShell>
   );
 }
 
-function FamilyNode({
-  family,
-  openKey,
-  onToggle,
-  depth = 0,
-}: {
-  family: JobFamilyNode;
-  openKey: string | null;
-  onToggle: (key: string) => void;
-  depth?: number;
-}) {
-  const isOpen = openKey === family.key;
-  return (
-    <div style={{ paddingLeft: depth * 12 }}>
-      <button
-        onClick={() => onToggle(family.key)}
-        className={`w-full text-left text-sm px-3 py-2 rounded-lg flex items-center justify-between ${
-          isOpen ? "bg-primary-50 text-primary-700 font-medium" : "hover:bg-slate-100"
-        }`}
-      >
-        <span>{family.label}</span>
-        <span className="text-xs text-slate-400">{family.job_count}</span>
-      </button>
-      {(isOpen || familyHasOpenChild(family, openKey)) &&
-        family.children.map((c) => (
-          <FamilyNode key={c.key} family={c} openKey={openKey} onToggle={onToggle} depth={depth + 1} />
-        ))}
-    </div>
-  );
+function findNode(
+  families: JobFamilyNode[],
+  key: string | null
+): JobFamilyNode | null {
+  if (!key) return null;
+  for (const family of families) {
+    if (family.key === key) return family;
+    const hit = findNode(family.children, key);
+    if (hit) return hit;
+  }
+  return null;
 }
 
-function familyHasOpenChild(family: JobFamilyNode, openKey: string | null): boolean {
-  return family.children.some((c) => c.key === openKey || familyHasOpenChild(c, openKey));
+function topLevelAncestorKey(
+  families: JobFamilyNode[],
+  key: string | null
+): string | null {
+  if (!key) return null;
+  for (const family of families) {
+    if (family.key === key || familyHasDescendant(family, key)) return family.key;
+  }
+  return null;
+}
+
+function familyHasDescendant(family: JobFamilyNode, key: string): boolean {
+  return family.children.some(
+    (c) => c.key === key || familyHasDescendant(c, key)
+  );
 }

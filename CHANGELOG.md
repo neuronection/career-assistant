@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Catalog → Profile-style layout (plan 96)**: the job-catalog tree now
+  uses the same two-pane section shell as the Profile page — job families
+  sit in a left rail (with job counts) beside search and results, instead
+  of a full-width list pushing the jobs down. Sub-families drill in as
+  chips, and the whole page adapts to the space it actually gets: chips
+  when narrow or beside the chat sidepanel, rail when wide.
+
 ### Fixed
 - **Fixed the UI breaking on narrow windows with the chat sidepanel
   open** (plan 95): the Settings/Profile section rails no longer

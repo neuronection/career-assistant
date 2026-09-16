@@ -172,7 +172,63 @@ describe("Catalog subtabs", () => {
     );
     await waitFor(() => expect(screen.getByText("Creative & Arts")).toBeInTheDocument());
     const familyButton = screen.getByRole("button", { name: /Creative & Arts/ });
-    expect(familyButton).toHaveClass("font-medium");
+    expect(familyButton).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders families as a SettingsShell rail and loads jobs on selection", async () => {
+    const user = userEvent.setup();
+    renderCatalog();
+
+    await waitFor(() => expect(screen.getByTestId("catalog-families")).toBeInTheDocument());
+    expect(screen.getByTestId("family-count-technology")).toHaveTextContent("2");
+    expect(screen.queryByTestId("catalog-subfamilies")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Technology/ }));
+    await waitFor(() =>
+      expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "technology" }))
+    );
+    expect(screen.getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("drills into children as chips and highlights the top-level rail ancestor", async () => {
+    const user = userEvent.setup();
+    const technology: JobFamilyNode = {
+      id: "f1",
+      key: "technology",
+      label: "Technology",
+      parent_id: null,
+      path: "technology",
+      level: 0,
+      description: "",
+      job_count: 2,
+      children: [
+        {
+          id: "f1-1",
+          key: "software-dev",
+          label: "Software Development",
+          parent_id: "f1",
+          path: "technology/software-dev",
+          level: 1,
+          description: "",
+          job_count: 2,
+          children: [],
+        },
+      ],
+    };
+    vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue([technology, families[1]]);
+    renderCatalog();
+
+    const techButton = await screen.findByRole("button", { name: /Technology/ });
+    await user.click(techButton);
+    await waitFor(() => expect(screen.getByTestId("catalog-subfamilies")).toBeInTheDocument());
+
+    await user.click(screen.getByTestId("subfamily-software-dev"));
+    await waitFor(() =>
+      expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "software-dev" }))
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page")
+    );
   });
 
   it("shows the universities subtab (visible before bootstrap loads)", async () => {

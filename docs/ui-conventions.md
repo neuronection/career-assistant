@@ -185,6 +185,14 @@ page-local form for a profile section.
   Experience appears as a summary card linking to
   `/profile/experience` — editing lives only in the experience
   workspace, which has no top-level sidebar entry.
+- **Catalog tree layout**: same `SettingsShell` recipe (plan 96) —
+  top-level families as the rail (`data-testid="catalog-families"`,
+  job counts as `trailing` nodes), content pane = search + recent
+  searches + drill chips for the active family's children
+  (`catalog-subfamilies`) + the job-card grid. The expanding tree is
+  gone: selection + one-level drill chips replace it, so the whole
+  surface survives the dock and narrow widths via the container
+  modes.
 - **Experience workspace** (`/profile/experience`, full-bleed, nested
   under Profile): master-detail
   rail + editor pane, `pane-switcher` below `lg` with focus moved into

@@ -221,7 +221,8 @@
     "graph": "Graph",
     "generate": "Generate",
     "universities": "Universities",
-    "searchPlaceholder": "Search jobs…"
+    "searchPlaceholder": "Search jobs…",
+    "families": "Job families"
   },
   "generate": {
     "subtitle": "Can’t find it in the catalog? Invent it. The AI creates structured entries like the seeded ones.",
