@@ -134,7 +134,9 @@ if [[ "$TARGET" == "appimage" || "$TARGET" == "all" ]]; then
 
     # PDF engine (plan 76): the bundled Chromium headless shell brings its
     # own ELF deps (nss, alsa, gbm, …). Queue only its DEPENDENCIES — the
-    # browser itself already lives inside the bundle.
+    # browser itself already lives inside the bundle. Core glibc family is
+    # never copied (it would hijack the loader on the target system).
+    local exclude='^(libc\.so|libm\.so|libdl\.so|libpthread\.so|ld-linux|librt\.so|libnsl\.so|libresolv\.so|libcrypt\.so)'
     while IFS= read -r dep; do
       dep_base="$(basename "$dep")"
       [[ -z "$dep" ]] && continue
