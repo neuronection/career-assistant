@@ -102,7 +102,7 @@ It is **beta** software, built for students and technical self-hosters first.
 
 ### An AI assistant that helps — carefully
 
-- **Chat grounded in the catalog** — the chatbot can search jobs, pull job details and look up your matches through tool-calling over your own data.
+- **Chat grounded in the catalog** — the chatbot can search jobs, pull job details and look up your matches through tool-calling over your own data. When you ask for profile changes, it must open the item's full content before editing it (a server-enforced read-before-edit gate), proposes reviews as **proposal cards** with anchored, granular edits (unique-anchor replacements, additive appends, per-item skill/achievement add/remove — never full-blob rewrites), a rendered **before/after preview** with the changed span highlighted, and **one-click revert** after you approve; every change stays a signed review card, never an auto-apply.
 - **Contextual "Ask AI" buttons** — quick-assist endpoints power one-click explanations wherever they're useful in the UI.
 - **Bring your own LLM** — any OpenAI-compatible endpoint. Providers, models and per-task assignments (matching, generation, parsing, chat…) are managed in **Settings → AI Configuration** — stored in the database, encrypted at rest, with no AI environment variables at all.
 - **Dev-only mock provider** — opt-in via `MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`): the deterministic mock makes everything work offline; without it dev AI endpoints answer 503 until a provider is configured, and production refuses to serve mock results (503, audited) regardless.

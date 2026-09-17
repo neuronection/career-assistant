@@ -79,9 +79,14 @@ regenerating a baseline, drop+recreate instead).
   `ai_generations`). AI config is DB-only via Settings → AI Configuration —
   never add AI_* env vars. The mock provider is dev/test-only and opt-in via
   `MOCK_AI=1` (an infra knob, not AI config; `./scripts/run-dev.sh --mock-ai`,
-  `.env.test` sets it for pytest) — off by default, mock rows are invisible
-  to resolution without it; production starts unconfigured (503 until an
-  admin configures a provider) and blocks the mock regardless.
+  `.env.test` sets it for pytest, `./scripts/run-e2e.sh` sets it for the
+  smoke suite, which also needs `AI_RATE_LIMIT=0` — the gateway's per-user
+  AI limiter is keyed on that value, not `RATE_LIMIT_ENABLED`) — off by
+  default, mock rows are invisible to resolution without it; production
+  starts unconfigured (503 until an admin configures a provider) and
+  blocks the mock regardless. Whenever a mock provider resolves, the
+  gateway self-registers the deterministic fixtures (`ensure_mock_registry`
+  in `app/ai/gateway.py`; builders live in `app/ai/mock_chat.py`).
 - **Extension points are registries**: posting sources only via the
   connector SDK (`app/connectors/`, entry-point group
   `career_assistant.connectors`, admin allowlist for plugins); periodic
