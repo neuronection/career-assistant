@@ -433,3 +433,52 @@ async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monke
     cards = [p for n, p in events if n == "proposal"]
     assert cards, events
     assert cards[0]["entity_id"] == str(item.id), "degraded turn stays grounded"
+
+
+# ------------------------------------------------- dual-mode (desktop)
+
+
+async def test_checkpointer_picks_sqlite_for_desktop(monkeypatch, tmp_path):
+    """Desktop profile (sqlite DATABASE_URL): the saver is AsyncSqliteSaver
+    on a sibling checkpoints.db — the chat-turn graph never needs a
+    Postgres server, and checkpoint round-trips work on SQLite."""
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+    from app.ai import checkpointer as cp
+    from app.core.config import settings
+
+    monkeypatch.setattr(
+        settings,
+        "DATABASE_URL",
+        f"sqlite+aiosqlite:///{tmp_path / 'career-assistant.db'}",
+    )
+    monkeypatch.setattr(cp, "_stack", None)
+    monkeypatch.setattr(cp, "_checkpointer", None)
+    saver = await cp.get_checkpointer()
+    assert isinstance(saver, AsyncSqliteSaver)
+
+    from typing import TypedDict
+
+    from langgraph.graph import END, START, StateGraph
+
+    class State(TypedDict, total=False):
+        value: str
+
+    graph = StateGraph(State)
+    graph.add_node("step", lambda state: {"value": state["value"] + "!"})
+    graph.add_edge(START, "step")
+    graph.add_edge("step", END)
+    compiled = graph.compile(checkpointer=saver)
+    result = await compiled.ainvoke(
+        {"value": "desktop"}, config={"configurable": {"thread_id": "t-desk"}}
+    )
+    assert result["value"] == "desktop!"
+    history = [
+        snap
+        async for snap in compiled.aget_state_history(
+            {"configurable": {"thread_id": "t-desk"}}
+        )
+    ]
+    assert history, "checkpointed on the desktop sqlite saver"
+    await cp.aclose_checkpointer()
+    assert (tmp_path / "checkpoints.db").exists(), "sibling checkpoint file"
