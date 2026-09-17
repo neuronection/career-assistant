@@ -5,6 +5,8 @@ this module wraps them as registry objects so the chatbot, and later
 autopilot/MCP, execute them through ``run_tool``.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
@@ -53,6 +55,21 @@ class ProfileDigestInput(BaseModel):
     """User-scoped digest read; cap how many items per list."""
 
     limit: int = Field(default=12, ge=1, le=25)
+
+
+class ReadProfileItemInput(BaseModel):
+    """Open ONE profile entity's full content before proposing edits."""
+
+    kind: Literal[
+        "experience_item", "education_item", "certification", "profile_achievement"
+    ]
+    entity_id: str = Field(min_length=8, max_length=64)
+
+
+class ReadProfileSectionInput(BaseModel):
+    """Open ONE profile section's full JSON before proposing its edit."""
+
+    section: Literal["basics", "academics", "work_preferences", "constraints"]
 
 
 async def _search_jobs(db, ctx: ToolContext, args: SearchJobsInput):
@@ -167,6 +184,20 @@ async def _my_education(db, ctx: ToolContext, args: ProfileDigestInput):
 
     assert ctx.user_id is not None, "my_education requires a user"
     return await my_education_tool(db, ctx.user_id, limit=args.limit)
+
+
+async def _read_profile_item(db, ctx: ToolContext, args: ReadProfileItemInput):
+    from app.ai.agents.chatbot import read_profile_item_tool
+
+    assert ctx.user_id is not None, "read_profile_item requires a user"
+    return await read_profile_item_tool(db, ctx.user_id, args.kind, args.entity_id)
+
+
+async def _read_profile_section(db, ctx: ToolContext, args: ReadProfileSectionInput):
+    from app.ai.agents.chatbot import read_profile_section_tool
+
+    assert ctx.user_id is not None, "read_profile_section requires a user"
+    return await read_profile_section_tool(db, ctx.user_id, args.section)
 
 
 async def _compare_jobs(db, ctx: ToolContext, args: CompareJobsInput):
@@ -354,6 +385,35 @@ BUILTIN_TOOLS: list[AITool] = [
         ),
         input_model=ProfileDigestInput,
         handler=_my_education,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="read_profile_item",
+        title="Open one profile item",
+        description=(
+            "Full current content of ONE experience item / education"
+            " entry / certification / achievement (ids from the digests)."
+            " REQUIRED before proposing any update or delete to it —"
+            " edits to items you have not opened are discarded."
+        ),
+        input_model=ReadProfileItemInput,
+        handler=_read_profile_item,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="read_profile_section",
+        title="Open one profile section",
+        description=(
+            "Full current JSON of one profile section (basics, academics,"
+            " work_preferences, constraints). REQUIRED before proposing an"
+            " update to it — unread sections cannot be edited."
+        ),
+        input_model=ReadProfileSectionInput,
+        handler=_read_profile_section,
         scope=ToolScope.READ,
         cost_hint="cheap",
         requires_user=True,

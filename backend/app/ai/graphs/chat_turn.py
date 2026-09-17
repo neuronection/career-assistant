@@ -36,20 +36,27 @@ from app.ai.gateway import (
     partial_answer_text,
 )
 from app.models.chat_model import ChatSession
-from app.models.enums import AITaskType
+from app.models.enums import AITaskType, ProposalKind
 from app.models.user_model import User
 
 MAX_PROFILE_OPS = 5
 
 #: Tool-round budgets (plan 98 phase 3): LLM calls per turn stay ≤ 4
 #: (rounds + synth) and executed tools per turn are capped — over-budget
-#: calls are dropped with a persisted reason, never silently.
+#: calls are dropped with a persisted reason, never silently. Plan 99.1
+#: raises the tool cap: read-before-edit adds one full-content read per
+#: edited target on top of the digests (cheap DB point lookups).
 MAX_AGENT_ROUNDS = 3
-MAX_TOOL_CALLS_PER_TURN = 6
+MAX_TOOL_CALLS_PER_TURN = 10
 
 #: Digest tools whose model-pulled results persist into the plan-81
 #: session cache (so later keyword-less turns stay grounded).
 DIGEST_TOOLS = {"my_experience", "my_skills", "my_education", "my_profile_digest"}
+
+#: Full-content read tools (plan 99.1): results ground the
+#: read-before-edit gate for this turn AND persist into the session
+#: cache (per-entity signature) for later turns.
+READ_TOOLS = {"read_profile_item", "read_profile_section"}
 
 #: The producer-side end sentinel (never a real SSE event).
 END_SENTINEL = "__end__"
@@ -74,6 +81,11 @@ class ChatTurnState(TypedDict, total=False):
     rounds: int
     tools_executed: int
     degraded: bool
+    #: plan 99.1 — full-content read keys grounding this turn's
+    #: read-before-edit gate (``read:{kind}:{id-or-section}``).
+    read_keys: list[str]
+    #: plan 99.1 — accumulated read results (list-valued in the context).
+    read_results: list[dict]
 
 
 @dataclass
@@ -173,7 +185,12 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
     ]
     deps.emit(
         "flow_started",
-        {"flow": "chat", "steps": steps, "stage": "searching the catalog", "found": found},
+        {
+            "flow": "chat",
+            "steps": steps,
+            "stage": "searching the catalog",
+            "found": found,
+        },
     )
     deps.emit("node_started", {"id": "ground", "label": steps[0]["label"]})
     # Turn trace: tools ran pre-LLM inside retrieve, so cards stream in
@@ -289,6 +306,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     dropped: list[dict] = []
     executed_total = state.get("tools_executed", 0)
     executed = 0
+    read_keys = list(state.get("read_keys") or [])
+    read_results = list(state.get("read_results") or [])
     for call in calls:
         if executed_total + executed >= MAX_TOOL_CALLS_PER_TURN:
             dropped.append(
@@ -304,7 +323,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         except Exception as exc:  # noqa: BLE001 — an observation, not a failure
             result = {"error": str(exc)}
         executed += 1
-        extra[call["name"]] = result
+        if call["name"] not in READ_TOOLS:
+            extra[call["name"]] = result
         duration_ms = int((time.monotonic() - started) * 1000)
         if call["name"] in DIGEST_TOOLS:
             # plan 81 continuity: a model-pulled digest persists into the
@@ -320,6 +340,33 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                     deps.session,
                     {call["name"]: chat_digest_cache.fresh_entry(result, sig)},
                 )
+        elif call["name"] in READ_TOOLS:
+            # plan 99.1: full-content reads ground this turn's
+            # read-before-edit gate and persist per entity, so a later
+            # turn editing the same (unchanged) item need not re-read.
+            from app.services import chat_digest_cache
+
+            read_results.append(result)
+            if isinstance(result, dict) and result.get("error") is None:
+                kind = result.get("kind")
+                target = result.get("entity_id") or result.get("section")
+                if kind and target:
+                    read_keys.append(chat_digest_cache.read_cache_key(kind, target))
+                    if deps.session is not None:
+                        sig = await chat_digest_cache.entity_signature(
+                            deps.db,
+                            kind,
+                            uuid.UUID(str(target)) if result.get("entity_id") else None,
+                        )
+                        if sig:
+                            chat_digest_cache.save(
+                                deps.session,
+                                {
+                                    chat_digest_cache.read_cache_key(
+                                        kind, target
+                                    ): chat_digest_cache.fresh_entry(result, sig)
+                                },
+                            )
         deps.emit(
             "tool_call",
             {
@@ -351,18 +398,34 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     deps.tool_metadata = tool_metadata
     # Observations re-enter the prompt immediately: the next round (and
     # the synth step) must see the results in the same context JSON.
+    # Read results ACCUMULATE (list-valued): a second read must never
+    # clobber the first's content in the model's context.
     prompt = state["prompt"]
-    if extra:
+    if extra or read_results:
         from app.ai.agents.context import context_json, parse_context
 
         ctx = parse_context(prompt)
-        ctx.setdefault("tool_results", {}).update(extra)
+        tool_results = ctx.setdefault("tool_results", {})
+        tool_results.update(extra)
+        if read_results:
+            tool_results["read_profile_item"] = [
+                row
+                for row in read_results
+                if row.get("kind") != ProposalKind.PROFILE_SECTION.value
+            ]
+            tool_results["read_profile_section"] = [
+                row
+                for row in read_results
+                if row.get("kind") == ProposalKind.PROFILE_SECTION.value
+            ]
         prompt = context_json(ctx)
     return {
         "tool_results_extra": {**state.get("tool_results_extra", {}), **extra},
         "rounds": state.get("rounds", 0) + 1,
         "pending_calls": [],
         "tools_executed": executed_total + executed,
+        "read_keys": read_keys,
+        "read_results": read_results,
         "tool_metadata": tool_metadata,
         "prompt": prompt,
     }
@@ -431,9 +494,15 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
     dropped: list = []
     overflow = max(0, len(ops) - MAX_PROFILE_OPS)
     if ops:
+        from app.services import chat_digest_cache
+
+        grounding = await chat_digest_cache.grounded_read_keys(
+            deps.db, deps.session, state.get("read_keys") or []
+        )
         created, dropped = await ProfileProposalService(deps.db).create_from_ops(
             deps.user.id,
             [op.model_dump() for op in ops[:MAX_PROFILE_OPS]],
+            grounding=grounding,
             chat_session_id=deps.session.id,
         )
         if created:

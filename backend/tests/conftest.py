@@ -497,7 +497,9 @@ def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:
     Mirrors the grounding behavior: call the digest tools the message's
     entity keywords ask for, but SKIP the ones already present in the
     prompt (cache-primed or pulled in an earlier round) — the model must
-    never repeat an identical call.
+    never repeat an identical call. Plan 99.1: once the digests are in,
+    a later round opens the target's full content (read-before-edit)
+    exactly where the mock ops would need it.
     """
     import json as _json
     import re as _re
@@ -508,6 +510,7 @@ def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:
         PROFILE_DIGEST_KEYWORDS,
         SKILL_KEYWORDS,
     )
+    from app.ai.mock_chat import mock_read_calls
 
     match = _re.search(r"CONTEXT_JSON: (\{.*\})", user_text, _re.S)
     ctx = _json.loads(match.group(1)) if match else {}
@@ -525,13 +528,20 @@ def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:
         for name, keywords in plan
         if name not in tools and any(keyword in lowered for keyword in keywords)
     ]
-    return {
-        "content": "",
-        "tool_calls": [
-            {"name": name, "args": {}, "id": f"call-{index}"}
-            for index, name in enumerate(wanted)
-        ],
-    }
+    calls = [
+        {"name": name, "args": {}, "id": f"call-{index}"}
+        for index, name in enumerate(wanted)
+    ]
+    if not calls:
+        calls = [
+            {
+                "name": call["name"],
+                "args": call.get("args") or {},
+                "id": f"call-{index}",
+            }
+            for index, call in enumerate(mock_read_calls(tools, message))
+        ]
+    return {"content": "", "tool_calls": calls}
 
 
 @pytest.fixture(autouse=True)

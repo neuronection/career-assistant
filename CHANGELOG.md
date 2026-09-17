@@ -5,6 +5,16 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Read-before-edit gate for chat profile edits** (plan 99.1): the
+  assistant must open an item's full content (`read_profile_item` /
+  `read_profile_section` tools — digests truncate long text at 140
+  chars) before proposing an update or delete to it; ops on unread
+  targets are discarded server-side with a visible "skipped" note
+  instead of silently overwriting content the model never saw. Reads
+  persist per entity in the session digest cache (freshness-signed),
+  so follow-up turns editing the same unchanged item stay grounded.
+  Degraded providers (no tool support) no longer emit edit cards at
+  all — a deliberate safety regression. Chat prompt bumped to v6.
 - **Chat engine groundwork for the chat-turn graph migration**
   (family ADR-0016, plan 98 — pre-release cutover, no legacy window):
   the gateway gains `ainvoke_agent` (native tool rounds through the

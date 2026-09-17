@@ -112,15 +112,17 @@ async def test_cache_primes_and_followup_without_keywords(
         fresh_names = [p["name"] for n, p in fresh_events if n == "tool_call"]
         assert "my_experience" in fresh_names
 
-        # Turn 2: zero keyword matches — cache reuse grounds the op.
+        # Turn 2: zero keyword matches — cache reuse grounds the op, and
+        # the read-before-edit gate is satisfied by a full read.
         events = await _send(
-            client, session["id"], auth_headers, "apply the change to my first row"
+            client, session["id"], auth_headers, "delete my first row now"
         )
     finally:
         gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
 
     tool_names = [p["name"] for n, p in events if n == "tool_call"]
     assert "my_experience" not in tool_names  # cached, not re-run
+    assert "read_profile_item" in tool_names  # opened before editing
     cards = [p for n, p in events if n == "proposal"]
     assert len(cards) == 1, events
     assert cards[0]["entity_id"] == str(item.id)
@@ -138,6 +140,7 @@ async def test_cache_primes_and_followup_without_keywords(
     cached = rows.context["profile_digests"]
     assert "my_experience" in cached
     assert cached["my_experience"]["sig"]
+    assert f"read:experience_item:{item.id}" in cached
 
 
 async def test_approved_card_staleness_refreshes_cache(

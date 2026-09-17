@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import uuid
 from typing import Optional
 
 from app.models.enums import AITaskType
@@ -632,6 +633,40 @@ async def my_education_tool(
     }
 
 
+async def read_profile_item_tool(
+    db: AsyncSession, user_id, kind: str, entity_id: str
+) -> dict:
+    """Full content of one profile entity (read-before-edit, plan 99.1)."""
+    from app.core.errors import DomainError
+    from app.services.profile_proposal_service import ProfileProposalService
+
+    assert user_id is not None, "read_profile_item requires a user"
+    try:
+        entity_uuid = uuid.UUID(str(entity_id))
+    except ValueError:
+        return {"error": f"invalid entity id: {entity_id!r}"}
+    try:
+        return await ProfileProposalService(db).read_entity_content(
+            kind, user_id, entity_uuid
+        )
+    except DomainError as exc:
+        return {"error": str(exc)}
+
+
+async def read_profile_section_tool(db: AsyncSession, user_id, section: str) -> dict:
+    """Full JSON of one profile section (read-before-edit, plan 99.1)."""
+    from app.core.errors import DomainError
+    from app.services.profile_proposal_service import ProfileProposalService
+
+    assert user_id is not None, "read_profile_section requires a user"
+    try:
+        return await ProfileProposalService(db).read_section_content(
+            user_id, str(section)
+        )
+    except DomainError as exc:
+        return {"error": str(exc)}
+
+
 TOOL_TITLES = {
     "search_jobs": "Searching the job catalog",
     "get_posting": "Fetching a live posting",
@@ -641,6 +676,8 @@ TOOL_TITLES = {
     "my_experience": "Reading your experience",
     "my_skills": "Reading your skills",
     "my_education": "Reading your education & credentials",
+    "read_profile_item": "Opening the item",
+    "read_profile_section": "Opening the profile section",
     "profile_digests": "Profile digests from earlier in this chat",
     "web_search": "Searching the web",
     "fetch_url": "Fetching the linked page",

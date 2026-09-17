@@ -34,6 +34,11 @@ from app.models.user_model import Profile, UserSkill
 
 CACHE_KEY = "profile_digests"
 
+# Full-item read entries (plan 99.1) live under the same reserved key,
+# prefixed per entity; they satisfy the read-before-edit gate in later
+# turns exactly like fresh reads do.
+READ_PREFIX = "read:"
+
 # Stable turn order; unknown/reserved keys in the cache are never touched.
 DIGEST_SEQUENCE = (
     "my_experience",
@@ -75,6 +80,20 @@ def load(session: Optional[ChatSession]) -> dict[str, dict]:
     }
 
 
+def load_reads(session: Optional[ChatSession]) -> dict[str, dict]:
+    """Cached full-item read entries keyed ``read:{kind}:{entity_id}``."""
+    if session is None or not session.context:
+        return {}
+    cached = session.context.get(CACHE_KEY)
+    if not isinstance(cached, dict):
+        return {}
+    return {
+        name: entry
+        for name, entry in cached.items()
+        if name.startswith(READ_PREFIX) and isinstance(entry, dict)
+    }
+
+
 def save(
     session: Optional[ChatSession],
     refreshed: dict[str, dict[str, Any]],
@@ -82,16 +101,22 @@ def save(
     """Persist refreshed digest entries; ``True`` when the row changed.
 
     Entries keep anything unknown out of the store and prune names that
-    left ``DIGEST_SEQUENCE``. ``flag_modified`` is required for JSONB
-    in-place mutation before the turn's commit.
+    left ``DIGEST_SEQUENCE`` — read entries (``READ_PREFIX``) are never
+    pruned here, they have their own family. ``flag_modified`` is
+    required for JSONB in-place mutation before the turn's commit.
     """
     from sqlalchemy.orm.attributes import flag_modified
 
     if session is None or not refreshed:
         return False
     cached = dict(load(session))
+    cached.update(load_reads(session))
     cached.update(refreshed)
-    cached = {k: v for k, v in cached.items() if k in DIGEST_SEQUENCE}
+    cached = {
+        k: v
+        for k, v in cached.items()
+        if k in DIGEST_SEQUENCE or k.startswith(READ_PREFIX)
+    }
     context = dict(session.context or {})
     context[CACHE_KEY] = cached
     session.context = context
@@ -141,3 +166,56 @@ def fresh_entry(payload: dict, sig: str) -> dict:
         "sig": sig,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def read_cache_key(kind: str, entity_id) -> str:
+    """Cache/state key of one full-item read (plan 99.1 grounding)."""
+    return f"{READ_PREFIX}{kind}:{entity_id}"
+
+
+async def entity_signature(
+    db: AsyncSession, kind: str, entity_id: uuid.UUID
+) -> Optional[str]:
+    """Freshness signature of ONE entity row: its ``updated_at`` iso.
+
+    The read-gate analogue of ``digest_signatures`` — a point lookup
+    instead of a table aggregate.
+    """
+    from app.services.profile_proposal_service import KIND_SPECS
+
+    spec = KIND_SPECS.get(kind)
+    if spec is None or spec.model is None or entity_id is None:
+        return None
+    row = await db.execute(
+        select(spec.model.updated_at).where(spec.model.id == entity_id)
+    )
+    updated_at = row.scalars().first()
+    return updated_at.isoformat() if updated_at is not None else None
+
+
+async def grounded_read_keys(
+    db: AsyncSession,
+    session: Optional[ChatSession],
+    turn_keys: Optional[list[str]] = None,
+) -> set[str]:
+    """The read-before-edit grounding set for one turn.
+
+    Turn reads count outright; cached reads count only when their
+    signature still matches the live row (the plan-81 freshness rule,
+    per entity instead of per table).
+    """
+    grounded = {key for key in turn_keys or [] if key.startswith(READ_PREFIX)}
+    for key, entry in load_reads(session).items():
+        if key in grounded or not isinstance(entry, dict):
+            continue
+        parts = key[len(READ_PREFIX) :].split(":", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            entity_id = uuid.UUID(parts[1])
+        except ValueError:
+            continue
+        sig = await entity_signature(db, parts[0], entity_id)
+        if sig and sig == entry.get("sig"):
+            grounded.add(key)
+    return grounded

@@ -79,6 +79,13 @@ logical change (at most 5): {kind, action, entity_id, payload}.
   guess or   transform ids. No digest for the target → no op. create ops never
   need entity_id or a digest — emit them whenever the request is
   unambiguous, even if no profile digest is in tool_results.
+- READ BEFORE EDIT: an update or delete needs the target's FULL current
+  content in context, not just the digest row (digests truncate long
+  text). Call read_profile_item(kind, entity_id) — or
+  read_profile_section(section) for section edits — before emitting the
+  op, and only propose the change once you have seen the whole content.
+  Ops on items or sections you have not opened this turn are DISCARDED
+  server-side, so the user would never see your proposal.
 - payload fields match the entity (dates as YYYY-MM-DD; skill level 1-10;
   language level basic|intermediate|advanced|native). For updates include
   ONLY the fields that change. experience_item create payloads MUST include
@@ -150,6 +157,11 @@ call tools to gather facts before the final answer is written in a later step:
   education, certifications or profile sections), call the matching digest
   tools (my_experience, my_skills, my_education, my_profile_digest) and
   reference ONLY the ids from their results.
+- Update/delete proposals additionally need the target's FULL content:
+  call read_profile_item(kind, entity_id) — or read_profile_section
+  (section) for a section edit — after the digest gave you the id.
+  Edits to unread items are discarded later, so read first whenever an
+  edit intent is plausible.
 - Call a tool only when its result could change the final answer; never
   repeat a call with identical arguments.
 - When you have enough grounding, stop calling tools. Do not answer the

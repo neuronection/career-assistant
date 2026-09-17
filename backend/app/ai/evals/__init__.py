@@ -64,6 +64,12 @@ def _check_chat_language_op(reply: ChatReply) -> None:
     assert {"code": "de", "level": "native"} in languages
 
 
+def _check_chat_edit_without_read_is_dropped(reply: ChatReply) -> None:
+    """Plan 99.1: update ops without the target's full content in
+    context are never proposed (the server discards them)."""
+    assert not reply.profile_ops
+
+
 def _check_chat_delete_cert(reply: ChatReply) -> None:
     ops = reply.profile_ops
     assert len(ops) == 1
@@ -180,10 +186,26 @@ def _build_cases() -> list[GoldenCase]:
                 'CONTEXT_JSON: {"message": "set german to native please", '
                 '"tool_results": {"my_profile_digest": {"full_name": "Ann", '
                 '"languages": [{"code": "en", "level": "native"}], '
-                '"counts": {}, "sections": []}}}'
+                '"counts": {}, "sections": []}, "read_profile_section": '
+                '[{"kind": "profile_section", "section": "academics", '
+                '"content": {"languages": [{"code": "en", "level": '
+                '"native"}]}}]}}'
             ),
             prompt_version=_blessed(AITaskType.CHAT.value),
             check=_check_chat_language_op,
+        ),
+        GoldenCase(
+            task=AITaskType.CHAT.value,
+            schema=ChatReply,
+            system=CHATBOT,
+            user=(
+                'CONTEXT_JSON: {"message": "set german to native please", '
+                '"tool_results": {"my_profile_digest": {"full_name": "Ann", '
+                '"languages": [{"code": "en", "level": "native"}], '
+                '"counts": {}, "sections": []}}}'
+            ),
+            prompt_version=_blessed(AITaskType.CHAT.value),
+            check=_check_chat_edit_without_read_is_dropped,
         ),
         GoldenCase(
             task=AITaskType.CHAT.value,
@@ -194,7 +216,9 @@ def _build_cases() -> list[GoldenCase]:
                 '"tool_results": {"my_education": {"education": [], '
                 '"certifications": [{"id": "cert-1", "name": "AWS CCP", '
                 '"issuer": "Amazon", "issued": null, "expires": null, '
-                '"status": "active"}], "achievements": []}}}'
+                '"status": "active"}], "achievements": []}, '
+                '"read_profile_item": [{"kind": "certification", '
+                '"entity_id": "cert-1", "content": {"name": "AWS CCP"}}]}}'
             ),
             prompt_version=_blessed(AITaskType.CHAT.value),
             check=_check_chat_delete_cert,

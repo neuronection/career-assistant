@@ -44,6 +44,9 @@ def test_builtin_registry_declarations():
         "my_experience",
         "my_skills",
         "my_education",
+        # — read-before-edit family (plan 99)
+        "read_profile_item",
+        "read_profile_section",
         # — CV builder copilot family
         "cv_read_state",
         "cv_review_visual",

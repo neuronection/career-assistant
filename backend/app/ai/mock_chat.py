@@ -41,11 +41,116 @@ EDIT_VERBS = {
 }
 
 
+def _read_observations(tools: dict, name: str) -> list[dict]:
+    """Read-tool results from the context (list-valued since 99.1)."""
+    value = tools.get(name)
+    if isinstance(value, list):
+        return [row for row in value if isinstance(row, dict)]
+    if isinstance(value, dict):
+        return [value]
+    return []
+
+
+def _was_read(tools: dict, kind: str, entity_id) -> bool:
+    """The plan-99 mock gate: was this entity's full content opened?
+
+    ``_read_all`` is the internal sentinel ``mock_read_calls`` uses to
+    learn which target the ops would need — it means "pretend every
+    read is present".
+    """
+    if tools.get("_read_all"):
+        return True
+    return any(
+        row.get("kind") == kind and str(row.get("entity_id")) == str(entity_id)
+        for row in _read_observations(tools, "read_profile_item")
+    )
+
+
+def _section_was_read(tools: dict, section: str) -> bool:
+    if tools.get("_read_all"):
+        return True
+    return any(
+        row.get("section") == section
+        for row in _read_observations(tools, "read_profile_section")
+    )
+
+
+def mock_read_calls(tools: dict, message: str) -> list[dict]:
+    """Deterministic read-before-edit tool calls for the mock agent
+    (plan 99.1).
+
+    Two layers, in order: (1) run the op builder against an "everything
+    read" sentinel to learn which entity the default ops would touch;
+    (2) when the message carries an edit verb and a digest named a
+    target, fall back to opening the first digest-listed entity — custom
+    test fixtures emit their own op shapes, the read is harmless when
+    the ops end up exempt. Reads always mirror-or-precede the ops.
+    """
+    lowered = f" {message.lower()} "
+    words = {token.strip(".,!?;:()[]\"'") for token in lowered.split()}
+    if not (words & EDIT_VERBS):
+        return []
+    pretend = dict(tools)
+    pretend["_read_all"] = True
+    for op in mock_profile_ops(pretend, message):
+        if op.get("kind") == "profile_section" and op.get("action") == "update":
+            section = (op.get("payload") or {}).get("section")
+            if section and not _section_was_read(tools, section):
+                return [{"name": "read_profile_section", "args": {"section": section}}]
+        entity_id = op.get("entity_id")
+        if (
+            entity_id
+            and op.get("action") in {"update", "delete"}
+            and not _was_read(tools, op.get("kind"), entity_id)
+        ):
+            return [
+                {
+                    "name": "read_profile_item",
+                    "args": {"kind": op.get("kind"), "entity_id": entity_id},
+                }
+            ]
+    items = (tools.get("my_experience") or {}).get("items") or []
+    education = tools.get("my_education") or {}
+    certs = education.get("certifications") or []
+    read_items = _read_observations(tools, "read_profile_item")
+    if items and not any(
+        str(row.get("entity_id")) == str(items[0]["id"]) for row in read_items
+    ):
+        return [
+            {
+                "name": "read_profile_item",
+                "args": {"kind": "experience_item", "entity_id": items[0]["id"]},
+            }
+        ]
+    if (
+        not items
+        and certs
+        and words & {"delete", "remove"}
+        and not any(
+            str(row.get("entity_id")) == str(certs[0]["id"]) for row in read_items
+        )
+    ):
+        return [
+            {
+                "name": "read_profile_item",
+                "args": {"kind": "certification", "entity_id": certs[0]["id"]},
+            }
+        ]
+    if (tools.get("my_profile_digest") or {}) and (
+        words & set(_LANGUAGE_CODES) or "language" in words
+    ):
+        if not _section_was_read(tools, "academics"):
+            return [{"name": "read_profile_section", "args": {"section": "academics"}}]
+    return []
+
+
 def mock_profile_ops(tools: dict, message: str) -> list[dict]:
     """Deterministic edit proposals for the mock provider (tests/E2E).
 
     Mirrors the prompt rules: ops only when the matching digest ran AND
-    the message carries an explicit edit verb (word-matched).
+    the message carries an explicit edit verb (word-matched); update/
+    delete/section ops additionally require the target's full content
+    to have been read (plan 99.1 gate).
     """
     lowered = f" {message.lower()} "
     words = {token.strip(".,!?;:()[]\"'") for token in lowered.split()}
@@ -106,7 +211,11 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 },
             }
         ]
-    if items and words & {"delete", "remove"}:
+    if (
+        items
+        and words & {"delete", "remove"}
+        and _was_read(tools, "experience_item", items[0]["id"])
+    ):
         return [
             {
                 "kind": "experience_item",
@@ -114,7 +223,11 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "entity_id": items[0]["id"],
             }
         ]
-    if certs and words & {"delete", "remove"}:
+    if (
+        certs
+        and words & {"delete", "remove"}
+        and _was_read(tools, "certification", certs[0]["id"])
+    ):
         return [
             {
                 "kind": "certification",
@@ -122,7 +235,11 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "entity_id": certs[0]["id"],
             }
         ]
-    if items and words & {"ended", "finish", "finished", "completed", "mark"}:
+    if (
+        items
+        and words & {"ended", "finish", "finished", "completed", "mark"}
+        and _was_read(tools, "experience_item", items[0]["id"])
+    ):
         return [
             {
                 "kind": "experience_item",
@@ -162,6 +279,8 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
         languages = [row for row in languages if row["code"] != code] + [
             {"code": code, "level": level}
         ]
+        if not _section_was_read(tools, "academics"):
+            return []
         return [
             {
                 "kind": "profile_section",

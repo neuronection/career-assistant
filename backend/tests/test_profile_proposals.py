@@ -315,6 +315,8 @@ async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
         },
     )
 
+    grounding = {f"read:experience_item:{item.id}"}
+
     # Identical skills → the "skills" field produces no diff row at all.
     same, dropped = await ProfileProposalService(db).create_from_ops(
         user.id,
@@ -329,6 +331,7 @@ async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
                 },
             }
         ],
+        grounding=grounding,
     )
     assert dropped == []
     fields_same = {r["field"] for r in same[0].diff_json}
@@ -345,6 +348,7 @@ async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
                 "payload": {"skills": ["electron", "typescript"]},
             }
         ],
+        grounding=grounding,
     )
     rows = {r["field"]: r for r in added[0].diff_json}
     assert "skills" in rows
@@ -378,6 +382,7 @@ async def test_create_from_ops_drops_invalid(db, auth_headers):
                 "payload": {},
             },
         ],
+        grounding={f"read:experience_item:{item.id}"},
     )
     assert len(created) == 1
     assert len(dropped) == 2
@@ -507,6 +512,7 @@ async def test_experience_create_with_skill_links_applies(db, auth_headers):
                 },
             }
         ],
+        grounding=set(),
     )
     assert dropped == []
     proposal = created[0]

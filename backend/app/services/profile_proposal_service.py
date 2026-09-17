@@ -56,6 +56,40 @@ from app.schemas.profile_proposal import (
 
 PROPOSAL_TTL = timedelta(days=14)
 DIFF_VALUE_CAP = 200
+
+#: Kinds whose update/delete ops require the target's full content to
+#: have been read in the same turn (plan 99.1 read-before-edit gate).
+#: ``user_skill`` rows are fully visible in the my_skills digest (a
+#: scalar update has no silent-loss surface) and ``cv_synth`` is not an
+#: entity edit — both are exempt, as are create ops (nothing to
+#: overwrite). The grounding set carries ``read:{kind}:{id-or-section}``
+#: keys for every entity whose full content the model has seen.
+GROUNDED_KINDS = frozenset(
+    {
+        ProposalKind.EXPERIENCE_ITEM.value,
+        ProposalKind.EDUCATION_ITEM.value,
+        ProposalKind.CERTIFICATION.value,
+        ProposalKind.PROFILE_ACHIEVEMENT.value,
+    }
+)
+SECTION_NAMES = ("basics", "academics", "work_preferences", "constraints")
+
+
+def read_key_for_op(op: dict, entity_id: Optional[uuid.UUID]) -> Optional[str]:
+    """The grounding key an op must have been read under, or None when
+    the op is exempt from the read-before-edit gate."""
+    kind = str(op.get("kind") or "")
+    action = str(op.get("action") or "")
+    if action == ProposalAction.CREATE.value:
+        return None
+    if kind == ProposalKind.PROFILE_SECTION.value:
+        section = str((op.get("payload") or {}).get("section") or "")
+        return f"read:{kind}:{section}" if section in SECTION_NAMES else None
+    if kind in GROUNDED_KINDS:
+        return f"read:{kind}:{entity_id}" if entity_id is not None else None
+    return None
+
+
 logger = logging.getLogger(__name__)
 ACTION_VERBS = {
     ProposalAction.CREATE.value: "Add",
@@ -500,11 +534,19 @@ class ProfileProposalService:
         user_id: uuid.UUID,
         ops: list[dict],
         *,
+        grounding: set[str],
         chat_session_id: Optional[uuid.UUID] = None,
         chat_message_id: Optional[uuid.UUID] = None,
         ai_generation_id: Optional[uuid.UUID] = None,
     ) -> tuple[list[ProfileProposal], list[dict]]:
-        """Best-effort batch creation: invalid ops drop with a reason."""
+        """Best-effort batch creation: invalid ops drop with a reason.
+
+        ``grounding`` is the plan-99 read-before-edit set —
+        ``read:{kind}:{id-or-section}`` keys for every entity whose full
+        content the model has seen this turn (or freshly cached). Ops
+        editing unread targets are dropped with ``unread_target``, never
+        silently applied.
+        """
         created: list[ProfileProposal] = []
         dropped: list[dict] = []
         for op in ops:
@@ -512,6 +554,13 @@ class ProfileProposalService:
                 entity_id = op.get("entity_id")
                 if isinstance(entity_id, str) and entity_id:
                     entity_id = uuid.UUID(entity_id)
+                read_key = read_key_for_op(op, entity_id)
+                if read_key is not None and read_key not in grounding:
+                    raise ValidationError(
+                        f"unread_target: the full content of {op.get('kind')} "
+                        "was not read this turn — read it before proposing "
+                        "changes"
+                    )
                 payload = op.get("payload") or {}
                 if op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value:
                     payload = _normalize_experience_payload(
@@ -904,6 +953,77 @@ class ProfileProposalService:
         from app.services.profile_service import ProfileService
 
         return await ProfileService(self.db).get(user_id)
+
+    # ------------------------------------------------------- read tools
+
+    async def read_entity_content(
+        self, kind: str, user_id: uuid.UUID, entity_id: uuid.UUID
+    ) -> dict:
+        """Full content of one profile entity (plan 99.1 read-before-edit).
+
+        The chat tool payload: every field at its current value (raw
+        stored text, not the digest truncation) plus experience children
+        with stable ids — the remove-anchors for granular edits.
+        """
+        if kind not in GROUNDED_KINDS:
+            raise ValidationError(f"kind {kind!r} has no readable entity")
+        entity, updated_at = await self._load_entity(kind, user_id, entity_id)
+        skip = {
+            "id",
+            "user_id",
+            "org_id",
+            "university_id",
+            "department_id",
+            "skill_id",
+            "created_at",
+            "updated_at",
+        }
+        content: dict[str, Any] = {}
+        for column in entity.__table__.columns:
+            if column.name in skip:
+                continue
+            value = getattr(entity, column.key, None)
+            content[column.key] = (
+                value.isoformat() if isinstance(value, (datetime, date)) else value
+            )
+        if kind == ProposalKind.EXPERIENCE_ITEM.value:
+            content["skills"] = [
+                {
+                    "id": str(link.id),
+                    "skill_key": link.skill.key if link.skill else None,
+                    "skill_label": link.skill.label if link.skill else None,
+                    "role_in_item": link.role_in_item,
+                    "level_claim": link.level_claim,
+                }
+                for link in entity.skills or []
+            ]
+            content["achievements"] = [
+                {"id": str(row.id), "text": row.text, "metric": row.metric}
+                for row in entity.achievements or []
+            ]
+        return {
+            "kind": kind,
+            "entity_id": str(entity.id),
+            "label": self._entity_label(kind, entity),
+            "updated_at": updated_at.isoformat() if updated_at else None,
+            "content": content,
+            "note": "Exact current content — quote it verbatim in edit ops.",
+        }
+
+    async def read_section_content(self, user_id: uuid.UUID, section: str) -> dict:
+        """Full JSON of one profile section (plan 99.1 read-before-edit)."""
+        if section not in SECTION_NAMES:
+            raise ValidationError(f"unknown profile section {section!r}")
+        profile = await self._load_profile(user_id)
+        return {
+            "kind": ProposalKind.PROFILE_SECTION.value,
+            "section": section,
+            "updated_at": (
+                profile.updated_at.isoformat() if profile.updated_at else None
+            ),
+            "content": getattr(profile, section, None),
+            "note": "Exact current content — full-section replacement needs it.",
+        }
 
     # ------------------------------------------------------- diff helpers
 

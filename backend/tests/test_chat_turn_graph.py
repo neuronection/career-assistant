@@ -394,7 +394,12 @@ def ct_guard():
 
 async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monkeypatch):
     """A provider that cannot call tools degrades: digests are stuffed by
-    the fallback so edit grounding survives (worst case = parity)."""
+    the fallback, and the plan-99 gate DROPS the ungrounded edit op —
+    a degraded turn never overwrites content the model has not seen
+    (deliberate safety regression, plan 99 §11.9). The turn still
+    completes and the drop is visible in the meta note."""
+    import json as _json
+
     from app.ai import gateway as gateway_module
     from app.ai.graphs import chat_turn as ct
     from app.models.enums import AITaskType
@@ -402,24 +407,43 @@ async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monke
     async def broken_agent(*args, **kwargs):
         raise gateway_module.StructuredAIError("provider rejected tools")
 
+    def ungrounded_delete(schema, user_prompt):
+        ctx = _json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        items = (ctx["tool_results"].get("my_experience") or {}).get("items") or []
+        if not items:
+            return {"answer": "plain"}
+        return {
+            "answer": "proposing without a read",
+            "profile_ops": [
+                {
+                    "kind": "experience_item",
+                    "action": "delete",
+                    "entity_id": items[0]["id"],
+                }
+            ],
+        }
+
     monkeypatch.setattr(ct, "ainvoke_agent", broken_agent)
-    gateway_module.register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
-    user = await _auth_user(db)
-    item = await ExperienceService(db).create_item(
-        user.id, {"title": "Old bot", "kind": "project", "open_ended": True}
-    )
-    await db.commit()
-    session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "degrade"}, headers=auth_headers
+    gateway_module.register_mock_fixture(AITaskType.CHAT, ungrounded_delete)
+    try:
+        user = await _auth_user(db)
+        item = await ExperienceService(db).create_item(
+            user.id, {"title": "Old bot", "kind": "project", "open_ended": True}
         )
-    ).json()
-    response = await client.post(
-        f"/api/v1/chat/sessions/{session['id']}/messages",
-        json={"content": f"delete the project: {item.title}"},
-        params={"stream": "true"},
-        headers=auth_headers,
-    )
+        await db.commit()
+        session = (
+            await client.post(
+                "/api/v1/chat/sessions", json={"title": "degrade"}, headers=auth_headers
+            )
+        ).json()
+        response = await client.post(
+            f"/api/v1/chat/sessions/{session['id']}/messages",
+            json={"content": f"delete the project: {item.title}"},
+            params={"stream": "true"},
+            headers=auth_headers,
+        )
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
     events = []
     for block in response.text.split("\n\n"):
         name = data = ""
@@ -430,9 +454,14 @@ async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monke
                 data = line[6:]
         if name:
             events.append((name, json.loads(data)))
-    cards = [p for n, p in events if n == "proposal"]
-    assert cards, events
-    assert cards[0]["entity_id"] == str(item.id), "degraded turn stays grounded"
+    assert not [p for n, p in events if n == "proposal"], (
+        "degraded turns never emit ungrounded edit cards"
+    )
+    names = [n for n, _ in events]
+    assert names[-1] == "flow_finished", "the turn survives the degraded provider"
+    meta = next(p for n, p in events if n == "meta")
+    dropped_reasons = json.dumps(meta.get("proposals_dropped_reasons") or [])
+    assert "unread_target" in dropped_reasons
 
 
 # ------------------------------------------------- dual-mode (desktop)
