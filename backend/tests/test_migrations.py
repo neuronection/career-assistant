@@ -68,7 +68,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0035"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0036"], (
         "revision chain stays linear on one head"
     )
 
@@ -316,3 +316,19 @@ def test_0035_chat_cv_synth_kind_roundtrip():
 
     command.upgrade(config, "head")
     assert "cv_synth" in _proposal_kinds_check()
+
+
+def test_0036_checkpoint_prune_checks_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "system_checkpoint_prune" in checks["kind_allowed"]
+    assert "checkpoint_prune" in checks["task_allowed"]
+
+    command.downgrade(config, "0035")
+    checks = _schedules_checks()
+    assert "system_checkpoint_prune" not in checks["kind_allowed"]
+    assert "checkpoint_prune" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")

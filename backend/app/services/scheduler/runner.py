@@ -116,6 +116,16 @@ class SchedulerService:
                 {},
                 MisfirePolicy.SKIP.value,
             ),
+            (
+                ScheduleKind.SYSTEM_CHECKPOINT_PRUNE,
+                BackgroundJobType.CHECKPOINT_PRUNE.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60 * 24, "jitter_minutes": 60},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
         ]
         for kind, task, trigger, payload, misfire in defaults:
             await self.ensure_schedule(

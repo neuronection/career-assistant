@@ -8,6 +8,7 @@ agent-round funnel (native tool calls, audited, mock-scriptable).
 
 import json
 import sqlite3
+from contextlib import suppress
 import time
 from pathlib import Path
 
@@ -482,3 +483,104 @@ async def test_checkpointer_picks_sqlite_for_desktop(monkeypatch, tmp_path):
     assert history, "checkpointed on the desktop sqlite saver"
     await cp.aclose_checkpointer()
     assert (tmp_path / "checkpoints.db").exists(), "sibling checkpoint file"
+
+
+# ------------------------------------------ plan 98 phase 4: retention/cancel
+
+
+async def test_postgres_prune_removes_stale_threads(db):
+    """The server retention beat: stale checkpoint threads (and their
+    orphaned blobs/writes) drop; fresh threads survive."""
+    from sqlalchemy import text
+
+    from app.ai.checkpointer import prune_postgres_checkpoints
+
+    stale_id = _checkpoint_id(30 * 86_400_000)
+    fresh_id = _checkpoint_id(1000)
+
+    def _insert(thread: str, cid: str):
+        return text(
+            "INSERT INTO checkpoints (thread_id, checkpoint_ns, checkpoint_id, "
+            "parent_checkpoint_id, checkpoint, metadata) "
+            "VALUES (:t, '', :c, NULL, '{}', '{}')"
+        ).bindparams(t=thread, c=cid)
+
+    await db.execute(_insert("stale-thread", stale_id))
+    await db.execute(_insert("fresh-thread", fresh_id))
+    await db.execute(
+        text(
+            "INSERT INTO checkpoint_blobs (thread_id, checkpoint_ns, channel, "
+            "version, type, blob) VALUES ('stale-thread', '', 'ch', 'v1', 'json', NULL)"
+        )
+    )
+    await db.execute(
+        text(
+            "INSERT INTO checkpoint_writes (thread_id, checkpoint_ns, "
+            "checkpoint_id, task_id, idx, channel, type, blob) "
+            "VALUES ('stale-thread', '', :c, 'task', 0, 'ch', 'json', '\\x7b7d')"
+        ).bindparams(c=stale_id)
+    )
+    await db.commit()
+
+    removed = await prune_postgres_checkpoints(db, ttl_days=14)
+    await db.commit()
+    assert removed >= 1
+
+    threads = {
+        row[0]
+        for row in (
+            await db.execute(text("SELECT thread_id FROM checkpoints"))
+        ).fetchall()
+    }
+    assert "stale-thread" not in threads
+    assert "fresh-thread" in threads
+    leftovers = (
+        await db.execute(
+            text(
+                "SELECT count(*) FROM checkpoint_blobs WHERE thread_id = 'stale-thread'"
+            )
+        )
+    ).scalar()
+    assert leftovers == 0
+    # Idempotent: a second run removes nothing.
+    assert await prune_postgres_checkpoints(db, ttl_days=14) == 0
+
+
+async def test_cancel_at_node_boundary_leaves_resumable_thread():
+    """Exit gate: an aborted run pauses at the node boundary — the last
+    completed node's checkpoint survives, the pending node is resumable
+    (dormant: nothing auto-resumes it)."""
+    import asyncio
+    from typing import TypedDict
+
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.graph import END, START, StateGraph
+
+    class State(TypedDict, total=False):
+        steps: list
+
+    async def step1(state: State) -> dict:
+        return {"steps": ["one"]}
+
+    async def step2(state: State) -> dict:
+        await asyncio.sleep(30)
+        return {"steps": ["two"]}
+
+    graph = StateGraph(State)
+    graph.add_node("step1", step1)
+    graph.add_node("step2", step2)
+    graph.add_edge(START, "step1")
+    graph.add_edge("step1", "step2")
+    graph.add_edge("step2", END)
+    compiled = graph.compile(checkpointer=InMemorySaver())
+    config = {"configurable": {"thread_id": "t-cancel"}}
+
+    task = asyncio.create_task(compiled.ainvoke({"steps": []}, config=config))
+    await asyncio.sleep(0.2)
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+    state = await compiled.aget_state(config)
+    assert state.values.get("steps") == ["one"], "step1's checkpoint survives"
+    assert state.next == ("step2",), "step2 is resumable-dormant"

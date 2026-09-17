@@ -553,6 +553,7 @@ class BackgroundJobType(str, Enum):
     FOLLOWUP_SWEEP = "followup_sweep"
     MARKET_HISTORY_CAPTURE = "market_history_capture"
     PROPOSAL_SWEEP = "proposal_sweep"
+    CHECKPOINT_PRUNE = "checkpoint_prune"
 
 
 class ScheduleKind(str, Enum):
@@ -564,6 +565,7 @@ class ScheduleKind(str, Enum):
     SYSTEM_FOLLOWUPS = "system_followups"
     SYSTEM_MARKET_HISTORY = "system_market_history"
     SYSTEM_PROPOSAL_SWEEP = "system_proposal_sweep"
+    SYSTEM_CHECKPOINT_PRUNE = "system_checkpoint_prune"
     USER_SAVED_SEARCH = "user_saved_search"
     USER_CHECKIN = "user_checkin"
     USER_AUTOPILOT = "user_autopilot"

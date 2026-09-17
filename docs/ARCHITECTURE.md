@@ -281,13 +281,26 @@ from its last completed node via `ainvoke(None, config)`. Long runs
 execute on the job queue (`autopilot_run` job type,
 `user_autopilot` schedule slot); the scheduler only enqueues.
 
-Chat-bound flows stay on bounded structured turns instead of graphs when
-each turn is a single gateway call (rule: don't graph-ify single-call
-tasks): the CV builder copilot and the interview practice loop
- ride the standard chat turn with a `context.surface` branch;
+The **main chat turn is itself a checkpointed graph** (ADR-0016,
+`app/ai/graphs/chat_turn.py`): `retrieve` (code-owned detections +
+registry tools, digest cache) → `agent_round ⇄ execute_tools` (the model
+calls registry tools itself through the audited gateway funnel, bounded
+rounds + per-turn tool budgets, digest results persist into the session
+cache) → `synth` (the structured streaming reply) → `hitl` (proposal
+cards + notification fanout, never auto-applied) → `finalize`
+(persistence + terminal events). Events stream through a queue into the
+SSE endpoint (contract unchanged); a provider that cannot call tools
+degrades to prompt-stuffed digests (worst case = the pre-graph
+behavior). Remaining chat-bound flows stay on bounded structured turns
+when each turn is a single gateway call (rule: don't graph-ify
+single-call tasks): the CV builder copilot and the interview practice
+loop ride the standard chat turn with a `context.surface` branch;
 their durable state lives in app tables (`cv_documents` working content /
 `interview_sessions` plan + rubric), and resumability comes from the chat
-transcript itself.
+transcript itself. Checkpoint retention: the desktop prunes its SQLite
+`checkpoints.db` at boot (`CHECKPOINT_TTL_DAYS`); the server prunes
+Postgres on the daily `system_checkpoint_prune` schedule
+(`checkpoint_prune` job).
 
 Both paths surface a shared **turn trace** to the user: the stream emits
 family `tool_call` events (snake_case `duration_ms` on the wire) while

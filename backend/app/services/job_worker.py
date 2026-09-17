@@ -537,6 +537,18 @@ async def _run_proposal_sweep(db: AsyncSession, job: BackgroundJob, **_kw) -> di
     return {"expired": expired}
 
 
+async def _run_checkpoint_prune(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Daily checkpoint retention (plan 98 phase 4): prune stale LangGraph
+    checkpoint threads (server Postgres; the desktop prunes SQLite at
+    boot)."""
+    from app.ai.checkpointer import prune_postgres_checkpoints
+    from app.core.config import settings
+
+    pruned = await prune_postgres_checkpoints(db, settings.CHECKPOINT_TTL_DAYS)
+    await db.commit()
+    return {"pruned": pruned}
+
+
 async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """A scheduled saved search: evaluate filters, notify on new matches."""
     from app.services.digest_service import run_saved_search
@@ -791,6 +803,7 @@ HANDLERS: dict[str, Handler] = {
     "followup_sweep": _run_followup_sweep,
     "market_history_capture": _run_market_history_capture,
     "proposal_sweep": _run_proposal_sweep,
+    "checkpoint_prune": _run_checkpoint_prune,
     "saved_search_run": _run_saved_search,
     "cv_extract_text": _run_cv_extract_text,
     "cv_ocr": _run_cv_ocr,

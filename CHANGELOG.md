@@ -30,6 +30,12 @@ All notable changes to **Career Assistant** are documented here.
   `profile_proposal` notification kind (seeded).
 
 ### Changed
+- **Chat checkpoints now have server-side retention** (family ADR-0016,
+  plan 98 Phase 4): a daily `system_checkpoint_prune` schedule runs the
+  `checkpoint_prune` job, deleting LangGraph checkpoint threads older
+  than `CHECKPOINT_TTL_DAYS` (14) plus their orphaned blobs/writes —
+  the desktop already prunes its SQLite file at boot. A new migration
+  (0036) widens the schedules CHECK constraints for the new slot.
 - **The chat turn now grounds itself with native tool rounds** (family
   ADR-0016, plan 98 Phase 3): before writing its reply, the assistant
   can call registry tools itself — digest tools (experience, skills,

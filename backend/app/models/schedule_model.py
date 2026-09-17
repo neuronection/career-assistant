@@ -47,6 +47,7 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'system_demand_import', 'system_refit_sweep', "
             "'system_catalog_enrich', 'system_followups', "
             "'system_market_history', 'system_proposal_sweep', "
+            "'system_checkpoint_prune', "
             "'user_saved_search', 'user_checkin', 'user_autopilot')",
             name="kind_allowed",
         ),
@@ -58,7 +59,7 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "task IS NULL OR task IN ('posting_sync', 'digest', "
             "'saved_search_run', 'fit_refit', 'catalog_enrich', "
             "'autopilot_run', 'followup_sweep', 'market_history_capture', "
-            "'proposal_sweep')",
+            "'proposal_sweep', 'checkpoint_prune')",
             name="task_allowed",
         ),
         Index("ix_schedules_next_run", "next_run_at"),

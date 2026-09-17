@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 
@@ -153,3 +154,43 @@ def prune_desktop_checkpoints() -> int:
     except Exception:  # noqa: BLE001 — retention never blocks boot
         logger.warning("Checkpoint prune failed", exc_info=True)
         return 0
+
+
+async def prune_postgres_checkpoints(db: AsyncSession, ttl_days: int) -> int:
+    """Server-mode retention beat (plan 98 phase 4): delete LangGraph
+    checkpoint threads whose latest write is older than the TTL — the same
+    UUIDv6-prefix trick as the desktop prune, over the saver-owned tables
+    in the product database. No-op on non-postgres dialects (the desktop
+    prunes its SQLite file at boot instead). Returns removed thread rows.
+    """
+    from sqlalchemy import text
+
+    if not settings.DATABASE_URL.startswith("postgresql"):
+        return 0
+    prefix = _stale_prefix(int(time.time() * 1000), ttl_days)
+    stale = (
+        "SELECT thread_id, checkpoint_ns FROM checkpoints "
+        "GROUP BY thread_id, checkpoint_ns "
+        "HAVING max(replace(checkpoint_id, '-', '')) < :prefix"
+    )
+    result = await db.execute(
+        text(
+            "WITH stale AS (" + stale + ") "
+            "DELETE FROM checkpoints c USING stale s "
+            "WHERE c.thread_id = s.thread_id AND c.checkpoint_ns = s.checkpoint_ns"
+        ),
+        {"prefix": prefix},
+    )
+    removed = result.rowcount or 0
+    # Orphaned blobs/writes of pruned threads go with them (also sweeps
+    # zero-checkpoint leftovers of never-resumed aborted runs).
+    for table in ("checkpoint_blobs", "checkpoint_writes"):
+        await db.execute(
+            text(
+                f"DELETE FROM {table} t WHERE NOT EXISTS ("
+                "SELECT 1 FROM checkpoints c "
+                "WHERE c.thread_id = t.thread_id "
+                "AND c.checkpoint_ns = t.checkpoint_ns)"
+            )
+        )
+    return removed
