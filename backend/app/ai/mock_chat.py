@@ -379,3 +379,27 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
 
 
 register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
+
+
+def mock_ops_draft(schema, user_prompt) -> dict:
+    """CHAT_OPS fixture (plan 99.3): deterministic ops draft.
+
+    Delegates to the currently registered CHAT builder (scripted or
+    default) and extracts its ``profile_ops`` — one source of truth, so
+    the pipeline's drafted ops can never diverge from the reply mock's
+    (which pipeline turns ignore). No ops when that fixture emits none.
+    """
+    from app.ai import gateway as gateway_module
+    from app.ai.schemas import ChatReply
+
+    ctx = parse_context(user_prompt)
+    tools = dict(ctx.get("tool_results") or {})
+    tools.pop("grounding_notice", None)
+    chat_fixture = gateway_module.MOCK_FIXTURES.get(AITaskType.CHAT.value)
+    if chat_fixture is None:
+        return {"ops": []}
+    reply = chat_fixture(ChatReply, user_prompt)  # same prompt JSON shape
+    return {"ops": list(reply.get("profile_ops") or [])}
+
+
+register_mock_fixture(AITaskType.CHAT_OPS, mock_ops_draft)

@@ -7,6 +7,7 @@ import pytest
 
 from sqlalchemy import select
 
+from app.models.enums import AITaskType
 from app.models.experience_model import (
     ExperienceItem,
     ExperienceSkill as ExperienceSkillLink,
@@ -536,4 +537,120 @@ async def test_turn_with_text_edit_appends_and_preserves(client, db, auth_header
         .scalars()
         .one()
     )
+    stored = stored  # noqa: F841 — kept for readability
     assert stored.payload_json["_edit_ops"]["text_edits"][0]["op"] == "append"
+
+
+async def test_repair_heals_anchor_mismatch(client, db, auth_headers):
+    """The self-healing loop: a bad anchor drafts → anchor_mismatch → ONE
+    repair round with the verbatim feedback → healed op → one card,
+    audited as ops_draft + ops_repair:1 stages."""
+    import json as _json
+
+    from app.ai import gateway as gateway_module
+    from app.ai.mock_chat import mock_chat_reply, mock_ops_draft
+    from app.models.ai_model import AIGeneration
+    from app.models.enums import AITaskType
+    from tests.test_chat_profile_ops import _send
+
+    user = await _auth_user(db)
+    await _rich_item(db, user)
+    calls = {"n": 0}
+
+    def draft_with_bug(schema, user_prompt):
+        calls["n"] += 1
+        ctx = _json.loads(user_prompt.split("CONTEXT_JSON: ", 1)[1])
+        tools = ctx.get("tool_results") or {}
+        items = (tools.get("my_experience") or {}).get("items") or []
+        if not items:
+            return {"ops": []}
+        if ctx.get("op_errors"):
+            return {
+                "ops": [
+                    {
+                        "kind": "experience_item",
+                        "action": "update",
+                        "entity_id": items[0]["id"],
+                        "text_edits": [
+                            {
+                                "field": "description",
+                                "op": "append",
+                                "text": "Tuned the nightly batch job.",
+                            }
+                        ],
+                    }
+                ]
+            }
+        return {
+            "ops": [
+                {
+                    "kind": "experience_item",
+                    "action": "update",
+                    "entity_id": items[0]["id"],
+                    "text_edits": [
+                        {
+                            "field": "description",
+                            "op": "replace",
+                            "find": "text that was never written",
+                            "text": "X",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    session = (
+        await client.post(
+            "/api/v1/chat/sessions", json={"title": "repair"}, headers=auth_headers
+        )
+    ).json()
+    gateway_module.register_mock_fixture(AITaskType.CHAT_OPS, draft_with_bug)
+    try:
+        events = await _send(
+            client, session["id"], auth_headers, "update my project: nightly batch"
+        )
+    finally:
+        gateway_module.register_mock_fixture(AITaskType.CHAT_OPS, mock_ops_draft)
+        gateway_module.register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
+
+    cards = [p for n, p in events if n == "proposal"]
+    assert len(cards) == 1, "the repair healed the op"
+    assert calls["n"] == 2, "exactly one repair round"
+    audits = (
+        (
+            await db.execute(
+                select(AIGeneration).where(
+                    AIGeneration.task_type == AITaskType.CHAT_OPS.value
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {row.run_stage for row in audits} == {"ops_draft", "ops_repair:1"}
+
+
+async def test_non_edit_turn_skips_pipeline(client, db, auth_headers):
+    """A question turn makes no CHAT_OPS call."""
+    from app.models.ai_model import AIGeneration
+    from tests.test_chat_profile_ops import _send, _session
+
+    user = await _auth_user(db)
+    await _rich_item(db, user)
+    session = await _session(client, auth_headers)
+    events = await _send(
+        client, session["id"], auth_headers, "What do you think about my experience?"
+    )
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration).where(
+                    AIGeneration.task_type == AITaskType.CHAT_OPS.value
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert rows == []
+    assert not [p for n, p in events if n == "proposal"]

@@ -183,6 +183,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.CHAT_OPS.value,
+        "Grounded profile-op drafting for chat edit requests (plan 99)",
+        AICapability.TEXT.value,
+        AITaskTier.STRONG.value,
+    ),
+    TaskDef(
         AITaskType.AUTOPILOT_RUN.value,
         "Autopilot search planning/curation for a career goal",
         AICapability.TEXT.value,

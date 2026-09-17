@@ -648,6 +648,138 @@ async def notify_proposals(db, user_id, proposals, session_id) -> None:
         logger.warning("profile-proposal notification failed", exc_info=True)
 
 
+def drop_code(reason: str) -> str:
+    """Stable drop-reason token (``unread_target`` …) from a drop message
+    — the telemetry bucket for ``profile_op_outcomes``."""
+    return str(reason).split(":", 1)[0].strip()[:40]
+
+
+async def resolve_ops(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    ops: list[dict],
+    grounding: set[str],
+) -> tuple[list[dict], list[dict]]:
+    """Shared op validation (plan 99.3): gate + duplicate-target +
+    normalization + anchored-edit resolution — WITHOUT persisting.
+
+    One implementation serves both the draft pipeline and
+    ``create_from_ops``. Returns ``(resolved_ops, failures)``; resolved
+    ops are PLAIN create kwargs — anchored instructions are resolved
+    into the payload (with ``_edit_ops`` attached) and the instruction
+    lists are emptied, so a downstream re-validation can never apply
+    them twice.
+    """
+    service = ProfileProposalService(db)
+    resolved_ops: list[dict] = []
+    failures: list[dict] = []
+    seen_targets: set[tuple[str, str]] = set()
+    for op in ops:
+        try:
+            action = str(op.get("action") or "")
+            entity_id = op.get("entity_id")
+            if isinstance(entity_id, str) and entity_id:
+                entity_id = uuid.UUID(entity_id)
+            kind = str(op.get("kind") or "")
+            target_key: Optional[tuple[str, str]] = None
+            if entity_id is not None:
+                target_key = (kind, str(entity_id))
+            elif kind == ProposalKind.PROFILE_SECTION.value:
+                section = str((op.get("payload") or {}).get("section") or "")
+                if section:
+                    target_key = (kind, section)
+            if target_key is not None and target_key in seen_targets:
+                raise ValidationError(
+                    f"duplicate_target: a second op edits the same "
+                    f"{kind} — put all its changes (text_edits / "
+                    "collection_edits) into ONE op"
+                )
+            read_key = read_key_for_op(op, entity_id)
+            if read_key is not None and read_key not in grounding:
+                raise ValidationError(
+                    f"unread_target: the full content of {op.get('kind')} "
+                    "was not read this turn — read it before proposing "
+                    "changes"
+                )
+            payload = op.get("payload") or {}
+            if op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value:
+                payload = _normalize_experience_payload(
+                    payload,
+                    action=op.get("action", ""),
+                )
+            if (
+                op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value
+                and op.get("action") == ProposalAction.UPDATE.value
+                and op.get("edit_ops") is None
+                and any(
+                    field in payload for field in ("skills", "achievements", "links")
+                )
+            ):
+                raise ValidationError(
+                    "conflicting_edit: full-replacement of skills, "
+                    "achievements or links in an update payload is "
+                    "retired — use collection_edits"
+                )
+            text_edits = list(op.get("text_edits") or [])
+            collection_edits = list(op.get("collection_edits") or [])
+            edit_ops: Optional[dict] = op.get("edit_ops")
+            if text_edits or collection_edits:
+                if op.get("action") != ProposalAction.UPDATE.value:
+                    raise ValidationError(
+                        "text_edits/collection_edits apply to update ops "
+                        "only — creates carry full values in the payload"
+                    )
+                entity, _ = await service._load_entity(kind, user_id, entity_id)
+                payload, edit_ops = _resolve_edit_ops(
+                    kind, entity, dict(payload), text_edits, collection_edits
+                )
+            elif edit_ops is not None:
+                edit_ops = op.get("edit_ops")
+            spec = KIND_SPECS.get(kind)
+            if spec is None:
+                raise ValidationError(f"Unknown proposal kind: {kind}")
+            # Dry-run the REST schema: a resolve-level pass means the
+            # create() call below cannot fail on validation — a dropped
+            # sibling op must not poison this target (seen_targets is
+            # marked when the resolved op survives).
+            if kind == ProposalKind.PROFILE_SECTION.value:
+                patch = ProfileSectionPatchIn.model_validate(payload)
+                _SECTION_MODELS[patch.section].model_validate(patch.value)
+            elif kind == ProposalKind.CV_SYNTH.value:
+                CvSynthOpPayload.model_validate(payload)
+            elif action == ProposalAction.CREATE.value:
+                assert spec.create_model is not None
+                spec.create_model.model_validate(payload)
+            else:
+                assert spec.update_model is not None
+                spec.update_model.model_validate(payload)
+            if target_key is not None:
+                seen_targets.add(target_key)
+            resolved_ops.append(
+                {
+                    "kind": op.get("kind", ""),
+                    "action": op.get("action", ""),
+                    "payload": payload,
+                    "entity_id": str(entity_id) if entity_id else None,
+                    "edit_ops": edit_ops,
+                }
+            )
+        except (
+            DomainError,
+            PydanticValidationError,
+            ValueError,
+            KeyError,
+        ) as exc:
+            logger.warning(
+                "Profile op dropped (kind=%r action=%r): %s",
+                op.get("kind"),
+                op.get("action"),
+                str(exc)[:500],
+            )
+            failures.append({"op": op, "reason": str(exc)})
+    return resolved_ops, failures
+
+
 class ProfileProposalService:
     """Proposal lifecycle; apply always dispatches to the form services."""
 
@@ -785,7 +917,7 @@ class ProfileProposalService:
         chat_message_id: Optional[uuid.UUID] = None,
         ai_generation_id: Optional[uuid.UUID] = None,
     ) -> tuple[list[ProfileProposal], list[dict]]:
-        """Best-effort batch creation: invalid ops drop with a reason.
+        """Best-effort batch creation: ops fail per-item with a reason.
 
         ``grounding`` is the plan-99 read-before-edit set —
         ``read:{kind}:{id-or-section}`` keys for every entity whose full
@@ -793,81 +925,19 @@ class ProfileProposalService:
         editing unread targets are dropped with ``unread_target``, never
         silently applied.
         """
+        resolved_ops, dropped = await resolve_ops(self.db, user_id, ops, grounding)
         created: list[ProfileProposal] = []
-        dropped: list[dict] = []
-        seen_targets: set[tuple[str, str]] = set()
-        for op in ops:
+        for resolved in resolved_ops:
             try:
-                entity_id = op.get("entity_id")
-                if isinstance(entity_id, str) and entity_id:
-                    entity_id = uuid.UUID(entity_id)
-                kind = str(op.get("kind") or "")
-                target_key: Optional[tuple[str, str]] = None
-                if entity_id is not None:
-                    target_key = (kind, str(entity_id))
-                elif kind == ProposalKind.PROFILE_SECTION.value:
-                    section = str((op.get("payload") or {}).get("section") or "")
-                    if section:
-                        target_key = (kind, section)
-                if target_key is not None and target_key in seen_targets:
-                    raise ValidationError(
-                        f"duplicate_target: a second op edits the same "
-                        f"{kind} — put all its changes (text_edits / "
-                        "collection_edits) into ONE op"
+                created.append(
+                    await self.create(
+                        user_id,
+                        chat_session_id=chat_session_id,
+                        chat_message_id=chat_message_id,
+                        ai_generation_id=ai_generation_id,
+                        **resolved,
                     )
-                read_key = read_key_for_op(op, entity_id)
-                if read_key is not None and read_key not in grounding:
-                    raise ValidationError(
-                        f"unread_target: the full content of {op.get('kind')} "
-                        "was not read this turn — read it before proposing "
-                        "changes"
-                    )
-                payload = op.get("payload") or {}
-                if op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value:
-                    payload = _normalize_experience_payload(
-                        payload,
-                        action=op.get("action", ""),
-                    )
-                if (
-                    op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value
-                    and op.get("action") == ProposalAction.UPDATE.value
-                    and any(
-                        field in payload
-                        for field in ("skills", "achievements", "links")
-                    )
-                ):
-                    raise ValidationError(
-                        "conflicting_edit: full-replacement of skills, "
-                        "achievements or links in an update payload is "
-                        "retired — use collection_edits"
-                    )
-                text_edits = list(op.get("text_edits") or [])
-                collection_edits = list(op.get("collection_edits") or [])
-                edit_ops: Optional[dict] = None
-                if text_edits or collection_edits:
-                    if op.get("action") != ProposalAction.UPDATE.value:
-                        raise ValidationError(
-                            "text_edits/collection_edits apply to update ops "
-                            "only — creates carry full values in the payload"
-                        )
-                    entity, _ = await self._load_entity(kind, user_id, entity_id)
-                    payload, edit_ops = _resolve_edit_ops(
-                        kind, entity, dict(payload), text_edits, collection_edits
-                    )
-                proposal = await self.create(
-                    user_id,
-                    kind=op.get("kind", ""),
-                    action=op.get("action", ""),
-                    payload=payload,
-                    entity_id=entity_id,
-                    edit_ops=edit_ops,
-                    chat_session_id=chat_session_id,
-                    chat_message_id=chat_message_id,
-                    ai_generation_id=ai_generation_id,
                 )
-                if target_key is not None:
-                    seen_targets.add(target_key)
-                created.append(proposal)
             except (
                 DomainError,
                 PydanticValidationError,
@@ -876,11 +946,11 @@ class ProfileProposalService:
             ) as exc:
                 logger.warning(
                     "Profile op dropped (kind=%r action=%r): %s",
-                    op.get("kind"),
-                    op.get("action"),
+                    resolved.get("kind"),
+                    resolved.get("action"),
                     str(exc)[:500],
                 )
-                dropped.append({"op": op, "reason": str(exc)})
+                dropped.append({"op": resolved, "reason": str(exc)})
         return created, dropped
 
     # ------------------------------------------------------------ queries

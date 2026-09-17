@@ -228,6 +228,7 @@ class AITaskType(str, Enum):
     MATCH_SCORE = "match_score"
     UNIVERSITY_PARSE = "university_parse"
     CHAT = "chat"
+    CHAT_OPS = "chat_ops"
     ASSIST = "assist"
     PATH_SUGGEST = "path_suggest"
     POSTING_MAP = "posting_map"

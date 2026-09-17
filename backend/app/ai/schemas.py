@@ -188,6 +188,18 @@ class ChatReply(BaseModel):
     profile_ops: list[ProfileOp] = Field(default_factory=list, max_length=8)
 
 
+class ProfileOpsDraft(BaseModel):
+    """The pre-stream op pipeline's structured draft (plan 99.3).
+
+    One non-streaming gateway call emits ONLY the ops that fulfill the
+    user's edit request — never prose; an empty ops list is valid (the
+    request turned out non-edit or ambiguous). Validation happens
+    server-side before the visible answer streams.
+    """
+
+    ops: list[ProfileOp] = Field(default_factory=list, max_length=8)
+
+
 class DraftPathStep(BaseModel):
     """One step of an AI-drafted path; typed refs are resolved server-side."""
 

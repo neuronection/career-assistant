@@ -5,6 +5,17 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Self-healing profile-edit pipeline before the answer streams**
+  (plan 99.3): edit-intent turns now draft the ops in one non-streaming
+  gateway call (`chat_ops` task, audited `ops_draft`/`ops_repair`),
+  validate + resolve them against the grounding/anchors server-side,
+  and — on a quoted-anchor or ungrounded failure — run ONE repair round
+  with the verbatim error feedback before the visible reply streams.
+  Validated ops ride the turn state (the streamed reply's own ops are
+  ignored on pipeline turns); still-failing ops surface as a visible
+  "skipped" note with per-reason telemetry (`profile_op_outcomes`).
+  The read-before-edit nudge is now a deterministic notice carried on
+  every agent round of edit turns. Chat prompt v8.
 - **Anchored profile edits — silent overwrites are now structurally
   impossible** (plan 99.2): update ops carry exact-anchor `text_edits`
   (`replace` must match the current text exactly once — never "replace

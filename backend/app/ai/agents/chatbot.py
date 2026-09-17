@@ -633,6 +633,44 @@ async def my_education_tool(
     }
 
 
+def edit_intent(message: str) -> bool:
+    """Deterministic edit-intent detection (plan 99.3): word-level edit
+    verbs route the turn through the ops-draft pipeline (a false
+    positive costs one cheap drafting call, a false negative loses it)."""
+    lowered = f" {(message or '').lower()} "
+    words = {token.strip(".,!?;:()[]\"'") for token in lowered.split()}
+    return bool(words & EDIT_INTENT_KEYWORDS)
+
+
+EDIT_INTENT_KEYWORDS = frozenset(
+    {
+        "add",
+        "create",
+        "record",
+        "update",
+        "edit",
+        "set",
+        "change",
+        "mark",
+        "delete",
+        "remove",
+        "rename",
+        "replace",
+        "append",
+        "extend",
+        "fix",
+        "correct",
+        "ended",
+        "finish",
+        "finished",
+        "completed",
+        "generate",
+        "variants",
+        "synth",
+    }
+)
+
+
 async def read_profile_item_tool(
     db: AsyncSession, user_id, kind: str, entity_id: str
 ) -> dict:

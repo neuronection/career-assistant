@@ -33,6 +33,7 @@ from app.ai.gateway import (
     RunRef,
     StructuredStream,
     ainvoke_agent,
+    ainvoke_structured,
     partial_answer_text,
 )
 from app.models.chat_model import ChatSession
@@ -57,6 +58,21 @@ DIGEST_TOOLS = {"my_experience", "my_skills", "my_education", "my_profile_digest
 #: read-before-edit gate for this turn AND persist into the session
 #: cache (per-entity signature) for later turns.
 READ_TOOLS = {"read_profile_item", "read_profile_section"}
+
+#: Plan 99.3 pipeline: ONE repair round over the drafted ops (draft →
+#: validate → repair-with-errors → revalidate), pre-stream by contract:
+#: synth streams the visible answer, nothing may loop after it.
+MAX_OP_REPAIR_ROUNDS = 1
+
+#: The read-reminder injected into the agent-round prompt on edit-intent
+#: turns (deterministic grounding nudge — present on every round).
+READ_REMINDER = (
+    "EDIT-GROUNDING NOTICE: the user message looks like a profile-edit "
+    "request. Every update/delete proposal is DISCARDED unless the "
+    "target's full content was opened this turn: call read_profile_item "
+    "(kind, entity_id from the digest) or read_profile_section (section) "
+    "for each entity you intend to change, before the final answer."
+)
 
 #: The producer-side end sentinel (never a real SSE event).
 END_SENTINEL = "__end__"
@@ -86,6 +102,12 @@ class ChatTurnState(TypedDict, total=False):
     read_keys: list[str]
     #: plan 99.1 — accumulated read results (list-valued in the context).
     read_results: list[dict]
+    #: plan 99.3 — pre-stream op pipeline outputs.
+    edit_intent: bool
+    draft_ops: list[dict]
+    op_errors: list[dict]
+    ops_done: bool
+    ops_overflow: int
 
 
 @dataclass
@@ -175,6 +197,18 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
     )
     if deps.cv_references:
         tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in deps.cv_references]
+    from app.ai.agents.chatbot import edit_intent
+
+    edit_intents = edit_intent(deps.content)
+    if edit_intents:
+        # Plan 99.3: the pipeline rides EVERY agent round and the draft
+        # call; the reminder lives in the context JSON so each round
+        # re-sees it.
+        from app.ai.agents.context import context_json, parse_context
+
+        ctx = parse_context(prompt)
+        ctx["grounding_notice"] = READ_REMINDER
+        prompt = context_json(ctx)
     deps.tool_metadata = tool_metadata
 
     tools = tool_metadata.get("tools", [])
@@ -208,7 +242,11 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
                 "duration_ms": tool.get("duration_ms"),
             },
         )
-    return {"prompt": prompt, "tool_metadata": tool_metadata}
+    return {
+        "prompt": prompt,
+        "tool_metadata": tool_metadata,
+        "edit_intent": edit_intents,
+    }
 
 
 async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
@@ -478,6 +516,125 @@ async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
     }
 
 
+async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
+    """Plan 99.3 — pre-stream op pipeline (draft → validate → repair).
+
+    One non-streaming ``CHAT_OPS`` gateway call drafts the ops; the
+    SHARED resolver validates them against the grounding/anchors; on
+    failures ONE repair round feeds the verbatim errors + safe current
+    excerpts back. Validated ops ride the turn STATE (never the streamed
+    reply) and a deterministic summary block enters synth's prompt for
+    narration; failures surface as ``op_errors`` (visible meta note).
+    Degraded providers skip the pipeline entirely.
+    """
+    from app.ai.agents.context import context_json, parse_context
+    from app.ai.agents.prompts import CHAT_OPS
+    from app.ai.schemas import ProfileOpsDraft
+    from app.services import chat_digest_cache
+    from app.services.profile_proposal_service import drop_code, resolve_ops
+
+    prompt = state["prompt"]
+    ctx = parse_context(prompt)
+    draft_prompt_obj = {
+        "message": ctx.get("message", ""),
+        "tool_results": ctx.get("tool_results") or {},
+        "grounding_notice": ctx.get("grounding_notice"),
+        "instruction": (
+            "Draft ONLY the profile_ops that fulfill this edit request; "
+            "stay within the provided grounding."
+        ),
+    }
+    draft_prompt = context_json(draft_prompt_obj)
+    grounding = await chat_digest_cache.grounded_read_keys(
+        deps.db, deps.session, state.get("read_keys") or []
+    )
+    rounds_used = 0
+    resolved_ops: list[dict] = []
+    failures: list[dict] = []
+    op_dicts: list[dict] = []
+    ops_started = time.monotonic()
+    while True:
+        draft = await ainvoke_structured(
+            deps.db,
+            AITaskType.CHAT_OPS,
+            ProfileOpsDraft,
+            CHAT_OPS,
+            draft_prompt,
+            user_id=deps.user.id,
+            run=RunRef(
+                id=deps.run_id,
+                stage=(
+                    "ops_draft" if rounds_used == 0 else f"ops_repair:{rounds_used}"
+                ),
+            ),
+        )
+        rounds_used += 1
+        op_dicts = [op.model_dump(mode="json") for op in (draft.ops or [])]
+        overflow = max(0, len(op_dicts) - MAX_PROFILE_OPS)
+        resolved_ops, failures = await resolve_ops(
+            deps.db, deps.user.id, op_dicts[:MAX_PROFILE_OPS], grounding
+        )
+        if not failures or rounds_used > MAX_OP_REPAIR_ROUNDS:
+            break
+        # Repair round: verbatim errors point back at the reads.
+        ctx = parse_context(draft_prompt)
+        ctx["op_errors"] = [
+            {
+                "kind": f.get("op", {}).get("kind"),
+                "reason": str(f.get("reason", ""))[:300],
+            }
+            for f in failures
+        ]
+        ctx["hint"] = (
+            "Fix the anchor/ungrounded problems or omit the op; the "
+            "current entity content is in the tool_results reads."
+        )
+        draft_prompt = context_json(ctx)
+    deps.emit("node_finished", {"id": "ops_draft", "duration_ms": 0})
+    _note_node(
+        deps, "ops_draft", "validating profile edits", ops_started, time.monotonic()
+    )
+    outcomes_payload = {
+        "drafted": len(op_dicts),
+        "resolved": len(resolved_ops),
+        "repaired": 1 if rounds_used > 1 else 0,
+        "dropped": {},
+        "op_errors": [
+            {
+                "kind": f.get("op", {}).get("kind"),
+                "code": drop_code(f.get("reason", "")),
+            }
+            for f in failures
+        ],
+    }
+    for failure in failures:
+        code = drop_code(failure.get("reason", ""))
+        outcomes_payload["dropped"][code] = outcomes_payload["dropped"].get(code, 0) + 1
+    prompt = state["prompt"]
+    if resolved_ops:
+        ctx = parse_context(prompt)
+        ctx["prepared_ops"] = [
+            {
+                "kind": op.get("kind"),
+                "action": op.get("action"),
+                "entity_id": str(op.get("entity_id") or "")[:8],
+            }
+            for op in resolved_ops
+        ]
+        prompt = context_json(ctx)
+    return {
+        "draft_ops": resolved_ops,
+        "op_errors": outcomes_payload["op_errors"],
+        "ops_done": True,
+        "ops_overflow": overflow,
+        "prompt": prompt,
+        "tool_metadata": {
+            **(state.get("tool_metadata") or {}),
+            "profile_op_outcomes": outcomes_payload,
+        },
+    }
+
+
 async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
     """Profile ops → proposal cards (+ notification fanout). Nothing
     applies here; the user resolves each card."""
@@ -489,11 +646,22 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
     )
 
     reply = ChatReply.model_validate(state["reply"])
-    ops = reply.profile_ops or []
+    drafted = list(state.get("draft_ops") or [])
+    overflow = max(0, len(drafted) - MAX_PROFILE_OPS)
+    if drafted:
+        # Plan 99.3: the pipeline validated+resolved these ops pre-stream
+        # (anchored edits already folded into the payload) — the reply's
+        # own profile_ops are ignored on pipeline turns (no bypass).
+        ops_dicts = [dict(op) for op in drafted[:MAX_PROFILE_OPS]]
+        overflow += int(state.get("ops_overflow") or 0)
+        ops: list = []
+    else:
+        ops = reply.profile_ops or []
+        ops_dicts = [op.model_dump() for op in ops[:MAX_PROFILE_OPS]]
+        overflow = max(overflow, max(0, len(ops) - MAX_PROFILE_OPS))
     created: list = []
     dropped: list = []
-    overflow = max(0, len(ops) - MAX_PROFILE_OPS)
-    if ops:
+    if ops_dicts:
         from app.services import chat_digest_cache
 
         grounding = await chat_digest_cache.grounded_read_keys(
@@ -501,10 +669,12 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
         )
         created, dropped = await ProfileProposalService(deps.db).create_from_ops(
             deps.user.id,
-            [op.model_dump() for op in ops[:MAX_PROFILE_OPS]],
+            ops_dicts,
             grounding=grounding,
             chat_session_id=deps.session.id,
         )
+        if created:
+            await notify_proposals(deps.db, deps.user.id, created, deps.session.id)
         if created:
             await notify_proposals(deps.db, deps.user.id, created, deps.session.id)
     deps.created_proposals = created
@@ -566,6 +736,9 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
     if dropped:
         tool_metadata["proposals_dropped"] = dropped
         tool_metadata["proposals_dropped_reasons"] = state.get("dropped_reasons") or []
+    op_errors = state.get("op_errors") or []
+    if op_errors:
+        tool_metadata["profile_op_errors"] = op_errors
     message = await ChatService(deps.db).complete_message(
         deps.session, deps.user_message_id, reply, tool_metadata
     )
@@ -619,20 +792,41 @@ def build_chat_turn_graph(deps: TurnDeps, checkpointer: Any):
         ("retrieve", retrieve),
         ("agent_round", agent_round),
         ("execute_tools", execute_tools),
+        ("ops_draft", ops_draft),
         ("synth", synth),
         ("hitl", hitl),
         ("finalize", finalize),
     ):
         node_name, node_fn = node(name, fn)
         builder.add_node(node_name, node_fn)
+
+    def route_after_tools(state: ChatTurnState) -> str:
+        if state.get("pending_calls"):
+            return "execute_tools"
+        # Plan 99.3: edit-intent turns draft+validate their ops BEFORE
+        # the visible answer streams; degraded providers skip the
+        # pipeline (parity path) and non-edit turns go straight to synth.
+        if (
+            state.get("edit_intent")
+            and not state.get("degraded")
+            and not state.get("ops_done")
+        ):
+            return "ops_draft"
+        return "synth"
+
     builder.add_edge(START, "retrieve")
     builder.add_edge("retrieve", "agent_round")
     builder.add_conditional_edges(
         "agent_round",
-        lambda state: ("execute_tools" if state.get("pending_calls") else "synth"),
-        {"execute_tools": "execute_tools", "synth": "synth"},
+        route_after_tools,
+        {
+            "execute_tools": "execute_tools",
+            "ops_draft": "ops_draft",
+            "synth": "synth",
+        },
     )
     builder.add_edge("execute_tools", "agent_round")
+    builder.add_edge("ops_draft", "synth")
     builder.add_edge("synth", "hitl")
     builder.add_edge("hitl", "finalize")
     builder.add_edge("finalize", END)

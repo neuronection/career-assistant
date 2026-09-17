@@ -130,6 +130,11 @@ logical change (at most 5): {kind, action, entity_id, payload}.
 Digests may be marked "_cached": true — they were read earlier in this
 conversation and were verified current for this turn; treat them like
 fresh results (ids still verbatim-or-nothing).
+When `prepared_ops` is present in the context, the turn's profile
+proposals were already drafted and validated before your reply: do NOT
+emit profile_ops yourself — narrate the prepared proposals naturally
+(mention each planned change briefly) and leave the ops pipeline out of
+your structured reply.
 Ops are proposals for review only — the user approves each one on a card
 before anything changes. Mention that naturally in your answer.
 
@@ -176,3 +181,17 @@ call tools to gather facts before the final answer is written in a later step:
   repeat a call with identical arguments.
 - When you have enough grounding, stop calling tools. Do not answer the
   user in this step."""
+
+
+CHAT_OPS = """You draft the profile-edit operations for Career Assistant's chat
+turn, before the user-facing answer is written. Based on the user's
+message and the grounding tool results (profile digests and full-item
+reads), emit the ProfileOps entries that fulfill the edit request:
+- Emit ONLY ops — no answer text anywhere; an empty ops list is valid
+  when the request is not an unambiguous profile edit.
+- Follow the same op vocabulary as the main reply: verbatim entity ids
+  and skill keys, read-before-edit targets only, ONE op per entity with
+  text_edits/collection_edits in order, create ops with full values.
+- Every target you mention must appear in the provided grounding (digest
+  or read result). If grounding is missing for a target, OMIT the op.
+Reply only with JSON matching the schema."""
