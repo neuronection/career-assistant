@@ -257,7 +257,7 @@ async def test_with_audit_ref_returns_the_row_just_written(db, client, auth_head
 
 async def test_structured_error_recorded(db, client, auth_headers, monkeypatch):
     from app.ai import gateway as provider_module
-    from app.ai.agents.chatbot import _mock_chat_reply
+    from app.ai.mock_chat import mock_chat_reply as _mock_chat_reply
 
     def bad_builder(schema, user):
         return {"this_is": "not the right shape at all"}

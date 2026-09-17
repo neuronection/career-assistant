@@ -536,8 +536,10 @@ def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:
 
 @pytest.fixture(autouse=True)
 def _chat_agent_mock():
-    """Script the chat agent-round mock for every test (MOCK_AI runs)."""
-    from app.ai import gateway as gateway_module
+    """Script the chat agent-round mock + register the structured reply
+    mock for every test (the chatbot import side effect is gone — plan 98
+    moved the builders to app/ai/mock_chat.py)."""
+    from app.ai import gateway as gateway_module, mock_chat  # noqa: F401
     from app.models.enums import AITaskType
 
     gateway_module.register_agent_mock(AITaskType.CHAT.value, _chat_agent_script)

@@ -320,6 +320,11 @@ async def test_fit_delta_math(
 ):
     await sync_source(db, source)
     posting = (await db.execute(select(JobPosting))).scalars().first()
+    # Pin "fresh" explicitly: the seed date drifts toward FRESH_DECAY_CAP's
+    # 4-week saturation as the calendar advances, which would silently
+    # equalize the two captures (both capped -> no delta).
+    posting.posted_at = datetime.now(timezone.utc)
+    await db.commit()
     fit_now = await posting_fit(db, uuid_mod.UUID(_user_id(auth_headers)), posting)
     assert 0 <= fit_now <= 10
 

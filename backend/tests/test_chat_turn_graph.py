@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy import select
 
 from app.ai.gateway import ainvoke_agent, register_agent_mock
+from app.ai.mock_chat import mock_chat_reply
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 
@@ -23,7 +24,6 @@ from tests.test_ai_funnel import _assign_real_model, provider_module
 from app.models.chat_model import ChatMessage
 from app.services.experience_service import ExperienceService
 from tests.test_chat_profile_ops import _auth_user
-from tests.test_chat_profile_ops import _mock_chat_reply  # noqa: F401 — re-exported
 
 _GREGORIAN_100NS = 122192928000000000
 
@@ -287,7 +287,7 @@ async def test_agent_rounds_ground_edit_via_digest_tool(
     from app.ai import gateway as gateway_module
     from app.models.enums import AITaskType
 
-    gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+    gateway_module.register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
     user = await _auth_user(db)
     item = await ExperienceService(db).create_item(
         user.id, {"title": "Crew bot", "kind": "project", "open_ended": True}
@@ -396,7 +396,6 @@ async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monke
     """A provider that cannot call tools degrades: digests are stuffed by
     the fallback so edit grounding survives (worst case = parity)."""
     from app.ai import gateway as gateway_module
-    from app.ai.agents.chatbot import _mock_chat_reply
     from app.ai.graphs import chat_turn as ct
     from app.models.enums import AITaskType
 
@@ -404,7 +403,7 @@ async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monke
         raise gateway_module.StructuredAIError("provider rejected tools")
 
     monkeypatch.setattr(ct, "ainvoke_agent", broken_agent)
-    gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+    gateway_module.register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
     user = await _auth_user(db)
     item = await ExperienceService(db).create_item(
         user.id, {"title": "Old bot", "kind": "project", "open_ended": True}

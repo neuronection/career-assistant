@@ -7,7 +7,7 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.ai.agents.chatbot import _mock_chat_reply
+from app.ai.mock_chat import mock_chat_reply as _mock_chat_reply
 from app.ai import gateway as gateway_module
 from app.models.enums import AITaskType
 from app.models.chat_model import ChatSession
@@ -590,7 +590,7 @@ async def test_mock_fixture_no_ops_without_digest(db, auth_headers):
 
 
 def _mock_profile_ops_guarded():
-    from app.ai.agents.chatbot import _mock_profile_ops
+    from app.ai.mock_chat import mock_profile_ops as _mock_profile_ops
 
     return _mock_profile_ops({}, "please add a project about ML")
 

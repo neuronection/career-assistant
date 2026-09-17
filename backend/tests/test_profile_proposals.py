@@ -562,7 +562,7 @@ async def test_experience_update_replaces_skill_list(db, auth_headers):
 async def test_mock_fixture_emits_skill_link_op(db, auth_headers):
     """Plan 82B: the mock chat fixture proposes a skill-linked create when
     the message names skills (offline tests/E2E parity for the prompt)."""
-    from app.ai.agents.chatbot import _mock_chat_reply
+    from app.ai.mock_chat import mock_chat_reply as _mock_chat_reply
 
     user_prompt = "CONTEXT_JSON: " + json.dumps(
         {

@@ -132,6 +132,11 @@ async def ensure_dev_bootstrap(db: AsyncSession) -> None:
     """Seed a system mock provider once, if empty and opted in (MOCK_AI=1)."""
     if not settings.is_dev or not settings.MOCK_AI:
         return
+    # Import side effect: register the deterministic CHAT reply mock so
+    # mock-mode turns (dev UI runs, E2E) produce grounded structured
+    # replies (plan 98 — registration lives with the mock, not chatbot).
+    from app.ai import mock_chat  # noqa: F401
+
     any_provider = await db.execute(select(AIProvider.id).limit(1))
     if any_provider.scalars().first() is not None:
         return
