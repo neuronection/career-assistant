@@ -28,9 +28,11 @@ def test_chat_streamed_turn_docked(page) -> None:
 
 
 def test_chat_bubble_is_opt_in_via_switcher(page) -> None:
-    """Plan 75: docked is the default surface — no launcher until an
-    explicit switcher choice — and the bubble panel's header actions
-    stay mouse-clickable (the old overlaid-close regression)."""
+    """Plan 75 + the plan-98 switcher contract: docked is the default
+    surface; the popup button is an explicit open gesture (the floating
+    window expands immediately — the launcher FAB's label is the close
+    label while it is open), and the bubble panel's header actions stay
+    mouse-clickable (the old overlaid-close regression)."""
     page.goto(f"{BASE_URL}/")
 
     dock = page.get_by_test_id("chat-dock")
@@ -38,10 +40,6 @@ def test_chat_bubble_is_opt_in_via_switcher(page) -> None:
     assert page.get_by_test_id("chat-widget").count() == 0
 
     dock.get_by_test_id("chat-view-popup").click()
-    launcher = page.get_by_role("button", name="Open chat assistant")
-    launcher.wait_for(state="visible", timeout=20_000)
-    launcher.click()
-
     panel = page.get_by_role("complementary", name="Open chat assistant")
     panel.wait_for(state="visible", timeout=20_000)
     # The regression guard: the header's "New chat" must be mouse-clickable
@@ -50,3 +48,7 @@ def test_chat_bubble_is_opt_in_via_switcher(page) -> None:
 
     panel.get_by_role("button", name="Close panel").click()
     panel.wait_for(state="detached", timeout=10_000)
+    # Closing hands the conversation back to the collapsed launcher FAB.
+    page.get_by_role("button", name="Open chat assistant").wait_for(
+        state="visible", timeout=10_000
+    )

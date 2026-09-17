@@ -42,6 +42,26 @@ T = TypeVar("T", bound=BaseModel)
 
 MOCK_FIXTURES: dict[str, Callable[[Any, str], dict]] = {}
 
+_MOCK_REGISTRY_LOADED = False
+
+
+def ensure_mock_registry() -> None:
+    """Make sure the deterministic mock fixtures are registered.
+
+    Registration lives in ``app.ai.mock_chat`` (import side effect), but
+    that module is only imported by the dev bootstrap — a pre-seeded
+    mock configuration (E2E scratch DBs, older seeds) resolves without
+    ever running it, which would leave CHAT/CHAT_OPS/agent-round mocks
+    unregistered and the smoke suite answering with generic mocks.
+    Dev/test only; production blocks the mock provider outright.
+    """
+    global _MOCK_REGISTRY_LOADED
+    if not _MOCK_REGISTRY_LOADED:
+        _MOCK_REGISTRY_LOADED = True
+        import importlib
+
+        importlib.import_module("app.ai.mock_chat")
+
 
 class RunRef(BaseModel):
     """Opt-in run linkage for multi-step flows: the audit row records
@@ -167,6 +187,7 @@ async def _invoke_model(
 
 def _mock_output(schema: type[T], task: AITaskType, user: str) -> T:
     """Build a deterministic mock output for the given schema."""
+    ensure_mock_registry()
     builder = MOCK_FIXTURES.get(task.value)
     data = builder(schema, user) if builder else _generic_mock(schema)
     return schema.model_validate(data)
@@ -518,6 +539,7 @@ def _agent_mock_output(task: AITaskType, user: str, tools: list[dict]) -> AIMess
     synth node — mock parity with the legacy single-call turn). Tests can
     script tool calls via ``register_agent_mock``.
     """
+    ensure_mock_registry()
     builder = AGENT_MOCK_SCRIPTS.get(task.value)
     if builder is not None:
         out = builder(user, [spec["function"]["name"] for spec in tools])

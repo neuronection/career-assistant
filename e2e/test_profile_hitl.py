@@ -74,3 +74,87 @@ def test_destructive_card_requires_confirm(page) -> None:
 
     listing = page.request.get(f"{API}/me/experience").json()
     assert any(item["title"] == "Keep me" for item in listing["items"])
+
+
+def test_anchored_append_preview_and_revert(page) -> None:
+    """Plan-99 golden (the OTE-shaped failure, made impossible): the mock
+    reads the item first, proposes an ANCHORED append — the existing
+    bullet survives in the diff AND the applied item — the preview shows
+    the rendered item with the changed span highlighted, and revert
+    restores the original description round-trip.
+    """
+    response = page.request.post(
+        f"{API}/me/experience",
+        data=json.dumps(
+            {
+                "title": "Sample data internship",
+                "kind": "project",
+                "org_name": "Sample Logistics GmbH",
+                "open_ended": True,
+                "description": "Kept the pipelines healthy.",
+            }
+        ),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.ok, response.text()
+    item = response.json()
+    assert item["description"] == "Kept the pipelines healthy."
+
+    page.goto(f"{BASE_URL}/")
+    dock = page.get_by_test_id("chat-dock")
+    dock.wait_for(state="visible", timeout=20_000)
+    dock.get_by_role("button", name="New chat").click()
+    composer = page.get_by_role("textbox", name="Message")
+    composer.wait_for(state="visible", timeout=20_000)
+    composer.fill("append a sentence to my experience item")
+    composer.press("Enter")
+
+    cards = page.get_by_test_id("hitl-cards")
+    cards.wait_for(state="visible", timeout=60_000)
+    card = page.locator('[data-as="hitl-proposal-card"]', has_text="Update experience")
+    card.wait_for(state="visible", timeout=10_000)
+    # Lossless diff: the existing bullet is intact, not replaced.
+    assert "Kept the pipelines healthy." in card.inner_text()
+
+    cards.get_by_role("button", name="Approve").click()
+    page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
+
+    listing = page.request.get(f"{API}/me/experience").json()
+    applied = next(row for row in listing["items"] if row["id"] == item["id"])
+    
+    assert "Kept the pipelines healthy." in applied["description"]
+    assert "Optimized the nightly batch queries." in applied["description"]
+
+    # Preview from the persisted approved card: rendered after-side with
+    # the appended sentence highlighted.
+    preview_testid = page.locator(
+        "[data-hitl-action='preview']"
+    ).first.get_attribute("data-testid")
+    page.get_by_test_id(preview_testid).click()
+    modal = page.get_by_test_id("hitl-preview-modal")
+    modal.wait_for(state="visible", timeout=10_000)
+    after = page.get_by_test_id("hitl-preview-after")
+    after.wait_for(state="visible", timeout=10_000)
+    assert "Kept the pipelines healthy." in after.inner_text()
+    assert "Optimized the nightly batch queries." in after.inner_text()
+    highlights = after.get_by_test_id("hitl-highlight")
+    assert highlights.count() == 1
+    assert "Optimized the nightly batch queries." in highlights.first.inner_text()
+
+    # Close the preview before driving the revert row.
+    page.keyboard.press("Escape")
+    modal.wait_for(state="hidden", timeout=10_000)
+
+    # Revert round-trip through the armed confirm.
+    revert = page.get_by_test_id(
+        page.locator("[data-testid^='hitl-revert-']")
+        .first.get_attribute("data-testid")
+    )
+    revert.click()
+    revert.click()
+    page.get_by_text("Reverted").wait_for(state="visible", timeout=20_000)
+
+    listing = page.request.get(f"{API}/me/experience").json()
+    reverted = next(row for row in listing["items"] if row["id"] == item["id"])
+    assert reverted["description"] == "Kept the pipelines healthy."
+    assert "Optimized the nightly batch queries." not in reverted["description"]

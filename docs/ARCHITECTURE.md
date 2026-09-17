@@ -328,6 +328,33 @@ TTL swept daily by the `system_proposal_sweep` schedule slot,
 (library `chat-hitl` module) and the Profile sidebar entry badges the
 pending count.
 
+**Plan 99 — grounded profile editing** hardens that flow
+structurally: a **server-side read-before-edit gate** (the model must
+open an item's full content with the `read_profile_item` /
+`read_profile_section` registry tools — digests truncate at 140 chars —
+before proposing a change to it; ops on unread targets drop with a
+visible `unread_target` reason; reads persist freshness-signed in the
+session digest cache). Edit ops carry **anchored, granular
+instructions** (`text_edits`: unique-anchor `replace`, additive
+`append`/`prepend`, resolved sequentially against the RAW stored text;
+`collection_edits` adding/removing children matched by stable id —
+full-replacement of child collections inside an update payload is
+retired, a second op on the same entity drops `duplicate_target`).
+On edit-intent turns a **pre-stream self-healing pipeline**
+(`retrieve → agent_round ⇄ tools → ops_draft [→ one repair] → synth →
+hitl`) drafts, validates and repairs the ops against the grounding with
+verbatim error feedback BEFORE the answer streams (validated ops ride
+turn state, degrade providers fall back to the merged reply ops under a
+relaxed gate); outcomes land in `profile_op_outcomes` telemetry. Cards
+show **lossless diffs** (2000-char values, structured collection rows,
+per-edit summary rows), an op-preview request (lazy snapshot endpoint
+`{before, after, edits}` over the persisted KIND_SPECS-shaped
+`base_snapshot`/`after_snapshot`) renders the real item card before and
+after with the changed span highlighted, and an approved card can be
+**reverted in one click** through the same services (terminal
+`reverted` status; a moved-target guard 409s when the entity changed
+after the apply). Edit-before-approve card UX is plan 100.
+
 **Profile-edit grounding persists in the session** (plan 81): the
 plan-77 read-only digests (`my_experience` / `my_skills` /
 `my_education` / `my_profile_digest`) are keyword-triggered only until

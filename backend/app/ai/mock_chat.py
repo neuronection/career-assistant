@@ -32,6 +32,10 @@ EDIT_VERBS = {
     "finish",
     "finished",
     "completed",
+    # anchored-append asks (plan 99.2 ops)
+    "append",
+    "expand",
+    "extend",
     # variant-generation asks (cv_synth ops)
     "generate",
     "variant",
@@ -183,6 +187,25 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                     ],
                     "action": "summarize",
                 },
+            }
+        ]
+    if (
+        items
+        and words & {"append", "expand", "extend"}
+        and _was_read(tools, "experience_item", items[0]["id"])
+    ):
+        return [
+            {
+                "kind": "experience_item",
+                "action": "update",
+                "entity_id": items[0]["id"],
+                "text_edits": [
+                    {
+                        "field": "description",
+                        "op": "append",
+                        "text": "Optimized the nightly batch queries.",
+                    }
+                ],
             }
         ]
     if "my_experience" in tools and words & {"add", "create", "record"}:
@@ -379,6 +402,62 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
 
 
 register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
+
+
+def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
+    """Deterministic agent-round stand-in (plan 98 phase 3):
+
+    Mirrors the grounding behavior: call the digest tools the message's
+    entity keywords ask for, but SKIP the ones already present in the
+    prompt (cache-primed or pulled in an earlier round) — the model must
+    never repeat an identical call. Plan 99.1: once the digests are in,
+    a later round opens the target's full content (read-before-edit)
+    exactly where the mock ops would need it.
+    """
+    import re as _re
+
+    from app.ai.agents.chatbot import (
+        EDUCATION_KEYWORDS,
+        EXPERIENCE_KEYWORDS,
+        PROFILE_DIGEST_KEYWORDS,
+        SKILL_KEYWORDS,
+    )
+
+    match = _re.search(r"CONTEXT_JSON: (\{.*\})", user_text, _re.S)
+    ctx = parse_context(user_text) if match else {}
+    tools = ctx.get("tool_results") or {}
+    message = str(ctx.get("message") or "")
+    lowered = f" {message.lower()} "
+    plan = [
+        ("my_experience", EXPERIENCE_KEYWORDS),
+        ("my_skills", SKILL_KEYWORDS),
+        ("my_education", EDUCATION_KEYWORDS),
+        ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
+    ]
+    wanted = [
+        name
+        for name, keywords in plan
+        if name not in tools and any(keyword in lowered for keyword in keywords)
+    ]
+    calls = [
+        {"name": name, "args": {}, "id": f"call-{index}"}
+        for index, name in enumerate(wanted)
+    ]
+    if not calls:
+        calls = [
+            {
+                "name": call["name"],
+                "args": call.get("args") or {},
+                "id": f"call-{index}",
+            }
+            for index, call in enumerate(mock_read_calls(tools, message))
+        ]
+    return {"content": "", "tool_calls": calls}
+
+
+from app.ai.gateway import register_agent_mock  # noqa: E402
+
+register_agent_mock(AITaskType.CHAT.value, mock_chat_agent_round)
 
 
 def mock_ops_draft(schema, user_prompt) -> dict:

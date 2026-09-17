@@ -4,9 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **E2E smoke environment**: `scripts/run-e2e.sh` now opts the mock AI
+  provider in explicitly (`MOCK_AI=1` — the opt-in knob requirement of
+  plan 99.1), disables the gateway's per-user AI rate limiter
+  (`AI_RATE_LIMIT=0` — the suite makes far more mock calls than the
+  30/min default, and the last AI-heavy specs used to 429 with
+  "retry in 23s"), and recreates the scratch database each run so a
+  stale seeded mock provider cannot bypass mock-fixture registration
+  (generic "mock_answer" turns otherwise).
+
 ### Added
-- **Rendered before/after preview + one-click revert on proposal cards**
-  (plan 99.6): entity-edit cards now carry a Preview action (hidden for
+- **Rendered before/after preview + one-click revert on proposal cards**  (plan 99.6): entity-edit cards now carry a Preview action (hidden for
   `user_skill` / `profile_section` / `cv_synth` and on 404) — the modal
   renders the real item card before/after side-by-side (SegmentedTabs
   toggle on narrow viewports; creates after-only, deletes before-only

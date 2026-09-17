@@ -14,10 +14,18 @@ export DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://career:career_dev_pw@1
 export E2E_BASE_URL="http://127.0.0.1:${PORT}"
 export APP_ENV=test
 export SCHEDULER_ENABLED=false
+# The mock provider is opt-in since plan 99.1 (mock rows are invisible to
+# AI resolution without the knob) — the scratch DB starts unconfigured,
+# so the mock carrier must be bootstrapped explicitly for the smoke suite.
+export MOCK_AI=1
 # The e2e server loads `.env` (not `.env.test`), so the unit suite's
 # RATE_LIMIT_ENABLED=false never applies and back-to-back registrations
 # can 429. Disable it here to keep the smoke suite deterministic.
+# The gateway's AI limiter reads AI_RATE_LIMIT directly (default 30/min
+# — the suite makes far more mock calls than that, the LAST test files
+# hit the cap and the turn 429s with "retry in 23s").
 export RATE_LIMIT_ENABLED=false
+export AI_RATE_LIMIT=0
 
 cd "$ROOT"
 
@@ -41,9 +49,15 @@ if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
 fi
 
 if [[ "$DATABASE_URL" == *"career_e2e" ]] && docker ps --format '{{.Names}}' | grep -qx career-postgres; then
-  docker exec career-postgres psql -U career -d postgres -tc \
-    "select 1 from pg_database where datname='career_e2e'" | grep -q 1 ||
-    docker exec career-postgres psql -U career -d postgres -c "create database career_e2e owner career;"
+  # Recreate the scratch DB — a stale seeded provider (pre MOCK_AI gate)
+  # pre-empts the bootstrap resolution and leaves the mock fixtures
+  # unregistered (the smoke suite ran with generic answers, plan 99.1).
+  docker exec career-postgres psql -U career -d postgres -c \
+    "DROP DATABASE career_e2e (FORCE)" 2>/dev/null \
+    || docker exec career-postgres psql -U career -d postgres \
+      -c "select pg_terminate_backend(pid) from pg_stat_activity where datname='career_e2e' and pid <> pg_backend_pid(); commit;" \
+      -c "DROP DATABASE career_e2e;"
+  docker exec career-postgres psql -U career -d postgres -c "CREATE DATABASE career_e2e OWNER career;"
 fi
 
 echo ">>> migrating scratch DB"

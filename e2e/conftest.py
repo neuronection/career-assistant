@@ -50,3 +50,31 @@ def clean_workspace(page: Page):
     reset_workspace(page)
     yield
     reset_workspace(page)
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, f"rep_{rep.when}", rep)
+
+
+@pytest.fixture(autouse=True)
+def _screenshot_on_failure(page, request):
+    console: list[str] = []
+    page.on("console", lambda msg: console.append(f"{msg.type}: {msg.text[:200]}"))
+    page.on("pageerror", lambda error: console.append(f"pageerror: {error}"))
+    yield page
+    if getattr(request.node, "rep_call", None) is not None and (
+        request.node.rep_call.failed
+    ):
+        import os
+
+        path = f"/tmp/e2e-fail-{request.node.name}.png"
+        try:
+            page.screenshot(path=path, full_page=True)
+            print(f"SCREENSHOT {os.path.abspath(path)}")
+        except Exception:  # noqa: BLE001
+            pass
+        for line in console[-25:]:
+            print("CONSOLE", line)
