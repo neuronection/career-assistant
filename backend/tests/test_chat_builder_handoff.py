@@ -80,7 +80,7 @@ async def test_build_intent_hands_off_to_builder(client, db, auth_headers, build
     names = [name for name, _ in events]
     print("DEBUG EVENTS:", names)
     assert "builder_state" in names, "the turn ran the copilot loop"
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
 
     rows = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session["id"]))

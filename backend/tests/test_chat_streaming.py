@@ -40,9 +40,9 @@ async def test_stream_events_order_and_persistence(
 
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
-    assert names[0] == "status"
+    assert names[0] == "flow_started"
     assert "delta" in names
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
     assert "error" not in names
 
     deltas = "".join(payload["text"] for name, payload in events if name == "delta")
@@ -86,10 +86,8 @@ async def test_stream_reports_error_when_ai_fails(
     ).json()
     response = await _post_message(client, session["id"], auth_headers, stream="true")
     events = _parse_sse(response.text)
-    names = [name for name, _ in events]
-    assert "error" in names
-    error_payload = next(p for n, p in events if n == "error")
-    assert "no valid output" in error_payload["detail"]
+    failed_payload = next(p for n, p in events if n == "flow_failed")
+    assert "no valid output" in failed_payload["message"]
 
 
 def _parse_sse(text: str) -> list[tuple[str, dict]]:

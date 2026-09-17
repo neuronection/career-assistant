@@ -321,7 +321,7 @@ async def test_practice_turn_stream_persists_rubric(
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
     assert names[0] == "flow_started"
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
     assert "delta" in names
     assert "interview_state" in names
     state = dict(events)["interview_state"]

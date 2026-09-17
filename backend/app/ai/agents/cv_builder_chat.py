@@ -1068,7 +1068,6 @@ async def builder_turn_events(
                 "tool_count": len(all_results),
             },
         )
-        yield "done", {"ok": True}
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001 — stream must end cleanly
@@ -1104,7 +1103,6 @@ async def builder_turn_events(
                     pass
         code = "ai_unavailable" if "not configured" in str(exc).lower() else "ai_error"
         yield "flow_failed", {"code": code, "message": str(exc), "retryable": True}
-        yield "error", {"detail": str(exc)}
 
 
 # ---------------------------------------------------------- mock fixture

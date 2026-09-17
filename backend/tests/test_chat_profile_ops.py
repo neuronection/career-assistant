@@ -243,7 +243,7 @@ async def test_turn_emits_proposal_events_and_persists(
         client, session["id"], auth_headers, "Add a project where I built a chatbot"
     )
     names = [name for name, _ in events]
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
 
     proposals = [payload for name, payload in events if name == "proposal"]
     assert len(proposals) == 1

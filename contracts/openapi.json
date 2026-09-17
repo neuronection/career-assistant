@@ -19713,7 +19713,7 @@
         ]
       },
       "post": {
-        "description": "Send a message; responds with the SSE turn stream\n(status/delta/tool_call/proposal/meta/done events).",
+        "description": "Send a message; responds with the SSE turn stream\n(family events: flow_*/node_*/tool_call/delta + meta/proposal).",
         "operationId": "send_message_api_v1_chat_sessions__session_id__messages_post",
         "parameters": [
           {

@@ -41,7 +41,7 @@ describe("streamChatMessage", () => {
         sseResponse([
           event("delta", { text: "ok" }),
           event("proposal", card),
-          event("done", { ok: true }),
+          event("flow_finished", { flow: "chat", total_ms: 12 }),
         ]),
       ),
     );
@@ -63,7 +63,7 @@ describe("streamChatMessage", () => {
       vi.fn().mockResolvedValue(
         sseResponse([
           event("preview", preview),
-          event("done", { ok: true }),
+          event("flow_finished", { flow: "chat", total_ms: 12 }),
         ]),
       ),
     );
@@ -75,7 +75,8 @@ describe("streamChatMessage", () => {
   });
 
   it("reassembles events split across chunk boundaries", async () => {
-    const statusBody = JSON.stringify({
+    const flowBody = JSON.stringify({
+      flow: "chat",
       stage: "searching the catalog",
       found: 3,
     });
@@ -83,8 +84,8 @@ describe("streamChatMessage", () => {
       "fetch",
       vi.fn().mockResolvedValue(
         sseResponse([
-          "event: sta",
-          `tus\ndata: ${statusBody}\n\n`,
+          "event: flow_",
+          `started\ndata: ${flowBody}\n\n`,
           event("delta", { text: "Hel" }) +
             event("delta", { text: "lo" }) +
             "event: del",
@@ -93,22 +94,22 @@ describe("streamChatMessage", () => {
             message_id: "m1",
             referenced_job_codes: ["software-engineer"],
           }),
-          event("done", { ok: true }),
+          event("flow_finished", { flow: "chat", total_ms: 20 }),
         ]),
       ),
     );
 
-    const statuses: Array<[string, number | undefined]> = [];
+    const flowEvents: string[] = [];
     const deltas: string[] = [];
     let meta: { message_id: string; referenced_job_codes: string[] } | undefined;
 
     await streamChatMessage("session-1", "hello", {
-      onStatus: (stage, found) => statuses.push([stage, found]),
+      onFlowEvent: (e) => flowEvents.push(e.event),
       onDelta: (accumulated) => deltas.push(accumulated),
       onMeta: (m) => (meta = m),
     });
 
-    expect(statuses).toEqual([["searching the catalog", 3]]);
+    expect(flowEvents).toEqual(["flow_started", "flow_finished"]);
     expect(deltas).toEqual(["Hel", "Hello", "Hello!"]);
     expect(meta).toEqual({
       message_id: "m1",
@@ -116,10 +117,12 @@ describe("streamChatMessage", () => {
     });
   });
 
-  it("rejects on a stream error event", async () => {
+  it("rejects on a stream failure event", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(sseResponse([event("error", { detail: "boom" })])),
+      vi.fn().mockResolvedValue(
+        sseResponse([event("flow_failed", { code: "ai_error", message: "boom" })]),
+      ),
     );
     await expect(streamChatMessage("s", "hi", {})).rejects.toThrow("boom");
   });

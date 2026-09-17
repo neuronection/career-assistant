@@ -544,7 +544,6 @@ async def interview_turn_events(
             "tool_count": 0,
         },
     )
-    yield "done", {"ok": True}
 
 
 def _mock_interview_turn(schema: type, user_prompt: str) -> dict:

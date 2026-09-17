@@ -128,7 +128,7 @@ async def test_uncompiled_cv_falls_back_to_preview_and_writes_no_version(
         "what do you think of this cv",
         attachments=[{"kind": "cv", "cv_id": str(cv.id)}],
     )
-    assert any(n == "done" for n, _ in events)
+    assert any(n == "flow_finished" for n, _ in events)
     versions = (
         (await db.execute(select(CvVersion).where(CvVersion.cv_document_id == cv.id)))
         .scalars()
@@ -155,7 +155,7 @@ async def test_followup_inherits_earlier_reference(client, db, auth_headers):
         auth_headers,
         "and what about the skills section?",
     )
-    assert any(n == "done" for n, _ in events)
+    assert any(n == "flow_finished" for n, _ in events)
     rows = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session["id"]))
     )
@@ -189,7 +189,7 @@ async def test_regenerate_inherits_attachments(client, db, auth_headers):
     )
     assert response.status_code == 200
     events = _parse_sse(response.text)
-    assert any(n == "done" for n, _ in events)
+    assert any(n == "flow_finished" for n, _ in events)
 
     rows = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session["id"]))
@@ -224,7 +224,7 @@ async def test_edit_branch_keeps_attachments_without_body(client, db, auth_heade
     )
     assert response.status_code == 200
     events = _parse_sse(response.text)
-    assert any(n == "done" for n, _ in events)
+    assert any(n == "flow_finished" for n, _ in events)
     rows = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session["id"]))
     )

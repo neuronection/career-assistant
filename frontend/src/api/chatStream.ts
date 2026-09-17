@@ -7,11 +7,10 @@ export interface ChatCvAttachmentInput {
 }
 
 export interface ChatStreamCallbacks {
-  onStatus?: (stage: string, found?: number) => void;
   /** Receives the accumulated assistant text so far. */
   onDelta?: (accumulated: string) => void;
   onMeta?: (meta: { message_id: string; referenced_job_codes: string[] }) => void;
-  /** Family event vocabulary alongside the legacy names. */
+  /** Family event vocabulary (ai-features §5). */
   onFlowEvent?: (event: ChatFlowEvent) => void;
   /**: the CV builder copilot's final full-state payload. */
   onBuilderState?: (state: Record<string, unknown>) => void;
@@ -76,9 +75,7 @@ export async function streamChatRequest(
     buffer = blocks.pop() ?? "";
     for (const block of parseBlocks(blocks.join("\n\n"))) {
       const payload = block.data ? JSON.parse(block.data) : {};
-      if (block.event === "status") {
-        callbacks.onStatus?.(payload.stage ?? "thinking…", payload.found);
-      } else if (block.event === "delta") {
+      if (block.event === "delta") {
         accumulated += payload.text ?? "";
         callbacks.onDelta?.(accumulated);
       } else if (block.event === "meta") {
@@ -92,10 +89,6 @@ export async function streamChatRequest(
         callbacks.onProposal?.(payload as ProfileProposalCardData);
       } else if (block.event === "preview") {
         callbacks.onPreview?.(payload as ChatTemplatePreview);
-      } else if (block.event === "error") {
-        throw new Error(payload.detail ?? "AI error");
-      } else if (block.event === "done") {
-        return;
       } else if (
         block.event === "flow_started" ||
         block.event === "node_started" ||

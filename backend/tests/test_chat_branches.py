@@ -193,7 +193,7 @@ async def test_edit_streams_family_events(
     body = "".join([chunk async for chunk in response.aiter_text()])
     assert "event: flow_started" in body
     assert "event: delta" in body
-    assert "event: done" in body
+    assert "event: flow_finished" in body
 
 
 async def test_aborted_turn_persists_partial_prefix(

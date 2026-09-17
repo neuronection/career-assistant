@@ -30,6 +30,14 @@ All notable changes to **Career Assistant** are documented here.
   `profile_proposal` notification kind (seeded).
 
 ### Changed
+- **The chat stream now speaks only the family event vocabulary**
+  (plan 98 SSE convergence): the duplicate legacy `status`/`done`/
+  `error` events are gone — `flow_started` (now carrying
+  `stage`/`found`), `flow_finished` and `flow_failed` are the single
+  turn lifecycle, alongside `delta`, `tool_call`, `meta`, `proposal`
+  and the surface terminals (`builder_state`, `preview`,
+  `interview_state`). One event name per concept family-wide; smaller
+  payloads per turn.
 - **Chat checkpoints now have server-side retention** (family ADR-0016,
   plan 98 Phase 4): a daily `system_checkpoint_prune` schedule runs the
   `checkpoint_prune` job, deleting LangGraph checkpoint threads older

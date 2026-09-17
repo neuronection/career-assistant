@@ -59,7 +59,7 @@ async def test_chat_without_relevant_catalog_words(
         headers=auth_headers,
     )
     assert reply.status_code == 200, reply.text
-    assert "event: done" in reply.text
+    assert "event: flow_finished" in reply.text
 
 
 async def test_quick_assist(client, auth_headers, profile_ready, seeded_catalog):

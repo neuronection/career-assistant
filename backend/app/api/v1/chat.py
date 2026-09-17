@@ -107,7 +107,7 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
 ):
     """Send a message; responds with the SSE turn stream
-    (status/delta/tool_call/proposal/meta/done events)."""
+    (family events: flow_*/node_*/tool_call/delta + meta/proposal)."""
     return await _send_stream(session_id, data, user, db)
 
 
@@ -193,7 +193,6 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     "flow_failed",
                     {"code": "ai_unavailable", "message": str(exc), "retryable": True},
                 )
-                yield _sse("error", {"detail": str(exc)})
 
         return StreamingResponse(
             interview_events(),
@@ -278,19 +277,20 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 "flow_failed",
                 {"code": "ai_unavailable", "message": str(exc), "retryable": True},
             )
-            deps.emit("error", {"detail": str(exc)})
         except Exception as exc:  # noqa: BLE001 — stream must end cleanly
             if is_cancellation(exc):
                 # LangGraph wraps node CancelledError — a self-cancelling
                 # stream is an ABORT (partial persists), not a failure.
                 deps.aborted = True
             else:
-                detail = f"AI error: {exc}"
                 deps.emit(
                     "flow_failed",
-                    {"code": "ai_error", "message": detail, "retryable": True},
+                    {
+                        "code": "ai_error",
+                        "message": f"AI error: {exc}",
+                        "retryable": True,
+                    },
                 )
-                deps.emit("error", {"detail": detail})
         finally:
             deps.emit(END_SENTINEL, {})
 
@@ -408,7 +408,6 @@ async def _builder_stream_response(
                 "flow_failed",
                 {"code": "ai_unavailable", "message": str(exc), "retryable": True},
             )
-            yield _sse("error", {"detail": str(exc)})
 
     return StreamingResponse(
         builder_events(),

@@ -342,7 +342,7 @@ async def test_agent_round_budget_caps_executed_tools(
     finally:
         gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
     names = [n for n, _ in events]
-    assert names[-1] == "done", "the turn survives the greedy agent"
+    assert names[-1] == "flow_finished", "the turn survives the greedy agent"
 
     rows = (
         (
@@ -381,7 +381,7 @@ async def test_agent_rounds_stop_at_round_cap(client, db, auth_headers):
     finally:
         gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
     names = [n for n, _ in events]
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
     tool_events = [p for n, p in events if n == "tool_call"]
     assert len(tool_events) <= ct_guard()
 

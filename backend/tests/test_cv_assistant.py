@@ -310,7 +310,7 @@ async def test_assistant_turn_stream_applies_ops(
     assert "delta" in names
     assert "builder_state" in names
     assert "meta" in names
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
     assert "error" not in names
 
     tool_calls = [payload for name, payload in events if name == "tool_call"]
@@ -508,7 +508,7 @@ async def test_visual_review_degrades_without_chromium(
     assert response.status_code == 200, response.text
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
-    assert names[-1] == "done"
+    assert names[-1] == "flow_finished"
     review = next(
         payload
         for name, payload in events

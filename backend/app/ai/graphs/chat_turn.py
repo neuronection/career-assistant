@@ -171,11 +171,10 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
         {"id": "ground", "label": "searching the catalog"},
         {"id": "generate", "label": "writing the reply"},
     ]
-    deps.emit("status", {"stage": "searching the catalog", "found": found})
-    # Family event vocabulary alongside the legacy names: additive only —
-    # legacy `status` stays first, legacy `done` stays last, `delta` is
-    # already the family name.
-    deps.emit("flow_started", {"flow": "chat", "steps": steps})
+    deps.emit(
+        "flow_started",
+        {"flow": "chat", "steps": steps, "stage": "searching the catalog", "found": found},
+    )
     deps.emit("node_started", {"id": "ground", "label": steps[0]["label"]})
     # Turn trace: tools ran pre-LLM inside retrieve, so cards stream in
     # as completed.
@@ -531,7 +530,6 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
             "proposal_count": len(deps.created_proposals),
         },
     )
-    deps.emit("done", {"ok": True})
     return {"message_id": str(message.id)}
 
 

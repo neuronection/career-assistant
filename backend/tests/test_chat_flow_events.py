@@ -36,7 +36,7 @@ def _parse_sse(text: str) -> list[tuple[str, dict]]:
     return events
 
 
-async def test_stream_emits_family_vocabulary_alongside_legacy(
+async def test_stream_emits_the_family_vocabulary(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
     session = (
@@ -51,8 +51,8 @@ async def test_stream_emits_family_vocabulary_alongside_legacy(
     names = [name for name, _ in events]
 
     # Legacy contract intact (parity with test_chat_streaming).
-    assert names[0] == "status"
-    assert names[-1] == "done"
+    assert names[0] == "flow_started"
+    assert names[-1] == "flow_finished"
     assert "delta" in names
 
     # Family vocabulary present and well-ordered.
@@ -60,8 +60,7 @@ async def test_stream_emits_family_vocabulary_alongside_legacy(
     assert "node_started" in names
     assert "node_finished" in names
     assert "flow_finished" in names
-    assert names.index("flow_finished") < names.index("done")
-    assert names.index("status") < names.index("flow_started")
+    assert names.index("flow_started") == 0
 
     flow = next(p for n, p in events if n == "flow_started")
     assert flow["flow"] == "chat"
@@ -93,7 +92,6 @@ async def test_stream_emits_flow_failed_on_error(
     names = [name for name, _ in events]
 
     assert "flow_failed" in names
-    assert names.index("flow_failed") < names.index("error")
     failed = next(p for n, p in events if n == "flow_failed")
     assert failed["retryable"] is True
     assert "no valid output" in failed["message"]
