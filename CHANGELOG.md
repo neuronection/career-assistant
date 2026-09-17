@@ -4,7 +4,42 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Chat engine groundwork for the chat-turn graph migration**
+  (family ADR-0016, plan 98 — pre-release cutover, no legacy window):
+  the gateway gains `ainvoke_agent` (native tool rounds through the
+  same audited/budgeted funnel, JSON mode off for tool calling,
+  scriptable mock for tests/E2E); registry tools can be exported as
+  bind specs for the main chat (surface-owned families excluded);
+  desktop checkpoint retention gets a boot-time prune
+  (`CHECKPOINT_TTL_DAYS`, default 14).
+- **HITL capability rows in the chat tools catalog** (family
+  ADR-0015): the "Tools the assistant can use" dialog now also lists
+  what the assistant can *propose* — a "Propose profile edits"
+  capability card badged "HITL action" explains that chat edits
+  always arrive as review cards you approve first. Registry tool rows
+  gain `kind` (`tool` | `capability`) and `hitl` fields; capabilities
+  are opt-in via `GET /ai/tools?include_capabilities=true` and can
+  never execute (`run_tool` rejects them; MCP/admin surfaces stay
+  callable-only).
+- **Profile-edit proposals now notify** (family ADR-0015 fanout):
+  when a chat turn creates proposal cards, an in-app/desktop
+  notification ("Profile edit proposal waiting for review", linking
+  to `/profile`) is emitted through the notification funnel so
+  proposals survive a closed chat window. New mutable
+  `profile_proposal` notification kind (seeded).
+
 ### Changed
+- **The main chat turn now runs as a checkpointed graph** (family
+  ADR-0016, plan 98 Phase 2 — pre-release cutover, the single-reply
+  loop is gone): the turn is `retrieve → synth → hitl → finalize`
+  (`app/ai/graphs/chat_turn.py`) with the same SSE contract, byte for
+  byte — status/flow events, tool cards, deltas, proposal cards and
+  notifications all behave identically, and an aborted stream still
+  persists its partial reply. Per-session single-flight guards
+  concurrent turns; each turn checkpoints under
+  `chat:{session}:{message}` (foundation for resume/branching).
+  Surface-owned flows (CV copilot, interview practice) are unchanged.
 - **One chat surface at a time: the chat page now takes over** —
   opening `/chat` closes an expanded floating bubble (it stays closed
   after leaving the page) and the docked side panel no longer renders

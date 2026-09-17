@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 import uuid
+from contextlib import suppress
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,16 +10,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import quick_assist
-from app.ai.agents.chatbot import CHATBOT, MAX_PROFILE_OPS, prepare_chat_prompt
-from app.ai.gateway import StructuredStream, partial_answer_text
-from app.ai.schemas import ChatReply
+from app.ai.gateway import partial_answer_text
 from app.core.database import get_db
 from app.core.errors import AINotConfiguredError, DomainError
-from app.models.enums import AITaskType
-from app.services.profile_proposal_service import (
-    ProfileProposalService,
-    proposal_event,
-)
 from app.schemas.chat import (
     AssistIn,
     AssistOut,
@@ -35,6 +29,11 @@ from app.services.profile_service import ProfileService
 from app.services.deps import get_current_user, get_profile_for_user
 
 router = APIRouter(tags=["chat"])
+
+#: Single-flight per session (plan 98): one streaming turn at a time —
+#: concurrent turns on one session would interleave persistence and
+#: checkpoint the same thread twice.
+_ACTIVE_TURNS: set[uuid.UUID] = set()
 
 
 def _session_out(session, last_activity: datetime) -> SessionOut:
@@ -248,276 +247,157 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     target, session, history, content, user_message_id, user, db
                 )
 
-    turn_started = time.monotonic()
+    # ---- Main surface: the chat-turn graph IS the engine (ADR-0016) ----
+    from app.ai.checkpointer import get_checkpointer
+    from app.ai.graphs.chat_turn import (
+        END_SENTINEL,
+        TurnDeps,
+        build_chat_turn_graph,
+        _note_node,
+        is_cancellation,
+    )
+
+    if session.id in _ACTIVE_TURNS:
+        raise DomainError("A reply is already streaming for this chat")
+    _ACTIVE_TURNS.add(session.id)
+
     profile = await get_profile_for_user(db, user.id)
     # CV reference attachments (plan 78): explicit or inherited from the
-    # conversation's most recent attached message (AD2b). Builder-bound
-    # legacy sessions keep their dedicated loop — no references there.
+    # conversation's most recent attached message (AD2b).
     from app.services.chat_attachments import build_turn_references
 
     cv_references = await build_turn_references(db, session, user_message_id)
-    prompt, tool_metadata = await prepare_chat_prompt(
-        db,
-        profile_summary=await ProfileService(db).profile_summary(profile),
-        history=history,
-        message=content,
-        page_context=session.context,
-        user_id=user.id,
-        cv_references=cv_references,
+
+    queue: asyncio.Queue = asyncio.Queue()
+    deps = TurnDeps(
+        db=db,
         session=session,
+        user=user,
+        user_message_id=user_message_id,
+        content=content,
+        history=history,
+        profile_summary=await ProfileService(db).profile_summary(profile),
+        page_context=session.context,
+        cv_references=cv_references,
+        emit=lambda event, payload: queue.put_nowait((event, payload)),
     )
-    if cv_references:
-        tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in cv_references]
 
-    stream = StructuredStream()
-
-    async def events():
-        tools = tool_metadata.get("tools", [])
-        nodes_trace: list[dict] = []
-
-        def _note_node(
-            node_id: str,
-            label: str,
-            started: float,
-            ended: float,
-            status: str = "done",
-        ) -> None:
-            """Record one graph-node window for the persisted trace."""
-            nodes_trace.append(
-                {
-                    "id": node_id,
-                    "label": label,
-                    "status": status,
-                    "start_ms": int((started - turn_started) * 1000),
-                    "duration_ms": int((ended - started) * 1000),
-                }
-            )
-
-        found = sum(len(tool.get("results") or []) for tool in tools)
-        steps = [
-            {"id": "ground", "label": "searching the catalog"},
-            {"id": "generate", "label": "writing the reply"},
-        ]
-        yield _sse(
-            "status",
-            {"stage": "searching the catalog", "found": found},
-        )
-        # Family event vocabulary alongside the legacy
-        # names: additive only — legacy `status` stays first, legacy
-        # `done` stays last, `delta` is already the family name.
-        yield _sse("flow_started", {"flow": "chat", "steps": steps})
-        yield _sse("node_started", {"id": "ground", "label": steps[0]["label"]})
-        # Turn trace: tools ran pre-LLM inside
-        # `prepare_chat_prompt`, so cards stream in as completed.
-        for index, tool in enumerate(tools):
-            yield _sse(
-                "tool_call",
-                {
-                    "id": f"{tool.get('name', 'tool')}-{index}",
-                    "name": tool.get("name", "tool"),
-                    "title": tool.get("title", tool.get("name", "tool")),
-                    "status": "done",
-                    "args": tool.get("args_summary", ""),
-                    "result": tool.get("result_summary", ""),
-                    "duration_ms": tool.get("duration_ms"),
-                },
-            )
-        sent = 0
-        generating = False
-        generate_started: float | None = None
+    async def _drive():
+        """Producer: run the graph; map failures onto the SSE contract."""
         try:
-            async for chunk in stream.chunks(
-                db, AITaskType.CHAT, ChatReply, CHATBOT, prompt, user.id
-            ):
-                partial = partial_answer_text("".join(stream._raw))
-                if len(partial) > sent:
-                    if not generating:
-                        generating = True
-                        generate_started = time.monotonic()
-                        yield _sse(
-                            "node_finished",
-                            {
-                                "id": "ground",
-                                "duration_ms": int(
-                                    (generate_started - turn_started) * 1000
-                                ),
-                            },
-                        )
-                        _note_node(
-                            "ground",
-                            steps[0]["label"],
-                            turn_started,
-                            generate_started,
-                        )
-                        yield _sse(
-                            "node_started",
-                            {"id": "generate", "label": steps[1]["label"]},
-                        )
-                    yield _sse("delta", {"text": partial[sent:]})
-                    sent = len(partial)
-            if stream.reply is None:
-                raise DomainError(stream.error or "AI produced no valid reply")
-            if not generating:
-                generate_started = time.monotonic()
-                yield _sse(
-                    "node_finished",
-                    {
-                        "id": "ground",
-                        "duration_ms": int((generate_started - turn_started) * 1000),
-                    },
-                )
-                _note_node("ground", steps[0]["label"], turn_started, generate_started)
-                yield _sse(
-                    "node_started", {"id": "generate", "label": steps[1]["label"]}
-                )
-            # HITL profile ops (plan 77): the reply validates ops, the
-            # stream persists them as proposal cards — apply never happens
-            # here; the user resolves each card.
-            ops = stream.reply.profile_ops or []
-            created_proposals: list = []
-            dropped_ops: list = []
-            overflow = max(0, len(ops) - MAX_PROFILE_OPS)
-            if ops:
-                created_proposals, dropped_ops = await ProfileProposalService(
-                    db
-                ).create_from_ops(
-                    user.id,
-                    [op.model_dump() for op in ops[:MAX_PROFILE_OPS]],
-                    chat_session_id=session.id,
-                )
-            proposals_dropped = len(dropped_ops) + overflow
-            generate_ended = time.monotonic()
-            yield _sse(
-                "node_finished",
-                {
-                    "id": "generate",
-                    "duration_ms": int(
-                        (generate_ended - (generate_started or turn_started)) * 1000
-                    ),
-                },
-            )
-            _note_node(
-                "generate",
-                steps[1]["label"],
-                generate_started or turn_started,
-                generate_ended,
-            )
-            total_ms = int((time.monotonic() - turn_started) * 1000)
-            tool_metadata["elapsed_ms"] = total_ms
-            tool_metadata["nodes"] = nodes_trace
-            if stream.model:
-                tool_metadata["model"] = stream.model
-            if stream.tokens_in is not None:
-                tool_metadata["tokens_in"] = stream.tokens_in
-            if stream.tokens_out is not None:
-                tool_metadata["tokens_out"] = stream.tokens_out
-            if created_proposals:
-                tool_metadata["proposals"] = [
-                    proposal_event(p) for p in created_proposals
-                ]
-            if proposals_dropped:
-                tool_metadata["proposals_dropped"] = proposals_dropped
-                # The notes must never be a mystery: persist WHY each op
-                # was dropped (counted elsewhere) so the UI can show it.
-                dropped_reasons = [
-                    {
-                        "kind": str(drop["op"].get("kind")),
-                        "reason": str(drop.get("reason", "")).removeprefix(
-                            "Value error, "
-                        )[:200],
+            checkpointer = await get_checkpointer()
+            graph = build_chat_turn_graph(deps, checkpointer)
+            await graph.ainvoke(
+                {},
+                config={
+                    "configurable": {
+                        "thread_id": f"chat:{session.id}:{user_message_id}"
                     }
-                    for drop in dropped_ops[:5]
-                ]
-                if dropped_reasons:
-                    tool_metadata["proposals_dropped_reasons"] = dropped_reasons
-            message = await ChatService(db).complete_message(
-                session, user_message_id, stream.reply, tool_metadata
-            )
-            if created_proposals:
-                for proposal in created_proposals:
-                    proposal.chat_message_id = message.id
-                await db.commit()
-            await ChatService(db).autotitle_if_first_turn(user.id, session.id, content)
-            yield _sse(
-                "meta",
-                {
-                    "message_id": str(message.id),
-                    "referenced_job_codes": stream.reply.referenced_job_codes,
-                    "referenced_posting_refs": tool_metadata.get("refs", []),
-                    "explore_query": tool_metadata.get("explore_query"),
-                    "proposals_dropped": proposals_dropped or None,
-                    "proposals_dropped_reasons": tool_metadata.get(
-                        "proposals_dropped_reasons"
-                    ),
                 },
             )
-            for proposal in created_proposals:
-                yield _sse("proposal", proposal_event(proposal))
-            yield _sse(
-                "flow_finished",
-                {
-                    "flow": "chat",
-                    "model": stream.model,
-                    "total_ms": total_ms,
-                    "tool_count": len(tools),
-                    "proposal_count": len(created_proposals),
-                },
-            )
-            yield _sse("done", {"ok": True})
-        except asyncio.CancelledError:
-            # Client aborted (stop button): persist the partial prefix so
-            # the interrupted turn survives — with the trace
-            # gathered so far, so the UI can still show what ran.
-            partial = partial_answer_text("".join(stream._raw))
-            if stream.reply is None and partial.strip():
-                now = time.monotonic()
-                if generating and generate_started is not None:
-                    _note_node(
-                        "ground", steps[0]["label"], turn_started, generate_started
-                    )
-                    _note_node(
-                        "generate",
-                        steps[1]["label"],
-                        generate_started,
-                        now,
-                        status="interrupted",
-                    )
-                else:
-                    _note_node(
-                        "ground",
-                        steps[0]["label"],
-                        turn_started,
-                        now,
-                        status="interrupted",
-                    )
-                try:
-                    await ChatService(db).complete_interrupted(
-                        session,
-                        user_message_id,
-                        partial,
-                        metadata={
-                            "tools": tool_metadata.get("tools", []),
-                            "nodes": nodes_trace,
-                            "elapsed_ms": int((now - turn_started) * 1000),
-                            "model": stream.model,
-                        },
-                    )
-                except Exception:  # noqa: BLE001 — best-effort persistence
-                    await db.rollback()
-            raise
         except DomainError as exc:
-            yield _sse(
+            deps.emit(
                 "flow_failed",
                 {"code": "ai_unavailable", "message": str(exc), "retryable": True},
             )
-            yield _sse("error", {"detail": str(exc)})
+            deps.emit("error", {"detail": str(exc)})
         except Exception as exc:  # noqa: BLE001 — stream must end cleanly
-            detail = f"AI error: {exc}"
-            yield _sse(
-                "flow_failed",
-                {"code": "ai_error", "message": detail, "retryable": True},
+            if is_cancellation(exc):
+                # LangGraph wraps node CancelledError — a self-cancelling
+                # stream is an ABORT (partial persists), not a failure.
+                deps.aborted = True
+            else:
+                detail = f"AI error: {exc}"
+                deps.emit(
+                    "flow_failed",
+                    {"code": "ai_error", "message": detail, "retryable": True},
+                )
+                deps.emit("error", {"detail": detail})
+        finally:
+            deps.emit(END_SENTINEL, {})
+
+    async def events():
+        """Consumer: drain the graph emitter into SSE (legacy contract)."""
+
+        async def _persist_abort() -> None:
+            # Client aborted (stop button) or the stream self-cancelled:
+            # persist the partial prefix so the interrupted turn survives —
+            # with the trace gathered so far, so the UI can still show
+            # what ran.
+            partial = (
+                partial_answer_text("".join(deps.stream._raw))
+                if deps.stream is not None and deps.stream.reply is None
+                else ""
             )
-            yield _sse("error", {"detail": detail})
+            if not partial.strip():
+                return
+            now = time.monotonic()
+            if deps.generating and deps.generate_started is not None:
+                _note_node(
+                    deps,
+                    "ground",
+                    "searching the catalog",
+                    deps.turn_started,
+                    deps.generate_started,
+                )
+                _note_node(
+                    deps,
+                    "generate",
+                    "writing the reply",
+                    deps.generate_started,
+                    now,
+                    status="interrupted",
+                )
+            else:
+                _note_node(
+                    deps,
+                    "ground",
+                    "searching the catalog",
+                    deps.turn_started,
+                    now,
+                    status="interrupted",
+                )
+            try:
+                await ChatService(db).complete_interrupted(
+                    session,
+                    user_message_id,
+                    partial,
+                    metadata={
+                        "tools": deps.tool_metadata.get("tools", []),
+                        "nodes": deps.nodes_trace,
+                        "elapsed_ms": int((now - deps.turn_started) * 1000),
+                        "model": deps.stream.model if deps.stream else None,
+                    },
+                )
+            except Exception:  # noqa: BLE001 — best-effort persistence
+                await db.rollback()
+
+        try:
+            driver = asyncio.create_task(_drive())
+            try:
+                while True:
+                    event, payload = await queue.get()
+                    if event == END_SENTINEL:
+                        break
+                    yield _sse(event, payload)
+                # The driver finished normally — but a CancelledError that
+                # bubbled out of the graph (self-cancelling stream) ends
+                # the task as cancelled too: treat it as an abort.
+                with suppress(asyncio.CancelledError):
+                    await driver
+                if driver.cancelled() or deps.aborted:
+                    await _persist_abort()
+                    raise asyncio.CancelledError
+            except asyncio.CancelledError:
+                # Consumer cancelled (client gone): cancel the run at the
+                # node boundary, persist, then surface the abort.
+                driver.cancel()
+                with suppress(BaseException):
+                    await driver
+                await _persist_abort()
+                raise
+        finally:
+            _ACTIVE_TURNS.discard(session.id)
 
     return StreamingResponse(
         events(),

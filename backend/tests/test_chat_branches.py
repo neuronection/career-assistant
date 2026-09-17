@@ -201,8 +201,6 @@ async def test_aborted_turn_persists_partial_prefix(
 ):
     import asyncio
 
-    from app.api.v1 import chat as chat_api
-
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
 
     class CancellingStream:
@@ -218,7 +216,11 @@ async def test_aborted_turn_persists_partial_prefix(
             await asyncio.sleep(0)
             raise asyncio.CancelledError
 
-    monkeypatch.setattr(chat_api, "StructuredStream", lambda: CancellingStream())
+    # Plan 98: the stream seam moved with the engine into the turn graph
+    # (the endpoint only drains the graph emitter).
+    from app.ai.graphs import chat_turn as chat_turn_graph
+
+    monkeypatch.setattr(chat_turn_graph, "StructuredStream", lambda: CancellingStream())
 
     try:
         await client.post(
