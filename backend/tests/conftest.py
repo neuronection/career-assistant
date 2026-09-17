@@ -489,3 +489,57 @@ def multi_user_mode(monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "SINGLE_USER_MODE", False)
+
+
+def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:
+    """Deterministic agent-round stand-in (plan 98 phase 3).
+
+    Mirrors the grounding behavior: call the digest tools the message's
+    entity keywords ask for, but SKIP the ones already present in the
+    prompt (cache-primed or pulled in an earlier round) — the model must
+    never repeat an identical call.
+    """
+    import json as _json
+    import re as _re
+
+    from app.ai.agents.chatbot import (
+        EDUCATION_KEYWORDS,
+        EXPERIENCE_KEYWORDS,
+        PROFILE_DIGEST_KEYWORDS,
+        SKILL_KEYWORDS,
+    )
+
+    match = _re.search(r"CONTEXT_JSON: (\{.*\})", user_text, _re.S)
+    ctx = _json.loads(match.group(1)) if match else {}
+    tools = ctx.get("tool_results") or {}
+    message = str(ctx.get("message") or "")
+    lowered = f" {message.lower()} "
+    plan = [
+        ("my_experience", EXPERIENCE_KEYWORDS),
+        ("my_skills", SKILL_KEYWORDS),
+        ("my_education", EDUCATION_KEYWORDS),
+        ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
+    ]
+    wanted = [
+        name
+        for name, keywords in plan
+        if name not in tools and any(keyword in lowered for keyword in keywords)
+    ]
+    return {
+        "content": "",
+        "tool_calls": [
+            {"name": name, "args": {}, "id": f"call-{index}"}
+            for index, name in enumerate(wanted)
+        ],
+    }
+
+
+@pytest.fixture(autouse=True)
+def _chat_agent_mock():
+    """Script the chat agent-round mock for every test (MOCK_AI runs)."""
+    from app.ai import gateway as gateway_module
+    from app.models.enums import AITaskType
+
+    gateway_module.register_agent_mock(AITaskType.CHAT.value, _chat_agent_script)
+    yield
+    gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)

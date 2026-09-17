@@ -22,18 +22,34 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.gateway import StructuredStream, partial_answer_text
+from app.ai.gateway import (
+    RunRef,
+    StructuredStream,
+    ainvoke_agent,
+    partial_answer_text,
+)
 from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType
 from app.models.user_model import User
 
 MAX_PROFILE_OPS = 5
+
+#: Tool-round budgets (plan 98 phase 3): LLM calls per turn stay ≤ 4
+#: (rounds + synth) and executed tools per turn are capped — over-budget
+#: calls are dropped with a persisted reason, never silently.
+MAX_AGENT_ROUNDS = 3
+MAX_TOOL_CALLS_PER_TURN = 6
+
+#: Digest tools whose model-pulled results persist into the plan-81
+#: session cache (so later keyword-less turns stay grounded).
+DIGEST_TOOLS = {"my_experience", "my_skills", "my_education", "my_profile_digest"}
 
 #: The producer-side end sentinel (never a real SSE event).
 END_SENTINEL = "__end__"
@@ -52,6 +68,12 @@ class ChatTurnState(TypedDict, total=False):
     proposals_dropped: int
     dropped_reasons: list[dict]
     overflow: int
+    #: plan 98 phase 3 — tool rounds
+    pending_calls: list[dict]
+    tool_results_extra: dict
+    rounds: int
+    tools_executed: int
+    degraded: bool
 
 
 @dataclass
@@ -69,6 +91,7 @@ class TurnDeps:
     cv_references: Optional[list[dict]]
     emit: Callable[[str, dict], None]
     turn_started: float = field(default_factory=time.monotonic)
+    run_id: uuid.UUID = field(default_factory=uuid.uuid4)
     stream: Optional[StructuredStream] = None
     nodes_trace: list[dict] = field(default_factory=list)
     created_proposals: list = field(default_factory=list)
@@ -116,10 +139,14 @@ def _note_node(
 
 
 async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
-    """Server-side grounding: registry tools, digest cache, detections.
+    """Server-side grounding: registry tools, detections, digest cache.
 
-    Phase 2 keeps ``prepare_chat_prompt`` verbatim (it IS this node);
-    the tool rounds move these into model-called tools in Phase 3.
+    Digests are NOT pre-run (plan 98 phase 3): the model calls digest
+    tools itself during agent rounds; ``ground_digests`` is the degrade
+    fallback when the provider cannot call tools. The deterministic
+    detections (catalog search, posting refs, notifications, postings,
+    web prefetch) stay code-owned — the model never re-detects what
+    code already knows.
     """
     from app.ai.agents.chatbot import prepare_chat_prompt
 
@@ -132,6 +159,7 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
         user_id=deps.user.id,
         cv_references=deps.cv_references,
         session=deps.session,
+        digest_mode="cached",
     )
     if deps.cv_references:
         tool_metadata["referenced_cv_ids"] = [r["cv_id"] for r in deps.cv_references]
@@ -167,6 +195,180 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
     return {"prompt": prompt, "tool_metadata": tool_metadata}
 
 
+async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
+    """One native tool-round call (``gateway.ainvoke_agent``).
+
+    Budgets: at most ``MAX_AGENT_ROUNDS`` LLM rounds per turn; a provider
+    that cannot call tools degrades to the digest-stuffing fallback
+    (today's behavior) instead of failing the turn.
+    """
+    from langchain_core.messages import HumanMessage
+
+    from app.ai.agents.prompts import AGENT_ROUND
+    from app.ai.agents.chatbot import ground_digests
+    from app.ai.agents.context import context_json, parse_context
+    from app.ai.tools.langchain import chat_tool_specs
+
+    rounds = state.get("rounds", 0)
+    if state.get("degraded") or rounds >= MAX_AGENT_ROUNDS:
+        return {}
+    specs = chat_tool_specs()
+    if not specs:
+        return {}
+    try:
+        message = await ainvoke_agent(
+            deps.db,
+            AITaskType.CHAT,
+            system=AGENT_ROUND,
+            messages=[HumanMessage(content=state["prompt"])],
+            tools=specs,
+            user_id=deps.user.id,
+            run=RunRef(id=deps.run_id, stage=f"agent_round:{rounds}"),
+        )
+    except Exception as exc:  # noqa: BLE001 — degrade, never fail the turn
+        if is_cancellation(exc):
+            raise
+        deps.degraded = True
+        # Degrade fallback: stuff the digests the model can no longer
+        # pull itself (edit grounding must survive without tool calls).
+        ctx = parse_context(state["prompt"])
+        tool_results = ctx.setdefault("tool_results", {})
+        before = set(tool_results)
+        old_metadata = dict(state.get("tool_metadata") or {})
+        metadata_tools = list(old_metadata.get("tools", []))
+        await ground_digests(
+            deps.db,
+            user_id=deps.user.id,
+            message=deps.content,
+            session=deps.session,
+            tool_results=tool_results,
+            metadata_tools=metadata_tools,
+            prepare_started=deps.turn_started,
+        )
+        new_tools = metadata_tools[len(old_metadata.get("tools", [])) :]
+        for offset, tool in enumerate(new_tools):
+            deps.emit(
+                "tool_call",
+                {
+                    "id": f"{tool.get('name', 'tool')}-fallback-{offset}",
+                    "name": tool.get("name", "tool"),
+                    "title": tool.get("title", tool.get("name", "tool")),
+                    "status": tool.get("status", "done"),
+                    "args": tool.get("args_summary", ""),
+                    "result": tool.get("result_summary", ""),
+                    "duration_ms": tool.get("duration_ms"),
+                },
+            )
+        tool_metadata = dict(old_metadata)
+        tool_metadata["tools"] = metadata_tools
+        deps.tool_metadata = tool_metadata
+        return {
+            "degraded": True,
+            "tool_results_extra": {
+                k: v for k, v in tool_results.items() if k not in before
+            },
+            "tool_metadata": tool_metadata,
+            "prompt": context_json(ctx),
+        }
+    calls = [
+        {"name": call["name"], "args": call.get("args") or {}, "id": call["id"]}
+        for call in (message.tool_calls or [])
+    ]
+    return {"pending_calls": calls}
+
+
+async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
+    """Run the model's tool calls through ``run_tool`` (the single
+    executor: audit/budget/requires_user unchanged) and emit the cards.
+    Over-budget calls drop with a persisted reason."""
+    from app.ai.agents.chatbot import TOOL_TITLES
+    from app.ai.tools import run_tool
+
+    calls = state.get("pending_calls") or []
+    extra: dict = {}
+    metadata_tools = list((state.get("tool_metadata") or {}).get("tools", []))
+    dropped: list[dict] = []
+    executed_total = state.get("tools_executed", 0)
+    executed = 0
+    for call in calls:
+        if executed_total + executed >= MAX_TOOL_CALLS_PER_TURN:
+            dropped.append(
+                {
+                    "name": call["name"],
+                    "reason": "per-turn tool budget exhausted",
+                }
+            )
+            continue
+        started = time.monotonic()
+        try:
+            result = await run_tool(deps.db, call["name"], deps.user.id, call["args"])
+        except Exception as exc:  # noqa: BLE001 — an observation, not a failure
+            result = {"error": str(exc)}
+        executed += 1
+        extra[call["name"]] = result
+        duration_ms = int((time.monotonic() - started) * 1000)
+        if call["name"] in DIGEST_TOOLS:
+            # plan 81 continuity: a model-pulled digest persists into the
+            # session cache so later turns without keywords stay grounded.
+            from app.services import chat_digest_cache
+
+            sigs = await chat_digest_cache.digest_signatures(
+                deps.db, deps.user.id, [call["name"]]
+            )
+            sig = sigs.get(call["name"])
+            if sig and deps.session is not None:
+                chat_digest_cache.save(
+                    deps.session,
+                    {call["name"]: chat_digest_cache.fresh_entry(result, sig)},
+                )
+        deps.emit(
+            "tool_call",
+            {
+                "id": f"{call['name']}-{deps.run_id.hex[:6]}-{executed}",
+                "name": call["name"],
+                "title": TOOL_TITLES.get(call["name"], call["name"]),
+                "status": "done",
+                "args": "",
+                "result": "",
+                "duration_ms": duration_ms,
+            },
+        )
+        metadata_tools.append(
+            {
+                "name": call["name"],
+                "title": TOOL_TITLES.get(call["name"], call["name"]),
+                "status": "done",
+                "start_ms": int((started - deps.turn_started) * 1000),
+                "args_summary": "",
+                "duration_ms": duration_ms,
+                "results": [call["name"].replace("my_", "")],
+                "result_summary": call["name"].replace("my_", ""),
+            }
+        )
+    tool_metadata = dict(state.get("tool_metadata") or {})
+    tool_metadata["tools"] = metadata_tools
+    if dropped:
+        tool_metadata["tools_dropped"] = dropped
+    deps.tool_metadata = tool_metadata
+    # Observations re-enter the prompt immediately: the next round (and
+    # the synth step) must see the results in the same context JSON.
+    prompt = state["prompt"]
+    if extra:
+        from app.ai.agents.context import context_json, parse_context
+
+        ctx = parse_context(prompt)
+        ctx.setdefault("tool_results", {}).update(extra)
+        prompt = context_json(ctx)
+    return {
+        "tool_results_extra": {**state.get("tool_results_extra", {}), **extra},
+        "rounds": state.get("rounds", 0) + 1,
+        "pending_calls": [],
+        "tools_executed": executed_total + executed,
+        "tool_metadata": tool_metadata,
+        "prompt": prompt,
+    }
+
+
 def _open_generate(deps: TurnDeps) -> float:
     """The ground→generate transition (first delta or stream end)."""
     now = time.monotonic()
@@ -187,8 +389,9 @@ async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
     stream = StructuredStream()
     deps.stream = stream
     sent = 0
+    prompt = state["prompt"]
     async for _chunk in stream.chunks(
-        deps.db, AITaskType.CHAT, ChatReply, CHATBOT, state["prompt"], deps.user.id
+        deps.db, AITaskType.CHAT, ChatReply, CHATBOT, prompt, deps.user.id
     ):
         partial = partial_answer_text("".join(stream._raw))
         if len(partial) > sent:
@@ -209,6 +412,7 @@ async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
         "model": stream.model,
         "tokens_in": stream.tokens_in,
         "tokens_out": stream.tokens_out,
+        "prompt": prompt,
     }
 
 
@@ -278,6 +482,10 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
     total_ms = int((time.monotonic() - deps.turn_started) * 1000)
     tool_metadata["elapsed_ms"] = total_ms
     tool_metadata["nodes"] = deps.nodes_trace
+    if state.get("rounds"):
+        tool_metadata["tool_rounds"] = state["rounds"]
+    if state.get("degraded"):
+        tool_metadata["degraded"] = True
     if state.get("model"):
         tool_metadata["model"] = state["model"]
     if state.get("tokens_in") is not None:
@@ -342,6 +550,8 @@ def build_chat_turn_graph(deps: TurnDeps, checkpointer: Any):
     builder = StateGraph(ChatTurnState)
     for name, fn in (
         ("retrieve", retrieve),
+        ("agent_round", agent_round),
+        ("execute_tools", execute_tools),
         ("synth", synth),
         ("hitl", hitl),
         ("finalize", finalize),
@@ -349,7 +559,13 @@ def build_chat_turn_graph(deps: TurnDeps, checkpointer: Any):
         node_name, node_fn = node(name, fn)
         builder.add_node(node_name, node_fn)
     builder.add_edge(START, "retrieve")
-    builder.add_edge("retrieve", "synth")
+    builder.add_edge("retrieve", "agent_round")
+    builder.add_conditional_edges(
+        "agent_round",
+        lambda state: ("execute_tools" if state.get("pending_calls") else "synth"),
+        {"execute_tools": "execute_tools", "synth": "synth"},
+    )
+    builder.add_edge("execute_tools", "agent_round")
     builder.add_edge("synth", "hitl")
     builder.add_edge("hitl", "finalize")
     builder.add_edge("finalize", END)

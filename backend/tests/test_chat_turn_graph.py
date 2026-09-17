@@ -6,6 +6,7 @@ spec adapter, the checkpointer retention beat and the gateway
 agent-round funnel (native tool calls, audited, mock-scriptable).
 """
 
+import json
 import sqlite3
 import time
 from pathlib import Path
@@ -18,6 +19,10 @@ from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 
 from tests.test_ai_funnel import _assign_real_model, provider_module
+from app.models.chat_model import ChatMessage
+from app.services.experience_service import ExperienceService
+from tests.test_chat_profile_ops import _auth_user
+from tests.test_chat_profile_ops import _mock_chat_reply  # noqa: F401 — re-exported
 
 _GREGORIAN_100NS = 122192928000000000
 
@@ -242,3 +247,189 @@ async def test_ainvoke_agent_mock_is_scriptable(db):
         from app.ai import gateway as gateway_module
 
         gateway_module.AGENT_MOCK_SCRIPTS.pop("chat", None)
+
+
+# ------------------------------------------------ plan 98 phase 3: rounds
+
+
+async def _send_turn(client, auth_headers, content: str):
+    session = (
+        await client.post(
+            "/api/v1/chat/sessions", json={"title": "rounds"}, headers=auth_headers
+        )
+    ).json()
+    response = await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": content},
+        params={"stream": "true"},
+        headers=auth_headers,
+    )
+    events = []
+    for block in response.text.split("\n\n"):
+        if not block.strip():
+            continue
+        name = data = ""
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                name = line[7:]
+            elif line.startswith("data: "):
+                data = line[6:]
+        events.append((name, json.loads(data)))
+    return session, events
+
+
+async def test_agent_rounds_ground_edit_via_digest_tool(
+    client, db, auth_headers, monkeypatch
+):
+    """Edit-verb turn: the agent mock calls my_experience; the proposal
+    grounds on the tool result (never an invented id)."""
+    from app.ai import gateway as gateway_module
+    from app.models.enums import AITaskType
+
+    gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+    user = await _auth_user(db)
+    item = await ExperienceService(db).create_item(
+        user.id, {"title": "Crew bot", "kind": "project", "open_ended": True}
+    )
+    await db.commit()
+    session = (
+        await client.post(
+            "/api/v1/chat/sessions", json={"title": "ground"}, headers=auth_headers
+        )
+    ).json()
+    response = await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": f"delete the project: {item.title}"},
+        params={"stream": "true"},
+        headers=auth_headers,
+    )
+    events = []
+    for block in response.text.split("\n\n"):
+        name = data = ""
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                name = line[7:]
+            elif line.startswith("data: "):
+                data = line[6:]
+        if name:
+            events.append((name, json.loads(data)))
+    cards = [p for n, p in events if n == "proposal"]
+    assert cards, events
+    assert cards[0]["entity_id"] == str(item.id)
+
+
+async def test_agent_round_budget_caps_executed_tools(
+    client, db, auth_headers, monkeypatch
+):
+    """More tool calls than the per-turn budget → extras drop with a
+    persisted reason and the turn still completes."""
+    from app.ai import gateway as gateway_module
+    from app.ai.graphs import chat_turn as ct
+
+    def greedy(user_text, tool_names):
+        return {
+            "content": "",
+            "tool_calls": [
+                {"name": "search_jobs", "args": {"query": f"q{i}"}, "id": f"c{i}"}
+                for i in range(10)
+            ],
+        }
+
+    gateway_module.register_agent_mock(AITaskType.CHAT.value, greedy)
+    try:
+        session, events = await _send_turn(client, auth_headers, "hello there")
+    finally:
+        gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
+    names = [n for n, _ in events]
+    assert names[-1] == "done", "the turn survives the greedy agent"
+
+    rows = (
+        (
+            await db.execute(
+                select(ChatMessage).where(ChatMessage.session_id == session["id"])
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assistant = next(r for r in rows if r.role == "assistant")
+    # The per-turn budget caps AGENT-executed tools; retrieve's own
+    # deterministic cards (search_jobs) ride the same trace.
+    assert (
+        len(assistant.metadata_json.get("tools", [])) <= 1 + ct.MAX_TOOL_CALLS_PER_TURN
+    )
+    assert assistant.metadata_json.get("tools_dropped"), (
+        "over-budget calls drop with a persisted reason"
+    )
+
+
+async def test_agent_rounds_stop_at_round_cap(client, db, auth_headers):
+    """A script that always calls tools cannot loop forever — the round
+    cap ends the loop and the turn completes."""
+    from app.ai import gateway as gateway_module
+
+    def looper(user_text, tool_names):
+        return {
+            "content": "",
+            "tool_calls": [{"name": "search_jobs", "args": {"query": "x"}, "id": "c"}],
+        }
+
+    gateway_module.register_agent_mock(AITaskType.CHAT.value, looper)
+    try:
+        session, events = await _send_turn(client, auth_headers, "hello there")
+    finally:
+        gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
+    names = [n for n, _ in events]
+    assert names[-1] == "done"
+    tool_events = [p for n, p in events if n == "tool_call"]
+    assert len(tool_events) <= ct_guard()
+
+
+def ct_guard():
+    from app.ai.graphs import chat_turn as ct
+
+    return ct.MAX_AGENT_ROUNDS * ct.MAX_TOOL_CALLS_PER_TURN
+
+
+async def test_agent_degrades_to_digest_stuffing(client, db, auth_headers, monkeypatch):
+    """A provider that cannot call tools degrades: digests are stuffed by
+    the fallback so edit grounding survives (worst case = parity)."""
+    from app.ai import gateway as gateway_module
+    from app.ai.agents.chatbot import _mock_chat_reply
+    from app.ai.graphs import chat_turn as ct
+    from app.models.enums import AITaskType
+
+    async def broken_agent(*args, **kwargs):
+        raise gateway_module.StructuredAIError("provider rejected tools")
+
+    monkeypatch.setattr(ct, "ainvoke_agent", broken_agent)
+    gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
+    user = await _auth_user(db)
+    item = await ExperienceService(db).create_item(
+        user.id, {"title": "Old bot", "kind": "project", "open_ended": True}
+    )
+    await db.commit()
+    session = (
+        await client.post(
+            "/api/v1/chat/sessions", json={"title": "degrade"}, headers=auth_headers
+        )
+    ).json()
+    response = await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={"content": f"delete the project: {item.title}"},
+        params={"stream": "true"},
+        headers=auth_headers,
+    )
+    events = []
+    for block in response.text.split("\n\n"):
+        name = data = ""
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                name = line[7:]
+            elif line.startswith("data: "):
+                data = line[6:]
+        if name:
+            events.append((name, json.loads(data)))
+    cards = [p for n, p in events if n == "proposal"]
+    assert cards, events
+    assert cards[0]["entity_id"] == str(item.id), "degraded turn stays grounded"

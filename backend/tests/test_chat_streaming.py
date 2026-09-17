@@ -64,8 +64,9 @@ async def test_stream_events_order_and_persistence(
         .scalars()
         .all()
     )
-    assert len(audit) == 1
-    assert audit[0].status == "ok"
+    # Plan 98: one row per model call — agent round + synth.
+    assert len(audit) == 2
+    assert all(row.status == "ok" for row in audit)
 
 
 async def test_non_streaming_path_unchanged(

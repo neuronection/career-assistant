@@ -30,6 +30,18 @@ All notable changes to **Career Assistant** are documented here.
   `profile_proposal` notification kind (seeded).
 
 ### Changed
+- **The chat turn now grounds itself with native tool rounds** (family
+  ADR-0016, plan 98 Phase 3): before writing its reply, the assistant
+  can call registry tools itself — digest tools (experience, skills,
+  education, profile) are pulled on demand and their results persist
+  into the session cache, so edit proposals ground on real ids without
+  pre-running every digest on every turn. Budgets keep turns honest:
+  at most 3 agent rounds and 6 executed tools per turn (over-budget
+  calls drop with a persisted reason), and a provider that cannot call
+  tools degrades to the previous digest-stuffing behavior (worst case
+  = parity). Tool cards stream into the transcript as they execute;
+  the deterministic detections (catalog search, posting refs,
+  notifications, web prefetch) stay code-owned.
 - **The main chat turn now runs as a checkpointed graph** (family
   ADR-0016, plan 98 Phase 2 — pre-release cutover, the single-reply
   loop is gone): the turn is `retrieve → synth → hitl → finalize`

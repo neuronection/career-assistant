@@ -996,6 +996,115 @@ def _summarize(value) -> str:
     return text[:SUMMARY_LIMIT]
 
 
+async def ground_digests(
+    db: AsyncSession,
+    *,
+    user_id,
+    message: str,
+    session=None,
+    tool_results: dict,
+    metadata_tools: list[dict],
+    prepare_started: float,
+    fresh: bool = True,
+) -> dict:
+    """Ground profile digests into ``tool_results`` (plan 81 cache-aware).
+
+    Extracted from ``prepare_chat_prompt`` for the plan-98 tool rounds:
+    the graph's retrieve node only rides the CACHE (``fresh=False``) —
+    fresh keyword-requested digests become model-called tools instead;
+    this helper is also the degrade fallback (``fresh=True``) when the
+    provider cannot call tools. Returns the refresh entries for the
+    session cache.
+    """
+    lowered = f" {message.lower()} "
+    started = prepare_started
+
+    from app.ai.tools import run_tool
+
+    async def _timed(name: str, args: dict):
+        result = await run_tool(db, name, user_id, args)
+        return result, {
+            "name": name,
+            "title": TOOL_TITLES.get(name, name),
+            "status": "done",
+            "start_ms": int((started - prepare_started) * 1000),
+            "args_summary": _summarize(args),
+            "duration_ms": int((time.monotonic() - started) * 1000),
+        }
+
+    # Profile digests ground edit ops: entity keywords pull the matching
+    # digest so the model references real ids (never invented). Keywords
+    # are a refresh HINT (plan 81): cached digests persist in the session
+    # and get reused whenever their data signature still matches, so a
+    # later turn without any keyword hit is grounded all the same.
+    refreshed: dict[str, dict] = {}
+    cached_names: list[str] = []
+    if user_id is not None:
+        from app.services import chat_digest_cache
+        from app.services.chat_digest_cache import DIGEST_SEQUENCE
+
+        digest_plan: list[tuple[str, set[str]]] = [
+            ("my_experience", EXPERIENCE_KEYWORDS),
+            ("my_skills", SKILL_KEYWORDS),
+            ("my_education", EDUCATION_KEYWORDS),
+            ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
+        ]
+        cached_entries = chat_digest_cache.load(session)
+        keyword_requested = [
+            name
+            for name, keywords in digest_plan
+            if any(keyword in lowered for keyword in keywords)
+        ]
+        want_sigs = [
+            name
+            for name in DIGEST_SEQUENCE
+            if name in cached_entries or name in keyword_requested
+        ]
+        signatures = (
+            await chat_digest_cache.digest_signatures(db, user_id, want_sigs)
+            if want_sigs
+            else {}
+        )
+        for name, _keywords in digest_plan:
+            if name in tool_results:
+                continue
+            entry = cached_entries.get(name)
+            sig = signatures.get(name)
+            if entry is not None and sig and entry.get("sig") == sig:
+                payload = dict(entry.get("payload") or {})
+                payload["_cached"] = True
+                payload["fetched_at"] = entry.get("fetched_at")
+                tool_results[name] = payload
+                cached_names.append(name)
+            elif (fresh and name in keyword_requested) or entry is not None:
+                # Keyword hit (fresh request) or a cached entry that has
+                # gone stale — either way, rebuild silently; freshness is
+                # the whole point of carrying the digest in the session.
+                # In cached mode (fresh=False) never-seen digests are NOT
+                # proactively fetched — those are model-called tools.
+                digest, meta = await _timed(name, {})
+                tool_results[name] = digest
+                meta["results"] = [name.replace("my_", "")]
+                meta["result_summary"] = _summarize(meta["results"])
+                metadata_tools.append(meta)
+                if sig:
+                    refreshed[name] = chat_digest_cache.fresh_entry(digest, sig)
+        if cached_names:
+            metadata_tools.append(
+                {
+                    "name": "profile_digests",
+                    "title": TOOL_TITLES.get("profile_digests", "profile digests"),
+                    "status": "cached",
+                    "start_ms": 0,
+                    "duration_ms": 0,
+                    "args_summary": "",
+                    "results": cached_names,
+                    "result_summary": _summarize(cached_names),
+                }
+            )
+    return refreshed
+
+
 async def prepare_chat_prompt(
     db: AsyncSession,
     *,
@@ -1006,6 +1115,8 @@ async def prepare_chat_prompt(
     user_id=None,
     cv_references: Optional[list[dict]] = None,
     session=None,
+    include_digests: bool = True,
+    digest_mode: str = "full",
 ) -> tuple[str, dict]:
     """Run the server-side tools and build the user prompt.
 
@@ -1016,7 +1127,11 @@ async def prepare_chat_prompt(
     the posting tools. ``session`` enables the plan-81 digest cache:
     cached, signature-current digests ride ``tool_results`` and refreshes
     persist back onto ``session.context`` — the caller's turn commit
-    persists them.
+    persists them. ``digest_mode`` (plan 98 tool rounds): ``"full"``
+    (default — cache + fresh keyword stuffing, the legacy and degrade
+    behavior), ``"cached"`` (the graph's retrieve: only signature-current
+    cached digests ride along — fresh ones become model-called tools) or
+    ``"off"``.
     """
     from app.ai.tools import run_tool
 
@@ -1089,76 +1204,24 @@ async def prepare_chat_prompt(
             metadata_tools.append(meta)
             explore_query = postings.get("explore_query")
 
-    # Profile digests ground edit ops: entity keywords pull the matching
-    # digest so the model references real ids (never invented). Keywords
-    # are a refresh HINT (plan 81): cached digests persist in the session
-    # and get reused whenever their data signature still matches, so a
-    # later turn without any keyword hit is grounded all the same.
-    if user_id is not None:
-        from app.services import chat_digest_cache
-        from app.services.chat_digest_cache import DIGEST_SEQUENCE
-
-        digest_plan: list[tuple[str, set[str]]] = [
-            ("my_experience", EXPERIENCE_KEYWORDS),
-            ("my_skills", SKILL_KEYWORDS),
-            ("my_education", EDUCATION_KEYWORDS),
-            ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
-        ]
-        cached_entries = chat_digest_cache.load(session)
-        keyword_requested = [
-            name
-            for name, keywords in digest_plan
-            if any(keyword in lowered for keyword in keywords)
-        ]
-        want_sigs = [
-            name
-            for name in DIGEST_SEQUENCE
-            if name in cached_entries or name in keyword_requested
-        ]
-        signatures = (
-            await chat_digest_cache.digest_signatures(db, user_id, want_sigs)
-            if want_sigs
-            else {}
+    # Profile digests ground edit ops (plan 81 cache-aware); the graph's
+    # retrieve rides the cache only ("cached") — fresh digests are
+    # model-called tools (plan 98) with ground_digests as degrade fallback.
+    if digest_mode != "off" and user_id is not None:
+        refreshed = await ground_digests(
+            db,
+            user_id=user_id,
+            message=message,
+            session=session,
+            tool_results=tool_results,
+            metadata_tools=metadata_tools,
+            prepare_started=prepare_started,
+            fresh=digest_mode == "full",
         )
-        refreshed: dict[str, dict] = {}
-        cached_names: list[str] = []
-        for name, _keywords in digest_plan:
-            if name in tool_results:
-                continue
-            entry = cached_entries.get(name)
-            sig = signatures.get(name)
-            if entry is not None and sig and entry.get("sig") == sig:
-                payload = dict(entry.get("payload") or {})
-                payload["_cached"] = True
-                payload["fetched_at"] = entry.get("fetched_at")
-                tool_results[name] = payload
-                cached_names.append(name)
-            elif name in keyword_requested or entry is not None:
-                # Keyword hit (fresh request) or a cached entry that has
-                # gone stale — either way, rebuild silently; freshness is
-                # the whole point of carrying the digest in the session.
-                digest, meta = await _timed(name, {})
-                tool_results[name] = digest
-                meta["results"] = [name.replace("my_", "")]
-                meta["result_summary"] = _summarize(meta["results"])
-                metadata_tools.append(meta)
-                if sig:
-                    refreshed[name] = chat_digest_cache.fresh_entry(digest, sig)
         if refreshed and session is not None:
+            from app.services import chat_digest_cache
+
             chat_digest_cache.save(session, refreshed)
-        if cached_names:
-            metadata_tools.append(
-                {
-                    "name": "profile_digests",
-                    "title": TOOL_TITLES.get("profile_digests", "profile digests"),
-                    "status": "cached",
-                    "start_ms": 0,
-                    "duration_ms": 0,
-                    "args_summary": "",
-                    "results": cached_names,
-                    "result_summary": _summarize(cached_names),
-                }
-            )
 
     # Web tools (plan 80): pasted links resolve through fetch/github_repo;
     # an explicit search ask runs the optional SearXNG web_search.

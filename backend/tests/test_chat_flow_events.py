@@ -99,9 +99,11 @@ async def test_stream_emits_flow_failed_on_error(
     assert "no valid output" in failed["message"]
 
 
-async def test_flow_events_do_not_duplicate_audit_rows(
+async def test_flow_events_audit_one_row_per_model_call(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
+    """Plan 98: a turn = agent round + synth — exactly one audit row per
+    model call, both ok (no streaming rescue duplicates)."""
     session = (
         await client.post(
             "/api/v1/chat/sessions", json={"title": "audit"}, headers=auth_headers
@@ -114,8 +116,8 @@ async def test_flow_events_do_not_duplicate_audit_rows(
         .scalars()
         .all()
     )
-    assert len(rows) == 1
-    assert rows[0].status == "ok"
+    assert len(rows) == 2
+    assert all(row.status == "ok" for row in rows)
 
 
 async def test_stream_emits_tool_call_trace_events(

@@ -143,3 +143,14 @@ concrete routes a student could take to get there. Rules:
   provided family keys (optional context)
 - prefer achievable, realistic steps for a student; mark optional ones
 Reply only with JSON."""
+
+AGENT_ROUND = """You are the grounding step of Career Assistant's chat turn. You may
+call tools to gather facts before the final answer is written in a later step:
+- Before proposing ANY profile edit (add/update/delete experience, skills,
+  education, certifications or profile sections), call the matching digest
+  tools (my_experience, my_skills, my_education, my_profile_digest) and
+  reference ONLY the ids from their results.
+- Call a tool only when its result could change the final answer; never
+  repeat a call with identical arguments.
+- When you have enough grounding, stop calling tools. Do not answer the
+  user in this step."""
