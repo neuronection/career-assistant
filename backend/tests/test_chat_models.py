@@ -42,6 +42,17 @@ def test_build_chat_model_compatible_defaults():
     assert model.http_async_client is None
 
 
+def test_build_chat_model_json_mode_off_for_tool_rounds():
+    """ADR-0016: agent rounds bind tools — the forced JSON response format
+    would suppress tool calls, so json_mode=False drops it."""
+    model = build_chat_model(_resolved("openai_compatible"), json_mode=False)
+    assert model.model_kwargs == {}
+    # The structured paths keep the JSON contract by default:
+    assert build_chat_model(_resolved("openai_compatible")).model_kwargs == {
+        "response_format": {"type": "json_object"}
+    }
+
+
 def test_build_chat_model_temperature_and_max_tokens_split():
     compatible = build_chat_model(_resolved("openai_compatible", max_tokens=512))
     assert isinstance(compatible, CompatibleChatOpenAI)

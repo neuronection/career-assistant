@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     # --mock-ai) or a real provider is configured in the UI. Production
     # ignores this: the gateway blocks the mock provider there regardless.
     MOCK_AI: bool = False
+    # Checkpoint retention (days) for the boot prune of the desktop
+    # checkpoints.db (server-mode Postgres checkpoints are pruned by the
+    # plan-98 scheduler trigger; ops may also truncate).
+    CHECKPOINT_TTL_DAYS: int = 14
 
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_MB: int = 25

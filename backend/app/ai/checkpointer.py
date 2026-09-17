@@ -9,6 +9,7 @@ continue from the last checkpoint instead of restarting.
 """
 
 import logging
+import time
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Optional
@@ -87,3 +88,68 @@ async def aclose_checkpointer() -> None:
             logger.warning("Checkpointer close failed", exc_info=True)
     _stack = None
     _checkpointer = None
+
+
+_GREGORIAN_100NS = 122192928000000000
+_MS_PER_100NS = 10_000
+
+
+def _stale_prefix(now_ms: int, ttl_days: int) -> str:
+    cutoff_100ns = (now_ms - ttl_days * 86_400_000) * _MS_PER_100NS + _GREGORIAN_100NS
+    return f"{cutoff_100ns >> 12:012x}"
+
+
+def prune_checkpoints(
+    db_path: Path, ttl_days: int, now_ms: Optional[int] = None
+) -> int:
+    """Delete desktop checkpoint threads whose latest write is older than the
+    TTL (study's day-one retention beat — checkpoint rows grow unboundedly).
+
+    Checkpoint ids are UUIDv6: the first 12 hex chars are the top 48 bits of
+    the 100 ns Gregorian timestamp, so a zero-padded hex prefix compares
+    lexicographically by time. Orphaned ``writes`` rows are dropped with the
+    checkpoints. Returns removed checkpoint rows; no-op when the file does
+    not exist. Server-mode Postgres pruning lands with the plan-98 Phase-4
+    scheduler trigger.
+    """
+    import sqlite3
+
+    if not db_path.exists():
+        return 0
+    prefix = _stale_prefix(
+        now_ms if now_ms is not None else int(time.time() * 1000), ttl_days
+    )
+    connection = sqlite3.connect(db_path)
+    try:
+        stale = (
+            "select thread_id || checkpoint_ns from checkpoints "
+            "group by thread_id, checkpoint_ns "
+            "having max(replace(checkpoint_id, '-', '')) < ?"
+        )
+        cursor = connection.execute(
+            f"delete from checkpoints where thread_id || checkpoint_ns in ({stale})",
+            (prefix,),
+        )
+        deleted = cursor.rowcount
+        connection.execute(
+            "delete from writes where not exists ("
+            "select 1 from checkpoints c where c.thread_id = writes.thread_id "
+            "and c.checkpoint_ns = writes.checkpoint_ns "
+            "and c.checkpoint_id = writes.checkpoint_id)"
+        )
+        connection.commit()
+        return deleted
+    finally:
+        connection.close()
+
+
+def prune_desktop_checkpoints() -> int:
+    """Boot-time prune of the desktop checkpoint DB (best-effort)."""
+    path = _sqlite_path()
+    if path == ":memory:":
+        return 0
+    try:
+        return prune_checkpoints(Path(path), ttl_days=settings.CHECKPOINT_TTL_DAYS)
+    except Exception:  # noqa: BLE001 — retention never blocks boot
+        logger.warning("Checkpoint prune failed", exc_info=True)
+        return 0

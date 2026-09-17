@@ -17,7 +17,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar, overload
 
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -485,6 +490,196 @@ async def ainvoke_structured(
         latency,
         "error",
         last_error,
+        run_id=run_id,
+        run_stage=run_stage,
+    )
+    raise StructuredAIError(
+        f"AI task '{task.value}' failed after {attempts} attempts: {last_error}"
+    )
+
+
+AGENT_MOCK_SCRIPTS: dict[str, Callable[[str, list[str]], Any]] = {}
+
+
+def register_agent_mock(task: str, builder: Callable[[str, list[str]], Any]) -> None:
+    """Register a deterministic agent-round mock (test/E2E only).
+
+    The builder receives ``(user_text, tool_names)`` and returns an object
+    with ``content`` and optional ``tool_calls`` (name/args dicts) — the
+    mock stand-in for a bound-tools AIMessage.
+    """
+    AGENT_MOCK_SCRIPTS[task] = builder
+
+
+def _agent_mock_output(task: AITaskType, user: str, tools: list[dict]) -> AIMessage:
+    """Deterministic agent-round reply for the mock provider.
+
+    Default: a no-tool-call message (the graph proceeds to the structured
+    synth node — mock parity with the legacy single-call turn). Tests can
+    script tool calls via ``register_agent_mock``.
+    """
+    builder = AGENT_MOCK_SCRIPTS.get(task.value)
+    if builder is not None:
+        out = builder(user, [spec["function"]["name"] for spec in tools])
+        return AIMessage(
+            content=out.get("content", ""),
+            tool_calls=[
+                {"name": call["name"], "args": call.get("args", {}), "id": call["id"]}
+                for call in out.get("tool_calls", [])
+            ],
+        )
+    return AIMessage(content="")
+
+
+async def ainvoke_agent(
+    db: AsyncSession,
+    task: AITaskType,
+    *,
+    system: str,
+    messages: list[BaseMessage],
+    tools: list[dict],
+    user_id=None,
+    run: Optional[RunRef] = None,
+) -> AIMessage:
+    """One native tool-round model call through the standard funnel.
+
+    The agent-round counterpart of ``ainvoke_structured`` (ADR-0016): the
+    model is built with ``json_mode=False`` and bound to the given
+    OpenAI function-format tool specs; the returned ``AIMessage`` carries
+    ``.tool_calls`` (args are untrusted until ``run_tool`` validates
+    them). Resolution, budgets, packs, retries and the audit row follow
+    the structured path; the audit output records the tool calls + text
+    (``run_id``/``run_stage`` pin the turn via ``run``).
+    """
+    from app.ai.providers.resolution import resolve_task_model
+
+    if user_id is not None and settings.AI_RATE_LIMIT > 0:
+        from app.core.errors import DomainError
+        from app.core.ratelimit import limiter
+
+        retry_after = limiter.check("ai", f"user:{user_id}")
+        if retry_after is not None:
+            raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
+
+    resolved = await resolve_task_model(db, task.value, user_id)
+    run_id = run.id if run is not None else None
+    run_stage = run.stage if run is not None else None
+    started = time.perf_counter()
+    user_text = _message_text(messages[-1]) if messages else ""
+    if resolved is None:
+        error = (
+            "AI is not configured yet. An admin can add a provider and assign "
+            "models in Settings → AI Configuration."
+        )
+        latency = (time.perf_counter() - started) * 1000
+        await _record(
+            db,
+            user_id,
+            task,
+            "unconfigured",
+            user_text,
+            None,
+            None,
+            None,
+            latency,
+            "error",
+            error,
+            provider_type="none",
+            run_id=run_id,
+            run_stage=run_stage,
+        )
+        raise AINotConfiguredError(error)
+    if resolved.provider_type == "mock" and settings.is_production:
+        error = (
+            "AI is not configured for this environment: the mock provider is "
+            "dev-only. Configure a real provider in Settings → AI Configuration."
+        )
+        latency = (time.perf_counter() - started) * 1000
+        await _record(
+            db,
+            user_id,
+            task,
+            resolved.model_name,
+            user_text,
+            None,
+            None,
+            None,
+            latency,
+            "error",
+            error,
+            provider_type="mock",
+            run_id=run_id,
+            run_stage=run_stage,
+        )
+        raise AINotConfiguredError(error)
+    from app.ai.budgets import enforce_budgets
+
+    await enforce_budgets(db, task, user_id)
+    from app.ai.packs import compose_system, resolve_pack
+
+    pack = await resolve_pack(db, task.value, user_id=user_id)
+    effective_system = compose_system(system, pack)
+    attempts = 3 if resolved.provider_type != "mock" else 1
+    last_error = ""
+    for attempt in range(attempts):
+        try:
+            if resolved.provider_type == "mock":
+                await asyncio.sleep(0)
+                message = _agent_mock_output(task, user_text, tools)
+            else:
+                model = build_chat_model(resolved, json_mode=False)
+                bound = model.bind_tools(tools) if tools else model
+                message = await bound.ainvoke(
+                    [SystemMessage(content=effective_system), *messages]
+                )
+            usage: dict[str, Any] = dict(getattr(message, "usage_metadata", None) or {})
+            latency = (time.perf_counter() - started) * 1000
+            await _record(
+                db,
+                user_id,
+                task,
+                resolved.model_name,
+                user_text,
+                {
+                    "tool_calls": [
+                        {"name": call["name"], "args": call.get("args", {})}
+                        for call in (message.tool_calls or [])
+                    ],
+                    "text": _message_text(message)[:1000],
+                },
+                usage.get("input_tokens"),
+                usage.get("output_tokens"),
+                latency,
+                "ok",
+                provider_type=resolved.provider_type,
+                pack_key=pack.key if pack else None,
+                pack_version=pack.version if pack else None,
+                run_id=run_id,
+                run_stage=run_stage,
+            )
+            return message
+        except Exception as exc:  # noqa: BLE001 — same retry policy as structured
+            last_error = str(exc)
+            logger.warning(
+                "agent attempt %d for task %s failed: %s",
+                attempt + 1,
+                task.value,
+                last_error,
+            )
+    latency = (time.perf_counter() - started) * 1000
+    await _record(
+        db,
+        user_id,
+        task,
+        resolved.model_name,
+        user_text,
+        None,
+        None,
+        None,
+        latency,
+        "error",
+        last_error,
+        provider_type=resolved.provider_type,
         run_id=run_id,
         run_stage=run_stage,
     )

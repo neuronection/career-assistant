@@ -167,12 +167,18 @@ async def discover_google_models(
 def build_chat_model(
     resolved: "ResolvedModel",
     transport: Optional[httpx.AsyncBaseTransport] = None,
+    *,
+    json_mode: bool = True,
 ) -> BaseChatModel:
     """Build the LangChain chat model for a resolved provider/model.
 
     OpenAI-wire types always use Chat Completions (never the Responses API)
     with JSON-object mode, matching the wire contract the gateway funnel has
     always sent; ``google`` uses the native Gemini API semantics.
+    ``json_mode=False`` drops the forced JSON response format — required
+    for native tool rounds (ADR-0016), where a JSON-only reply would
+    suppress tool calls; the google branch ignores the flag (no JSON mode
+    there to begin with).
     """
     if resolved.provider_type == "google":
         return _google_model(resolved, transport)
@@ -193,8 +199,9 @@ def build_chat_model(
         "max_retries": 0,
         "use_responses_api": False,
         "stream_usage": True,
-        "model_kwargs": {"response_format": {"type": "json_object"}},
     }
+    if json_mode:
+        kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
     if resolved.max_tokens is not None:
         # The provider-type split lives here: OpenAI wants the modern
         # parameter name, compatible endpoints the classic one.

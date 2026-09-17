@@ -183,7 +183,7 @@ async def lifespan(app: FastAPI):
     # its first-run migration issues CREATE INDEX CONCURRENTLY, which waits
     # on every pre-existing transaction snapshot — running it lazily
     # mid-flight (a handler's own open session included) self-deadlocks.
-    from app.ai.checkpointer import get_checkpointer
+    from app.ai.checkpointer import get_checkpointer, prune_desktop_checkpoints
 
     try:
         await get_checkpointer()
@@ -191,6 +191,11 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "Checkpointer warm-up failed; graph flows degraded", exc_info=True
         )
+    # Retention beat (plan 98): desktop checkpoints grow unboundedly —
+    # prune stale threads at boot (server-mode Postgres: Phase-4 trigger).
+    pruned = prune_desktop_checkpoints()
+    if pruned:
+        logger.info("Checkpoint prune removed %d stale rows", pruned)
 
     workers = await start_workers(settings.JOBS_WORKERS)
     scheduler_task = await start_scheduler()
