@@ -63,6 +63,12 @@ PROPOSAL_TTL = timedelta(days=14)
 # unchanged lines, so the card stays readable.
 DIFF_VALUE_CAP = 2000
 
+#: Same-DB clock tolerance for the revert guard (plan 99 AD10): an
+#: update bumped ``entity.updated_at`` at most this much after
+#: ``resolved_at`` still counts as the apply itself, not a later edit.
+#: Pinned by ``test_revert_guard_tolerance``.
+_REVERT_TOLERANCE = timedelta(seconds=2)
+
 #: Kinds whose update/delete ops require the target's full content to
 #: have been read in the same turn (plan 99.1 read-before-edit gate).
 #: ``user_skill`` rows are fully visible in the my_skills digest (a
@@ -244,14 +250,54 @@ def _instance_jsonish(value: Any) -> Any:
     diff the user once saw."""
     if isinstance(value, ExperienceSkill):
         return {
+            "id": str(value.id),
             "skill_key": value.skill.key if value.skill is not None else None,
+            "skill_label": value.skill.label if value.skill is not None else None,
             "role_in_item": value.role_in_item,
             "level_claim": value.level_claim,
             "last_used": value.last_used.isoformat() if value.last_used else None,
         }
     if hasattr(value, "text"):
-        return {"text": value.text}
+        return {
+            "id": str(value.id),
+            "text": value.text,
+            "metric": getattr(value, "metric", None),
+        }
     return value
+
+
+def _structured_entries(field: str, entries: Any) -> list[dict]:
+    """Collection rows as structured chip data (plan 99 AD6): skills keep
+    key + label + role/level, achievements keep text + metric, links keep
+    url — used per-row when the pipeline produced dict entries."""
+    out: list[dict] = []
+    for entry in entries or []:
+        row = entry if isinstance(entry, dict) else _instance_jsonish(entry)
+        if not isinstance(row, dict):
+            continue
+        if field == "skills":
+            key = row.get("skill_key")
+            out.append(
+                {
+                    "id": row.get("id"),
+                    "skill_key": key,
+                    "skill_label": row.get("skill_label") or key,
+                    "role_in_item": row.get("role_in_item"),
+                    "level_claim": row.get("level_claim"),
+                    "last_used": row.get("last_used"),
+                }
+            )
+        elif field == "achievements":
+            out.append(
+                {
+                    "id": row.get("id"),
+                    "text": row.get("text"),
+                    "metric": row.get("metric"),
+                }
+            )
+        else:
+            out.append(row)
+    return out
 
 
 def _before_value(value: Any) -> Any:
@@ -292,6 +338,124 @@ def _payload_value(field: str, value: Any) -> Any:
     if field in _LIST_FIELDS and isinstance(value, list):
         return _scalar_list(value)
     return value
+
+
+#: Columns excluded from full-entity snapshots (plan 99 AD7): identity,
+#: ownership and stamps — the payload shapes carry everything else.
+_SNAPSHOT_SKIP = {
+    "id",
+    "user_id",
+    "org_id",
+    "university_id",
+    "department_id",
+    "skill_id",
+    "created_at",
+    "updated_at",
+}
+
+
+def _snapshot_children(kind: str, entity: Any) -> dict:
+    """Experience child rows with stable ids (same payload shape the
+    read tool serves — skills also keep ``skill_label`` for rendering).
+    """
+    if kind != ProposalKind.EXPERIENCE_ITEM.value:
+        return {}
+    return {
+        "skills": [
+            {
+                "id": str(link.id),
+                "skill_key": link.skill.key if link.skill else str(link.skill_id),
+                "skill_label": link.skill.label if link.skill else None,
+                "role_in_item": link.role_in_item,
+                "level_claim": link.level_claim,
+                "last_used": (link.last_used.isoformat() if link.last_used else None),
+            }
+            for link in entity.skills or []
+        ],
+        "achievements": [
+            {"id": str(row.id), "text": row.text, "metric": row.metric}
+            for row in entity.achievements or []
+        ],
+    }
+
+
+def _full_snapshot(kind: str, entity: Any) -> dict:
+    """KIND_SPECS-shaped full entity dict incl. children (plan 99 AD7).
+
+    Walks the table's own columns — raw stored values (dates iso'd),
+    never diff-capped. Used for ``base_snapshot``/``after_snapshot`` and
+    for delete payloads (recreate-with-children on revert).
+    """
+    snapshot: dict[str, Any] = {}
+    for column in entity.__table__.columns:
+        if column.name in _SNAPSHOT_SKIP:
+            continue
+        value = getattr(entity, column.key, None)
+        if isinstance(value, (datetime, date)):
+            value = value.isoformat()
+        snapshot[column.key] = value
+    snapshot.update(_snapshot_children(kind, entity))
+    return snapshot
+
+
+def _truncate(text: str, cap: int = 60) -> str:
+    text = (text or "").strip()
+    if len(text) <= cap:
+        return text
+    return text[: cap - 1] + "…"
+
+
+def _edit_summary_rows(edit_ops: Optional[dict]) -> list[dict]:
+    """One legible row per edit entry, in order (plan 99 AD6): the card
+    shows each change ("replaces '…'", "adds skill: docker (secondary)")
+    without unfolding the full before/after."""
+    if not edit_ops:
+        return []
+    rows: list[dict] = []
+
+    def row(text: str) -> None:
+        rows.append({"field": "edit", "label": "Change", "before": None, "after": text})
+
+    for edit in edit_ops.get("text_edits") or []:
+        field = edit.get("field") or ""
+        text = _truncate(str(edit.get("text") or ""))
+        op = edit.get("op")
+        if op == "replace":
+            row(f"replaces '{_truncate(str(edit.get('find') or ''))}' in {field}")
+        elif op == "append":
+            row(f"appends to {field}: '{text}'")
+        else:
+            row(f"prepends to {field}: '{text}'")
+    for edit in edit_ops.get("collection_edits") or []:
+        collection = edit.get("collection") or ""
+        match = edit.get("match") or {}
+        if edit.get("op") == "remove":
+            if collection == "skills":
+                row(f"removes skill: {match.get('skill_key') or match.get('id')}")
+            elif collection == "achievements":
+                row(f"removes achievement: '{_truncate(str(match.get('text') or ''))}'")
+            else:
+                row(f"removes link: {match.get('url')}")
+        else:
+            value = edit.get("value") or {}
+            if not isinstance(value, dict):
+                value = (
+                    _as_skill_entry(value)
+                    if collection == "skills"
+                    else _as_achievement_entry(value)
+                    if collection == "achievements"
+                    else _as_link_entry(value)
+                )
+            if collection == "skills":
+                suffix = ""
+                if value.get("role_in_item") and value["role_in_item"] != "primary":
+                    suffix = f" ({value['role_in_item']})"
+                row(f"adds skill: {value.get('skill_key')}{suffix}")
+            elif collection == "achievements":
+                row(f"adds achievement: '{_truncate(str(value.get('text') or ''))}'")
+            else:
+                row(f"adds link: {value.get('url')}")
+    return rows
 
 
 def proposal_title(proposal: ProfileProposal) -> str:
@@ -835,6 +999,11 @@ class ProfileProposalService:
         label = ""
         base_updated_at: Optional[datetime] = None
         diff: list[dict] = []
+        # Plan 99 AD7: KIND_SPECS-shaped before/after snapshots for the
+        # grounded entity kinds — the preview endpoint reads them lazily
+        # and revert inverse-applies them. Never diff-capped.
+        base_snapshot: Optional[dict] = None
+        after_snapshot: Optional[dict] = None
 
         if kind == ProposalKind.PROFILE_SECTION.value:
             patch = ProfileSectionPatchIn.model_validate(payload)
@@ -860,11 +1029,13 @@ class ProfileProposalService:
             stored_payload = validated.model_dump(mode="json")
             label = self._create_label(kind, stored_payload)
             diff = self._create_diff(spec, stored_payload)
+            after_snapshot = dict(stored_payload)
         else:
             entity, base_updated_at = await self._load_entity(kind, user_id, entity_id)
             label = self._entity_label(kind, entity)
             if action == ProposalAction.DELETE.value:
-                stored_payload = {"snapshot": self._snapshot(spec, entity)}
+                stored_payload = {"snapshot": _full_snapshot(kind, entity)}
+                after_snapshot = None
                 diff = [
                     {
                         "field": field,
@@ -883,6 +1054,16 @@ class ProfileProposalService:
                 if not stored_payload:
                     raise ValidationError("update payload sets no fields")
                 diff = self._update_diff(spec, entity, stored_payload)
+                base_snapshot = _full_snapshot(kind, entity)
+                after_snapshot = {**base_snapshot, **stored_payload}
+
+        if edit_ops:
+            diff = [*diff, *_edit_summary_rows(edit_ops)]
+            stored_payload = {**stored_payload, "_edit_ops": edit_ops}
+
+        if kind in GROUNDED_KINDS:
+            stored_payload["base_snapshot"] = base_snapshot
+            stored_payload["after_snapshot"] = after_snapshot
 
         if edit_ops:
             stored_payload = {**stored_payload, "_edit_ops": edit_ops}
@@ -980,6 +1161,118 @@ class ProfileProposalService:
         )
         return len(rows.scalars().all())
 
+    async def preview(self, user_id: uuid.UUID, proposal_id: uuid.UUID) -> dict:
+        """Lazy before/after payloads for the render modal (plan 99 AD7).
+
+        Reads the snapshots persisted at creation — deterministic and
+        offline of entity drift. Owner-scoped by ``get``; rows of the
+        non-entity kinds and cards created before 99 shipped have no
+        snapshots and 404 (the frontend hides the button).
+        """
+        proposal = await self.get(user_id, proposal_id)
+        payload = proposal.payload_json or {}
+        if proposal.kind not in GROUNDED_KINDS:
+            raise NotFoundError("No preview for this proposal")
+        if proposal.action == ProposalAction.CREATE.value:
+            if "after_snapshot" not in payload:
+                raise NotFoundError("No preview for this proposal")
+            return {
+                "before": None,
+                "after": payload["after_snapshot"],
+                "edits": payload.get("_edit_ops") or {},
+            }
+        if proposal.action == ProposalAction.DELETE.value:
+            before = payload.get("snapshot")
+            if before is None:
+                raise NotFoundError("No preview for this proposal")
+            return {
+                "before": before,
+                "after": None,
+                "edits": payload.get("_edit_ops") or {},
+            }
+        if "base_snapshot" not in payload:
+            raise NotFoundError("No preview for this proposal")
+        return {
+            "before": payload["base_snapshot"],
+            "after": payload.get("after_snapshot"),
+            "edits": payload.get("_edit_ops") or {},
+        }
+
+    async def revert(
+        self, user_id: uuid.UUID, proposal_id: uuid.UUID
+    ) -> ProfileProposal:
+        """Inverse-apply an approved card through the form services
+        (plan 99 AD10): update restores ``base_snapshot`` as the patch,
+        delete recreates entity + children from the payload snapshot,
+        create deletes the created entity. Blocks when the target moved
+        after the apply — no silent clobber of later edits. ``reverted``
+        is a terminal status.
+
+        A direct user action on their own applied change — never a
+        proposal card. Only the snapshot-backed entity kinds support
+        revert.
+        """
+        proposal = await self.get(user_id, proposal_id)
+        if proposal.status == ProposalStatus.REVERTED.value:
+            return proposal
+        if proposal.status != ProposalStatus.APPROVED.value:
+            raise ValidationError(
+                f"Only approved proposals can be reverted ({proposal.status})"
+            )
+        if proposal.kind not in GROUNDED_KINDS:
+            raise ValidationError(f"Revert is not available for {proposal.kind}")
+        payload = dict(proposal.payload_json or {})
+        if proposal.action == ProposalAction.CREATE.value:
+            if proposal.entity_id is None:
+                raise NotFoundError("Created before revert existed — no target id")
+        if (
+            proposal.action
+            in (
+                ProposalAction.CREATE.value,
+                ProposalAction.UPDATE.value,
+            )
+            and proposal.resolved_at is not None
+        ):
+            entity, updated_at = await self._load_entity(
+                proposal.kind, user_id, proposal.entity_id
+            )
+            if _ts(updated_at) > _ts(proposal.resolved_at + _REVERT_TOLERANCE):
+                raise ConflictError("Changed since it was applied — edit state moved")
+
+        if proposal.action == ProposalAction.UPDATE.value:
+            base_snapshot = payload.get("base_snapshot")
+            if not base_snapshot:
+                raise NotFoundError("No snapshot — created before revert existed")
+            await self._apply(
+                proposal.kind,
+                ProposalAction.UPDATE.value,
+                proposal.entity_id,
+                dict(base_snapshot),
+                user_id,
+            )
+        elif proposal.action == ProposalAction.DELETE.value:
+            snapshot = payload.get("snapshot")
+            if not snapshot:
+                raise NotFoundError("No snapshot — created before revert existed")
+            await self._apply(
+                proposal.kind,
+                ProposalAction.CREATE.value,
+                None,
+                dict(snapshot),
+                user_id,
+            )
+        else:
+            await self._apply(
+                proposal.kind,
+                ProposalAction.DELETE.value,
+                proposal.entity_id,
+                {},
+                user_id,
+            )
+        proposal.status = ProposalStatus.REVERTED.value
+        await self.db.commit()
+        return proposal
+
     async def get(self, user_id: uuid.UUID, proposal_id: uuid.UUID) -> ProfileProposal:
         rows = await self.db.execute(
             select(ProfileProposal).where(
@@ -1030,6 +1323,19 @@ class ProfileProposalService:
         proposal.status = ProposalStatus.APPROVED.value
         proposal.resolved_at = datetime.now(timezone.utc)
         proposal.resolve_error = ""
+        # Create ops link back to the created row only after apply —
+        # revert of a create needs the id (plan 99 AD10).
+        if (
+            proposal.action == ProposalAction.CREATE.value
+            and proposal.entity_id is None
+            and applied is not None
+            and applied.get("kind") == proposal.kind
+            and applied.get("id")
+        ):
+            try:
+                proposal.entity_id = uuid.UUID(str(applied["id"]))
+            except ValueError:
+                logger.warning("create proposal returned a non-UUID id")
         await self.db.commit()
         return proposal, applied, False
 
@@ -1087,6 +1393,11 @@ class ProfileProposalService:
                     proposal.diff_json = self._update_diff(
                         spec, entity, self._patch_fields(kind, payload)
                     )
+                if payload.get("_edit_ops"):
+                    proposal.diff_json = [
+                        *proposal.diff_json,
+                        *_edit_summary_rows(payload["_edit_ops"]),
+                    ]
                 proposal.status = ProposalStatus.CONFLICT.value
                 proposal.resolved_at = datetime.now(timezone.utc)
                 await self.db.commit()
@@ -1443,7 +1754,16 @@ class ProfileProposalService:
                 value in (None, "", [], "self_report", "active")
             ):
                 continue
+            raw_after = value
             after = _payload_value(field, value)
+            flattened = True
+            if (
+                field in _LIST_FIELDS
+                and isinstance(raw_after, list)
+                and any(isinstance(entry, dict) for entry in raw_after)
+            ):
+                after = _structured_entries(field, raw_after)
+                flattened = False
             if after in (None, "", []):
                 continue
             rows.append(
@@ -1451,7 +1771,9 @@ class ProfileProposalService:
                     "field": field,
                     "label": labels.get(field, field.replace("_", " ").title()),
                     "before": None,
-                    "after": after if isinstance(after, list) else _jsonish(after),
+                    "after": after
+                    if isinstance(after, list) and not flattened
+                    else _jsonish(after),
                 }
             )
         return rows
@@ -1461,9 +1783,33 @@ class ProfileProposalService:
     ) -> list[dict]:
         labels = dict(spec.fields)
         rows = []
-        for field, after in patch_fields.items():
-            before = _payload_value(field, _before_value(getattr(entity, field, None)))
-            after = _payload_value(field, after)
+        for field, after_raw in patch_fields.items():
+            raw_before = _before_value(getattr(entity, field, None))
+            structured = (
+                field in _LIST_FIELDS
+                and isinstance(after_raw, list)
+                and bool(after_raw)
+                and all(isinstance(entry, dict) for entry in after_raw)
+            )
+            if structured:
+                before = _structured_entries(field, raw_before)
+                after = _structured_entries(field, after_raw)
+                equal = json.dumps(before, sort_keys=True, default=str) == json.dumps(
+                    after, sort_keys=True, default=str
+                )
+                if equal:
+                    continue
+                rows.append(
+                    {
+                        "field": field,
+                        "label": labels.get(field, field.replace("_", " ").title()),
+                        "before": before,
+                        "after": after,
+                    }
+                )
+                continue
+            before = _payload_value(field, raw_before)
+            after = _payload_value(field, after_raw)
             if _jsonish(before) == _jsonish(after):
                 continue
             rows.append(
@@ -1475,34 +1821,6 @@ class ProfileProposalService:
                 }
             )
         return rows
-
-    def _snapshot(self, spec: KindSpec, entity: Any) -> dict:
-        """Full entity snapshot for delete ops (revert + messaging).
-
-        Walks the table's own columns — complete by construction, no
-        per-kind field list to keep in sync.
-        """
-        skip = {
-            "id",
-            "user_id",
-            "org_id",
-            "university_id",
-            "department_id",
-            "skill_id",
-            "created_at",
-            "updated_at",
-        }
-        snapshot: dict[str, Any] = {}
-        for column in entity.__table__.columns:
-            if column.name in skip:
-                continue
-            value = getattr(entity, column.key, None)
-            snapshot[column.key] = (
-                value.isoformat()
-                if isinstance(value, (datetime, date))
-                else _jsonish(value)
-            )
-        return snapshot
 
     def _section_diff(
         self, profile: Any, section: Optional[str], value: dict

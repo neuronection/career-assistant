@@ -15,7 +15,7 @@ from app.schemas.cv import CvContextRef
 
 ProposalActionLiteral = Literal["create", "update", "delete"]
 ProposalStatusLiteral = Literal[
-    "pending", "approved", "rejected", "conflict", "expired"
+    "pending", "approved", "rejected", "conflict", "expired", "reverted"
 ]
 ProposalKindLiteral = Literal[
     "experience_item",
@@ -160,3 +160,11 @@ class ProfileProposalResolveOut(BaseModel):
     proposal: ProfileProposalOut
     applied: Optional[dict[str, Any]] = None
     already: bool = False
+
+
+class ProfileProposalPreviewOut(BaseModel):
+    """Lazy before/after snapshots for the render modal (plan 99 AD7)."""
+
+    before: Optional[dict[str, Any]] = None
+    after: Optional[dict[str, Any]] = None
+    edits: dict[str, Any] = Field(default_factory=dict)

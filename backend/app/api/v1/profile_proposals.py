@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.profile_proposal import (
     ProfileProposalOut,
+    ProfileProposalPreviewOut,
     ProfileProposalResolveOut,
 )
 from app.services.deps import get_current_user
@@ -45,7 +46,7 @@ def _out(proposal) -> ProfileProposalOut:
 @router.get("/me/profile-proposals")
 async def list_profile_proposals(
     status: Optional[
-        Literal["pending", "approved", "rejected", "conflict", "expired"]
+        Literal["pending", "approved", "rejected", "conflict", "expired", "reverted"]
     ] = None,
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -74,6 +75,36 @@ async def approve_profile_proposal(
     return ProfileProposalResolveOut(
         proposal=_out(proposal), applied=applied, already=already
     )
+
+
+@router.get(
+    "/me/profile-proposals/{proposal_id}/preview",
+    response_model=ProfileProposalPreviewOut,
+)
+async def preview_profile_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> ProfileProposalPreviewOut:
+    preview = await ProfileProposalService(db).preview(user.id, proposal_id)
+    return ProfileProposalPreviewOut(
+        before=preview["before"],
+        after=preview["after"],
+        edits=preview["edits"],
+    )
+
+
+@router.post(
+    "/me/profile-proposals/{proposal_id}/revert",
+    response_model=ProfileProposalOut,
+)
+async def revert_profile_proposal(
+    proposal_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> ProfileProposalOut:
+    proposal = await ProfileProposalService(db).revert(user.id, proposal_id)
+    return _out(proposal)
 
 
 @router.post(

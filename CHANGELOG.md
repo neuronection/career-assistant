@@ -5,6 +5,22 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Proposal previews + one-click revert** (plan 99.4): entity-edit
+  cards now persist full before/after snapshots (KIND_SPECS-shaped,
+  unchanged children included, delete payloads carry the full snapshot
+  for recreate), served lazily by the new owner-scoped
+  `GET /me/profile-proposals/{id}/preview` endpoint (`{before, after,
+  edits}`; 404 for kinds without snapshots — `user_skill`,
+  `profile_section`, `cv_synth`, and pre-99 rows). Card diffs gain
+  structured collection rows (skills keep label/role/level,
+  achievements text/metric, links url) plus one legible per-edit
+  summary row in order ("replaces '…'", "adds skill: docker
+  (secondary)"); scalar strings render exactly as before. Approved
+  cards gain `POST /me/profile-proposals/{id}/revert`: update restores
+  `base_snapshot`, delete recreates entity + children from the payload
+  snapshot, create deletes the created row — all through the same
+  services — blocked with 409 when the target moved after the apply,
+  terminal `reverted` status (migration 0037 widens the status CHECK).
 - **Self-healing profile-edit pipeline before the answer streams**
   (plan 99.3): edit-intent turns now draft the ops in one non-streaming
   gateway call (`chat_ops` task, audited `ops_draft`/`ops_repair`),

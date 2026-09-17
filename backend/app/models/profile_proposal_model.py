@@ -27,7 +27,9 @@ from app.models.base import (
     UUIDPrimaryKeyMixin,
 )
 
-_STATUS_ALLOWED = "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired')"
+_STATUS_ALLOWED = (
+    "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired', 'reverted')"
+)
 _ACTION_ALLOWED = "action IN ('create', 'update', 'delete')"
 _KIND_ALLOWED = (
     "kind IN ('experience_item', 'education_item', 'certification', "

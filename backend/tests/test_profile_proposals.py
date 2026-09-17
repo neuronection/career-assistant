@@ -336,8 +336,11 @@ async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
     )
     assert dropped == []
     rows = {r["field"]: r for r in added[0].diff_json}
-    assert rows["skills"]["before"] == ["electron"]
-    assert rows["skills"]["after"] == ["electron", "typescript"]
+    assert [e["skill_key"] for e in rows["skills"]["before"]] == ["electron"]
+    assert [e["skill_key"] for e in rows["skills"]["after"]] == [
+        "electron",
+        "typescript",
+    ]
     assert "ExperienceSkill object" not in json.dumps(added[0].diff_json, default=str)
 
     # Full-replacement of a collection inside an update payload is
@@ -518,8 +521,13 @@ async def test_experience_create_with_skill_links_applies(db, auth_headers):
     assert dropped == []
     proposal = created[0]
     by_field = {row["field"]: row for row in proposal.diff_json}
-    assert by_field["skills"]["after"] == ["python", "fastapi"]
-    assert by_field["links"]["after"] == ["https://github.com/example/platform"]
+    assert [e["skill_key"] for e in by_field["skills"]["after"]] == [
+        "python",
+        "fastapi",
+    ]
+    assert [
+        (row["url"], row["kind"], row["label"]) for row in by_field["links"]["after"]
+    ] == [("https://github.com/example/platform", "web", "")]
 
     _, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     refreshed = await db.execute(
@@ -551,8 +559,8 @@ async def test_experience_update_replaces_skill_list(db, auth_headers):
         entity_id=item.id,
     )
     by_field = {row["field"]: row for row in proposal.diff_json}
-    assert by_field["skills"]["before"] == ["python"]
-    assert by_field["skills"]["after"] == ["fastapi"]
+    assert [e["skill_key"] for e in by_field["skills"]["before"]] == ["python"]
+    assert [e["skill_key"] for e in by_field["skills"]["after"]] == ["fastapi"]
 
     await ProfileProposalService(db).approve(user.id, proposal.id)
     refreshed = await db.execute(

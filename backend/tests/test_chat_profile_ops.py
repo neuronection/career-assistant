@@ -516,16 +516,37 @@ async def test_loose_skill_shapes_still_grade_a_card(
     update_card = next(c for c in cards if c["action"] == "update")
     assert update_card["entity_id"] == str(item.id)
 
-    # Collection fields render as scalar lists (chips in the UI), never
-    # raw payload dicts.
+    # Collection fields carry structured chip rows when the pipeline
+    # produced dicts; scalar strings render as scalar lists.
     create_card = next(c for c in cards if c["action"] == "create")
     diff = {row["field"]: row for row in create_card["diff"]}
-    assert diff["skills"]["after"] == ["electron", "Model Context Protocol"]
-    assert diff["links"]["after"] == ["https://neuronection.com"]
-    assert diff["achievements"]["after"] == ["Four family assistants"]
+    assert diff["skills"]["after"] == [
+        {
+            "id": None,
+            "skill_key": "electron",
+            "skill_label": "electron",
+            "role_in_item": "primary",
+            "level_claim": None,
+            "last_used": None,
+        },
+        {
+            "id": None,
+            "skill_key": "Model Context Protocol",
+            "skill_label": "Model Context Protocol",
+            "role_in_item": "primary",
+            "level_claim": None,
+            "last_used": None,
+        },
+    ]
+    assert diff["links"]["after"] == [
+        {"url": "https://neuronection.com", "kind": "web", "label": ""}
+    ]
+    assert diff["achievements"]["after"] == [
+        {"id": None, "text": "Four family assistants", "metric": None}
+    ]
     update_diff = {row["field"]: row for row in update_card["diff"]}
     assert update_diff["skills"]["before"] == []
-    assert update_diff["skills"]["after"] == ["typescript"]
+    assert [e["skill_key"] for e in update_diff["skills"]["after"]] == ["typescript"]
 
 
 async def test_session_delete_keeps_pending_proposals(client, db, auth_headers):

@@ -10556,7 +10556,8 @@
               "approved",
               "rejected",
               "conflict",
-              "expired"
+              "expired",
+              "reverted"
             ],
             "title": "Status",
             "type": "string"
@@ -10576,6 +10577,42 @@
           "created_at"
         ],
         "title": "ProfileProposalOut",
+        "type": "object"
+      },
+      "ProfileProposalPreviewOut": {
+        "description": "Lazy before/after snapshots for the render modal (plan 99 AD7).",
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "edits": {
+            "additionalProperties": true,
+            "title": "Edits",
+            "type": "object"
+          }
+        },
+        "title": "ProfileProposalPreviewOut",
         "type": "object"
       },
       "ProfileProposalResolveOut": {
@@ -27008,7 +27045,8 @@
                     "approved",
                     "rejected",
                     "conflict",
-                    "expired"
+                    "expired",
+                    "reverted"
                   ],
                   "type": "string"
                 },
@@ -27156,6 +27194,54 @@
         ]
       }
     },
+    "/api/v1/me/profile-proposals/{proposal_id}/preview": {
+      "get": {
+        "operationId": "preview_profile_proposal_api_v1_me_profile_proposals__proposal_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileProposalPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Profile Proposal",
+        "tags": [
+          "profile-proposals"
+        ]
+      }
+    },
     "/api/v1/me/profile-proposals/{proposal_id}/reject": {
       "post": {
         "operationId": "reject_profile_proposal_api_v1_me_profile_proposals__proposal_id__reject_post",
@@ -27199,6 +27285,54 @@
           }
         ],
         "summary": "Reject Profile Proposal",
+        "tags": [
+          "profile-proposals"
+        ]
+      }
+    },
+    "/api/v1/me/profile-proposals/{proposal_id}/revert": {
+      "post": {
+        "operationId": "revert_profile_proposal_api_v1_me_profile_proposals__proposal_id__revert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revert Profile Proposal",
         "tags": [
           "profile-proposals"
         ]

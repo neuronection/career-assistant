@@ -767,6 +767,7 @@ class ProposalStatus(str, Enum):
     REJECTED = "rejected"
     CONFLICT = "conflict"
     EXPIRED = "expired"
+    REVERTED = "reverted"
 
 
 class ProposalSource(str, Enum):
