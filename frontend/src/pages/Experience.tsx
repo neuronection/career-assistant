@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import i18next from "i18next";
+import { Trash2 } from "lucide-react";
 import {
   ArrowLeft,
-  Briefcase,
   CalendarRange,
-  Copy,
   Plus,
   Search,
-  Trash2,
   ChevronRight,
 } from "lucide-react";
 import { Button, ConfirmationModal, SegmentedTabs } from "@/components/ui";
@@ -42,6 +39,7 @@ import {
   formFromItem,
   validateExperience,
 } from "@/components/experience/ExperienceEditor";
+import { ExperienceItemCard } from "@/components/experience/ExperienceItemCard";
 
 function toIn(item: ExperienceItemOut): ExperienceItemIn {
   return {
@@ -72,14 +70,6 @@ function sortByRecency(items: ExperienceItemOut[]): ExperienceItemOut[] {
     if (a.open_ended !== b.open_ended) return a.open_ended ? -1 : 1;
     return (b.start ?? "").localeCompare(a.start ?? "");
   });
-}
-
-function formatPeriod(item: ExperienceItemOut): string {
-  return `${(item.start ?? "").slice(0, 7)} → ${periodEnd(item)}`;
-}
-
-function periodEnd(item: ExperienceItemOut): string {
-  return item.open_ended ? i18next.t("experience.present") : (item.end ?? "").slice(0, 7);
 }
 
 /** Experience workspace: full-bleed master-detail with an
@@ -134,111 +124,23 @@ export function Experience() {
     });
   }, [items, filters]);
 
-  const renderCard = (item: ExperienceItemOut) => {
-    const Icon = KIND_ICONS[item.kind] ?? Briefcase;
-    const active = item.id === selectedId;
-    return (
-      <article
-        key={item.id}
-        className={`group relative cursor-pointer rounded-xl border p-2.5 transition-colors duration-150 ${
-          active
-            ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)]"
-            : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)]"
-        }`}
-        data-testid={`experience-item-${item.id}`}
-      >
-        <button
-          type="button"
-          onClick={() => guard(() => openEdit(item))}
-          className="flex w-full cursor-pointer items-start justify-between gap-2 pr-8 text-left"
-          data-testid="experience-item"
-          aria-current={active ? "true" : undefined}
-        >
-          <span className="flex min-w-0 items-start gap-2.5">
-            <span
-              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                active
-                  ? "bg-[color-mix(in_srgb,var(--as-accent)_15%,transparent)] text-[var(--as-accent)]"
-                  : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
-              }`}
-            >
-              <Icon className="h-4 w-4" aria-hidden />
-            </span>
-            <span className="block min-w-0">
-              <span className="block truncate text-sm font-medium text-[var(--as-fg)]">
-                {item.title}
-                {item.status === "draft" && (
-                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                    {t("experience.draft")}
-                  </span>
-                )}
-              </span>
-              <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
-                {t(`experience.kind.${item.kind}`, {
-                  defaultValue: item.kind,
-                })}
-                {item.org_name ? ` · ${item.org_name}` : ""} ·{" "}
-                {formatPeriod(item)}
-                {item.hours_per_week
-                  ? ` · ${t("experience.hoursShort", { hours: item.hours_per_week })}`
-                  : ""}
-              </span>
-              {item.description && (
-                <span
-                  className="mt-0.5 line-clamp-1 block text-xs leading-snug text-[var(--as-muted-fg)]/90"
-                  title={item.description}
-                >
-                  {item.description}
-                </span>
-              )}
-              {item.skills.length > 0 && (
-                <span className="mt-1 flex flex-wrap gap-1">
-                  {item.skills.slice(0, 3).map((s) => (
-                    <span
-                      key={s.skill_key}
-                      className="rounded-full border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]"
-                    >
-                      {s.skill_label}
-                    </span>
-                  ))}
-                  {item.skills.length > 3 && (
-                    <span className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]">
-                      +{item.skills.length - 3}
-                    </span>
-                  )}
-                </span>
-              )}
-            </span>
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-label={t("experience.duplicateAria", { title: item.title })}
-          className="absolute right-8 top-2 hidden cursor-pointer rounded p-1 text-slate-300 transition-colors group-hover:text-slate-400 hover:text-[var(--as-accent)] group-hover:block"
-          data-testid={`duplicate-experience-${item.id}`}
-          onClick={() => void duplicate(item)}
-        >
-          <Copy className="h-3.5 w-3.5" aria-hidden />
-        </button>
-        <button
-          type="button"
-          aria-label={t("experience.deleteAria", { title: item.title })}
-          className="absolute right-2 top-2 cursor-pointer rounded p-1 text-slate-300 transition-colors hover:text-[var(--as-danger)] group-hover:text-slate-400"
-          data-testid={`delete-experience-${item.id}`}
-          onClick={() => void remove(item)}
-        >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-        </button>
-        <div className="absolute bottom-2 right-2">
-          <SelectionToggle
-            selected={selectedIds.includes(item.id)}
-            label={t("experience.selectAria", { title: item.title })}
-            onToggle={() => toggleSelect(item.id)}
-          />
-        </div>
-      </article>
-    );
-  };
+  const renderCard = (item: ExperienceItemOut) => (
+    <ExperienceItemCard
+      key={item.id}
+      item={item}
+      active={item.id === selectedId}
+      onOpen={() => guard(() => openEdit(item))}
+      onDuplicate={() => void duplicate(item)}
+      onDelete={() => void remove(item)}
+      selectSlot={
+        <SelectionToggle
+          selected={selectedIds.includes(item.id)}
+          label={t("experience.selectAria", { title: item.title })}
+          onToggle={() => toggleSelect(item.id)}
+        />
+      }
+    />
+  );
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [activePane, setActivePane] = useState<"list" | "editor">("list");
   const railRef = useRef<HTMLDivElement>(null);

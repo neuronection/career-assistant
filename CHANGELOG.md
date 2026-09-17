@@ -5,6 +5,21 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Rendered before/after preview + one-click revert on proposal cards**
+  (plan 99.6): entity-edit cards now carry a Preview action (hidden for
+  `user_skill` / `profile_section` / `cv_synth` and on 404) — the modal
+  renders the real item card before/after side-by-side (SegmentedTabs
+  toggle on narrow viewports; creates after-only, deletes before-only
+  with the destructive tint) with the changed sentence highlights from
+  the anchored edits; payloads lazy-fetch from the new snapshot
+  endpoint through a transient store cache. Approved cards carry an
+  armed two-step Revert ("Confirm revert") that inverse-applies
+  server-side and flips the card to the terminal `reverted` status;
+  a 409 (target edited after the apply) shows "changed since applied"
+  copy. The pipeline drop reasons (`unread_target`, `anchor_mismatch`,
+  `anchor_ambiguous`, `conflicting_edit`, `duplicate_target`) and the
+  99.3 pipeline `profile_op_errors` render as friendly one-liners
+  under the card stack.
 - **Proposal previews + one-click revert** (plan 99.4): entity-edit
   cards now persist full before/after snapshots (KIND_SPECS-shaped,
   unchanged children included, delete payloads carry the full snapshot

@@ -604,6 +604,11 @@ export interface ChatMessage {
       kind?: string | null;
       reason: string;
     }[];
+    /** Plan-99 pipeline drops (validated op failures op_errors). */
+    profile_op_errors?: {
+      kind?: string | null;
+      code: string;
+    }[];
     /** CV reference attachments stored on this (user) message (plan 78). */
     attachments?: ChatCvAttachment[];
     /** CVs the reply grounded in (plan 78). */
@@ -633,7 +638,8 @@ export type ProfileProposalStatus =
   | "approved"
   | "rejected"
   | "conflict"
-  | "expired";
+  | "expired"
+  | "reverted";
 
 export interface ProfileProposalDiffRow {
   field: string;

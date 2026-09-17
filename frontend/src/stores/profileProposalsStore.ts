@@ -3,7 +3,10 @@ import { create } from "zustand";
 import {
   approveProfileProposal,
   fetchProfileProposals,
+  getProposalPreview,
   rejectProfileProposal,
+  revertProfileProposal,
+  type ProfileProposalPreviewData,
 } from "@/api/profileProposals";
 import type { ProfileProposalCardData } from "@/types";
 
@@ -14,6 +17,18 @@ export interface ResolvedProposalEvent {
   action: "approve" | "reject";
   status: ProfileProposalCardData["status"];
 }
+
+export type ProposalPreviewEntry =
+  | { state: "ready"; data: ProfileProposalPreviewData }
+  | { state: "missing" };
+
+/** Kinds with snapshot-backed previews (plan 99 AD7); the rest 404. */
+export const PREVIEW_KINDS = new Set([
+  "experience_item",
+  "education_item",
+  "certification",
+  "profile_achievement",
+]);
 
 /**
  * HITL proposal cards (plan 77): live-turn cards stream in through the
@@ -27,6 +42,10 @@ export interface ResolvedProposalEvent {
  * surface detect that the resolution burst for ITS session ended and
  * answer once (the guard keys live here so two mounted surfaces can never
  * double-send — `lastFollowupKey` is consumed atomically).
+ *
+ * Plan-99.6: the preview cache is transient (prop id → before/after data
+ * or `missing`), only filled lazily when a preview modal opens; a 404
+ * marks the card so its preview button hides instead of erroring again.
  */
 interface ProfileProposalsState {
   /** Cards emitted by the current live turn (cleared once persisted). */
@@ -43,10 +62,16 @@ interface ProfileProposalsState {
   lastResolved: ResolvedProposalEvent | null;
   /** Followup-sent guard, shared store → one send max per burst. */
   lastFollowupKey: string | null;
+  /** Lazy preview payloads per proposal id (fresh while the app runs). */
+  previews: Record<string, ProposalPreviewEntry>;
   receiveLive: (card: ProfileProposalCardData) => void;
   clearLive: () => void;
   setBusy: (id: string, busy: boolean) => void;
   resolve: (id: string, action: "approve" | "reject") => Promise<void>;
+  revert: (id: string) => Promise<void>;
+  loadPreview: (
+    id: string,
+  ) => Promise<ProposalPreviewEntry | null>;
   hydrate: () => Promise<void>;
   claimFollowup: (key: string) => boolean;
 }
@@ -59,6 +84,7 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
     pendingBySession: {},
     lastResolved: null,
     lastFollowupKey: null,
+    previews: {},
     receiveLive: (card) => {
       const sessionKey = card.chat_session_id ?? "";
       set((state) => ({
@@ -181,6 +207,67 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
       }
       set({ lastFollowupKey: key });
       return true;
+    },
+    revert: async (id) => {
+      const current = get().overrides[id];
+      set((state) => ({
+        overrides: {
+          ...state.overrides,
+          [id]: {
+            status: current?.status ?? "approved",
+            busy: true,
+            error: undefined,
+          },
+        },
+      }));
+      try {
+        const card = await revertProfileProposal(id);
+        set((state) => ({
+          live: state.live.map((c) =>
+            c.id === id ? { ...c, status: card.status } : c,
+          ),
+          overrides: {
+            ...state.overrides,
+            [id]: { status: card.status, busy: false },
+          },
+          lastResolved: {
+            id,
+            sessionId: card.chat_session_id ?? null,
+            title: card.title,
+            action: "reject",
+            status: card.status,
+          },
+        }));
+      } catch (error) {
+        const detail =
+          (error as { response?: { data?: { detail?: string } } })?.response
+            ?.data?.detail ?? "Revert failed";
+        set((state) => ({
+          overrides: {
+            ...state.overrides,
+            [id]: { status: current?.status ?? "approved", busy: false, error: detail },
+          },
+        }));
+      }
+    },
+    loadPreview: async (id) => {
+      const cached = get().previews[id];
+      if (cached) {
+        return cached;
+      }
+      try {
+        const data = await getProposalPreview(id);
+        const entry: ProposalPreviewEntry = { state: "ready", data };
+        set((state) => ({
+          previews: { ...state.previews, [id]: entry },
+        }));
+        return entry;
+      } catch {
+        set((state) => ({
+          previews: { ...state.previews, [id]: { state: "missing" } },
+        }));
+        return { state: "missing" };
+      }
     },
   }),
 );

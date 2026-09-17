@@ -8,12 +8,16 @@ import type { ChatMessage, ProfileProposalCardData } from "@/types";
 const approveApi = vi.hoisted(() => vi.fn());
 const rejectApi = vi.hoisted(() => vi.fn());
 const listApi = vi.hoisted(() => vi.fn());
+const previewApi = vi.hoisted(() => vi.fn());
+const revertApi = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/profileProposals", () => ({
   approveProfileProposal: (id: string) => approveApi(id),
   rejectProfileProposal: (id: string) => rejectApi(id),
   fetchProfileProposals: () => listApi(),
   dismissProfileProposal: vi.fn(),
+  getProposalPreview: (id: string) => previewApi(id),
+  revertProfileProposal: (id: string) => revertApi(id),
 }));
 
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
@@ -57,6 +61,7 @@ function resetStore() {
     pendingBySession: {},
     lastResolved: null,
     lastFollowupKey: null,
+    previews: {},
   });
 }
 
@@ -70,6 +75,8 @@ describe("MessageProposals / ProposalCards", () => {
     resetStore();
     approveApi.mockReset();
     rejectApi.mockReset();
+    revertApi.mockReset();
+    previewApi.mockReset();
     listApi.mockReset().mockResolvedValue({ proposals: [], pending_count: 0 });
   });
 
@@ -232,6 +239,167 @@ describe("MessageProposals / ProposalCards", () => {
     expect(screen.getByTestId("hitl-dropped-reasons")).toHaveTextContent(
       "experience_item: end is required unless open_ended",
     );
+  });
+
+  it("the plan-99 reason codes get friendly copy", () => {
+    const msg = messageWith([], 1);
+    msg.metadata_json!.proposals_dropped_reasons = [
+      {
+        kind: "experience_item",
+        reason:
+          "unread_target: the full content of experience_item was not read this turn",
+      },
+    ];
+    render(<MessageProposals message={msg} />);
+    expect(screen.getByTestId("hitl-dropped-reasons")).toHaveTextContent(
+      "read-before-edit guard",
+    );
+  });
+
+  it("pipeline profile_op_errors render as the same note family (99.3)", () => {
+    const msg = messageWith([], 1);
+    msg.metadata_json!.profile_op_errors = [
+      { kind: "experience_item", code: "anchor_mismatch" },
+    ];
+    render(<MessageProposals message={msg} />);
+    expect(screen.getByTestId("hitl-dropped-reasons")).toHaveTextContent(
+      "the quoted text no longer matches the current content",
+    );
+  });
+});
+
+describe("proposal preview + revert (plan 99.6)", () => {
+  beforeEach(() => {
+    resetStore();
+    approveApi.mockReset();
+    rejectApi.mockReset();
+    revertApi.mockReset();
+    previewApi.mockReset();
+    listApi.mockReset().mockResolvedValue({ proposals: [], pending_count: 0 });
+  });
+
+  const SNAPSHOT = {
+    title: "Support Engineer",
+    kind: "job",
+    org_name: "Sample Logistics GmbH",
+    start: "2024-01-01",
+    end: "2024-12-31",
+    open_ended: false,
+    status: "active",
+    description: "Kept the warehouse systems online.",
+    skills: [{ id: "s1", skill_key: "python", skill_label: "Python" }],
+    achievements: [{ id: "a1", text: "Owned monitoring" }],
+  } as const;
+
+  function previewPayload() {
+    return {
+      before: { ...SNAPSHOT, description: "Kept the warehouse systems online." },
+      after: {
+        ...SNAPSHOT,
+        description: "Kept the warehouse systems online.\nOptimized the nightly queries.",
+      },
+      edits: {
+        text_edits: [
+          {
+            field: "description",
+            op: "append",
+            text: "Optimized the nightly queries.",
+          },
+        ],
+      },
+    };
+  }
+
+  it("shows the preview button for entity kinds and opens the modal lazily", async () => {
+    previewApi.mockResolvedValue(previewPayload());
+    const user = userEvent.setup();
+    render(
+      <MessageProposals message={messageWith([{ ...CARD, id: "p-x" }])} />,
+    );
+    await user.click(await screen.findByTestId("hitl-preview-p-x"));
+    expect(previewApi).toHaveBeenCalledWith("p-x");
+    expect(await screen.findByTestId("hitl-preview-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("hitl-preview-after")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("hitl-preview-after").textContent,
+      ).toContain("Kept the warehouse systems online.");
+    });
+    // The appended sentence highlights in the after card.
+    expect(screen.getAllByTestId("hitl-highlight")[0]).toHaveTextContent(
+      "Optimized the nightly queries.",
+    );
+  });
+
+  it("hides the preview button for kinds without snapshots and after a 404", async () => {
+    previewApi.mockRejectedValue({
+      response: { data: { detail: "No preview for this proposal" } },
+    });
+    const cvCard: ProfileProposalCardData = {
+      ...CARD,
+      id: "p-cv",
+      kind: "cv_synth",
+      action: "create",
+    };
+    const user = userEvent.setup();
+    render(
+      <MessageProposals message={messageWith([{ ...CARD, id: "p-y" }, cvCard])} />,
+    );
+    expect(screen.queryByTestId("hitl-preview-p-cv")).not.toBeInTheDocument();
+    await user.click(await screen.findByTestId("hitl-preview-p-y"));
+    expect(await screen.findByTestId("hitl-preview-missing")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("hitl-preview-p-y"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("reverts an approved card through an armed confirm", async () => {
+    const user = userEvent.setup();
+    approveApi.mockResolvedValue({
+      proposal: { ...CARD, status: "approved" },
+      applied: { id: "item-1", kind: "experience_item", label: "x" },
+      already: false,
+    });
+    render(<MessageProposals message={messageWith([CARD])} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await screen.findByTestId("hitl-revert-prop-1");
+    expect(screen.getByTestId("hitl-revert-prop-1").textContent).toContain(
+      "Revert",
+    );
+    await user.click(screen.getByTestId("hitl-revert-prop-1"));
+    expect(revertApi).not.toHaveBeenCalled();
+    revertApi.mockResolvedValue({ ...CARD, status: "reverted" });
+    await user.click(screen.getByTestId("hitl-revert-prop-1"));
+    expect(revertApi).toHaveBeenCalledWith("prop-1");
+    await waitFor(() => {
+      expect(screen.getByText("Reverted")).toBeInTheDocument();
+    });
+  });
+
+  it("a moved-target 409 shows the changed-since-applied copy", async () => {
+    const user = userEvent.setup();
+    approveApi.mockResolvedValue({
+      proposal: { ...CARD, status: "approved" },
+      applied: { id: "item-1", kind: "experience_item", label: "x" },
+      already: false,
+    });
+    render(<MessageProposals message={messageWith([CARD])} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await screen.findByTestId("hitl-revert-prop-1");
+    revertApi.mockRejectedValue({
+      response: {
+        data: { detail: "Changed since it was applied — edit state moved" },
+      },
+    });
+    await user.click(screen.getByTestId("hitl-revert-prop-1"));
+    await user.click(screen.getByTestId("hitl-revert-prop-1"));
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Changed since applied — the target was edited/),
+      ).toBeInTheDocument();
+    });
   });
 });
 

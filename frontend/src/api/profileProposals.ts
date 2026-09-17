@@ -43,3 +43,44 @@ export async function rejectProfileProposal(
 export async function dismissProfileProposal(id: string): Promise<void> {
   await api.delete(`/me/profile-proposals/${id}`);
 }
+
+/** One anchored-edit instruction family (server `_edit_ops`, plan 99) —
+ * the source of the preview span highlighting. */
+export interface ProfileProposalPreviewEdits {
+  text_edits?: {
+    field: string;
+    op: "replace" | "append" | "prepend";
+    find?: string | null;
+    text: string;
+  }[];
+  collection_edits?: {
+    collection: string;
+    op: "add" | "remove";
+    value?: Record<string, unknown> | null;
+    match?: Record<string, unknown> | null;
+  }[];
+}
+
+export interface ProfileProposalPreviewData {
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  edits: ProfileProposalPreviewEdits;
+}
+
+export async function getProposalPreview(
+  id: string,
+): Promise<ProfileProposalPreviewData> {
+  const { data } = await api.get<ProfileProposalPreviewData>(
+    `/me/profile-proposals/${id}/preview`,
+  );
+  return data;
+}
+
+export async function revertProfileProposal(
+  id: string,
+): Promise<ProfileProposalCardData> {
+  const { data } = await api.post<ProfileProposalCardData>(
+    `/me/profile-proposals/${id}/revert`,
+  );
+  return data;
+}
