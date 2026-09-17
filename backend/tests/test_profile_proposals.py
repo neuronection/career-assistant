@@ -302,8 +302,9 @@ async def test_cross_user_isolation(client, db, auth_headers):
 
 async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
     """The card diff must not render `<module.Object at 0x…>`: the
-    before-side of relationship fields reads as payload-shaped dicts, and
-    unchanged/removed collections drop out of the diff."""
+    before-side of relationship fields reads as payload-shaped dicts.
+    Plan 99.2: the skills change rides collection_edits — full-replace
+    update semantics are retired."""
     user = await _auth_user(db)
     item = await ExperienceService(db).create_item(
         user.id,
@@ -315,30 +316,33 @@ async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
         },
     )
 
-    grounding = {f"read:experience_item:{item.id}"}
-
-    # Identical skills → the "skills" field produces no diff row at all.
-    same, dropped = await ProfileProposalService(db).create_from_ops(
+    added, dropped = await ProfileProposalService(db).create_from_ops(
         user.id,
         [
             {
                 "kind": "experience_item",
                 "action": "update",
                 "entity_id": str(item.id),
-                "payload": {
-                    "description": "New text.",
-                    "skills": ["electron"],
-                },
+                "collection_edits": [
+                    {
+                        "collection": "skills",
+                        "op": "add",
+                        "value": {"skill_key": "typescript"},
+                    }
+                ],
             }
         ],
-        grounding=grounding,
+        grounding={f"read:experience_item:{item.id}"},
     )
     assert dropped == []
-    fields_same = {r["field"] for r in same[0].diff_json}
-    assert "description" in fields_same
+    rows = {r["field"]: r for r in added[0].diff_json}
+    assert rows["skills"]["before"] == ["electron"]
+    assert rows["skills"]["after"] == ["electron", "typescript"]
+    assert "ExperienceSkill object" not in json.dumps(added[0].diff_json, default=str)
 
-    # An added skill → one clean row, before side in payload shape.
-    added, _ = await ProfileProposalService(db).create_from_ops(
+    # Full-replacement of a collection inside an update payload is
+    # retired — it was the overwrite trap (plan 99.2).
+    rejected, drop_reason = await ProfileProposalService(db).create_from_ops(
         user.id,
         [
             {
@@ -348,13 +352,10 @@ async def test_experience_update_diff_serializes_orm_rows(db, auth_headers):
                 "payload": {"skills": ["electron", "typescript"]},
             }
         ],
-        grounding=grounding,
+        grounding={f"read:experience_item:{item.id}"},
     )
-    rows = {r["field"]: r for r in added[0].diff_json}
-    assert "skills" in rows
-    assert rows["skills"]["before"] == ["electron"]
-    assert rows["skills"]["after"] == ["electron", "typescript"]
-    assert "ExperienceSkill object" not in json.dumps(added[0].diff_json, default=str)
+    assert rejected == []
+    assert drop_reason[0]["reason"].startswith("conflicting_edit")
 
 
 async def test_create_from_ops_drops_invalid(db, auth_headers):

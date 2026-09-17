@@ -5,6 +5,19 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Anchored profile edits — silent overwrites are now structurally
+  impossible** (plan 99.2): update ops carry exact-anchor `text_edits`
+  (`replace` must match the current text exactly once — never "replace
+  first" — `append`/`prepend` only add) and granular
+  `collection_edits` (skills/achievements/links add/remove, removes
+  matched by stable child id from the read result). Edits resolve
+  sequentially server-side into the reviewed payload; full-replacement
+  of child collections inside an update payload is retired
+  (`conflicting_edit`) and a second op on the same item is dropped
+  (`duplicate_target`) — one coherent card per entity. Card diffs now
+  render long-text changes losslessly (cap 200 → 2000 chars), so an
+  anchored edit inside a long description can no longer vanish from
+  the diff. Chat prompt v7.
 - **Read-before-edit gate for chat profile edits** (plan 99.1): the
   assistant must open an item's full content (`read_profile_item` /
   `read_profile_section` tools — digests truncate long text at 140

@@ -94,14 +94,24 @@ logical change (at most 5): {kind, action, entity_id, payload}.
   {skill_key, level}; profile_section payload is
   {section: basics|academics|work_preferences|constraints, value: <full
   section object>} (languages live in academics.value.languages).
-- experience_item payloads may also link child collections:
-  skills (list of {skill_key} — optionally with role_in_item
-  primary|secondary|exposure and level_claim 1-10), achievements (list of
-  {text}) and links (list of {url}). Skill keys MUST be copied from the
-  my_skills digest or the item's digest-listed skills — never invent keys.
-  On UPDATE these collections REPLACE the item's current list in full:
-  include every entry that should remain, or omit the field to leave it
-  untouched.
+- ANCHORED EDITS for update ops — preferred over full-field payloads,
+  they never overwrite content you did not quote:
+  - text_edits: [{field: description|detail, op: replace|append|prepend,
+    find?, text}]. replace needs the EXACT current text as find, matching
+    ONCE — quote verbatim from the read result and include surrounding
+    context to make it unique; append/prepend only add text. Edits apply
+    in order. A field set in both payload and text_edits is rejected.
+  - collection_edits (experience_item only): [{collection:
+    skills|achievements|links, op: add|remove, value?, match?}]. add
+    carries {skill_key, role_in_item?, level_claim?} | {text, metric?} |
+    {url} — skill keys MUST come from the my_skills digest, the item's
+    skills or the read result, never invented. remove matches {id} from
+    the read result first, then {skill_key} / exact text / exact url.
+    Full-replacement of skills, achievements or links inside an update
+    payload is REJECTED — use collection_edits instead.
+- ONE op per entity per turn: put every change to the same item into ONE
+  op (multiple text_edits/collection_edits entries); a second op on the
+  same entity is discarded. Create ops carry full inline collections.
 - If the intent or the target is ambiguous (several matching items,
   vague dates, unclear field), ask ONE short clarifying question and emit
   NO ops. Deleting requires an exact digest match.

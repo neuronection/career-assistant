@@ -6,10 +6,10 @@ chat-proposed card. `ProfileProposalOut` is the wire shape of a card.
 """
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.cv import CvContextRef
 
@@ -49,6 +49,53 @@ class UserSkillPatchIn(BaseModel):
 
     level: Optional[int] = Field(default=None, ge=1, le=10)
     derive_enabled: Optional[bool] = None
+
+
+class TextEdit(BaseModel):
+    """An anchored text edit (plan 99.2) — the coding-agent transplant.
+
+    ``replace`` requires an exact ``find`` anchor that must match the
+    current field content exactly once (never "replace first");
+    ``append``/``prepend`` are additive and cannot delete.
+    """
+
+    field: str = Field(min_length=1, max_length=40)
+    op: Literal["replace", "append", "prepend"]
+    find: Optional[str] = Field(default=None, max_length=2000)
+    text: str = Field(default="", max_length=2000)
+
+    @model_validator(mode="after")
+    def _anchor_shape(self) -> "TextEdit":
+        if self.op == "replace":
+            if not self.find:
+                raise ValueError("replace requires a non-empty find anchor")
+        elif self.find:
+            raise ValueError("find applies to replace only")
+        return self
+
+
+class CollectionEdit(BaseModel):
+    """One granular child-collection edit (plan 99.2).
+
+    ``add`` carries ``value`` ({skill_key, role_in_item?, level_claim?} |
+    {text, metric?} | {url} — label strings / bare URLs normalize
+    server-side like create payloads); ``remove`` carries ``match``
+    ({id} primary for skills/achievements, {skill_key}/{text exact}/
+    {url} fallback) — full-replacement update semantics are retired.
+    """
+
+    collection: Literal["skills", "achievements", "links"]
+    op: Literal["add", "remove"]
+    value: Optional[Union[str, dict]] = None
+    match: Optional[dict] = None
+
+    @model_validator(mode="after")
+    def _shape(self) -> "CollectionEdit":
+        if self.op == "add" and not self.value:
+            raise ValueError("add requires a value")
+        if self.op == "remove" and not self.match:
+            raise ValueError("remove requires a match")
+        return self
 
 
 class ProfileSectionPatchIn(BaseModel):

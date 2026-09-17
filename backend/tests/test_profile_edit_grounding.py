@@ -31,10 +31,10 @@ from app.services.profile_proposal_service import ProfileProposalService
 from tests.test_chat_profile_ops import _auth_user, _send, _session
 
 LONG_DESCRIPTION = (
-    "Worked as Application Support for ICT projects and later transitioned "
-    "to the Provisioning Department. Ensured availability, performance and "
-    "maintenance for enterprise applications. Managed monitoring, alerting "
-    "and incident response across the whole landscape."
+    "Worked as Support Engineer for internal tooling projects and later "
+    "transitioned to the platform team. Ensured availability, performance "
+    "and maintenance for internal services. Owned monitoring, alerting and "
+    "incident response for the landscape."
 )
 
 
@@ -42,9 +42,9 @@ async def _rich_item(db, user) -> ExperienceItem:
     return await ExperienceService(db).create_item(
         user.id,
         {
-            "title": "Application Support",
+            "title": "Support Engineer",
             "kind": "job",
-            "org_name": "OTE Group",
+            "org_name": "Sample Logistics GmbH",
             "start": "2024-01-01",
             "open_ended": True,
             "description": LONG_DESCRIPTION,
@@ -54,7 +54,7 @@ async def _rich_item(db, user) -> ExperienceItem:
             ],
             "achievements": [
                 {
-                    "text": "Cut deploy time 40%",
+                    "text": "Cut build time 40%",
                     "metric": {"kind": "time_saved", "value": 40, "unit": "%"},
                 }
             ],
@@ -79,13 +79,13 @@ async def test_read_profile_item_returns_full_content(db, auth_headers):
     content = result["content"]
     assert content["description"] == LONG_DESCRIPTION
     assert len(content["description"]) > 140, "no digest truncation"
-    assert content["org_name"] == "OTE Group"
+    assert content["org_name"] == "Sample Logistics GmbH"
     assert [s["skill_key"] for s in content["skills"]] == [
         "electron",
         "typescript",
     ]
     assert content["skills"][0]["role_in_item"] == "primary"
-    assert content["achievements"][0]["text"] == "Cut deploy time 40%"
+    assert content["achievements"][0]["text"] == "Cut build time 40%"
     assert content["achievements"][0]["metric"]["value"] == 40
     assert content["links"] and "github.com" in json.dumps(content["links"])
     assert result["updated_at"]

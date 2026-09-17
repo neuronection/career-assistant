@@ -14,6 +14,7 @@ from app.models.enums import (
 )
 from app.schemas.cv_assistant import BuilderOp
 from app.schemas.job import Aspect, JobAttributes
+from app.schemas.profile_proposal import CollectionEdit, TextEdit
 
 
 class ProfileInsight(BaseModel):
@@ -155,6 +156,9 @@ class ProfileOp(BaseModel):
 
     Payload is validated against the entity's REST schema server-side;
     ``entity_id`` must come verbatim from a profile digest tool result.
+    ``text_edits``/``collection_edits`` (plan 99.2) carry anchored,
+    granular change instructions resolved server-side into the plain
+    payload — one op per entity per turn, edits applied in order.
     """
 
     kind: Literal[
@@ -169,6 +173,8 @@ class ProfileOp(BaseModel):
     action: Literal["create", "update", "delete"]
     entity_id: Optional[str] = Field(default=None, max_length=64)
     payload: dict = Field(default_factory=dict)
+    text_edits: list[TextEdit] = Field(default_factory=list, max_length=10)
+    collection_edits: list[CollectionEdit] = Field(default_factory=list, max_length=10)
 
 
 class ChatReply(BaseModel):

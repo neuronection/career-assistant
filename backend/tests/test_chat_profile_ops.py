@@ -484,10 +484,13 @@ async def test_loose_skill_shapes_still_grade_a_card(
                     "kind": "experience_item",
                     "action": "update",
                     "entity_id": items[0]["id"],
-                    "payload": {
-                        "title": f"{items[0]['title']} → Desktop Assistant",
-                        "skills": ["electron", "typescript"],
-                    },
+                    "collection_edits": [
+                        {
+                            "collection": "skills",
+                            "op": "add",
+                            "value": {"skill_key": "typescript"},
+                        }
+                    ],
                 }
             )
         return {"answer": "loose shapes", "profile_ops": ops}
@@ -521,7 +524,8 @@ async def test_loose_skill_shapes_still_grade_a_card(
     assert diff["links"]["after"] == ["https://neuronection.com"]
     assert diff["achievements"]["after"] == ["Four family assistants"]
     update_diff = {row["field"]: row for row in update_card["diff"]}
-    assert update_diff["skills"]["after"] == ["electron", "typescript"]
+    assert update_diff["skills"]["before"] == []
+    assert update_diff["skills"]["after"] == ["typescript"]
 
 
 async def test_session_delete_keeps_pending_proposals(client, db, auth_headers):

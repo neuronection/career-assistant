@@ -48,14 +48,20 @@ from app.schemas.profile_entities import (
     ProfileAchievementPatch,
 )
 from app.schemas.profile_proposal import (
+    CollectionEdit,
     CvSynthOpPayload,
     ProfileSectionPatchIn,
+    TextEdit,
     UserSkillAddIn,
     UserSkillPatchIn,
 )
 
 PROPOSAL_TTL = timedelta(days=14)
-DIFF_VALUE_CAP = 200
+# 2000, not 200 (plan 99): the diff must distinguish an anchored edit
+# inside a long description — capped-at-200 before/after strings compare
+# equal and the change row silently vanishes. TextDiffView folds
+# unchanged lines, so the card stays readable.
+DIFF_VALUE_CAP = 2000
 
 #: Kinds whose update/delete ops require the target's full content to
 #: have been read in the same turn (plan 99.1 read-before-edit gate).
@@ -73,6 +79,13 @@ GROUNDED_KINDS = frozenset(
     }
 )
 SECTION_NAMES = ("basics", "academics", "work_preferences", "constraints")
+
+#: Per-kind prose fields an anchored ``text_edit`` may target (plan 99.2).
+TEXT_FIELDS: dict[str, tuple[str, ...]] = {
+    ProposalKind.EXPERIENCE_ITEM.value: ("description",),
+    ProposalKind.EDUCATION_ITEM.value: ("description",),
+    ProposalKind.PROFILE_ACHIEVEMENT.value: ("detail",),
+}
 
 
 def read_key_for_op(op: dict, entity_id: Optional[uuid.UUID]) -> Optional[str]:
@@ -350,6 +363,229 @@ def _as_link_entry(raw: Any) -> dict:
     return raw
 
 
+def _resolve_text_edits(
+    kind: str,
+    entity: Any,
+    payload: dict,
+    text_edits: list[dict],
+) -> dict:
+    """Resolve anchored text edits into plain field values (plan 99.2).
+
+    Edits apply IN ORDER, each anchored against the result of the
+    previous — a later anchor may legitimately quote earlier output.
+    Every anchor is validated against the current content, so a silent
+    overwrite is structurally impossible: ``replace`` must match
+    exactly once, ``append``/``prepend`` only add.
+    """
+    allowed = TEXT_FIELDS.get(kind, ())
+    working: dict[str, str] = {}
+    for raw in text_edits:
+        edit = TextEdit.model_validate(raw)
+        if edit.field not in allowed:
+            raise ValidationError(
+                f"anchor_mismatch: {kind} has no editable text field "
+                f"{edit.field!r} (editable: {', '.join(allowed) or 'none'})"
+            )
+        if edit.field in payload:
+            raise ValidationError(
+                f"conflicting_edit: {edit.field} is set in both payload "
+                "and text_edits — one way to express a change"
+            )
+        if edit.field not in working:
+            working[edit.field] = getattr(entity, edit.field, None) or ""
+        current = working[edit.field]
+        if edit.op == "replace":
+            find = edit.find or ""
+            count = current.count(find)
+            if count == 0:
+                raise ValidationError(
+                    f"anchor_mismatch: the quoted text does not appear in "
+                    f"{edit.field} — quote it verbatim from the read result"
+                )
+            if count > 1:
+                raise ValidationError(
+                    f"anchor_ambiguous: the quoted text appears {count}x in "
+                    f"{edit.field} — include more surrounding context"
+                )
+            working[edit.field] = current.replace(find, edit.text, 1)
+        elif edit.op == "append":
+            working[edit.field] = f"{current}\n{edit.text}" if current else edit.text
+        else:
+            working[edit.field] = f"{edit.text}\n{current}" if current else edit.text
+    payload.update(working)
+    return payload
+
+
+def _resolve_collection_edits(
+    entity: Any,
+    payload: dict,
+    collection_edits: list[dict],
+) -> dict:
+    """Resolve granular collection edits into full child lists (plan 99.2).
+
+    Adds append to the current children (duplicate skill keys / link
+    urls are conflicting edits); removes match by stable child id first
+    ({skill_key} for skills, exact text for achievements, exact url for
+    links as fallback) — an unknown anchor is an anchor mismatch, never
+    a partial rewrite. Row ids ride a temporary ``_row_id`` key for
+    matching and are stripped from the resolved lists.
+    """
+    skills: list[dict] = [
+        {
+            "_row_id": str(link.id),
+            "skill_key": link.skill.key if link.skill else str(link.skill_id),
+            "role_in_item": link.role_in_item,
+            "level_claim": link.level_claim,
+        }
+        for link in entity.skills or []
+    ]
+    achievements: list[dict] = [
+        {"_row_id": str(row.id), "text": row.text, "metric": row.metric}
+        for row in entity.achievements or []
+    ]
+    links: list[dict] = [
+        dict(_as_link_entry(link)) for link in entity.links or [] if link
+    ]
+
+    touched: set[str] = set()
+
+    def _drop(rows: list[dict], index: int, what: str) -> None:
+        if index < 0:
+            raise ValidationError(
+                f"anchor_mismatch: no such {what} on this item — match by "
+                "child id (from the read result) or exact content"
+            )
+        rows.pop(index)
+
+    for raw in collection_edits:
+        edit = CollectionEdit.model_validate(raw)
+        touched.add(edit.collection)
+        if edit.op == "add":
+            value = edit.value or {}
+            if edit.collection == "skills":
+                entry = _as_skill_entry(value)
+                key = entry.get("skill_key")
+                if not key:
+                    raise ValidationError(
+                        "anchor_mismatch: skill add needs a skill_key from "
+                        "the my_skills digest or the item's skills"
+                    )
+                if any(row.get("skill_key") == key for row in skills):
+                    raise ValidationError(
+                        f"conflicting_edit: skill {key!r} is already linked "
+                        "to this item"
+                    )
+                skills.append(
+                    {
+                        "skill_key": key,
+                        "role_in_item": entry.get("role_in_item", "primary"),
+                        "level_claim": entry.get("level_claim"),
+                    }
+                )
+            elif edit.collection == "achievements":
+                entry = _as_achievement_entry(value)
+                if not entry.get("text"):
+                    raise ValidationError("anchor_mismatch: achievement add needs text")
+                achievements.append(
+                    {"text": entry["text"], "metric": entry.get("metric")}
+                )
+            else:
+                entry = _as_link_entry(value)
+                url = entry.get("url")
+                if not url:
+                    raise ValidationError("anchor_mismatch: link add needs a url")
+                if any(row.get("url") == url for row in links):
+                    raise ValidationError(
+                        f"conflicting_edit: link {url!r} already exists"
+                    )
+                links.append(entry)
+        else:
+            match = edit.match or {}
+            if edit.collection == "skills":
+                index = next(
+                    (
+                        i
+                        for i, row in enumerate(skills)
+                        if row.get("_row_id") == match.get("id")
+                        or row.get("skill_key") == match.get("skill_key")
+                    ),
+                    -1,
+                )
+                _drop(skills, index, "skill")
+            elif edit.collection == "achievements":
+                index = next(
+                    (
+                        i
+                        for i, row in enumerate(achievements)
+                        if row.get("_row_id") == match.get("id")
+                        or row.get("text") == match.get("text")
+                    ),
+                    -1,
+                )
+                _drop(achievements, index, "achievement")
+            else:
+                index = next(
+                    (
+                        i
+                        for i, row in enumerate(links)
+                        if row.get("url") == match.get("url")
+                    ),
+                    -1,
+                )
+                _drop(links, index, "link")
+
+    resolved: dict = {}
+    if "skills" in touched:
+        resolved["skills"] = [
+            {k: v for k, v in row.items() if k != "_row_id"} for row in skills
+        ]
+    if "achievements" in touched:
+        resolved["achievements"] = [
+            {k: v for k, v in row.items() if k != "_row_id"} for row in achievements
+        ]
+    if "links" in touched:
+        resolved["links"] = links
+    for field in resolved:
+        if field in payload:
+            raise ValidationError(
+                f"conflicting_edit: {field} is set in both payload and "
+                "collection_edits — full-replacement update semantics are "
+                "retired; use collection_edits"
+            )
+    return resolved
+
+
+def _resolve_edit_ops(
+    kind: str,
+    entity: Any,
+    payload: dict,
+    text_edits: list[dict],
+    collection_edits: list[dict],
+) -> tuple[dict, dict]:
+    """Apply both edit families to one op's payload; return the resolved
+    payload plus the raw instructions for ``_edit_ops`` (audit + card
+    copy + preview highlighting)."""
+    edit_ops: dict = {}
+    if text_edits:
+        if kind not in TEXT_FIELDS:
+            raise ValidationError(
+                f"text_edits apply to {sorted(TEXT_FIELDS)} — not {kind!r}"
+            )
+        payload = _resolve_text_edits(kind, entity, payload, text_edits)
+        edit_ops["text_edits"] = [
+            TextEdit.model_validate(raw).model_dump(mode="json") for raw in text_edits
+        ]
+    if collection_edits:
+        if kind != ProposalKind.EXPERIENCE_ITEM.value:
+            raise ValidationError("collection_edits apply to experience_item only")
+        payload.update(_resolve_collection_edits(entity, payload, collection_edits))
+        edit_ops["collection_edits"] = [
+            CollectionEdit.model_validate(raw).model_dump(mode="json")
+            for raw in collection_edits
+        ]
+    return payload, edit_ops
+
+
 def _normalize_experience_payload(payload: dict, *, action: str) -> dict:
     """Trust-boundary normalization for chat-sourced experience ops.
 
@@ -429,11 +665,18 @@ class ProfileProposalService:
         payload: dict,
         entity_id: Optional[uuid.UUID] = None,
         source: str = "chat",
+        edit_ops: Optional[dict] = None,
         chat_session_id: Optional[uuid.UUID] = None,
         chat_message_id: Optional[uuid.UUID] = None,
         ai_generation_id: Optional[uuid.UUID] = None,
     ) -> ProfileProposal:
-        """Validate one op against its REST schema and persist the card."""
+        """Validate one op against its REST schema and persist the card.
+
+        ``edit_ops`` (plan 99.2) carries the raw anchored-edit
+        instructions; they merge into ``payload_json`` after schema
+        validation (the REST schema stays clean) for audit, card copy
+        and preview highlighting.
+        """
         spec = KIND_SPECS.get(kind)
         if spec is None:
             raise ValidationError(f"Unknown proposal kind: {kind}")
@@ -509,6 +752,9 @@ class ProfileProposalService:
                     raise ValidationError("update payload sets no fields")
                 diff = self._update_diff(spec, entity, stored_payload)
 
+        if edit_ops:
+            stored_payload = {**stored_payload, "_edit_ops": edit_ops}
+
         proposal = ProfileProposal(
             user_id=user_id,
             kind=kind,
@@ -549,11 +795,26 @@ class ProfileProposalService:
         """
         created: list[ProfileProposal] = []
         dropped: list[dict] = []
+        seen_targets: set[tuple[str, str]] = set()
         for op in ops:
             try:
                 entity_id = op.get("entity_id")
                 if isinstance(entity_id, str) and entity_id:
                     entity_id = uuid.UUID(entity_id)
+                kind = str(op.get("kind") or "")
+                target_key: Optional[tuple[str, str]] = None
+                if entity_id is not None:
+                    target_key = (kind, str(entity_id))
+                elif kind == ProposalKind.PROFILE_SECTION.value:
+                    section = str((op.get("payload") or {}).get("section") or "")
+                    if section:
+                        target_key = (kind, section)
+                if target_key is not None and target_key in seen_targets:
+                    raise ValidationError(
+                        f"duplicate_target: a second op edits the same "
+                        f"{kind} — put all its changes (text_edits / "
+                        "collection_edits) into ONE op"
+                    )
                 read_key = read_key_for_op(op, entity_id)
                 if read_key is not None and read_key not in grounding:
                     raise ValidationError(
@@ -567,18 +828,46 @@ class ProfileProposalService:
                         payload,
                         action=op.get("action", ""),
                     )
-                created.append(
-                    await self.create(
-                        user_id,
-                        kind=op.get("kind", ""),
-                        action=op.get("action", ""),
-                        payload=payload,
-                        entity_id=entity_id,
-                        chat_session_id=chat_session_id,
-                        chat_message_id=chat_message_id,
-                        ai_generation_id=ai_generation_id,
+                if (
+                    op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value
+                    and op.get("action") == ProposalAction.UPDATE.value
+                    and any(
+                        field in payload
+                        for field in ("skills", "achievements", "links")
                     )
+                ):
+                    raise ValidationError(
+                        "conflicting_edit: full-replacement of skills, "
+                        "achievements or links in an update payload is "
+                        "retired — use collection_edits"
+                    )
+                text_edits = list(op.get("text_edits") or [])
+                collection_edits = list(op.get("collection_edits") or [])
+                edit_ops: Optional[dict] = None
+                if text_edits or collection_edits:
+                    if op.get("action") != ProposalAction.UPDATE.value:
+                        raise ValidationError(
+                            "text_edits/collection_edits apply to update ops "
+                            "only — creates carry full values in the payload"
+                        )
+                    entity, _ = await self._load_entity(kind, user_id, entity_id)
+                    payload, edit_ops = _resolve_edit_ops(
+                        kind, entity, dict(payload), text_edits, collection_edits
+                    )
+                proposal = await self.create(
+                    user_id,
+                    kind=op.get("kind", ""),
+                    action=op.get("action", ""),
+                    payload=payload,
+                    entity_id=entity_id,
+                    edit_ops=edit_ops,
+                    chat_session_id=chat_session_id,
+                    chat_message_id=chat_message_id,
+                    ai_generation_id=ai_generation_id,
                 )
+                if target_key is not None:
+                    seen_targets.add(target_key)
+                created.append(proposal)
             except (
                 DomainError,
                 PydanticValidationError,
