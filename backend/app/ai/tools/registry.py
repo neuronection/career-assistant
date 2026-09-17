@@ -25,11 +25,18 @@ ENTRY_POINT_GROUP = "career_assistant.tools"
 
 def _builtins() -> list[AITool]:
     from app.ai.tools.builtin import BUILTIN_TOOLS
+    from app.ai.tools.capabilities import BUILTIN_CAPABILITIES
     from app.ai.tools.cv_builder import CV_BUILDER_TOOLS
     from app.ai.tools.cv_synth import CV_SYNTH_TOOLS
     from app.ai.tools.web import WEB_TOOLS
 
-    return [*BUILTIN_TOOLS, *CV_BUILDER_TOOLS, *CV_SYNTH_TOOLS, *WEB_TOOLS]
+    return [
+        *BUILTIN_TOOLS,
+        *CV_BUILDER_TOOLS,
+        *CV_SYNTH_TOOLS,
+        *WEB_TOOLS,
+        *BUILTIN_CAPABILITIES,
+    ]
 
 
 _registry: dict[str, AITool] = {}
@@ -102,7 +109,11 @@ def get_tool(key: str) -> AITool:
 
 
 def list_tools() -> list[dict]:
-    """Registry contents for the settings UI / MCP surface (41b)."""
+    """Registry contents for the settings UI / MCP surface (41b).
+
+    Includes non-callable ``kind="capability"`` entries (ADR-0015);
+    executors and exposure surfaces must filter to ``kind == "tool"``.
+    """
     _load_plugins()
     builtins = {t.key for t in _builtins()}
     return [
@@ -116,6 +127,8 @@ def list_tools() -> list[dict]:
             "requires_user": t.requires_user,
             "input_schema": t.input_schema,
             "builtin": t.key in builtins,
+            "kind": t.kind,
+            "hitl": t.hitl,
         }
         for t in _registry.values()
     ]
@@ -129,6 +142,8 @@ async def run_tool(
 ) -> Any:
     """Validate args and execute a registry tool (the one executor)."""
     tool = get_tool(key)
+    if tool.kind != "tool":
+        raise DomainError(f"Not a callable tool: {key}")
     try:
         parsed = tool.input_model.model_validate(args or {})
     except ValidationError as exc:

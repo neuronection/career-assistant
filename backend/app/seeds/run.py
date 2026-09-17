@@ -374,6 +374,17 @@ NOTIFICATION_KINDS = [
         "mutable": True,
         "manage_url": "/cv",
     },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c800d",
+        "key": "profile_proposal",
+        "label": "Profile edit proposal needs review",
+        "group": "career",
+        "severity": "info",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/profile",
+    },
 ]
 
 

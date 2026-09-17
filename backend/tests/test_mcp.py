@@ -25,9 +25,14 @@ async def test_server_exposes_exactly_the_read_scope_allowlist():
 
     mcp = build_mcp_server()
     tools = {t.name for t in await mcp.list_tools()}
-    read_tools = {t["key"] for t in list_tools() if t["scope"] == ToolScope.READ.value}
+    read_tools = {
+        t["key"]
+        for t in list_tools()
+        if t["scope"] == ToolScope.READ.value and t.get("kind") == "tool"
+    }
     assert tools == read_tools, "MCP surface = read-scope registry tools"
     assert "cv_set_template" not in tools, "write tools never exposed"
+    assert "propose_profile_edits" not in tools, "capabilities never exposed"
 
 
 async def test_token_store_rotates_and_persists(tmp_path):

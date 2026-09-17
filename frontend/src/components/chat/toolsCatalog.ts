@@ -12,12 +12,20 @@ export function toolArguments(tool: AiToolInfo): AiToolArgument[] {
   }));
 }
 
-export function toolCatalogEntry(tool: AiToolInfo): ChatToolCatalogEntry {
+export function toolCatalogEntry(
+  tool: AiToolInfo,
+  labels?: { hitlAction?: string },
+): ChatToolCatalogEntry {
+  const isCapability = tool.kind === "capability";
   return {
     name: tool.key,
     title: tool.title,
     description: tool.description,
-    arguments: toolArguments(tool),
-    scope: tool.scope,
+    arguments: isCapability ? [] : toolArguments(tool),
+    scope: isCapability ? null : tool.scope,
+    badge:
+      isCapability && tool.hitl && labels?.hitlAction
+        ? { label: labels.hitlAction, tone: "warning" }
+        : null,
   };
 }

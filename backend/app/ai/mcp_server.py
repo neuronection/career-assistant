@@ -151,7 +151,7 @@ def build_mcp_server():
     )
 
     for tool_data in list_tools():
-        if tool_data["scope"] != "read":
+        if tool_data["scope"] != "read" or tool_data.get("kind") != "tool":
             continue
         tool = _registry_tool(tool_data["key"])
         if tool is None:

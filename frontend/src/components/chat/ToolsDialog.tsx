@@ -35,7 +35,7 @@ export function ToolsDialog({
     let cancelled = false;
     setTools(null);
     setError(false);
-    fetchAiTools()
+    fetchAiTools({ includeCapabilities: true })
       .then((rows) => {
         if (!cancelled) {
           setTools(rows);
@@ -66,7 +66,11 @@ export function ToolsDialog({
             <Spinner />
           </div>
         ) : (
-          <ChatToolsCatalog tools={tools.map(toolCatalogEntry)} />
+          <ChatToolsCatalog
+            tools={tools.map((tool) =>
+              toolCatalogEntry(tool, { hitlAction: t("toolsDialog.hitlAction") }),
+            )}
+          />
         )}
       </ModalContent>
     </Modal>

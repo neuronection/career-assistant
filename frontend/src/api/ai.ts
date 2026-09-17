@@ -91,10 +91,18 @@ export interface AiToolInfo {
     required?: string[];
   } | null;
   builtin: boolean;
+  kind?: "tool" | "capability";
+  hitl?: boolean;
 }
 
-export async function fetchAiTools(): Promise<AiToolInfo[]> {
-  const { data } = await api.get<AiToolInfo[]>("/ai/tools");
+export async function fetchAiTools(options?: {
+  includeCapabilities?: boolean;
+}): Promise<AiToolInfo[]> {
+  const { data } = await api.get<AiToolInfo[]>("/ai/tools", {
+    params: options?.includeCapabilities
+      ? { include_capabilities: true }
+      : undefined,
+  });
   return data;
 }
 

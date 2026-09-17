@@ -66,9 +66,15 @@ def test_builtin_registry_declarations():
         "web_search",
         "fetch_url",
         "github_repo",
+        # — HITL capability rows (ADR-0015, non-callable)
+        "propose_profile_edits",
     }
     assert all(t["builtin"] for t in listed.values())
-    non_cv = {k: t for k, t in listed.items() if not k.startswith("cv_")}
+    non_cv = {
+        k: t
+        for k, t in listed.items()
+        if not k.startswith("cv_") and t["kind"] == "tool"
+    }
     assert all(
         t["scope"] == "read" for k, t in non_cv.items() if k != "my_notifications"
     )
@@ -90,15 +96,46 @@ def test_builtin_registry_declarations():
     assert listed["search_postings"]["requires_user"] is True
     assert listed["run_autopilot"]["requires_user"] is True
     assert listed["my_autopilot"]["requires_user"] is True
+    capability = listed["propose_profile_edits"]
+    assert capability["kind"] == "capability"
+    assert capability["hitl"] is True
+    assert all(
+        t["kind"] == "tool" for k, t in listed.items() if k != "propose_profile_edits"
+    )
     for key, entry in listed.items():
         schema = entry["input_schema"]
         assert schema.get("type") == "object", key
-        assert schema.get("properties"), key
+        if entry["kind"] == "tool":
+            assert schema.get("properties"), key
 
 
 def test_get_tool_rejects_unknown():
     with pytest.raises(DomainError, match="Unknown tool"):
         get_tool("nope")
+
+
+async def test_capability_rows_never_execute(db):
+    with pytest.raises(DomainError, match="Not a callable tool"):
+        await run_tool(db, "propose_profile_edits", "user-1", {})
+
+
+async def test_tools_endpoint_capabilities_opt_in(client, auth_headers):
+    default = (await client.get("/api/v1/ai/tools", headers=auth_headers)).json()
+    assert all(t["kind"] == "tool" for t in default)
+    assert "propose_profile_edits" not in {t["key"] for t in default}
+
+    with_caps = (
+        await client.get(
+            "/api/v1/ai/tools",
+            params={"include_capabilities": True},
+            headers=auth_headers,
+        )
+    ).json()
+    keys = {t["key"] for t in with_caps}
+    assert "propose_profile_edits" in keys
+    cap = next(t for t in with_caps if t["key"] == "propose_profile_edits")
+    assert cap["kind"] == "capability"
+    assert cap["hitl"] is True
 
 
 async def test_run_tool_validates_and_passes_user(db):

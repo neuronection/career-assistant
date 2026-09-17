@@ -1813,7 +1813,8 @@
   },
   "toolsDialog": {
     "title": "Tools the assistant can use",
-    "loadError": "Could not load the tool catalog. Try again later."
+    "loadError": "Could not load the tool catalog. Try again later.",
+    "hitlAction": "HITL action"
   },
   "chatView": {
     "sidePanel": "Side panel",

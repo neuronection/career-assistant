@@ -320,9 +320,20 @@ async def set_assignment(
 
 
 @router.get("/tools")
-async def tools(user: User = Depends(get_current_user)) -> list[dict]:
-    """Registered AI tools."""
-    return list_tools()
+async def tools(
+    include_capabilities: bool = False,
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Registered AI tools (callable only, unless capabilities are opted in).
+
+    ``include_capabilities=true`` adds the non-callable HITL capability
+    rows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep
+    the callable-only default.
+    """
+    listed = list_tools()
+    if not include_capabilities:
+        listed = [t for t in listed if t.get("kind") == "tool"]
+    return listed
 
 
 # --------------------------------------------------- web tools config (plan 80)

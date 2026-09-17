@@ -17389,8 +17389,20 @@
     },
     "/api/v1/ai/tools": {
       "get": {
-        "description": "Registered AI tools.",
+        "description": "Registered AI tools (callable only, unless capabilities are opted in).\n\n``include_capabilities=true`` adds the non-callable HITL capability\nrows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep\nthe callable-only default.",
         "operationId": "tools_api_v1_ai_tools_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_capabilities",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Capabilities",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -17406,6 +17418,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [

@@ -345,6 +345,39 @@ def _normalize_experience_payload(payload: dict, *, action: str) -> dict:
     return payload
 
 
+async def notify_proposals(db, user_id, proposals, session_id) -> None:
+    """ADR-0015 fanout: proposal cards outlive the chat window.
+
+    Best-effort — a notification failure never breaks the chat turn.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        from app.services.notification_service import NotificationService
+
+        titles = [p.entity_label or p.kind for p in proposals[:3]]
+        summary = ", ".join(titles)
+        if len(proposals) > 3:
+            summary = f"{summary} +{len(proposals) - 3} more"
+        plural = "s" if len(proposals) > 1 else ""
+        await NotificationService(db).emit(
+            "profile_proposal",
+            [user_id],
+            title=f"Profile edit proposal{plural} waiting for review",
+            body=summary,
+            payload={
+                "link": "/profile",
+                "proposal_ids": [str(p.id) for p in proposals],
+                "chat_session_id": str(session_id),
+            },
+            source_ref={"chat_session_id": str(session_id)},
+            dedup_key=f"profile-proposal:{proposals[0].id}",
+        )
+    except Exception:  # noqa: BLE001 — never break the turn
+        logger.warning("profile-proposal notification failed", exc_info=True)
+
+
 class ProfileProposalService:
     """Proposal lifecycle; apply always dispatches to the form services."""
 

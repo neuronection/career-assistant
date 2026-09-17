@@ -94,6 +94,22 @@ describe("ChatWidget (library surface)", () => {
           required: ["query"],
         },
         builtin: true,
+        kind: "tool",
+        hitl: false,
+      },
+      {
+        key: "propose_profile_edits",
+        title: "Propose profile edits",
+        description:
+          "Every edit arrives as a review card you approve first — nothing is written without confirmation.",
+        scope: "write",
+        audiences: [],
+        cost_hint: null,
+        requires_user: true,
+        input_schema: null,
+        builtin: true,
+        kind: "capability",
+        hitl: true,
       },
     ]);
     aiApi.transcribeAudio.mockReset();
@@ -442,7 +458,7 @@ describe("ChatWidget (library surface)", () => {
     await user.click(await screen.findByRole("button", { name: "Available tools" }));
     const dialog = await screen.findByTestId("chat-tools-dialog");
     expect(dialog).toHaveTextContent("Tools the assistant can use");
-    expect(aiApi.fetchAiTools).toHaveBeenCalled();
+    expect(aiApi.fetchAiTools).toHaveBeenCalledWith({ includeCapabilities: true });
     expect(await screen.findByText("search_jobs")).toBeInTheDocument();
     expect(screen.getByText("Searching the job catalog")).toBeInTheDocument();
     expect(screen.getByText("read")).toBeInTheDocument();
@@ -452,6 +468,18 @@ describe("ChatWidget (library surface)", () => {
     expect(screen.getByText("query")).toBeInTheDocument();
     expect(screen.getByText(/What to look for\./)).toBeInTheDocument();
     expect(screen.getByText(/optional/)).toBeInTheDocument();
+  });
+
+  it("badges the HITL capability row and hides its scope chip", async () => {
+    const user = userEvent.setup();
+    renderWidget();
+    await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    await user.click(await screen.findByRole("button", { name: "Available tools" }));
+    await screen.findByTestId("chat-tools-dialog");
+
+    expect(await screen.findByText("propose_profile_edits")).toBeInTheDocument();
+    expect(screen.getByText("HITL action")).toBeInTheDocument();
+    expect(screen.queryByText("write")).not.toBeInTheDocument();
   });
 
   it("switches chats from the header history popover", async () => {

@@ -234,7 +234,7 @@ async def test_digest_tools_return_ids(db, auth_headers):
 
 
 async def test_turn_emits_proposal_events_and_persists(
-    client, db, auth_headers, monkeypatch
+    client, db, auth_headers, kinds, monkeypatch
 ):
     user = await _auth_user(db)
     session = await _session(client, auth_headers)
@@ -282,6 +282,27 @@ async def test_turn_emits_proposal_events_and_persists(
     ).json()
     stored = messages[-1]["metadata_json"]["proposals"]
     assert stored[0]["id"] == card["id"]
+
+    # ADR-0015 fanout: the turn also notifies (survives a closed chat).
+    from app.models.engagement_model import Notification, NotificationRecipient
+
+    notification = (
+        (
+            await db.execute(
+                select(Notification)
+                .join(
+                    NotificationRecipient,
+                    NotificationRecipient.notification_id == Notification.id,
+                )
+                .where(NotificationRecipient.user_id == user.id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert notification is not None
+    assert notification.payload["link"] == "/profile"
+    assert notification.payload["proposal_ids"] == [card["id"]]
 
 
 async def test_approve_after_chat_turn_applies(client, db, auth_headers):
