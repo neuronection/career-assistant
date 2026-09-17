@@ -519,31 +519,6 @@ async def test_visual_review_degrades_without_chromium(
     assert state["critique"] is None
 
 
-async def test_builder_session_sync_turn(
-    client, db, auth_headers, profile_ready, monkeypatch
-):
-    """Non-streaming turns on builder sessions run the copilot too."""
-    monkeypatch.setattr(
-        "app.ai.agents.cv_builder_chat.measure_pages",
-        _raise_engine_unavailable,
-    )
-    await _seed_bank(db)
-    cv, cv_json = await _owned_cv(db, client, auth_headers)
-    original_template_id = cv.template_id
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
-    response = await client.post(
-        f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "switch to another template"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 200, response.text
-    rows = response.json()
-    assert [row["role"] for row in rows] == ["user", "assistant"]
-    assert rows[1]["metadata_json"]["surface"] == "cv_builder"
-    refreshed = await client.get(f"/api/v1/cv/{cv_json['id']}", headers=auth_headers)
-    assert refreshed.json()["template_id"] != str(original_template_id)
-
-
 async def _second_user(client) -> dict:
     response = await client.post(
         "/api/v1/auth/register",

@@ -383,7 +383,7 @@ def _open_generate(deps: TurnDeps) -> float:
 
 async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
     """The structured streaming reply (one gateway call, unchanged)."""
-    from app.ai.agents.chatbot import CHATBOT
+    from app.ai.agents.prompts import CHATBOT
     from app.ai.schemas import ChatReply
 
     stream = StructuredStream()

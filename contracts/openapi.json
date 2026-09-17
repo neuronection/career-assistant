@@ -19342,16 +19342,6 @@
               "title": "Message Id",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "stream",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Stream",
-              "type": "boolean"
-            }
           }
         ],
         "requestBody": {
@@ -19408,16 +19398,6 @@
               "format": "uuid",
               "title": "Message Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "stream",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Stream",
-              "type": "boolean"
             }
           }
         ],
@@ -19733,7 +19713,7 @@
         ]
       },
       "post": {
-        "description": "Send a message; returns [user_message, assistant_reply] \u2014 or an SSE\nstream (`?stream=true`) of status/delta/meta/done events.",
+        "description": "Send a message; responds with the SSE turn stream\n(status/delta/tool_call/proposal/meta/done events).",
         "operationId": "send_message_api_v1_chat_sessions__session_id__messages_post",
         "parameters": [
           {
@@ -19744,16 +19724,6 @@
               "format": "uuid",
               "title": "Session Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "stream",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Stream",
-              "type": "boolean"
             }
           }
         ],

@@ -135,7 +135,7 @@ def _check_build_review(critique: CvBuildCritique) -> None:
 
 
 def _build_cases() -> list[GoldenCase]:
-    from app.ai.agents.chatbot import CHATBOT  # noqa: F401 — fixture side effects
+    from app.ai.agents.prompts import CHATBOT
     import app.ai.agents  # noqa: F401 — registers every mock fixture
     import app.ai.agents.cv_build_reviewer  # noqa: F401 — fixture side effect
 

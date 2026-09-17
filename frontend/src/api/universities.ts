@@ -94,11 +94,6 @@ export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
   return data;
 }
 
-export async function sendMessage(sessionId: string, content: string): Promise<ChatMessage[]> {
-  const { data } = await api.post<ChatMessage[]>(`/chat/sessions/${sessionId}/messages`, { content });
-  return data;
-}
-
 export async function quickAssist(body: { question: string; page: string; job_code?: string }): Promise<{ answer: string; referenced_job_codes: string[] }> {
   const { data } = await api.post("/ai/assist", body);
   return data;

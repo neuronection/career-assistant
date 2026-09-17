@@ -356,6 +356,7 @@ async def test_practice_walkthrough_completes(
         reply = await client.post(
             f"/api/v1/chat/sessions/{chat_id}/messages",
             json={"content": "My answer, with a concrete example."},
+            params={"stream": "true"},
             headers=auth_headers,
         )
         assert reply.status_code == 200, reply.text
@@ -372,9 +373,13 @@ async def test_practice_walkthrough_completes(
     exhausted = await client.post(
         f"/api/v1/chat/sessions/{chat_id}/messages",
         json={"content": "One more?"},
+        params={"stream": "true"},
         headers=auth_headers,
     )
-    assert exhausted.status_code == 400
+    # Plan 98: the turn streams, so the exhausted-interview rejection
+    # surfaces as in-stream failure events (200 + flow_failed/error).
+    assert exhausted.status_code == 200
+    assert "flow_failed" in exhausted.text
 
 
 # ------------------------------------------------------------ debrief (35.3)

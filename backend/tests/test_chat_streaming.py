@@ -69,26 +69,6 @@ async def test_stream_events_order_and_persistence(
     assert all(row.status == "ok" for row in audit)
 
 
-async def test_non_streaming_path_unchanged(
-    client, db, auth_headers, profile_ready, seeded_catalog
-):
-    session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "sync"}, headers=auth_headers
-        )
-    ).json()
-    response = await _post_message(client, session["id"], auth_headers)
-    assert response.status_code == 200
-    body = response.json()
-    assert [m["role"] for m in body] == ["user", "assistant"]
-    audit = (
-        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "chat")))
-        .scalars()
-        .all()
-    )
-    assert len(audit) == 1
-
-
 async def test_stream_reports_error_when_ai_fails(
     client, db, auth_headers, profile_ready, seeded_catalog, monkeypatch
 ):

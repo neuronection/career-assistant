@@ -128,6 +128,16 @@ All notable changes to **Career Assistant** are documented here.
   popover (Rankings header + job page score card) explains the score
   layers, the blend and the neutral-dimension rule.
 
+### Removed
+- **The non-streaming chat API is gone** (plan 98 cleanup — nothing
+  consumed it): `POST /chat/sessions/{id}/messages`, `/chat/messages/{id}/edit`
+  and `/chat/messages/{id}/regenerate` no longer accept `?stream=false`
+  or return JSON message pairs — they are SSE-only (the web app always
+  streamed). The dead sync machinery behind it is deleted
+  (`ChatService.send_message`/`finish_turn` + builder/interview sync
+  turn drains, `chatbot.chat_reply`); aborted or failing turns surface
+  in-stream (`flow_failed`/`error` events) instead of HTTP errors.
+
 ## [v0.10.0] - 2026-09-16
 
 ### Changed

@@ -1,4 +1,4 @@
-from app.ai.agents.chatbot import chat_reply, quick_assist, search_jobs_tool
+from app.ai.agents.chatbot import quick_assist
 from app.ai.agents.job_generator import generate_jobs
 from app.ai.agents.match_scorer import score_match
 from app.ai.agents.path_suggester import suggest_paths
@@ -13,7 +13,5 @@ __all__ = [
     "suggest_paths",
     "score_match",
     "parse_universities",
-    "chat_reply",
     "quick_assist",
-    "search_jobs_tool",
 ]

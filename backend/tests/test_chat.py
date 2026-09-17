@@ -8,10 +8,14 @@ async def test_chat_session_flow(client, auth_headers, profile_ready, seeded_cat
     reply = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
         json={"content": "I like software and games, what jobs exist?"},
+        params={"stream": "true"},
         headers=auth_headers,
     )
     assert reply.status_code == 200, reply.text
-    messages = reply.json()
+    messages = await client.get(
+        f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers
+    )
+    messages = messages.json()
     assert len(messages) == 2
     assert messages[0]["role"] == "user"
     assert messages[1]["role"] == "assistant"
@@ -51,10 +55,11 @@ async def test_chat_without_relevant_catalog_words(
     reply = await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
         json={"content": "hello there"},
+        params={"stream": "true"},
         headers=auth_headers,
     )
-    messages = reply.json()
-    assert messages[1]["role"] == "assistant"
+    assert reply.status_code == 200, reply.text
+    assert "event: done" in reply.text
 
 
 async def test_quick_assist(client, auth_headers, profile_ready, seeded_catalog):

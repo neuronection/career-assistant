@@ -5,7 +5,7 @@ from typing import Optional
 
 from app.models.enums import AITaskType
 from app.ai.agents.context import context_json, parse_context
-from app.ai.agents.prompts import CHATBOT, QUICK_ASSIST
+from app.ai.agents.prompts import QUICK_ASSIST
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import ChatReply
 from sqlalchemy import or_, select
@@ -1115,7 +1115,6 @@ async def prepare_chat_prompt(
     user_id=None,
     cv_references: Optional[list[dict]] = None,
     session=None,
-    include_digests: bool = True,
     digest_mode: str = "full",
 ) -> tuple[str, dict]:
     """Run the server-side tools and build the user prompt.
@@ -1258,39 +1257,6 @@ async def prepare_chat_prompt(
     if explore_query:
         metadata["explore_query"] = explore_query
     return prompt, metadata
-
-
-async def chat_reply(
-    db: AsyncSession,
-    user_id,
-    *,
-    profile_summary: str,
-    history: list[dict],
-    message: str,
-    page_context: Optional[dict] = None,
-    cv_references: Optional[list[dict]] = None,
-    session=None,
-) -> tuple[ChatReply, dict]:
-    """Produce a chatbot reply; returns (reply, tool_metadata)."""
-    prompt, metadata = await prepare_chat_prompt(
-        db,
-        profile_summary=profile_summary,
-        history=history,
-        message=message,
-        page_context=page_context,
-        user_id=user_id,
-        cv_references=cv_references,
-        session=session,
-    )
-    reply: ChatReply = await ainvoke_structured(
-        db,
-        AITaskType.CHAT,
-        ChatReply,
-        system=CHATBOT,
-        user=prompt,
-        user_id=user_id,
-    )
-    return reply, metadata
 
 
 async def quick_assist(

@@ -5,7 +5,7 @@ import uuid
 from contextlib import suppress
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,14 +103,11 @@ async def get_messages(
 async def send_message(
     session_id: uuid.UUID,
     data: MessageIn,
-    stream: bool = Query(default=False),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Send a message; returns [user_message, assistant_reply] — or an SSE
-    stream (`?stream=true`) of status/delta/meta/done events."""
-    if not stream:
-        return await _send_sync(session_id, data, user, db)
+    """Send a message; responds with the SSE turn stream
+    (status/delta/tool_call/proposal/meta/done events)."""
     return await _send_stream(session_id, data, user, db)
 
 
@@ -126,25 +123,6 @@ async def _resolve_attachments(db, user, data) -> list[dict] | None:
         return await resolve_attachments(db, user.id, data.attachments)
     except DomainValidationError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
-
-
-async def _send_sync(session_id, data, user, db) -> list[MessageOut]:
-    profile = await get_profile_for_user(db, user.id)
-    try:
-        await ChatService(db).send_message(
-            user.id,
-            session_id,
-            data.content,
-            profile,
-            attachments=await _resolve_attachments(db, user, data),
-        )
-    except AINotConfiguredError as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
-    except DomainError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    await ChatService(db).autotitle_if_first_turn(user.id, session_id, data.content)
-    rows = await ChatService(db).messages(user.id, session_id)
-    return [MessageOut.model_validate(m) for m in rows[-2:]]
 
 
 def _sse(event: str, payload: dict) -> str:
@@ -454,7 +432,6 @@ async def _send_stream(session_id, data, user, db):
 async def edit_message(
     message_id: uuid.UUID,
     data: MessageIn,
-    stream: bool = Query(default=False),
     user=Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -469,20 +446,12 @@ async def edit_message(
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    if not stream:
-        profile = await get_profile_for_user(db, user.id)
-        await ChatService(db).finish_turn(
-            session, history, edited_id, data.content, profile
-        )
-        rows = await ChatService(db).messages(user.id, session.id)
-        return [MessageOut.model_validate(m) for m in rows[-2:]]
     return await _run_turn_stream(session, history, data.content, edited_id, user, db)
 
 
 @router.post("/chat/messages/{message_id}/regenerate")
 async def regenerate_message(
     message_id: uuid.UUID,
-    stream: bool = Query(default=False),
     user=Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -494,11 +463,6 @@ async def regenerate_message(
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    if not stream:
-        profile = await get_profile_for_user(db, user.id)
-        await ChatService(db).finish_turn(session, history, target_id, content, profile)
-        rows = await ChatService(db).messages(user.id, session.id)
-        return [MessageOut.model_validate(m) for m in rows[-2:]]
     return await _run_turn_stream(session, history, content, target_id, user, db)
 
 
