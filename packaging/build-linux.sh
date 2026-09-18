@@ -103,6 +103,28 @@ if [[ "$TARGET" == "deb" || "$TARGET" == "all" ]]; then
     "$INTERNAL"/libXdmcp*.so.* "$INTERNAL"/libmount*.so.* \
     "$INTERNAL"/libblkid*.so.* "$INTERNAL"/libselinux*.so.* \
     "$INTERNAL"/libpcre2*.so.* "$INTERNAL"/libffi*.so.*
+  # The GL/X/render adjacency rides the same rule. The CI builder's gi
+  # hooks drag the 22.04 X11 client family, libepoxy (GTK/WebKit's GL
+  # dispatcher), atk/atspi and the rsvg/pixman/fontconfig/text stack
+  # into _internal; the executable's RUNPATH lets the SYSTEM WebKit
+  # resolve its own deps against these old copies first — WebKitWebProcess
+  # then aborts at EGL init ("Could not create default EGL display:
+  # EGL_BAD_PARAMETER", blank window; reproduced with the CI bundle on
+  # Mint 22 and fixed by exactly this strip). System versions all exist
+  # via the libwebkit2gtk-4.1 depends; C++ runtime resolves forward-
+  # compatibly to the system libstdc++.
+  rm -f "$INTERNAL"/libepoxy*.so.* \
+    "$INTERNAL"/libX11*.so.* "$INTERNAL"/libXext*.so.* \
+    "$INTERNAL"/libXrender*.so.* "$INTERNAL"/libXrandr*.so.* \
+    "$INTERNAL"/libXi*.so.* "$INTERNAL"/libXcursor*.so.* \
+    "$INTERNAL"/libXcomposite*.so.* "$INTERNAL"/libXdamage*.so.* \
+    "$INTERNAL"/libXfixes*.so.* "$INTERNAL"/libXinerama*.so.* \
+    "$INTERNAL"/libatk*.so.* "$INTERNAL"/libatspi*.so.* \
+    "$INTERNAL"/librsvg*.so.* "$INTERNAL"/libpixman*.so.* \
+    "$INTERNAL"/libfontconfig*.so.* "$INTERNAL"/libfribidi*.so.* \
+    "$INTERNAL"/libthai*.so.* "$INTERNAL"/libdatrie*.so.* \
+    "$INTERNAL"/libxkbcommon*.so.* \
+    "$INTERNAL"/libstdc++*.so.* "$INTERNAL"/libgcc_s*.so.*
   rm -rf "$INTERNAL/gio_modules" "$INTERNAL/gi_typelibs" \
     "$INTERNAL/share/glib-2.0"
 

@@ -7,6 +7,22 @@ All notable changes to **Career Assistant** are documented here.
 ### Added
 - (nothing yet — the live scope of the next release)
 
+## [v0.11.3] - 2026-09-18
+
+### Fixed
+- **Desktop blank window — root cause found and reproduced** — the CI
+  builder's PyInstaller gi hooks drag the Ubuntu-22.04 X11 client family,
+  `libepoxy` (GTK/WebKit's GL dispatcher), atk/atspi and the
+  rsvg/pixman/fontconfig/text stack into the .deb's `_internal`; the
+  executable's RUNPATH let the SYSTEM WebKit resolve its dependencies
+  against those old copies first, and WebKitWebProcess aborted at EGL
+  init (`Could not create default EGL display: EGL_BAD_PARAMETER`,
+  blank window — no page requests at all). The .deb now strips that
+  whole adjacency so the system WebKit uses the system GL/X stack
+  consistently. Verified by reproducing the blank window with the CI
+  bundle on a Mint 22 machine and confirming the strip fixes it; the
+  AppImage keeps its self-contained matching stack and is unaffected.
+
 ## [v0.11.2] - 2026-09-18
 
 ### Fixed
