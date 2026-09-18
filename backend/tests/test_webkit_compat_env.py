@@ -52,6 +52,39 @@ def test_compat_env_soft_fallback_marker_forces_software(
     assert env["LIBGL_ALWAYS_SOFTWARE"] == "1"
 
 
+def test_compat_env_persisted_marker_forces_software(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A machine whose GPU path failed once (EGL probe OK, WebKit EGL
+    BAD_PARAMETER blank window) must not repeat the blank boot: the
+    persisted marker short-circuits the probe on later launches."""
+    monkeypatch.setattr(shell, "_egl_probe", lambda: True)
+    marker = tmp_path / "webkit_soft_fallback"
+    marker.write_text("1", encoding="utf-8")
+    env = apply_webkit_compat_env({}, marker=marker)
+    assert env["WEBKIT_DISABLE_DMABUF_RENDERER"] == "1"
+
+
+def test_compat_env_probe_pass_writes_no_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setattr(shell, "_egl_probe", lambda: True)
+    marker = tmp_path / "webkit_soft_fallback"
+    apply_webkit_compat_env({}, marker=marker)
+    assert not marker.exists()
+    assert "LIBGL_ALWAYS_SOFTWARE" not in {}
+
+
+def test_compat_env_software_write_persists_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setattr(shell, "_egl_probe", lambda: False)
+    marker = tmp_path / "nested" / "webkit_soft_fallback"
+    env = apply_webkit_compat_env({}, marker=marker)
+    assert env["WEBKIT_DISABLE_DMABUF_RENDERER"] == "1"
+    assert marker.exists()
+
+
 def test_compat_env_skips_probe_off_linux(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(shell, "_egl_probe", lambda: False)
@@ -148,3 +181,23 @@ def test_watch_renderer_no_relaunch_loop_after_success() -> None:
     app.state.spa_rendered = True
     thread.join()
     assert marker.relaunched is False
+
+
+def test_relaunch_self_logs_and_execs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The sentinel relaunch crashed on logger.warning(argv=...) — an
+    invalid logging kwarg — so the software fallback never engaged
+    (Mint 22 blank-window report). The call must be %-style and still
+    exec the new process."""
+    calls: list[tuple] = []
+
+    def fake_warning(msg, *args, **kwargs):
+        calls.append((msg % args if args else msg, kwargs))
+
+    def fake_execv(path, argv):
+        calls.append(("execv", argv))
+
+    monkeypatch.setattr(shell.logger, "warning", fake_warning)
+    monkeypatch.setattr(shell.os, "execv", fake_execv)
+    shell._relaunch_self()
+    assert calls[-1][0] == "execv"
+    assert not any("argv" in kw for _, kw in calls if isinstance(kw, dict))

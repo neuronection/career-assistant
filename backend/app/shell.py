@@ -16,7 +16,7 @@ import time
 import webbrowser
 from collections.abc import Callable, MutableMapping, Sequence
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict
 
 import uvicorn
 
@@ -71,19 +71,34 @@ def _software_render_env(env: MutableMapping[str, str]) -> None:
 
 def apply_webkit_compat_env(
     environ: MutableMapping[str, str] | None = None,
+    marker: Optional[Path] = None,
 ) -> MutableMapping[str, str]:
     """Force software WebKit rendering when the machine has no usable GPU.
 
     Skipped when the GPU path is forced with `CA_WEBKIT_GPU=1`; the probe
     is skipped when a previous relaunch already marked the soft fallback
-    (`CA_WEBKIT_SOFT_FALLBACK=1`).
+    (`CA_WEBKIT_SOFT_FALLBACK=1`) or when the persisted marker exists —
+    some drivers pass the EGL probe but fail WebKit's own EGL init
+    (EGL_BAD_PARAMETER blank window); the marker lets every later boot
+    start in software instead of repeating the blank + relaunch cycle.
     """
     env: MutableMapping[str, str] = os.environ if environ is None else environ
     if sys.platform != "linux" or env.get("CA_WEBKIT_GPU") == "1":
         return env
-    if env.get("CA_WEBKIT_SOFT_FALLBACK") != "1" and _egl_probe():
+    persisted = marker is not None and marker.exists()
+    if (
+        env.get("CA_WEBKIT_SOFT_FALLBACK") != "1"
+        and not persisted
+        and _egl_probe()
+    ):
         return env
     _software_render_env(env)
+    if marker is not None:
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text("1", encoding="utf-8")
+        except OSError:
+            pass
     return env
 
 
@@ -105,7 +120,7 @@ def _plan_fallback(env: MutableMapping[str, str]) -> tuple[str, str]:
 def _relaunch_self() -> None:
     mode, event = _plan_fallback(os.environ)
     argv = _relaunch_argv(mode)
-    logger.warning(event, argv=argv)
+    logger.warning("%s — relaunching %s (%s)", event, mode, " ".join(argv))
     os.execv(argv[0], argv)
 
 
@@ -404,7 +419,7 @@ def run(tray_only: bool = False) -> None:
 
     app = create_app()
     port = find_free_port()
-    apply_webkit_compat_env()
+    apply_webkit_compat_env(marker=data_dir / "webkit_soft_fallback")
     server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
     )
