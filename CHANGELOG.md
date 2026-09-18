@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.12.0] - 2026-09-18
+
 ### Changed
 - **CV item heads restructured** — the organization/school line now
   prints on its own line under the title instead of flowing inline, and
@@ -27,6 +29,11 @@ All notable changes to **Career Assistant** are documented here.
   address.
 
 ### Added
+- **Deb packaging regression guard** — the deb build now fails if any
+  system-stack library (GL/X/render adjacency, including the
+  wayland/EGL family) survives the strip; the Ubuntu-22.04 CI runner
+  can never catch the RUNPATH-hijack bug class because its own system
+  libs match the bundle, so the guard stands in for it.
 - **Create and edit profile items from CV Studio's Context tab (plan 105)** —
   every context group gains a `+` create button and every entry row a
   pencil (edit) plus an external-link ("open in profile") affordance:
