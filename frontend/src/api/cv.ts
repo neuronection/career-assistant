@@ -253,6 +253,11 @@ export async function patchSynthItem(
   return data;
 }
 
+export async function refreshSynthSourceState(id: string): Promise<CvSynthItem> {
+  const { data } = await api.post<CvSynthItem>(`/cv/synth/${id}/refresh-source-state`);
+  return data;
+}
+
 export async function deleteSynthItem(id: string): Promise<void> {
   await api.delete(`/cv/synth/${id}`);
 }

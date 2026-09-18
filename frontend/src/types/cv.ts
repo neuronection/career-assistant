@@ -59,6 +59,7 @@ export interface CvSynthGenerateOut {
 }
 
 export interface CvSynthGenerateRequest {
+  instruction?: string;
   refs: CvContextRef[];
   action: CvSynthAction;
   scope?: "item" | "summary";

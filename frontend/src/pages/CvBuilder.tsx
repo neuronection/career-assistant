@@ -5,6 +5,7 @@ import { Copy, Eye, FileText, Sparkles, X } from "lucide-react";
 import { Button, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
+import type { VariantGenerateRequest } from "@/components/cv/VariantEditor";
 import {
   aiAction,
   compileCv,
@@ -19,6 +20,7 @@ import {
   fetchCv,
   fetchCvDesign,
   fetchSynthItems,
+  generateSynthItems,
   fetchVersionPreview,
   fetchLint,
   fetchVersions,
@@ -26,6 +28,7 @@ import {
   patchCv,
   patchSynthItem,
   previewCv,
+  refreshSynthSourceState,
   restoreVersion,
   setContext,
 } from "@/api/cv";
@@ -69,6 +72,12 @@ import type {
 } from "@/types/cv";
 function refKey(sourceKey: string, itemId: string): string {
   return `${sourceKey}:${itemId}`;
+}
+
+function toBackendLength(length?: string): "short" | "medium" | "long" {
+  if (length === "concise") return "short";
+  if (length === "detailed") return "long";
+  return "medium";
 }
 
 function usableVariants(items: CvSynthItem[]): CvSynthItem[] {
@@ -474,19 +483,6 @@ export function CvBuilder() {
     [id, selected, synthPins, refreshPreview]
   );
 
-  const commitSynthPin = useCallback(
-    async (sourceKey: string, itemId: string, synthId: string | null) => {
-      const pins = { ...synthPins };
-      if (synthId) {
-        pins[`${sourceKey}:${itemId}`] = synthId;
-      } else {
-        delete pins[`${sourceKey}:${itemId}`];
-      }
-      await commitSynthMode(pins);
-    },
-    [synthPins, commitSynthMode]
-  );
-
   const activateVariant = useCallback(
     async (variant: CvSynthItem) => {
       try {
@@ -501,16 +497,90 @@ export function CvBuilder() {
     [refreshPreview, t]
   );
 
+  const resetVariant = useCallback(
+    async (variant: CvSynthItem) => {
+      try {
+        await refreshSynthSourceState(variant.id);
+        setSynthItems(usableVariants(await fetchSynthItems()));
+        await refreshPreview();
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [refreshPreview]
+  );
+
+  const commitSynthPin = useCallback(
+    async (sourceKey: string, itemId: string, synthId: string | null) => {
+      const pins = { ...synthPins };
+      if (synthId) {
+        const variant = synthItems.find((v) => v.id === synthId);
+        if (variant?.status === "draft") {
+          await activateVariant(variant);
+        }
+        pins[`${sourceKey}:${itemId}`] = synthId;
+      } else {
+        delete pins[`${sourceKey}:${itemId}`];
+      }
+      await commitSynthMode(pins);
+    },
+    [synthPins, synthItems, commitSynthMode, activateVariant]
+  );
+
+  // Plan 103 2d: optimistic landing — patch the saved row into the
+  // list synchronously; the following fetch reconciles (position,
+  // computed state).
+  const absorbSynthRow = useCallback((row: CvSynthItem) => {
+    setSynthItems((previous) => {
+      const rest = previous.filter((item) => item.id !== row.id);
+      return [row, ...rest];
+    });
+  }, []);
+
   const saveVariant = useCallback(
     async (body: VariantEditorBody) => {
       try {
-        if (variantEditor.initial) {
-          await patchSynthItem(variantEditor.initial.id, {
+        const trackedId = body.persisted_id || variantEditor.initial?.id;
+        if (trackedId) {
+          await patchSynthItem(trackedId, {
             payload: body.payload,
             variant_key: body.variant_key,
           });
         } else {
-          await createSynthItem({
+          const created = await createSynthItem({
+            refs: body.refs,
+            scope: body.scope,
+            payload: body.payload,
+            variant_key: body.variant_key,
+            target_posting_id: body.target_posting_id ?? undefined,
+            voice: body.voice,
+          });
+          absorbSynthRow(created);
+        }
+        setVariantEditor({ open: false, initial: null, sourceKey: "" });
+        setNotice(t("cvSynth.saved"));
+        setSynthItems(usableVariants(await fetchSynthItems()));
+        await refreshPreview();
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [variantEditor.initial, absorbSynthRow, refreshPreview, t]
+  );
+
+  const saveVariantAndUse = useCallback(
+    async (body: VariantEditorBody) => {
+      const trackedId = body.persisted_id;
+      try {
+        let row: CvSynthItem;
+        if (trackedId) {
+          row = await patchSynthItem(trackedId, {
+            payload: body.payload,
+            variant_key: body.variant_key,
+            status: "active",
+          });
+        } else {
+          row = await createSynthItem({
             refs: body.refs,
             scope: body.scope,
             payload: body.payload,
@@ -519,15 +589,53 @@ export function CvBuilder() {
             voice: body.voice,
           });
         }
+        absorbSynthRow(row);
+        const promote = await patchSynthItem(row.id, { status: "active" });
+        absorbSynthRow(promote);
+        const pins = { ...synthPins };
+        const firstRef = body.refs[0];
+        if (firstRef) {
+          pins[`${firstRef.source_key}:${firstRef.item_id}`] = row.id;
+        }
+        await commitSynthMode(pins);
         setVariantEditor({ open: false, initial: null, sourceKey: "" });
-        setNotice(t("cvSynth.created"));
+        setNotice(t("cvSynth.activated"));
         setSynthItems(usableVariants(await fetchSynthItems()));
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
       }
     },
-    [variantEditor.initial, refreshPreview, t]
+    [synthPins, absorbSynthRow, commitSynthMode, refreshPreview, t]
+  );
+
+  const generateVariantDraft = useCallback(
+    async (
+      request: VariantGenerateRequest,
+      refs: { source_key: string; item_id: string }[]
+    ) => {
+      const out = await generateSynthItems({
+        refs,
+        action: request.action,
+        language: request.target_language ?? "en",
+        target_language:
+          request.action === "translate" ? request.target_language : undefined,
+        tone: request.tone ?? undefined,
+        length: toBackendLength(request.length),
+        instruction: request.instruction,
+      });
+      const row = out.items[0];
+      if (!row) {
+        throw new Error(t("cvSynth.noDraft", { defaultValue: "No draft was generated" }));
+      }
+      return {
+        id: row.id,
+        description: row.payload.description ?? "",
+        bullets: row.payload.bullets ?? [],
+        language: row.voice.language ?? "en",
+      };
+    },
+    [t]
   );
 
   const flushPendingSave = useCallback(async () => {
@@ -906,7 +1014,7 @@ export function CvBuilder() {
   }
 
   async function runAction(
-    action: "summary" | "bullet" | "gaps" | "compaction" | "tailor" | "translate",
+    action: "summary" | "gaps" | "compaction" | "tailor" | "translate",
     ref?: { source_key?: string; item_id?: string; text?: string; posting_id?: string }
   ) {
     setBusy(`ai:${action}`);
@@ -1163,7 +1271,6 @@ export function CvBuilder() {
                   selected={selected}
                   onToggle={toggleItem}
                   onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
-                  onBullet={(sourceKey, itemId) => void runAction("bullet", { source_key: sourceKey, item_id: itemId })}
                   synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
                   onPinVariant={(sourceKey, itemId, synthId) =>
                     void commitSynthPin(sourceKey, itemId, synthId)
@@ -1175,7 +1282,7 @@ export function CvBuilder() {
                   onEditVariant={(variant) =>
                     setVariantEditor({ open: true, initial: variant, sourceKey: "" })
                   }
-                  onActivateVariant={(variant) => void activateVariant(variant)}
+                  onResetVariant={(variant) => void resetVariant(variant)}
                 />
               )
             }
@@ -1540,6 +1647,9 @@ export function CvBuilder() {
           }}
           onClose={() => setVariantEditor({ open: false, initial: null, sourceKey: "" })}
           onSubmit={saveVariant}
+          onUseSaved={saveVariantAndUse}
+          onGenerate={generateVariantDraft}
+          variants={synthItems}
         />
       )}
     </div>

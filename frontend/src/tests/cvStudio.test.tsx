@@ -80,6 +80,8 @@ const createAssistantSession = vi.fn();
 const fetchAssistantMessages = vi.fn();
 const streamAssistantTurn = vi.fn();
 const fetchSynthItems = vi.fn();
+const refreshSynthSourceState = vi.fn();
+const generateSynthItems = vi.fn();
 const createSynthItem = vi.fn();
 const patchSynthItem = vi.fn();
 
@@ -176,7 +178,10 @@ vi.mock("@/api/cv", async (importOriginal) => {
     fetchCvRuns: (...args: unknown[]) => fetchCvRuns(...args),
     fetchSynthItems: (...args: unknown[]) => fetchSynthItems(...args),
     createSynthItem: (...args: unknown[]) => createSynthItem(...args),
+    generateSynthItems: (...args: unknown[]) => generateSynthItems(...args),
     patchSynthItem: (...args: unknown[]) => patchSynthItem(...args),
+    refreshSynthSourceState: (...args: unknown[]) =>
+      refreshSynthSourceState(...args),
     fetchCvDesign: (...args: unknown[]) => fetchCvDesign(...args),
     applyCvOps: (...args: unknown[]) => applyCvOps(...args),
     createCoverLetter: (...args: unknown[]) => createCoverLetter(...args),
@@ -2012,7 +2017,7 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
       void screen.queryByTestId("context-variant-toggle-syn-1");
   });
 
-  it("flags a pin whose variant is not active (plan 83 follow-up)", async () => {
+  it("stars a draft variant by promoting it (plan 102), pin inactive retired", async () => {
     cv.context = {
       mode: "all",
       include: [],
@@ -2027,10 +2032,10 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
         target_posting_id: null,
         source_refs: [{ source_key: "experience", item_id: "exp-1" }],
         source_state: [],
-        payload: { description: "Active text" },
+        payload: { description: "Draft text" },
         voice: { language: "en" },
-        status: "active",
-        source: "manual",
+        status: "draft",
+        source: "ai",
         verified: true,
         stale: false,
         orphaned: false,
@@ -2038,11 +2043,20 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
         created_at: "",
       },
     ]);
+    patchSynthItem.mockImplementation(async () => ({}));
+    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
-    expect(await screen.findByTestId("context-pin-inactive")).toBeInTheDocument();
+    await screen.findByTestId("context-variant-syn-1");
+    expect(screen.queryByTestId("context-pin-inactive")).toBeNull();
+    fireEvent.click(await screen.findByTestId("context-pin-star-syn-1"));
+    await waitFor(() =>
+      expect(patchSynthItem).toHaveBeenCalledWith("syn-1", {
+        status: "active",
+      }),
+    );
     cv.context = { mode: "all", include: [], exclude: [] };
   });
 
@@ -2087,6 +2101,38 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     fireEvent.click(starred);
     await waitFor(() => expect(setContext).toHaveBeenCalledTimes(2));
     expect(setContext.mock.calls[1][1].synth_pins).toEqual({});
+  });
+
+  it("offers Reset on a stale variant and re-snapshots via the API (plan 102)", async () => {
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Stale text" },
+        voice: { language: "en" },
+        status: "active",
+        source: "ai",
+        verified: true,
+        stale: true,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    refreshSynthSourceState.mockImplementation(async () => ({}));
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    expect(await screen.findByTestId("context-variant-stale")).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("context-variant-reset-syn-1"));
+    await waitFor(() =>
+      expect(refreshSynthSourceState).toHaveBeenCalledWith("syn-1"),
+    );
   });
 
   it("shows an edit button on variant rows that opens the editor", async () => {
@@ -2161,7 +2207,99 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     ).toBeInTheDocument();
   });
 
-  it("marks draft variants in the tree and activates them inline", async () => {
+  it("AI-generates into the form and Save & use promotes it (plan 103)", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(await screen.findByTestId("ai-add-variant-exp-1"));
+    generateSynthItems.mockImplementation(async () => ({
+      items: [
+        {
+          id: "syn-gen",
+          scope: "item",
+          variant_key: "default",
+          target_posting_id: null,
+          source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+          source_state: [],
+          payload: { description: "Generated text" },
+          voice: { language: "en" },
+          status: "draft",
+          source: "ai",
+          verified: true,
+          stale: false,
+          orphaned: false,
+          last_used_at: null,
+          created_at: "",
+        },
+      ],
+    }));
+    patchSynthItem.mockImplementation(async () => ({ id: "syn-gen" }));
+    setContext.mockImplementation(async () => ({ ...cv }));
+    fireEvent.click(await screen.findByTestId("synth-editor-gen-action-detail"));
+    fireEvent.click(await screen.findByTestId("synth-editor-gen-run"));
+    const text = await screen.findByTestId("synth-editor-description-input");
+    await waitFor(() => expect(text.textContent).toContain("Generated text"));
+    await waitFor(() =>
+      expect(generateSynthItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "detail",
+          refs: [{ source_key: "experience", item_id: "exp-1" }],
+        }),
+      ),
+    );
+    fireEvent.click(await screen.findByTestId("synth-editor-save-use"));
+    await waitFor(() =>
+      expect(patchSynthItem).toHaveBeenCalledWith("syn-gen", {
+        status: "active",
+      }),
+    );
+  });
+
+  it("steps through the slot's rows with the chevrons (plan 103)", async () => {
+    const row = (id: string, text: string, created: string) => ({
+      id,
+      scope: "item",
+      variant_key: "tailored",
+      target_posting_id: null,
+      source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+      source_state: [],
+      payload: { description: text },
+      voice: { language: "en" },
+      status: "active",
+      source: "manual",
+      verified: true,
+      stale: false,
+      orphaned: false,
+      last_used_at: null,
+      created_at: created,
+    });
+    fetchSynthItems.mockResolvedValue([
+      row("syn-old", "Older text", "2026-09-01T00:00:00Z"),
+      row("syn-new", "Newer text", "2026-09-02T00:00:00Z"),
+      {
+        ...row("syn-other", "Other slot text", "2026-09-03T00:00:00Z"),
+        variant_key: "concise",
+      },
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(await screen.findByTestId("context-variant-edit-syn-new"));
+    await waitFor(() => screen.getByTestId("synth-editor-slot-prev"));
+    await waitFor(() => expect(screen.getByTestId("synth-editor-slot-pos").textContent).toBe("1/2"));
+    fireEvent.click(screen.getByTestId("synth-editor-slot-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("synth-editor-slot-pos").textContent).toBe("2/2"),
+    );
+    fireEvent.click(screen.getByTestId("synth-editor-slot-prev"));
+    await waitFor(() =>
+      expect(screen.getByTestId("synth-editor-slot-pos").textContent).toBe("1/2"),
+    );
+  });
+
+  it("marks draft variants in the tree; the star activates them (plan 102)", async () => {
     const draft = {
       id: "syn-1",
       scope: "item",
@@ -2184,17 +2322,28 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
       ...draft,
       status: "active",
     }));
+    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
-    expect(await screen.findByTestId("context-variant-draft")).toBeTruthy();
-    fireEvent.click(await screen.findByTestId("context-variant-activate-syn-1"));
+    await screen.findByTestId("context-variant-syn-1");
+    expect(screen.queryByTestId("context-variant-draft")).toBeNull();
+    expect(screen.queryByTestId("context-variant-activate-syn-1")).toBeNull();
+    fireEvent.click(await screen.findByTestId("context-pin-star-syn-1"));
     await waitFor(() =>
-      expect(patchSynthItem).toHaveBeenCalledWith("syn-1", { status: "active" }),
+      expect(patchSynthItem).toHaveBeenCalledWith("syn-1", {
+        status: "active",
+      }),
     );
-    await waitFor(() => expect(fetchSynthItems.mock.calls.length).toBe(2));
-    expect(screen.getByTestId("undo-notice-host")).toBeTruthy();
+    await waitFor(() =>
+      expect(setContext).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          synth_pins: { "experience:exp-1": "syn-1" },
+        }),
+      ),
+    );
   });
 });
 

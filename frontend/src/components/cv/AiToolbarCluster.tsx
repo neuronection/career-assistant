@@ -32,7 +32,7 @@ interface AiToolbarClusterProps {
   onTailorPostingChange: (postingId: string) => void;
   onTailorRequest: () => void;
   onRunAction: (
-    action: "summary" | "bullet" | "gaps" | "compaction" | "tailor" | "translate"
+    action: "summary" | "gaps" | "compaction" | "tailor" | "translate"
   ) => void;
   onDraftLetter: () => void;
   tone: string;

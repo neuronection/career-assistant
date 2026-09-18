@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, List, Plus, Sparkles, X } from "lucide-react";
 import {
   Button,
   Modal,
@@ -8,11 +8,13 @@ import {
   ModalHeader,
   ModalTitle,
 } from "@/components/ui";
-import type { CvSynthItem } from "@/types/cv";
+import type { CvSynthItem, CvSynthPayload } from "@/types/cv";
 import type { CvContextSourceOut } from "@/types/cv";
 import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
 
 const MAX_REFS = 5;
+
+type CvSynthAction = "summarize" | "detail" | "restyle" | "posting_fit" | "translate";
 
 export interface VariantEditorBody {
   refs: { source_key: string; item_id: string }[];
@@ -21,7 +23,19 @@ export interface VariantEditorBody {
   variant_key: string;
   target_posting_id?: string | null;
   voice: { language: string };
+  /** Plan 103: the slot row the form is currently
+   * tracking — null (or absent) means a fresh creation. */
+  persisted_id?: string | null;
 }
+
+export interface VariantGenerateRequest {
+  action: CvSynthAction;
+  target_language?: string;
+  tone?: string;
+  length?: string;
+  instruction?: string;
+}
+
 
 interface VariantEditorProps {
   open: boolean;
@@ -31,6 +45,19 @@ interface VariantEditorProps {
   defaultLanguage?: string;
   defaultSourceKey?: string;
   busy?: boolean;
+  /** The caller's draft + active variants; the editor derives the slot
+   * (same refs, variant_key, posting) for the back/forward browser. */
+  variants?: CvSynthItem[];
+  onGenerate?: (
+    request: VariantGenerateRequest,
+    refs: { source_key: string; item_id: string }[]
+  ) => Promise<{
+    id?: string;
+    description: string;
+    bullets: string[];
+    language: string;
+  }>;
+  onUseSaved?: (body: VariantEditorBody) => Promise<void>;
   onActivate?: () => Promise<void> | void;
   onClose: () => void;
   onSubmit: (body: VariantEditorBody) => Promise<void>;
@@ -47,8 +74,41 @@ function toOptions(refs: string[]): { source_key: string; item_id: string }[] {
   });
 }
 
+function slotKeyOf(
+  refKeys: string[],
+  variantKey: string,
+  postingId: string
+): string {
+  return `${[...refKeys].sort().join("|")}#${variantKey}#${postingId || ""}`;
+}
+
+function rowSlotKeyOf(row: CvSynthItem): string {
+  return slotKeyOf(
+    row.source_refs.map((ref) => refKey(ref.source_key, ref.item_id)),
+    row.variant_key,
+    row.target_posting_id ?? ""
+  );
+}
+
+function variantTextOf(payload: CvSynthPayload): string {
+  const text = payload.description || payload.summary || "";
+  if (text) return text;
+  return (payload.bullets ?? [])
+    .map((bullet) => (typeof bullet === "string" ? bullet : String((bullet as { text?: string }).text ?? "")))
+    .filter(Boolean)
+    .join(" · ");
+}
+
 const FIELD_CLASS =
   "w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--as-accent)]";
+
+const GEN_ACTIONS: CvSynthAction[] = [
+  "summarize",
+  "detail",
+  "restyle",
+  "posting_fit",
+  "translate",
+];
 
 export function VariantEditor({
   open,
@@ -58,6 +118,9 @@ export function VariantEditor({
   defaultLanguage = "en",
   defaultSourceKey,
   busy = false,
+  variants = [],
+  onGenerate,
+  onUseSaved,
   onActivate,
   onClose,
   onSubmit,
@@ -84,6 +147,16 @@ export function VariantEditor({
     initial?.voice.language ?? defaultLanguage
   );
   const [postingId, setPostingId] = useState(initial?.target_posting_id ?? "");
+  const [loadedId, setLoadedId] = useState<string | null>(initial?.id ?? null);
+
+  const [genAction, setGenAction] = useState<CvSynthAction>("detail");
+  const [genTargetLanguage, setGenTargetLanguage] = useState("de");
+  const [genTone, setGenTone] = useState("");
+  const [genLength, setGenLength] = useState("standard");
+  const [genInstruction, setGenInstruction] = useState("");
+  const [genAdvanced, setGenAdvanced] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const groupedOptions = useMemo(
     () =>
@@ -116,6 +189,68 @@ export function VariantEditor({
     return map;
   }, [sources]);
 
+  const slotRows = useMemo(() => {
+    if (refs.length === 0) return [];
+    const key = slotKeyOf(refs, variantKey.trim() || "default", postingId || "");
+    return variants
+      .filter((row) => rowSlotKeyOf(row) === key)
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  }, [refs, variantKey, postingId, variants]);
+  const slotPos = useMemo(
+    () => Math.max(
+      0,
+      loadedId
+        ? slotRows.findIndex((row) => row.id === loadedId)
+        : 0,
+    ),
+    [loadedId, slotRows],
+  );
+  function loadRow(row: CvSynthItem) {
+    setLoadedId(row.id);
+    setDescription(row.payload.description ?? "");
+    setBullets(row.payload.bullets?.length ? row.payload.bullets : [""]);
+    setLanguage(row.voice.language ?? defaultLanguage);
+    setPostingId(row.target_posting_id ?? "");
+  }
+  function stepSlot(delta: number) {
+    if (slotRows.length === 0) return;
+    const at = loadedId ? slotRows.findIndex((row) => row.id === loadedId) : 0;
+    const next = Math.min(slotRows.length - 1, Math.max(0, at + delta));
+    const row = slotRows[next];
+    if (row && row.id !== loadedId) loadRow(row);
+  }
+
+  async function runGenerate() {
+    if (!onGenerate || refs.length === 0 || generating) return;
+    const dirty = hasText;
+    if (dirty && !window.confirm(t("cvSynth.editor.generateOverwrite", {
+      defaultValue: "Generate will replace the text you have typed — continue?",
+    }))) {
+      return;
+    }
+    setGenerating(true);
+    try {
+      const result = await onGenerate(
+        {
+          action: genAction,
+          target_language:
+            genAction === "translate" ? genTargetLanguage : undefined,
+          tone: genTone === "none" ? undefined : genTone,
+          length: genAdvanced ? genLength : undefined,
+        },
+        toOptions(refs)
+      );
+      setDescription(result.description ?? "");
+      setBullets(result.bullets?.length ? result.bullets : [""]);
+      if (result.language) setLanguage(result.language);
+      setLoadedId(result.id ?? null);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   function resolvedRefLabel(key: string): string {
     const found = refLabelLookup.get(key);
     if (found) return found.label;
@@ -133,10 +268,10 @@ export function VariantEditor({
     description.trim() !== "" || bullets.some((bullet) => bullet.trim() !== "");
   const canSave = hasText && refs.length > 0;
 
-  async function save() {
-    if (!canSave) return;
+  function buildBody(withTextOnly: boolean): VariantEditorBody | null {
+    if (!withTextOnly) return null;
     const isSummary = refs.every((key) => key.startsWith("summary:"));
-    await onSubmit({
+    return {
       refs: toOptions(refs),
       scope: isSummary ? "summary" : "item",
       payload: {
@@ -146,9 +281,29 @@ export function VariantEditor({
       variant_key: variantKey.trim() || "default",
       target_posting_id: postingId || null,
       voice: { language },
-    });
+      persisted_id: loadedId,
+    };
   }
 
+  async function save() {
+    const body = buildBody(canSave);
+    if (!body) return;
+    await onSubmit(body);
+  }
+
+  async function saveAndUse() {
+    const body = buildBody(canSave);
+    if (!body) return;
+    await onUseSaved?.(body);
+  }
+
+  // Plan 103 2b: the letter currently applied for this slot — the slot's
+  // active row, else the slot's newest row — against the form payload.
+  const onCvRow = useMemo(() => {
+    const pool = slotRows.length > 0 ? slotRows : loadedId && initial ? [initial] : [];
+    return pool.find((row) => row.status === "active") ?? null;
+  }, [slotRows, initial, loadedId]);
+  const currentText = variantTextOf(onCvRow?.payload ?? ({} as CvSynthPayload));
   return (
     <Modal open={open} onOpenChange={(next) => !next && onClose()}>
       <ModalContent size="xl" className="gap-0 p-0">
@@ -290,6 +445,107 @@ export function VariantEditor({
             </section>
           )}
 
+          {onGenerate && refs.length > 0 && (
+            <section
+              className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid="synth-editor-generate"
+            >
+              <div className="flex flex-wrap items-center gap-1.5">
+                {GEN_ACTIONS.map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    aria-pressed={genAction === action}
+                    disabled={action === "posting_fit" && !initial?.target_posting_id && postingId === ""}
+                    data-testid={`synth-editor-gen-action-${action}`}
+                    onClick={() => setGenAction(action)}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      genAction === action
+                        ? "border-transparent bg-[color-mix(in_srgb,var(--as-accent)_14%,transparent)] text-[var(--as-accent)]"
+                        : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:bg-[var(--as-muted)]"
+                    }`}
+                  >
+                    {t(`cvSynth.actions.${action}`)}
+                  </button>
+                ))}
+                {genAction === "translate" && (
+                  <select
+                    value={genTargetLanguage}
+                    onChange={(event) => setGenTargetLanguage(event.target.value)}
+                    aria-label="Target language"
+                    data-testid="synth-editor-gen-target-language"
+                    className="w-24 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
+                  >
+                    {["en", "de", "fr", "es", "it", "el"].map((code) => (
+                      <option key={code} value={code}>
+                        {code.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={generating}
+                  data-testid="synth-editor-gen-run"
+                  onClick={() => void runGenerate()}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />{" "}
+                  {t("cvSynth.editor.generateFill", { defaultValue: "AI generate" })}
+                </Button>
+              </div>
+              <button
+                type="button"
+                className="mt-2 text-[11px] text-[var(--as-muted-fg)] underline-offset-2 hover:underline"
+                aria-expanded={genAdvanced}
+                data-testid="synth-editor-gen-advanced-toggle"
+                onClick={() => setGenAdvanced((previous) => !previous)}
+              >
+                {t("cvSynth.editor.advanced", { defaultValue: "Advanced" })}
+              </button>
+              {genAdvanced && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <input
+                    value={genInstruction}
+                    onChange={(event) => setGenInstruction(event.target.value)}
+                    placeholder={t("cvSynth.editor.instructionLabel", {
+                      defaultValue: "Custom instruction (e.g. emphasize teamwork)",
+                    })}
+                    aria-label={t("cvSynth.editor.instructionLabel", {
+                      defaultValue: "Custom instruction",
+                    })}
+                    data-testid="synth-editor-gen-instruction"
+                    className="min-w-40 flex-1 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
+                  />
+                  <select
+                    value={genTone}
+                    onChange={(event) => setGenTone(event.target.value)}
+                    aria-label={t("cvSynth.editor.toneLabel", { defaultValue: "Tone" })}
+                    data-testid="synth-editor-gen-tone"
+                    className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
+                  >
+                    <option value="none">{t("cvSynth.editor.toneNone", { defaultValue: "No tone" })}</option>
+                    <option value="professional">professional</option>
+                    <option value="warm">warm</option>
+                    <option value="concise">concise</option>
+                    <option value="confident">confident</option>
+                  </select>
+                  <select
+                    value={genLength}
+                    onChange={(event) => setGenLength(event.target.value)}
+                    aria-label="Length"
+                    data-testid="synth-editor-gen-length"
+                    className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
+                  >
+                    <option value="concise">{t("cvSynth.length.concise", { defaultValue: "Concise" })}</option>
+                    <option value="standard">{t("cvSynth.length.standard", { defaultValue: "Standard" })}</option>
+                    <option value="detailed">{t("cvSynth.length.detailed", { defaultValue: "Detailed" })}</option>
+                  </select>
+                </div>
+              )}
+            </section>
+          )}
+
           {editing && initial?.status === "draft" && onActivate && (
             <div
               className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"
@@ -308,16 +564,130 @@ export function VariantEditor({
             </div>
           )}
 
-          <section className="space-y-1">
-            <span className="text-xs text-[var(--as-muted-fg)]">
-              {t("cvSynth.editor.textLabel")}
-            </span>
-            <CvRichTextEditor
-              value={description}
-              onChange={setDescription}
-              ariaLabel={t("cvSynth.editor.textLabel")}
-              testId="synth-editor-description-input"
-            />
+          <section className="space-y-2">
+            {onCvRow && (
+              <p
+                className="truncate text-xs text-[var(--as-muted-fg)]"
+                data-testid="synth-editor-preview"
+              >
+                <span
+                  className={
+                    onCvRow.stale ? "text-amber-700" : "text-[var(--as-fg)]"
+                  }
+                >
+                  {t("cvSynth.editor.onCvNow", { defaultValue: "On the CV now" })}:
+                </span>{" "}
+                {currentText || "—"}
+              </p>
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-[var(--as-muted-fg)]">
+                {t("cvSynth.editor.textLabel")}
+              </span>
+              {slotRows.length > 0 && (
+                <div className="flex items-center gap-1">
+                  {compareOpen ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="synth-editor-compare-close"
+                      onClick={() => setCompareOpen(false)}
+                    >
+                      <List className="h-3.5 w-3.5" /> {t("cvSynth.editor.closeCompare", { defaultValue: "Close compare" })}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="synth-editor-compare-open"
+                      onClick={() => setCompareOpen(true)}
+                    >
+                      <List className="h-3 w-3" /> {t("cvSynth.editor.compare", { defaultValue: "Compare" })}{" "}
+                      <span className="tabular-nums">({slotRows.length})</span>
+                    </Button>
+                  )}
+                  {slotRows.length > 1 && (
+                    <>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Previous variant"
+                        data-testid="synth-editor-slot-prev"
+                        onClick={() => stepSlot(-1)}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <span
+                        className="text-[11px] tabular-nums text-[var(--as-muted-fg)]"
+                        data-testid="synth-editor-slot-pos"
+                      >
+                        {slotPos + 1}/{slotRows.length}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Next variant"
+                        data-testid="synth-editor-slot-next"
+                        onClick={() => stepSlot(1)}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            {compareOpen ? (
+              <div
+                className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-2"
+                data-testid="synth-editor-compare-list"
+              >
+                {slotRows.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                      loadedId === row.id
+                        ? "bg-[color-mix(in_srgb,var(--as-accent)_10%,transparent)]"
+                        : "hover:bg-[var(--as-muted)]"
+                    }`}
+                    data-testid={`synth-editor-compare-row-${row.id}`}
+                    onClick={() => {
+                      setLoadedId(row.id);
+                      setDescription(row.payload.description ?? "");
+                      setBullets(row.payload.bullets?.length ? row.payload.bullets : [""]);
+                      setLanguage(row.voice.language ?? defaultLanguage);
+                      setPostingId(row.target_posting_id ?? "");
+                    }}
+                  >
+                    <span
+                      className={`shrink-0 rounded-full px-1.5 text-[10px] font-medium ${
+                        row.status === "active"
+                          ? "bg-[color-mix(in_srgb,var(--as-accent)_14%,transparent)] text-[var(--as-accent)]"
+                          : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
+                      }`}
+                    >
+                      {row.status}
+                    </span>
+                    {row.stale && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-800">
+                        stale
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-xs text-[var(--as-muted-fg)]">
+                      {variantTextOf(row.payload)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <CvRichTextEditor
+                value={description}
+                onChange={setDescription}
+                ariaLabel={t("cvSynth.editor.textLabel")}
+                testId="synth-editor-description-input"
+              />
+            )}
           </section>
 
           <section className="space-y-1">
@@ -443,6 +813,15 @@ export function VariantEditor({
           >
             {editing ? t("common.save") : t("cvSynth.editor.create")}
           </Button>
+          {onUseSaved && (
+            <Button
+              disabled={!canSave || busy}
+              data-testid="synth-editor-save-use"
+              onClick={() => void saveAndUse()}
+            >
+              {t("cvSynth.editor.saveAndUse", { defaultValue: "Save & use this" })}
+            </Button>
+          )}
         </div>
       </ModalContent>
     </Modal>

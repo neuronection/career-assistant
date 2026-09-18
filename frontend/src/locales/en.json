@@ -351,7 +351,8 @@
     "selectedCount": "{{count}} selected",
     "noFilterMatches": "No entries match these filters.",
     "searchPlaceholder": "Search…",
-    "reset": "Reset"
+    "reset": "Reset",
+    "empty": "Empty"
   },
   "validation": {
     "required": "{{field}} is required.",
@@ -2338,6 +2339,14 @@
       "refsReadonly": "The items this variant is based on are fixed after creation.",
       "refChipRemove": "Remove linked item",
       "draftHint": "This variant is a draft — activate it to make it eligible for a star.",
+      "generateOverwrite": "Generate will replace the text you have typed — continue?",
+      "generateFill": "AI generate",
+      "advanced": "Advanced",
+      "toneLabel": "Tone",
+      "compare": "Compare",
+      "closeCompare": "Close list",
+      "onCvNow": "On the CV now",
+      "saveAndUse": "Save & use this",
       "refsCap": "Up to {{count}} items per variant.",
       "noRefs": "Record profile items first.",
       "textLabel": "Description text",
@@ -2352,9 +2361,17 @@
       "postingAny": "All CVs (generic)",
       "create": "Create variant",
       "supersedeHint": "Activating this variant replaces the active variant for the same items and key.",
-      "subtitle": "Write tailored text once — star it on a CV to use it there."
+      "subtitle": "Write tailored text once — star it on a CV to use it there.",
+      "instructionLabel": "Custom instruction",
+      "toneNone": "No tone"
     },
     "newVariant": "Add variant",
-    "created": "Variant created — activate it, then star it on a CV."
+    "created": "Variant created — activate it, then star it on a CV.",
+    "length": {
+      "concise": "Concise",
+      "standard": "Standard",
+      "detailed": "Detailed"
+    },
+    "noDraft": "No draft was generated."
   }
 }
