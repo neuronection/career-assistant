@@ -677,6 +677,34 @@ export function CvBuilder() {
     }
   }, [lastBuilderState, applyAssistantState]);
 
+  const dataRevision = useCvBuilderLink((state) => state.dataRevision);
+  const refreshSynthRows = useCallback(async () => {
+    try {
+      setSynthItems(usableVariants(await fetchSynthItems()));
+    } catch {
+      // best-effort: the preview refresh below is the visible part
+    }
+  }, []);
+  useEffect(() => {
+    // Plan 104: chat-side mutations (approved/reverted cards, write tools)
+    // land server-side while this page is open — refetch the resolved CV
+    // so the Studio stays current without a manual reload. Debounced so a
+    // burst of approvals triggers one refresh.
+    if (dataRevision === 0) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      // Never race the editor's debounced autosave: commit pending local
+      // edits first, then pull the server's resolved state.
+      useCvBuilderLink.getState().flushPendingSave();
+      void refreshPreview();
+      void refreshMeta();
+      void refreshSynthRows();
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataRevision]);
+
   useEffect(() => {
     useCvBuilderLink.getState().registerFlush(() => void flushPendingSave());
     return () => useCvBuilderLink.getState().registerFlush(null);

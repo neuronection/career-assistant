@@ -2421,3 +2421,34 @@ describe("template editor: version history + diff", () => {
     expect(diff).toHaveTextContent("+ interests:");
   });
 });
+
+describe("CvBuilder — plan 104 chat live sync", () => {
+  it("refetches preview + meta + synth rows when a chat mutation bumps the data revision", async () => {
+    const { useCvBuilderLink } = await import("@/stores/cvBuilderLinkStore");
+    useCvBuilderLink.setState({ dataRevision: 0 });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    const initialCalls = previewCv.mock.calls.length;
+    expect(initialCalls).toBeGreaterThan(0);
+    const initialSynth = fetchSynthItems.mock.calls.length;
+
+    act(() => {
+      useCvBuilderLink.getState().notifyDataChanged();
+    });
+    await waitFor(
+      () => expect(previewCv.mock.calls.length).toBeGreaterThan(initialCalls),
+      { timeout: 3000 },
+    );
+    expect(fetchSynthItems.mock.calls.length).toBeGreaterThan(initialSynth);
+  });
+
+  it("ignores revision 0 (no chat mutation yet) and stays quiet otherwise", async () => {
+    const { useCvBuilderLink } = await import("@/stores/cvBuilderLinkStore");
+    useCvBuilderLink.setState({ dataRevision: 0 });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    const calls = previewCv.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(previewCv.mock.calls.length).toBe(calls);
+  });
+});

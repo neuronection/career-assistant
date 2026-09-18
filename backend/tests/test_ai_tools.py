@@ -65,6 +65,9 @@ def test_builtin_registry_declarations():
         "cv_synth_read",
         "cv_synth_generate",
         "cv_synth_update",
+        # — chat-audience variant management (plan 104)
+        "variant_list",
+        "variant_pin",
         # — web tools family (plan 80)
         "web_search",
         "fetch_url",
@@ -79,9 +82,12 @@ def test_builtin_registry_declarations():
         if not k.startswith("cv_") and t["kind"] == "tool"
     }
     assert all(
-        t["scope"] == "read" for k, t in non_cv.items() if k != "my_notifications"
+        t["scope"] == "read"
+        for k, t in non_cv.items()
+        if k not in ("my_notifications", "variant_pin")
     )
     assert non_cv["my_notifications"]["scope"] == "write"
+    assert non_cv["variant_pin"]["scope"] == "write"
     assert listed["cv_read_state"]["scope"] == "read"
     assert listed["cv_review_visual"]["scope"] == "read"
     assert all(

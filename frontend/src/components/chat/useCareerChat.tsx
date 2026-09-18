@@ -16,6 +16,13 @@ import {
 } from "@/components/ui/chat";
 import type { FlowStep } from "@/components/ui";
 
+/** Write-scope tools whose completion changes a CV's resolved content. */
+const CHAT_MUTATION_TOOLS = new Set([
+  "variant_pin",
+  "cv_synth_generate",
+  "cv_synth_update",
+]);
+
 /**
  * Career chat wiring shared by the bubble widget and the full page
  *: sessions/messages come from the zustand store, the live
@@ -68,6 +75,7 @@ export function useCareerChat() {
   };
 
   const transportRef = useRef<CareerChatTransport | null>(null);
+  const linkNotified = useRef<Set<string>>(new Set());
   if (transportRef.current === null) {
     transportRef.current = createChatTransport({
       getSessionId: () => useChatStore.getState().activeSessionId,
@@ -201,6 +209,26 @@ export function useCareerChat() {
       error: stream.error ?? null,
     });
   }, [stream.status, stream.nodes, stream.toolCalls, stream.startedAt, stream.error]);
+
+  useEffect(() => {
+    // Plan 104: write-scope tools mutate CV-visible data the moment they
+    // finish (variant_pin, copilot cv_synth_*). The mounted builder
+    // refetches its preview — per tool card, never re-fired on re-renders.
+    if (stream.toolCalls.length === 0) {
+      // New/reset turn: drop the per-turn guard state.
+      if (linkNotified.current.size > 0) linkNotified.current.clear();
+      return;
+    }
+    const done = stream.toolCalls.filter(
+      (call) => CHAT_MUTATION_TOOLS.has(call.name) && call.status === "done",
+    );
+    const fresh = done.filter((call) => !linkNotified.current.has(call.id));
+    if (fresh.length === 0) {
+      return;
+    }
+    for (const call of fresh) linkNotified.current.add(call.id);
+    useCvBuilderLink.getState().notifyDataChanged();
+  }, [stream.toolCalls]);
 
   const submit = async () => {
     // The state draft can lag the persisted one by a render (batched

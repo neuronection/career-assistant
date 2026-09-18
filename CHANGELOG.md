@@ -4,8 +4,39 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **CV item heads restructured** — the organization/school line now
+  prints on its own line under the title instead of flowing inline, and
+  the period pins to the top-right of the entry via flex (replacing
+  `float: right`), so dates can no longer collide with wrapped
+  institution text; an item without a title promotes its org to the
+  head line. The block-size estimate charges one extra line per item
+  with an org.
+- **Robust contact pieces** — each contact entry (icon + value) renders
+  as one atomic unit that never splits across lines; pieces move whole
+  to the next line and only wrap internally when they cannot fit the
+  column (strict sidebars, oversized links), and printed link addresses
+  are no longer truncated with an ellipsis.
+
+### Fixed
+- **Generic link labels no longer print** — a contact/item link labeled
+  "other" (or any label that merely repeats its kind: website, web,
+  site, link, url) now prints the bare address instead of
+  "other (example.com)"; meaningful custom labels still prefix the
+  address.
+
 ### Added
-- (nothing yet — the live scope of the next release)
+- **Chat → CV Studio live sync** — profile/variant mutations from the
+  chatbot now refresh the open Studio without a manual reload: approved
+  or reverted HITL cards and finished write-scope tool calls bump a
+  builder-link revision counter, and the mounted CV Builder refetches
+  its resolved preview, meta and variant rows (debounced, autosave-safe).
+- **Variant pinning from chat** — two new chat tools: `variant_list`
+  (the variant library with per-CV applicability verdicts) and
+  `variant_pin` (star a variant as the default for its item(s) on an
+  attached CV — drafts are promoted first per plan-102 star semantics —
+  or unpin to restore the profile text). Chat prompt v10 documents the
+  flow; the CV document text itself stays read-only to the model.
 
 ## [v0.11.3] - 2026-09-18
 

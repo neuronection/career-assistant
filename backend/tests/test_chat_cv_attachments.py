@@ -159,7 +159,13 @@ async def test_followup_inherits_earlier_reference(client, db, auth_headers):
     rows = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session["id"]))
     )
-    assistants = [m for m in rows.scalars().all() if m.role == "assistant"]
+    # ORDER matters: without an explicit sort the DB's physical row order
+    # decides which assistant message is "last" (bit us when page layout
+    # shifted — the -1 row was the FIRST turn's reply).
+    assistants = sorted(
+        (m for m in rows.scalars().all() if m.role == "assistant"),
+        key=lambda m: m.created_at,
+    )
     assert len(assistants) == 2
     assert assistants[-1].metadata_json["referenced_cv_ids"] == [str(cv.id)]
     assert "attached earlier" in assistants[-1].content

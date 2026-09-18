@@ -17,15 +17,24 @@ import type { LiveTurnTraceInput } from "@/lib/cvBuildTrace";
  * (`cv:${id}` keys) so the builder
  * page shows the copilot's activity even with the chat dock closed.
  * Deltas/text never ride the mirror; they stay in the dock.
+ *
+ * Plan 104: `dataRevision` counts side-effecting chat mutations that
+ * change a CV's RESOLVED content outside the editor (approved/reverted
+ * HITL cards, write-scope tools like variant_pin). The mounted builder
+ * watches the counter and refetches preview + meta + synth rows, so the
+ * Studio is current without a page refresh. With no builder mounted the
+ * bumps simply accumulate.
  */
 interface CvBuilderLinkState {
   lastBuilderState: CvAssistantState | null;
   liveTurns: Record<string, LiveTurnTraceInput>;
   flushCallback: (() => void) | null;
+  dataRevision: number;
   applyBuilderState: (state: CvAssistantState) => void;
   applyTurnTrace: (cvId: string, trace: LiveTurnTraceInput | null) => void;
   registerFlush: (flush: (() => void) | null) => void;
   flushPendingSave: () => void;
+  notifyDataChanged: () => void;
 }
 
 function turnKey(cvId: string): string {
@@ -36,6 +45,7 @@ export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
   lastBuilderState: null,
   liveTurns: {},
   flushCallback: null,
+  dataRevision: 0,
   applyBuilderState: (state) => set({ lastBuilderState: state }),
   applyTurnTrace: (cvId, trace) => {
     const key = turnKey(cvId);
@@ -53,6 +63,8 @@ export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
     const flush = get().flushCallback;
     if (flush) flush();
   },
+  notifyDataChanged: () =>
+    set((state) => ({ dataRevision: state.dataRevision + 1 })),
 }));
 
 export function useCvLiveTurn(cvId: string | null): LiveTurnTraceInput | null {

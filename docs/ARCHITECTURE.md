@@ -97,7 +97,11 @@ There is no side door around it.
   deterministic `synthesize` node as DRAFT rows whose text feeds the
   draft (never editor overrides); the run result records
   `synth_applied`/`synth_proposed` and `POST /cv/synth/preview` powers
-  the modal's pre-run match hint.
+  the modal's pre-run match hint. The main chat can manage variant
+  defaults too (plan 104): the chat-audience `variant_list`/`variant_pin`
+  registry tools list the library and set/unset the per-item pin on an
+  attached CV (a pinned draft promotes first — `pin inactive` stays
+  unreachable).
 - **Synth maturity in CV Studio** (plan 72): the builder context panel
   renders the variant library as a synth tree under its sources
   (cross-listed per touched source, stale/orphan badges, status toggles
@@ -312,7 +316,11 @@ no migration. For the builder copilot the trace is honest-by-construction:
 the one structured planning LLM call stays a node (no synthetic tools),
 the real work (state read, operations, visual review) shows as tool
 cards, and an error turn records the node windows it reached before
-failing.
+failing. Plan 104 closes the loop to the Studio: a chat-side mutation
+(approved/reverted HITL card, finished write-scope tool) bumps a
+`dataRevision` counter on the `cvBuilderLinkStore`, and the mounted CV
+Builder debounces it into a preview/meta/synth refetch — the open page
+tracks the resolved CV without a manual reload.
 
 **Chat-proposed profile mutations are HITL proposals, never
 auto-applied** (plan 77): the chatbot emits typed ops that land in

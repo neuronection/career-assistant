@@ -21,6 +21,7 @@ vi.mock("@/api/profileProposals", () => ({
 }));
 
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
+import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 
 const CARD: ProfileProposalCardData = {
   id: "prop-1",
@@ -458,6 +459,31 @@ describe("profileProposalsStore", () => {
     expect(store.claimFollowup("k1")).toBe(true);
     expect(store.claimFollowup("k1")).toBe(false);
     expect(store.claimFollowup("k2")).toBe(true);
+  });
+
+  it("an approval bumps the builder link's data revision (plan 104)", async () => {
+    useCvBuilderLink.setState({ dataRevision: 0 });
+    approveApi.mockResolvedValue({
+      proposal: { ...LIVE_CARD, status: "approved" },
+      applied: { id: "item-1", kind: "experience_item", label: "AI Launcher" },
+      already: false,
+    });
+    await resolveOf(LIVE_CARD.id);
+    expect(useCvBuilderLink.getState().dataRevision).toBe(1);
+
+    // A rejection mutates nothing — no refresh signal.
+    rejectApi.mockResolvedValue({
+      proposal: { ...LIVE_CARD, status: "rejected" },
+    });
+    await useProfileProposalsStore.getState().resolve(LIVE_CARD.id, "reject");
+    expect(useCvBuilderLink.getState().dataRevision).toBe(1);
+  });
+
+  it("a revert bumps the builder link's data revision (plan 104)", async () => {
+    useCvBuilderLink.setState({ dataRevision: 0 });
+    revertApi.mockResolvedValue({ ...LIVE_CARD, status: "reverted" });
+    await useProfileProposalsStore.getState().revert(LIVE_CARD.id);
+    expect(useCvBuilderLink.getState().dataRevision).toBe(1);
   });
 
   it("resolve maps a generic failure to pending with the error", async () => {

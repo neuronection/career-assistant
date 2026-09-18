@@ -244,3 +244,57 @@ async function sendSurface(user: ReturnType<typeof userEvent.setup>) {
   await user.keyboard("{Enter}");
   await vi.advanceTimersByTimeAsync(40);
 }
+
+describe("chat mutation tools bump the builder link (plan 104)", () => {
+  it("a done variant_pin card bumps dataRevision once; read tools never do", async () => {
+    const { callbacks, finish } = pendingStream();
+    renderSurface();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await sendSurface(user);
+
+    await act(async () => {
+      callbacks.onFlowEvent?.({
+        event: "tool_call",
+        payload: {
+          id: "search_jobs-1",
+          name: "search_jobs",
+          title: "Searching jobs",
+          status: "done",
+          duration_ms: 40,
+        },
+      });
+    });
+    await vi.advanceTimersByTimeAsync(40);
+    expect(useCvBuilderLink.getState().dataRevision).toBe(0);
+
+    await act(async () => {
+      callbacks.onFlowEvent?.({
+        event: "tool_call",
+        payload: {
+          id: "variant_pin-1",
+          name: "variant_pin",
+          title: "Set default variant",
+          status: "done",
+          duration_ms: 30,
+        },
+      });
+    });
+    await vi.advanceTimersByTimeAsync(40);
+    expect(useCvBuilderLink.getState().dataRevision).toBe(1);
+
+    // Re-render with the same toolCalls must not re-notify.
+    await act(async () => {
+      callbacks.onFlowEvent?.({
+        event: "node_started",
+        payload: { id: "generate", label: "Writing the reply" },
+      });
+    });
+    await vi.advanceTimersByTimeAsync(40);
+    expect(useCvBuilderLink.getState().dataRevision).toBe(1);
+
+    await act(async () => {
+      finish();
+    });
+    await vi.advanceTimersByTimeAsync(0);
+  });
+});

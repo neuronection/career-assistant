@@ -197,3 +197,203 @@ async def test_generate_and_update_via_tools(client, db, auth_headers):
         {"item_id": drafted["created"][0]["id"], "status": "active"},
     )
     assert updated["status"] == "active"
+
+
+async def test_variant_tools_bind_in_main_chat_only():
+    from app.ai.tools.langchain import main_chat_tool_keys
+
+    listed = {t["key"]: t for t in list_tools()}
+    assert listed["variant_list"]["scope"] == ToolScope.READ.value
+    assert listed["variant_pin"]["scope"] == ToolScope.WRITE.value
+    chat_keys = set(main_chat_tool_keys())
+    assert {"variant_list", "variant_pin"} <= chat_keys
+    assert not any(key.startswith("cv_synth") for key in chat_keys), (
+        "the cv_builder-audience family stays copilot-owned"
+    )
+
+
+async def test_variant_list_slim_rows_and_verdict(client, db, auth_headers):
+    item, variant = await _item_and_active_variant(client, db, auth_headers)
+    cv = await _cv(client, auth_headers, db)
+    plain = await run_tool(db, "variant_list", uuid.UUID(_uid(auth_headers)), {})
+    row = next(r for r in plain["items"] if r["id"] == variant["id"])
+    assert row["status"] == "active"
+    assert row["language"] == "en"
+    assert "verdict" not in row, "no CV passed — no verdicts"
+    with_cv = await run_tool(
+        db,
+        "variant_list",
+        uuid.UUID(_uid(auth_headers)),
+        {"cv_id": str(cv["id"])},
+    )
+    row = next(r for r in with_cv["items"] if r["id"] == variant["id"])
+    assert row["verdict"] == "not_pinned"
+    del item
+
+
+async def test_variant_pin_sets_default_and_promotes_drafts(client, db, auth_headers):
+    item = await _item(db, _uid(auth_headers))
+    cv = await _cv(client, auth_headers, db)
+
+    async def _draft() -> dict:
+        response = await client.post(
+            "/api/v1/cv/synth/generate",
+            json={"refs": _refs(item), "action": "summarize", "activate": False},
+            headers=auth_headers,
+        )
+        return response.json()["items"][0]
+
+    first = await _draft()
+    second = await _draft()
+    statuses = {
+        row["id"]: row["status"]
+        for row in (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
+    }
+    assert statuses[first["id"]] == "draft", "drafts coexist in a slot"
+
+    result = await run_tool(
+        db,
+        "variant_pin",
+        uuid.UUID(_uid(auth_headers)),
+        {"cv_id": str(cv["id"]), "variant_id": first["id"]},
+    )
+    assert result["pinned"] == {f"experience:{item.id}": first["id"]}
+    assert "default" in result["note"]
+
+    stored = (await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)).json()
+    assert stored["context"]["synth_pins"] == {f"experience:{item.id}": first["id"]}, (
+        "the pin rides the CV context"
+    )
+    assert stored["context"]["mode"] == "all", "selection fields preserved"
+
+    statuses = {
+        row["id"]: row["status"]
+        for row in (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
+    }
+    assert statuses[first["id"]] == "active", "plan 102: pin promotes drafts"
+    assert statuses[second["id"]] == "archived", "supersede retires the slot"
+
+
+async def test_variant_pin_unpin_by_variant_and_by_slot(client, db, auth_headers):
+    item, variant = await _item_and_active_variant(client, db, auth_headers)
+    cv = await _cv(client, auth_headers, db)
+    await run_tool(
+        db,
+        "variant_pin",
+        uuid.UUID(_uid(auth_headers)),
+        {"cv_id": str(cv["id"]), "variant_id": variant["id"]},
+    )
+    result = await run_tool(
+        db,
+        "variant_pin",
+        uuid.UUID(_uid(auth_headers)),
+        {"cv_id": str(cv["id"]), "variant_id": variant["id"], "unpin": True},
+    )
+    assert result["removed"] == [f"experience:{item.id}"]
+    stored = (await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)).json()
+    assert stored["context"]["synth_pins"] == {}
+
+    await run_tool(
+        db,
+        "variant_pin",
+        uuid.UUID(_uid(auth_headers)),
+        {"cv_id": str(cv["id"]), "variant_id": variant["id"]},
+    )
+    result = await run_tool(
+        db,
+        "variant_pin",
+        uuid.UUID(_uid(auth_headers)),
+        {
+            "cv_id": str(cv["id"]),
+            "source_key": "experience",
+            "item_id": str(item.id),
+            "unpin": True,
+        },
+    )
+    assert result["removed"] == [f"experience:{item.id}"]
+
+    empty = await run_tool(
+        db,
+        "variant_pin",
+        uuid.UUID(_uid(auth_headers)),
+        {
+            "cv_id": str(cv["id"]),
+            "source_key": "experience",
+            "item_id": str(item.id),
+            "unpin": True,
+        },
+    )
+    assert empty["removed"] == []
+    assert "Nothing was pinned" in empty["note"]
+    del item
+
+
+async def test_variant_pin_guards(client, db, auth_headers):
+    from app.core.errors import NotFoundError, ValidationError
+
+    item = await _item(db, _uid(auth_headers))
+    cv = await _cv(client, auth_headers, db)
+    archived = (
+        await client.post(
+            "/api/v1/cv/synth/generate",
+            json={"refs": _refs(item), "action": "summarize", "activate": False},
+            headers=auth_headers,
+        )
+    ).json()["items"][0]
+    await client.patch(
+        f"/api/v1/cv/synth/{archived['id']}",
+        json={"status": "archived"},
+        headers=auth_headers,
+    )
+    with pytest.raises(ValidationError, match="Archived"):
+        await run_tool(
+            db,
+            "variant_pin",
+            uuid.UUID(_uid(auth_headers)),
+            {"cv_id": str(cv["id"]), "variant_id": archived["id"]},
+        )
+    with pytest.raises(NotFoundError):
+        await run_tool(
+            db,
+            "variant_pin",
+            uuid.UUID(_uid(auth_headers)),
+            {
+                "cv_id": str(cv["id"]),
+                "variant_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+            },
+        )
+    other_cv = (
+        await client.post(
+            "/api/v1/cv",
+            json={"title": "Other", "kind": "resume"},
+            headers=auth_headers,
+        )
+    ).json()
+    from sqlalchemy import delete as sql_delete
+
+    from app.models.cv_model import CvDocument
+
+    await db.execute(
+        sql_delete(CvDocument).where(CvDocument.id == uuid.UUID(other_cv["id"]))
+    )
+    await db.commit()
+    with pytest.raises(NotFoundError):
+        await run_tool(
+            db,
+            "variant_pin",
+            uuid.UUID(_uid(auth_headers)),
+            {
+                "cv_id": other_cv["id"],
+                "unpin": True,
+                "source_key": "experience",
+                "item_id": str(item.id),
+            },
+        )
+    with pytest.raises(ValidationError):
+        await run_tool(
+            db,
+            "variant_pin",
+            uuid.UUID(_uid(auth_headers)),
+            {"cv_id": str(cv["id"]), "unpin": True},
+        )
+    del item

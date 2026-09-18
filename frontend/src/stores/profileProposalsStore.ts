@@ -8,6 +8,7 @@ import {
   revertProfileProposal,
   type ProfileProposalPreviewData,
 } from "@/api/profileProposals";
+import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import type { ProfileProposalCardData } from "@/types";
 
 export interface ResolvedProposalEvent {
@@ -163,6 +164,11 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
         // Rebase from the server truth: live-card optimistic deltas can
         // drift (conflict flips a card back, multi-device resolves).
         await get().hydrate();
+        // Plan 104: an approval mutated profile/variant data server-side
+        // — the mounted CV builder refetches its resolved preview.
+        if (action === "approve" && status === "approved") {
+          useCvBuilderLink.getState().notifyDataChanged();
+        }
       } catch (error) {
         const detail =
           (error as { response?: { data?: { detail?: string } } })?.response?.data
@@ -240,6 +246,8 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
             status: card.status,
           },
         }));
+        // Plan 104: the revert restored the pre-edit entity — refresh.
+        useCvBuilderLink.getState().notifyDataChanged();
       } catch (error) {
         const detail =
           (error as { response?: { data?: { detail?: string } } })?.response
