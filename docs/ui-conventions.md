@@ -68,7 +68,15 @@ centered `max-w-7xl` column:
   `?focus=`), card-backed groups (skills/languages/interests/basics/
   objective) get a group-level profile link instead — affordances are
   always visible, never hover-reveal, and the CV-specific variant
-  actions stay in their sub-row. The modal hosts the real workspace
+  actions stay in their sub-row. Experience-kind rows add a fourth
+  affordance, the plan-106 **Bullets editor** (`context-bullets-…` →
+  `ItemBulletsEditorModal`): the CV-local override layer
+  (`working_content.overrides`) with the resolved snapshot list as
+  base, an "Edited for this CV" chip, Reset-to-profile, a resolved
+  "on the CV now" head, and AI bullets landing as ephemeral
+  keep/discard chips (never auto-applied; generate-fill rides the
+  bullet action with the plan-103 dirty-guard). The modal hosts the
+  real workspace
   editors (one source, no re-rolled forms); saves bump the plan-104
   live-sync channel with a `local` origin, which refreshes context
   sources, preview and staleness without the "Profile changed" toast.
