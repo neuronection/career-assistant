@@ -4,7 +4,54 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Removed
+- **Context panel "Improve with AI" wand button** — the per-item bullet
+  improve action (the only caller of the `bullet` AI action) superseded
+  by the AI toolbar's actions and the variant editor's generate;
+  frontend wiring removed (backend `aiAction` contract kept for API
+  compatibility).
+
+### Added
+- **Variant editor: AI generate-fill + slot browser (plan 103)** — the
+  variant editor is now the single variant surface: an "AI generate"
+  toolbar (action chips, target language for translate, advanced
+  tone/length) drafts a variant and fills the payload in-form (with a
+  dirty-guard confirm; the generated draft row is adopted by the form),
+  "Save & use this" promotes it via the star path in one action, and
+  ⌐/¬ chevrons (+ compare list) flip through the slot's existing rows
+  with an "on the CV now vs. in this form" preview snippet and
+  optimistic landing for saved drafts. Context-`+` opens the editor
+  pre-bound to the item.
+
+### Changed
+- **Variant editor: custom instruction (plan 103 follow-up)** — the AI
+  generate toolbar gains a free-text "Custom instruction" field
+  (backend `CvSynthItemGenerate.instruction`, threaded through the library
+  generate flow, the editor's generate-fill and the chat
+  `cv_synth_generate` tool); the grounding contract is restated in the
+  system prompt so steering never lifts the evidence allowlist.
+- **Variant approval overhaul (plan 102)** — approval = activation:
+  starring a draft variant in the Context panel now activates it in one
+  action (the `pin inactive` dead-end state is retired), chat-generated
+  variants go live immediately (the request itself is the approval;
+  `activate=false` keeps drafts), stale variants gain a **Reset**
+  button, and manually editing a variant re-grounds it (clears the
+  stale badge unless the source drifts afterwards). The Context panel
+  no longer shows `variant`/`draft` chips or inline Activate buttons —
+  the library remains the variant workspace.
+
 ### Fixed
+- **Variant generation 500 on length mismatch**: the editor sent the
+  CV-style length enum (`standard`) but the synthetizer's
+  `compose_system` indexes `LENGTHS` by renderer keys — the lookup is
+  now guarded and the editor maps concise/standard/detailed →
+  short/medium/long (same mapping the one-shot pipeline uses).
+- **Variant editor generate toolbar**: the tone field is now a dropdown
+  of the backend-supported tones (none/professional/warm/concise/
+  confident) instead of a free-text input, and an unknown tone string
+  no longer crashes generation (the prompt falls back to a guarded
+  register line) — the free-text steering path is the Custom
+  instruction field only.
 - **E2E smoke environment**: `scripts/run-e2e.sh` now opts the mock AI
   provider in explicitly (`MOCK_AI=1` — the opt-in knob requirement of
   plan 99.1), disables the gateway's per-user AI rate limiter
