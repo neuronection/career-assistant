@@ -2612,3 +2612,99 @@ describe("CvBuilder — plan 105 origin-aware sync", () => {
     expect(useToastStore.getState().toasts[0].title).toBe("Profile changed");
   });
 });
+
+describe("CvBuilder — plan 106 bullets editor", () => {
+  it("edits an item's CV-local bullets into the override layer and refetches the preview", async () => {
+    const user = userEvent.setup();
+    previewCv.mockResolvedValue({
+      ...preview,
+      resolution: {
+        ...preview.resolution,
+        snapshot: {
+          experience: [
+            {
+              id: "exp-1",
+              title: "DevOps intern",
+              org_name: "Acme",
+              achievements: [{ text: "Shipped the QA harness" }],
+            },
+          ],
+        },
+        snapshot_index: { experience: ["exp-1"] },
+      },
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    await user.click(screen.getByTestId("context-bullets-experience:exp-1"));
+    const modal = await screen.findByTestId("bullets-editor-modal");
+    expect(
+      within(modal).getByTestId("bullets-editor-head")
+    ).toHaveTextContent("DevOps intern · Acme");
+    expect(within(modal).getByTestId("bullets-row-0")).toHaveValue(
+      "Shipped the QA harness"
+    );
+    await user.clear(within(modal).getByTestId("bullets-row-0"));
+    await user.type(
+      within(modal).getByTestId("bullets-row-0"),
+      "Cut the deploy pipeline to minutes",
+    );
+    await user.click(within(modal).getByTestId("bullets-editor-save"));
+    expect(screen.queryByTestId("bullets-editor-modal")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(patchCv).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          working_content: expect.objectContaining({
+            overrides: expect.objectContaining({
+              "experience:exp-1": expect.objectContaining({
+                achievements: [
+                  { text: "Cut the deploy pipeline to minutes" },
+                ],
+              }),
+            }),
+          }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(previewCv.mock.calls.length).toBeGreaterThan(1),
+    );
+  });
+
+  it("shows the edited chip and reset drops the override key", async () => {
+    const user = userEvent.setup();
+    fetchCv.mockResolvedValue({
+      ...cv,
+      working_content: {
+        ...cv.working_content,
+        overrides: {
+          "experience:exp-1": {
+            achievements: [{ text: "Tailored bullet" }],
+          },
+        },
+      },
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    await user.click(screen.getByTestId("context-bullets-experience:exp-1"));
+    const modal = await screen.findByTestId("bullets-editor-modal");
+    expect(within(modal).getByTestId("bullets-edited-chip")).toBeInTheDocument();
+    await user.click(within(modal).getByTestId("bullets-editor-reset"));
+    const confirms = screen.getAllByRole("button", {
+      name: "Reset to profile",
+    });
+    await user.click(confirms[confirms.length - 1]);
+    await waitFor(() =>
+      expect(patchCv).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          working_content: expect.objectContaining({
+            overrides: {},
+          }),
+        }),
+      ),
+    );
+  });
+});

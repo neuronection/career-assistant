@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Bullets editor in CV Studio (plan 106, slice 3)** — every
+  experience-kind row on the Context tab (jobs, projects, volunteering)
+  carries a bullets affordance opening the CV-local bullets editor:
+  add/edit/remove/reorder bullets as they render on the CV, with an
+  "Edited for this CV" chip when the item is overridden and an explicit
+  Reset-to-profile that drops the override. Edits are per-CV override
+  patches (profile stays untouched) and flow through the standard
+  autosave + undo + preview-refresh path. AI-suggested bullets land in
+  the editor as keep/discard chips — never written until you keep them
+  (wired to the AI surfaces in the next slices).
+
 ### Changed
 - **CV bullets unified to one canonical shape (plan 106, slices 1–2)** —
   synth variant payloads now carry `achievements: [{"text": …}]`

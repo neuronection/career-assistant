@@ -47,6 +47,7 @@ import type { CvAssistantCritique, CvAssistantState } from "@/types/cvAssistant"
 import { BLOCK_TYPES } from "@/components/cv/blockTypes";
 import { ContextPanel } from "@/components/cv/ContextPanel";
 import { EntityEditorModal } from "@/components/profile/EntityEditorModal";
+import { ItemBulletsEditorModal } from "@/components/cv/ItemBulletsEditorModal";
 import { VariantEditor, type VariantEditorBody } from "@/components/cv/VariantEditor";
 import { InspectorPanel, type InspectorTab } from "@/components/cv/InspectorPanel";
 import { PreviewCanvas } from "@/components/cv/PreviewCanvas";
@@ -65,9 +66,11 @@ import type {
   CvContextSourceOut,
   CvDocumentOut,
   CvLintReport,
+  CvOverridePatch,
   CvProposal,
   CvRenderMetrics,
   CvSuggestionOut,
+  CvSynthBullet,
   CvSynthItem,
   CvVersionOut,
 } from "@/types/cv";
@@ -104,6 +107,12 @@ export function CvBuilder() {
     sourceKey: string;
     itemId: string | null;
   }>({ open: false, sourceKey: "", itemId: null });
+  const [bulletsEditor, setBulletsEditor] = useState<{
+    open: boolean;
+    sourceKey: string;
+    itemId: string;
+  }>({ open: false, sourceKey: "", itemId: "" });
+  const [bulletsProposal, setBulletsProposal] = useState<string[] | null>(null);
   const [templates, setTemplates] = useState<CvTemplateSummary[]>([]);
   const [savedPostings, setSavedPostings] = useState<{ id: string; title: string; org: string }[]>([]);
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
@@ -111,7 +120,7 @@ export function CvBuilder() {
   const [html, setHtml] = useState("");
   const [metrics, setMetrics] = useState<CvRenderMetrics>({});
   const [blocks, setBlocks] = useState<CvBlock[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, Record<string, string>>>({});
+  const [overrides, setOverrides] = useState<Record<string, CvOverridePatch>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [versions, setVersions] = useState<CvVersionOut[]>([]);
   const polishVersion = versions.find(
@@ -135,8 +144,8 @@ export function CvBuilder() {
   const [previewLoading, setPreviewLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [history, setHistory] = useState<{
-    past: { blocks: CvBlock[]; overrides: Record<string, Record<string, string>> }[];
-    future: { blocks: CvBlock[]; overrides: Record<string, Record<string, string>> }[];
+    past: { blocks: CvBlock[]; overrides: Record<string, CvOverridePatch> }[];
+    future: { blocks: CvBlock[]; overrides: Record<string, CvOverridePatch> }[];
   }>({ past: [], future: [] });
   const [notice, setNotice] = useState<string | null>(null);
   const [critique, setCritique] = useState<CvAssistantCritique | null>(null);
@@ -205,6 +214,31 @@ export function CvBuilder() {
     } catch {
       void undefined;
     }
+  }, []);
+
+  const bulletsEditorView = useMemo(() => {
+    if (!bulletsEditor.open) return null;
+    const rows = snapshotRows[bulletsEditor.sourceKey];
+    const row = (Array.isArray(rows) ? rows : []).find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        (entry as { id?: string }).id === bulletsEditor.itemId
+    ) as
+      | { title?: string; org_name?: string; achievements?: CvSynthBullet[] }
+      | undefined;
+    const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
+    const patched = overrides[key]?.achievements;
+    return {
+      head: { title: row?.title ?? "", org: row?.org_name ?? "" },
+      base: row?.achievements ?? [],
+      override: Array.isArray(patched) ? patched : null,
+    };
+  }, [bulletsEditor, snapshotRows, overrides]);
+
+  const closeBulletsEditor = useCallback(() => {
+    setBulletsEditor({ open: false, sourceKey: "", itemId: "" });
+    setBulletsProposal(null);
   }, []);
 
   const refreshPreview = useCallback(async () => {
@@ -378,7 +412,7 @@ export function CvBuilder() {
   }, [id, refreshPreview, refreshMeta]);
 
   const persistWorking = useCallback(
-    (next: { blocks: CvBlock[]; overrides: Record<string, Record<string, string>> }, immediate = false) => {
+    (next: { blocks: CvBlock[]; overrides: Record<string, CvOverridePatch> }, immediate = false) => {
       setHistory((h) => ({
         past: [...h.past.slice(-19), { blocks, overrides }],
         future: [],
@@ -404,7 +438,7 @@ export function CvBuilder() {
   );
 
   const commitWorking = useCallback(
-    async (snapshot: { blocks: CvBlock[]; overrides: Record<string, Record<string, string>> }) => {
+    async (snapshot: { blocks: CvBlock[]; overrides: Record<string, CvOverridePatch> }) => {
       setBlocks(snapshot.blocks);
       setOverrides(snapshot.overrides);
       try {
@@ -1057,7 +1091,7 @@ export function CvBuilder() {
     }
   }
 
-  async function applyOverridePatch(target: Record<string, Record<string, string>>) {
+  async function applyOverridePatch(target: Record<string, CvOverridePatch>) {
     persistWorking({ blocks, overrides: { ...overrides, ...target } }, true);
   }
 
@@ -1344,6 +1378,9 @@ export function CvBuilder() {
                   }
                   onEditItem={(sourceKey, itemId) =>
                     setEntityEditor({ open: true, sourceKey, itemId })
+                  }
+                  onEditBullets={(sourceKey, itemId) =>
+                    setBulletsEditor({ open: true, sourceKey, itemId })
                   }
                 />
               )
@@ -1724,6 +1761,33 @@ export function CvBuilder() {
             useCvBuilderLink.getState().notifyDataChanged("local");
           }}
           onClose={() => setEntityEditor({ open: false, sourceKey: "", itemId: null })}
+        />
+      )}
+
+      {bulletsEditorView && (
+        <ItemBulletsEditorModal
+          sourceKey={bulletsEditor.sourceKey}
+          itemId={bulletsEditor.itemId}
+          head={bulletsEditorView.head}
+          base={bulletsEditorView.base}
+          override={bulletsEditorView.override}
+          proposal={bulletsProposal ? { bullets: bulletsProposal } : null}
+          onProposalConsumed={() => setBulletsProposal(null)}
+          onSave={(entries) => {
+            const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
+            closeBulletsEditor();
+            void applyOverridePatch({
+              [key]: { ...overrides[key], achievements: entries },
+            });
+          }}
+          onReset={() => {
+            const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
+            const next = { ...overrides };
+            delete next[key];
+            closeBulletsEditor();
+            void persistWorking({ blocks, overrides: next }, true);
+          }}
+          onClose={closeBulletsEditor}
         />
       )}
     </div>

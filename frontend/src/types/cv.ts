@@ -209,9 +209,14 @@ export interface CvGenerateStatus {
   finished_at: string | null;
 }
 
+/** Plan 106: per-CV working override patches. Scalars replace their
+ * field; bullet lists are canonical `achievements` entries and
+ * full-replace the item's list. */
+export type CvOverridePatch = { [field: string]: string | CvSynthBullet[] };
+
 export interface CvWorkingContent {
   blocks?: CvBlock[];
-  overrides?: Record<string, Record<string, string>>;
+  overrides?: Record<string, CvOverridePatch>;
   [key: string]: unknown;
 }
 

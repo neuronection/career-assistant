@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Pencil, Plus, ChevronDown, Search, Star, ExternalLink } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  ChevronDown,
+  Search,
+  Star,
+  ExternalLink,
+  ListChecks,
+} from "lucide-react";
 import { CheckIndicator } from "@neuronection/assistant-ui";
 import type { CvContextSourceOut, CvSynthItem } from "@/types/cv";
 import { CONTEXT_SOURCE_LINKS, contextSourceLink } from "@/lib/entityLinks";
@@ -23,6 +31,9 @@ interface ContextPanelProps {
   onAddItem?: (sourceKey: string) => void;
   /** Plan 105: edit the profile entity behind a context item. */
   onEditItem?: (sourceKey: string, itemId: string) => void;
+  /** Plan 106: edit the CV-local bullets (override layer) of an
+   * experience-kind item. */
+  onEditBullets?: (sourceKey: string, itemId: string) => void;
 }
 
 function refKeyOf(sourceKey: string, itemId: string): string {
@@ -182,6 +193,7 @@ function GroupRow({
   onResetVariant,
   onAddItem,
   onEditItem,
+  onEditBullets,
   open,
   onOpenChange,
 }: {
@@ -197,6 +209,7 @@ function GroupRow({
   onResetVariant?: (variant: CvSynthItem) => void;
   onAddItem?: (sourceKey: string) => void;
   onEditItem?: (sourceKey: string, itemId: string) => void;
+  onEditBullets?: (sourceKey: string, itemId: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -323,6 +336,18 @@ function GroupRow({
                             <Pencil className="h-3.5 w-3.5" aria-hidden />
                           </button>
                         )}
+                        {onEditBullets && writable && (
+                          <button
+                            type="button"
+                            className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+                            aria-label={`Edit the bullets of ${item.label} on this CV`}
+                            title="Edit bullets on this CV"
+                            data-testid={`context-bullets-${key}`}
+                            onClick={() => onEditBullets(source.key, item.item_id)}
+                          >
+                            <ListChecks className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        )}
                         <Link
                           to={contextSourceLink(source.key, item.item_id)}
                           className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
@@ -383,6 +408,7 @@ export function ContextPanel({
   onResetVariant,
   onAddItem,
   onEditItem,
+  onEditBullets,
 }: ContextPanelProps) {
   const [query, setQuery] = useState("");
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
@@ -455,6 +481,7 @@ export function ContextPanel({
             onResetVariant={onResetVariant}
             onAddItem={onAddItem}
             onEditItem={onEditItem}
+            onEditBullets={onEditBullets}
             open={query.trim() !== "" ? true : !closedGroups.has(source.key) && !isEmpty(source)}
             onOpenChange={(open) =>
               setClosedGroups((previous) => {
