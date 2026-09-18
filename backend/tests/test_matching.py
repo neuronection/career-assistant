@@ -363,17 +363,15 @@ async def test_upsert_insight_survives_raced_insert(
         prerequisites=[],
     )
     user = (
-        (await db.execute(
-            select(User).where(User.email == app_settings.DEFAULT_USER_EMAIL)
-        ))
+        (
+            await db.execute(
+                select(User).where(User.email == app_settings.DEFAULT_USER_EMAIL)
+            )
+        )
         .scalars()
         .one()
     )
-    job = (
-        (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS)))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS))).scalars().first()
 
     # The DB-side winner that the racing insert collides with.
     winner = MatchInsight(user_id=user.id, job_id=job.id)

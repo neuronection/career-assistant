@@ -35,15 +35,20 @@ export interface ExperienceItemCardProps {
   showAchievements?: boolean;
 }
 
-export function periodEnd(item: ExperienceItemCardData): string {
-  const { t } = useTranslation();
+export function periodEnd(
+  item: ExperienceItemCardData,
+  t: (key: string) => string,
+): string {
   return item.open_ended
     ? t("experience.present")
     : (item.end ?? "").slice(0, 7);
 }
 
-export function formatPeriod(item: ExperienceItemCardData): string {
-  return `${(item.start ?? "").slice(0, 7)} → ${periodEnd(item)}`;
+export function formatPeriod(
+  item: ExperienceItemCardData,
+  t: (key: string) => string,
+): string {
+  return `${(item.start ?? "").slice(0, 7)} → ${periodEnd(item, t)}`;
 }
 
 /** Wrap each term's first occurrence in an accent-tint mark span. */
@@ -147,7 +152,7 @@ export function ExperienceItemCard({
               {t(`experience.kind.${item.kind}`, {
                 defaultValue: item.kind,
               })}
-              {item.org_name ? ` · ${item.org_name}` : ""} · {formatPeriod(item)}
+              {item.org_name ? ` · ${item.org_name}` : ""} · {formatPeriod(item, t)}
               {item.hours_per_week
                 ? ` · ${t("experience.hoursShort", { hours: item.hours_per_week })}`
                 : ""}
