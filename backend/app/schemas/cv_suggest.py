@@ -9,7 +9,7 @@ flagged in the reviewer, never auto-applied.
 import uuid
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 SuggestionAction = Literal["summary", "bullet", "compaction", "tailor", "gaps"]
 
@@ -27,8 +27,19 @@ class CvProposal(BaseModel):
     ref: Optional[CvEvidenceRef] = None
     field: Optional[str] = Field(default=None, max_length=60)
     text: str = Field(min_length=1, max_length=2000)
+    # Plan 106: bullet actions carry 1-2 replacement bullets; the card
+    # shows `text`, Apply lands them as editor chips (never auto-applied).
+    # Length-clamped only, NOT rich-gated: the grounding convention keeps
+    # explicit "<your number>" placeholders, which the rich-text tag
+    # filter would strip; the renderer is the injection boundary.
+    bullets: list[str] = Field(default_factory=list, max_length=2)
     rationale: str = Field(default="", max_length=600)
     evidence_refs: list[CvEvidenceRef] = Field(default_factory=list, max_length=12)
+
+    @field_validator("bullets")
+    @classmethod
+    def _clamp_bullets(cls, bullets: list[str]) -> list[str]:
+        return [bullet.strip()[:500] for bullet in bullets]
 
 
 class CvSuggestion(BaseModel):

@@ -5,7 +5,13 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
-- **Bullets editor in CV Studio (plan 106, slice 3)** — every
+- **Bullet AI action now proposes bullets, not prose (plan 106, slice 4)** —
+  the `bullet` writing action targets the achievements layer: it
+  returns 1–2 replacement bullets plus the card summary, and Apply no
+  longer writes anything directly — it opens the CV Studio bullets
+  editor with the suggestions as keep/discard chips against the item's
+  current list; saving writes one achievements override for the item.
+  **Bullets editor in CV Studio (plan 106, slice 3)** — every
   experience-kind row on the Context tab (jobs, projects, volunteering)
   carries a bullets affordance opening the CV-local bullets editor:
   add/edit/remove/reorder bullets as they render on the CV, with an

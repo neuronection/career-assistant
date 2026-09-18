@@ -1098,6 +1098,19 @@ export function CvBuilder() {
   async function applyProposal(entry: CvProposal) {
     const field = entry.field ?? "description";
     const key = entry.ref ? refKey(entry.ref.source_key, entry.ref.item_id) : "summary:summary";
+    if (entry.bullets?.length && entry.ref) {
+      // Plan 106: bullet proposals never apply-all — they land in the
+      // bullets editor as keep/discard chips against the current list.
+      setNotice(t("cvBuilder.proposalChipsHint"));
+      setSuggestion(null);
+      setBulletsEditor({
+        open: true,
+        sourceKey: entry.ref.source_key,
+        itemId: entry.ref.item_id,
+      });
+      setBulletsProposal(entry.bullets);
+      return;
+    }
     setNotice(t("cvBuilder.proposalApplied"));
     await applyOverridePatch({ [key]: { ...overrides[key], [field]: entry.text } });
     setSuggestion(null);

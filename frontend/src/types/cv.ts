@@ -371,6 +371,9 @@ export interface CvProposal {
   ref?: CvContextRef;
   field?: string;
   text: string;
+  /** Plan 106: bullet actions carry replacement bullets — Apply opens
+   * the bullets editor with them as keep/discard chips. */
+  bullets?: string[];
   rationale: string;
   evidence_refs: CvContextRef[];
 }

@@ -50,9 +50,11 @@ ACTION_GUIDES = {
         "(ref field=summary). Lead with concrete skills and outcomes."
     ),
     "bullet": (
-        "Rewrite the target item's text as 1-2 metric-bearing bullets "
-        "(ref = the target). Keep real numbers; if a number is missing, "
-        "write the sentence so the user can slot the real value in."
+        "Rewrite the target item's text as 1-2 metric-bearing bullets in "
+        "the `bullets` field (each a standalone line, <=500 chars) and set "
+        "field=achievements; `text` is a one-line card summary of the "
+        "rewrite. Keep real numbers; if a number is missing, write the "
+        "sentence so the user can slot the real value in."
     ),
     "compaction": (
         "Tighten the given texts so the CV fits its page budget. Never "
@@ -178,14 +180,16 @@ def _mock_suggestion(schema: type, user_prompt: str) -> dict:
             }
         )
     elif action == "bullet":
+        head = str(target.get("text") or first_label).rstrip(".")
         proposals.append(
             {
                 "ref": ref_of(target) if target else ref_of(first),
-                "field": "description",
-                "text": (
-                    f"{str(target.get('text') or first_label).rstrip('.')} — "
-                    "cut effort by ~<your number>%"
-                ),
+                "field": "achievements",
+                "text": f"{head} — cut effort by ~<your number>%",
+                "bullets": [
+                    f"{head} — cut effort by ~<your number>%",
+                    f"{head} — reused across ~<your number>% of runs",
+                ],
                 "rationale": (
                     "Metric placeholder kept explicit: the user fills the real "
                     "value, never an invented one."

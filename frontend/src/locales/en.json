@@ -1377,6 +1377,8 @@
     "proposedBullets": "AI-suggested bullets — keep what lands",
     "keepSelected": "Keep selected",
     "addBullet": "Add bullet",
+    "proposalChipsHint": "Review the suggested bullets in the editor — pick what lands, then save.",
+    "generateBullets": "Generate bullets",
     "moveUp": "Move bullet {{index}} up",
     "moveDown": "Move bullet {{index}} down",
     "removeBullet": "Remove bullet {{index}}",

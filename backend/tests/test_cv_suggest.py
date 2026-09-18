@@ -118,6 +118,14 @@ async def test_bullet_proposes_metric_rewrite(
     first = body["proposals"][0]
     assert first["verified"] is True
     assert first["proposal"]["ref"]["item_id"] == item["id"]
+    # Plan 106: bullet actions target the achievements layer and carry
+    # the replacement bullets for the editor's chips.
+    assert first["proposal"]["field"] == "achievements"
+    assert first["proposal"]["bullets"], "bullets present for the editor"
+    assert len(first["proposal"]["bullets"]) <= 2
+    assert "<your number>" in first["proposal"]["bullets"][0], (
+        "missing metrics stay explicit placeholders, never invented values"
+    )
     assert "<your number>" in first["proposal"]["text"], (
         "missing metrics stay explicit placeholders, never invented values"
     )

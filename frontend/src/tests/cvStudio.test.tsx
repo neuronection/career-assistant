@@ -2708,3 +2708,87 @@ describe("CvBuilder — plan 106 bullets editor", () => {
     );
   });
 });
+
+describe("CvBuilder — plan 106 bullet action retarget", () => {
+  it("lands bullet proposals in the editor as chips; saving writes the achievements override", async () => {
+    const user = userEvent.setup();
+    aiAction.mockResolvedValue({
+      action: "bullet",
+      notes: "",
+      proposals: [
+        {
+          proposal: {
+            ref: { source_key: "experience", item_id: "exp-1" },
+            field: "achievements",
+            text: "DevOps intern — cut effort by ~<your number>%",
+            bullets: [
+              "Cut the deploy pipeline to minutes",
+              "Cut flaky retries by ~<your number>%",
+            ],
+            rationale: "Metric placeholder kept explicit.",
+            evidence_refs: [{ source_key: "experience", item_id: "exp-1" }],
+          },
+          verified: true,
+        },
+      ],
+      coverage: null,
+      gaps: [],
+    });
+    previewCv.mockResolvedValue({
+      ...preview,
+      resolution: {
+        ...preview.resolution,
+        snapshot: {
+          experience: [
+            {
+              id: "exp-1",
+              title: "DevOps intern",
+              org_name: "Acme",
+              achievements: [{ text: "Shipped the QA harness" }],
+            },
+          ],
+        },
+        snapshot_index: { experience: ["exp-1"] },
+      },
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Improve summary" }),
+    );
+    const slideOver = await screen.findByTestId("proposals-slideover");
+    fireEvent.click(within(slideOver).getByTestId("apply-proposal"));
+    expect(screen.queryByTestId("proposals-slideover")).not.toBeInTheDocument();
+    const modal = await screen.findByTestId("bullets-editor-modal");
+    expect(
+      within(modal).getByTestId("bullet-chip-0"),
+    ).toHaveTextContent("Cut the deploy pipeline to minutes");
+    await user.click(within(modal).getByTestId("bullet-chips-confirm"));
+    expect(
+      within(modal).getByTestId("bullets-row-1"),
+    ).toHaveValue("Cut the deploy pipeline to minutes");
+    await user.click(within(modal).getByTestId("bullets-editor-save"));
+    await waitFor(() =>
+      expect(patchCv).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          working_content: expect.objectContaining({
+            overrides: expect.objectContaining({
+              "experience:exp-1": expect.objectContaining({
+                achievements: [
+                  { text: "Shipped the QA harness" },
+                  { text: "Cut the deploy pipeline to minutes" },
+                  { text: "Cut flaky retries by ~<your number>%" },
+                ],
+              }),
+            }),
+          }),
+        }),
+      ),
+    );
+    const body = patchCv.mock.calls[patchCv.mock.calls.length - 1][1];
+    expect(
+      body.working_content.overrides["experience:exp-1"].description,
+    ).toBeUndefined();
+  });
+});
