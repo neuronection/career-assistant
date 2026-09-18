@@ -22,12 +22,14 @@ export type ProposalPreviewEntry =
   | { state: "ready"; data: ProfileProposalPreviewData }
   | { state: "missing" };
 
-/** Kinds with snapshot-backed previews (plan 99 AD7); the rest 404. */
+/** Kinds with snapshot-backed previews (plan 99 AD7, 101 AD2: cv_synth
+ * previews before-only); the rest 404. */
 export const PREVIEW_KINDS = new Set([
   "experience_item",
   "education_item",
   "certification",
   "profile_achievement",
+  "cv_synth",
 ]);
 
 /**

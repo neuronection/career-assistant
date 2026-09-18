@@ -65,7 +65,12 @@ export type { ChatReasoningProps, ChatReasoningLabels } from "@neuronection/assi
 export { ChatToolCard } from "@neuronection/assistant-ui/chat-tool-card";
 export type { ChatToolCardProps, ChatToolCardLabels } from "@neuronection/assistant-ui/chat-tool-card";
 
-export { HitlProposalCard, FieldDiff, FieldSummary } from "@neuronection/assistant-ui/chat-hitl";
+export {
+  HitlProposalCard,
+  FieldDiff,
+  FieldSummary,
+  FieldChips,
+} from "@neuronection/assistant-ui/chat-hitl";
 export type {
   HitlProposalCardProps,
   HitlProposalCardLabels,

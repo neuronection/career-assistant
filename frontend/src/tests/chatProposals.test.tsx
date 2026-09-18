@@ -335,15 +335,17 @@ describe("proposal preview + revert (plan 99.6)", () => {
     previewApi.mockRejectedValue({
       response: { data: { detail: "No preview for this proposal" } },
     });
-    const cvCard: ProfileProposalCardData = {
+    // Plan 101: cv_synth gained a preview — the non-preview kinds are
+    // user_skill / profile_section (scalar and section ops).
+    const skillCard: ProfileProposalCardData = {
       ...CARD,
       id: "p-cv",
-      kind: "cv_synth",
-      action: "create",
+      kind: "user_skill",
+      action: "update",
     };
     const user = userEvent.setup();
     render(
-      <MessageProposals message={messageWith([{ ...CARD, id: "p-y" }, cvCard])} />,
+      <MessageProposals message={messageWith([{ ...CARD, id: "p-y" }, skillCard])} />,
     );
     expect(screen.queryByTestId("hitl-preview-p-cv")).not.toBeInTheDocument();
     await user.click(await screen.findByTestId("hitl-preview-p-y"));

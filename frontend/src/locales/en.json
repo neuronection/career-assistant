@@ -1870,7 +1870,46 @@
         "duplicateTarget": "a second edit on the same item — merge suggestions into one"
       },
       "dropped": "{{count}} suggestion(s) skipped — the data didn't validate.",
-      "droppedReason": "{{kind}}: {{reason}}"
+      "droppedReason": "{{kind}}: {{reason}}",
+      "previewVariantSources": "What the variant drafts from",
+      "previewVariantNote": "Draft variant rows appear in the Synth Library when you draft/approve this card — the source items below stay untouched.",
+      "previewSourceMissing": "Source was deleted since this card was made — shown by label only.",
+      "fields": {
+        "institution": "Institution",
+        "program": "Program",
+        "level": "Level",
+        "grade_band": "Grade band",
+        "focus_subjects": "Focus subjects",
+        "start": "Start",
+        "end": "End",
+        "open_ended": "Open-ended",
+        "in_progress": "In progress",
+        "status": "Status",
+        "description": "Description",
+        "name": "Name",
+        "issuer": "Issuer",
+        "issued": "Issued",
+        "expires": "Expires",
+        "credential_id": "Credential ID",
+        "link": "Link",
+        "language_code": "Language",
+        "kind": "Type",
+        "title": "Title",
+        "date": "Date",
+        "detail": "Detail"
+      },
+      "sourceKinds": {
+        "experience": "Work experience",
+        "projects": "Projects",
+        "volunteer": "Volunteering",
+        "education": "Education",
+        "certifications": "Certifications",
+        "achievements": "Achievements",
+        "skills": "Skills",
+        "languages": "Languages",
+        "interests": "Interests",
+        "posting": "Target posting"
+      }
     },
     "attach": {
       "open": "Attach a CV as reference",

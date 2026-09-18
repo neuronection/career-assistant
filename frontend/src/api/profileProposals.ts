@@ -61,10 +61,33 @@ export interface ProfileProposalPreviewEdits {
   }[];
 }
 
+export interface CvSynthSourceRow {
+  source_key: string;
+  item_id: string;
+  label: string;
+  snapshot: Record<string, unknown> | null;
+}
+
 export interface ProfileProposalPreviewData {
-  before: Record<string, unknown> | null;
+  /** A single entity snapshot; for `cv_synth` cards a stacked per-ref
+   * source list (plan 101 AD2 — after-side stays null). */
+  before:
+    | Record<string, unknown>
+    | CvSynthSourceRow[]
+    | null;
   after: Record<string, unknown> | null;
-  edits: ProfileProposalPreviewEdits;
+  edits: ProfileProposalPreviewEdits & {
+    kind?: string;
+    action?: string;
+    language?: string;
+    resolved_refs?: {
+      label: string;
+      source_key: string;
+      item_id: string;
+    }[];
+    posting?: string;
+    posting_title?: string;
+  };
 }
 
 export async function getProposalPreview(

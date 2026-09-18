@@ -87,8 +87,13 @@ function ProposalCard({
   const variantCard = card.kind === "cv_synth";
   const showPreviewButton =
     PREVIEW_KINDS.has(card.kind) && previewEntry?.state !== "missing";
+  // Plan 101 AD2: a create op is not revertible — variant cards are
+  // retracted via the Synth Library, never this row (the backend
+  // rejects cv_synth anyway).
   const reversible =
-    PREVIEW_KINDS.has(card.kind) && state.status === "approved";
+    PREVIEW_KINDS.has(card.kind) &&
+    !variantCard &&
+    state.status === "approved";
 
   return (
     <div data-testid={`hitl-card-${card.id}`}>

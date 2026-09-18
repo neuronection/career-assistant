@@ -12,6 +12,14 @@ All notable changes to **Career Assistant** are documented here.
   compatibility).
 
 ### Added
+- **Education/certification/achievement previews render their item card
+  (plan 101.3)** — the proposal preview modal renders a per-kind
+  snapshot card (labelled rows, focus-subjects chips, month-year dates,
+  the changed prose span highlighted) instead of a raw key/value dump;
+  variant cards get their before-only "What the variant drafts from"
+  preview with one source card per ref (deleted sources degrade to
+  label-only rows) and never show a revert row — variants retract via
+  the Synth Library.
 - **Chat variant cards preview their sources (plan 101.2)** — a variant
   card's "Preview" now shows exactly what the variant will draft from:
   the user's current snapshot of every referenced source item

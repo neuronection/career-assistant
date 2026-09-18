@@ -6,10 +6,23 @@ import { PanelModal, SegmentedTabs, Spinner } from "@/components/ui";
 import type { ProfileProposalCardData } from "@/types";
 import { useProfileProposalsStore, PREVIEW_KINDS } from "@/stores/profileProposalsStore";
 import { ExperienceItemCard } from "@/components/experience/ExperienceItemCard";
+import { ProfileSnapshotCard } from "@/components/chat/ProfileSnapshotCard";
 import type {
+  CvSynthSourceRow,
   ProfileProposalPreviewData,
   ProfileProposalPreviewEdits,
 } from "@/api/profileProposals";
+
+/** CV source key → snapshot-card kind (plan 101: stacked source rows use
+ * the same per-kind renderers as the edit preview). */
+const SYNTH_PROFILE_KINDS: Record<string, string> = {
+  experience: "experience_item",
+  projects: "experience_item",
+  volunteer: "experience_item",
+  education: "education_item",
+  certifications: "certification",
+  achievements: "profile_achievement",
+};
 
 const SNAPSHOT_FIELDS: Record<string, string[]> = {
   education_item: [
@@ -169,9 +182,19 @@ export function ProposalPreviewModal({
     entry?.state === "ready" ? entry.data : null;
   const isCreate = proposal?.action === "create";
   const isDelete = proposal?.action === "delete";
-  const singleSide = Boolean(isCreate || isDelete);
   const kind = proposal?.kind ?? "";
+  // Plan 101 AD2: the cv_synth preview branches on KIND, not action —
+  // its create action would otherwise render the before-only payload
+  // through the "after-only" path with nothing to show.
+  const isSynth =
+    kind === "cv_synth" && Array.isArray(data?.before)
+      ? ((data?.before ?? []) as CvSynthSourceRow[])
+      : null;
+  const singleSide = Boolean(isCreate || isDelete) && !isSynth;
   const usesItemCard = kind === "experience_item";
+  const usesProfileCard = ["education_item", "certification", "profile_achievement"].includes(
+    kind,
+  );
 
   const hasBefore = useMemo(
     () => Boolean(!isCreate && data?.before),
@@ -185,8 +208,9 @@ export function ProposalPreviewModal({
   const highlightAfter = markTerms(data?.edits, "after");
 
   const renderSide = (which: "before" | "after") => {
+    const raw = which === "before" ? data?.before : data?.after;
     const snapshot: Snapshot | null =
-      (which === "before" ? data?.before : data?.after) ?? null;
+      raw && !Array.isArray(raw) ? (raw as Snapshot) : null;
     const highlight = which === "before" ? highlightBefore : highlightAfter;
     const destructive = Boolean(isDelete && which === "before");
     const label =
@@ -209,7 +233,14 @@ export function ProposalPreviewModal({
         >
           {label}
         </h3>
-        {usesItemCard && snapshot ? (
+        {usesProfileCard && snapshot ? (
+          <ProfileSnapshotCard
+            snapshot={snapshot}
+            kind={kind}
+            highlight={highlight}
+            testId={`hitl-preview-${which}-card`}
+          />
+        ) : usesItemCard && snapshot ? (
           <ExperienceItemCard
             item={experienceCardData(snapshot)!}
             highlight={highlight}
@@ -218,6 +249,60 @@ export function ProposalPreviewModal({
           />
         ) : (
           <GenericSnapshot snapshot={snapshot} kind={kind} />
+        )}
+      </section>
+    );
+  };
+
+  const renderSynthRow = (row: CvSynthSourceRow, index: number) => {
+    const highlight = highlightBefore;
+    const snapshot = (row.snapshot ?? null) as Snapshot | null;
+    const itemCard =
+      ["experience", "projects", "volunteer"].includes(row.source_key) &&
+      snapshot
+        ? (
+          <ExperienceItemCard
+            item={experienceCardData(snapshot)!}
+            highlight={highlight}
+            showAchievements
+            testId={`hitl-preview-card-${index}`}
+          />
+        )
+        : null;
+    return (
+      <section
+        key={`${row.source_key}-${row.item_id}`}
+        className="min-w-0 rounded-xl border border-[var(--as-border)] p-2.5"
+        data-testid={`hitl-preview-source-${row.source_key}`}
+      >
+        <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+          {row.label}
+          {row.snapshot ? (
+            <span className="text-[var(--as-border)]">·</span>
+          ) : null}
+          {row.snapshot ? (
+            <span className="font-normal normal-case tracking-normal">
+              {t(`chat.proposals.sourceKinds.${row.source_key}`, {
+                defaultValue: row.source_key,
+              })}
+            </span>
+          ) : null}
+        </h3>
+        {snapshot ? (
+          row.source_key === "posting" ? (
+            <GenericSnapshot snapshot={snapshot} kind="posting" />
+          ) : itemCard ?? (
+            <ProfileSnapshotCard
+              snapshot={snapshot}
+              kind={SYNTH_PROFILE_KINDS[row.source_key] ?? kind}
+              highlight={highlight}
+              testId={`hitl-preview-card-${index}`}
+            />
+          )
+        ) : (
+          <p className="text-[var(--as-muted-fg)]">
+            {t("chat.proposals.previewSourceMissing")}
+          </p>
         )}
       </section>
     );
@@ -250,6 +335,21 @@ export function ProposalPreviewModal({
         >
           {t("chat.proposals.previewUnavailable")}
         </p>
+      ) : isSynth ? (
+        <div className="flex min-h-0 flex-col gap-3">
+          <h2
+            className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]"
+            data-testid="hitl-preview-sources-heading"
+          >
+            {t("chat.proposals.previewVariantSources")}
+          </h2>
+          <div className="flex flex-col gap-3" data-testid="hitl-preview-content">
+            {isSynth.map(renderSynthRow)}
+          </div>
+          <p className="text-xs text-[var(--as-muted-fg)]" data-testid="hitl-preview-variant-note">
+            {t("chat.proposals.previewVariantNote")}
+          </p>
+        </div>
       ) : (
         <div className="flex min-h-0 flex-col gap-3">
           {!singleSide ? (
