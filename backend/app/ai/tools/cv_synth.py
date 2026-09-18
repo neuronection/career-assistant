@@ -564,7 +564,7 @@ def _chat_tool(key, title, description, input_model, handler, scope, cost="cheap
 
 CV_SYNTH_TOOLS: list[AITool] = [
     _chat_tool(
-        "cv_read_items",
+        "read_cv_items",
         "Read a CV's bullet items",
         "The attached CV's experience/projects/volunteer rows as they "
         "render: item ids, titles and the current bullets (flags "

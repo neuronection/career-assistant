@@ -198,9 +198,7 @@ async def test_read_items_and_set_bullets_tools(db, auth_headers):
     user = await _auth_user(db)
     cv = await _cv(db, user)
     item = await _experience(db, user)
-    listed = await run_tool(
-        db, "cv_read_items", user.id, {"cv_id": str(cv.id)}
-    )
+    listed = await run_tool(db, "read_cv_items", user.id, {"cv_id": str(cv.id)})
     rows = {row["item_id"]: row for row in listed["items"]}
     row = rows[str(item.id)]
     assert row["bullets"] == ["Profile bullet one"]
@@ -219,9 +217,7 @@ async def test_read_items_and_set_bullets_tools(db, auth_headers):
     )
     assert out["ok"] is True
 
-    relisted = await run_tool(
-        db, "cv_read_items", user.id, {"cv_id": str(cv.id)}
-    )
+    relisted = await run_tool(db, "read_cv_items", user.id, {"cv_id": str(cv.id)})
     row = {r["item_id"]: r for r in relisted["items"]}[str(item.id)]
     assert row["bullets"] == ["Tailored bullet"]
     assert row["bullets_overridden_for_this_cv"] is True
@@ -232,7 +228,7 @@ def test_mock_emits_cv_set_bullets_after_the_read():
 
     ops = mock_profile_ops(
         {
-            "cv_read_items": {
+            "read_cv_items": {
                 "cv_id": "0b8f8d36-0000-0000-0000-000000000001",
                 "items": [
                     {
@@ -247,3 +243,63 @@ def test_mock_emits_cv_set_bullets_after_the_read():
     )
     assert ops and ops[0]["kind"] == "cv_set_bullets"
     assert ops[0]["payload"]["item_id"] == "e1"
+
+
+async def _builder_env(db, monkeypatch):
+    """Mirror of the handoff suite's env: template bank + no PDF engine."""
+    from tests.test_cv_assistant import _raise_engine_unavailable
+
+    monkeypatch.setattr(
+        "app.ai.agents.cv_builder_chat.measure_pages",
+        _raise_engine_unavailable,
+    )
+    return db
+
+
+async def test_chat_proposes_and_approval_applies_cv_bullets(
+    client, db, auth_headers, monkeypatch
+):
+    """The full plan-107 flow: attached CV + bullet edit intent → builder
+    loop → set_bullets op → override lands (no HITL card on this path)."""
+    from app.seeds.cv_templates import seed_cv_template_bank
+    from tests.test_chat_builder_handoff import _session
+
+    await seed_cv_template_bank(db)
+    await _builder_env(db, monkeypatch)
+    user = await _auth_user(db)
+    cv = await _cv(db, user)
+    item = await _experience(db, user)
+    session = await _session(client, auth_headers)
+    response = await client.post(
+        f"/api/v1/chat/sessions/{session['id']}/messages",
+        json={
+            "content": "update the bullets on this cv",
+            "attachments": [{"kind": "cv", "cv_id": str(cv.id)}],
+        },
+        params={"stream": "true"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert "set_bullets" in response.text, "a cv_set_bullets card was proposed"
+
+    listed = (
+        await client.get("/api/v1/me/profile-proposals", headers=auth_headers)
+    ).json()
+    card = next(row for row in listed["proposals"] if row["kind"] == "cv_set_bullets")
+    assert card["status"] == "pending"
+    approved = await client.post(
+        f"/api/v1/me/profile-proposals/{card['id']}/approve",
+        headers=auth_headers,
+    )
+    assert approved.status_code == 200, approved.text
+    body = approved.json()
+    assert body["proposal"]["status"] == "approved", body["proposal"].get(
+        "resolve_error"
+    )
+
+    fetched = await client.get(f"/api/v1/cv/{cv.id}", headers=auth_headers)
+    assert fetched.status_code == 200, fetched.text()
+    overrides = fetched.json()["working_content"].get("overrides") or {}
+    assert overrides[f"experience:{item.id}"]["achievements"] == [
+        {"text": "Backend internship — tailored for this CV"}
+    ]

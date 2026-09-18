@@ -5,6 +5,8 @@ the mock provider (tests, E2E, `run-dev.sh --mock-ai`). Importing this
 module registers the CHAT structured-reply fixture with the gateway.
 """
 
+import json
+
 from app.ai.agents.context import parse_context
 from app.ai.gateway import register_mock_fixture
 from app.models.enums import AITaskType
@@ -160,7 +162,7 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
     words = {token.strip(".,!?;:()[]\"'") for token in lowered.split()}
     if not (words & EDIT_VERBS):
         return []
-    cv_items = (tools.get("cv_read_items") or {}).get("items") or []
+    cv_items = (tools.get("read_cv_items") or {}).get("items") or []
     if cv_items and (words & {"bullet", "bullets"}):
         first = cv_items[0]
         return [
@@ -168,12 +170,10 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "kind": "cv_set_bullets",
                 "action": "update",
                 "payload": {
-                    "cv_id": (tools.get("cv_read_items") or {}).get("cv_id"),
+                    "cv_id": (tools.get("read_cv_items") or {}).get("cv_id"),
                     "source_key": first["source_key"],
                     "item_id": first["item_id"],
-                    "bullets": [
-                        f"{first['title']} — tailored for this CV"
-                    ],
+                    "bullets": [f"{first['title']} — tailored for this CV"],
                 },
             }
         ]
@@ -368,6 +368,19 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
         reference = cv_references[0]
         title = str(reference.get("title") or "CV")
         noted = "attached earlier" if reference.get("earlier") else "attached"
+        # Plan 107: bullet-edit intents on the attachment propose the
+        # rewrite as a card instead of the read-only grounded reply.
+        profile_ops = mock_profile_ops(tools, message)
+        if profile_ops:
+            return {
+                "answer": (
+                    "I've drafted a bullet rewrite for "
+                    f"{title} — review the card and approve it."
+                ),
+                "profile_ops": profile_ops,
+                "referenced_job_codes": [],
+                "referenced_posting_refs": [],
+            }
         return {
             "answer": (
                 f"Grounded in your {title} ({noted}): the document lists "
@@ -467,8 +480,15 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         SKILL_KEYWORDS,
     )
 
-    match = _re.search(r"CONTEXT_JSON: (\{.*\})", user_text, _re.S)
-    ctx = parse_context(user_text) if match else {}
+    # Plan 107: the agent-round prompt is the bare context JSON (no
+    # marker) — parse defensively so the CV-bullet grounding works.
+    ctx = {}
+    try:
+        ctx, _ = json.JSONDecoder().raw_decode(
+            user_text[user_text.index("{") :].lstrip()
+        )
+    except (ValueError, json.JSONDecodeError):
+        ctx = parse_context(user_text) or {}
     tools = ctx.get("tool_results") or {}
     message = str(ctx.get("message") or "")
     lowered = f" {message.lower()} "
@@ -484,15 +504,19 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         if name not in tools and any(keyword in lowered for keyword in keywords)
     ]
     if (
-        "cv_read_items" not in tools
+        "read_cv_items" not in tools
         and ctx.get("cv_references")
         and _re.search(r"\bbullets?\b", message)
     ):
-        wanted.append("cv_read_items")
-    calls = [
-        {"name": name, "args": {}, "id": f"call-{index}"}
-        for index, name in enumerate(wanted)
-    ]
+        wanted.append("read_cv_items")
+    calls = []
+    for index, name in enumerate(wanted):
+        args: dict = {}
+        if name == "read_cv_items":
+            refs = ctx.get("cv_references") or []
+            if refs:
+                args["cv_id"] = refs[0].get("cv_id") or ""
+        calls.append({"name": name, "args": args, "id": f"call-{index}"})
     if not calls:
         calls = [
             {

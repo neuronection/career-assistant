@@ -61,7 +61,7 @@ def test_builtin_registry_declarations():
         "cv_update_block_props",
         "cv_set_override",
         "cv_set_bullets",
-        "cv_read_items",
+        "read_cv_items",
         # — CV synth variant family (plan 62)
         "cv_synth_list",
         "cv_synth_read",
@@ -94,8 +94,8 @@ def test_builtin_registry_declarations():
     assert listed["cv_review_visual"]["scope"] == "read"
     # Plan 107: the visual review serves the general chat too
     assert "chat" in listed["cv_review_visual"]["audiences"]
-    assert "chat" in listed["cv_read_items"]["audiences"]
-    assert "cv_builder" not in listed["cv_read_items"]["audiences"]
+    assert "chat" in listed["read_cv_items"]["audiences"]
+    assert "cv_builder" not in listed["read_cv_items"]["audiences"]
     assert listed["cv_set_bullets"]["audiences"] == ["cv_builder"]
     assert all(
         listed[key]["scope"] == "write"
@@ -107,7 +107,7 @@ def test_builtin_registry_declarations():
             "cv_review_visual",
             "cv_synth_list",
             "cv_synth_read",
-            "cv_read_items",
+            "read_cv_items",
         )
     )
     assert listed["search_postings"]["requires_user"] is True

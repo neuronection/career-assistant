@@ -515,56 +515,12 @@ def multi_user_mode(monkeypatch):
 
 
 def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:
-    """Deterministic agent-round stand-in (plan 98 phase 3).
+    """The chat agent-round stand-in — delegates to the REAL mock (plan
+    107: the local copy had drifted from app/ai/mock_chat.py; one source
+    of truth, the fixture only guarantees registration + cleanup)."""
+    from app.ai.mock_chat import mock_chat_agent_round
 
-    Mirrors the grounding behavior: call the digest tools the message's
-    entity keywords ask for, but SKIP the ones already present in the
-    prompt (cache-primed or pulled in an earlier round) — the model must
-    never repeat an identical call. Plan 99.1: once the digests are in,
-    a later round opens the target's full content (read-before-edit)
-    exactly where the mock ops would need it.
-    """
-    import json as _json
-    import re as _re
-
-    from app.ai.agents.chatbot import (
-        EDUCATION_KEYWORDS,
-        EXPERIENCE_KEYWORDS,
-        PROFILE_DIGEST_KEYWORDS,
-        SKILL_KEYWORDS,
-    )
-    from app.ai.mock_chat import mock_read_calls
-
-    match = _re.search(r"CONTEXT_JSON: (\{.*\})", user_text, _re.S)
-    ctx = _json.loads(match.group(1)) if match else {}
-    tools = ctx.get("tool_results") or {}
-    message = str(ctx.get("message") or "")
-    lowered = f" {message.lower()} "
-    plan = [
-        ("my_experience", EXPERIENCE_KEYWORDS),
-        ("my_skills", SKILL_KEYWORDS),
-        ("my_education", EDUCATION_KEYWORDS),
-        ("my_profile_digest", PROFILE_DIGEST_KEYWORDS),
-    ]
-    wanted = [
-        name
-        for name, keywords in plan
-        if name not in tools and any(keyword in lowered for keyword in keywords)
-    ]
-    calls = [
-        {"name": name, "args": {}, "id": f"call-{index}"}
-        for index, name in enumerate(wanted)
-    ]
-    if not calls:
-        calls = [
-            {
-                "name": call["name"],
-                "args": call.get("args") or {},
-                "id": f"call-{index}",
-            }
-            for index, call in enumerate(mock_read_calls(tools, message))
-        ]
-    return {"content": "", "tool_calls": calls}
+    return mock_chat_agent_round(user_text, tool_names)
 
 
 @pytest.fixture(autouse=True)

@@ -84,9 +84,7 @@ def test_cv_builder_tools_registered():
         assert key in listed, key
         # Plan 107: the visual review serves the general chat too.
         expected = (
-            ["chat", "cv_builder"]
-            if key == "cv_review_visual"
-            else ["cv_builder"]
+            ["chat", "cv_builder"] if key == "cv_review_visual" else ["cv_builder"]
         )
         assert listed[key]["audiences"] == expected
         assert listed[key]["builtin"] is True

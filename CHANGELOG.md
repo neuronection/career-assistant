@@ -5,13 +5,24 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
-- **Chat can rewrite a CV's bullets (plan 107, slice 1 groundwork)** —
-  a new `cv_set_bullets` proposal kind: grounded against the CV's
-  resolved snapshot (the card shows the item's current bullets vs the
-  proposal), approval writes the per-CV override exactly like the
-  Studio's bullets editor, revert restores the prior list, and the
-  open Studio refreshes through the plan-104 channel. Chat-surface
-  wiring (cards, prompts, builder tool) lands in the next slices.
+- **Chat can rewrite a CV's bullets (plan 107)** — with a CV attached,
+  "update the bullets on this CV" now works end to end: the assistant
+  reads the CV's bullet items (`read_cv_items` — ids, current bullets,
+  override flags), proposes a `cv_set_bullets` card showing the current
+  list against the rewrite, and approving writes the per-CV override in
+  the plan-106 canonical shape (revert restores; the open Studio
+  refreshes). The Studio's own copilot gets the same op directly
+  (`cv_set_bullets` tool), and "how does my CV look?" works from chat —
+  `cv_review_visual` ("screenshot the CV") now serves the chat audience
+  when a vision model + engine are configured, with honest degradation
+  otherwise. The chatbot's system prompt (v12) gains a capability map
+  (what it can and explicitly cannot do) and a request-routing playbook:
+  ground first with verbatim ids, read before editing, one clarifying
+  question on ambiguity, availability honesty, and narrating the review
+  contract. Fixed en route: every `cv_*` builder write tool was
+  uninvokable (op models required a literal the tool wrapper never
+  passed) and the test harness's agent-round mock had drifted from the
+  real one.
 - **Generate-fill in the bullets editor (plan 106, slice 5)** — an
   AI chip in the editor drafts metric-honest bullets from the item's
   own evidence (the plan-103 dirty-guard applies: unsaved edits ask

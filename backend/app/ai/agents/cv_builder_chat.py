@@ -90,7 +90,7 @@ SYSTEM = (
     "bullet list on THIS CV (experience, projects or volunteer rows "
     "from the state). Grounded metric-honest lines the user already has "
     "evidence for; missing numbers stay explicit placeholders like "
-    "\"<your number>\".\n"
+    '"<your number>".\n'
     "Rules: at most 12 operations, applied in order. Use block_index and "
     "item_id values exactly as listed in the state. Set "
     "`need_visual_review` true when the user asks about looks, layout, "
@@ -1231,6 +1231,21 @@ def _mock_builder_turn(schema: type, user_prompt: str) -> dict:
                         "props": {"show_levels": True},
                     }
                 )
+    if "bullet" in lowered:
+        for source_key in ("experience", "projects", "volunteer"):
+            item = _first_item(source_key)
+            if item is not None:
+                ops.append(
+                    {
+                        "op": "set_bullets",
+                        "source_key": source_key,
+                        "item_id": item["item_id"],
+                        "bullets": [
+                            f"{item.get('title') or 'Item'} — tailored for this CV"
+                        ],
+                    }
+                )
+                break
     if not ops:
         ops.append({"op": "update_design", "design": {"accent_color": "#0f766e"}})
     listed = ", ".join(op["op"] for op in ops)
