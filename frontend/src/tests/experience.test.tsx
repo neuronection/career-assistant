@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Experience } from "@/pages/Experience";
 import {
@@ -92,6 +92,20 @@ const DERIVED = {
   ],
   years_of_experience: 0.9,
 };
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location-probe">{location.search}</span>;
+}
+
+function renderAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Experience />
+      <LocationProbe />
+    </MemoryRouter>
+  );
+}
 
 describe("Experience workspace", () => {
   beforeEach(() => {
@@ -643,5 +657,34 @@ describe("Experience workspace — kind groups", () => {
       screen.queryByTestId("experience-group-internship")
     ).not.toBeInTheDocument();
     expect(await screen.findByTestId("experience-item-e2")).toBeInTheDocument();
+  });
+
+  it("opens the ?focus item in the editor and strips the param", async () => {
+    renderAt("/profile/experience?focus=e2");
+    const editor = await screen.findByTestId("experience-editor");
+    expect(
+      within(editor).getByTestId("experience-title")
+    ).toHaveValue("Capstone");
+    const card = screen.getByTestId("experience-item-e2");
+    expect(within(card).getByTestId("experience-item")).toHaveAttribute(
+      "aria-current",
+      "true"
+    );
+    expect(
+      within(card).getByTestId("experience-focus-highlight")
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent("")
+    );
+    expect(screen.queryByTestId("experience-editor")).toBeInTheDocument();
+  });
+
+  it("ignores a ?focus id that matches no entry", async () => {
+    renderAt("/profile/experience?focus=missing");
+    await screen.findByTestId("experience-item-e1");
+    expect(screen.queryByTestId("experience-editor")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent("")
+    );
   });
 });

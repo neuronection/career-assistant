@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import {
@@ -77,6 +77,7 @@ function sortByRecency(items: ExperienceItemOut[]): ExperienceItemOut[] {
  * (set status / delete), duplicates and search/status/kind filters. */
 export function Experience() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<ExperienceItemOut[]>([]);
   const [years, setYears] = useState(0);
   const [derived, setDerived] = useState<DerivedSkillOut[]>([]);
@@ -84,6 +85,7 @@ export function Experience() {
     { key: string; label: string }[]
   >([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [isNew, setIsNew] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -129,6 +131,7 @@ export function Experience() {
       key={item.id}
       item={item}
       active={item.id === selectedId}
+      focused={item.id === focusedId}
       onOpen={() => guard(() => openEdit(item))}
       onDuplicate={() => void duplicate(item)}
       onDelete={() => void remove(item)}
@@ -158,9 +161,11 @@ export function Experience() {
       fetchExperience(),
       fetchDerivation(),
     ]);
-    setItems(sortByRecency(list.items));
+    const sorted = sortByRecency(list.items);
+    setItems(sorted);
     setYears(list.years_of_experience);
     setDerived(derivation.skills);
+    return sorted;
   }, []);
 
   const refreshDerived = useCallback(async () => {
@@ -195,13 +200,36 @@ export function Experience() {
   }, [t, refreshDerived]);
 
   useEffect(() => {
-    void load().catch((err) => setError(apiDetail(err)));
+    let cancelled = false;
+    void load()
+      .then((sorted) => {
+        if (cancelled) return;
+        const focusId = searchParams.get("focus");
+        if (!focusId) return;
+        const item = sorted.find((row) => row.id === focusId);
+        if (item) {
+          openEdit(item);
+          setFocusedId(item.id);
+        }
+        setSearchParams({}, { replace: true });
+      })
+      .catch((err) => setError(apiDetail(err)));
     void fetchSkillOntology()
       .then((rows: SkillSummary[]) =>
         setSkillOptions(rows.map((s) => ({ key: s.key, label: s.label })))
       )
       .catch(() => setSkillOptions([]));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
+
+  useEffect(() => {
+    if (!focusedId) return;
+    const timer = setTimeout(() => setFocusedId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [focusedId]);
 
   const skillChoices = useMemo(() => {
     const base = skillOptions.map((o) => ({ value: o.key, label: o.label }));

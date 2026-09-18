@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Education } from "@/pages/Education";
 import {
@@ -207,6 +207,56 @@ describe("Education workspace", () => {
     fireEvent.click(within(card).getByTestId("education-item"));
     return card;
   }
+
+  function LocationProbe() {
+    const location = useLocation();
+    return <span data-testid="location-probe">{location.search}</span>;
+  }
+
+  function renderAt(path: string) {
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <Education />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+  }
+
+  it("opens the ?entity/?focus item in its editor and strips the params", async () => {
+    renderAt("/profile/education?entity=certifications&focus=c1");
+    const editor = await screen.findByTestId("certification-editor");
+    expect(
+      within(editor).getByDisplayValue("AWS Solutions Architect")
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByTestId("education-entity-certifications")
+        .getAttribute("aria-pressed")
+    ).toBe("true");
+    const card = screen.getByTestId("education-item-c1");
+    expect(
+      within(card).getByTestId("education-focus-highlight")
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent("")
+    );
+  });
+
+  it("defaults a bare ?focus to the education entity", async () => {
+    renderAt("/profile/education?focus=ed2");
+    await screen.findByTestId("education-editor");
+    expect(
+      screen.getByTestId("education-item-ed2").className
+    ).toContain("border-[var(--as-accent)]");
+    expect(
+      within(screen.getByTestId("education-item-ed2")).getByTestId(
+        "education-focus-highlight"
+      )
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent("")
+    );
+  });
 
   function renderPage() {
     return render(

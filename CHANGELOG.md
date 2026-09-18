@@ -27,6 +27,13 @@ All notable changes to **Career Assistant** are documented here.
   address.
 
 ### Added
+- **Profile entity deep links (plan 105 groundwork)** — a shared
+  `lib/entityLinks.ts` map now routes every CV context source to its
+  profile home; the experience and education workspaces accept
+  `?focus=<id>` (education also `?entity=`) to open the linked entry
+  directly in its editor with a one-shot accent highlight, and the
+  intake "landed in your profile" links moved onto the same map
+  (URLs unchanged).
 - **Date position per items block** — templates (and the template
   editor) can now set `date_position` on an items block: `auto`
   (default — beside the title when the line fits, stacked under it in

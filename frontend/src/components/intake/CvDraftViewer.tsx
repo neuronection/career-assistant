@@ -4,19 +4,8 @@ import { EmptyState } from "@neuronection/assistant-ui";
 import { FileSearch, ArrowUpRight } from "lucide-react";
 import { ReportLines } from "./CvStatus";
 import { SuggestionReviewList, sectionViews } from "./SuggestionReviewList";
+import { APPLIED_ENTITY_LINKS } from "@/lib/entityLinks";
 import type { CvAppliedEntity, CvExtractPayload, DraftHistoryRow } from "@/types/cvIntake";
-
-/** Where each entity type landed in the profile — stable section slugs
- * to workspace/hashed-section URLs, shared by provenance surfaces. */
-export const APPLIED_ENTITY_LINKS: Partial<Record<CvAppliedEntity["entity_type"], string>> = {
-  basics: "/profile",
-  skills: "/profile#skills",
-  experience_items: "/profile/experience",
-  education_items: "/profile/education",
-  certifications: "/profile/education",
-  profile_achievements: "/profile/education",
-  user_interest: "/profile#interests",
-};
 
 const APPLIED_ENTITY_LABELS: Partial<Record<CvAppliedEntity["entity_type"], string>> = {
   basics: "basics",

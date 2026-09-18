@@ -27,6 +27,9 @@ export interface ExperienceItemCardProps {
    * content, wrapped in the accent-tint `hitl-highlight` mark). */
   highlight?: string[];
   active?: boolean;
+  /** One-shot deep-link emphasis (plan 105 `?focus=`): accent ring +
+   * `experience-focus-highlight` marker until the caller clears it. */
+  focused?: boolean;
   onOpen?: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
@@ -100,6 +103,7 @@ export function ExperienceItemCard({
   item,
   highlight = [],
   active = false,
+  focused = false,
   onOpen,
   onDuplicate,
   onDelete,
@@ -120,6 +124,13 @@ export function ExperienceItemCard({
       } ${onOpen ? "cursor-pointer" : ""}`}
       data-testid={base}
     >
+      {focused && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-[var(--as-accent)]"
+          data-testid="experience-focus-highlight"
+        />
+      )}
       <button
         type="button"
         onClick={() => onOpen?.()}

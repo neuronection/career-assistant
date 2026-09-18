@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import {
@@ -85,6 +85,12 @@ const ACHIEVEMENT_KIND_ICONS: Record<string, LucideIcon> = {
 
 type Entity = "education" | "certifications" | "achievements";
 
+function entityFromParam(value: string | null): Entity | null {
+  return value === "education" || value === "certifications" || value === "achievements"
+    ? value
+    : null;
+}
+
 type Deleted =
   | { entity: "education"; item: EducationItemOut }
   | { entity: "certifications"; item: CertificationOut }
@@ -115,13 +121,17 @@ function expiryState(expires: string | null): "expired" | "soon" | null {
  * search/status/type filters. */
 export function Education() {
   const { t } = useTranslation();
-  const [entity, setEntity] = useState<Entity>("education");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [entity, setEntity] = useState<Entity>(
+    () => entityFromParam(searchParams.get("entity")) ?? "education"
+  );
   const [items, setItems] = useState<EducationItemOut[]>([]);
   const [certs, setCerts] = useState<CertificationOut[]>([]);
   const [achievements, setAchievements] = useState<AchievementOut[]>([]);
   const [universities, setUniversities] = useState<University[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [isNew, setIsNew] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -169,11 +179,41 @@ export function Education() {
     setCerts(certifications);
     setAchievements(achievements);
     setUniversities(catalog);
+    return { education, certifications, achievements };
   }, []);
 
   useEffect(() => {
-    void load().catch((err) => setError(apiDetail(err)));
+    let cancelled = false;
+    void load()
+      .then((loaded) => {
+        if (cancelled) return;
+        const focusId = searchParams.get("focus");
+        if (!focusId) return;
+        const pool: (EducationItemOut | CertificationOut | AchievementOut)[] =
+          entity === "education"
+            ? loaded.education
+            : entity === "certifications"
+              ? loaded.certifications
+              : loaded.achievements;
+        const item = pool.find((row) => row.id === focusId);
+        if (item) {
+          openItem(entity, item);
+          setFocusedId(item.id);
+        }
+        setSearchParams({}, { replace: true });
+      })
+      .catch((err) => setError(apiDetail(err)));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
+
+  useEffect(() => {
+    if (!focusedId) return;
+    const timer = setTimeout(() => setFocusedId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [focusedId]);
 
   useEffect(() => {
     const uniId = eduForm.university_id;
@@ -240,23 +280,39 @@ export function Education() {
     setActivePane("editor");
   };
 
-  const openEdit = (id: string) => {
-    if (entity === "education") {
-      const item = items.find((i) => i.id === id);
-      if (item) setEduForm(educationFormFromItem(item));
-    } else if (entity === "certifications") {
-      const cert = certs.find((c) => c.id === id);
-      if (cert) setCertForm(certificationFormFromItem(cert));
+  const openItem = (
+    kind: Entity,
+    item: EducationItemOut | CertificationOut | AchievementOut
+  ) => {
+    if (kind === "education") {
+      setEduForm(educationFormFromItem(item as EducationItemOut));
+    } else if (kind === "certifications") {
+      setCertForm(certificationFormFromItem(item as CertificationOut));
     } else {
-      const achievement = achievements.find((a) => a.id === id);
-      if (achievement) setAchForm(achievementFormFromItem(achievement));
+      setAchForm(achievementFormFromItem(item as AchievementOut));
     }
-    setSelectedId(id);
+    setSelectedId(item.id);
     setIsNew(false);
     setEditorOpen(true);
     setDirty(false);
     setShowErrors(false);
     setActivePane("editor");
+  };
+
+  const openEdit = (id: string) => {
+    if (entity === "education") {
+      const item = items.find((i) => i.id === id);
+      if (!item) return;
+      openItem("education", item);
+    } else if (entity === "certifications") {
+      const cert = certs.find((c) => c.id === id);
+      if (!cert) return;
+      openItem("certifications", cert);
+    } else {
+      const achievement = achievements.find((a) => a.id === id);
+      if (!achievement) return;
+      openItem("achievements", achievement);
+    }
   };
 
   const patchForm = (
@@ -885,6 +941,7 @@ export function Education() {
                       .join(" · ")}
                     active={item.id === selectedId && editorOpen}
                     selected={selectedIds.includes(item.id)}
+                    focused={item.id === focusedId}
                     onOpen={() => guard(() => openEdit(item.id))}
                     onToggleSelect={() => toggleSelect(item.id)}
                     onDuplicate={() => void duplicateEntry(item.id)}
@@ -937,6 +994,7 @@ export function Education() {
                         .join(" · ")}
                       active={cert.id === selectedId && editorOpen}
                       selected={selectedIds.includes(cert.id)}
+                      focused={cert.id === focusedId}
                       onOpen={() => guard(() => openEdit(cert.id))}
                       onToggleSelect={() => toggleSelect(cert.id)}
                       onDuplicate={() => void duplicateEntry(cert.id)}
@@ -988,6 +1046,7 @@ export function Education() {
                     .join(" · ")}
                   active={achievement.id === selectedId && editorOpen}
                   selected={selectedIds.includes(achievement.id)}
+                  focused={achievement.id === focusedId}
                   onOpen={() => guard(() => openEdit(achievement.id))}
                   onToggleSelect={() => toggleSelect(achievement.id)}
                   onDuplicate={() => void duplicateEntry(achievement.id)}
@@ -1171,6 +1230,7 @@ function RailCard({
   badges,
   active,
   selected,
+  focused,
   onOpen,
   onToggleSelect,
   onDuplicate,
@@ -1183,6 +1243,7 @@ function RailCard({
   badges: React.ReactNode;
   active: boolean;
   selected: boolean;
+  focused?: boolean;
   onOpen: () => void;
   onToggleSelect: () => void;
   onDuplicate: () => void;
@@ -1200,6 +1261,13 @@ function RailCard({
       }`}
       data-testid={`education-item-${id}`}
     >
+      {focused && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-[var(--as-accent)]"
+          data-testid="education-focus-highlight"
+        />
+      )}
       <button
         type="button"
         onClick={onOpen}
