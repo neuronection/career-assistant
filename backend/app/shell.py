@@ -70,6 +70,10 @@ def _software_render_env(env: MutableMapping[str, str]) -> None:
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     env["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1"
     env["WEBKIT_DISABLE_COMPOSITING_MODE"] = "1"
+    # WebKitGTK's bubblewrap sandbox silently kills the WebProcess in
+    # some packaged-app layouts (page never loads, blank view, zero
+    # requests) — disabled in the fallback chain only.
+    env["WEBKIT_DISABLE_SANDBOX"] = "1"
     # X11 is the most compatible WebKit surface — the Wayland path forces
     # the EGL/DMABUF machinery even with the knobs above.
     env["GDK_BACKEND"] = "x11"
@@ -146,7 +150,7 @@ def _watch_renderer(
     relaunch()
 
 
-def _start_renderer_sentinel(app) -> None:
+def _start_renderer_sentinel(app, marker: Optional[Path] = None) -> None:
     gpu_forced = os.environ.get("CA_WEBKIT_GPU") == "1"
     render_mode = (
         "forced-gpu"
@@ -157,7 +161,15 @@ def _start_renderer_sentinel(app) -> None:
             else "gpu"
         )
     )
-    logger.info("webkit_render_mode", mode=render_mode)
+    logger.warning(
+        "webkit render mode: %s (soft_fallback=%s persisted=%s mesa_json=%s "
+        "session=%s)",
+        render_mode,
+        os.environ.get("CA_WEBKIT_SOFT_FALLBACK", "0"),
+        bool(marker is not None and marker.exists()),
+        _MESA_EGL_JSON.exists(),
+        os.environ.get("XDG_SESSION_TYPE", "?"),
+    )
     if sys.platform == "linux" and not gpu_forced:
         threading.Thread(
             target=_watch_renderer,
@@ -434,7 +446,7 @@ def run(tray_only: bool = False) -> None:
     )
     thread = threading.Thread(target=server.run, name="uvicorn", daemon=True)
     thread.start()
-    _start_renderer_sentinel(app)
+    _start_renderer_sentinel(app, marker=data_dir / "webkit_soft_fallback")
 
     from app.core.database import AsyncSessionLocal
 
