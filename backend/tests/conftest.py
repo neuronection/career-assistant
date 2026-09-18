@@ -143,6 +143,29 @@ async def warm_vapid_keys():
     yield
 
 
+@pytest.fixture(scope="session", autouse=True)
+async def warm_checkpointer():
+    """Boot-equivalent checkpointer warm-up (lifespan does this in prod).
+
+    The test HTTP client bypasses the app lifespan, so the first chat
+    turn would otherwise run the saver's initial migration lazily
+    mid-flight — LangGraph's `setup()` issues CREATE INDEX CONCURRENTLY,
+    which waits on every open transaction snapshot, and the session-wide
+    outer transaction IS one: on a fresh CI database the first chat test
+    deadlocked past the 120 s timeout (local databases already carry the
+    langgraph tables, masking it). Create them up front, on their own
+    connection, outside any test transaction — same rule as prod boot.
+    """
+    from app.ai.checkpointer import aclose_checkpointer, get_checkpointer
+
+    try:
+        await get_checkpointer()
+    except Exception:  # noqa: BLE001 — flows degrade without a checkpointer
+        pass
+    yield
+    await aclose_checkpointer()
+
+
 @pytest.fixture(autouse=True)
 async def clean_db() -> AsyncGenerator:
     """Wrap the whole test in one transaction and roll it back.

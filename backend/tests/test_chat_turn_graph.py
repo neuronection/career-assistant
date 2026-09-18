@@ -519,6 +519,15 @@ async def test_checkpointer_picks_sqlite_for_desktop(monkeypatch, tmp_path):
 async def test_postgres_prune_removes_stale_threads(db):
     """The server retention beat: stale checkpoint threads (and their
     orphaned blobs/writes) drop; fresh threads survive."""
+    import pytest as _pytest
+
+    from app.core.config import settings
+
+    if not settings.DATABASE_URL.startswith("postgresql"):
+        _pytest.skip(
+            "Postgres retention beat — the langgraph tables are "
+            "created by the server's saver setup, not migrations"
+        )
     from sqlalchemy import text
 
     from app.ai.checkpointer import prune_postgres_checkpoints

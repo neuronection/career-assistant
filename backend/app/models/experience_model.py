@@ -111,7 +111,13 @@ class ExperienceItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     skills: Mapped[list["ExperienceSkill"]] = relationship(
-        back_populates="experience", cascade="all, delete-orphan"
+        back_populates="experience",
+        cascade="all, delete-orphan",
+        # Deterministic collection order on every dialect: CI SQLite
+        # returns arbitrary row order without it (plan-102 anchored
+        # collection_edits append in op order — the workspace + CV
+        # renderers trust this ordering).
+        order_by="ExperienceSkill.created_at",
     )
     achievements: Mapped[list["ExperienceAchievement"]] = relationship(
         back_populates="experience", cascade="all, delete-orphan"
