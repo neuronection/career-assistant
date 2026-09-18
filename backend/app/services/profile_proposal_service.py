@@ -49,6 +49,7 @@ from app.schemas.profile_entities import (
 )
 from app.schemas.profile_proposal import (
     CollectionEdit,
+    CvSetBulletsOpPayload,
     CvSynthOpPayload,
     ProfileSectionPatchIn,
     TextEdit,
@@ -191,6 +192,57 @@ async def resolve_cv_synth_payload(
     }
 
 
+async def resolve_cv_set_bullets(
+    db: AsyncSession, user_id: uuid.UUID, payload: dict
+) -> dict:
+    """Plan 107: ground a cv_set_bullets op in server truth.
+
+    Loads the owned CV, resolves the target row through the context
+    engine (the same rows the renderer draws) and captures the CURRENT
+    bullet list — the override when one exists, the profile-snapshot
+    list otherwise — so the card renders an informed before/after and
+    revert can restore exactly what was there.
+    """
+    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv_service import CvService
+
+    cv = await CvService(db).get_owned(payload["cv_id"], user_id)
+    source_key = payload["source_key"]
+    item_id = payload["item_id"]
+    resolution = await CvBuilderService(db).resolution(cv)
+    rows = resolution.snapshot.get(source_key)
+    row: dict | None = None
+    if isinstance(rows, list):
+        for candidate in rows:
+            if isinstance(candidate, dict) and str(candidate.get("id")) == str(item_id):
+                row = candidate
+                break
+    if row is None:
+        raise ValidationError(
+            "Target item is not on this CV's context — include it first"
+        )
+    overrides = (cv.working_content or {}).get("overrides") or {}
+    patch = overrides.get(f"{source_key}:{item_id}") or {}
+    prior = patch.get("achievements")
+    prior_entries = (
+        [{"text": str(entry.get("text") or "")} for entry in prior]
+        if isinstance(prior, list) and all(isinstance(e, dict) for e in prior)
+        else None
+    )
+    base = [
+        {"text": str(entry.get("text") or "")}
+        for entry in row.get("achievements") or []
+        if isinstance(entry, dict)
+    ]
+    return {
+        "cv_title": cv.title,
+        "item_label": str(row.get("title") or row.get("program") or item_id),
+        "before": prior_entries if prior_entries is not None else base,
+        "prior": prior_entries,
+        "cv_updated_at": cv.updated_at,
+    }
+
+
 def cv_synth_narration_refs(op: dict, resolved: dict | None) -> list[str]:
     """Prepared_ops rows for a cv_synth op (plan 101 AD5): resolved ref
     labels ("Sample Internship (projects)"), never raw ids."""
@@ -322,6 +374,13 @@ KIND_SPECS: dict[str, KindSpec] = {
     ),
     ProposalKind.CV_SYNTH.value: KindSpec(
         label="CV variants",
+        model=None,
+        create_model=None,
+        update_model=None,
+        fields=(),
+    ),
+    ProposalKind.CV_SET_BULLETS.value: KindSpec(
+        label="CV bullets",
         model=None,
         create_model=None,
         update_model=None,
@@ -1014,6 +1073,8 @@ async def resolve_ops(
                 _SECTION_MODELS[patch.section].model_validate(patch.value)
             elif kind == ProposalKind.CV_SYNTH.value:
                 CvSynthOpPayload.model_validate(payload)
+            elif kind == ProposalKind.CV_SET_BULLETS.value:
+                CvSetBulletsOpPayload.model_validate(payload)
             elif action == ProposalAction.CREATE.value:
                 assert spec.create_model is not None
                 spec.create_model.model_validate(payload)
@@ -1089,6 +1150,11 @@ class ProfileProposalService:
                 raise ValidationError("CV variant ops support create only")
             if entity_id is not None:
                 raise ValidationError("cv_synth ops carry no entity_id")
+        elif kind == ProposalKind.CV_SET_BULLETS.value:
+            if action != ProposalAction.UPDATE.value:
+                raise ValidationError("CV bullet ops support update only")
+            if entity_id is not None:
+                raise ValidationError("cv_set_bullets ops carry no entity_id")
         elif action == ProposalAction.CREATE.value:
             if entity_id is not None:
                 raise ValidationError("create ops carry no entity_id")
@@ -1131,6 +1197,26 @@ class ProfileProposalService:
             )
             label = self._cv_synth_label(stored_payload)
             diff = self._cv_synth_diff(stored_payload)
+        elif kind == ProposalKind.CV_SET_BULLETS.value:
+            op_payload = CvSetBulletsOpPayload.model_validate(payload)
+            stored_payload = op_payload.model_dump(mode="json")
+            # Plan 107: ground in server truth ONCE at card creation —
+            # the card shows the CURRENT bullets (override ?? snapshot)
+            # against the proposal, and revert restores `prior`.
+            resolved = await resolve_cv_set_bullets(self.db, user_id, stored_payload)
+            base_updated_at = resolved["cv_updated_at"]
+            entity_id = op_payload.cv_id
+            stored_payload.update(
+                {
+                    "cv_title": resolved["cv_title"],
+                    "item_label": resolved["item_label"],
+                    "before": resolved["before"],
+                    "prior": resolved["prior"],
+                    "cv_updated_at": resolved["cv_updated_at"].isoformat(),
+                }
+            )
+            label = self._cv_bullets_label(stored_payload)
+            diff = self._cv_bullets_diff(stored_payload)
         elif action == ProposalAction.CREATE.value:
             model = spec.create_model
             assert model is not None
@@ -1305,6 +1391,18 @@ class ProfileProposalService:
                     "posting_title": payload.get("resolved_posting_title") or "",
                 },
             }
+        if proposal.kind == ProposalKind.CV_SET_BULLETS.value:
+            before = payload.get("before") or []
+            bullets = payload.get("bullets") or []
+            return {
+                "before": [{"text": str(b)} for b in before],
+                "after": [{"text": str(b)} for b in bullets],
+                "edits": {
+                    "kind": ProposalKind.CV_SET_BULLETS.value,
+                    "cv_title": payload.get("cv_title") or "",
+                    "item_label": payload.get("item_label") or "",
+                },
+            }
         if proposal.kind not in GROUNDED_KINDS:
             raise NotFoundError("No preview for this proposal")
         if proposal.action == ProposalAction.CREATE.value:
@@ -1445,7 +1543,9 @@ class ProfileProposalService:
             raise ValidationError(
                 f"Only approved proposals can be reverted ({proposal.status})"
             )
-        if proposal.kind not in GROUNDED_KINDS:
+        if proposal.kind not in GROUNDED_KINDS and proposal.kind not in (
+            ProposalKind.CV_SET_BULLETS.value,
+        ):
             raise ValidationError(f"Revert is not available for {proposal.kind}")
         payload = dict(proposal.payload_json or {})
         if proposal.action == ProposalAction.CREATE.value:
@@ -1465,7 +1565,18 @@ class ProfileProposalService:
             if _ts(updated_at) > _ts(proposal.resolved_at + _REVERT_TOLERANCE):
                 raise ConflictError("Changed since it was applied — edit state moved")
 
-        if proposal.action == ProposalAction.UPDATE.value:
+        if proposal.kind == ProposalKind.CV_SET_BULLETS.value:
+            restore = dict(payload)
+            restore["bullets"] = list(payload.get("prior") or [])
+            restore["restore"] = True
+            await self._apply(
+                proposal.kind,
+                ProposalAction.UPDATE.value,
+                proposal.entity_id,
+                restore,
+                user_id,
+            )
+        elif proposal.action == ProposalAction.UPDATE.value:
             base_snapshot = payload.get("base_snapshot")
             if not base_snapshot:
                 raise NotFoundError("No snapshot — created before revert existed")
@@ -1614,6 +1725,8 @@ class ProfileProposalService:
                     proposal.diff_json = self._section_diff(
                         entity, payload.get("section"), payload.get("value") or {}
                     )
+                elif kind == ProposalKind.CV_SET_BULLETS.value:
+                    proposal.diff_json = self._cv_bullets_conflict_diff(entity, payload)
                 else:
                     spec = KIND_SPECS[kind]
                     proposal.diff_json = self._update_diff(
@@ -1702,6 +1815,8 @@ class ProfileProposalService:
         entity: Any = None
         if kind == ProposalKind.CV_SYNTH.value:
             return await self._apply_cv_synth(user_id, payload)
+        if kind == ProposalKind.CV_SET_BULLETS.value:
+            return await self._apply_cv_set_bullets(payload, user_id)
         if kind == ProposalKind.EXPERIENCE_ITEM.value:
             service = ExperienceService(self.db)
             if action == ProposalAction.CREATE.value:
@@ -1800,6 +1915,82 @@ class ProfileProposalService:
 
     # ---------------------------------------------------------- loaders
 
+    async def _apply_cv_set_bullets(self, payload: dict, user_id: uuid.UUID) -> dict:
+        """Write the approved bullet list as a per-CV override patch
+        (plan 107). Restore mode (revert) reinstates `prior` when one
+        existed or drops the override key when the CV had none."""
+        from app.services.cv_service import CvService
+
+        cv = await CvService(self.db).get_owned(
+            uuid.UUID(str(payload["cv_id"])), user_id
+        )
+        key = f"{payload['source_key']}:{payload['item_id']}"
+        working = dict(cv.working_content or {})
+        overrides = dict(working.get("overrides") or {})
+        patch = dict(overrides.get(key) or {})
+        if payload.get("restore"):
+            if payload.get("prior"):
+                patch["achievements"] = [
+                    {"text": str(entry.get("text") or "")} for entry in payload["prior"]
+                ]
+                overrides[key] = patch
+            else:
+                patch.pop("achievements", None)
+                if patch:
+                    overrides[key] = patch
+                else:
+                    overrides.pop(key, None)
+        else:
+            patch["achievements"] = [
+                {"text": str(bullet)} for bullet in payload.get("bullets") or []
+            ]
+            overrides[key] = patch
+        cv.working_content = {**working, "overrides": overrides}
+        await self.db.flush()
+        return {"kind": ProposalKind.CV_SET_BULLETS.value, "id": str(cv.id)}
+
+    def _cv_bullets_conflict_diff(self, cv: Any, payload: dict) -> list[dict]:
+        """Fresh before-side when the CV moved since the card was
+        proposed — the resolver's stored `before` is stale."""
+        key = f"{payload.get('source_key')}:{payload.get('item_id')}"
+        overrides = (cv.working_content or {}).get("overrides") or {}
+        entries = (overrides.get(key) or {}).get("achievements")
+        before = [
+            str(entry.get("text") or "")
+            for entry in entries or []
+            if isinstance(entry, dict)
+        ]
+        after = [str(b) for b in payload.get("bullets") or []]
+        rows = [
+            {"field": "removed_bullet", "from": b, "to": None}
+            for b in before
+            if b not in after
+        ]
+        rows.extend(
+            {"field": "added_bullet", "from": None, "to": b}
+            for b in after
+            if b not in before
+        )
+        return rows
+
+    def _cv_bullets_label(self, payload: dict) -> str:
+        return (
+            f"Bullets of {payload.get('item_label') or 'item'}"
+            f" on {payload.get('cv_title') or 'CV'}"
+        )
+
+    def _cv_bullets_diff(self, payload: dict) -> list[dict]:
+        before = [
+            str(b.get("text") or "") if isinstance(b, dict) else str(b)
+            for b in payload.get("before") or []
+        ]
+        after = [str(b) for b in payload.get("bullets") or []]
+        removed = [b for b in before if b not in after]
+        added = [b for b in after if b not in before]
+        rows = [{"field": "removed_bullet", "from": b, "to": None} for b in removed]
+        rows.extend({"field": "added_bullet", "from": None, "to": b} for b in added)
+        return rows
+
     async def _load_entity(
         self,
         kind: str,
@@ -1814,6 +2005,12 @@ class ProfileProposalService:
         if kind == ProposalKind.PROFILE_SECTION.value:
             profile = await self._load_profile(user_id)
             return profile, profile.updated_at
+        if kind == ProposalKind.CV_SET_BULLETS.value:
+            from app.services.cv_service import CvService
+
+            assert entity_id is not None
+            cv = await CvService(self.db).get_owned(entity_id, user_id)
+            return cv, cv.updated_at
         model = KIND_SPECS[kind].model
         assert model is not None
         query = select(model).where(model.id == entity_id, model.user_id == user_id)

@@ -634,6 +634,22 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
                     deps.db, deps.user.id, (op.get("payload") or {})
                 )
                 row["refs"] = cv_synth_narration_refs(op, resolved)
+            elif op.get("kind") == "cv_set_bullets":
+                from app.core.errors import DomainError
+                from app.services.profile_proposal_service import (
+                    resolve_cv_set_bullets,
+                )
+
+                try:
+                    resolved = await resolve_cv_set_bullets(
+                        deps.db, deps.user.id, (op.get("payload") or {})
+                    )
+                    row["label"] = (
+                        f"bullets of {resolved['item_label']} on {resolved['cv_title']}"
+                    )
+                    row["count"] = len((op.get("payload") or {}).get("bullets") or [])
+                except DomainError:
+                    row["label"] = "CV bullets rewrite"
             prepared.append(row)
         ctx["prepared_ops"] = prepared
         prompt = context_json(ctx)

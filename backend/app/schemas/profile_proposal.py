@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.cv import CvContextRef
 
@@ -25,6 +25,7 @@ ProposalKindLiteral = Literal[
     "user_skill",
     "profile_section",
     "cv_synth",
+    "cv_set_bullets",
 ]
 
 PROFILE_SECTIONS: tuple[str, ...] = (
@@ -128,6 +129,34 @@ class CvSynthOpPayload(BaseModel):
     tone: Optional[str] = Field(default=None, max_length=60)
     length: Optional[str] = Field(default=None, max_length=20)
     variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
+
+
+class CvSetBulletsOpPayload(BaseModel):
+    """Chat-proposed bullet-list rewrite on ONE attached CV (plan 107).
+
+    `bullets` full-replace the item's resolved list as a
+    `working_content.overrides` patch — the plan-106 canonical
+    `{"text"}` entries. Length-clamped only, NOT rich-gated: the
+    grounding convention keeps explicit `<your number>` placeholders the
+    tag filter would strip (the renderer is the injection boundary).
+    """
+
+    model_config = {"extra": "forbid"}
+
+    cv_id: UUID
+    source_key: Literal["experience", "projects", "volunteer"]
+    item_id: str = Field(min_length=1, max_length=64)
+    bullets: list[str] = Field(min_length=0, max_length=12)
+
+    @field_validator("bullets")
+    @classmethod
+    def _clamp_bullets(cls, bullets: list[str]) -> list[str]:
+        cleaned = []
+        for bullet in bullets:
+            text = bullet.strip()[:500]
+            if text:
+                cleaned.append(text)
+        return cleaned
 
 
 class ProfileProposalOut(BaseModel):

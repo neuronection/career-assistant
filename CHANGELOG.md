@@ -5,6 +5,13 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Chat can rewrite a CV's bullets (plan 107, slice 1 groundwork)** —
+  a new `cv_set_bullets` proposal kind: grounded against the CV's
+  resolved snapshot (the card shows the item's current bullets vs the
+  proposal), approval writes the per-CV override exactly like the
+  Studio's bullets editor, revert restores the prior list, and the
+  open Studio refreshes through the plan-104 channel. Chat-surface
+  wiring (cards, prompts, builder tool) lands in the next slices.
 - **Generate-fill in the bullets editor (plan 106, slice 5)** — an
   AI chip in the editor drafts metric-honest bullets from the item's
   own evidence (the plan-103 dirty-guard applies: unsaved edits ask

@@ -33,7 +33,8 @@ _STATUS_ALLOWED = (
 _ACTION_ALLOWED = "action IN ('create', 'update', 'delete')"
 _KIND_ALLOWED = (
     "kind IN ('experience_item', 'education_item', 'certification', "
-    "'profile_achievement', 'user_skill', 'profile_section', 'cv_synth')"
+    "'profile_achievement', 'user_skill', 'profile_section', 'cv_synth', "
+    "'cv_set_bullets')"
 )
 _SOURCE_ALLOWED = "source IN ('chat')"
 

@@ -3628,6 +3628,14 @@
       "CvProposal": {
         "description": "One draft proposal (never auto-applied).",
         "properties": {
+          "bullets": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Bullets",
+            "type": "array"
+          },
           "evidence_refs": {
             "items": {
               "$ref": "#/components/schemas/CvEvidenceRef"
@@ -10581,7 +10589,8 @@
               "profile_achievement",
               "user_skill",
               "profile_section",
-              "cv_synth"
+              "cv_synth",
+              "cv_set_bullets"
             ],
             "title": "Kind",
             "type": "string"
