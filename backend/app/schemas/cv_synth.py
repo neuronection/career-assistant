@@ -82,6 +82,12 @@ class CvSynthItemGenerate(BaseModel):
     target_language: Optional[str] = Field(default=None, min_length=2, max_length=10)
     tone: Optional[str] = None
     length: Optional[str] = None
+    instruction: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Free-text steering for the AI (plan 103); never "
+        "overrides the grounding contract.",
+    )
     variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
     translate_of: Optional[uuid.UUID] = None
     regenerate_of: Optional[uuid.UUID] = None

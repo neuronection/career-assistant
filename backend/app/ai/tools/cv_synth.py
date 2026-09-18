@@ -57,6 +57,20 @@ class CvSynthGenerateInput(BaseModel):
     language: str = "en"
     tone: Optional[str] = None
     length: Optional[str] = None
+    instruction: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Optional free-text steering, e.g. 'emphasize teamwork'; "
+        "grounding rules always win.",
+    )
+    activate: bool = Field(
+        default=True,
+        description=(
+            "Plan 102: the user's request in chat is the approval — "
+            "created variants go live immediately. Pass false only to "
+            "leave them as drafts."
+        ),
+    )
 
 
 class CvSynthUpdateInput(BaseModel):
@@ -201,11 +215,20 @@ async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
         target_language=args.target_language,
         tone=args.tone,
         length=args.length,
+        instruction=args.instruction,
         variant_key=args.variant_key,
         translate_of=UUID(args.translate_of) if args.translate_of else None,
         regenerate_of=(UUID(args.regenerate_of) if args.regenerate_of else None),
     )
-    rows = await CvSynthService(db).generate(ctx.user_id, request)
+    service = CvSynthService(db)
+    rows = await service.generate(ctx.user_id, request)
+    if args.activate and rows:
+        from app.schemas.cv_synth import CvSynthItemUpdate
+
+        for row in rows:
+            await service.update(
+                row.id, ctx.user_id, CvSynthItemUpdate(status="active")
+            )
     return {
         "created": [
             {
@@ -216,7 +239,11 @@ async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
             }
             for row in rows
         ],
-        "note": "Draft-then-approve: activate in the library to use them.",
+        "note": (
+            "Created and activated — already live on the CV."
+            if args.activate
+            else "Draft-then-approve: activate in the library to use them."
+        ),
     }
 
 
@@ -280,8 +307,10 @@ CV_SYNTH_TOOLS: list[AITool] = [
     _tool(
         "cv_synth_generate",
         "Generate synthesized variants",
-        "Draft AI variants over the given CV's context refs (summarize / "
-        "detail / restyle / posting_fit / translate). Draft-then-approve.",
+        "Generate AI variants over the given CV's context refs (summarize / "
+        "detail / restyle / posting_fit / translate). The user's request "
+        "is the approval — variants go live immediately (pass "
+        "activate=false to keep drafts).",
         CvSynthGenerateInput,
         _generate_synths,
         ToolScope.WRITE,

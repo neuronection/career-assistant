@@ -172,13 +172,28 @@ async def test_generate_and_update_via_tools(client, db, auth_headers):
         },
     )
     assert generated["created"], "the mock provider drafted a variant"
-    draft = generated["created"][0]
-    assert draft["status"] == "draft"
+    live = generated["created"][0]
+    assert live["status"] == "active", "plan 102: chat request = activation"
+    assert "live" in generated["note"]
+
+    drafted = await run_tool(
+        db,
+        "cv_synth_generate",
+        uuid.UUID(_uid(auth_headers)),
+        {
+            "cv_id": str(cv["id"]),
+            "refs": _refs(item),
+            "action": "summarize",
+            "activate": False,
+        },
+    )
+    assert drafted["created"][0]["status"] == "draft"
+    assert "library" in drafted["note"]
 
     updated = await run_tool(
         db,
         "cv_synth_update",
         uuid.UUID(_uid(auth_headers)),
-        {"item_id": draft["id"], "status": "active"},
+        {"item_id": drafted["created"][0]["id"], "status": "active"},
     )
     assert updated["status"] == "active"

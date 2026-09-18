@@ -106,6 +106,7 @@ def build_user_prompt(
     variant_texts: Optional[dict[str, str]] = None,
     tone: Optional[str] = None,
     length: Optional[str] = None,
+    instruction: Optional[str] = None,
 ) -> str:
     """The allowlist + brief (the deterministic mock reads the same)."""
     assert action in ACTIONS, action
@@ -117,6 +118,8 @@ def build_user_prompt(
         lines.append(f"TONE: {tone}")
     if length:
         lines.append(f"LENGTH: {length}")
+    if instruction:
+        lines.append(f"USER INSTRUCTION: {instruction}")
     if posting:
         lines.append(
             f"POSTING: {posting.get('title') or ''} — must-have skills: "
@@ -146,13 +149,27 @@ def compose_system(
     *,
     tone: Optional[str] = None,
     length: Optional[str] = None,
+    instruction: Optional[str] = None,
 ) -> str:
     """System prompt = base + action guide + the requested voice."""
+
     parts = [SYSTEM, ACTION_GUIDES[action]]
     if tone:
-        parts.append(TONES[tone])
+        parts.append(
+            TONES.get(tone)
+            or f"Register: honor the requested tone ({tone}) while staying factual."
+        )
     if length:
-        parts.append(LENGTHS[length])
+        parts.append(
+            LENGTHS.get(length)
+            or f"Length: honor the requested length ({length}) briefly."
+        )
+    if instruction:
+        parts.append(
+            "USER INSTRUCTION: honor the user's request written into the "
+            "user prompt, but the grounding contract is absolute — cite "
+            "only the allowlisted evidence refs, no new facts."
+        )
     return "\n".join(part for part in parts if part)
 
 
@@ -169,6 +186,7 @@ async def synthesize(
     variant_texts: Optional[dict[str, str]] = None,
     tone: Optional[str] = None,
     length: Optional[str] = None,
+    instruction: Optional[str] = None,
     run: Optional[RunRef] = None,
 ) -> CvSynthBatch:
     """One audited CV_SYNTH call for the given action."""
@@ -184,12 +202,15 @@ async def synthesize(
         variant_texts=variant_texts,
         tone=tone,
         length=length,
+        instruction=instruction,
     )
     result = await ainvoke_structured(
         db,
         AITaskType.CV_SYNTH,
         CvSynthBatch,
-        system=compose_system(action, tone=tone, length=length),
+        system=compose_system(
+            action, tone=tone, length=length, instruction=instruction
+        ),
         user=user,
         user_id=user_id,
         run=run,

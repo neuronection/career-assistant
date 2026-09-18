@@ -141,6 +141,33 @@ def test_mock_synth_covers_every_action():
     )
 
 
+def test_instruction_reaches_prompt_and_grounding_closes():
+    """Plan 103: the custom instruction rides the user prompt; the grounding
+    contract is restated so free-text steering never lifts the allowlist."""
+    from app.ai.agents.cv_synthetizer import compose_system
+
+    evidence = [
+        {
+            "source_key": "experience",
+            "item_id": "abc",
+            "label": "AI Engineer",
+            "detail": "Company",
+            "payload": {"description": "Built AI tooling.", "skills": ["a"]},
+        }
+    ]
+    prompt = build_user_prompt(
+        "summarize",
+        evidence,
+        [dict(evidence[0])],
+        instruction="Emphasize teamwork and impact",
+    )
+    assert "USER INSTRUCTION: Emphasize teamwork and impact" in prompt
+    system = compose_system("summarize", instruction="Emphasize teamwork and impact")
+    assert "grounding contract is absolute" in system
+    batch = CvSynthBatch.model_validate(_mock_synth(CvSynthBatch, prompt))
+    assert batch.items, "the mock still drafts with the instruction present"
+
+
 # ------------------------------------------------------------------ sync generate
 
 
