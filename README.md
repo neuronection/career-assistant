@@ -63,99 +63,44 @@ A self-hosted web app that helps anyone navigate career decisions — students c
 
 Under the hood it's a **structured knowledge platform**: a job catalog organized as a family tree plus a typed relation graph, deep structured student profiles, and university admissions data — all referenced by stable keys, never loose labels. AI generates jobs, suggests relations, and scores matches, but every output is validated into typed structures and audited.
 
-More than a CV builder — but the **CV Studio** is its most mature surface today: an agentic CV workspace that generates CVs from templates, from an uploaded existing CV, or on demand from your structured profile, with deep template and design customization and an AI copilot that operates the builder for you (details below).
+More than a CV builder — but the **CV Studio** is its most mature surface today: an agentic CV workspace that generates CVs from templates, from an uploaded existing CV, or on demand from your structured profile, with deep template and design customization and an AI copilot that operates the builder for you (details in the [feature catalog](docs/features.md#cv-studio)).
 
 It is **beta** software, built for anyone exploring career paths and for technical self-hosters.
 
 ## What's different
 
-- **Structure over plain text.** Everything AI produces is pydantic-validated into typed JSONB shapes (`{tag_key, weight}`, `{title, detail, weight}`) and mapped onto a controlled taxonomy. Free text is allowed only as supporting `detail` — the data stays parseable and knowledge-extractable.
+- **Structure over plain text.** Everything AI produces is pydantic-validated into typed JSONB shapes and mapped onto a controlled taxonomy. Free text is allowed only as supporting `detail` — the data stays parseable and knowledge-extractable.
 - **A graph, not a list.** Jobs relate through typed edges (`similar_to`, `specialises_into`, `leads_to`, `alternative_to`, `prerequisite_of`), so "what's adjacent to this?" and "what does this lead to?" are traversals, not guesswork.
 - **The AI assists — it never silently decides.** Generated jobs land in a review pipeline, PDF admissions data is parsed into a reviewable draft before it touches the catalog, and every match score comes with a rationale you can read, agree or disagree with, and override with your own score.
-- **Human + AI scoring.** AI scores 0–10 with positives, negatives and prerequisite checks; you score 0–10 and tag your interest status. Rankings combine both and are heavily filterable.
-- **Bring your own LLM.** Any OpenAI-compatible provider works: OpenAI, OpenRouter, a local model via Ollama or LM Studio. Configured per instance, entirely through the UI.
+- **Human + AI scoring.** AI scores 0–10 with positives, negatives and prerequisite checks; you score 0–10 and tag your interest status. Rankings combine both. A deterministic fit engine (inspectable, re-weightable, per-dimension) also runs without any AI at all.
+- **Bring your own LLM.** Any OpenAI-compatible provider works: OpenAI, OpenRouter, a local model via Ollama or LM Studio. Configured per instance, entirely through the UI — no AI environment variables.
 
 ## Features
 
-### Explore a living job catalog
+The short tour; the exhaustive one — including Autopilot, deep posting extraction, growth toolkit, variant library, MCP and more — lives in the [feature catalog](docs/features.md).
 
-- **Family tree + relation graph** — browse job families as a tree, then follow typed relations in an interactive graph. Careers are positioned, not just listed.
-- **Rich structured attributes per job** — interests, skills, work style, education, physical demands, salary bands, demand outlook, environments, typical positives and negatives.
-- **AI-generated jobs** — extend the catalog with new careers; the generator maps output onto the existing taxonomy so nothing becomes an orphan of free text.
-- **Search and filter** across the whole catalog.
-
-### Build a deep, structured profile
-
-- **Onboarding wizard** walks you through interests, skills, work-style preferences, education and constraints.
-- **Start paths** — pick why you're here (explore careers, target a known job, start from your CV, or just browse) and answer only what your path needs.
-- **Start from your CV** — upload an existing CV (PDF, text or photo); the intake pipeline reads it and you review what gets imported into your profile, from any point via **Profile → Import from CV**.
-- **Everything is typed** — profile sections are structured JSONB validated against the taxonomy, so matching is computed, not vibes.
-- **AI profile analysis** — get an external read on your profile and what it implies.
-
-### Get matched, with reasons
-
-- **Per-job match insights** — an AI score (0–10) with structured rationale: what fits (positives), what doesn't (negatives), and which prerequisites you're missing.
-- **Your voice counts** — add your own score and interest status per job; AI and human scores coexist.
-- **Filterable rankings** — combine AI score, your score and status, then slice by filters to get a shortlist you trust. Pick 2–4 jobs into the compare tray to see them side by side: per-dimension fit, gates, education, demand and salary (`/compare`), or ask the chatbot to compare them for you.
-
-### Find the university pathway
-
-- **Upload your university admission PDF** — an AI parsing pipeline extracts universities, departments and yearly admission baselines into a reviewable draft.
-- **You approve every write** — review, edit, then apply. Parsed data never lands in the catalog unreviewed.
-- **Job ↔ department pathways** — departments link to jobs through rich link rows (relevance, required subjects, salary band, employment rate), so "which degree leads here?" has a real answer.
-
-### An AI assistant that helps — carefully
-
-- **Chat grounded in the catalog** — the chatbot can search jobs, pull job details and look up your matches through tool-calling over your own data. When you ask for profile changes, it must open the item's full content before editing it (a server-enforced read-before-edit gate), proposes reviews as **proposal cards** with anchored, granular edits (unique-anchor replacements, additive appends, per-item skill/achievement add/remove — never full-blob rewrites), a rendered **before/after preview** with the changed span highlighted, and **one-click revert** after you approve; every change stays a signed review card, never an auto-apply.
-- **Contextual "Ask AI" buttons** — quick-assist endpoints power one-click explanations wherever they're useful in the UI.
-- **Bring your own LLM** — any OpenAI-compatible endpoint. Providers, models and per-task assignments (matching, generation, parsing, chat…) are managed in **Settings → AI Configuration** — stored in the database, encrypted at rest, with no AI environment variables at all.
-- **Dev-only mock provider** — opt-in via `MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`): the deterministic mock makes everything work offline; without it dev AI endpoints answer 503 until a provider is configured, and production refuses to serve mock results (503, audited) regardless.
-
-### CV Studio — CVs built three ways, and an agent that drives it
-
-Career Assistant is not just a CV builder, but this is its most mature feature: a complete CV workspace where every AI action is grounded in your structured profile.
-
-- **Three ways to a CV** — build from **templates**: a versioned template bank rendered by one deterministic engine; start from an **existing CV**: upload yours (original preserved byte-for-byte, OCR text layer) and the AI intake pipeline turns it into a review-first draft you confirm item by item; or go **on-demand AI**: one-shot generation from your profile — pick context sources and preferences in a modal, a LangGraph draft flow plans and writes the whole CV with per-section fallbacks, it lands in the builder with an automatic restorable version, and an agentic **polish loop** critiques the rendered pages (vision + ATS lint + a coverage matrix) and applies fixes through the same audited path.
-- **Deep UI/template customization** — full design-token editor (colors, typography with embedded fonts, spacing per area, page margins, two-column newspaper flow, section heading icons, photo shapes, skill bars, grouped skill categories, page-2+ running headers/footers), a gallery that previews templates **with your own data** and a two-template compare view, live page-break rules in the canvas, and a printed-page visual review. Blocks are a registered kind system — everything is a validated template version, import/export file-first.
-- **Every line traces to your profile** — a per-CV context selection controls which profile items can render; the renderer snapshot carries per-item traceability, and AI writing (summaries, bullet rewrites, tailor-to-posting with must-have coverage, translate-assist) only sees what you included. Precedence: override > variant > source.
-- **Variant library** (`/cv/synth`) — AI-written or manual item variants (summarized, expanded, restyled, aimed at a posting, translated, steered by a custom instruction) that any CV can prefer over verbatim profile text; staleness is detected when the source changes, you star to activate, and a dedicated variant editor drafts fill-in-form with slot comparison against what's on the CV now.
-- **Cover letters per posting** — a deterministic brief (must-haves, fit, your goal), audited AI drafts that cite your evidence per paragraph with unbacked claims flagged, letters rendered through the same template engine with your CV's design tokens.
-- **An assistant that operates the builder** — the main chat takes CVs as per-message reference attachments and hands off to the builder copilot on build intent: it applies templates, restyles tokens, edits sections and rewrites items as validated operations on one audited path shared with UI buttons, **sees** the rendered output (template previews and page screenshots attached to its context, with a self-review critique round), and compiles an automatic restorable snapshot per turn. Progress traces that AI runs have notes/timelines you can read.
-- **Honesty tools everywhere** — live ATS lint with a one-click score report, page-count meter with over-budget warnings, versions with diff/image-diff/restore, and exports to PDF/DOCX/Markdown/JSON/ATS text (plus JSON/ATS-text for parsers).
-
-### Private and auditable
-
-- **Self-hosted** — your database, your documents, your keys. Nothing phones home.
-- **Encrypted AI keys** — provider API keys are Fernet-encrypted at rest and masked in every response.
-- **Full AI audit trail** — every AI call (task, model, tokens, output, latency) is recorded in `ai_generations`.
-- **Fail-safe production mode** — `APP_ENV=production` is the default; boot guards refuse a weak `JWT_SECRET` or `DEBUG=true`.
+- **Explore a living job catalog** — browse job families as a tree, follow typed relations in an interactive graph, and enrich the catalog with AI-generated jobs that map onto the existing taxonomy. Search and filter across everything.
+- **Build a deep, structured profile** — an onboarding wizard with start paths (answer only what applies), CV intake with review-first import, and an AI analysis of your profile. Everything is typed, so matching is computed, not vibes.
+- **Get matched, with reasons** — AI scores with structured rationale (positives, negatives, missing prerequisites), your own score and interest status alongside, filterable rankings, and a side-by-side compare tray (`/compare`).
+- **Find the university pathway** — upload your university's admission PDF, get a reviewable draft of universities, departments and yearly baselines, and approve every write before it lands. Degrees link to jobs through rich link rows.
+- **Search live postings** — connector engines for ATS APIs, JSON-LD, RSS, CSV and paste-a-URL; a deep extraction pass turns postings into auditable skill/salary/benefit data; filter it all on the Explore page and let **Career Autopilot** hunt a goal on cadence with budgets and explainable shortlists.
+- **CV Studio** — the most mature surface: a full CV workspace with a versioned template bank and design-token editor, intake from an existing CV, one-shot AI generation from your profile, an item-variant library, cover letters per posting, ATS lint, honest page counting, and a copilot with vision that operates the builder. Exports to PDF/DOCX/Markdown/JSON/ATS text.
+- **An assistant that helps — carefully** — a chat grounded in your catalog and postings via tool-calling, profile edits proposed as review cards with before/after previews and one-click revert, interview prep, and contextual "Ask AI" buttons throughout.
+- **A scheduler that works while you don't** — one periodic engine for scheduled searches, digests, source syncs and refit sweeps; on the desktop, the tray keeps it running in the background with native notifications.
+- **Private and auditable** — self-hosted, encrypted AI keys at rest, and every AI call (task, model, tokens, latency) recorded in an audit trail. Production boot guards refuse weak secrets and `DEBUG=true`.
 
 ## Structured by design
 
 Career Assistant is a student tool today, but the foundation is the same one the rest of the assistant family uses, so the same installation can grow into richer domain features — or share knowledge with its siblings — without a rewrite. You don't need to care about any of this for everyday use; it's here for when you do.
 
-- **Taxonomy-driven everything** — `interest_tags` and the `skills` ontology (key, label, category, description, subskills, 1–10 level anchors, aliases, proposed→active→deprecated lifecycle) plus job-family trees and work-style enums. Profiles, jobs and AI outputs reference stable `key` slugs, never labels — so labels can be renamed or translated without breaking data. Skills and interests are linked through FK join tables (`job_skills`, `job_tags`, `user_skills`, `user_interests`), never JSONB.
-- **Career paths as data** — curated and AI-drafted routes to each job, with a computed graph of "jobs that lead here" over the typed relation edges.
-- **Deterministic fit engine** — every job gets a transparent 0–10 fit score with a per-dimension breakdown (skills, education, experience, location, interests + work style, work values) you can inspect and re-weight; interest scoring blends tag overlap with RIASEC affinity vectors derived from your interest tags, work values are scored against a job's derived signal (benefit kinds included), and hard-constraint gates move jobs to a "Stretch goals" view with explanations instead of deleting them; no popularity or demand term ever touches the score.
-- **JobTypeMatch assessment** — a 4-phase profiling pipeline (profile foundation, standardized scenarios, AI-generated scenarios, personalized selection) with resumable runs, custom re-runs, and evidence reconciliation: scenario answers refine your skill levels while large conflicts with your self-rating are flagged, never silently overwritten.
-- **Engagement loop** — a discovery feed ordered unseen-first by fit (with an exploration slot for families you haven't seen), search history with one-click re-runs and saved searches, bookmarks and feed hiding that never touch your semantic job status, curated https-only application links beside the education requirement, and threshold alerts (fit ≥ your line, or new jobs in families you follow) with per-day caps, cooldowns and a kind registry — the substrate's multi-channel notification center builds on.
-- **Career stages, not just students** — one switch (student, early career, experienced, switching, returning — derived when unset, always correctable) retunes your suggested fit weights, asks assessment scenarios grounded in your stage, reorders career paths experience-first, and gates student-only modules like university intake behind feature flags. The engine stays one engine: presets are suggestions, never hidden scoring branches.
-- **A scheduler that works while you don't** — one engine for everything periodic: scheduled saved searches run on your rhythm and ping you on new matches, a weekly digest rolls up postings and near-misses, source syncs, check-ins and refit sweeps all flow through the background queue with jitter, misfire policies for when the desktop sleeps, and exponential backoff that tells you when something is stuck.
-- **Background mode for the desktop app** — close the window and the scheduler keeps working: the tray keeps the app alive with sync-now and saved-search controls, native toasts render the existing notification funnel (quiet hours honored, click-through deep-links, misfired runs catch up on boot), a single-instance lock focuses instead of double-launching, and auto-start on login boots tray-only.
-- **Growth toolkit** — the product works after you're hired: roadmaps turn skill gaps into tracked steps (done → level self-report → catalog re-fit, visibly), a near-miss radar shows adjacent roles you're a couple of skills away from, learning resources close the gaps, market snapshots aggregate live postings per role (honest thin-sample handling), quarterly check-ins and per-rule quiet hours keep it useful and discreet.
-- **Express start & target mode** — already know the job you want? Type it, pick your targets, answer two questions — live postings, alerts and suggestions start immediately, with a target-mode dashboard (open jobs, salary band, top employers, adjacent careers) and a completeness ring that shows exactly which 5-minute step sharpens your results next. No profiling marathon unless you want it.
-- **Live postings, legally** — a connector SDK ships first-party engines for what's free and legal (ATS public APIs, schema.org JSON-LD, RSS, CSV, paste-a-URL) and lets anyone add more as plugins (admin-opt-in). Postings map onto the catalog by literal skill-ID intersection — never label matching — inherit your fit score with freshness/remote/seniority adjustments (no per-posting AI), flow through the same seen/saved/alerts machinery as the catalog, and track your saved→applied funnel.
-- **Deep extraction & skill-level search** — a queued LLM pass turns postings into auditable data: skills with required level 1–10 and priority, each backed by a verbatim evidence quote, plus salary, responsibilities with time splits and seniority — low-confidence fields are suppressed for review, never guessed. Extraction v2 adds contract type, work hours, schedule cues, travel demand, onsite policy and typed benefits (each with its own evidence), and your lifestyle constraints gate postings — flagged on the card, never hidden. Search vacancies by "skill X at level ≥ N", rank them by deterministic coverage of your skills, and read the provenance (raw → fast-mapped → extracted) on every card.
-- **Explore, per-posting match & chat** — the Explore page filters every structured field (including contract type, travel, schedule cues, benefits and organization) with live facet counts, saves searches you can schedule, and paginates by cursor; posting detail shows a per-posting match score built from the extracted data (weighted by your fit sliders, stale-proof), source attribution and similar roles; every posting has a short ref id the chatbot understands — ask for open roles by board and recency, open postings by reference, and get "Open in Explore" deep-links from chat replies.
-- **Career Autopilot** — describe a goal once ("junior QA role, remote, €30k+") and an agent searches your connected boards on a cadence or on demand: it plans multiple query/filter variants, filters noise (seen/applied, never-terms, a per-goal cooldown), ranks by your deterministic fit score, and delivers a curated shortlist where every explanation cites verbatim quotes verified against the posting's own text. A "what I searched & why" timeline shows each run's work; budgets hard-cap runs (partials still ship); "more/hide like this" teaches the goal's constraints, dismissing a whole shortlist pauses it, and three empty runs trigger a refine-the-goal nudge — never wasted spend, never auto-applying.
-- **Typed relation graph** — job relations carry weight, rationale and source; the graph is first-class data, not UI decoration.
-- **Rich university link model** — per-year admissions rows and job↔department links with relevance, required subjects, salary band and employment rate.
-- **Audited AI pipeline** — every structured output is pydantic-validated on write and attributed in `ai_generations`; invalid AI output never lands in the database.
-- **CV Studio** — three ways in: upload an existing CV (byte-preserved original, OCR text layer), start from scratch, or **generate one from scratch on demand** — pick context sources + preferences in one modal and a LangGraph draft flow writes the whole CV from your structured profile (per-section fallbacks, an automatic restorable `ai_apply` version, one-shot plan and post-run AI polish). Build it block-by-block against a per-CV context selection you control (every rendered line traces to a profile item), pick from a versioned template bank with a deterministic renderer (gallery previews render **your own snapshot**, two-template compare, per-template design-token editor down to embedded fonts and page-2+ headers/footers), and get grounded AI writing help (summaries, bullet rewrites, tailoring with must-have coverage, tone/length presets) — plus a **variant library** of AI-written or manual item variants (summarized, expanded, restyled, aimed at a posting, translated, custom-instructed) that any CV can prefer over verbatim profile text — override > variant > source, staleness detected when the source changes, star-to-activate, and an in-editor AI generate-fill. A lagging **polish loop** critiques the rendered pages + lint + a coverage matrix and applies fix suggestions through the same audited ops path. Exports to PDF/DOCX/Markdown/JSON/ATS text; the ATS score chip opens the full lint report; drafts announce "review before exporting". Every mutating turn compiles a restorable snapshot.
-- **The assistant operates the CV Studio for you** — the chat is always the surface: attach a CV as a per-message reference, or ask and the builder copilot handoff fires on build intent. It operates the builder as validated operations (templates, themes/design tokens, context selection, sections, per-item rewrites, variant generation) through one audited apply path shared with UI buttons, **sees** the rendered pages (first-page template previews stream into chat; its own critique round screenshots the current canvas), self-reviews against them, and drafts/edits **cover letters per posting** from a structured brief — every paragraph cites your evidence, unbacked claims are flagged before they can be applied.
-- **One metric language** — beyond skills, a dimension registry (RIASEC interest affinities, work values, work style) stores what assessments, profile sections and behavior measure, with provenance; the fit engine, filters and weight sliders all speak it, and skill transferability ("your SQL transfers to 12 of 20 families") derives from the catalog join graph.
-- **Organizations are entities, not labels** — postings resolve onto a normalized organization through a matcher that folds legal-suffix and spelling variants into aliases; duplicates merge under admin review, and "top hiring orgs" aggregates by entity, never by label matching.
-- **Family-compatible conventions** — same stack, settings architecture and AI configuration patterns as Health Assistant, which keeps the family's knowledge model portable.
+- **Taxonomy-driven everything** — interests and the skills ontology (subskills, 1–10 level anchors, aliases, proposed→active→deprecated lifecycle) are referenced by stable `key` slugs, never labels — so labels can be renamed or translated without breaking data.
+- **Typed, not free-form** — skills and interests link through FK join tables (`job_skills`, `job_tags`, `user_skills`, `user_interests`), never JSONB; every AI output is pydantic-validated on write and attributed in `ai_generations`.
+- **One metric language** — a dimension registry (RIASEC interest affinities, work values, work style) stores what assessments, profile sections and behavior measure, with provenance; the fit engine, filters and weight sliders all speak it.
+- **Career paths as data** — curated and AI-drafted routes to each job, computed over the typed relation edges.
+- **Career stages, not just students** — one stage switch retunes suggested fit weights, assessment scenarios and path ordering; presets are suggestions, never hidden scoring branches.
+- **Registries as extension points** — posting sources plug in via the connector SDK, periodic work only via the scheduler, AI only via the structured-output gateway — there is no side door.
+- **Dialect-aware, portable schema** — PostgreSQL (web/self-host) and SQLite (desktop) verified against one migration chain.
+- **Family-compatible conventions** — same stack, settings architecture and AI configuration patterns as the other assistant-family apps.
 
 ## Quick start
 
@@ -178,19 +123,13 @@ From a fresh clone to a running instance:
 
 ```bash
 git clone https://github.com/neuronection/career-assistant.git
-```
-
-```bash
 cd career-assistant
-```
-
-```bash
 cp .env.example .env                                # defaults work out of the box
 docker compose -f docker/docker-compose.dev-db.yml up -d   # Postgres :5433 + Redis :6380
 ./scripts/run-dev.sh                                # backend :8100 + frontend :3100
 ```
 
-Seed the starter catalog (46 interests, 32 skills, 45 jobs, 34 relations — idempotent):
+Seed the starter catalog (taxonomy + jobs + relations, idempotent):
 
 ```bash
 ./scripts/seed.sh
@@ -264,17 +203,10 @@ PDF parsing and AI generation run as FastAPI background tasks; Redis ships in th
 ## Documentation
 
 **Getting started**
+- [Feature catalog](docs/features.md) — everything, as built (Autopilot, extraction, CV Studio, chat, scheduler)
 - [Architecture](docs/ARCHITECTURE.md) — modes, runtime topology, registries, AI pipeline
 - [Deployment](docs/deploy.md) — self-hosting with the production compose stack, TLS, upgrades, backups
 - [Contributing](CONTRIBUTING.md) — dev setup, conventions, PR checklist
-**Core systems** (deep dives in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md))
-- Catalog & Taxonomy — job families, structured attributes, typed relations
-- AI System — provider registry, agents, audit trail
-- Universities & PDF intake — parse → review → apply pipeline
-- Matching & Rankings — AI + human scoring, filters
-- Chat & Ask AI — tool-calling chatbot, quick-assist
-
-**Project status**
 - [Changelog](CHANGELOG.md) — notable changes per release
 
 Interactive API docs are also available at `/docs` on a running backend.
@@ -284,54 +216,35 @@ Interactive API docs are also available at `/docs` on a running backend.
 | Layer | Technology |
 |---|---|
 | Backend | FastAPI (Python 3.12+), async, SQLAlchemy 2.0 (`asyncpg`), Pydantic v2 |
-| Frontend | React 18 + Vite + TypeScript (strict) + Tailwind |
-| State | Zustand |
+| Frontend | React 18 + Vite + TypeScript (strict) + Tailwind, Zustand, reactflow, recharts |
 | Database | PostgreSQL (web/self-host, typed columns + JSONB) · SQLite (desktop profile) — one portable schema |
 | Cache / Queue | Redis (composed in; worker split planned) |
 | Migrations | Alembic |
-| AI / NLP | OpenAI-compatible providers (`openai` SDK, `base_url` override → OpenAI / OpenRouter / Ollama / LM Studio), pydantic-validated structured outputs, deterministic dev-only mock |
+| AI / NLP | OpenAI-compatible providers (`base_url` override → OpenAI / OpenRouter / Ollama / LM Studio), pydantic-validated structured outputs, deterministic dev-only mock |
 | Auth | JWT bearer (PyJWT) + bcrypt |
-| Graph / Charts | reactflow (job graph), recharts (rankings) |
 | Tests | pytest + pytest-asyncio + httpx, vitest + testing-library, ruff |
 | Container | Docker + Docker Compose (dev database) |
 
 ## Scope & limitations
 
-Career Assistant is in **public beta** (`0.7.x`). The points below are honest boundaries — not every limitation is a bug.
+Career Assistant is in **public beta** (`0.10.x`). The points below are honest boundaries — not every limitation is a bug.
 
 - **Pre-1.0 APIs.** REST endpoints and DB schemas may change before `1.0`. Pin a version if you depend on it.
 - **Single-container scale.** One uvicorn process serves the API and the built SPA (see [Deployment](docs/deploy.md)); there is no horizontal-scaling story yet. A worker split is on the roadmap.
 - **No Celery in v1.** PDF parsing and AI generation run as in-process FastAPI background tasks. Redis ships in the compose file for a later worker split; today the FastAPI process does the work itself.
 - **Single-tenant.** Students are `users`; there is no tenancy model. Multi-school/organization support is not on the v1 roadmap.
 - **AI features need a configured provider in production.** A fresh production install starts unconfigured and AI endpoints answer 503 until an admin sets a provider up in the UI. The mock provider can never serve results in production.
-- **Test coverage.** The backend has a solid pytest suite and the frontend has vitest coverage, but there is no end-to-end suite yet.
 - **University intake is manual-review.** PDF parsing extracts a draft; it is not an official data feed and should always be reviewed against the source document.
 - **No career-counseling certification.** This software is informational; it does not replace professional career or academic guidance (see [Disclaimer](#disclaimer)).
 
 ## Status & roadmap
 
-**Recently shipped** — see [CHANGELOG.md](CHANGELOG.md) for the full story:
+**Recently shipped** (full story in [CHANGELOG.md](CHANGELOG.md)):
 
-- **CV Studio agentic waves** — one-shot CV generation from your profile (context + preferences modal, LangGraph draft with per-section fallbacks, restorable apply, vision polish loop); the variant library overhaul (star = activate, stale reset + edit re-grounding, in-editor AI generate-fill with slot browser and custom instruction steering); chat takes CVs as per-message references with an on-demand builder handoff; template previews stream into chat and give the copilot vision; template gallery previews with your own snapshot, two-template compare, embedded fonts, section icons, two-column main flow, page-2+ running headers/footers, QR/photo-shape/token extras; the inspector redesign wave (Sections/Design/Context tabs, ATS lint chip popover, tray elevation & borderless toning); grounded chat edits (read-before-edit gate, anchored edits with before/after preview and one-click revert); lazy chat sessions with auto-titles.
-- **Discovery wave** — skill ontology (21), deterministic fit engine (22), JobTypeMatch assessment (23), engagement & notifications (24: search history, feed, alerts), career stages (25).
-- **Live postings wave** — connector SDK with ATS/JSON-LD/RSS/CSV/URL engines, skill-ID mapping, applications tracking (26), express start & target mode (27), growth toolkit (roadmaps, near-miss radar, market snapshots, check-ins) (28), the modular scheduler feeding the background queue — scheduled searches, weekly digests, syncs, refit sweeps (29).
-- **Desktop background mode** — tray + close-to-tray, single-instance, auto-start, native notifications off the notification funnel.
-- **Deep posting extraction** — skills with levels + evidence quotes, salary, responsibilities; skill-level search and profile-coverage ranking.
-- **Postings Explore & chat tools** — full filter+facet Explore page, per-posting match scores, short ref ids, chatbot posting tools.
-- **CV Studio foundation** — upload a CV with the original preserved byte-for-byte, text-layer + OCR text extraction with derived page images, and versioned CV records (immutable snapshots, canonical hashes) behind the new `/cv` API.
-- **CV intake** — automatic AI field extraction into a review-first draft: every item carries an evidence quote and confidence, apply writes only what you confirm (experience, skills with evidence, education, certifications, awards, contact), and re-uploading a CV dedupes instead of duplicating.
-- **CV templates** — five seeded starter layouts, versioned template packages (blocks, design tokens, page rules, per-field AI prompts), one deterministic renderer, AI template drafts and a visual-review loop (layout lint + vision critique of printed scans), hash-verified file-first import/export.
-- **CV Studio waves** — the builder: per-CV context selection, live preview with page meter, versions with diff/restore, exports everywhere, ATS lint; structured profile forms with the experience workspace (master-detail, optimistic delete with undo); the three-pane workspace UI with command palette, undo/redo and AI proposal review.
-- **CV builder copilot** — the docked "Ask AI" side panel in the builder: the model returns a bounded structured operation plan (template, theme/design tokens with bank-template auto-customization, context selection, block add/remove/move/configure, per-item text overrides, document options), the backend applies it through the same services the UI uses, optionally screenshots the rendered pages for a vision critique with one refine round, and every mutating turn compiles a restorable `ai_apply` snapshot.
-- **Interview prep** — posting-grounded mock interviews: question plans calibrated to your own skill levels from the deep posting extract (or a catalog archetype), coached practice in the shared chatbot with a structure/evidence/clarity rubric per answer, a debrief with per-dimension aggregates, learning resources for weak skills, and one-click weak-area retry.
-- **Application follow-ups** — a daily sweep nudges applied postings with no response (+7d, +14d — adjustable), switches to congrats/check-in prompts at the interview/offer stages, and shows per-application follow-up state; delivered through the notification funnel, never double-sent.
-- **MCP server + client bridge** — your career data is drivable from external MCP clients (Claude Desktop, IDE agents): the tool registry's read-scope tools expose over Streamable HTTP at `/mcp` with a locally generated token (admin rotation), per-host rate limiting and read-only defaults; admins can also register external MCP servers — namespaced tools, disabled by default, per-tool enablement, every invocation audited and budgeted.
-- **Semantic search & skill packs** — postings embed into a portable vector store (pgvector optional, plain Postgres/SQLite fully supported); Explore's relevance search fuses lexical and semantic rankings without ever bypassing your hard filters; task-steering AI instructions ship as versioned, audited skill packs.
-- **Metric model residuals** — opt-in revealed preferences (engagement nudges your RIASEC vector by ≤5%/week, never the exploration slot), an application outcome funnel per family (observation only — never scored), engine dimension lists from one spec, and RIASEC/values bank batteries in the assessment template library.
-- **Cover letters** — per-posting letters with a deterministic brief (must-haves, fit, your goal), audited AI drafts that cite your evidence per paragraph, letter rendering through the same template engine, and the same versions/exports as CVs.
-- **Metric model** — dimension registry + per-user metric profile; RIASEC interest affinities, work-values fit dimension (job signal from structured attributes + benefit kinds), lifestyle constraints with a salary-minimum gate, and per-skill transferability across job families.
-- **Extraction v2 & catalog parity** — contract/hours/schedule/travel/onsite + typed benefits with evidence; the feature map that binds extracted fields to consumers and generates the extraction prompt; normalized organizations with a dedup matcher, admin merge and org-aware market snapshots; a moderation-reviewed enrichment sweep that brings catalog archetypes to the same vocabulary; Explore filters for all of it.
-- **Earlier** — production self-host stack, desktop app (`python -m careerassistant`, SQLite local profile, pywebview shell), Linux packaging (`.deb` + `.AppImage` via CI) — see [docs/deploy.md](docs/deploy.md).
+- **CV Studio waves** — one-shot generation from your profile with a vision polish loop; the variant library; chat CV references with a builder-copilot handoff; template previews with your own data; grounded chat edits with one-click revert.
+- **Discovery wave** — skills ontology, deterministic fit engine, JobTypeMatch assessment, engagement & notifications, career stages.
+- **Live postings wave** — connector SDK (ATS/JSON-LD/RSS/CSV/URL), deep extraction with skill-level search, Explore page, Career Autopilot, express start & target mode, growth toolkit, the modular scheduler.
+- **Desktop & ops** — tray background mode, Linux packaging (`.deb` + `.AppImage`), production self-host stack ([docs/deploy.md](docs/deploy.md)), MCP server + client bridge, semantic search & skill packs, interview prep, cover letters.
 
 **Up next**:
 

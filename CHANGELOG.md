@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **README restructure** — the developer/feature detail that had grown in
+  "Features", "Structured by design" and the "Recently shipped" rollout wave
+  deduplicated into a compact feature tour plus a new
+  [docs/features.md](docs/features.md) feature catalog ("everything, as
+  built", the family-standard pattern); seed-count and version drift
+  (0.7.x → 0.10.x) fixed in Scope.
+
 ### Removed
 - **Context panel "Improve with AI" wand button** — the per-item bullet
   improve action (the only caller of the `bullet` AI action) superseded
@@ -12,6 +20,15 @@ All notable changes to **Career Assistant** are documented here.
   compatibility).
 
 ### Added
+- **Variant cards in the smoke suite + chat hygiene (plan 101.4)** —
+  E2E goldens now cover the full variant-card lifecycle (resolved
+  labels, before-only source preview, approve drafts into the Synth
+  Library, no revert row) and the education edit golden (card → preview
+  highlight → approve → workspace finished date → revert restores). The
+  chat grounding prompt stops the agent from calling autopilot-goal or
+  job-comparison tools as if they were grounding digests (CHAT prompt
+  v9); the preview endpoint contract now documents the stacked
+  cv_synth source shape.
 - **Education/certification/achievement previews render their item card
   (plan 101.3)** — the proposal preview modal renders a per-kind
   snapshot card (labelled rows, focus-subjects chips, month-year dates,
