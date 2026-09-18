@@ -121,4 +121,32 @@ describe("ItemBulletsEditorModal", () => {
     await user.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
+
+  it("generate-fill loads the AI draft as chips (plan 106 slice 5)", async () => {
+    const user = userEvent.setup();
+    const onGenerate = vi.fn().mockResolvedValue(["Drafted bullet A"]);
+    mount({ base: [], onGenerate });
+    await user.click(screen.getByTestId("bullets-editor-generate"));
+    await waitFor(() =>
+      expect(screen.getByTestId("bullet-chip-0")).toHaveTextContent(
+        "Drafted bullet A"
+      )
+    );
+    expect(onGenerate).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByTestId("bullet-chips-confirm"));
+    expect(screen.getByTestId("bullets-row-0")).toHaveValue("Drafted bullet A");
+    expect(screen.queryByTestId("bullet-chip-0")).toBeNull();
+  });
+
+  it("generate is dirty-guarded when the editor has unsaved edits", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const onGenerate = vi.fn().mockResolvedValue(["Drafted bullet A"]);
+    mount({ base: BASE, onGenerate });
+    await user.type(screen.getByTestId("bullets-row-0"), "!");
+    await user.click(screen.getByTestId("bullets-editor-generate"));
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onGenerate).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
 });

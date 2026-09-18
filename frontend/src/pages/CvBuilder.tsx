@@ -225,7 +225,12 @@ export function CvBuilder() {
         entry !== null &&
         (entry as { id?: string }).id === bulletsEditor.itemId
     ) as
-      | { title?: string; org_name?: string; achievements?: CvSynthBullet[] }
+      | {
+          title?: string;
+          org_name?: string;
+          description?: string;
+          achievements?: CvSynthBullet[];
+        }
       | undefined;
     const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
     const patched = overrides[key]?.achievements;
@@ -233,6 +238,7 @@ export function CvBuilder() {
       head: { title: row?.title ?? "", org: row?.org_name ?? "" },
       base: row?.achievements ?? [],
       override: Array.isArray(patched) ? patched : null,
+      text: String(row?.description ?? ""),
     };
   }, [bulletsEditor, snapshotRows, overrides]);
 
@@ -1786,6 +1792,15 @@ export function CvBuilder() {
           override={bulletsEditorView.override}
           proposal={bulletsProposal ? { bullets: bulletsProposal } : null}
           onProposalConsumed={() => setBulletsProposal(null)}
+          onGenerate={async () => {
+            const out = await aiAction(id, "bullet", {
+              source_key: bulletsEditor.sourceKey,
+              item_id: bulletsEditor.itemId,
+              text: bulletsEditorView.text,
+            });
+            const first = out.proposals[0];
+            return first?.proposal.bullets ?? [];
+          }}
           onSave={(entries) => {
             const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
             closeBulletsEditor();

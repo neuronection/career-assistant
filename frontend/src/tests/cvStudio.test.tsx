@@ -2792,3 +2792,83 @@ describe("CvBuilder — plan 106 bullet action retarget", () => {
     ).toBeUndefined();
   });
 });
+
+describe("CvBuilder — plan 106 slice 5 generate-fill", () => {
+  it("generates bullets inside the editor from the item's evidence and lands them as chips", async () => {
+    const user = userEvent.setup();
+    aiAction.mockResolvedValue({
+      action: "bullet",
+      notes: "",
+      proposals: [
+        {
+          proposal: {
+            ref: { source_key: "experience", item_id: "exp-1" },
+            field: "achievements",
+            text: "DevOps intern — cut effort by ~<your number>%",
+            bullets: ["Automated the release train end to end"],
+            rationale: "",
+            evidence_refs: [{ source_key: "experience", item_id: "exp-1" }],
+          },
+          verified: true,
+        },
+      ],
+      coverage: null,
+      gaps: [],
+    });
+    previewCv.mockResolvedValue({
+      ...preview,
+      resolution: {
+        ...preview.resolution,
+        snapshot: {
+          experience: [
+            {
+              id: "exp-1",
+              title: "DevOps intern",
+              org_name: "Acme",
+              description: "Built QA tooling and release automation",
+              achievements: [{ text: "Shipped the QA harness" }],
+            },
+          ],
+        },
+        snapshot_index: { experience: ["exp-1"] },
+      },
+    });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    await user.click(screen.getByTestId("context-bullets-experience:exp-1"));
+    const modal = await screen.findByTestId("bullets-editor-modal");
+    await user.click(within(modal).getByTestId("bullets-editor-generate"));
+    await waitFor(() =>
+      expect(aiAction).toHaveBeenCalledWith("cv-1", "bullet", {
+        source_key: "experience",
+        item_id: "exp-1",
+        text: "Built QA tooling and release automation",
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        within(modal).getByTestId("bullet-chip-0"),
+      ).toHaveTextContent("Automated the release train end to end"),
+    );
+    await user.click(within(modal).getByTestId("bullet-chips-confirm"));
+    await user.click(within(modal).getByTestId("bullets-editor-save"));
+    await waitFor(() =>
+      expect(patchCv).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          working_content: expect.objectContaining({
+            overrides: expect.objectContaining({
+              "experience:exp-1": expect.objectContaining({
+                achievements: [
+                  { text: "Shipped the QA harness" },
+                  { text: "Automated the release train end to end" },
+                ],
+              }),
+            }),
+          }),
+        }),
+      ),
+    );
+  });
+});

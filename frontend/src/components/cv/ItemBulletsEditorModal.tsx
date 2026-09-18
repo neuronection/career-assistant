@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import {
   Button,
   ConfirmationModal,
@@ -23,9 +23,12 @@ interface ItemBulletsEditorModalProps {
   override: CvSynthBullet[] | null;
   /** The resolved base (snapshot row's achievements, post-swap). */
   base: CvSynthBullet[];
-  /** AI-proposed bullets (plan 106 slices 4–5), shown as ✓/✕ chips. */
+  /** AI-proposed bullets (plan 106 slice 4), shown as ✓/✕ chips. */
   proposal?: BulletsProposal | null;
   onProposalConsumed: () => void;
+  /** Plan 106 slice 5: draft bullets from the item's evidence
+   * (the `bullet` AI action). Resolves replacement bullet lines. */
+  onGenerate?: () => Promise<string[]>;
   /** Persists the full list as the override (one PATCH). */
   onSave: (entries: CvSynthBullet[]) => void;
   /** Removes the override key — the CV renders profile text again. */
@@ -46,6 +49,7 @@ export function ItemBulletsEditorModal({
   base,
   proposal = null,
   onProposalConsumed,
+  onGenerate,
   onSave,
   onReset,
   onClose,
@@ -62,13 +66,15 @@ export function ItemBulletsEditorModal({
   const [bullets, setBullets] = useState<string[]>(() =>
     initial.length ? initial : [""]
   );
+  const [generated, setGenerated] = useState<string[] | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const pendingProposals = useMemo(
-    () => (proposal?.bullets ?? []).map((text) => text.trim()).filter(Boolean),
-    [proposal]
-  );
+  const pendingProposals = useMemo(() => {
+    const source = generated ?? proposal?.bullets ?? [];
+    return source.map((text) => text.trim()).filter(Boolean);
+  }, [generated, proposal]);
   const dirty =
     pendingProposals.length > 0 ||
     bullets.join("\u0000") !== initial.join("\u0000");
@@ -100,12 +106,41 @@ export function ItemBulletsEditorModal({
     onSave(cleaned().map((text) => ({ text })));
   };
 
+  const clearProposals = () => {
+    setGenerated(null);
+    onProposalConsumed();
+  };
+
   const confirmProposals = () => {
     setBullets((prev) => {
       const kept = prev.map((b) => b.trim()).filter(Boolean);
       return [...kept, ...pendingProposals].slice(0, MAX_BULLETS);
     });
-    onProposalConsumed();
+    clearProposals();
+  };
+
+  const generate = async () => {
+    if (!onGenerate || generating) return;
+    if (
+      dirty &&
+      !window.confirm(
+        t("cvBuilder.generateOverwrite", {
+          defaultValue:
+            "Generating replaces your unsaved edits — continue?",
+        })
+      )
+    ) {
+      return;
+    }
+    setGenerating(true);
+    try {
+      const bullets = (await onGenerate()).map((b) => b.trim()).filter(Boolean);
+      setGenerated(bullets.length ? bullets : null);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const reset = () => {
@@ -173,7 +208,7 @@ export function ItemBulletsEditorModal({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={onProposalConsumed}
+                  onClick={clearProposals}
                   data-testid="bullet-chips-discard"
                 >
                   {t("common.cancel")}
@@ -244,6 +279,22 @@ export function ItemBulletsEditorModal({
           </div>
         </div>
         <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] px-5 py-3">
+          <div className="flex items-center gap-2">
+            {onGenerate && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={generating}
+                onClick={() => void generate()}
+                data-testid="bullets-editor-generate"
+              >
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                {generating
+                  ? t("common.saving", { defaultValue: "Working…" })
+                  : t("cvBuilder.generateBullets")}
+              </Button>
+            )}
+          </div>
           {override !== null ? (
             <Button
               variant="ghost"

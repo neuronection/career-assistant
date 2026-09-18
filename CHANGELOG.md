@@ -5,6 +5,11 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Generate-fill in the bullets editor (plan 106, slice 5)** — an
+  AI chip in the editor drafts metric-honest bullets from the item's
+  own evidence (the plan-103 dirty-guard applies: unsaved edits ask
+  before generating) and loads them as keep/discard chips — nothing is
+  written until you confirm the chips and save.
 - **Bullet AI action now proposes bullets, not prose (plan 106, slice 4)** —
   the `bullet` writing action targets the achievements layer: it
   returns 1–2 replacement bullets plus the card summary, and Apply no
