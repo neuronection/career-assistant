@@ -4167,6 +4167,19 @@
             "title": "Action",
             "type": "string"
           },
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free-text steering for the AI (plan 103); never overrides the grounding contract.",
+            "title": "Instruction"
+          },
           "language": {
             "default": "en",
             "maxLength": 10,
@@ -20839,6 +20852,55 @@
           }
         ],
         "summary": "Update Synth Item",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/synth/{item_id}/refresh-source-state": {
+      "post": {
+        "description": "Mark a stale variant reviewed: re-snapshot the source hashes.\n\nPlan 102's reset \u2014 the user judged the text still right after a\nsource change; payload is untouched, staleness clears.",
+        "operationId": "refresh_synth_source_state_api_v1_cv_synth__item_id__refresh_source_state_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Refresh Synth Source State",
         "tags": [
           "cv"
         ]

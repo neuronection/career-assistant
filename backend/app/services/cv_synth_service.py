@@ -4,9 +4,10 @@ Variants are user-level rows over CV context source items. Staleness is
 computed on read (stored source content hash vs the resolver's payload
 now); matching is deterministic — active rows only, language must
 equal the CV's, posting-scoped rows apply only to their posting and
-beat generic ones, `variant_key` "default" first then newest. Editing
-text never refreshes `source_state` (staleness tracks the source, not
-the variant). Activation supersedes: other active rows in the same
+beat generic ones, `variant_key` "default" first then newest. Manual text edits and an
+explicit review refresh `source_state` (plan 102) — staleness then
+tracks source drift *after* the user last spoke. Activation supersedes:
+other active rows in the same
 variant slot auto-archive, so one slot holds one active variant.
 
 AI generation (62.2) runs through the gateway funnel only
@@ -14,6 +15,11 @@ AI generation (62.2) runs through the gateway funnel only
 and are post-verified — anything out of the allowlist is dropped
 before persisting. Commits before returning so `ai_generations`
 audit rows survive.
+
+Plan 102: approval = activation. Manual payload edits re-ground the
+per-ref content hashes (the writer owned the text), and an explicit
+review (`refresh_source_state`) does the same without touching text —
+staleness then tracks source drift *after* the user spoke.
 """
 
 import uuid
@@ -250,16 +256,43 @@ class CvSynthService:
     async def update(
         self, item_id: uuid.UUID, user_id: uuid.UUID, payload: CvSynthItemUpdate
     ) -> CvSynthItem:
-        """Text edits + status transitions. Activation supersedes siblings."""
+        """Text edits + status transitions. Activation supersedes siblings.
+
+        A payload edit re-grounds the variant (plan 102): the writer
+        owned the text against the current source, so the per-ref
+        content hashes refresh and `stale` clears unless the source
+        drifts again afterwards."""
         row = await self.get_owned(item_id, user_id)
         if payload.payload is not None:
             row.payload = payload.payload.model_dump(mode="json")
+            await self._refresh_source_state(row)
         if payload.variant_key is not None:
             row.variant_key = payload.variant_key
         if payload.status is not None:
             if payload.status == CvSynthStatus.ACTIVE.value:
                 await self._supersede_slot(row)
             row.status = payload.status
+        await self.db.commit()
+        await self.db.refresh(row)
+        return row
+
+    async def _refresh_source_state(self, row: CvSynthItem) -> None:
+        """Snapshot the current source payloads into `source_state`."""
+        context = await _context_index(self.db, row.user_id)
+        row.source_state = _source_state_of(
+            [dict(ref) for ref in row.source_refs], context
+        )
+
+    async def refresh_source_state(
+        self, item_id: uuid.UUID, user_id: uuid.UUID
+    ) -> CvSynthItem:
+        """Mark a stale variant reviewed: re-snapshot source hashes.
+
+        Plan 102's "Reset": the user judged the text still right after a
+        source change — payload untouched, staleness recomputed from the
+        fresh snapshots (clears unless the source moved again)."""
+        row = await self.get_owned(item_id, user_id)
+        await self._refresh_source_state(row)
         await self.db.commit()
         await self.db.refresh(row)
         return row
@@ -367,6 +400,7 @@ class CvSynthService:
             target_language=request.target_language,
             tone=request.tone,
             length=request.length,
+            instruction=request.instruction,
             run=run,
         )
         rows = await self._persist_batch(
@@ -420,6 +454,7 @@ class CvSynthService:
             variant_texts=texts,
             tone=request.tone,
             length=request.length,
+            instruction=request.instruction,
             run=run,
         )
         rows = await self._persist_batch(

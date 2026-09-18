@@ -106,6 +106,81 @@ async def test_source_edit_marks_stale(client, db, auth_headers):
     assert rows[0]["orphaned"] is False
 
 
+async def test_refresh_source_state_clears_stale(client, db, auth_headers):
+    """Plan 102 reset: review re-snapshots hashes; payload untouched."""
+    item = await _make_item(db, _uid(auth_headers))
+    row = await _seed_variant(client, auth_headers, item, text="v1")
+    item.description = "Edited description"
+    db.add(item)
+    await db.commit()
+    refreshed = await client.post(
+        f"/api/v1/cv/synth/{row['id']}/refresh-source-state",
+        headers=auth_headers,
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    body = refreshed.json()
+    assert body["stale"] is False
+    assert body["payload"]["description"] == "v1"
+    assert body["orphaned"] is False
+
+
+async def test_refresh_source_state_is_owner_scoped(client, db, auth_headers):
+    item = await _make_item(db, _uid(auth_headers))
+    row = await _seed_variant(client, auth_headers, item, text="v1")
+    other = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "other@example.com",
+            "password": "supersecret1",
+            "full_name": "Other Student",
+        },
+    )
+    other_headers = {"Authorization": "Bearer " + other.json()["access_token"]}
+    denied = await client.post(
+        f"/api/v1/cv/synth/{row['id']}/refresh-source-state",
+        headers=other_headers,
+    )
+    assert denied.status_code == 404
+
+
+async def test_payload_edit_regrounds(client, db, auth_headers):
+    """Plan 102: a manual edit owns the text against the current source,
+    so it clears stale; a later source change re-flags it."""
+    item = await _make_item(db, _uid(auth_headers))
+    row = await _seed_variant(client, auth_headers, item, text="v1")
+    item.description = "Edited description"
+    db.add(item)
+    await db.commit()
+    patched = await client.patch(
+        f"/api/v1/cv/synth/{row['id']}",
+        json={"payload": {"description": "hand-fixed bullet"}},
+        headers=auth_headers,
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["stale"] is False
+    item.description = "Drifts again"
+    db.add(item)
+    await db.commit()
+    rows = (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
+    assert rows[0]["stale"] is True
+
+
+async def test_status_only_update_keeps_stale(client, db, auth_headers):
+    """Only the payload branch re-grounds; transitions don't."""
+    item = await _make_item(db, _uid(auth_headers))
+    row = await _seed_variant(client, auth_headers, item, text="v1")
+    item.description = "Edited description"
+    db.add(item)
+    await db.commit()
+    patched = await client.patch(
+        f"/api/v1/cv/synth/{row['id']}",
+        json={"variant_key": "concise"},
+        headers=auth_headers,
+    )
+    assert patched.status_code == 200
+    assert patched.json()["stale"] is True
+
+
 async def test_source_delete_marks_orphaned(client, db, auth_headers):
     item = await _make_item(db, _uid(auth_headers))
     await _seed_variant(client, auth_headers, item)

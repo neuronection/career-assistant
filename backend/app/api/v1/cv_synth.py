@@ -216,6 +216,22 @@ async def get_synth_item(
     return _out(row, _row_state(service, row, context))
 
 
+@router.post("/{item_id}/refresh-source-state", response_model=CvSynthItemOut)
+async def refresh_synth_source_state(
+    item_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvSynthItemOut:
+    """Mark a stale variant reviewed: re-snapshot the source hashes.
+
+    Plan 102's reset — the user judged the text still right after a
+    source change; payload is untouched, staleness clears."""
+    service = CvSynthService(db)
+    row = await service.refresh_source_state(item_id, user.id)
+    context = await _context_index(db, user.id)
+    return _out(row, _row_state(service, row, context))
+
+
 @router.patch("/{item_id}", response_model=CvSynthItemOut)
 async def update_synth_item(
     item_id: uuid.UUID,
