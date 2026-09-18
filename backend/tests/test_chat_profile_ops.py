@@ -697,3 +697,59 @@ async def test_chat_cv_synth_op_flows_to_library(client, db, auth_headers):
     )
     assert len(rows) >= 1
     assert all(row.status == "active" for row in rows)
+
+
+async def test_mock_education_update_flow(client, db, auth_headers):
+    """Plan 101 AD4 golden: an education scalar patch (open-ended →
+    finished date) drafts one card, previews as the school card, applies
+    through the form service and reverts from the 99 snapshot."""
+    from app.schemas.profile_entities import EducationItemIn
+    from app.services.profile_entities_service import ProfileEntitiesService
+
+    user = await _auth_user(db)
+    education = await ProfileEntitiesService(db).create_education(
+        user.id,
+        EducationItemIn(
+            institution="TU Munich",
+            program="BSc Informatics",
+            level="bachelor",
+            in_progress=True,
+        ),
+    )
+    session = await _session(client, auth_headers)
+    events = await _send(
+        client, session["id"], auth_headers, "finish my education entry, I graduated"
+    )
+    card = next(p for n, p in events if n == "proposal")
+    assert card["kind"] == "education_item"
+    assert card["action"] == "update"
+    assert card["entity_id"] == str(education.id)
+    assert card["entity_label"] == "TU Munich"
+    rows = {row["field"]: row for row in card["diff"]}
+    assert rows["in_progress"]["before"] is True
+    assert rows["in_progress"]["after"] is False
+    assert str(rows["end"]["after"]) == "2026-07-31"
+
+    preview = await client.get(
+        f"/api/v1/me/profile-proposals/{card['id']}/preview", headers=auth_headers
+    )
+    assert preview.status_code == 200, preview.text
+    before = preview.json()["before"]
+    assert before["institution"] == "TU Munich"
+    assert before["in_progress"] is True
+
+    approved = await client.post(
+        f"/api/v1/me/profile-proposals/{card['id']}/approve", headers=auth_headers
+    )
+    assert approved.status_code == 200
+    await db.refresh(education)
+    assert education.in_progress is False
+    assert str(education.end) == "2026-07-31"
+
+    reverted = await client.post(
+        f"/api/v1/me/profile-proposals/{card['id']}/revert", headers=auth_headers
+    )
+    assert reverted.status_code == 200
+    await db.refresh(education)
+    assert education.in_progress is True
+    assert education.end is None

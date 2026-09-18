@@ -12,6 +12,17 @@ All notable changes to **Career Assistant** are documented here.
   compatibility).
 
 ### Added
+- **Chat variant cards name their sources (plan 101.1)** — a
+  "create a new variant …" card now shows one human-readable chip per
+  referenced source item ("Siemens internship", "BSc Informatics")
+  instead of a raw `experience:<uuid>` row; the card title abbreviates to
+  the primary label ("Add CV variants · Sample Internship (+2) · restyle"),
+  unreadable/deleted source refs degrade to "Unknown item", and a
+  posting-aimed variant names the posting's public reference. The chat
+  narration follows the same resolution (no UUIDs in the answer prose).
+  Education entries gained a deterministic chat flow in mock/E2E runs:
+  "finish my education entry" closes an open-ended education item
+  (card → diff → approve → revert).
 - **Variant editor: AI generate-fill + slot browser (plan 103)** — the
   variant editor is now the single variant surface: an "AI generate"
   toolbar (action chips, target language for translate, advanced

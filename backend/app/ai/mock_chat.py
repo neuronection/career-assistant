@@ -164,6 +164,7 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
     skill_rows = (tools.get("my_skills") or {}).get("skills") or []
     education = tools.get("my_education") or {}
     certs = education.get("certifications") or []
+    edu_rows = education.get("education") or []
     digest = tools.get("my_profile_digest") or {}
 
     if items and words & {"variant", "variants", "synth", "synthesize", "generate"}:
@@ -269,6 +270,32 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "action": "update",
                 "entity_id": items[0]["id"],
                 "payload": {"end": "2026-06-30", "open_ended": False},
+            }
+        ]
+    if (
+        "education" in words
+        and edu_rows
+        and words
+        & {
+            "finish",
+            "finished",
+            "completed",
+            "graduate",
+            "graduated",
+            "mark",
+            "ended",
+            "update",
+        }
+        and _was_read(tools, "education_item", edu_rows[0]["id"])
+    ):
+        # Plan 101 AD4 golden: education ops are scalar patches — an
+        # open-ended entry closes with a finished date.
+        return [
+            {
+                "kind": "education_item",
+                "action": "update",
+                "entity_id": edu_rows[0]["id"],
+                "payload": {"in_progress": False, "end": "2026-07-31"},
             }
         ]
     if skill_rows and "set" in words:

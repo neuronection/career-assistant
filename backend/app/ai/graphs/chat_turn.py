@@ -612,15 +612,29 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
         outcomes_payload["dropped"][code] = outcomes_payload["dropped"].get(code, 0) + 1
     prompt = state["prompt"]
     if resolved_ops:
+        # Plan 101 AD5: cv_synth ops name their refs ("Sample Internship
+        # (projects)") through the same AD1 resolution the card uses, so
+        # the narration never echoes a raw UUID.
+        from app.services.profile_proposal_service import (
+            cv_synth_narration_refs,
+            resolve_cv_synth_payload,
+        )
+
         ctx = parse_context(prompt)
-        ctx["prepared_ops"] = [
-            {
+        prepared: list[dict] = []
+        for op in resolved_ops:
+            row = {
                 "kind": op.get("kind"),
                 "action": op.get("action"),
                 "entity_id": str(op.get("entity_id") or "")[:8],
             }
-            for op in resolved_ops
-        ]
+            if op.get("kind") == "cv_synth":
+                resolved = await resolve_cv_synth_payload(
+                    deps.db, deps.user.id, (op.get("payload") or {})
+                )
+                row["refs"] = cv_synth_narration_refs(op, resolved)
+            prepared.append(row)
+        ctx["prepared_ops"] = prepared
         prompt = context_json(ctx)
     return {
         "draft_ops": resolved_ops,
@@ -673,8 +687,6 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
             grounding=grounding,
             chat_session_id=deps.session.id,
         )
-        if created:
-            await notify_proposals(deps.db, deps.user.id, created, deps.session.id)
         if created:
             await notify_proposals(deps.db, deps.user.id, created, deps.session.id)
     deps.created_proposals = created

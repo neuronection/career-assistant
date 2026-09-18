@@ -617,9 +617,16 @@ async def test_cv_synth_card_inline_drafts(db, auth_headers):
         },
     )
     assert proposal.status == "pending"
-    assert proposal.entity_label == "1 item(s) · summarize"
+    assert proposal.entity_label == "Siemens internship · summarize"
     by_field = {row["field"]: row for row in proposal.diff_json}
-    assert by_field["refs"]["after"] == [f"experience:{item.id}"]
+    assert by_field["refs"]["after"] == [
+        {
+            "label": "Siemens internship",
+            "source_key": "experience",
+            "item_id": str(item.id),
+        }
+    ]
+    assert proposal.payload_json["resolved_refs"] == by_field["refs"]["after"]
 
     resolved, applied, _ = await ProfileProposalService(db).approve(
         user.id, proposal.id
@@ -750,3 +757,157 @@ async def test_cv_synth_card_validates_shape(db, auth_headers):
                 ]
             },
         )
+
+
+async def _education_row(db, user, in_progress: bool = True):
+    from app.schemas.profile_entities import EducationItemIn
+    from app.services.profile_entities_service import ProfileEntitiesService
+
+    return await ProfileEntitiesService(db).create_education(
+        user.id,
+        EducationItemIn(
+            institution="TU Munich",
+            program="BSc Informatics",
+            level="bachelor",
+            in_progress=in_progress,
+        ),
+    )
+
+
+async def _posting_row(db) -> object | None:
+    from app.models.posting_model import JobPosting
+
+    rows = await db.execute(select(JobPosting).limit(1))
+    return rows.scalars().first()
+
+
+async def test_cv_synth_card_abbreviated_multi_ref_label(db, auth_headers):
+    user = await _auth_user(db)
+    first = await _experience(db, user)
+    second = await _experience(db, user, title="Thesis AI launcher")
+    third = await _experience(db, user, title="Frame search index")
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [
+                {"source_key": "experience", "item_id": str(first.id)},
+                {"source_key": "experience", "item_id": str(second.id)},
+                {"source_key": "experience", "item_id": str(third.id)},
+            ],
+            "action": "restyle",
+        },
+    )
+    # >2 refs abbreviate: primary label + hidden count (AD1 "≤2 labels")
+    assert proposal.entity_label == "Siemens internship (+2) · restyle"
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert [row["label"] for row in by_field["refs"]["after"]] == [
+        "Siemens internship",
+        "Thesis AI launcher",
+        "Frame search index",
+    ]
+
+
+async def test_cv_synth_card_mixed_kinds_and_education_label(db, auth_headers):
+    user = await _auth_user(db)
+    item = await _experience(db, user, title="Helper building tool")
+    education = await _education_row(db, user)
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [
+                {"source_key": "experience", "item_id": str(item.id)},
+                {"source_key": "education", "item_id": str(education.id)},
+            ],
+            "action": "detail",
+        },
+    )
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert by_field["refs"]["after"][1] == {
+        "label": "BSc Informatics",
+        "source_key": "education",
+        "item_id": str(education.id),
+    }
+
+
+async def test_cv_synth_card_unknown_ref_degrades_label(db, auth_headers):
+    user = await _auth_user(db)
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [
+                {
+                    "source_key": "experience",
+                    "item_id": "00000000-0000-0000-0000-777777777777",
+                }
+            ],
+            "action": "summarize",
+        },
+    )
+    assert proposal.entity_label == "Unknown item (experience) · summarize"
+
+
+async def test_cv_synth_card_posting_ref_names_public_ref(db, auth_headers):
+    user = await _auth_user(db)
+    item = await _experience(db, user)
+    posting = await _posting_row(db)
+    if (
+        posting is None
+    ):  # postings fixtures may be empty — assert label-or-graceful only
+        pytest.skip("no posting rows seeded")
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "posting_fit",
+            "posting_id": str(posting.id),
+        },
+    )
+    title = "Add CV variants · " + proposal.entity_label
+    assert posting.ref in title
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert by_field["posting_id"]["after"].startswith(str(posting.ref))
+
+
+async def test_cv_synth_narration_refs_carry_labels(db, auth_headers):
+    """Plan 101 AD5: the prepared_ops summary reads resolved labels —
+    no raw id ever reaches the narration prompt."""
+    from app.services.profile_proposal_service import (
+        cv_synth_narration_refs,
+        resolve_cv_synth_payload,
+    )
+
+    user = await _auth_user(db)
+    item = await _experience(db, user)
+    op = {
+        "kind": "cv_synth",
+        "action": "create",
+        "payload": {"refs": [{"source_key": "experience", "item_id": str(item.id)}]},
+    }
+    resolved = await resolve_cv_synth_payload(db, user.id, op["payload"])
+    refs = cv_synth_narration_refs(op, resolved)
+    assert refs == ["Siemens internship (experience)"]
+    missing = cv_synth_narration_refs(
+        op,
+        {
+            "resolved_refs": [
+                {
+                    "label": "Unknown item (experience)",
+                    "source_key": "experience",
+                    "item_id": str(item.id),
+                }
+            ]
+        },
+    )
+    assert missing == ["Unknown item (experience)"]

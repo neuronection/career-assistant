@@ -109,6 +109,109 @@ def read_key_for_op(op: dict, entity_id: Optional[uuid.UUID]) -> Optional[str]:
     return None
 
 
+async def resolve_cv_synth_payload(
+    db: AsyncSession, user_id: uuid.UUID, payload: dict
+) -> dict:
+    """Plan 101 AD1 ref resolution: human labels for a cv_synth op.
+
+    Resolves each ref once against its registered CV context source
+    (ownership enforced by the source resolvers' ``user_id`` filter) and
+    names the target posting by its public ``ref``. A ref whose source
+    row is missing resolves to ``"Unknown item (<source_key>)"`` — never
+    a raw UUID; the underlying op validation errors at apply time.
+    """
+    refs = [
+        {
+            "source_key": str(ref.get("source_key") or ""),
+            "item_id": str(ref.get("item_id") or ""),
+        }
+        for ref in payload.get("refs") or []
+        if ref.get("item_id")
+    ]
+    by_key: dict[str, set[str]] = {}
+    for ref in refs:
+        by_key.setdefault(ref["source_key"], set()).add(ref["item_id"])
+    labels: dict[str, str] = {}
+    if by_key:
+        from app.services.cv_context_service import CV_CONTEXT_SOURCES
+
+        for source_key, item_ids in by_key.items():
+            definition = CV_CONTEXT_SOURCES.get(source_key)
+            resolved: dict[str, str] = {}
+            if definition is not None:
+                try:
+                    rows = await definition.resolver(db, user_id)
+                except Exception as exc:  # noqa: BLE001 - a dead source degrades its row, never the card
+                    logger.warning(
+                        "cv_synth source resolution failed (%s): %s",
+                        source_key,
+                        str(exc)[:200],
+                    )
+                    rows = []
+                resolved = {
+                    str(row.item_id): str(row.label).strip()
+                    for row in rows
+                    if str(row.label or "").strip()
+                }
+            for item_id in sorted(item_ids):
+                labels[f"{source_key}:{item_id}"] = resolved.get(item_id) or (
+                    f"Unknown item ({source_key})"
+                )
+    resolved_refs = [
+        {
+            "label": labels[f"{ref['source_key']}:{ref['item_id']}"],
+            "source_key": ref["source_key"],
+            "item_id": ref["item_id"],
+        }
+        for ref in refs
+    ]
+    posting_label = ""
+    posting_title = ""
+    posting_id = payload.get("posting_id")
+    if posting_id:
+        from app.models.posting_model import JobPosting
+
+        try:
+            parsed = uuid.UUID(str(posting_id))
+        except ValueError:
+            parsed = None
+        posting = None
+        if parsed is not None:
+            rows = await db.execute(select(JobPosting).where(JobPosting.id == parsed))
+            posting = rows.scalars().first()
+        if posting is not None:
+            posting_label = str(posting.ref)
+            posting_title = str(posting.title)
+        else:
+            posting_label = "Unknown posting"
+    return {
+        "resolved_refs": resolved_refs,
+        "resolved_posting": posting_label,
+        "resolved_posting_title": posting_title,
+    }
+
+
+def cv_synth_narration_refs(op: dict, resolved: dict | None) -> list[str]:
+    """Prepared_ops rows for a cv_synth op (plan 101 AD5): resolved ref
+    labels ("Sample Internship (projects)"), never raw ids."""
+    rows = (resolved or {}).get("resolved_refs") or []
+    labels = []
+    for row in rows:
+        label = str(row.get("label") or "")
+        source_key = str(row.get("source_key") or "")
+        labels.append(
+            label
+            if label == f"Unknown item ({source_key})"
+            else f"{label} ({source_key})"
+        )
+    if labels:
+        return labels
+    return [
+        f"{ref.get('source_key')}:{ref.get('item_id')}"
+        for ref in (op.get("payload") or {}).get("refs") or []
+    ]
+
+
 logger = logging.getLogger(__name__)
 ACTION_VERBS = {
     ProposalAction.CREATE.value: "Add",
@@ -1020,6 +1123,12 @@ class ProfileProposalService:
         elif kind == ProposalKind.CV_SYNTH.value:
             op_payload = CvSynthOpPayload.model_validate(payload)
             stored_payload = op_payload.model_dump(mode="json")
+            # Plan 101 AD1: resolve every ref to a human label ONCE at
+            # card creation; the labels live in payload_json (audit +
+            # preview reuse) and drive both the title and the diff rows.
+            stored_payload.update(
+                await resolve_cv_synth_payload(self.db, user_id, stored_payload)
+            )
             label = self._cv_synth_label(stored_payload)
             diff = self._cv_synth_diff(stored_payload)
         elif action == ProposalAction.CREATE.value:
@@ -1711,15 +1820,51 @@ class ProfileProposalService:
         return ""
 
     def _cv_synth_label(self, payload: dict) -> str:
+        """Card label (plan 101 AD1): resolved ref labels, ≤2 abbreviated
+        ("Sample Internship (+2)"), the posting ref when posting-aimed.
+        Pre-101 payloads (no ``resolved_refs``) keep the count fallback."""
         refs = payload.get("refs") or []
-        posting = " · posting fit" if payload.get("posting_id") else ""
-        return f"{len(refs)} item(s) · {payload.get('action', 'summarize')}{posting}"
+        posting_id = payload.get("posting_id")
+        posting = (
+            f" · posting {payload.get('resolved_posting')}"
+            if posting_id and payload.get("resolved_posting")
+            else " · posting fit"  # legacy shape
+            if posting_id
+            else ""
+        )
+        resolved = payload.get("resolved_refs") or []
+        labels = [
+            str(row.get("label") or "").strip()
+            for row in resolved
+            if str(row.get("label") or "").strip()
+        ]
+        if not labels:
+            base = f"{len(refs)} item(s)"
+        elif len(labels) == 1:
+            base = labels[0]
+        elif len(labels) == 2:
+            base = f"{labels[0]} + {labels[1]}"
+        else:
+            base = f"{labels[0]} (+{len(labels) - 1})"
+        return f"{base} · {payload.get('action', 'summarize')}{posting}"
 
     def _cv_synth_diff(self, payload: dict) -> list[dict]:
-        refs = [
-            f"{ref.get('source_key')}:{ref.get('item_id')}"
-            for ref in payload.get("refs") or []
-        ]
+        resolved = payload.get("resolved_refs") or []
+        refs: list[Any]
+        if resolved:
+            refs = [
+                {
+                    "label": row.get("label"),
+                    "source_key": row.get("source_key"),
+                    "item_id": row.get("item_id"),
+                }
+                for row in resolved
+            ]
+        else:
+            refs = [
+                f"{ref.get('source_key')}:{ref.get('item_id')}"
+                for ref in payload.get("refs") or []
+            ]
         rows: list[dict] = [
             {"field": "refs", "label": "Items", "before": None, "after": refs[:15]},
             {
@@ -1736,12 +1881,17 @@ class ProfileProposalService:
             },
         ]
         if payload.get("posting_id"):
+            posting_row = str(payload["posting_id"])
+            if payload.get("resolved_posting"):
+                posting_row = str(payload["resolved_posting"])
+                if payload.get("resolved_posting_title"):
+                    posting_row = f"{posting_row} — {payload['resolved_posting_title']}"
             rows.append(
                 {
                     "field": "posting_id",
                     "label": "Target posting",
                     "before": None,
-                    "after": str(payload["posting_id"]),
+                    "after": posting_row,
                 }
             )
         return rows
