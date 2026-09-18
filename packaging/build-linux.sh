@@ -125,6 +125,31 @@ if [[ "$TARGET" == "deb" || "$TARGET" == "all" ]]; then
     "$INTERNAL"/libthai*.so.* "$INTERNAL"/libdatrie*.so.* \
     "$INTERNAL"/libxkbcommon*.so.* \
     "$INTERNAL"/libstdc++*.so.* "$INTERNAL"/libgcc_s*.so.*
+
+  # Regression guard: none of the system-stack adjacency (nor the
+  # GL/wayland family, should a future hook start dragging it in) may
+  # survive in the deb — the 22.04 CI runner can never catch this bug
+  # class because its system libs match the bundle; only newer hosts
+  # see the RUNPATH hijack (v0.11.3, blank-window EGL aborts).
+  _deny_hits=""
+  for _pat in \
+    libglib-2.0 libgobject-2.0 libgio-2.0 libgmodule-2.0 libgthread-2.0 \
+    libgtk-3 libgdk-3 libgdk_pixbuf-2.0 libgirepository-1.0 \
+    libpango libpangocairo libpangoft2 libcairo libharfbuzz libgraphite2 \
+    libfreetype libpng16 libbrotli \
+    libxcb libXau libXdmcp libX11 libXext libXrender libXrandr libXi \
+    libXcursor libXcomposite libXdamage libXfixes libXinerama \
+    libepoxy libatk libatspi librsvg libpixman libfontconfig \
+    libfribidi libthai libdatrie libxkbcommon \
+    libstdc++ libgcc_s libwayland libEGL libGLESv2 libgbm libdrm; do
+    _hit="$(ls "$INTERNAL"/${_pat}*.so.* 2>/dev/null || true)"
+    [[ -n "$_hit" ]] && _deny_hits="${_deny_hits}${_hit}"$'\n'
+  done
+  if [[ -n "$_deny_hits" ]]; then
+    echo "ERROR: system-stack libraries survived the deb strip:" >&2
+    echo "$_deny_hits" >&2
+    exit 1
+  fi
   rm -rf "$INTERNAL/gio_modules" "$INTERNAL/gi_typelibs" \
     "$INTERNAL/share/glib-2.0"
 
