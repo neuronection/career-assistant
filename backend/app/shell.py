@@ -63,10 +63,19 @@ def _egl_probe() -> bool:
         return False
 
 
+_MESA_EGL_JSON = Path("/usr/share/glvnd/egl_vendor.d/50_mesa.json")
+
+
 def _software_render_env(env: MutableMapping[str, str]) -> None:
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     env["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1"
     env["WEBKIT_DISABLE_COMPOSITING_MODE"] = "1"
+    # LIBGL_ALWAYS_SOFTWARE only steers Mesa; when glvnd's default EGL
+    # vendor is a broken hardware one (EGL_BAD_PARAMETER even with every
+    # knob above), pinning Mesa's vendor json makes the software path
+    # actually reachable (Mint 22 / hybrid-GPU laptops).
+    if _MESA_EGL_JSON.exists():
+        env["__EGL_VENDOR_LIBRARY_FILENAMES"] = str(_MESA_EGL_JSON)
 
 
 def apply_webkit_compat_env(
@@ -86,11 +95,7 @@ def apply_webkit_compat_env(
     if sys.platform != "linux" or env.get("CA_WEBKIT_GPU") == "1":
         return env
     persisted = marker is not None and marker.exists()
-    if (
-        env.get("CA_WEBKIT_SOFT_FALLBACK") != "1"
-        and not persisted
-        and _egl_probe()
-    ):
+    if env.get("CA_WEBKIT_SOFT_FALLBACK") != "1" and not persisted and _egl_probe():
         return env
     _software_render_env(env)
     if marker is not None:

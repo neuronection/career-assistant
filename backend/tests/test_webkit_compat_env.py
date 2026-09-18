@@ -201,3 +201,17 @@ def test_relaunch_self_logs_and_execs(monkeypatch: pytest.MonkeyPatch) -> None:
     shell._relaunch_self()
     assert calls[-1][0] == "execv"
     assert not any("argv" in kw for _, kw in calls if isinstance(kw, dict))
+
+
+def test_software_env_pins_mesa_egl_vendor_when_present(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """LIBGL_ALWAYS_SOFTWARE only steers Mesa — on glvnd machines whose
+    default EGL vendor is broken hardware (Mint 22 report: EGL_BAD_PARAMETER
+    even in software mode), the software fallback must pin Mesa's vendor
+    json or WebKit never paints."""
+    monkeypatch.setattr(shell, "_egl_probe", lambda: False)
+    monkeypatch.setattr(shell, "_MESA_EGL_JSON", tmp_path / "50_mesa.json")
+    (tmp_path / "50_mesa.json").write_text("{}", encoding="utf-8")
+    env = apply_webkit_compat_env({})
+    assert env["__EGL_VENDOR_LIBRARY_FILENAMES"] == str(tmp_path / "50_mesa.json")
