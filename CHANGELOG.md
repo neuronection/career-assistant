@@ -4,6 +4,11 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- (nothing yet — the live scope of the next release)
+
+## [v0.11.0] - 2026-09-18
+
 ### Fixed
 - **E2E CI stability: two flakes root-caused** — the LangGraph Postgres
   checkpointer now runs on a psycopg connection pool instead of one
