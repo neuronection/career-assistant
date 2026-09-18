@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus, ChevronDown, Search, Star } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Pencil, Plus, ChevronDown, Search, Star, ExternalLink } from "lucide-react";
 import { CheckIndicator } from "@neuronection/assistant-ui";
 import type { CvContextSourceOut, CvSynthItem } from "@/types/cv";
+import { CONTEXT_SOURCE_LINKS, contextSourceLink } from "@/lib/entityLinks";
 
 interface ContextPanelProps {
   sources: CvContextSourceOut[];
@@ -17,6 +19,10 @@ interface ContextPanelProps {
   onEditVariant?: (variant: CvSynthItem) => void;
   /** Plan 102: re-snapshot a stale variant's source hashes (review button). */
   onResetVariant?: (variant: CvSynthItem) => void;
+  /** Plan 105: create a profile entity for this source group. */
+  onAddItem?: (sourceKey: string) => void;
+  /** Plan 105: edit the profile entity behind a context item. */
+  onEditItem?: (sourceKey: string, itemId: string) => void;
 }
 
 function refKeyOf(sourceKey: string, itemId: string): string {
@@ -174,6 +180,8 @@ function GroupRow({
   onPinVariant,
   onEditVariant,
   onResetVariant,
+  onAddItem,
+  onEditItem,
   open,
   onOpenChange,
 }: {
@@ -187,6 +195,8 @@ function GroupRow({
   onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
   onEditVariant?: (variant: CvSynthItem) => void;
   onResetVariant?: (variant: CvSynthItem) => void;
+  onAddItem?: (sourceKey: string) => void;
+  onEditItem?: (sourceKey: string, itemId: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -194,6 +204,7 @@ function GroupRow({
   const includedCount = items.filter((item) => selected.has(refKeyOf(source.key, item.item_id))).length;
   const allIncluded = items.length > 0 && includedCount === items.length;
   const someIncluded = includedCount > 0 && !allIncluded;
+  const link = CONTEXT_SOURCE_LINKS[source.key];
 
   return (
     <div className="overflow-hidden rounded-xl bg-[var(--as-surface)]">
@@ -232,10 +243,45 @@ function GroupRow({
             }`}
           />
         </button>
+        {link && !link.focusable && (
+          <Link
+            to={contextSourceLink(source.key)}
+            className="shrink-0 rounded p-0.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+            aria-label={`Open ${source.label} in profile`}
+            title={`Open in profile`}
+            data-testid={`context-open-group-${source.key}`}
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          </Link>
+        )}
+        {link?.editor && onAddItem && (
+          <button
+            type="button"
+            className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--as-accent)] transition-colors hover:bg-[var(--as-muted)]"
+            aria-label={`Add ${source.label}`}
+            title={`Add ${source.label}`}
+            data-testid={`context-add-${source.key}`}
+            onClick={() => onAddItem(source.key)}
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        )}
       </div>
       {items.length === 0 ? (
         <div className="border-t border-[var(--as-border)] px-2" data-testid={`context-group-body-${source.key}`}>
-          <p className="py-1.5 text-xs text-[var(--as-muted-fg)]">Nothing recorded yet</p>
+          {link?.editor && onAddItem ? (
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center gap-1 py-1.5 text-xs text-[var(--as-accent)] transition-colors hover:underline"
+              data-testid={`context-add-empty-${source.key}`}
+              onClick={() => onAddItem(source.key)}
+            >
+              <Plus className="h-3 w-3" aria-hidden />
+              Add {source.label.toLowerCase()}
+            </button>
+          ) : (
+            <p className="py-1.5 text-xs text-[var(--as-muted-fg)]">Nothing recorded yet</p>
+          )}
         </div>
       ) : (
         <div className="cv-collapse" data-open={open} data-testid={`context-group-body-${source.key}`}>
@@ -263,6 +309,31 @@ function GroupRow({
                         <span className="line-clamp-2 text-xs text-[var(--as-muted-fg)]">{item.detail}</span>
                       )}
                     </span>
+                    {link?.focusable && (
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        {onEditItem && (
+                          <button
+                            type="button"
+                            className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+                            aria-label={`Edit ${item.label}`}
+                            title="Edit profile entry"
+                            data-testid={`context-edit-item-${key}`}
+                            onClick={() => onEditItem(source.key, item.item_id)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        )}
+                        <Link
+                          to={contextSourceLink(source.key, item.item_id)}
+                          className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+                          aria-label={`Open ${item.label} in profile`}
+                          title="Open in profile"
+                          data-testid={`context-open-item-${key}`}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                        </Link>
+                      </span>
+                    )}
                     {writable && (
                       <span className="flex shrink-0 items-center gap-0.5">
                         {onAddVariant && (
@@ -310,6 +381,8 @@ export function ContextPanel({
   onPinVariant,
   onEditVariant,
   onResetVariant,
+  onAddItem,
+  onEditItem,
 }: ContextPanelProps) {
   const [query, setQuery] = useState("");
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
@@ -380,6 +453,8 @@ export function ContextPanel({
             onPinVariant={onPinVariant}
             onEditVariant={onEditVariant}
             onResetVariant={onResetVariant}
+            onAddItem={onAddItem}
+            onEditItem={onEditItem}
             open={query.trim() !== "" ? true : !closedGroups.has(source.key) && !isEmpty(source)}
             onOpenChange={(open) =>
               setClosedGroups((previous) => {

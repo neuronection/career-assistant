@@ -46,6 +46,7 @@ import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import type { CvAssistantCritique, CvAssistantState } from "@/types/cvAssistant";
 import { BLOCK_TYPES } from "@/components/cv/blockTypes";
 import { ContextPanel } from "@/components/cv/ContextPanel";
+import { EntityEditorModal } from "@/components/profile/EntityEditorModal";
 import { VariantEditor, type VariantEditorBody } from "@/components/cv/VariantEditor";
 import { InspectorPanel, type InspectorTab } from "@/components/cv/InspectorPanel";
 import { PreviewCanvas } from "@/components/cv/PreviewCanvas";
@@ -98,6 +99,11 @@ export function CvBuilder() {
     initial: CvSynthItem | null;
     sourceKey: string;
   }>({ open: false, initial: null, sourceKey: "" });
+  const [entityEditor, setEntityEditor] = useState<{
+    open: boolean;
+    sourceKey: string;
+    itemId: string | null;
+  }>({ open: false, sourceKey: "", itemId: null });
   const [templates, setTemplates] = useState<CvTemplateSummary[]>([]);
   const [savedPostings, setSavedPostings] = useState<{ id: string; title: string; org: string }[]>([]);
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
@@ -190,6 +196,15 @@ export function CvBuilder() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const refreshSources = useCallback(async () => {
+    try {
+      const context = await fetchContextSources();
+      setSources(context.sources);
+    } catch {
+      void undefined;
+    }
   }, []);
 
   const refreshPreview = useCallback(async () => {
@@ -1318,6 +1333,12 @@ export function CvBuilder() {
                     setVariantEditor({ open: true, initial: variant, sourceKey: "" })
                   }
                   onResetVariant={(variant) => void resetVariant(variant)}
+                  onAddItem={(sourceKey) =>
+                    setEntityEditor({ open: true, sourceKey, itemId: null })
+                  }
+                  onEditItem={(sourceKey, itemId) =>
+                    setEntityEditor({ open: true, sourceKey, itemId })
+                  }
                 />
               )
             }
@@ -1685,6 +1706,19 @@ export function CvBuilder() {
           onUseSaved={saveVariantAndUse}
           onGenerate={generateVariantDraft}
           variants={synthItems}
+        />
+      )}
+
+      {entityEditor.open && (
+        <EntityEditorModal
+          sourceKey={entityEditor.sourceKey}
+          itemId={entityEditor.itemId}
+          onSaved={() => {
+            setEntityEditor({ open: false, sourceKey: "", itemId: null });
+            void refreshSources();
+            void refreshPreview();
+          }}
+          onClose={() => setEntityEditor({ open: false, sourceKey: "", itemId: null })}
         />
       )}
     </div>

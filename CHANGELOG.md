@@ -27,6 +27,16 @@ All notable changes to **Career Assistant** are documented here.
   address.
 
 ### Added
+- **Create and edit profile items from CV Studio's Context tab (plan 105)** —
+  every context group gains a `+` create button and every entry row a
+  pencil (edit) plus an external-link ("open in profile") affordance:
+  the entity editor modal opens the real workspace editors in place
+  (experience — with the right kind preset for projects/volunteer —,
+  education, certifications, achievements, and the skills card), saves
+  through the profile APIs, then refreshes the context panel and
+  preview. Card-backed groups (languages, interests, basics, objective)
+  link to their profile section instead. Empty groups offer the create
+  action directly.
 - **Profile entity deep links (plan 105 groundwork)** — a shared
   `lib/entityLinks.ts` map now routes every CV context source to its
   profile home; the experience and education workspaces accept

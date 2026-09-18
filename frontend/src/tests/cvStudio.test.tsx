@@ -57,6 +57,10 @@ const patchCv = vi.fn();
 const setContext = vi.fn();
 const aiAction = vi.fn();
 const exportCv = vi.fn();
+const fetchExperienceRows = vi.fn();
+const createExperienceEntry = vi.fn();
+const updateExperienceEntry = vi.fn();
+const fetchOntology = vi.fn();
 const restoreVersion = vi.fn();
 const fetchVersionPreview = vi.fn();
 const fetchTemplates = vi.fn();
@@ -185,6 +189,26 @@ vi.mock("@/api/cv", async (importOriginal) => {
     fetchCvDesign: (...args: unknown[]) => fetchCvDesign(...args),
     applyCvOps: (...args: unknown[]) => applyCvOps(...args),
     createCoverLetter: (...args: unknown[]) => createCoverLetter(...args),
+  };
+});
+
+vi.mock("@/api/experience", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/experience")>();
+  return {
+    ...mod,
+    fetchExperience: (...args: unknown[]) => fetchExperienceRows(...args),
+    fetchDerivation: vi.fn().mockResolvedValue({ skills: [], years_of_experience: 0 }),
+    createExperienceItem: (...args: unknown[]) => createExperienceEntry(...args),
+    updateExperienceItem: (...args: unknown[]) => updateExperienceEntry(...args),
+  };
+});
+
+vi.mock("@/api/skills", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/skills")>();
+  return {
+    ...mod,
+    fetchSkillOntology: (...args: unknown[]) => fetchOntology(...args),
+    fetchMySkills: vi.fn().mockResolvedValue([]),
   };
 });
 
@@ -2450,5 +2474,80 @@ describe("CvBuilder — plan 104 chat live sync", () => {
     const calls = previewCv.mock.calls.length;
     await new Promise((resolve) => setTimeout(resolve, 450));
     expect(previewCv.mock.calls.length).toBe(calls);
+  });
+});
+
+describe("CvBuilder — plan 105 context entity editing", () => {
+  it("creates an experience entry from the context tab and refreshes sources", async () => {
+    const user = userEvent.setup();
+    fetchOntology.mockResolvedValue([]);
+    createExperienceEntry.mockResolvedValue({});
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    await user.click(screen.getByTestId("context-add-experience"));
+    const modal = await screen.findByTestId("entity-editor-modal");
+    expect(within(modal).getByTestId("experience-title")).toHaveValue("");
+    const titleInput = within(modal).getByTestId("experience-title");
+    await user.type(titleInput, "Backend intern");
+    expect(titleInput).toHaveValue("Backend intern");
+    await user.click(
+      within(modal).getByRole("button", { name: "Start date" }),
+    );
+    const now = new Date();
+    const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-15`;
+    await user.click(document.querySelector(`[data-day="${iso}"]`)!);
+    await user.click(within(modal).getByTestId("toggle-currently-ongoing"));
+    await user.click(within(modal).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(createExperienceEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Backend intern", kind: "job", source: "self_report" }),
+      ),
+    );
+    expect(screen.queryByTestId("entity-editor-modal")).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchContextSources.mock.calls.length).toBe(2));
+  });
+
+  it("edits the profile entry behind a context item through the modal", async () => {
+    const user = userEvent.setup();
+    fetchOntology.mockResolvedValue([]);
+    fetchExperienceRows.mockResolvedValue({
+      items: [
+        {
+          id: "exp-1",
+          kind: "internship",
+          title: "DevOps intern",
+          org_name: "Acme",
+          start: "2025-01-01",
+          end: "2025-12-31",
+          open_ended: false,
+          hours_per_week: 40,
+          onsite_policy: null,
+          description: "",
+          links: [],
+          source: "self_report",
+          status: "active",
+          created_at: "2026-09-02T00:00:00Z",
+          skills: [],
+          achievements: [],
+        },
+      ],
+      years_of_experience: 0.9,
+    });
+    updateExperienceEntry.mockResolvedValue({});
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    await user.click(screen.getByTestId("context-edit-item-experience:exp-1"));
+    const modal = await screen.findByTestId("entity-editor-modal");
+    expect(within(modal).getByTestId("experience-title")).toHaveValue("DevOps intern");
+    await user.click(within(modal).getByTestId("save-experience"));
+    await waitFor(() =>
+      expect(updateExperienceEntry).toHaveBeenCalledWith(
+        "exp-1",
+        expect.objectContaining({ title: "DevOps intern" }),
+      ),
+    );
+    expect(screen.queryByTestId("entity-editor-modal")).not.toBeInTheDocument();
   });
 });
