@@ -150,4 +150,6 @@ async def run_tool(
         raise DomainError(f"Invalid input for tool {key}: {exc}") from exc
     if tool.requires_user and user_id is None:
         raise PermissionDeniedError(f"Tool {key} requires a signed-in user")
-    return await tool.handler(db, ToolContext(user_id=user_id), parsed)
+    handler = tool.handler
+    assert handler is not None, "callable tools always carry a handler"
+    return await handler(db, ToolContext(user_id=user_id), parsed)

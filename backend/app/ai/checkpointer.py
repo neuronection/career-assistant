@@ -12,9 +12,11 @@ import logging
 import time
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from psycopg import AsyncConnection
+from psycopg_pool import AsyncConnectionPool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -97,7 +99,9 @@ async def get_checkpointer() -> BaseCheckpointSaver:
         )
         stack.push_async_callback(pool.close)
         await pool.open()
-        saver = AsyncPostgresSaver(pool)
+        saver = AsyncPostgresSaver(
+            cast("AsyncConnectionPool[AsyncConnection[dict[str, Any]]]", pool)
+        )
     await saver.setup()
     _checkpointer = saver
     _stack = stack
@@ -206,7 +210,7 @@ async def prune_postgres_checkpoints(db: AsyncSession, ttl_days: int) -> int:
         ),
         {"prefix": prefix},
     )
-    removed = result.rowcount or 0
+    removed = result.rowcount or 0  # type: ignore[attr-defined]
     # Orphaned blobs/writes of pruned threads go with them (also sweeps
     # zero-checkpoint leftovers of never-resumed aborted runs).
     for table in ("checkpoint_blobs", "checkpoint_writes"):

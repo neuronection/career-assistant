@@ -105,7 +105,7 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
         if (
             entity_id
             and op.get("action") in {"update", "delete"}
-            and not _was_read(tools, op.get("kind"), entity_id)
+            and not _was_read(tools, str(op.get("kind")), entity_id)
         ):
             return [
                 {

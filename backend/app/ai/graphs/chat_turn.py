@@ -132,6 +132,7 @@ class TurnDeps:
     tool_metadata: dict = field(default_factory=dict)
     generating: bool = False
     generate_started: Optional[float] = None
+    degraded: bool = False
     aborted: bool = False
 
 
@@ -390,11 +391,11 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                 target = result.get("entity_id") or result.get("section")
                 if kind and target:
                     read_keys.append(chat_digest_cache.read_cache_key(kind, target))
-                    if deps.session is not None:
+                    if deps.session is not None and result.get("entity_id"):
                         sig = await chat_digest_cache.entity_signature(
                             deps.db,
                             kind,
-                            uuid.UUID(str(target)) if result.get("entity_id") else None,
+                            uuid.UUID(str(target)),
                         )
                         if sig:
                             chat_digest_cache.save(
@@ -594,7 +595,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
     _note_node(
         deps, "ops_draft", "validating profile edits", ops_started, time.monotonic()
     )
-    outcomes_payload = {
+    outcomes_payload: dict[str, Any] = {
         "drafted": len(op_dicts),
         "resolved": len(resolved_ops),
         "repaired": 1 if rounds_used > 1 else 0,
