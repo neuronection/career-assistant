@@ -86,6 +86,14 @@ if [[ "$TARGET" == "deb" || "$TARGET" == "all" ]]; then
     "$INTERNAL"/libpango-1.0.so.* "$INTERNAL"/libpangocairo-1.0.so.* \
     "$INTERNAL"/libpangoft2-1.0.so.* \
     "$INTERNAL"/libcairo.so.* "$INTERNAL"/libcairo-gobject.so.*
+  # The text stack rides the same rule: a bundled old harfbuzz hijacks
+  # newer hosts' system pango (undefined hb_ot_color_has_paint on
+  # Ubuntu 24.04 / Mint 22 — pango 1.52 is built against harfbuzz 8).
+  # System freetype/graphite/png resolve through the control file's
+  # libwebkit2gtk-4.1 depends.
+  rm -f "$INTERNAL"/libharfbuzz*.so.* "$INTERNAL"/libgraphite2*.so.* \
+    "$INTERNAL"/libfreetype*.so.* "$INTERNAL"/libpng16*.so.* \
+    "$INTERNAL"/libbrotli*.so.*
   rm -rf "$INTERNAL/gio_modules" "$INTERNAL/gi_typelibs" \
     "$INTERNAL/share/glib-2.0"
 
