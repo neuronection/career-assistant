@@ -3,7 +3,9 @@
 <img src="assets/icon-light.svg" width="120" height="120" alt="Career Assistant logo">
 
 # Career Assistant
-### AI-guided career discovery for students
+### AI-guided career discovery and CV generation
+
+**For students, career switchers and returners alike — anyone navigating a career path.**
 
 [![Version](https://img.shields.io/badge/version-v0.10.0-blue.svg)](https://github.com/neuronection/career-assistant/releases)
 [![Status](https://img.shields.io/badge/status-beta-yellow.svg)](#scope--limitations)
@@ -57,13 +59,13 @@
 
 ## What is Career Assistant?
 
-A self-hosted web app that helps students discover which jobs actually exist, understand which ones fit their interests, personality and constraints, and find the university pathways that lead to them — with AI woven through every step.
+A self-hosted web app that helps anyone navigate career decisions — students choosing their first path, switchers exploring adjacent roles, returners rebuilding their profile — discover which jobs actually exist, understand which ones fit their interests, personality and constraints, and find the education pathways that lead to them — with AI woven through every step.
 
 Under the hood it's a **structured knowledge platform**: a job catalog organized as a family tree plus a typed relation graph, deep structured student profiles, and university admissions data — all referenced by stable keys, never loose labels. AI generates jobs, suggests relations, and scores matches, but every output is validated into typed structures and audited.
 
 More than a CV builder — but the **CV Studio** is its most mature surface today: an agentic CV workspace that generates CVs from templates, from an uploaded existing CV, or on demand from your structured profile, with deep template and design customization and an AI copilot that operates the builder for you (details below).
 
-It is **beta** software, built for students and technical self-hosters first.
+It is **beta** software, built for anyone exploring career paths and for technical self-hosters.
 
 ## What's different
 
