@@ -84,7 +84,7 @@ function slotKeyOf(
 
 function rowSlotKeyOf(row: CvSynthItem): string {
   return slotKeyOf(
-    row.source_refs.map((ref) => refKey(ref.source_key, ref.item_id)),
+    (row.source_refs ?? []).map((ref) => refKey(ref.source_key, ref.item_id)),
     row.variant_key,
     row.target_posting_id ?? ""
   );
@@ -129,7 +129,7 @@ export function VariantEditor({
   const editing = initial !== null;
   const [refs, setRefs] = useState<string[]>(
     initial
-      ? initial.source_refs.map((ref) => refKey(ref.source_key, ref.item_id))
+      ? (initial.source_refs ?? []).map((ref) => refKey(ref.source_key, ref.item_id))
       : defaultSourceKey && sources.length > 0
         ? sources
             .filter((source) => source.key === defaultSourceKey)
@@ -138,13 +138,13 @@ export function VariantEditor({
             )
         : []
   );
-  const [description, setDescription] = useState(initial?.payload.description ?? "");
+  const [description, setDescription] = useState(initial?.payload?.description ?? "");
   const [bullets, setBullets] = useState<string[]>(() =>
-    initial?.payload.bullets?.length ? initial.payload.bullets : [""],
+    initial?.payload?.bullets?.length ? initial.payload.bullets : [""],
   );
   const [variantKey, setVariantKey] = useState(initial?.variant_key ?? "default");
   const [language, setLanguage] = useState(
-    initial?.voice.language ?? defaultLanguage
+    initial?.voice?.language ?? defaultLanguage
   );
   const [postingId, setPostingId] = useState(initial?.target_posting_id ?? "");
   const [loadedId, setLoadedId] = useState<string | null>(initial?.id ?? null);
@@ -654,9 +654,9 @@ export function VariantEditor({
                     data-testid={`synth-editor-compare-row-${row.id}`}
                     onClick={() => {
                       setLoadedId(row.id);
-                      setDescription(row.payload.description ?? "");
-                      setBullets(row.payload.bullets?.length ? row.payload.bullets : [""]);
-                      setLanguage(row.voice.language ?? defaultLanguage);
+                      setDescription(row.payload?.description ?? "");
+                      setBullets(row.payload?.bullets?.length ? row.payload.bullets : [""]);
+                      setLanguage(row.voice?.language ?? defaultLanguage);
                       setPostingId(row.target_posting_id ?? "");
                     }}
                   >

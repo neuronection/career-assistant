@@ -885,13 +885,20 @@ export function CvBuilder() {
     () =>
       synthItems
         .filter((variant) => variant.status !== "archived")
-        .map((variant) => ({
-          id: variant.id,
-          label:
-            (variant.payload.description || variant.payload.summary || "")
-              .slice(0, 42) || `${variant.variant_key} · ${variant.voice.language}`,
-          stale: variant.stale,
-        })),
+        .map((variant) => {
+          // Library rows from before typed payloads landed may omit
+          // payload/voice — the unhandled error at this map broke the
+          // whole vitest run in CI.
+          const payload = variant.payload ?? { description: "", summary: "" };
+          const voice = variant.voice ?? { language: "en" };
+          return {
+            id: variant.id,
+            label:
+              (payload.description || payload.summary || "").slice(0, 42) ||
+              `${variant.variant_key} · ${voice.language}`,
+            stale: variant.stale,
+          };
+        }),
     [synthItems]
   );
 

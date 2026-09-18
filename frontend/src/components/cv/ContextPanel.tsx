@@ -97,7 +97,7 @@ function VariantsForItem({
   onResetVariant?: (variant: CvSynthItem) => void;
 }) {
   const rows = variants.filter((variant) =>
-    variant.source_refs.some(
+    (variant.source_refs ?? []).some(
       (ref) => ref.source_key === sourceKey && ref.item_id === itemId,
     ),
   );
