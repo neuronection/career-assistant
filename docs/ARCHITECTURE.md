@@ -355,6 +355,22 @@ after with the changed span highlighted, and an approved card can be
 `reverted` status; a moved-target guard 409s when the entity changed
 after the apply). Edit-before-approve card UX is plan 100.
 
+**Plan 101 — every proposal kind renders like its edit surface**: the
+cv_synth variant card resolves each context ref to a human label at
+card creation (`resolved_refs` in `payload_json`; abbreviated
+title `Add CV variants · <primary label> (+N) · <action>`, unreadable
+refs degrade to "Unknown item", posting-aimed cards name the posting's
+public ref — the narrator rides the same resolution, so no UUID ever
+reaches chat prose). The preview endpoint admits `cv_synth`
+before-only: stacked KIND_SPECS-shaped source snapshots fresh at
+preview time (label-only rows once a source is gone; everything-deleted
+answers 404 so the button hides) under the "What the variant drafts
+from" modal header, with no revert row (variants retract via the Synth
+Library). Education/certification/achievement previews render a
+per-kind `ProfileSnapshotCard` (labelled rows, chips for scalar lists,
+highlighted prose spans) instead of a generic dump; pre-101 rows keep
+the legacy rendering.
+
 **Profile-edit grounding persists in the session** (plan 81): the
 plan-77 read-only digests (`my_experience` / `my_skills` /
 `my_education` / `my_profile_digest`) are keyword-triggered only until

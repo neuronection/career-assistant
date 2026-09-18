@@ -177,6 +177,9 @@ call tools to gather facts before the final answer is written in a later step:
   (section) for a section edit — after the digest gave you the id.
   Edits to unread items are discarded later, so read first whenever an
   edit intent is plausible.
+- Do not call my_autopilot or compare_jobs unless the user's ask is
+  actually about autopilot goals or job comparisons — they are NOT
+  grounding digests for a profile edit.
 - Call a tool only when its result could change the final answer; never
   repeat a call with identical arguments.
 - When you have enough grounding, stop calling tools. Do not answer the

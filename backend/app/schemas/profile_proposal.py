@@ -162,9 +162,23 @@ class ProfileProposalResolveOut(BaseModel):
     already: bool = False
 
 
-class ProfileProposalPreviewOut(BaseModel):
-    """Lazy before/after snapshots for the render modal (plan 99 AD7)."""
+class CvSynthPreviewSource(BaseModel):
+    """One stacked before-row of a cv_synth preview (plan 101 AD2):
+    ref identity + the KIND_SPECS source snapshot (None when the source
+    row is gone — label-only)."""
 
-    before: Optional[dict[str, Any]] = None
+    source_key: str
+    item_id: str
+    label: str
+    snapshot: Optional[dict[str, Any]] = None
+
+
+class ProfileProposalPreviewOut(BaseModel):
+    """Lazy before/after snapshots for the render modal (plan 99 AD7).
+
+    ``before`` is a single entity snapshot, or a stacked cv_synth source
+    list (plan 101 AD2 — ``after`` stays None for variants)."""
+
+    before: Optional[dict[str, Any] | list[CvSynthPreviewSource]] = None
     after: Optional[dict[str, Any]] = None
     edits: dict[str, Any] = Field(default_factory=dict)

@@ -18,7 +18,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.RELATION_SUGGEST.value: 1,
     AITaskType.MATCH_SCORE.value: 1,
     AITaskType.UNIVERSITY_PARSE.value: 1,
-    AITaskType.CHAT.value: 8,
+    AITaskType.CHAT.value: 9,
     AITaskType.CHAT_OPS.value: 1,
     AITaskType.ASSIST.value: 1,
     AITaskType.PATH_SUGGEST.value: 1,

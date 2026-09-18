@@ -4586,6 +4586,42 @@
         "title": "CvSynthPreviewOut",
         "type": "object"
       },
+      "CvSynthPreviewSource": {
+        "description": "One stacked before-row of a cv_synth preview (plan 101 AD2):\nref identity + the KIND_SPECS source snapshot (None when the source\nrow is gone \u2014 label-only).",
+        "properties": {
+          "item_id": {
+            "title": "Item Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_key",
+          "item_id",
+          "label"
+        ],
+        "title": "CvSynthPreviewSource",
+        "type": "object"
+      },
       "CvSynthVoice": {
         "description": "Recorded generation request (drives matching + regenerate).",
         "properties": {
@@ -10593,7 +10629,7 @@
         "type": "object"
       },
       "ProfileProposalPreviewOut": {
-        "description": "Lazy before/after snapshots for the render modal (plan 99 AD7).",
+        "description": "Lazy before/after snapshots for the render modal (plan 99 AD7).\n\n``before`` is a single entity snapshot, or a stacked cv_synth source\nlist (plan 101 AD2 \u2014 ``after`` stays None for variants).",
         "properties": {
           "after": {
             "anyOf": [
@@ -10612,6 +10648,12 @@
               {
                 "additionalProperties": true,
                 "type": "object"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CvSynthPreviewSource"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
