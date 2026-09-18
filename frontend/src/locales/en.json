@@ -2165,6 +2165,9 @@
     "preparing": "Preparing…",
     "createPlan": "Create plan"
   },
+  "entityEditor": {
+    "notFound": "This entry no longer exists."
+  },
   "experience": {
     "title": "Experience",
     "subtitle": "Structured history — skills, roles and metric-bearing outcomes.",

@@ -36,34 +36,12 @@ import {
   EMPTY_FORM,
   ExperienceEditor,
   KIND_ICONS,
+  experienceItemToIn,
+  experienceToIn,
   formFromItem,
   validateExperience,
 } from "@/components/experience/ExperienceEditor";
 import { ExperienceItemCard } from "@/components/experience/ExperienceItemCard";
-
-function toIn(item: ExperienceItemOut): ExperienceItemIn {
-  return {
-    title: item.title,
-    kind: item.kind,
-    org_name: item.org_name,
-    start: item.start,
-    end: item.open_ended ? null : item.end,
-    open_ended: item.open_ended,
-    hours_per_week: item.hours_per_week,
-    onsite_policy: (item.onsite_policy as ExperienceItemIn["onsite_policy"]) ?? null,
-    description: item.description,
-    links: item.links,
-    source: "self_report",
-    status: item.status,
-    skills: item.skills.map((s) => ({
-      skill_key: s.skill_key,
-      role_in_item: s.role_in_item,
-      level_claim: s.level_claim,
-      last_used: s.last_used,
-    })),
-    achievements: item.achievements.map((a) => ({ text: a.text, metric: null })),
-  };
-}
 
 function sortByRecency(items: ExperienceItemOut[]): ExperienceItemOut[] {
   return [...items].sort((a, b) => {
@@ -310,15 +288,7 @@ export function Experience() {
     setSaving(true);
     setError("");
     try {
-      const payload: ExperienceItemIn = {
-        ...form,
-        start: form.start || null,
-        end: form.open_ended ? null : form.end || null,
-        links: form.links
-          .filter((l) => l.url.trim())
-          .map((l) => ({ ...l, url: l.url.trim() })),
-        source: "self_report",
-      };
+      const payload: ExperienceItemIn = experienceToIn(form);
       if (isNew) {
         const created = await createExperienceItem(payload);
         if (created) {
@@ -365,7 +335,7 @@ export function Experience() {
     setError("");
     try {
       for (const item of deleted) {
-        const restored = await createExperienceItem(toIn(item));
+        const restored = await createExperienceItem(experienceItemToIn(item));
         if (restored) {
           setItems((prev) => sortByRecency([restored, ...prev]));
         }
@@ -437,7 +407,7 @@ export function Experience() {
     setError("");
     try {
       const created = await createExperienceItem({
-        ...toIn(item),
+        ...experienceItemToIn(item),
         title: `${item.title} ${t("experience.copySuffix")}`,
       });
       if (created) {

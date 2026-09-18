@@ -156,6 +156,45 @@ export function formFromItem(item: ExperienceItemOut): ExperienceEditorForm {
   };
 }
 
+/** Editor form → API payload (plan 105: one source for the workspace
+ * and the Studio's entity editor modal). */
+export function experienceToIn(form: ExperienceEditorForm): ExperienceItemIn {
+  return {
+    ...form,
+    start: form.start || null,
+    end: form.open_ended ? null : form.end || null,
+    links: form.links
+      .filter((l) => l.url.trim())
+      .map((l) => ({ ...l, url: l.url.trim() })),
+    source: "self_report",
+  };
+}
+
+/** Stored item → API payload for duplicate re-POST (new id on create). */
+export function experienceItemToIn(item: ExperienceItemOut): ExperienceItemIn {
+  return {
+    title: item.title,
+    kind: item.kind,
+    org_name: item.org_name,
+    start: item.start,
+    end: item.open_ended ? null : item.end,
+    open_ended: item.open_ended,
+    hours_per_week: item.hours_per_week,
+    onsite_policy: (item.onsite_policy as ExperienceItemIn["onsite_policy"]) ?? null,
+    description: item.description,
+    links: item.links,
+    source: "self_report",
+    status: item.status,
+    skills: item.skills.map((s) => ({
+      skill_key: s.skill_key,
+      role_in_item: s.role_in_item,
+      level_claim: s.level_claim,
+      last_used: s.last_used,
+    })),
+    achievements: item.achievements.map((a) => ({ text: a.text, metric: null })),
+  };
+}
+
 export function validateExperience(form: ExperienceEditorForm): {
   title?: string;
   start?: string;
