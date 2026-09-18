@@ -7,6 +7,17 @@ All notable changes to **Career Assistant** are documented here.
 ### Added
 - (nothing yet — the live scope of the next release)
 
+## [v0.11.2] - 2026-09-18
+
+### Fixed
+- **Desktop blank window (continued)** — the webkit fallback chain now
+  also disables the WebKitGTK bubblewrap sandbox in software mode (the
+  sandbox silently kills the WebProcess in some packaged-app layouts:
+  blank view, the page never loads, zero requests), and every launch
+  logs its render mode at WARNING (mode, soft-fallback state, persisted
+  marker, Mesa EGL json presence, session type) so field reports show
+  exactly which environment applied.
+
 ## [v0.11.1] - 2026-09-18
 
 ### Fixed
