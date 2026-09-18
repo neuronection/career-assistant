@@ -26,6 +26,7 @@ def test_compat_env_software_when_probe_fails(monkeypatch: pytest.MonkeyPatch) -
     assert env["LIBGL_ALWAYS_SOFTWARE"] == "1"
     assert env["WEBKIT_DISABLE_DMABUF_RENDERER"] == "1"
     assert env["WEBKIT_DISABLE_COMPOSITING_MODE"] == "1"
+    assert env["GDK_BACKEND"] == "x11"
 
 
 def test_compat_env_gpu_when_probe_ok(monkeypatch: pytest.MonkeyPatch) -> None:

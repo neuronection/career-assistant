@@ -70,12 +70,16 @@ def _software_render_env(env: MutableMapping[str, str]) -> None:
     env["LIBGL_ALWAYS_SOFTWARE"] = "1"
     env["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1"
     env["WEBKIT_DISABLE_COMPOSITING_MODE"] = "1"
-    # LIBGL_ALWAYS_SOFTWARE only steers Mesa; when glvnd's default EGL
+    # X11 is the most compatible WebKit surface — the Wayland path forces
+    # the EGL/DMABUF machinery even with the knobs above.
+    env["GDK_BACKEND"] = "x11"
+    # LIBGL_ALWAYS_SOFTWARE only steers Mesa; when glvnd's default EGL/GLX
     # vendor is a broken hardware one (EGL_BAD_PARAMETER even with every
-    # knob above), pinning Mesa's vendor json makes the software path
-    # actually reachable (Mint 22 / hybrid-GPU laptops).
+    # knob above), pinning Mesa's vendor makes the software path actually
+    # reachable (Mint 22 / hybrid-GPU laptops).
     if _MESA_EGL_JSON.exists():
         env["__EGL_VENDOR_LIBRARY_FILENAMES"] = str(_MESA_EGL_JSON)
+        env["__GLX_VENDOR_LIBRARY_NAME"] = "mesa"
 
 
 def apply_webkit_compat_env(

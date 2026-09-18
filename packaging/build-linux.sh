@@ -94,6 +94,15 @@ if [[ "$TARGET" == "deb" || "$TARGET" == "all" ]]; then
   rm -f "$INTERNAL"/libharfbuzz*.so.* "$INTERNAL"/libgraphite2*.so.* \
     "$INTERNAL"/libfreetype*.so.* "$INTERNAL"/libpng16*.so.* \
     "$INTERNAL"/libbrotli*.so.*
+  # Orphans of the stripped GTK stack (pulled in as cairo/pixman/glib
+  # deps on the build host): a bundled 22.04 libxcb/libXau/libmount can
+  # hijack the system X/GL stack of a newer host and break WebKit's
+  # display init in driver-specific ways. Everything here resolves to
+  # system equivalents via the GTK depends.
+  rm -f "$INTERNAL"/libxcb*.so.* "$INTERNAL"/libXau*.so.* \
+    "$INTERNAL"/libXdmcp*.so.* "$INTERNAL"/libmount*.so.* \
+    "$INTERNAL"/libblkid*.so.* "$INTERNAL"/libselinux*.so.* \
+    "$INTERNAL"/libpcre2*.so.* "$INTERNAL"/libffi*.so.*
   rm -rf "$INTERNAL/gio_modules" "$INTERNAL/gi_typelibs" \
     "$INTERNAL/share/glib-2.0"
 

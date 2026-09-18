@@ -7,6 +7,21 @@ All notable changes to **Career Assistant** are documented here.
 ### Added
 - (nothing yet — the live scope of the next release)
 
+## [v0.11.1] - 2026-09-18
+
+### Fixed
+- **Desktop window on hybrid-GPU Linux (Mint 22 report)** — the webkit
+  software fallback now pins both EGL and GLX to Mesa (`__EGL_VENDOR_LIBRARY_FILENAMES`
+  / `__GLX_VENDOR_LIBRARY_NAME`) and forces the X11 GDK backend: machines
+  whose default glvnd vendor is broken hardware hit `EGL_BAD_PARAMETER`
+  even with software rendering requested, and the chain degraded to
+  browser mode. The .deb additionally drops the orphaned build-host X11 /
+  glib-dependency libraries (libxcb, libXau, libmount, libblkid,
+  libselinux, libpcre2, libffi) so the system GTK/WebKit/GL stack is used
+  consistently. NOTE for 0.11.0 installs: the in-place 0.11.0 rebuilds
+  shared a version string, so `apt` did not upgrade — install 0.11.1
+  explicitly.
+
 ## [v0.11.0] - 2026-09-18
 
 ### Fixed
