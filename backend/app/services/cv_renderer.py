@@ -119,6 +119,15 @@ def inline_md(value: Any) -> str:
     return _MD_LINK.sub(r'<a href="\2">\1</a>', text)
 
 
+def prose_html(value: Any) -> str:
+    """Inline markdown plus hard line breaks: runs of newlines collapse
+    to a single break (max one newline — display-side twin of
+    `normalize_rich_text`; also heals prose stored before that cap),
+    then each break prints as ``<br>``."""
+    text = re.sub(r"\s*\n\s*", "\n", inline_md(value))
+    return text.replace("\n", "<br>")
+
+
 _MD_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+|mailto:[^)\s]+)\)")
 
 _SAFE_URL = re.compile(r"^(https?://|mailto:|tel:)", re.IGNORECASE)
@@ -132,15 +141,24 @@ def _short_url(url: str) -> str:
     return short
 
 
+_GENERIC_LINK_LABELS = frozenset({"other", "web", "website", "site", "link", "url"})
+
+
 def _display_link(link: dict) -> str:
     """Print-first link text: the address must be legible on paper.
 
     Custom labels are kept as a prefix when they add something (they
-    never replace the address); a plain `kind` icon + "Github" chip is
-    not useful when nothing is clickable, so the URL always shows.
+    never replace the address); generic labels ("other", or a label
+    that merely repeats the link's kind) are dropped so the bare
+    address prints instead of "other (example.com)". A plain `kind`
+    icon + "Github" chip is not useful when nothing is clickable, so
+    the URL always shows.
     """
     short = _short_url(str(link.get("url") or ""))
     label = str(link.get("label") or "").strip()
+    kind = str(link.get("kind") or "").strip().lower()
+    if label.lower() in _GENERIC_LINK_LABELS or (kind and label.lower() == kind):
+        label = ""
     if label and label.lower() != short.lower() and label.lower() not in short.lower():
         return f"{label} ({short})"
     return short
@@ -256,8 +274,12 @@ def _chars_per_line(
 
 
 def _wrap_lines(text: str, chars_per_line: int) -> int:
-    stripped = (text or "").strip()
-    return math.ceil(len(stripped) / chars_per_line) if stripped else 0
+    """Wrapped line cost, honoring hard breaks (each line wraps alone)."""
+    return sum(
+        math.ceil(len(part) / chars_per_line)
+        for part in (text or "").split("\n")
+        if part.strip()
+    )
 
 
 def _pages_for(main_lines: int, sidebar_lines: int, lpp: int, two_columns: bool) -> int:
@@ -308,6 +330,14 @@ def _block_lines(
         lines = 1
         for item in items[: props.max_items]:
             lines += 2  # head + spacing
+            if getattr(props, "show_org", True) and (
+                item.get("org") or item.get("institution") or item.get("issuer")
+            ):
+                lines += 1  # org sits on its own line under the head
+            if getattr(props, "date_position", "auto") == "stacked" and (
+                item.get("start") or item.get("issued") or item.get("end")
+            ):
+                lines += 1  # stacked date takes its own line
             detail = str(item.get("description") or item.get("detail") or "").strip()
             if props.show_description and detail:
                 lines += _wrap_lines(detail, chars)
@@ -478,15 +508,17 @@ def _render_items(items: list, props: Any) -> str:
                 props.date_format,
             )
         )
+        if not title and org:
+            title, org = org, ""
         head = f"<span class='item-title'>{title}</span>"
-        if org:
-            head += f" <span class='item-org'>{org}</span>"
         if period:
-            head += f" <span class='item-period'>{period}</span>"
+            head += f"<span class='item-period'>{period}</span>"
         fragments = [f"<li><div class='item-head'>{head}</div>"]
+        if org:
+            fragments.append(f"<div class='item-org'>{org}</div>")
         detail = str(item.get("description") or item.get("detail") or "").strip()
         if detail and props.show_description:
-            fragments.append(f"<p class='item-detail'>{inline_md(detail)}</p>")
+            fragments.append(f"<p class='item-detail'>{prose_html(detail)}</p>")
         if props.show_achievements and item.get("achievements"):
             bullets = "".join(
                 f"<li>{inline_md(a.get('text') if isinstance(a, dict) else a)}</li>"
@@ -509,12 +541,13 @@ def _render_items(items: list, props: Any) -> str:
                 fragments.append(f"<p class='item-links'>{esc(' · '.join(shown))}</p>")
         fragments.append("</li>")
         rows.append("".join(fragments))
-    ul_class = (
-        "items items-timeline"
-        if getattr(props, "style", "list") == "timeline"
-        else "items"
-    )
-    return f"<ul class='{ul_class}'>{''.join(rows)}</ul>"
+    classes = ["items"]
+    if getattr(props, "style", "list") == "timeline":
+        classes.append("items-timeline")
+    date_position = getattr(props, "date_position", "auto") or "auto"
+    if date_position != "auto":
+        classes.append(f"date-{date_position}")
+    return f"<ul class='{' '.join(classes)}'>{''.join(rows)}</ul>"
 
 
 def _container_of(props: Any, design: Any) -> tuple[str, str]:
@@ -684,7 +717,7 @@ def _render_block(
             fragments = [f"<li><div class='item-head'>{head}</div>"]
             detail = str(entry.get("description") or "").strip()
             if detail:
-                fragments.append(f"<p class='item-detail'>{inline_md(detail)}</p>")
+                fragments.append(f"<p class='item-detail'>{prose_html(detail)}</p>")
             bullets = [
                 text.get("text") if isinstance(text, dict) else text
                 for text in entry.get("bullets") or []
@@ -1099,14 +1132,15 @@ h2 {{ font-family: {heading_font}; font-size: {round(base * 1.15, 2)}pt; color: 
 .icn {{ width: {design.icon_size_mm}mm; height: {design.icon_size_mm}mm; vertical-align: -0.6mm; margin-right: 1mm; }}
 .h-icn .icn {{ color: var(--accent); vertical-align: -0.9mm; }}
 .name-accent {{ color: var(--accent); }}
+/* Each contact piece (icon + value) is one atomic unit: it never splits
+   across lines, and only wraps internally when it cannot fit the full
+   width (strict sidebars, oversized links). */
+.contact-icons .cpi, .contact .cpi {{ display: inline-flex; align-items: baseline;
+     max-width: 100%; vertical-align: bottom; }}
 .contact-icons .cpi {{ margin-right: 3mm; white-space: nowrap; }}
-.contact-icons .cpi.lnk {{ display: inline-block; max-width: 100%;
-     vertical-align: bottom; white-space: nowrap;
-     overflow: hidden; text-overflow: ellipsis; }}
 .contact .cpi {{ white-space: nowrap; }}
-.contact .cpi.lnk {{ display: inline-block; max-width: 100%;
-     vertical-align: bottom; overflow: hidden;
-     text-overflow: ellipsis; }}
+.contact-icons .cpi > a, .contact .cpi > a {{ min-width: 0; overflow-wrap: anywhere; }}
+.contact-icons .cpi.lnk, .contact .cpi.lnk {{ white-space: normal; }}
 ul.items.items-timeline {{ padding-left: 5mm; position: relative; }}
 ul.items.items-timeline > li {{ position: relative; padding-left: 4mm;
      {"margin-bottom: " + str(design.item_gap_mm) + "mm;" if design.item_gap_mm is not None else "margin-bottom: calc(0.6em * var(--spacing));"} }}
@@ -1147,9 +1181,22 @@ p.summary {{ text-align: justify; }}
 .letter-signature {{ font-weight: 600; color: var(--heading); }}
 ul.items {{ list-style: none; }}
 ul.items > li {{ margin-bottom: calc(0.6em * var(--spacing)); }}
+/* When the line fits: title left, date right. When it can't: the date
+   drops into the stack and left-aligns (space-between aligns a lone
+   item to the line start) — the classic tight-column resume stack. */
+.item-head {{ display: flex; flex-wrap: wrap; align-items: baseline;
+     justify-content: space-between; gap: 0.4mm 3mm; }}
 .item-title {{ font-weight: 600; color: var(--heading); }}
-.item-org {{ color: var(--accent); }}
-.item-period {{ float: right; color: var(--muted); font-size: {round(base * 0.9, 2)}pt; }}
+.item-org {{ color: var(--accent); margin-top: 0.2mm; }}
+.item-period {{ color: var(--muted); font-size: {round(base * 0.9, 2)}pt;
+     white-space: nowrap; flex-shrink: 0; }}
+/* Explicit per-block date placements (`date_position`): `inline` keeps
+   the period beside the title even when tight; `stacked` always gives
+   it its own line between title and org. */
+ul.items.date-inline .item-head {{ flex-wrap: nowrap; }}
+ul.items.date-inline .item-title {{ min-width: 0; }}
+ul.items.date-stacked .item-head {{ display: block; }}
+ul.items.date-stacked .item-period {{ display: block; margin: 0.2mm 0; }}
 .item-detail {{ margin-top: 0.5mm; }}
 .item-links {{ margin-top: 0.3mm; font-size: 0.92em; color: var(--muted, var(--text)); }}
 ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}

@@ -7,6 +7,7 @@ import type { ProfileProposalCardData } from "@/types";
 import { useProfileProposalsStore, PREVIEW_KINDS } from "@/stores/profileProposalsStore";
 import { ExperienceItemCard } from "@/components/experience/ExperienceItemCard";
 import { ProfileSnapshotCard } from "@/components/chat/ProfileSnapshotCard";
+import { normalizeProse } from "@/lib/prose";
 import type {
   CvSynthSourceRow,
   ProfileProposalPreviewData,
@@ -120,7 +121,9 @@ function GenericSnapshot({
               defaultValue: key.replace(/_/g, " "),
             })}
           </span>
-          <span className="break-words text-[var(--as-fg)]">{String(value)}</span>
+          <span className="break-words whitespace-pre-line text-[var(--as-fg)]">
+            {typeof value === "string" ? normalizeProse(value) : String(value)}
+          </span>
         </li>
       ))}
     </ul>

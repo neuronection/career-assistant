@@ -36,6 +36,25 @@ from app.services.cv_blocks import block_area, block_hidden
 
 ExportFormat = Literal["pdf", "docx", "md", "json", "ats_text"]
 
+
+def _prose_lines(text: str) -> str:
+    """Prose with hard breaks honored: runs of newlines collapse to one
+    (display-side twin of `normalize_rich_text`; heals pre-cap prose)."""
+    return re.sub(r"\s*\n\s*", "\n", str(text or "")).strip()
+
+
+def _prose_paragraph(document: Any, text: str) -> None:
+    """One docx paragraph per prose field; hard newlines become in-line
+    breaks so descriptions honor the max-one-newline formatting."""
+    lines = [line for line in _prose_lines(text).split("\n") if line]
+    if not lines:
+        return
+    paragraph = document.add_paragraph(lines[0])
+    for line in lines[1:]:
+        paragraph.add_run().add_break()  # WD_BREAK.LINE
+        paragraph.add_run(line)
+
+
 STANDARD_HEADINGS = {
     "summary",
     "experience",
@@ -218,7 +237,7 @@ def to_markdown(version_payload: dict) -> str:
                     f"### {_item_head(item)}" + (f" ({period})" if period else "")
                 )
                 if item.get("description"):
-                    lines.append(str(item["description"]))
+                    lines.append(_prose_lines(str(item["description"])))
                 for achievement in item.get("achievements") or []:
                     text = (
                         achievement.get("text")
@@ -235,7 +254,7 @@ def to_markdown(version_payload: dict) -> str:
             for entry in data:
                 lines.append(f"### {str(entry.get('title') or '')}")
                 if entry.get("description"):
-                    lines.append(str(entry["description"]))
+                    lines.append(_prose_lines(str(entry["description"])))
                 for bullet in entry.get("bullets") or []:
                     text = bullet.get("text") if isinstance(bullet, dict) else bullet
                     lines.append(f"- {text}")
@@ -367,7 +386,7 @@ def to_docx(version_payload: dict, title: str) -> bytes:
                     _item_head(item) + (f" ({period})" if period else ""), level=2
                 )
                 if item.get("description"):
-                    document.add_paragraph(str(item["description"]))
+                    _prose_paragraph(document, str(item["description"]))
                 for achievement in item.get("achievements") or []:
                     text = (
                         achievement.get("text")
@@ -384,7 +403,7 @@ def to_docx(version_payload: dict, title: str) -> bytes:
             for entry in data:
                 document.add_heading(str(entry.get("title") or ""), level=2)
                 if entry.get("description"):
-                    document.add_paragraph(str(entry["description"]))
+                    _prose_paragraph(document, str(entry["description"]))
                 for bullet in entry.get("bullets") or []:
                     text = bullet.get("text") if isinstance(bullet, dict) else bullet
                     document.add_paragraph(str(text), style="List Bullet")

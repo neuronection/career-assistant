@@ -1582,6 +1582,12 @@
     "dataSource": "Data source",
     "styleLabel": "Style",
     "datesLabel": "Dates",
+    "datePositionLabel": "Date position",
+    "date_positions": {
+      "auto": "Auto",
+      "inline": "Beside title",
+      "stacked": "Own line"
+    },
     "showOrg": "Show organization",
     "showDescription": "Show description",
     "showSkills": "Show skills",

@@ -59,6 +59,11 @@ const DATE_FORMATS = [
   { value: "eu", label: "06/2024" },
   { value: "year", label: "2024" },
 ];
+const DATE_POSITIONS = [
+  { value: "auto", labelKey: "templateEditor.date_positions.auto", label: "Auto" },
+  { value: "inline", labelKey: "templateEditor.date_positions.inline", label: "Beside title" },
+  { value: "stacked", labelKey: "templateEditor.date_positions.stacked", label: "Own line" },
+];
 const OVERFLOW_POLICIES = [
   { value: "Warn", label: "warn", labelKey: "templateEditor.overflow_policies.warn" },
   { value: "Shrink to fit", label: "shrink", labelKey: "templateEditor.overflow_policies.shrink" },
@@ -579,6 +584,7 @@ export function CvTemplateEditor() {
                               )}
                               <SelectField label={t("templateEditor.styleLabel")} value={String(bp.style ?? "list")} onChange={(style) => setBlockProps(index, { style })} options={ITEM_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
                               <SelectField label={t("templateEditor.datesLabel")} value={String(bp.date_format ?? "mon_yyyy")} onChange={(date_format) => setBlockProps(index, { date_format })} options={DATE_FORMATS} testId={`date-format-${index}`} />
+                              <SelectField label={t("templateEditor.datePositionLabel", { defaultValue: "Date position" })} value={String(bp.date_position ?? "auto")} onChange={(date_position) => setBlockProps(index, { date_position })} options={DATE_POSITIONS.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} testId={`date-position-${index}`} />
                               <ToggleRow label={t("templateEditor.showOrg")} checked={bp.show_org !== false} onChange={(show_org) => setBlockProps(index, { show_org })} />
                               <ToggleRow label={t("templateEditor.showDescription")} checked={bp.show_description !== false} onChange={(show_description) => setBlockProps(index, { show_description })} />
                               <ToggleRow label={t("templateEditor.showSkills")} checked={bp.show_skills !== false} onChange={(show_skills) => setBlockProps(index, { show_skills })} />

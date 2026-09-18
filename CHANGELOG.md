@@ -7,11 +7,12 @@ All notable changes to **Career Assistant** are documented here.
 ### Changed
 - **CV item heads restructured** — the organization/school line now
   prints on its own line under the title instead of flowing inline, and
-  the period pins to the top-right of the entry via flex (replacing
-  `float: right`), so dates can no longer collide with wrapped
-  institution text; an item without a title promotes its org to the
-  head line. The block-size estimate charges one extra line per item
-  with an org.
+  the period adapts to the column: pinned top-right beside the title
+  when the line fits, stacking left-aligned under the title when it
+  can't (flex wrap, replacing `float: right`) so dates never overflow
+  narrow sidebars nor collide with wrapped institution text; an item
+  without a title promotes its org to the head line. The block-size
+  estimate charges one extra line per item with an org.
 - **Robust contact pieces** — each contact entry (icon + value) renders
   as one atomic unit that never splits across lines; pieces move whole
   to the next line and only wrap internally when they cannot fit the
@@ -26,6 +27,13 @@ All notable changes to **Career Assistant** are documented here.
   address.
 
 ### Added
+- **Date position per items block** — templates (and the template
+  editor) can now set `date_position` on an items block: `auto`
+  (default — beside the title when the line fits, stacked under it in
+  tight columns), `inline` (always beside the title, never wraps), or
+  `stacked` (always its own line between title and organization, the
+  classic tight-column resume look). Existing templates are unaffected
+  (`auto`); the block-size estimator charges the extra line.
 - **Chat → CV Studio live sync** — profile/variant mutations from the
   chatbot now refresh the open Studio without a manual reload: approved
   or reverted HITL cards and finished write-scope tool calls bump a

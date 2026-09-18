@@ -39,8 +39,20 @@ def test_unwraps_unsupported_emphasis():
 
 
 def test_collapses_blank_runs_and_trims():
-    assert normalize_rich_text("a\n\n\n\nb", 500) == "a\n\nb"
+    assert normalize_rich_text("a\n\n\n\nb", 500) == "a\nb"
+    assert normalize_rich_text("a\n \nb", 500) == "a\nb"
+    assert normalize_rich_text("a\nb", 500) == "a\nb"
     assert normalize_rich_text("  spaced  ", 500) == "spaced"
+
+
+def test_renderer_prose_html_prints_single_breaks():
+    """Descriptions honor hard line breaks (max one) in print."""
+    from app.services.cv_renderer import prose_html
+
+    assert prose_html("a\nb") == "a<br>b"
+    assert prose_html("a\n\n\nb") == "a<br>b"
+    assert prose_html("**a**\nb") == "<strong>a</strong><br>b"
+    assert "<br>" not in prose_html("single line")
 
 
 def test_handles_empty_and_none():

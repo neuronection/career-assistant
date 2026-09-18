@@ -131,6 +131,107 @@ def test_contact_fields_are_links_and_schemes_are_allowlisted():
     assert ">portfolio (alexsample.dev)</a>" in html
 
 
+def test_generic_link_labels_print_the_bare_address():
+    import copy
+
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
+    snapshot["basics"]["links"] = [
+        {"kind": "other", "url": "https://neuronection.com", "label": "other"},
+        {
+            "kind": "portfolio",
+            "url": "https://distinguishable.io",
+            "label": "Portfolio",
+        },
+        {"kind": "website", "url": "https://alexsample.dev", "label": "portfolio"},
+    ]
+    html = render_cv(_content(), snapshot).html
+    assert ">neuronection.com</a>" in html
+    assert "other (" not in html
+    assert ">distinguishable.io</a>" in html  # label merely repeats the kind
+    assert ">portfolio (alexsample.dev)</a>" in html  # meaningful labels stay
+
+
+def test_items_render_org_on_own_line_with_period_on_head_row():
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    html = render_cv(_content(), SAMPLE_SNAPSHOT).html
+    head = html.split("<div class='item-head'>", 1)[1].split("</div>", 1)[0]
+    assert "<span class='item-title'>Software Intern</span>" in head
+    assert "<span class='item-period'>2024-06 – 2024-09</span>" in head
+    assert "<div class='item-org'>Sample Corp</div>" in html
+    assert "float: right" not in html, "dates pin via flex, never float"
+
+
+def test_empty_item_title_promotes_org_to_the_head_line():
+    content = _content()
+    snapshot = {
+        "basics": {"name": "Jane Doe"},
+        "experience": [
+            {"title": "", "org": "Sample Corp", "start": "2024-06", "end": ""}
+        ],
+    }
+    html = render_cv(content, snapshot).html
+    head = html.split("<div class='item-head'>", 1)[1].split("</div>", 1)[0]
+    assert "<span class='item-title'>Sample Corp</span>" in head
+    assert "<div class='item-org'>" not in html
+
+
+def test_item_descriptions_print_single_hard_breaks():
+    snapshot = {
+        "basics": {"name": "Jane Doe"},
+        "experience": [
+            {
+                "title": "Engineer",
+                "org": "Sample Corp",
+                "start": "2024-06",
+                "end": "",
+                "description": "line one\n\n\nline two **bold**",
+            }
+        ],
+    }
+    html = render_cv(_content(), snapshot).html
+    assert (
+        "<p class='item-detail'>line one<br>line two <strong>bold</strong></p>" in html
+    )
+
+
+def test_date_position_prop_switches_item_layout():
+    import copy
+
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    def content_for(date_position=None):
+        props = {
+            "title": "Experience",
+            "source_key": "experience",
+            "date_format": "iso",
+            "show_org": True,
+        }
+        if date_position is not None:
+            props["date_position"] = date_position
+        return TemplateContent.model_validate(
+            {"blocks": [{"kind": "items", "props": props}]}
+        )
+
+    snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
+
+    auto = render_cv(content_for(), snapshot).html
+    assert "<ul class='items'>" in auto, "auto stays class-free"
+
+    stacked = render_cv(content_for("stacked"), snapshot).html
+    assert "<ul class='items date-stacked'>" in stacked
+
+    inline = render_cv(content_for("inline"), snapshot).html
+    assert "<ul class='items date-inline'>" in inline
+
+    from app.core.errors import ValidationError as AppValidationError
+
+    with pytest.raises(AppValidationError):
+        render_cv(content_for("diagonal"), snapshot)
+
+
 async def test_custom_text_inline_markup_is_escaped():
     content = TemplateContent.model_validate(
         {

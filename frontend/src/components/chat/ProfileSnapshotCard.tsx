@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FieldChips } from "@/components/ui/chat";
+import { normalizeProse } from "@/lib/prose";
 
 type Snapshot = Record<string, unknown>;
 
@@ -169,7 +170,10 @@ export function ProfileSnapshotCard({
                           : key.replace(/_/g, " "),
             })}
           </span>
-          <span className="break-words text-[var(--as-fg)]" data-testid={`hitl-preview-value-${key}`}>
+          <span
+            className="break-words whitespace-pre-line text-[var(--as-fg)]"
+            data-testid={`hitl-preview-value-${key}`}
+          >
             {Array.isArray(value) ? (
               <FieldChips
                 value={value.map((entry) => ({
@@ -177,9 +181,7 @@ export function ProfileSnapshotCard({
                 }))}
               />
             ) : prose.has(key) && typeof value === "string" ? (
-              <>
-                {highlightText(value, highlight)}
-              </>
+              <>{highlightText(normalizeProse(value), highlight)}</>
             ) : (
               formatValue(key, value)
             )}

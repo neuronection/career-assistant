@@ -183,6 +183,11 @@ class ItemsBlockProps(BaseModel):
     show_description: bool = True
     date_format: Literal["mon_yyyy", "iso", "eu", "year"] = "mon_yyyy"
     style: Literal["list", "timeline"] = "list"
+    # Date placement for item heads: `auto` pins the period top-right
+    # when the line fits and stacks it under the title in tight columns;
+    # `inline` never wraps; `stacked` always gives the period its own
+    # line between title and org (classic tight-column resumes).
+    date_position: Literal["auto", "inline", "stacked"] = "auto"
     # Drop language-proficiency certificates here when the languages
     # block claims them inline (they print once, under Languages).
     exclude_proficiency: bool = Field(default=False)

@@ -405,3 +405,33 @@ def test_hidden_blocks_skip_exports_and_keep_lint_order_pass():
     by_id = {check["id"]: check for check in report["checks"]}
     assert by_id["section_order"]["level"] == "pass", report["checks"]
     assert all("Secret" not in check["message"] for check in report["checks"])
+
+
+def test_item_description_honors_hard_breaks_in_exports():
+    from app.services.cv_export_service import to_docx, to_markdown
+
+    payload = {
+        "snapshot": {
+            "experience": [
+                {
+                    "title": "Engineer",
+                    "org": "Sample Corp",
+                    "start": "2024-06",
+                    "end": "2024-09",
+                    "description": "line one\n\n\nline two",
+                }
+            ]
+        },
+        "blocks": [
+            {
+                "kind": "items",
+                "props": {"title": "Experience", "source_key": "experience"},
+            }
+        ],
+    }
+
+    document = open_docx(BytesIO(to_docx(payload, "CV")))
+    paragraph = next(p for p in document.paragraphs if "line one" in p.text)
+    assert paragraph.text == "line one\nline two"  # soft break, one paragraph
+
+    assert "line one\nline two" in to_markdown(payload)

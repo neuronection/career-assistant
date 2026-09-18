@@ -28,9 +28,9 @@ def normalize_rich_text(value: Optional[str], max_length: int) -> str:
 
     Empty/None → "". Applies, in order: strip block constructs (code
     fences, headings, list/quote markers), drop images and raw tags,
-    unwrap unsupported emphasis, keep only safe links, collapse >2
-    consecutive newlines, hard-trim to ``max_length``. Never raises —
-    the input is untrusted by definition.
+    unwrap unsupported emphasis, keep only safe links, collapse runs of
+    newlines to a single break (max one newline), hard-trim to
+    ``max_length``. Never raises — the input is untrusted by definition.
     """
     text = str(value or "")
     if not text.strip():
@@ -43,7 +43,7 @@ def normalize_rich_text(value: Optional[str], max_length: int) -> str:
     text = _EMPHASIS_STRICT.sub(lambda m: m.group(0)[0] * 2, text)
     text = _MULTI_UNDERSCORE.sub(r"\1", text)
     text = _MD_LINK.sub(_safe_link, text)
-    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = re.sub(r"\s*\n\s*", "\n", text).strip()
     return text[:max_length]
 
 
