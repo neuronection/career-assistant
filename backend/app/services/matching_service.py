@@ -3,7 +3,9 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
 
 from app.ai.agents import score_match
 from app.models.enums import DemandOutlook, MatchStatus
@@ -199,12 +201,47 @@ class MatchingService:
         )
         return {row.job_id: row for row in rows.scalars().all()}
 
+    async def _insert_if_absent(self, user_id: UUID, job_id: UUID) -> None:
+        """Race-safe insert (no read-check window): the DB-side unique
+        constraint is the referee — every workspace-load surface
+        (dashboard candidates, feed, rankings) upserts the same job at
+        load time, so a plain read-then-insert 500s one request per
+        page instead. Idempotent on Postgres and SQLite."""
+        from sqlalchemy.dialects import postgresql, sqlite
+
+        dialect = self.db.get_bind().dialect
+        if dialect.name == "sqlite":
+            stmt = (
+                sqlite.insert(MatchInsight)
+                .values(user_id=user_id, job_id=job_id)
+                .on_conflict_do_nothing(index_elements=["user_id", "job_id"])
+            )
+        else:
+            stmt = (
+                postgresql.insert(MatchInsight)
+                .values(user_id=user_id, job_id=job_id)
+                .on_conflict_do_nothing(constraint="uq_match_user_job")
+            )
+        await self.db.execute(stmt)
+
     async def _upsert_insight(self, user_id: UUID, job: Job, result) -> MatchInsight:
-        """Insert or refresh AI fields on the insight row."""
+        """Insert or refresh AI fields on the insight row.
+
+        The read-then-insert window is a real race on every workspace
+        load (dashboard candidates + feed both upsert the same job):
+        ``_insert_if_absent`` lets the DB referee the conflict, then the
+        surviving row is read back and refreshed with the AI fields.
+        """
         insight = await self._get_insight(user_id, job.id)
         if insight is None:
-            insight = MatchInsight(user_id=user_id, job_id=job.id)
-            self.db.add(insight)
+            await self._insert_if_absent(user_id, job.id)
+            insight = await self._get_insight(user_id, job.id)
+            if insight is None:
+                raise IntegrityError(
+                    "insight vanished between insert and read",
+                    None,
+                    None,
+                )
         insight.ai_score = float(result.score)
         insight.ai_confidence = float(result.confidence)
         insight.ai_summary = result.summary
@@ -247,9 +284,12 @@ class MatchingService:
         job = await JobService(self.db).require_job(job_id)
         insight = await self._get_insight(user_id, job.id)
         if insight is None:
-            insight = MatchInsight(user_id=user_id, job_id=job.id)
-            self.db.add(insight)
-            await self.db.flush()
+            await self._insert_if_absent(user_id, job.id)
+            insight = await self._get_insight(user_id, job.id)
+            if insight is None:
+                raise IntegrityError(
+                    "insight vanished between insert and read", None, None
+                )
         if user_score is not None:
             insight.user_score = user_score
         if status is not None:

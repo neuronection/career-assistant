@@ -69,10 +69,35 @@ async def get_checkpointer() -> BaseCheckpointSaver:
         )
     else:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from psycopg.rows import dict_row
+        from psycopg_pool import AsyncConnectionPool
 
-        saver = await stack.enter_async_context(
-            AsyncPostgresSaver.from_conn_string(_psycopg_uri())
+        # NOT a single AsyncConnection: `from_conn_string` yields one
+        # process-lifetime connection, and a turn cancelled mid-write
+        # leaves it "another command is already in progress" — every
+        # later turn fails. A pool gives each checkpoint op its own
+        # connection (autocommit, dict rows, no prepared statements —
+        # the same shape `from_conn_string` configures) with a stale
+        # check on checkout, so a poisoned(socket-buffered) connection
+        # is recycled, never shared.
+        pool = AsyncConnectionPool(
+            conninfo=_psycopg_uri(),
+            min_size=1,
+            max_size=10,
+            timeout=30,
+            max_idle=60,
+            max_lifetime=300,
+            open=False,
+            check=AsyncConnectionPool.check_connection,
+            kwargs={
+                "autocommit": True,
+                "row_factory": dict_row,
+                "prepare_threshold": 0,
+            },
         )
+        stack.push_async_callback(pool.close)
+        await pool.open()
+        saver = AsyncPostgresSaver(pool)
     await saver.setup()
     _checkpointer = saver
     _stack = stack

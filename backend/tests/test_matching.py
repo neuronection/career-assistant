@@ -332,3 +332,74 @@ async def test_compare_validates_input(
         f"/api/v1/match/compare?job_ids={dev},{ghost}", headers=auth_headers
     )
     assert missing.status_code == 404
+
+
+async def test_upsert_insight_survives_raced_insert(
+    db, auth_headers, profile_ready, seeded_catalog
+):
+    """Two concurrent upserts of the same insight (dashboard candidates +
+    feed both score the same job on load): the loser re-reads and
+    refreshes the DB-side winner instead of 500ing on uq_match_user_job.
+    The race is pinned deterministically — the read misses while the row
+    already exists, the flush hits the unique constraint, the service
+    recovers."""
+    from types import SimpleNamespace
+
+    from sqlalchemy import select
+
+    from app.core.config import settings as app_settings
+    from app.models.job_model import Job
+    from app.models.matching_model import MatchInsight
+    from app.models.user_model import User
+    from app.services.job_service import JOB_LOAD_OPTIONS
+    from app.services.matching_service import MatchingService
+
+    result = SimpleNamespace(
+        score=7.0,
+        confidence=0.8,
+        summary="ok",
+        positives=[],
+        negatives=[],
+        prerequisites=[],
+    )
+    user = (
+        (await db.execute(
+            select(User).where(User.email == app_settings.DEFAULT_USER_EMAIL)
+        ))
+        .scalars()
+        .one()
+    )
+    job = (
+        (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS)))
+        .scalars()
+        .first()
+    )
+
+    # The DB-side winner that the racing insert collides with.
+    winner = MatchInsight(user_id=user.id, job_id=job.id)
+    db.add(winner)
+    await db.flush()
+
+    service = MatchingService(db)
+
+    # The race: the read runs BEFORE the other task's insert commits,
+    # so it misses; the flush collides. The recovery re-read must find
+    # the survivor (patch a one-time miss only).
+    read_calls = {"n": 0}
+
+    async def raced_read(self, user_id, job_id):
+        if read_calls["n"] == 0:
+            read_calls["n"] += 1
+            return None
+        rows = await self.db.execute(
+            select(MatchInsight).where(
+                MatchInsight.user_id == user_id, MatchInsight.job_id == job_id
+            )
+        )
+        return rows.scalars().first()
+
+    service._get_insight = raced_read.__get__(service, MatchingService)
+
+    refreshed = await service._upsert_insight(user.id, job, result)
+    assert refreshed.ai_score == 7.0
+    assert str(refreshed.id)

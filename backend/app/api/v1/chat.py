@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 import uuid
 from contextlib import suppress
@@ -29,6 +30,7 @@ from app.services.profile_service import ProfileService
 from app.services.deps import get_current_user, get_profile_for_user
 
 router = APIRouter(tags=["chat"])
+logger = logging.getLogger(__name__)
 
 #: Single-flight per session (plan 98): one streaming turn at a time —
 #: concurrent turns on one session would interleave persistence and
@@ -283,6 +285,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 # stream is an ABORT (partial persists), not a failure.
                 deps.aborted = True
             else:
+                logger.exception("chat turn failed (session=%s)", session.id)
                 deps.emit(
                     "flow_failed",
                     {

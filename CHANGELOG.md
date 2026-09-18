@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **E2E CI stability: two flakes root-caused** — the LangGraph Postgres
+  checkpointer now runs on a psycopg connection pool instead of one
+  process-lifetime connection that an aborted/cancelled chat turn could
+  leave mid-command (poisoning every later turn with "another command
+  is already in progress"); stale connections are validated on checkout
+  and recycled. Match insights upsert race-free (`INSERT … ON CONFLICT
+  DO NOTHING` on Postgres and SQLite) — concurrent dashboard/feed
+  scoring of the same job no longer 500s one request per page. A failed
+  chat turn now logs its traceback server-side.
+
 ### Changed
 - **README restructure** — the developer/feature detail that had grown in
   "Features", "Structured by design" and the "Recently shipped" rollout wave
