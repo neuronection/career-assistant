@@ -59,7 +59,20 @@ centered `max-w-7xl` column:
   `included/total` (accent-tinted when fully included), the library
   `CheckIndicator` for the tri-state group header (role=checkbox with
   `aria-checked="mixed"` — never a switch), and empty groups surface
-  their hint without expansion. "How my CV looks"
+  their hint without expansion. The tab is also EDITABLE over profile
+  data (plan 105): groups with an editor kind carry a `+` create
+  button (`context-add-{key}`; empty groups repeat it as an "Add …"
+  hint row), focusable item rows carry a pencil
+  (`context-edit-item-{source}:{id}` → `EntityEditorModal`) and an
+  external-link (`context-open-item-…` → the entry's workspace with
+  `?focus=`), card-backed groups (skills/languages/interests/basics/
+  objective) get a group-level profile link instead — affordances are
+  always visible, never hover-reveal, and the CV-specific variant
+  actions stay in their sub-row. The modal hosts the real workspace
+  editors (one source, no re-rolled forms); saves bump the plan-104
+  live-sync channel with a `local` origin, which refreshes context
+  sources, preview and staleness without the "Profile changed" toast.
+  "How my CV looks"
   lives in ONE Design tab — template card (picker + Browse/Customize +
   meta), Style section (tokens + page size), profile photo (resume
   only), printed review — over a pinned Apply/Reset footer
@@ -243,6 +256,20 @@ page-local form for a profile section.
   (kind icons, draft/source chips), same editor skeleton
   (`achievement-editor`, `save-achievement`), undo + dirty-guard
   shared.
+- **Studio-adjacent editing (plan 105)**: `lib/entityLinks.ts` is the
+  ONE map from CV context sources (and intake entity types) to profile
+  homes, editor kinds and deep links — never build a second
+  source→route table. The experience workspace accepts `?focus=<id>`
+  and education `?entity=…&focus=<id>`: the entry opens in its editor
+  with a one-shot accent ring (`experience-focus-highlight` /
+  `education-focus-highlight`), params stripped on apply. The
+  Studio's `EntityEditorModal` composes the extracted editors with
+  their `EMPTY_*` forms/validators and kind presets per source
+  (experience→job, projects→project, volunteer→volunteer); payload
+  builders (`experienceToIn`/`experienceItemToIn` and the education
+  triple) live next to the editors so page and modal cannot drift.
+  Skills are card-backed (context item ids are taxonomy UUIDs, not
+  user-skill row ids) — the modal hosts `SkillsCard` whole.
 - **Interviews workspace** (`/interviews`, — top-level sidebar
   entry, not nested under Profile): master-detail over practice
   sessions. Rail cards carry status chips (library `Badge` variants:
