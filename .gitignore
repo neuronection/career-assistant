@@ -31,6 +31,7 @@ backend/uploads/
 backend/tests/_uploads/
 backend/celerybeat-schedule*
 logging/
+logs/
 *.log
 
 # Local planning notes
