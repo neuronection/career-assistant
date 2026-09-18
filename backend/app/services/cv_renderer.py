@@ -342,11 +342,7 @@ def _block_lines(
             if props.show_description and detail:
                 lines += _wrap_lines(detail, chars)
             for achievement in (item.get("achievements") or [])[:5]:
-                text = (
-                    str(achievement.get("text") or "")
-                    if isinstance(achievement, dict)
-                    else str(achievement or "")
-                )
+                text = str(achievement.get("text") or "")
                 lines += max(1, _wrap_lines(text, chars))
         return lines
     if kind == "synth_items":
@@ -365,8 +361,8 @@ def _block_lines(
             detail = str(entry.get("description") or "").strip()
             if detail:
                 lines += _wrap_lines(detail, chars)
-            for bullet in (entry.get("bullets") or [])[:8]:
-                lines += max(1, _wrap_lines(str(bullet), chars))
+            for bullet in (entry.get("achievements") or [])[:8]:
+                lines += max(1, _wrap_lines(str(bullet.get("text") or ""), chars))
             if props.show_source_chips:
                 lines += 1
         return lines
@@ -521,7 +517,7 @@ def _render_items(items: list, props: Any) -> str:
             fragments.append(f"<p class='item-detail'>{prose_html(detail)}</p>")
         if props.show_achievements and item.get("achievements"):
             bullets = "".join(
-                f"<li>{inline_md(a.get('text') if isinstance(a, dict) else a)}</li>"
+                f"<li>{inline_md(str(a.get('text') or ''))}</li>"
                 for a in item["achievements"][:5]
             )
             fragments.append(f"<ul class='ach'>{bullets}</ul>")
@@ -719,8 +715,7 @@ def _render_block(
             if detail:
                 fragments.append(f"<p class='item-detail'>{prose_html(detail)}</p>")
             bullets = [
-                text.get("text") if isinstance(text, dict) else text
-                for text in entry.get("bullets") or []
+                str(text.get("text") or "") for text in entry.get("achievements") or []
             ]
             if bullets:
                 bullet_html = "".join(

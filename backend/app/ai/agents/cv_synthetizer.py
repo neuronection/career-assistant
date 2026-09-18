@@ -21,7 +21,9 @@ SYSTEM = (
     "used. Never invent employers, dates, numbers, or skills; a metric "
     "the user never gave stays an explicit placeholder the user fills. "
     "Keep a CV register; no first-person pronouns. Match the requested "
-    "variant language exactly."
+    "variant language exactly. Bullet lines belong in the payload's "
+    '`achievements` field as objects: [{"text": "..."}] — there is '
+    "no `bullets` field."
 )
 
 ACTION_GUIDES = {
@@ -33,8 +35,8 @@ ACTION_GUIDES = {
     "detail": (
         "Expand the target item's description with grounded specifics "
         "from its own text and skills (field=description, plus 1-4 "
-        "bullets). Missing numbers become placeholders like"
-        ' "<your number>" — never invented.'
+        "`achievements` bullet objects). Missing numbers become "
+        'placeholders like "<your number>" — never invented.'
     ),
     "restyle": (
         "Rewrite the target text with the requested tone/length ("

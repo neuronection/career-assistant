@@ -18,12 +18,23 @@ CvSynthAction = Literal["summarize", "detail", "restyle", "posting_fit", "transl
 CvSynthStateStatus = Literal["draft", "active", "archived"]
 
 
+class CvSynthBullet(BaseModel):
+    """One canonical CV bullet (plan 106): `{"text": str}` everywhere."""
+
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def _rich(cls, value: str) -> str:
+        return validate_rich_text(value, 500)
+
+
 class CvSynthPayload(BaseModel):
     """The validated synthesized text (only text-bearing fields land)."""
 
     description: Optional[str] = Field(default=None, max_length=4000)
     summary: Optional[str] = Field(default=None, max_length=2000)
-    bullets: list[str] = Field(default_factory=list, max_length=12)
+    achievements: list[CvSynthBullet] = Field(default_factory=list, max_length=12)
 
     @field_validator("description", "summary")
     @classmethod
@@ -32,11 +43,6 @@ class CvSynthPayload(BaseModel):
             return None
         bound = 4000 if info.field_name == "description" else 2000
         return validate_rich_text(value, bound)
-
-    @field_validator("bullets")
-    @classmethod
-    def _rich_bullets(cls, bullets: list[str]) -> list[str]:
-        return [validate_rich_text(bullet, 500) for bullet in bullets]
 
     def text(self) -> str:
         """Primary text content of the variant."""

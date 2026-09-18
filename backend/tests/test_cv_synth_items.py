@@ -94,7 +94,7 @@ async def _create_variant(
             ],
             "payload": {
                 "description": f"Tailored text for {items[0].title}",
-                "bullets": ["Shipped the QA harness"],
+                "achievements": [{"text": "Shipped the QA harness"}],
             },
             "variant_key": variant_key,
             "voice": {"language": language},
@@ -375,7 +375,7 @@ async def test_estimator_honors_order_and_synth():
                 "id": "1",
                 "title": "T",
                 "description": "word " * 60,
-                "bullets": ["b", "c"],
+                "achievements": [{"text": "b"}, {"text": "c"}],
             },
             {"id": "2", "title": "T2", "description": "d"},
         ]

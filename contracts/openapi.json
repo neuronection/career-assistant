@@ -4072,6 +4072,20 @@
         "title": "CvSuggestionOut",
         "type": "object"
       },
+      "CvSynthBullet": {
+        "description": "One canonical CV bullet (plan 106): `{\"text\": str}` everywhere.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "CvSynthBullet",
+        "type": "object"
+      },
       "CvSynthGenerateOut": {
         "description": "Sync drafts, or 202 with the queue job id (bulk runs).",
         "properties": {
@@ -4453,12 +4467,12 @@
       "CvSynthPayload": {
         "description": "The validated synthesized text (only text-bearing fields land).",
         "properties": {
-          "bullets": {
+          "achievements": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/CvSynthBullet"
             },
             "maxItems": 12,
-            "title": "Bullets",
+            "title": "Achievements",
             "type": "array"
           },
           "description": {

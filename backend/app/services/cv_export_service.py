@@ -239,12 +239,7 @@ def to_markdown(version_payload: dict) -> str:
                 if item.get("description"):
                     lines.append(_prose_lines(str(item["description"])))
                 for achievement in item.get("achievements") or []:
-                    text = (
-                        achievement.get("text")
-                        if isinstance(achievement, dict)
-                        else achievement
-                    )
-                    lines.append(f"- {text}")
+                    lines.append(f"- {achievement.get('text') or ''}")
                 if item.get("skills"):
                     lines.append(
                         "Skills: " + ", ".join(str(skill) for skill in item["skills"])
@@ -255,9 +250,8 @@ def to_markdown(version_payload: dict) -> str:
                 lines.append(f"### {str(entry.get('title') or '')}")
                 if entry.get("description"):
                     lines.append(_prose_lines(str(entry["description"])))
-                for bullet in entry.get("bullets") or []:
-                    text = bullet.get("text") if isinstance(bullet, dict) else bullet
-                    lines.append(f"- {text}")
+                for bullet in entry.get("achievements") or []:
+                    lines.append(f"- {bullet.get('text') or ''}")
                 labels = [
                     str(ref.get("label"))
                     for ref in entry.get("source_refs") or []
@@ -388,12 +382,9 @@ def to_docx(version_payload: dict, title: str) -> bytes:
                 if item.get("description"):
                     _prose_paragraph(document, str(item["description"]))
                 for achievement in item.get("achievements") or []:
-                    text = (
-                        achievement.get("text")
-                        if isinstance(achievement, dict)
-                        else achievement
+                    document.add_paragraph(
+                        str(achievement.get("text") or ""), style="List Bullet"
                     )
-                    document.add_paragraph(str(text), style="List Bullet")
                 if item.get("skills"):
                     document.add_paragraph(
                         "Skills: " + ", ".join(str(skill) for skill in item["skills"])
@@ -404,9 +395,10 @@ def to_docx(version_payload: dict, title: str) -> bytes:
                 document.add_heading(str(entry.get("title") or ""), level=2)
                 if entry.get("description"):
                     _prose_paragraph(document, str(entry["description"]))
-                for bullet in entry.get("bullets") or []:
-                    text = bullet.get("text") if isinstance(bullet, dict) else bullet
-                    document.add_paragraph(str(text), style="List Bullet")
+                for bullet in entry.get("achievements") or []:
+                    document.add_paragraph(
+                        str(bullet.get("text") or ""), style="List Bullet"
+                    )
                 labels = [
                     str(ref.get("label"))
                     for ref in entry.get("source_refs") or []

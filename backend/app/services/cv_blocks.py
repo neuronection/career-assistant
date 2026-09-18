@@ -132,7 +132,7 @@ SAMPLE_SNAPSHOT: dict = {
             "id": "synth-1",
             "title": "Software Intern",
             "description": "Internship rewritten for backend roles.",
-            "bullets": ["Cut manual QA setup from 2h to 20min"],
+            "achievements": [{"text": "Cut manual QA setup from 2h to 20min"}],
             "source_refs": [
                 {
                     "source_key": "experience",

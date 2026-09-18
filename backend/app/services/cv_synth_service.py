@@ -45,8 +45,13 @@ NO_SYNTH_SOURCES = {"basics"}
 SYNC_LIMIT = 5
 
 
-def _swap(payload: dict, ref: tuple[str, str], variant: CvSynthItem) -> None:
-    """Swap one variant's text into an item payload (plan-62 semantics)."""
+def swap_variant_payload(
+    payload: dict, ref: tuple[str, str], variant: CvSynthItem
+) -> None:
+    """Swap one variant's text into an item payload (plan-62 semantics).
+
+    Bullets ride the canonical `achievements: [{"text"}]` shape (plan
+    106); a variant's entries are PREPENDED to the item's own."""
     if not isinstance(payload, dict):
         return
     synth = variant.payload or {}
@@ -57,12 +62,10 @@ def _swap(payload: dict, ref: tuple[str, str], variant: CvSynthItem) -> None:
         payload["description"] = synth["description"]
     if synth.get("summary"):
         payload["summary"] = synth["summary"]
-    if synth.get("bullets"):
-        produced = [{"text": str(bullet)} for bullet in synth["bullets"]]
-        payload["achievements"] = produced + list(payload.get("achievements") or [])
-
-
-swap_variant_payload = _swap
+    if synth.get("achievements"):
+        payload["achievements"] = list(synth["achievements"]) + list(
+            payload.get("achievements") or []
+        )
 
 
 def _now() -> datetime:
@@ -163,7 +166,7 @@ class CvSynthService:
             {"source_key": r.source_key, "item_id": r.item_id} for r in payload.refs
         ]
         _validate_refs(refs)
-        if not payload.payload.text() and not payload.payload.bullets:
+        if not payload.payload.text() and not payload.payload.achievements:
             raise ValidationError("A variant needs text")
         context = await _context_index(self.db, user_id)
         row = CvSynthItem(
@@ -467,8 +470,10 @@ class CvSynthService:
         """The master text to translate: its description/summary/bullets."""
         payload = row.payload or {}
         text = payload.get("description") or payload.get("summary") or ""
-        if not text and payload.get("bullets"):
-            text = "\n".join(str(b) for b in payload["bullets"])
+        if not text and payload.get("achievements"):
+            text = "\n".join(
+                str(entry.get("text") or "") for entry in payload["achievements"]
+            )
         return text or ""
 
     async def regenerate(
@@ -569,7 +574,7 @@ class CvSynthService:
             if (
                 not payload.get("description")
                 and not payload.get("summary")
-                and not payload.get("bullets")
+                and not payload.get("achievements")
             ):
                 continue
             evidence_refs = [
@@ -750,15 +755,15 @@ class CvSynthService:
             ref = (source_key, item_id)
             for item in resolution.items:
                 if item.item_id == item_id:
-                    _swap(item.payload, ref, variant)
+                    swap_variant_payload(item.payload, ref, variant)
             index = resolution.snapshot_index.get(source_key) or []
             rows = resolution.snapshot.get(source_key)
             if isinstance(rows, dict):
-                _swap(rows, ref, variant)
+                swap_variant_payload(rows, ref, variant)
             else:
                 for position, existing in enumerate(index or []):
                     if existing == item_id and position < len(rows):
-                        _swap(rows[position], ref, variant)
+                        swap_variant_payload(rows[position], ref, variant)
         await self.mark_used([variant.id for variant in matches.values()])
         return {
             f"{source_key}:{item_id}": str(variant.id)

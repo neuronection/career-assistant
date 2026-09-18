@@ -4,7 +4,7 @@ override/synth precedence, compile trace, and the lint signals."""
 import uuid
 from datetime import date
 
-from app.models.experience_model import ExperienceItem
+from app.models.experience_model import ExperienceAchievement, ExperienceItem
 
 
 async def _make_item(
@@ -100,6 +100,45 @@ async def test_starred_variant_swaps_in(client, db, auth_headers):
         "the synthesized variant replaced the source description"
     )
     assert description != "Built QA tooling"
+
+
+async def test_pin_swap_bullets_keep_shape_and_prepend_order(client, db, auth_headers):
+    """Plan 106 pin: the swap writes canonical `achievements` entries and
+    the variant's bullets render BEFORE the item's own profile bullets."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    db.add(ExperienceAchievement(experience_id=item.id, text="Own grounded bullet"))
+    await db.commit()
+    row = (
+        await client.post(
+            "/api/v1/cv/synth/generate",
+            json={"refs": _refs(item), "action": "detail"},
+            headers=auth_headers,
+        )
+    ).json()["items"][0]
+    variant_id = row["id"]
+    await client.patch(
+        f"/api/v1/cv/synth/{variant_id}",
+        json={
+            "status": "active",
+            "payload": {
+                "description": row["payload"]["description"],
+                "achievements": [{"text": "Variant bullet one"}],
+            },
+        },
+        headers=auth_headers,
+    )
+    cv = await _cv_with_pins(
+        client, auth_headers, db, item_id=str(item.id), synth_id=variant_id
+    )
+    resolution = await _resolution(client, auth_headers, cv)
+    entries = resolution["snapshot"]["experience"][0]["achievements"]
+    bullets = [entry["text"] for entry in entries]
+    assert bullets[0] == "Variant bullet one", "variant bullets prepend"
+    assert bullets[-1] == "Own grounded bullet", "profile bullets follow"
+    assert all(
+        isinstance(entry, dict) and set(entry) == {"text"} for entry in entries
+    ), "canonical bullet shape everywhere"
 
 
 async def test_override_beats_synth(client, db, auth_headers):

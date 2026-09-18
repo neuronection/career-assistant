@@ -161,7 +161,7 @@ class CvBuilderService:
                     "description": payload.get("description")
                     or payload.get("summary")
                     or "",
-                    "bullets": payload.get("bullets") or [],
+                    "achievements": payload.get("achievements") or [],
                     "source_refs": source_refs,
                 }
             )
