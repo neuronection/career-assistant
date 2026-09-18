@@ -16,28 +16,28 @@ from app.schemas.cv import CvContextRef
 class SetTemplateOp(BaseModel):
     """Point the CV at a readable template (bank or the owner's own)."""
 
-    op: Literal["set_template"]
+    op: Literal["set_template"] = "set_template"
     template_id: str = Field(min_length=8, max_length=64)
 
 
 class ApplyThemeOp(BaseModel):
     """Apply a curated theme (key from the themes registry)."""
 
-    op: Literal["apply_theme"]
+    op: Literal["apply_theme"] = "apply_theme"
     theme_key: str = Field(min_length=1, max_length=64)
 
 
 class UpdateDesignOp(BaseModel):
     """Patch design tokens on the rendered template (duplicate-if-bank)."""
 
-    op: Literal["update_design"]
+    op: Literal["update_design"] = "update_design"
     design: dict[str, Union[str, int, float, bool]] = Field(min_length=1, max_length=30)
 
 
 class SetContextOp(BaseModel):
     """Replace the context selection (same contract as PUT /cv/{id}/context)."""
 
-    op: Literal["set_context"]
+    op: Literal["set_context"] = "set_context"
     mode: Literal["all", "none", "custom"] = "custom"
     include: list[CvContextRef] = Field(default_factory=list, max_length=200)
     exclude: list[CvContextRef] = Field(default_factory=list, max_length=200)
@@ -49,7 +49,7 @@ class SetContextOp(BaseModel):
 class SetDocOptionsOp(BaseModel):
     """Document-level options: title, page size, page budget, language."""
 
-    op: Literal["set_doc_options"]
+    op: Literal["set_doc_options"] = "set_doc_options"
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     page_size: Optional[Literal["a4", "letter"]] = None
     max_pages: Optional[int] = Field(default=None, ge=1, le=10)
@@ -59,7 +59,7 @@ class SetDocOptionsOp(BaseModel):
 class AddBlockOp(BaseModel):
     """Append (or insert at a position) one registry-valid block."""
 
-    op: Literal["add_block"]
+    op: Literal["add_block"] = "add_block"
     kind: str = Field(min_length=1, max_length=40)
     props: dict = Field(default_factory=dict, max_length=30)
     position: Optional[int] = Field(default=None, ge=0, le=24)
@@ -69,14 +69,14 @@ class AddBlockOp(BaseModel):
 class RemoveBlockOp(BaseModel):
     """Drop the block at a context-listed index."""
 
-    op: Literal["remove_block"]
+    op: Literal["remove_block"] = "remove_block"
     block_index: int = Field(ge=0, le=24)
 
 
 class MoveBlockOp(BaseModel):
     """Move one block to a new position (bounds-clamped)."""
 
-    op: Literal["move_block"]
+    op: Literal["move_block"] = "move_block"
     block_index: int = Field(ge=0, le=24)
     to_index: int = Field(ge=0, le=24)
 
@@ -84,7 +84,7 @@ class MoveBlockOp(BaseModel):
 class SetBlockAreaOp(BaseModel):
     """Assign one block to a layout area (quick-swap sidebar/main)."""
 
-    op: Literal["set_block_area"]
+    op: Literal["set_block_area"] = "set_block_area"
     block_index: int = Field(ge=0, le=24)
     area: Literal["main", "sidebar"]
 
@@ -92,17 +92,36 @@ class SetBlockAreaOp(BaseModel):
 class UpdateBlockPropsOp(BaseModel):
     """Merge a props patch into the block at a context-listed index."""
 
-    op: Literal["update_block_props"]
+    op: Literal["update_block_props"] = "update_block_props"
     block_index: int = Field(ge=0, le=24)
     props: dict[str, Union[str, int, float, bool, list, dict]] = Field(
         min_length=1, max_length=30
     )
 
 
+class SetBulletsOp(BaseModel):
+    """Bullet-list rewrite over one resolved item on THIS CV (plan 107)."""
+
+    op: Literal["set_bullets"] = "set_bullets"
+    source_key: Literal["experience", "projects", "volunteer"]
+    item_id: str = Field(min_length=1, max_length=64)
+    bullets: list[str] = Field(min_length=0, max_length=12)
+
+    @field_validator("bullets")
+    @classmethod
+    def _clamp(cls, bullets: list[str]) -> list[str]:
+        cleaned = []
+        for bullet in bullets:
+            text = bullet.strip()[:500]
+            if text:
+                cleaned.append(text)
+        return cleaned
+
+
 class SetOverrideOp(BaseModel):
     """Field patch over one resolved context item (editor override)."""
 
-    op: Literal["set_override"]
+    op: Literal["set_override"] = "set_override"
     source_key: str = Field(min_length=1, max_length=40)
     item_id: str = Field(min_length=1, max_length=64)
     field: str = Field(min_length=1, max_length=80)

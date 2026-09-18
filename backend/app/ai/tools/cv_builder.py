@@ -7,7 +7,7 @@ registry objects so the registry lists them and the MCP layer
 every handler resolves the owned CV from the ToolContext user.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,7 @@ from app.schemas.cv_assistant import (
     ApplyThemeOp,
     MoveBlockOp,
     RemoveBlockOp,
+    SetBulletsOp,
     SetContextOp,
     SetDocOptionsOp,
     SetOverrideOp,
@@ -84,6 +85,12 @@ class SetOverrideInput(CvRefInput):
     item_id: str = Field(min_length=1, max_length=64)
     field: str = Field(min_length=1, max_length=80)
     value: str = Field(min_length=1, max_length=4000)
+
+
+class SetBulletsInput(CvRefInput):
+    source_key: Literal["experience", "projects", "volunteer"]
+    item_id: str = Field(min_length=1, max_length=64)
+    bullets: list[str] = Field(min_length=0, max_length=12)
 
 
 async def _owned_cv(db, ctx: ToolContext, cv_id: str):
@@ -258,6 +265,15 @@ CV_BUILDER_TOOLS: list[AITool] = [
         "Patch one field of one resolved profile item for this CV.",
         SetOverrideInput,
         _op_wrapper(SetOverrideOp),
+        ToolScope.WRITE,
+    ),
+    _tool(
+        "cv_set_bullets",
+        "Rewrite CV bullets",
+        "Replace one experience/projects/volunteer item's bullet list on "
+        "this CV with grounded, metric-honest lines.",
+        SetBulletsInput,
+        _op_wrapper(SetBulletsOp),
         ToolScope.WRITE,
     ),
 ]

@@ -1918,7 +1918,9 @@
         "kind": "Type",
         "title": "Title",
         "date": "Date",
-        "detail": "Detail"
+        "detail": "Detail",
+        "removed_bullet": "Removed bullet",
+        "added_bullet": "Added bullet"
       },
       "sourceKinds": {
         "experience": "Work experience",

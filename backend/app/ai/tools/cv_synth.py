@@ -12,7 +12,7 @@ attached (plan 78) — can list variants and set/unset the per-item
 default (the Context-panel star). Pinning follows plan-102 star
 semantics: a pinned draft is promoted (supersede + active) first."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -482,6 +482,58 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
     }
 
 
+class CvReadItemsInput(BaseModel):
+    cv_id: str = Field(min_length=8, max_length=64)
+    """Bullet-bearing rows of ONE CV, as the renderer resolves them."""
+
+    source_keys: list[Literal["experience", "projects", "volunteer"]] = Field(
+        default_factory=lambda: ["experience", "projects", "volunteer"],
+        max_length=3,
+    )
+
+
+async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
+    """Plan 107 grounding: read BEFORE proposing bullet rewrites."""
+    from app.services.cv_builder_service import CvBuilderService
+
+    if ctx.user_id is None:
+        from app.core.errors import PermissionDeniedError
+
+        raise PermissionDeniedError("A signed-in user is required")
+    cv = await _owned_cv(db, ctx, args.cv_id)
+    resolution = await CvBuilderService(db).resolution(cv)
+    overrides = (cv.working_content or {}).get("overrides") or {}
+    items = []
+    for source_key in args.source_keys:
+        rows = resolution.snapshot.get(source_key)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            item_id = str(row.get("id") or "")
+            patch = overrides.get(f"{source_key}:{item_id}") or {}
+            entries = patch.get("achievements")
+            overridden = isinstance(entries, list)
+            source_entries = entries if overridden else row.get("achievements") or []
+            bullets = [
+                str(entry.get("text") or "")
+                for entry in source_entries
+                if isinstance(entry, dict)
+            ]
+            items.append(
+                {
+                    "source_key": source_key,
+                    "item_id": item_id,
+                    "title": str(row.get("title") or ""),
+                    "org": str(row.get("org_name") or ""),
+                    "bullets": bullets[:12],
+                    "bullets_overridden_for_this_cv": overridden,
+                }
+            )
+    return {"cv_id": str(cv.id), "items": items}
+
+
 def _tool(key, title, description, input_model, handler, scope, cost="cheap"):
     return AITool(
         key=key,
@@ -511,6 +563,17 @@ def _chat_tool(key, title, description, input_model, handler, scope, cost="cheap
 
 
 CV_SYNTH_TOOLS: list[AITool] = [
+    _chat_tool(
+        "cv_read_items",
+        "Read a CV's bullet items",
+        "The attached CV's experience/projects/volunteer rows as they "
+        "render: item ids, titles and the current bullets (flags "
+        "what is overridden for this CV). Read this before proposing "
+        "bullet rewrites.",
+        CvReadItemsInput,
+        _read_items,
+        ToolScope.READ,
+    ),
     _tool(
         "cv_synth_list",
         "List synthesized variants",

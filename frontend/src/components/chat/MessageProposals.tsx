@@ -85,13 +85,15 @@ function ProposalCard({
 
   const state = cardStatus(card, override);
   const variantCard = card.kind === "cv_synth";
+  const bulletsCard = card.kind === "cv_set_bullets";
   const showPreviewButton =
     PREVIEW_KINDS.has(card.kind) && previewEntry?.state !== "missing";
   // Plan 101 AD2: a create op is not revertible — variant cards are
   // retracted via the Synth Library, never this row (the backend
-  // rejects cv_synth anyway).
+  // rejects cv_synth anyway). Plan 107: bullet cards revert without a
+  // snapshot preview (the diff rows show the before/after bullets).
   const reversible =
-    PREVIEW_KINDS.has(card.kind) &&
+    (PREVIEW_KINDS.has(card.kind) || bulletsCard) &&
     !variantCard &&
     state.status === "approved";
 

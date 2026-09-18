@@ -86,6 +86,11 @@ SYSTEM = (
     "experience/description, education/description, basics/headline; "
     "allowed fields per source are in `override_fields`). Rephrase the "
     "user's real content; never invent employers, dates or skills.\n"
+    "- set_bullets {source_key, item_id, bullets} — replace one item's "
+    "bullet list on THIS CV (experience, projects or volunteer rows "
+    "from the state). Grounded metric-honest lines the user already has "
+    "evidence for; missing numbers stay explicit placeholders like "
+    "\"<your number>\".\n"
     "Rules: at most 12 operations, applied in order. Use block_index and "
     "item_id values exactly as listed in the state. Set "
     "`need_visual_review` true when the user asks about looks, layout, "
@@ -154,6 +159,7 @@ OP_TITLES = {
     "set_block_area": "Switching columns",
     "update_block_props": "Configuring section",
     "set_override": "Rewriting text",
+    "set_bullets": "Rewriting bullets",
     "visual_review": "Reviewing the rendered preview",
 }
 
@@ -603,6 +609,30 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
             await db.commit()
             return OpResult(
                 op=kind, ok=True, detail=f"{op.source_key}.{op.field} rewritten"
+            )
+
+        if kind == "set_bullets":
+            from app.services.cv_builder_service import CvBuilderService
+
+            resolution = await CvBuilderService(db).resolution(cv)
+            ids = (resolution.snapshot_index or {}).get(op.source_key) or []
+            if op.item_id not in ids:
+                raise ValidationError(
+                    f"{op.source_key}:{op.item_id} is not in this CV's context"
+                )
+            ref = f"{op.source_key}:{op.item_id}"
+            overrides[ref] = {
+                **(overrides.get(ref) or {}),
+                "achievements": [{"text": bullet} for bullet in op.bullets],
+            }
+            _save_working(cv, blocks, overrides)
+            await db.commit()
+            count = len(op.bullets)
+            return OpResult(
+                op=kind,
+                ok=True,
+                detail=f"{count} bullet{'s' if count != 1 else ''} set on"
+                f" {op.source_key}:{op.item_id}",
             )
 
         raise ValidationError(f"Unsupported operation: {kind}")

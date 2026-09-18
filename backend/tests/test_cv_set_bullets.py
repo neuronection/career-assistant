@@ -190,3 +190,60 @@ async def test_bullets_clamped_and_extra_forbidden(db, auth_headers):
                 "bullets": ["x"],
             },
         )
+
+
+async def test_read_items_and_set_bullets_tools(db, auth_headers):
+    from app.ai.tools import run_tool
+
+    user = await _auth_user(db)
+    cv = await _cv(db, user)
+    item = await _experience(db, user)
+    listed = await run_tool(
+        db, "cv_read_items", user.id, {"cv_id": str(cv.id)}
+    )
+    rows = {row["item_id"]: row for row in listed["items"]}
+    row = rows[str(item.id)]
+    assert row["bullets"] == ["Profile bullet one"]
+    assert row["bullets_overridden_for_this_cv"] is False
+
+    out = await run_tool(
+        db,
+        "cv_set_bullets",
+        user.id,
+        {
+            "cv_id": str(cv.id),
+            "source_key": "experience",
+            "item_id": str(item.id),
+            "bullets": ["Tailored bullet"],
+        },
+    )
+    assert out["ok"] is True
+
+    relisted = await run_tool(
+        db, "cv_read_items", user.id, {"cv_id": str(cv.id)}
+    )
+    row = {r["item_id"]: r for r in relisted["items"]}[str(item.id)]
+    assert row["bullets"] == ["Tailored bullet"]
+    assert row["bullets_overridden_for_this_cv"] is True
+
+
+def test_mock_emits_cv_set_bullets_after_the_read():
+    from app.ai.mock_chat import mock_profile_ops
+
+    ops = mock_profile_ops(
+        {
+            "cv_read_items": {
+                "cv_id": "0b8f8d36-0000-0000-0000-000000000001",
+                "items": [
+                    {
+                        "source_key": "experience",
+                        "item_id": "e1",
+                        "title": "Backend Intern",
+                    }
+                ],
+            }
+        },
+        "update the bullets on this cv",
+    )
+    assert ops and ops[0]["kind"] == "cv_set_bullets"
+    assert ops[0]["payload"]["item_id"] == "e1"

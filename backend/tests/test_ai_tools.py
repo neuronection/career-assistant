@@ -60,6 +60,8 @@ def test_builtin_registry_declarations():
         "cv_move_block",
         "cv_update_block_props",
         "cv_set_override",
+        "cv_set_bullets",
+        "cv_read_items",
         # — CV synth variant family (plan 62)
         "cv_synth_list",
         "cv_synth_read",
@@ -100,6 +102,7 @@ def test_builtin_registry_declarations():
             "cv_review_visual",
             "cv_synth_list",
             "cv_synth_read",
+            "cv_read_items",
         )
     )
     assert listed["search_postings"]["requires_user"] is True

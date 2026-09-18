@@ -160,6 +160,23 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
     words = {token.strip(".,!?;:()[]\"'") for token in lowered.split()}
     if not (words & EDIT_VERBS):
         return []
+    cv_items = (tools.get("cv_read_items") or {}).get("items") or []
+    if cv_items and (words & {"bullet", "bullets"}):
+        first = cv_items[0]
+        return [
+            {
+                "kind": "cv_set_bullets",
+                "action": "update",
+                "payload": {
+                    "cv_id": (tools.get("cv_read_items") or {}).get("cv_id"),
+                    "source_key": first["source_key"],
+                    "item_id": first["item_id"],
+                    "bullets": [
+                        f"{first['title']} — tailored for this CV"
+                    ],
+                },
+            }
+        ]
     items = (tools.get("my_experience") or {}).get("items") or []
     skill_rows = (tools.get("my_skills") or {}).get("skills") or []
     education = tools.get("my_education") or {}
@@ -466,6 +483,12 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         for name, keywords in plan
         if name not in tools and any(keyword in lowered for keyword in keywords)
     ]
+    if (
+        "cv_read_items" not in tools
+        and ctx.get("cv_references")
+        and _re.search(r"\bbullets?\b", message)
+    ):
+        wanted.append("cv_read_items")
     calls = [
         {"name": name, "args": {}, "id": f"call-{index}"}
         for index, name in enumerate(wanted)
