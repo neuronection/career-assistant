@@ -135,6 +135,7 @@
           },
           "op": {
             "const": "add_block",
+            "default": "add_block",
             "title": "Op",
             "type": "string"
           },
@@ -159,7 +160,6 @@
           }
         },
         "required": [
-          "op",
           "kind"
         ],
         "title": "AddBlockOp",
@@ -400,6 +400,7 @@
         "properties": {
           "op": {
             "const": "apply_theme",
+            "default": "apply_theme",
             "title": "Op",
             "type": "string"
           },
@@ -411,7 +412,6 @@
           }
         },
         "required": [
-          "op",
           "theme_key"
         ],
         "title": "ApplyThemeOp",
@@ -9057,6 +9057,7 @@
           },
           "op": {
             "const": "move_block",
+            "default": "move_block",
             "title": "Op",
             "type": "string"
           },
@@ -9068,7 +9069,6 @@
           }
         },
         "required": [
-          "op",
           "block_index",
           "to_index"
         ],
@@ -11452,12 +11452,12 @@
           },
           "op": {
             "const": "remove_block",
+            "default": "remove_block",
             "title": "Op",
             "type": "string"
           }
         },
         "required": [
-          "op",
           "block_index"
         ],
         "title": "RemoveBlockOp",
@@ -12059,12 +12059,12 @@
           },
           "op": {
             "const": "set_block_area",
+            "default": "set_block_area",
             "title": "Op",
             "type": "string"
           }
         },
         "required": [
-          "op",
           "block_index",
           "area"
         ],
@@ -12102,6 +12102,7 @@
           },
           "op": {
             "const": "set_context",
+            "default": "set_context",
             "title": "Op",
             "type": "string"
           },
@@ -12121,9 +12122,6 @@
             "title": "Synth Pins"
           }
         },
-        "required": [
-          "op"
-        ],
         "title": "SetContextOp",
         "type": "object"
       },
@@ -12158,6 +12156,7 @@
           },
           "op": {
             "const": "set_doc_options",
+            "default": "set_doc_options",
             "title": "Op",
             "type": "string"
           },
@@ -12190,9 +12189,6 @@
             "title": "Title"
           }
         },
-        "required": [
-          "op"
-        ],
         "title": "SetDocOptionsOp",
         "type": "object"
       },
@@ -12213,6 +12209,7 @@
           },
           "op": {
             "const": "set_override",
+            "default": "set_override",
             "title": "Op",
             "type": "string"
           },
@@ -12230,7 +12227,6 @@
           }
         },
         "required": [
-          "op",
           "source_key",
           "item_id",
           "field",
@@ -12244,6 +12240,7 @@
         "properties": {
           "op": {
             "const": "set_template",
+            "default": "set_template",
             "title": "Op",
             "type": "string"
           },
@@ -12255,7 +12252,6 @@
           }
         },
         "required": [
-          "op",
           "template_id"
         ],
         "title": "SetTemplateOp",
@@ -13523,6 +13519,7 @@
           },
           "op": {
             "const": "update_block_props",
+            "default": "update_block_props",
             "title": "Op",
             "type": "string"
           },
@@ -13558,7 +13555,6 @@
           }
         },
         "required": [
-          "op",
           "block_index",
           "props"
         ],
@@ -13592,12 +13588,12 @@
           },
           "op": {
             "const": "update_design",
+            "default": "update_design",
             "title": "Op",
             "type": "string"
           }
         },
         "required": [
-          "op",
           "design"
         ],
         "title": "UpdateDesignOp",

@@ -154,7 +154,16 @@ async def _review_visual(db, ctx: ToolContext, args: CvRefInput):
     }
 
 
-def _tool(key, title, description, input_model, handler, scope, cost="cheap"):
+def _tool(
+    key,
+    title,
+    description,
+    input_model,
+    handler,
+    scope,
+    cost="cheap",
+    audiences=None,
+):
     return AITool(
         key=key,
         title=title,
@@ -162,7 +171,7 @@ def _tool(key, title, description, input_model, handler, scope, cost="cheap"):
         input_model=input_model,
         handler=handler,
         scope=scope,
-        audiences=AUDIENCES,
+        audiences=audiences or AUDIENCES,
         cost_hint=cost,
         requires_user=True,
     )
@@ -181,11 +190,14 @@ CV_BUILDER_TOOLS: list[AITool] = [
     _tool(
         "cv_review_visual",
         "Review CV preview visually",
-        "Screenshot the rendered CV and run the vision critique (capability-detected).",
+        "Screenshot the rendered CV and run the vision critique "
+        "(capability-detected). cv_id is required — pass the attached "
+        "CV's id verbatim.",
         CvRefInput,
         _review_visual,
         ToolScope.READ,
         cost="expensive",
+        audiences=frozenset({"cv_builder", "chat"}),
     ),
     _tool(
         "cv_set_template",

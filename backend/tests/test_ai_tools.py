@@ -92,6 +92,11 @@ def test_builtin_registry_declarations():
     assert non_cv["variant_pin"]["scope"] == "write"
     assert listed["cv_read_state"]["scope"] == "read"
     assert listed["cv_review_visual"]["scope"] == "read"
+    # Plan 107: the visual review serves the general chat too
+    assert "chat" in listed["cv_review_visual"]["audiences"]
+    assert "chat" in listed["cv_read_items"]["audiences"]
+    assert "cv_builder" not in listed["cv_read_items"]["audiences"]
+    assert listed["cv_set_bullets"]["audiences"] == ["cv_builder"]
     assert all(
         listed[key]["scope"] == "write"
         for key in listed

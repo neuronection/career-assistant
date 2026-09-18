@@ -82,7 +82,13 @@ def test_cv_builder_tools_registered():
         "cv_set_override",
     ):
         assert key in listed, key
-        assert listed[key]["audiences"] == ["cv_builder"]
+        # Plan 107: the visual review serves the general chat too.
+        expected = (
+            ["chat", "cv_builder"]
+            if key == "cv_review_visual"
+            else ["cv_builder"]
+        )
+        assert listed[key]["audiences"] == expected
         assert listed[key]["builtin"] is True
         assert listed[key]["requires_user"] is True
     assert listed["cv_set_template"]["scope"] == "write"
