@@ -2551,3 +2551,64 @@ describe("CvBuilder — plan 105 context entity editing", () => {
     expect(screen.queryByTestId("entity-editor-modal")).not.toBeInTheDocument();
   });
 });
+
+describe("CvBuilder — plan 105 origin-aware sync", () => {
+  it("local bumps refetch context sources and skip the profile-changed toast", async () => {
+    const { useCvBuilderLink } = await import("@/stores/cvBuilderLinkStore");
+    const { useToastStore } = await import("@/stores/toastStore");
+    useToastStore.setState({ toasts: [] });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fetchContextStatus.mockResolvedValue({
+      has_baseline: true,
+      stale: true,
+      changed: [],
+      added: [],
+      removed: [],
+    });
+    const initialSources = fetchContextSources.mock.calls.length;
+    const initialLint = fetchLint.mock.calls.length;
+    useCvBuilderLink.setState({ dataRevision: 0, lastDataOrigin: "chat" });
+    act(() => {
+      useCvBuilderLink.getState().notifyDataChanged("local");
+    });
+    await waitFor(
+      () =>
+        expect(fetchContextSources.mock.calls.length).toBeGreaterThan(
+          initialSources,
+        ),
+      { timeout: 3000 },
+    );
+    await waitFor(
+      () => expect(fetchLint.mock.calls.length).toBeGreaterThan(initialLint),
+      { timeout: 3000 },
+    );
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it("chat bumps keep toasting on a stale baseline", async () => {
+    const { useCvBuilderLink } = await import("@/stores/cvBuilderLinkStore");
+    const { useToastStore } = await import("@/stores/toastStore");
+    useToastStore.setState({ toasts: [] });
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    fetchContextStatus.mockResolvedValue({
+      has_baseline: true,
+      stale: true,
+      changed: [],
+      added: [],
+      removed: [],
+    });
+    const initialLint = fetchLint.mock.calls.length;
+    useCvBuilderLink.setState({ dataRevision: 0, lastDataOrigin: "local" });
+    act(() => {
+      useCvBuilderLink.getState().notifyDataChanged();
+    });
+    await waitFor(
+      () => expect(fetchLint.mock.calls.length).toBeGreaterThan(initialLint),
+      { timeout: 3000 },
+    );
+    expect(useToastStore.getState().toasts.length).toBe(1);
+    expect(useToastStore.getState().toasts[0].title).toBe("Profile changed");
+  });
+});

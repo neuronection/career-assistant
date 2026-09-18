@@ -227,27 +227,30 @@ export function CvBuilder() {
     }
   }, [id]);
 
-  const refreshMeta = useCallback(async () => {
-    try {
-      const [rows, report, status] = await Promise.all([
-        fetchVersions(id),
-        fetchLint(id),
-        fetchContextStatus(id),
-      ]);
-      setVersions(rows);
-      setLint(report);
-      if (status.stale) {
-        pushToast({
-          title: t("cvBuilder.profileChangedTitle"),
-          body: t("cvBuilder.profileChangedBody"),
-          severity: "info",
-          link: "",
-        });
+  const refreshMeta = useCallback(
+    async (notifyProfileChanged = true) => {
+      try {
+        const [rows, report, status] = await Promise.all([
+          fetchVersions(id),
+          fetchLint(id),
+          fetchContextStatus(id),
+        ]);
+        setVersions(rows);
+        setLint(report);
+        if (status.stale && notifyProfileChanged) {
+          pushToast({
+            title: t("cvBuilder.profileChangedTitle"),
+            body: t("cvBuilder.profileChangedBody"),
+            severity: "info",
+            link: "",
+          });
+        }
+      } catch (err) {
+        setError(apiDetail(err));
       }
-    } catch (err) {
-      setError(apiDetail(err));
-    }
-  }, [id, pushToast]);
+    },
+    [id, pushToast]
+  );
 
   const loadDesign = useCallback(async () => {
     try {
@@ -704,7 +707,9 @@ export function CvBuilder() {
     // Plan 104: chat-side mutations (approved/reverted cards, write tools)
     // land server-side while this page is open — refetch the resolved CV
     // so the Studio stays current without a manual reload. Debounced so a
-    // burst of approvals triggers one refresh.
+    // burst of approvals triggers one refresh. Plan 105: context sources
+    // ride along (created entities must appear), and local (Studio-driven)
+    // bumps skip the "Profile changed" toast — the user made the change.
     if (dataRevision === 0) {
       return;
     }
@@ -713,7 +718,8 @@ export function CvBuilder() {
       // edits first, then pull the server's resolved state.
       useCvBuilderLink.getState().flushPendingSave();
       void refreshPreview();
-      void refreshMeta();
+      void refreshSources();
+      void refreshMeta(useCvBuilderLink.getState().lastDataOrigin !== "local");
       void refreshSynthRows();
     }, 300);
     return () => clearTimeout(timer);
@@ -1272,7 +1278,7 @@ export function CvBuilder() {
       <BuildProgressCard
         cvId={id}
         onOpenRuns={() => setRunsOpen(true)}
-        onRunFinished={() => void refreshPreview().then(refreshMeta)}
+        onRunFinished={() => void refreshPreview().then(() => refreshMeta())}
       />
 
       <div className="ca-ws-switcher mb-2 flex shrink-0 gap-1" role="group" aria-label={t("experience.panesAria")} data-testid="pane-switcher">
@@ -1715,8 +1721,7 @@ export function CvBuilder() {
           itemId={entityEditor.itemId}
           onSaved={() => {
             setEntityEditor({ open: false, sourceKey: "", itemId: null });
-            void refreshSources();
-            void refreshPreview();
+            useCvBuilderLink.getState().notifyDataChanged("local");
           }}
           onClose={() => setEntityEditor({ open: false, sourceKey: "", itemId: null })}
         />

@@ -36,7 +36,10 @@ All notable changes to **Career Assistant** are documented here.
   through the profile APIs, then refreshes the context panel and
   preview. Card-backed groups (languages, interests, basics, objective)
   link to their profile section instead. Empty groups offer the create
-  action directly.
+  action directly. Saves ride the plan-104 live-sync channel with a
+  local origin: the panel, preview and staleness state refresh without
+  the "Profile changed" toast you'd only want for external (chat)
+  mutations — which now also refresh the context source list.
 - **Profile entity deep links (plan 105 groundwork)** — a shared
   `lib/entityLinks.ts` map now routes every CV context source to its
   profile home; the experience and education workspaces accept

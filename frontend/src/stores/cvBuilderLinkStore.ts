@@ -30,11 +30,14 @@ interface CvBuilderLinkState {
   liveTurns: Record<string, LiveTurnTraceInput>;
   flushCallback: (() => void) | null;
   dataRevision: number;
+  /** Plan 105: who drove the last revision bump — chat surfaces the
+   * "Profile changed" toast, local Studio edits skip it. */
+  lastDataOrigin: "chat" | "local";
   applyBuilderState: (state: CvAssistantState) => void;
   applyTurnTrace: (cvId: string, trace: LiveTurnTraceInput | null) => void;
   registerFlush: (flush: (() => void) | null) => void;
   flushPendingSave: () => void;
-  notifyDataChanged: () => void;
+  notifyDataChanged: (origin?: "chat" | "local") => void;
 }
 
 function turnKey(cvId: string): string {
@@ -46,6 +49,7 @@ export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
   liveTurns: {},
   flushCallback: null,
   dataRevision: 0,
+  lastDataOrigin: "chat",
   applyBuilderState: (state) => set({ lastBuilderState: state }),
   applyTurnTrace: (cvId, trace) => {
     const key = turnKey(cvId);
@@ -63,8 +67,8 @@ export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
     const flush = get().flushCallback;
     if (flush) flush();
   },
-  notifyDataChanged: () =>
-    set((state) => ({ dataRevision: state.dataRevision + 1 })),
+  notifyDataChanged: (origin: "chat" | "local" = "chat") =>
+    set((state) => ({ dataRevision: state.dataRevision + 1, lastDataOrigin: origin })),
 }));
 
 export function useCvLiveTurn(cvId: string | null): LiveTurnTraceInput | null {
