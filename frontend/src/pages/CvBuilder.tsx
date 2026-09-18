@@ -649,7 +649,7 @@ export function CvBuilder() {
       return {
         id: row.id,
         description: row.payload.description ?? "",
-        bullets: row.payload.bullets ?? [],
+        achievements: row.payload.achievements ?? [],
         language: row.voice.language ?? "en",
       };
     },

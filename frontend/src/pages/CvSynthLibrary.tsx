@@ -49,7 +49,11 @@ function itemText(item: CvSynthItem): string {
   const payload = item.payload || {};
   if (payload.description) return payload.description;
   if (payload.summary) return payload.summary;
-  if (payload.bullets) return payload.bullets.join(" · ");
+  if (payload.achievements?.length)
+    return payload.achievements
+      .map((entry) => entry.text)
+      .filter(Boolean)
+      .join(" · ");
   return "";
 }
 

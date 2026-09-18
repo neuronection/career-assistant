@@ -5,16 +5,18 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
-- **CV bullets unified to one canonical shape (plan 106, slice 1)** —
+- **CV bullets unified to one canonical shape (plan 106, slices 1–2)** —
   synth variant payloads now carry `achievements: [{"text": …}]`
-  instead of `bullets: ["…"]`; every dict-or-string tolerance branch in
-  the renderer and exporter is deleted, the synth swap writes entries
-  through unchanged, and the synth prompt + mock fixture emit the
-  object shape (a string-emitting model now fails validation visibly).
-  The generate flow's drafted-bullet overrides are unchanged and now
-  share the exact shape everything else uses. **Dev/test databases must
-  be recreated after upgrading** — old synth rows read back with empty
-  bullets (the stale key is ignored).
+  instead of `bullets: ["…"]` end to end: the backend schema, swap,
+  snapshot key, renderer and exporter (slice 1), and the frontend type,
+  variant editor (string[] UI state de/serialized to entries at the
+  API boundary), library and builder previews (slice 2). Every
+  dict-or-string tolerance branch is deleted; the synth prompt + mock
+  fixture emit the object shape (a string-emitting model now fails
+  validation visibly). The generate flow's drafted-bullet overrides are
+  unchanged and now share the exact shape everything else uses.
+  **Dev/test databases must be recreated after upgrading** — old synth
+  rows read back with empty bullets (the stale key is ignored).
 
 ## [v0.12.0] - 2026-09-18
 

@@ -371,7 +371,7 @@ describe("CvSynthLibrary", () => {
     await waitFor(() => expect(createSynthItem).toHaveBeenCalled());
     expect(createSynthItem.mock.calls[0][0]).toMatchObject({
       refs: [{ source_key: "experience", item_id: ITEM_ID }],
-      payload: { description: "My own tailored text", bullets: [] },
+      payload: { description: "My own tailored text", achievements: [] },
       voice: { language: "en" },
     });
   });

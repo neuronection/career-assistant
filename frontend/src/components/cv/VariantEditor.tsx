@@ -8,7 +8,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from "@/components/ui";
-import type { CvSynthItem, CvSynthPayload } from "@/types/cv";
+import type { CvSynthBullet, CvSynthItem, CvSynthPayload } from "@/types/cv";
 import type { CvContextSourceOut } from "@/types/cv";
 import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
 
@@ -19,7 +19,7 @@ type CvSynthAction = "summarize" | "detail" | "restyle" | "posting_fit" | "trans
 export interface VariantEditorBody {
   refs: { source_key: string; item_id: string }[];
   scope: "item" | "summary";
-  payload: { description: string; bullets: string[] };
+  payload: { description: string; achievements: CvSynthBullet[] };
   variant_key: string;
   target_posting_id?: string | null;
   voice: { language: string };
@@ -54,7 +54,7 @@ interface VariantEditorProps {
   ) => Promise<{
     id?: string;
     description: string;
-    bullets: string[];
+    achievements: CvSynthBullet[];
     language: string;
   }>;
   onUseSaved?: (body: VariantEditorBody) => Promise<void>;
@@ -93,10 +93,14 @@ function rowSlotKeyOf(row: CvSynthItem): string {
 function variantTextOf(payload: CvSynthPayload): string {
   const text = payload.description || payload.summary || "";
   if (text) return text;
-  return (payload.bullets ?? [])
-    .map((bullet) => (typeof bullet === "string" ? bullet : String((bullet as { text?: string }).text ?? "")))
+  return (payload.achievements ?? [])
+    .map((entry) => (entry.text ?? "").trim())
     .filter(Boolean)
     .join(" · ");
+}
+
+function textsOf(payload: CvSynthPayload | undefined): string[] {
+  return (payload?.achievements ?? []).map((entry) => (entry.text ?? "").trim());
 }
 
 const FIELD_CLASS =
@@ -139,9 +143,10 @@ export function VariantEditor({
         : []
   );
   const [description, setDescription] = useState(initial?.payload?.description ?? "");
-  const [bullets, setBullets] = useState<string[]>(() =>
-    initial?.payload?.bullets?.length ? initial.payload.bullets : [""],
-  );
+  const [bullets, setBullets] = useState<string[]>(() => {
+    const texts = textsOf(initial?.payload);
+    return texts.length ? texts : [""];
+  });
   const [variantKey, setVariantKey] = useState(initial?.variant_key ?? "default");
   const [language, setLanguage] = useState(
     initial?.voice?.language ?? defaultLanguage
@@ -208,7 +213,8 @@ export function VariantEditor({
   function loadRow(row: CvSynthItem) {
     setLoadedId(row.id);
     setDescription(row.payload.description ?? "");
-    setBullets(row.payload.bullets?.length ? row.payload.bullets : [""]);
+    const texts = textsOf(row.payload);
+    setBullets(texts.length ? texts : [""]);
     setLanguage(row.voice.language ?? defaultLanguage);
     setPostingId(row.target_posting_id ?? "");
   }
@@ -241,7 +247,8 @@ export function VariantEditor({
         toOptions(refs)
       );
       setDescription(result.description ?? "");
-      setBullets(result.bullets?.length ? result.bullets : [""]);
+      const texts = (result.achievements ?? []).map((entry) => (entry.text ?? "").trim());
+      setBullets(texts.length ? texts : [""]);
       if (result.language) setLanguage(result.language);
       setLoadedId(result.id ?? null);
     } catch (err) {
@@ -276,7 +283,10 @@ export function VariantEditor({
       scope: isSummary ? "summary" : "item",
       payload: {
         description: description.trim(),
-        bullets: bullets.map((bullet) => bullet.trim()).filter(Boolean),
+        achievements: bullets
+          .map((bullet) => bullet.trim())
+          .filter(Boolean)
+          .map((text) => ({ text })),
       },
       variant_key: variantKey.trim() || "default",
       target_posting_id: postingId || null,
@@ -655,7 +665,10 @@ export function VariantEditor({
                     onClick={() => {
                       setLoadedId(row.id);
                       setDescription(row.payload?.description ?? "");
-                      setBullets(row.payload?.bullets?.length ? row.payload.bullets : [""]);
+                      {
+                        const texts = textsOf(row.payload);
+                        setBullets(texts.length ? texts : [""]);
+                      }
                       setLanguage(row.voice?.language ?? defaultLanguage);
                       setPostingId(row.target_posting_id ?? "");
                     }}

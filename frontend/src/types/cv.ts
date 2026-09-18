@@ -21,10 +21,14 @@ export type CvSynthAction =
   | "posting_fit"
   | "translate";
 
+export interface CvSynthBullet {
+  text: string;
+}
+
 export interface CvSynthPayload {
   description?: string;
   summary?: string;
-  bullets?: string[];
+  achievements?: CvSynthBullet[];
 }
 
 export interface CvSynthVoice {
