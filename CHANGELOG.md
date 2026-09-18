@@ -12,6 +12,12 @@ All notable changes to **Career Assistant** are documented here.
   compatibility).
 
 ### Added
+- **Chat variant cards preview their sources (plan 101.2)** — a variant
+  card's "Preview" now shows exactly what the variant will draft from:
+  the user's current snapshot of every referenced source item
+  (experience/education/…) plus the target posting, before-only with the
+  unchanged "drafts variant rows on approve" semantics. Cards from before
+  plan 101 (and all-deleted source sets) keep hiding the button.
 - **Chat variant cards name their sources (plan 101.1)** — a
   "create a new variant …" card now shows one human-readable chip per
   referenced source item ("Siemens internship", "BSc Informatics")

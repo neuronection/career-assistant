@@ -496,3 +496,82 @@ async def test_api_revert_roundtrip(client, db, auth_headers):
     assert reverted.json()["status"] == "reverted"
     rows = await _load(db, item.id)
     assert rows[0].description == "Kept the warehouse systems online."
+
+
+async def test_cv_synth_preview_before_only_sources(db, auth_headers):
+    """Plan 101 AD2: a pending variant card previews its SOURCES — the
+    user's fresh KIND_SPECS snapshots, after-side None; all-gone → 404."""
+    user = await _auth_user(db)
+    service = ProfileProposalService(db)
+    item = await _item(db, user)
+    proposal = await service.create(
+        user.id,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "summarize",
+        },
+    )
+    preview = await service.preview(user.id, proposal.id)
+    assert preview["after"] is None
+    entries = preview["before"]
+    assert len(entries) == 1
+    assert entries[0]["source_key"] == "experience"
+    assert entries[0]["label"] == "Support Engineer"
+    assert entries[0]["snapshot"]["title"] == "Support Engineer"
+    assert entries[0]["snapshot"]["description"] == (
+        "Kept the warehouse systems online."
+    )
+    edits = preview["edits"]
+    assert edits["kind"] == "cv_synth"
+    assert edits["action"] == "summarize"
+    assert edits["resolved_refs"][0]["label"] == "Support Engineer"
+
+    # Deleted source: label-only row → nothing truthful → 404.
+    await db.delete(item)
+    await db.commit()
+    with pytest.raises(NotFoundError):
+        await service.preview(user.id, proposal.id)
+
+
+async def test_cv_synth_preview_all_gone_falls_back_to_404(db, auth_headers):
+    user = await _auth_user(db)
+    service = ProfileProposalService(db)
+    proposal = await service.create(
+        user.id,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [
+                {
+                    "source_key": "experience",
+                    "item_id": "00000000-0000-0000-0000-777777777777",
+                }
+            ],
+            "action": "restyle",
+        },
+    )
+    with pytest.raises(NotFoundError):
+        await service.preview(user.id, proposal.id)
+
+
+async def test_cv_synth_preview_owner_scoped_pre_101_rows_404(client, db, auth_headers):
+    """Pre-101 rows carry no resolved_refs — 404, the button hides."""
+    user = await _auth_user(db)
+    service = ProfileProposalService(db)
+    item = await _item(db, user)
+    proposal = await service.create(
+        user.id,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "summarize",
+        },
+    )
+    pre_101 = dict(proposal.payload_json or {})
+    pre_101.pop("resolved_refs", None)
+    proposal.payload_json = pre_101
+    flag_modified(proposal, "payload_json")
+    await db.commit()
