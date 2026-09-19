@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
 
 import pytest
@@ -380,7 +380,7 @@ class SyntheticConnector(PostingConnector):
             title="QA Automation Engineer",
             org="SynthCo",
             url="https://syn.example/1",
-            posted_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+            posted_at=datetime.now(timezone.utc) - timedelta(days=2),
             skills_raw=["programming", "problem-solving"],
             raw={"description": "We need programming and problem-solving."},
         )
@@ -416,7 +416,9 @@ def _raw_posting(**kw) -> RawPosting:
         title="Data Analyst",
         org="ExtractCo",
         url="https://ex.example/1",
-        posted_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+        # Relative, never a fixed date: a pinned posted_at ages out of
+        # posted_within windows and time-bombs the freshness tests.
+        posted_at=datetime.now(timezone.utc) - timedelta(days=2),
         skills_raw=["programming", "problem-solving"],
         raw={
             "description": (
