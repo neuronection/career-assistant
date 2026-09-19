@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ScopeChips } from "@/components/profile/ScopeChips";
+
 export type SectionSaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 
 const STATE_LABEL_KEYS: Record<SectionSaveState, string> = {
@@ -94,6 +96,7 @@ export function ProfileSectionCard({
             )}
             {title}
           </h2>
+          <ScopeChips sectionId={name} />
           {description && (
             <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
               {description}

@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Heart,
   ImagePlus,
+  Languages,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -31,6 +32,8 @@ import {
 } from "@/api/backgroundJobs";
 import { fetchExperience } from "@/api/experience";
 import { fetchEducation } from "@/api/education";
+import { fetchAssessments } from "@/api/assessments";
+import { fetchMySkills } from "@/api/skills";
 import type { ExperienceItemOut } from "@/types/experience";
 import type { EducationItemOut } from "@/types/education";
 import { EDUCATION_LEVEL_ORDER } from "@/components/profile/sections/options";
@@ -50,8 +53,18 @@ import {
 } from "@/api/mePhoto";
 import { Button, SearchableDropdown } from "@/components/ui";
 import {
-  AcademicsCard,
-} from "@/components/profile/sections/AcademicsCard";
+  PROFILE_SCOPES,
+  PROFILE_SCOPE_KEYS,
+  SECTION_LABEL_KEYS,
+  isProfileScopeKey,
+  scopesFor,
+  sectionsForScope,
+  type ProfileScopeKey,
+  type ProfileSectionId,
+} from "@/config/profileScopes";
+import { ScopeDots, ScopeFocusTabs } from "@/components/profile/ScopeChips";
+import { AcademicsCard } from "@/components/profile/sections/AcademicsCard";
+import { LanguagesCard } from "@/components/profile/sections/LanguagesCard";
 import { AspirationsCard } from "@/components/profile/sections/AspirationsCard";
 import { BasicsCard } from "@/components/profile/sections/BasicsCard";
 import { ConstraintsCard } from "@/components/profile/sections/ConstraintsCard";
@@ -104,6 +117,8 @@ function CompleteDot({
   );
 }
 
+const SCOPE_PINNED_IDS = new Set(["overview"]);
+
 function railNav(
   sections: Profile["completeness"]["sections"],
   required: Profile["completeness"]["required"],
@@ -112,44 +127,66 @@ function railNav(
   const dot = (id: string, done: boolean, req: boolean) => (
     <CompleteDot id={id} done={done} required={req} />
   );
+  const dots = (id: string) => <ScopeDots sectionId={id} />;
+  const dotAndDots = (
+    id: string,
+    done: boolean,
+    req: boolean
+  ) => (
+    <span className="flex items-center gap-1.5">
+      {dot(id, done, req)}
+      {dots(id)}
+    </span>
+  );
   return [
     { id: "overview", label: t("profileEdit.nav.overview"), icon: Gauge },
-    { id: "photo", label: t("profileEdit.nav.photo"), icon: ImagePlus },
+    {
+      id: "photo",
+      label: t("profileEdit.nav.photo"),
+      icon: ImagePlus,
+      trailing: dots("photo"),
+    },
     {
       id: "basics",
       label: t("profileEdit.nav.basics"),
       icon: UserRound,
-      trailing: dot("basics", !!sections.basics, !!required?.basics),
+      trailing: dotAndDots("basics", !!sections.basics, !!required?.basics),
     },
     {
       id: "academics",
       label: t("profileEdit.nav.academics"),
       icon: GraduationCap,
-      trailing: dot("academics", !!sections.academics, !!required?.academics),
+      trailing: dotAndDots("academics", !!sections.academics, !!required?.academics),
+    },
+    {
+      id: "languages",
+      label: t("profileEdit.nav.languages"),
+      icon: Languages,
+      trailing: dots("languages"),
     },
     {
       id: "interests",
       label: t("profileEdit.nav.interests"),
       icon: Heart,
-      trailing: dot("interests", !!sections.interests, !!required?.interests),
+      trailing: dotAndDots("interests", !!sections.interests, !!required?.interests),
     },
     {
       id: "tastes",
       label: t("profileEdit.nav.tastes"),
       icon: ThumbsUp,
-      trailing: dot("tastes", !!sections.likes, !!required?.likes),
+      trailing: dotAndDots("tastes", !!sections.likes, !!required?.likes),
     },
     {
       id: "aspirations",
       label: t("profileEdit.nav.aspirations"),
       icon: Telescope,
-      trailing: dot("aspirations", !!sections.aspirations, !!required?.aspirations),
+      trailing: dotAndDots("aspirations", !!sections.aspirations, !!required?.aspirations),
     },
     {
       id: "work-style",
       label: t("profileEdit.nav.workStyle"),
       icon: SlidersHorizontal,
-      trailing: dot(
+      trailing: dotAndDots(
         "work-style",
         !!sections.work_preferences,
         !!required?.work_preferences
@@ -159,13 +196,23 @@ function railNav(
       id: "constraints",
       label: t("profileEdit.nav.constraints"),
       icon: ShieldCheck,
-      trailing: dot("constraints", !!sections.constraints, !!required?.constraints),
+      trailing: dotAndDots("constraints", !!sections.constraints, !!required?.constraints),
     },
-    { id: "skills", label: t("profileEdit.nav.skills"), icon: Wrench },
-    { id: "weights", label: t("profileEdit.nav.weights"), icon: SlidersHorizontal },
-    { id: "experience", label: t("experience.title"), icon: Briefcase },
-    { id: "education", label: t("education.title"), icon: GraduationCap },
-    { id: "assessment", label: t("profileEdit.nav.assessment"), icon: ClipboardCheck },
+    {
+      id: "skills",
+      label: t("profileEdit.nav.skills"),
+      icon: Wrench,
+      trailing: dots("skills"),
+    },
+    { id: "weights", label: t("profileEdit.nav.weights"), icon: SlidersHorizontal, trailing: dots("weights") },
+    { id: "experience", label: t("experience.title"), icon: Briefcase, trailing: dots("experience") },
+    { id: "education", label: t("education.title"), icon: GraduationCap, trailing: dots("education") },
+    {
+      id: "assessment",
+      label: t("profileEdit.nav.assessment"),
+      icon: ClipboardCheck,
+      trailing: dots("assessment"),
+    },
     { id: "account", label: t("profileEdit.nav.account"), icon: UserRound },
   ];
 }
@@ -181,6 +228,10 @@ export function ProfileEdit() {
   const [active, setActive] = useState<string>(
     () => window.location.hash.replace("#", "") || "overview"
   );
+  const [scopeFocus, setScopeFocus] = useState<ProfileScopeKey | null>(() => {
+    const param = new URLSearchParams(window.location.search).get("focus");
+    return isProfileScopeKey(param) ? param : null;
+  });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -210,6 +261,21 @@ export function ProfileEdit() {
     document
       .getElementById("main")
       ?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+  };
+
+  const applyScopeFocus = (scope: ProfileScopeKey | null) => {
+    setScopeFocus(scope);
+    const params = new URLSearchParams(window.location.search);
+    if (scope === null) {
+      params.delete("focus");
+    } else {
+      params.set("focus", scope);
+    }
+    const query = Array.from(params.keys()).length > 0 ? `?${params.toString()}` : "";
+    window.history.replaceState(null, "", `${window.location.pathname}${query}${window.location.hash}`);
+    if (scope !== null && !SCOPE_PINNED_IDS.has(active) && !scopesFor(active).includes(scope)) {
+      navigateTo("overview");
+    }
   };
 
   const onExportDone = (finished: BackgroundJob) => {
@@ -264,11 +330,37 @@ export function ProfileEdit() {
   if (!profile) return <p className="text-slate-400">{t("common.loading")}</p>;
   const p = profile;
   const nav = railNav(p.completeness.sections, p.completeness.required, t);
+  const visibleNav = scopeFocus === null
+    ? nav
+    : nav.filter(
+        (item) =>
+          SCOPE_PINNED_IDS.has(item.id) || scopesFor(item.id).includes(scopeFocus)
+      );
+  const hiddenCount = nav.length - visibleNav.length;
 
   return (
     <div className="mx-auto max-w-6xl" data-testid="profile-edit">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <ScopeFocusTabs focus={scopeFocus} onFocus={applyScopeFocus} />
+        {scopeFocus !== null && (
+          <p
+            className="text-xs text-[var(--as-muted-fg)]"
+            data-testid="scope-focus-strip"
+          >
+            {t("profileScopes.hiddenCount", { count: hiddenCount })} ·{" "}
+            <button
+              type="button"
+              onClick={() => applyScopeFocus(null)}
+              className="font-medium text-[var(--as-accent)] hover:underline"
+              data-testid="scope-focus-show-all"
+            >
+              {t("profileScopes.showAll")}
+            </button>
+          </p>
+        )}
+      </div>
       <SettingsShell
-        nav={nav}
+        nav={visibleNav}
         active={active}
         onNavigate={navigateTo}
         header={{ icon: UserRound, title: t("profileEdit.title") }}
@@ -285,6 +377,7 @@ export function ProfileEdit() {
             <OverviewSection
               profile={p}
               onStage={switchStage}
+              onNavigate={navigateTo}
               onAnalyze={async () => {
                 setAnalyzing(true);
                 setError("");
@@ -312,6 +405,13 @@ export function ProfileEdit() {
               initial={p.academics}
               onSave={saveSection}
               complete={p.completeness.sections.academics}
+            />
+          )}
+          {active === "languages" && (
+            <LanguagesCard
+              initial={p.academics}
+              onSave={saveSection}
+              complete={p.academics.languages.length > 0}
             />
           )}
           {active === "interests" && (
@@ -420,11 +520,13 @@ function CvImportStatus() {
 function OverviewSection({
   profile,
   onStage,
+  onNavigate,
   onAnalyze,
   analyzing,
 }: {
   profile: Profile;
   onStage: (stage: CareerStage | null) => Promise<void>;
+  onNavigate: (id: string) => void;
   onAnalyze: () => Promise<void>;
   analyzing: boolean;
 }) {
@@ -433,6 +535,7 @@ function OverviewSection({
   const p = profile;
   return (
     <>
+      <GoalReadinessCard profile={p} onNavigate={onNavigate} />
       <ProfileSectionCard
         name="overview"
         title={t("profileEdit.completenessTitle")}
@@ -972,6 +1075,149 @@ function AccountSection({
             </div>
           </div>
         )}
+      </div>
+    </ProfileSectionCard>
+  );
+}
+
+const READINESS_COMPLETENESS_KEYS: Partial<
+  Record<ProfileSectionId, keyof Profile["completeness"]["sections"]>
+> = {
+  basics: "basics",
+  academics: "academics",
+  interests: "interests",
+  tastes: "likes",
+  aspirations: "aspirations",
+  "work-style": "work_preferences",
+  constraints: "constraints",
+};
+
+function GoalReadinessCard({
+  profile,
+  onNavigate,
+}: {
+  profile: Profile;
+  onNavigate: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [signals, setSignals] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetchExperience().then((result) => result.items.length > 0).catch(() => false),
+      fetchEducation().then((rows) => rows.length > 0).catch(() => false),
+      fetchMySkills().then((rows) => rows.length > 0).catch(() => false),
+      fetchAssessments()
+        .then((runs) => runs.some((run) => run.status === "completed"))
+        .catch(() => false),
+      fetchPhotoState()
+        .then((state) => state.photo_document_id !== null)
+        .catch(() => false),
+    ]).then(([experience, education, skills, assessment, photo]) => {
+      if (!cancelled) {
+        setSignals({ experience, education, skills, assessment, photo });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filledFor = (id: ProfileSectionId): boolean | null => {
+    if (id === "weights") {
+      return profile.preferences?.scoring_weights !== undefined;
+    }
+    if (id === "languages") {
+      return profile.academics.languages.length > 0;
+    }
+    const completenessKey = READINESS_COMPLETENESS_KEYS[id];
+    if (completenessKey !== undefined) {
+      return !!profile.completeness.sections[completenessKey];
+    }
+    return signals === null ? null : !!signals[id];
+  };
+
+  const scopeRows = PROFILE_SCOPE_KEYS.map((key) => {
+    const sections = sectionsForScope(key);
+    const states = sections.map((id) => ({ id, filled: filledFor(id) }));
+    const known = states.filter((state) => state.filled !== null);
+    const filledCount = known.filter((state) => state.filled === true).length;
+    const percent =
+      known.length === 0 ? 0 : Math.round((filledCount / known.length) * 100);
+    const next = states.find((state) => state.filled === false);
+    return { key, sections, states, filledCount, percent, next };
+  });
+
+  return (
+    <ProfileSectionCard
+      name="readiness"
+      title={t("profileScopes.readinessTitle")}
+      description={t("profileScopes.readinessBody")}
+    >
+      <div className="flex flex-col gap-3" data-testid="scope-readiness">
+        {scopeRows.map(({ key, filledCount, sections, percent, next }) => {
+          const scope = PROFILE_SCOPES[key];
+          const Icon = scope.icon;
+          return (
+            <div
+              key={key}
+              className="flex flex-col gap-2 sm:flex-row sm:items-center"
+              data-testid={`scope-readiness-${key}`}
+            >
+              <span
+                className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${scope.chipClass}`}
+              >
+                <Icon className="size-3.5" aria-hidden />
+                {t(scope.labelKey)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
+                  <span data-testid={`scope-readiness-${key}-count`}>
+                    {t("profileScopes.progressCount", {
+                      filled: filledCount,
+                      total: sections.length,
+                    })}
+                  </span>
+                  <span className="tabular-nums" data-testid={`scope-readiness-${key}-percent`}>
+                    {signals === null ? "…" : `${percent}%`}
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--as-muted)]">
+                  <div
+                    className={`h-full rounded-full transition-[width] ${
+                      percent === 100 ? "bg-[var(--as-accent)]" : scope.dotClass
+                    }`}
+                    style={{ width: `${signals === null ? 0 : percent}%` }}
+                    data-testid={`scope-readiness-${key}-bar`}
+                  />
+                </div>
+              </div>
+              {next ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  data-testid={`scope-readiness-${key}-continue`}
+                  onClick={() => onNavigate(next.id)}
+                >
+                  {t("profileScopes.continue", {
+                    section: t(SECTION_LABEL_KEYS[next.id]),
+                  })}
+                </Button>
+              ) : (
+                signals !== null && (
+                  <span
+                    className="shrink-0 text-xs font-medium text-[var(--as-accent)]"
+                    data-testid={`scope-readiness-${key}-done`}
+                  >
+                    {t("profileScopes.ready")}
+                  </span>
+                )
+              )}
+            </div>
+          );
+        })}
       </div>
     </ProfileSectionCard>
   );

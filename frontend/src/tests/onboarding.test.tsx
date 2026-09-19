@@ -262,28 +262,23 @@ describe("Explore wizard (path-scoped steps)", () => {
     );
   });
 
-  it("does not advance when a step is invalid (missing language code)", async () => {
+  it("does not advance when a step is invalid (malformed email)", async () => {
     vi.mocked(fetchProfile).mockResolvedValue({
       ...makeProfile(),
-      academics: {
-        favorite_subjects: [],
-        languages: [{ code: "", level: "intermediate" }],
+      basics: {
+        ...makeProfile().basics,
+        email: "not-an-email",
       },
     });
     renderAt();
     await screen.findByTestId("stage-question");
     await advance();
-    await waitFor(() =>
-      expect(screen.getByTestId("profile-section-interests")).toBeInTheDocument()
-    );
-    await advance();
-    await waitFor(() =>
-      expect(screen.getByTestId("profile-section-academics")).toBeInTheDocument()
-    );
-    await advance();
     expect(
       await screen.findByText("Please fix the highlighted fields before continuing.")
     ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("profile-section-interests")
+    ).not.toBeInTheDocument();
   });
 
   it("walks the whole explore flow and runs the final analysis", async () => {

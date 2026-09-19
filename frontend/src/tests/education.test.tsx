@@ -240,6 +240,32 @@ describe("Education workspace", () => {
     );
   });
 
+  it("opens a fresh certification editor with ?new=1 and prefills the language", async () => {
+    renderAt("/profile/education?entity=certifications&new=1&language=de");
+    const editor = await screen.findByTestId("certification-editor");
+    expect(
+      within(editor).getByTestId("certification-language")
+    ).toHaveValue("de");
+    expect(screen.getByTestId("education-item-c1")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("location-probe")).toHaveTextContent("")
+    );
+  });
+
+  it("creates a certification straight from the All-view type menu", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("education-item-c1");
+    await user.click(
+      within(screen.getByTestId("add-education")).getByRole("button")
+    );
+    await user.click(await screen.findByTestId("add-entry-certifications"));
+    const editor = await screen.findByTestId("certification-editor");
+    expect(
+      within(editor).getByTestId("certification-name")
+    ).toHaveValue("");
+  });
+
   it("defaults a bare ?focus to the education entity", async () => {
     renderAt("/profile/education?focus=ed2");
     await screen.findByTestId("education-editor");
@@ -326,10 +352,14 @@ describe("Education workspace", () => {
     );
   });
 
-  it("creates a new entry through the catalog institution picker", async () => {
+  it("asks the entry type in the All view before creating", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByTestId("add-education"));
+    await screen.findByTestId("education-item-ed1");
+    await user.click(
+      within(screen.getByTestId("add-education")).getByRole("button")
+    );
+    await user.click(await screen.findByTestId("add-entry-education"));
     const editor = screen.getByTestId("education-editor");
     await user.click(
       within(editor).getByRole("combobox", { name: "Institution" })
@@ -555,7 +585,11 @@ describe("Education workspace", () => {
   it("creates a new university from the typed name and selects it", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByTestId("add-education"));
+    await screen.findByTestId("education-item-ed1");
+    await user.click(
+      within(screen.getByTestId("add-education")).getByRole("button")
+    );
+    await user.click(await screen.findByTestId("add-entry-education"));
     const editor = screen.getByTestId("education-editor");
     await user.click(
       within(editor).getByRole("combobox", { name: "Institution" })

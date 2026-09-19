@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { BasicsCard } from "@/components/profile/sections/BasicsCard";
 import { AcademicsCard } from "@/components/profile/sections/AcademicsCard";
+import { LanguagesCard } from "@/components/profile/sections/LanguagesCard";
 import { ConstraintsCard } from "@/components/profile/sections/ConstraintsCard";
 import { InterestsCard } from "@/components/profile/sections/InterestsCard";
 import { TastesCard } from "@/components/profile/sections/TastesCard";
@@ -327,26 +328,10 @@ describe("BasicsCard", () => {
 });
 
 describe("AcademicsCard", () => {
-  it("saves subjects and languages as structured rows", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<AcademicsCard initial={makeAcademics()} onSave={onSave} />);
-    expect(screen.queryByTestId("academics-gpa-band")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("add-language"));
-    fireEvent.click(screen.getAllByRole("combobox", { name: "Language" })[1]);
-    await user.click(await screen.findByRole("option", { name: "French" }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1), {
-      timeout: 1500,
-    });
-    expect(onSave).toHaveBeenCalledWith({
-      academics: expect.objectContaining({
-        favorite_subjects: [{ key: "mathematics", weight: 4 }],
-        languages: expect.arrayContaining([
-          { code: "en", level: "advanced" },
-          { code: "fr", level: "intermediate" },
-        ]),
-      }),
-    });
+  it("edits subjects only — languages live in their own card", () => {
+    render(<AcademicsCard initial={makeAcademics()} onSave={vi.fn()} />);
+    expect(screen.getByTestId("academics-subjects")).toBeInTheDocument();
+    expect(screen.queryByTestId("add-language")).not.toBeInTheDocument();
   });
 
   it("adds a subject via the combobox and tunes its weight with the stepper", async () => {
@@ -387,10 +372,65 @@ describe("AcademicsCard", () => {
     );
   });
 
+  it("adds a subject without touching stored languages", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AcademicsCard
+        initial={{ favorite_subjects: [], languages: [{ code: "en", level: "advanced" }] }}
+        onSave={onSave}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Favorite subjects" })
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "physics" }));
+    await waitFor(
+      () =>
+        expect(onSave).toHaveBeenCalledWith({
+          academics: expect.objectContaining({
+            favorite_subjects: [{ key: "physics", weight: 3 }],
+            languages: [{ code: "en", level: "advanced" }],
+          }),
+        }),
+      { timeout: 1500 }
+    );
+  });
+});
+
+describe("LanguagesCard", () => {
+  it("saves language rows while preserving stored subjects", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <LanguagesCard initial={makeAcademics()} onSave={onSave} />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId("add-language"));
+    fireEvent.click(screen.getAllByRole("combobox", { name: "Language" })[1]);
+    await user.click(await screen.findByRole("option", { name: "French" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1), {
+      timeout: 1500,
+    });
+    expect(onSave).toHaveBeenCalledWith({
+      academics: expect.objectContaining({
+        favorite_subjects: [{ key: "mathematics", weight: 4 }],
+        languages: expect.arrayContaining([
+          { code: "en", level: "advanced" },
+          { code: "fr", level: "intermediate" },
+        ]),
+      }),
+    });
+  });
+
   it("language rows validate: an empty code blocks the save, typed names are added", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<AcademicsCard initial={makeAcademics()} onSave={onSave} />);
+    render(
+      <MemoryRouter>
+        <LanguagesCard initial={makeAcademics()} onSave={onSave} />
+      </MemoryRouter>
+    );
     fireEvent.click(screen.getByTestId("add-language"));
     expect(await screen.findByText("Pick a language")).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 700));
@@ -430,7 +470,11 @@ describe("AcademicsCard", () => {
 
   it("removes a language row and saves the result", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<AcademicsCard initial={makeAcademics()} onSave={onSave} />);
+    render(
+      <MemoryRouter>
+        <LanguagesCard initial={makeAcademics()} onSave={onSave} />
+      </MemoryRouter>
+    );
     fireEvent.click(screen.getByTestId("language-remove-0"));
     await waitFor(
       () =>
@@ -438,6 +482,19 @@ describe("AcademicsCard", () => {
           academics: expect.objectContaining({ languages: [] }),
         }),
       { timeout: 1500 }
+    );
+  });
+
+  it("deep-links a per-language certificate into the education workspace", () => {
+    render(
+      <MemoryRouter>
+        <LanguagesCard initial={makeAcademics()} onSave={vi.fn()} />
+      </MemoryRouter>
+    );
+    const link = screen.getByTestId("language-certificate-0");
+    expect(link).toHaveAttribute(
+      "href",
+      "/profile/education?entity=certifications&new=1&language=en"
     );
   });
 });

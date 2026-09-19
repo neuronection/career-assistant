@@ -381,7 +381,8 @@
       "skills": "Skills",
       "weights": "Fit weights",
       "assessment": "Assessment",
-      "account": "Account & data"
+      "account": "Account & data",
+      "languages": "Languages"
     },
     "completenessTitle": "Profile completeness",
     "completenessBody": "Fill the dotted sections to sharpen every match.",
@@ -433,6 +434,31 @@
     "confirmPassword": "Confirm your password",
     "deleting": "Deleting…",
     "deleteForever": "Delete forever"
+  },
+  "profileScopes": {
+    "usedFor": "Used for",
+    "filterLabel": "Show sections for",
+    "filterAria": "Filter profile sections by goal",
+    "all": "Everything",
+    "cv": {
+      "label": "CV",
+      "hint": "Feeds your CV and cover letters"
+    },
+    "match": {
+      "label": "Job matching",
+      "hint": "Feeds job matching, rankings and explore results"
+    },
+    "guide": {
+      "label": "Career guidance",
+      "hint": "Feeds the AI career assistant's advice and directions"
+    },
+    "hiddenCount": "{{count}} sections hidden",
+    "showAll": "Show all sections",
+    "readinessTitle": "Goal readiness",
+    "readinessBody": "How complete your profile is for each goal — fill what matters for where you're heading.",
+    "progressCount": "{{filled}} of {{total}} sections filled",
+    "continue": "Continue: {{section}}",
+    "ready": "Ready"
   },
   "profileImport": {
     "title": "Import from CV",
@@ -1374,7 +1400,11 @@
     "disabledCount": "Disabled ({{count}})",
     "derivedUncounted": "not counted for fit, CV content or AI scoring",
     "forgetAria": "Delete {{name}}",
-    "forgetHint": "Remove this skill from your profile. Derivation will not bring it back — re-adding it via the search creates a fresh editable rating."
+    "forgetHint": "Remove this skill from your profile. Derivation will not bring it back — re-adding it via the search creates a fresh editable rating.",
+    "languagesTitle": "Languages",
+    "languagesBody": "Spoken languages and levels — used by your CV and the AI assistant. Add a certificate to prove a level.",
+    "addCertificate": "Certificate",
+    "addCertificateFor": "Add a certificate for {{language}}"
   },
   "cvBuilder": {
     "bulletsTitle": "Edit bullets",

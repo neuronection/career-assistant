@@ -4,6 +4,49 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Goal focus hides out-of-scope tabs completely** — focusing a goal
+  (CV / Job matching / Career guidance) now keeps only the Overview and
+  the in-scope sections in the rail; Account & data no longer shows
+  while a goal filter is active.
+- **Languages are their own profile tab** — Study preferences now holds
+  favorite subjects only; spoken languages (code + level) moved to a
+  dedicated Languages tab. Each language row gains a **Certificate**
+  button that opens the education workspace's certification editor with
+  that language pre-filled, tying proof to the claimed level. Both tabs
+  write the same stored section without clobbering each other's rows.
+
+### Added
+- **Education workspace: typed Add-entry in the All view** — the Add
+  button becomes a dropdown asking whether the new entry is Education,
+  Certification or Achievement (specific tabs keep the direct button);
+  `?new=1&language=<code>` deep-links a prefilled certification editor.
+- **Chat: select text and act on it** — chat history text is selectable
+  (with a subtle accent selection tint) and right-clicking a selection
+  opens a context menu with **Copy** and **Quote in chat** (inserts the
+  selection as a markdown quote into the composer and focuses it for an
+  immediate follow-up question). Copying is webview-safe: the async
+  clipboard API falls back to `execCommand` so it works in the desktop
+  (pywebview/WebKitGTK) shell, where native selection menus don't exist;
+  the per-message Copy action now uses the same path.
+- **Profile: goal scopes** — every profile section now shows which goal
+  it feeds (CV / Job matching / Career guidance) as tinted chips on its
+  card and compact colored dots on the rail tabs (cumulative per tab).
+  A "Show sections for" filter (the library's sliding-thumb segmented
+  tabs) above the profile focuses the page on
+  one goal (deep-linkable, e.g. `/profile?focus=cv`) — out-of-scope
+  tabs are hidden with a count (only the Overview stays pinned). The
+  Overview gains a **Goal readiness** card: per-goal progress bars
+  (sections filled / total) with a "Continue: <section>" jump straight
+  to the next unfilled section. The mapping mirrors the backend's real
+  consumers (CV context sources, fit inputs, AI ground tools).
+- **Chat: one trace surface per completed turn** — assistant replies no
+  longer render a separate per-tool observation card stack next to the
+  trace timeline; the timeline (collapsed "duration · tools · model"
+  summary, expandable phase/tool bars) is the single surface, with each
+  tool row's disclosure carrying the parsed arguments and response.
+  Live tool activity during streaming is unchanged.
+
 ## [v0.13.0] - 2026-09-19
 
 ### Changed

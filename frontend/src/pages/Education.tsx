@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Award,
   BookOpen,
+  ChevronDown,
   Copy,
   GraduationCap,
   Medal,
@@ -19,6 +20,12 @@ import {
 } from "lucide-react";
 import { Button, ConfirmationModal, SegmentedTabs } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+} from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 import { fetchUniversity, fetchUniversities } from "@/api/universities";
 import {
@@ -192,6 +199,14 @@ export function Education() {
     void load()
       .then((loaded) => {
         if (cancelled) return;
+        if (searchParams.get("new") === "1") {
+          const kind = entityFromParam(searchParams.get("entity")) ?? "education";
+          openCreate(kind, {
+            language: searchParams.get("language") ?? undefined,
+          });
+          setSearchParams({}, { replace: true });
+          return;
+        }
         const focusId = searchParams.get("focus");
         if (!focusId) return;
         const pools: {
@@ -280,11 +295,14 @@ export function Education() {
     setShowErrors(false);
   };
 
-  const openCreate = () => {
-    setEditorKind(entity);
-    if (entity === "education") setEduForm({ ...EMPTY_EDUCATION_FORM });
-    else if (entity === "certifications")
-      setCertForm({ ...EMPTY_CERTIFICATION_FORM });
+  const openCreate = (kind: Entity = entity, prefill?: { language?: string }) => {
+    setEditorKind(kind);
+    if (kind === "education") setEduForm({ ...EMPTY_EDUCATION_FORM });
+    else if (kind === "certifications")
+      setCertForm({
+        ...EMPTY_CERTIFICATION_FORM,
+        language_code: prefill?.language ?? "",
+      });
     else setAchForm({ ...EMPTY_ACHIEVEMENT_FORM });
     setSelectedId(null);
     setIsNew(true);
@@ -837,9 +855,46 @@ export function Education() {
               onValueChange={(next) => switchView(next as "all" | Entity)}
             />
           </div>
-          <Button variant="default" onClick={openCreate} data-testid="add-education">
-            <Plus className="mr-1 h-4 w-4" aria-hidden /> {t("education.addEntry")}
-          </Button>
+          {view === "all" ? (
+            <div data-testid="add-education">
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button variant="default">
+                    <Plus className="mr-1 h-4 w-4" aria-hidden />{" "}
+                    {t("education.addEntry")}
+                    <ChevronDown className="ml-1 h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </MenuTrigger>
+                <MenuContent align="end">
+                  <MenuItem
+                    icon={GraduationCap}
+                    onSelect={() => openCreate("education")}
+                    data-testid="add-entry-education"
+                  >
+                    {t("education.entity.education")}
+                  </MenuItem>
+                  <MenuItem
+                    icon={Award}
+                    onSelect={() => openCreate("certifications")}
+                    data-testid="add-entry-certifications"
+                  >
+                    {t("education.entity.certifications")}
+                  </MenuItem>
+                  <MenuItem
+                    icon={Medal}
+                    onSelect={() => openCreate("achievements")}
+                    data-testid="add-entry-achievements"
+                  >
+                    {t("education.entity.achievements")}
+                  </MenuItem>
+                </MenuContent>
+              </Menu>
+            </div>
+          ) : (
+            <Button variant="default" onClick={() => openCreate()} data-testid="add-education">
+              <Plus className="mr-1 h-4 w-4" aria-hidden /> {t("education.addEntry")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1184,7 +1239,7 @@ export function Education() {
                 <Button
                   variant="default"
                   className="mt-3"
-                  onClick={openCreate}
+                  onClick={() => openCreate()}
                 >
                   {t("education.addEntry")}
                 </Button>
