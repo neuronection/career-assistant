@@ -209,10 +209,15 @@ structured profile.
   staleness is detected when the source changes, you star to activate, and a
   dedicated variant editor drafts fill-in-form with slot comparison against
   what's on the CV now, with an in-editor AI generate-fill.
-- **Cover letters per posting** — a deterministic brief (must-haves, fit, your
+- **Cover letters per posting** (coming soon — creation entry points are
+  gated in the UI until the feature ships) — a deterministic brief (must-haves, fit, your
   goal), audited AI drafts that cite your evidence per paragraph with unbacked
   claims flagged, letters rendered through the same template engine with your
   CV's design tokens, and the same versions/exports as CVs.
+- **Listing at a glance** — every CV card in the studio carries a first-page
+  thumbnail printed by the same engine as the PDF (downscaled, cached per
+  edit), the whole card opens the CV, and the list shows exactly your CVs —
+  imported source files live in the import workspace, not here.
 - **Honesty tools everywhere** — live ATS lint with a one-click score report,
   page-count meter with over-budget warnings, versions with diff/image-diff/
   restore, and exports to PDF/DOCX/Markdown/JSON/ATS text (the PDF is the

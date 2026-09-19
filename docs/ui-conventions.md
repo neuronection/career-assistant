@@ -334,6 +334,13 @@ Every template/CV preview renders via authenticated axios fetch →
 `frame-ancestors 'none'` is correct — never weaken it). Loading previews
 show `cv-shimmer`, never spinners.
 
+Listing thumbnails are the exception: `CvThumbnail` uses a plain
+`<img src="/api/v1/cv/{id}/preview.png?v={updated_at}">` — the backend
+prints the first page through the PDF engine once, downscales and
+disk-caches it by render hash, so a listing never mounts N live
+iframes. `?v=` busts the browser cache after edits; a missing engine
+degrades to the placeholder (503 → error state), never a broken card.
+
 ## 7. Testability contract
 
 - Feature surfaces expose stable `data-testid`s: `preview-frame`,

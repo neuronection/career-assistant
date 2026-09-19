@@ -244,7 +244,7 @@ Career Assistant is in **public beta** (`0.10.x`). The points below are honest b
 - **CV Studio waves** — one-shot generation from your profile with a vision polish loop; the variant library; chat CV references with a builder-copilot handoff; template previews with your own data; grounded chat edits with one-click revert.
 - **Discovery wave** — skills ontology, deterministic fit engine, JobTypeMatch assessment, engagement & notifications, career stages.
 - **Live postings wave** — connector SDK (ATS/JSON-LD/RSS/CSV/URL), deep extraction with skill-level search, Explore page, Career Autopilot, express start & target mode, growth toolkit, the modular scheduler.
-- **Desktop & ops** — tray background mode, Linux packaging (`.deb` + `.AppImage`), production self-host stack ([docs/deploy.md](docs/deploy.md)), MCP server + client bridge, semantic search & skill packs, interview prep, cover letters.
+- **Desktop & ops** — tray background mode, Linux packaging (`.deb` + `.AppImage`), production self-host stack ([docs/deploy.md](docs/deploy.md)), MCP server + client bridge, semantic search & skill packs, interview prep.
 
 **Up next**:
 
