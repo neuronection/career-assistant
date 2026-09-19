@@ -1,15 +1,15 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { useMatch } from "react-router-dom";
 
 import * as uniApi from "@/api/universities";
 import { useChatStore } from "@/stores/chatStore";
 import { createChatTransport, type CareerChatTransport } from "@/components/chat/chatTransport";
 import { getDraft, writeDraft } from "@/components/chat/drafts";
-import { activeCvId } from "@/components/chat/cvChatLink";
+import { activeCvId, cvTitle } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useTemplatePreviewsStore } from "@/stores/templatePreviewsStore";
 import type { CvAssistantState } from "@/types/cvAssistant";
-import type { ChatCvAttachment } from "@/types";
 import {
   useChatStream,
   type ChatMessageView,
@@ -22,6 +22,11 @@ const CHAT_MUTATION_TOOLS = new Set([
   "cv_synth_generate",
   "cv_synth_update",
 ]);
+
+/** The open Studio CV id, or null. */
+export function useOpenStudioCv(): string | null {
+  return useMatch("/cv/:id")?.params.id ?? null;
+}
 
 /**
  * Career chat wiring shared by the bubble widget and the full page
@@ -40,11 +45,10 @@ export function useCareerChat() {
   const refresh = useChatStore((state) => state.refresh);
 
   const [draft, setDraftState] = useState(() => getDraft(activeSessionId));
-  const [attachments, setAttachments] = useState<ChatCvAttachment[]>([]);
+  const attachments = useChatStore((state) => state.attachments);
 
   useEffect(() => {
     setDraftState(getDraft(activeSessionId));
-    setAttachments([]);
   }, [activeSessionId]);
 
   const changeDraft = (value: string) => {
@@ -52,13 +56,8 @@ export function useCareerChat() {
     writeDraft(useChatStore.getState().activeSessionId, value);
   };
 
-  const attachCv = (cv: { id: string; title: string }) => {
-    setAttachments((current) =>
-      current.some((entry) => entry.cv_id === cv.id) || current.length >= 2
-        ? current
-        : [...current, { kind: "cv", cv_id: cv.id, title: cv.title }],
-    );
-  };
+  const attachCv = useChatStore((state) => state.attachCv);
+  const storeDetachCv = useChatStore((state) => state.detachCv);
 
   const pendingCvAttach = useChatStore((state) => state.pendingCvAttach);
   useEffect(() => {
@@ -70,8 +69,41 @@ export function useCareerChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCvAttach, activeSessionId]);
 
+  // Auto-attach the open Studio CV: on /cv/:id the assistant answers
+  // about the CV in view without asking. Detaching (the chip's X)
+  // suppresses the re-attach for this CV until the route leaves it —
+  // the paperclip picker re-attaches on demand.
+  const openCvId = useOpenStudioCv();
+  const detachedHere = useRef<Set<string>>(new Set());
+  const prevOpenCv = useRef<string | null>(null);
+  useEffect(() => {
+    if (openCvId !== prevOpenCv.current) {
+      detachedHere.current.clear();
+      prevOpenCv.current = openCvId;
+    }
+    if (
+      openCvId === null ||
+      detachedHere.current.has(openCvId) ||
+      useChatStore
+        .getState()
+        .attachments.some((entry) => entry.cv_id === openCvId)
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void cvTitle(openCvId).then((title) => {
+      if (!cancelled && !detachedHere.current.has(openCvId)) {
+        attachCv({ id: openCvId, title });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openCvId, attachments, attachCv]);
+
   const detachCv = (cvId: string) => {
-    setAttachments((current) => current.filter((entry) => entry.cv_id !== cvId));
+    detachedHere.current.add(cvId);
+    storeDetachCv(cvId);
   };
 
   const transportRef = useRef<CareerChatTransport | null>(null);
@@ -251,10 +283,11 @@ export function useCareerChat() {
     }
     writeDraft(store.activeSessionId, "");
     setDraftState("");
+    const attachments = useChatStore.getState().attachments;
     transportRef.current?.setPendingAttachments(
       attachments.map(({ kind, cv_id }) => ({ kind, cv_id })),
     );
-    setAttachments([]);
+    useChatStore.getState().clearAttachments();
     // Optimistic user message: the transcript shows it immediately; the
     // done-turn refresh replaces it with the persisted pair.
     useChatStore.setState({

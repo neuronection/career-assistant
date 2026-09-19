@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
 import { ChatDock } from "@/components/chat/ChatWidget";
+import { openCvChat } from "@/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
@@ -57,6 +58,8 @@ function seedStore() {
     sessions: [SESSION],
     activeSessionId: "s1",
     messages: [],
+    attachments: [],
+    pendingCvAttach: null,
   });
 }
 
@@ -91,15 +94,46 @@ describe("CV reference attachments (plan 78.3)", () => {
     api.fetchMessages.mockResolvedValue([]);
   });
 
-  it("suggests the open Studio CV and attaches on click", async () => {
+  it("auto-attaches the open Studio CV without asking", async () => {
+    mount("/cv/cv-1");
+    const chip = await screen.findByTestId("chat-attachment-cv-1");
+    expect(chip).toHaveTextContent("Backend CV");
+    expect(useChatStore.getState().attachments).toEqual([
+      { kind: "cv", cv_id: "cv-1", title: "Backend CV" },
+    ]);
+  });
+
+  it("sends the auto-attached Studio CV with the message", async () => {
     const user = userEvent.setup();
     mount("/cv/cv-1");
-    const suggested = await screen.findByTestId("chat-attach-cv");
-    expect(suggested).toHaveTextContent("Reference: Backend CV");
-    await user.click(suggested);
-    expect(screen.getByTestId("chat-attachment-cv-1")).toHaveTextContent(
-      "Backend CV",
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    await user.type(composer, "which cv is selected?");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(streamChatMessage).toHaveBeenCalledWith(
+        "s1",
+        "which cv is selected?",
+        expect.anything(),
+        expect.anything(),
+        [{ kind: "cv", cv_id: "cv-1" }],
+      ),
     );
+  });
+
+  it("keeps the Studio CV detached after removing the chip", async () => {
+    const user = userEvent.setup();
+    mount("/cv/cv-1");
+    await screen.findByTestId("chat-attachment-cv-1");
+    await user.click(screen.getByRole("button", { name: "Remove Backend CV" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("chat-attachment-cv-1"),
+      ).not.toBeInTheDocument(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId("chat-attachment-cv-1")).not.toBeInTheDocument();
+    expect(useChatStore.getState().attachments).toEqual([]);
   });
 
   it("attaches any CV through the popover and caps at two", async () => {
@@ -135,6 +169,61 @@ describe("CV reference attachments (plan 78.3)", () => {
         [{ kind: "cv", cv_id: "cv-1" }],
       ),
     );
+    expect(
+      screen.queryByTestId("chat-attachment-cv-1"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the requested reference through the Ask AI session transition", async () => {
+    // The reported repro: Ask AI adopts/creates a session DIFFERENT from
+    // the active one; the pending attach must survive that transition
+    // and ride the first send.
+    const user = userEvent.setup();
+    const bound = {
+      ...SESSION,
+      id: "s0",
+      context: { surface: "cv_builder", cv_id: 999 },
+    };
+    const fresh = { ...SESSION, id: "s2", title: "CV chat" };
+    useChatStore.setState({
+      sessions: [bound],
+      activeSessionId: "s0",
+      messages: [],
+      attachments: [],
+      pendingCvAttach: null,
+    });
+    api.createChatSession.mockResolvedValue(fresh);
+    mount("/");
+    await openCvChat("cv-1", "docked", "check attached bullets");
+
+    expect(useChatStore.getState().attachments).toEqual([
+      { kind: "cv", cv_id: "cv-1", title: "Backend CV" },
+    ]);
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    await waitFor(() => expect(composer).toHaveValue("check attached bullets"));
+    await user.click(composer);
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(streamChatMessage).toHaveBeenCalledWith(
+        "s2",
+        "check attached bullets",
+        expect.anything(),
+        expect.anything(),
+        [{ kind: "cv", cv_id: "cv-1" }],
+      ),
+    );
+  });
+
+  it("drops composer references when switching sessions", async () => {
+    const user = userEvent.setup();
+    mount("/");
+    await user.click(screen.getByTestId("chat-attach-open"));
+    await screen.findByTestId("chat-attach-cv-cv-1");
+    await user.click(screen.getByTestId("chat-attach-cv-cv-1"));
+    expect(screen.getByTestId("chat-attachment-cv-1")).toBeInTheDocument();
+
+    await useChatStore.getState().openSession("s-other");
     expect(
       screen.queryByTestId("chat-attachment-cv-1"),
     ).not.toBeInTheDocument();

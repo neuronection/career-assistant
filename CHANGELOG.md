@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Chat CV attachments no longer lost before the send** — asking AI
+  about the open Studio CV could answer "no CV attached": the one-shot
+  attach request was consumed into per-surface composer state and then
+  wiped by the session transition `openCvChat` performs right after
+  (adopting/creating the CV chat session), so the message was sent with
+  no attachments. Composer CV references are now store-owned (shared by
+  bubble, dock and page, dropped on real session switches) and the
+  attach request lands only after the session and surface have settled.
+- **CV Studio auto-attaches its open CV in chat** — chatting from the
+  Studio now references the CV in view automatically: the composer shows
+  it as an attached chip (no click, no "attach it first" replies), and
+  removing the chip keeps it out until the Studio CV changes (the
+  paperclip picker re-attaches on demand). This replaces the dashed
+  "Reference: <title>" suggestion, which read as already-attached while
+  attaching nothing — the exact path behind "no CV attached" replies.
+
 ### Added
 - **Chat can rewrite a CV's bullets (plan 107)** — with a CV attached,
   "update the bullets on this CV" now works end to end: the assistant

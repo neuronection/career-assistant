@@ -13,11 +13,7 @@ import {
   LiveTemplatePreviews,
   MessageTemplatePreviews,
 } from "@/components/chat/TemplatePreviews";
-import {
-  CvAttachButton,
-  CvAttachChips,
-  useOpenStudioCv,
-} from "@/components/chat/CvAttachBar";
+import { CvAttachButton, CvAttachChips } from "@/components/chat/CvAttachBar";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import {
   ChatBranchTree,
@@ -58,6 +54,7 @@ import { ToolsDialog } from "@/components/chat/ToolsDialog";
 import {
   CareerChatProvider,
   useCareerChatContext,
+  useOpenStudioCv,
 } from "@/components/chat/useCareerChat";
 import type { ChatMessage as ChatMessageRow } from "@/types";
 

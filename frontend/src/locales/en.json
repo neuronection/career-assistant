@@ -1938,9 +1938,8 @@
     "attach": {
       "open": "Attach a CV as reference",
       "none": "No CVs yet — create one in CV Studio.",
-      "suggest": "Reference: {{title}}",
-      "remove": "Remove {{title}}",
-      "openCv": "this CV"
+      "openCv": "this CV",
+      "remove": "Remove {{title}}"
     },
     "studioEmptyBody": "Ask anything about the CV you have open — attach it below and I'll ground the answer in it.",
     "previews": {

@@ -60,13 +60,18 @@ export async function openCvChat(
   if (prefill) {
     writeDraft(sessionId, prefill);
   }
-  const title = await cvTitle(cvId);
-  useChatStore.getState().setPendingCvAttach({ id: cvId, title });
+  // Settle the session + surface FIRST, then request the one-shot
+  // attach: the consumer runs once the target session is active, so
+  // the reference can't be wiped by the session transition (chips are
+  // store-owned and cleared on session switches).
   await useChatStore.getState().openSession(sessionId);
   useChatStore.getState().setChatMode(mode);
+  const title = await cvTitle(cvId);
+  useChatStore.getState().setPendingCvAttach({ id: cvId, title });
 }
 
-async function cvTitle(cvId: string): Promise<string> {
+/** Display title for a CV id, falling back to a generic label. */
+export async function cvTitle(cvId: string): Promise<string> {
   try {
     const { fetchCvs } = await import("@/api/cv");
     const rows = await fetchCvs();

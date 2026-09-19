@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useMatch } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileText, Paperclip, X } from "lucide-react";
 
@@ -26,64 +25,17 @@ async function loadCvs(): Promise<CvOption[]> {
   return cvsCache;
 }
 
-/** The open Studio CV id, or null. */
-export function useOpenStudioCv(): string | null {
-  const studioMatch = useMatch("/cv/:id");
-  return studioMatch?.params.id ?? null;
-}
-
 /**
- * Pending reference chips + the suggested open-CV chip (plan 78) —
- * rendered in the composer's `suggestions`/`attachments` rails, their own
- * full-width rows, so the input keeps its full width. Renders nothing
- * when there is nothing to show.
+ * Composer CV reference chips (plan 78) — the open Studio CV is attached
+ * automatically by the chat hook, so this renders the attached chips
+ * only, in the composer's `suggestions`/`attachments` rail. Renders
+ * nothing when there is nothing to show.
  */
 export function CvAttachChips() {
   const { t } = useTranslation();
   const chat = useCareerChatContext();
-  const openCvId = useOpenStudioCv();
-  const [cvs, setCvs] = useState<CvOption[]>(cvsCache ?? []);
 
-  useEffect(() => {
-    if (cvs.length > 0) {
-      return;
-    }
-    let cancelled = false;
-    void loadCvs().then((rows) => {
-      if (!cancelled) {
-        setCvs(rows);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [cvs.length]);
-
-  const openCv =
-    openCvId !== null
-      ? cvs.find((cv) => cv.id === openCvId) ?? {
-          id: openCvId,
-          title: t("chat.attach.openCv"),
-        }
-      : null;
-  const suggestedAttached =
-    openCv !== null && chat.attachments.some((entry) => entry.cv_id === openCv.id);
-  const suggested =
-    openCv !== null && !suggestedAttached ? (
-      <button
-        type="button"
-        data-testid="chat-attach-cv"
-        onClick={() => chat.attachCv(openCv)}
-        className="inline-flex max-w-full items-center gap-1 self-start rounded-full border border-dashed border-primary-300 bg-white px-2 py-0.5 text-[10px] font-medium text-primary-700 transition-colors hover:bg-primary-50"
-      >
-        <FileText className="size-3 shrink-0" aria-hidden />
-        <span className="max-w-[12rem] truncate">
-          {t("chat.attach.suggest", { title: openCv.title })}
-        </span>
-      </button>
-    ) : null;
-
-  if (chat.attachments.length === 0 && suggested === null) {
+  if (chat.attachments.length === 0) {
     return null;
   }
   return (
@@ -109,7 +61,6 @@ export function CvAttachChips() {
           </button>
         </span>
       ))}
-      {suggested}
     </div>
   );
 }

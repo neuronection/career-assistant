@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import * as uniApi from "@/api/universities";
-import type { ChatMessage, ChatSession } from "@/types";
+import type { ChatCvAttachment, ChatMessage, ChatSession } from "@/types";
 
 export type ChatMode = "bubble" | "docked";
 
@@ -43,6 +43,15 @@ interface ChatState {
    * consumed by the chat hook once a session is active. */
   pendingCvAttach: { id: string; title: string } | null;
   setPendingCvAttach: (cv: { id: string; title: string } | null) => void;
+  /** Composer CV references for the active session (plan 78). Store-owned
+   * so the chips survive surface switches (bubble ↔ dock ↔ page) and the
+   * session transition openCvChat performs after requesting the attach —
+   * per-surface local state lost them between `setPendingCvAttach` and
+   * `openSession` settling (the send then carried no attachments). */
+  attachments: ChatCvAttachment[];
+  attachCv: (cv: { id: string; title: string }) => void;
+  detachCv: (cvId: string) => void;
+  clearAttachments: () => void;
   setChatMode: (mode: ChatMode) => void;
   setBubbleOpen: (open: boolean) => void;
   /** Refetch the persisted turn after a streamed reply lands. */
@@ -60,6 +69,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   bubbleOpen: false,
   pinnedAsks: {},
   pendingCvAttach: null,
+  attachments: [],
 
   loadSessions: async () => {
     const sessions = await uniApi.fetchChatSessions();
@@ -68,7 +78,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   openSession: async (id) => {
     const messages = await uniApi.fetchMessages(id);
-    set({ activeSessionId: id, messages });
+    // Composer references belong to the conversation: switching sessions
+    // drops them (the pending one-shot survives — it is consumed after
+    // this settles by the openCvChat flow).
+    const keepAttachments = get().activeSessionId === id;
+    set({
+      activeSessionId: id,
+      messages,
+      attachments: keepAttachments ? get().attachments : [],
+    });
   },
 
   newSession: async () => {
@@ -78,7 +96,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   resetToDraft: () => {
-    set({ activeSessionId: null, messages: [], pendingCvAttach: null });
+    set({
+      activeSessionId: null,
+      messages: [],
+      pendingCvAttach: null,
+      attachments: [],
+    });
   },
 
   renameSession: async (id, title) => {
@@ -103,6 +126,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeSessionId,
       pinnedAsks,
       messages: activeSessionId === null ? [] : get().messages,
+      attachments: activeSessionId === null ? [] : get().attachments,
     });
   },
 
@@ -112,6 +136,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setPendingCvAttach: (cv) => {
     set({ pendingCvAttach: cv });
+  },
+
+  attachCv: (cv) => {
+    const current = get().attachments;
+    if (current.some((entry) => entry.cv_id === cv.id) || current.length >= 2) {
+      return;
+    }
+    set({
+      attachments: [
+        ...current,
+        { kind: "cv", cv_id: cv.id, title: cv.title },
+      ],
+    });
+  },
+
+  detachCv: (cvId) => {
+    set({
+      attachments: get().attachments.filter((entry) => entry.cv_id !== cvId),
+    });
+  },
+
+  clearAttachments: () => {
+    set({ attachments: [] });
   },
 
   setChatMode: (mode) => {
@@ -140,6 +187,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       pinnedAsks: {},
       chatMode: "docked",
       bubbleOpen: false,
+      pendingCvAttach: null,
+      attachments: [],
     });
   },
 }));

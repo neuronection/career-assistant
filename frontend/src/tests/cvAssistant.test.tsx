@@ -57,6 +57,8 @@ beforeEach(() => {
     messages: [],
     pinnedAsks: {},
     chatMode: "bubble",
+    pendingCvAttach: null,
+    attachments: [],
   });
   useCvBuilderLink.setState({ lastBuilderState: null, flushCallback: null });
   createChatSession.mockResolvedValue({ id: "s-1", title: "CV assistant" });
