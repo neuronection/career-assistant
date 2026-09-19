@@ -5,6 +5,19 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **Profile → Education adopts the segmented workspace pattern** — the
+  entity switcher is the library SegmentedTabs with a new **All** view:
+  every entry type (Education / Certifications / Achievements) renders
+  as cards in one list, separated under count-labelled group headers.
+  Editors, save, duplicate and delete are entity-aware regardless of
+  the active tab; the Education-only summary, search and filters (and
+  with them bulk actions) show on the dedicated Education tab.
+- **Settings sub-tabs unified on the library SegmentedTabs** — the AI
+  configuration tabs (Providers / Models / Tasks / Web, Web admin-only)
+  and the taxonomy kind switcher (Interests / Skills / Paths /
+  Enrichment) drop their hand-rolled, hard-coded-palette button strips
+  for the same animated, keyboard-navigable segmented control used on
+  the Experience workspace.
 - **Profile → Overview separates "Profile completeness" from CV import**
   — the Import-from-CV strip no longer lives inside the completeness
   card; it is its own section led by the hook "Do you already have a

@@ -229,10 +229,8 @@ describe("Education workspace", () => {
       within(editor).getByDisplayValue("AWS Solutions Architect")
     ).toBeInTheDocument();
     expect(
-      screen
-        .getByTestId("education-entity-certifications")
-        .getAttribute("aria-pressed")
-    ).toBe("true");
+      screen.getByRole("tab", { name: "Certifications" })
+    ).toHaveAttribute("aria-selected", "true");
     const card = screen.getByTestId("education-item-c1");
     expect(
       within(card).getByTestId("education-focus-highlight")
@@ -266,24 +264,36 @@ describe("Education workspace", () => {
     );
   }
 
-  it("renders the workspace shell with rail, derived chip and empty editor", async () => {    renderPage();
+  it("renders the workspace shell with grouped list, derived chip and empty editor", async () => {
+    const user = userEvent.setup();
+    renderPage();
     expect(await screen.findByTestId("education-toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("education-back")).toHaveAttribute(
       "href",
       "/profile"
     );
-    expect(screen.getByTestId("education-derived")).toHaveTextContent(
-      "Master · 1 in progress"
+    expect(screen.getByRole("tab", { name: "All" })).toHaveAttribute(
+      "aria-selected",
+      "true"
     );
-    expect(screen.getByTestId("pane-switcher")).toBeInTheDocument();
     expect(screen.getByTestId("education-item-ed1")).toHaveTextContent(
       "MSc Computer Science"
     );
     expect(screen.getByTestId("education-item-ed2")).toHaveTextContent(
       "From CV"
     );
+    expect(screen.getByTestId("education-item-c1")).toHaveTextContent(
+      "AWS Solutions Architect"
+    );
+    expect(screen.getByTestId("education-item-a1")).toHaveTextContent(
+      "National Physics Olympiad — 2nd place"
+    );
     expect(screen.getByTestId("education-editor-empty")).toHaveTextContent(
       "Nothing selected"
+    );
+    await user.click(screen.getByRole("tab", { name: "Education" }));
+    expect(screen.getByTestId("education-derived")).toHaveTextContent(
+      "Master · 1 in progress"
     );
     expect(screen.getByTestId("education-overview")).toHaveTextContent(
       "2 entries"
@@ -401,11 +411,21 @@ describe("Education workspace", () => {
     expect(await screen.findByText("Nothing selected")).toBeInTheDocument();
   });
 
+  it("opens the right editor from the All list (cert card → cert editor)", async () => {
+    renderPage();
+    const card = await screen.findByTestId("education-item-c1");
+    await userEvent.setup().click(within(card).getByTestId("education-item"));
+    const editor = await screen.findByTestId("certification-editor");
+    expect(
+      within(editor).getByTestId("certification-name")
+    ).toHaveValue("AWS Solutions Architect");
+  });
+
   it("switches to certifications and manages them on the same skeleton", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("education-item-ed1");
-    await user.click(screen.getByTestId("education-entity-certifications"));
+    await user.click(screen.getByRole("tab", { name: "Certifications" }));
     expect(await screen.findByTestId("education-item-c1")).toHaveTextContent(
       "AWS Solutions Architect"
     );
@@ -428,7 +448,7 @@ describe("Education workspace", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("education-item-ed1");
-    await user.click(screen.getByTestId("education-entity-certifications"));
+    await user.click(screen.getByRole("tab", { name: "Certifications" }));
     await user.click(await screen.findByTestId("add-education"));
     const editor = screen.getByTestId("certification-editor");
     await user.type(within(editor).getByTestId("certification-name"), "CEH");
@@ -446,7 +466,7 @@ describe("Education workspace", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("education-item-ed1");
-    await user.click(screen.getByTestId("education-entity-certifications"));
+    await user.click(screen.getByRole("tab", { name: "Certifications" }));
     await openItem("c1");
     const editor = await screen.findByTestId("certification-editor");
     fireEvent.change(
@@ -466,7 +486,7 @@ describe("Education workspace", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("education-item-ed1");
-    await user.click(screen.getByTestId("education-entity-achievements"));
+    await user.click(screen.getByRole("tab", { name: "Achievements" }));
     expect(await screen.findByTestId("education-item-a1")).toHaveTextContent(
       "National Physics Olympiad — 2nd place"
     );
@@ -496,7 +516,7 @@ describe("Education workspace", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("education-item-ed1");
-    await user.click(screen.getByTestId("education-entity-achievements"));
+    await user.click(screen.getByRole("tab", { name: "Achievements" }));
     await user.click(await screen.findByTestId("add-education"));
     const editor = screen.getByTestId("achievement-editor");
     await user.type(
@@ -673,6 +693,8 @@ describe("Education workspace — selection, bulk and filters", () => {
 
   it("selects education entries and bulk-sets drafts", async () => {
     renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Education" }));
+    await screen.findByTestId("education-item-ed1");
     fireEvent.click(
       within(await screen.findByTestId("education-item-ed1")).getByRole("checkbox")
     );
@@ -699,6 +721,7 @@ describe("Education workspace — selection, bulk and filters", () => {
   it("bulk-deletes education entries with undo restoring both", async () => {
     const user = userEvent.setup();
     renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Education" }));
     await screen.findByTestId("education-item-ed1");
     fireEvent.click(within(screen.getByTestId("education-item-ed1")).getByRole("checkbox"));
     fireEvent.click(within(screen.getByTestId("education-item-ed2")).getByRole("checkbox"));
@@ -718,6 +741,7 @@ describe("Education workspace — selection, bulk and filters", () => {
 
   it("filters education entries by search and level", async () => {
     renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Education" }));
     await screen.findByTestId("education-item-ed2");
 
     fireEvent.click(screen.getByTestId("education-filter-draft"));

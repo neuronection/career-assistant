@@ -17,7 +17,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { Button, ConfirmationModal } from "@/components/ui";
+import { Button, ConfirmationModal, SegmentedTabs } from "@/components/ui";
 import { UndoNotice } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 import { fetchUniversity, fetchUniversities } from "@/api/universities";
@@ -122,9 +122,14 @@ function expiryState(expires: string | null): "expired" | "soon" | null {
 export function Education() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [entity, setEntity] = useState<Entity>(
-    () => entityFromParam(searchParams.get("entity")) ?? "education"
-  );
+  const [view, setView] = useState<"all" | Entity>(() => {
+    const param = searchParams.get("entity");
+    return param === "all"
+      ? "all"
+      : (entityFromParam(param) ?? "all");
+  });
+  const entity: Entity = view === "all" ? "education" : view;
+  const [editorKind, setEditorKind] = useState<Entity>("education");
   const [items, setItems] = useState<EducationItemOut[]>([]);
   const [certs, setCerts] = useState<CertificationOut[]>([]);
   const [achievements, setAchievements] = useState<AchievementOut[]>([]);
@@ -189,16 +194,25 @@ export function Education() {
         if (cancelled) return;
         const focusId = searchParams.get("focus");
         if (!focusId) return;
-        const pool: (EducationItemOut | CertificationOut | AchievementOut)[] =
-          entity === "education"
-            ? loaded.education
-            : entity === "certifications"
-              ? loaded.certifications
-              : loaded.achievements;
-        const item = pool.find((row) => row.id === focusId);
-        if (item) {
-          openItem(entity, item);
-          setFocusedId(item.id);
+        const pools: {
+          kind: Entity;
+          rows: (EducationItemOut | CertificationOut | AchievementOut)[];
+        }[] = [
+          { kind: "education", rows: loaded.education },
+          { kind: "certifications", rows: loaded.certifications },
+          { kind: "achievements", rows: loaded.achievements },
+        ];
+        const searchable =
+          view === "all"
+            ? pools
+            : pools.filter((pool) => pool.kind === view);
+        for (const pool of searchable) {
+          const item = pool.rows.find((row) => row.id === focusId);
+          if (item) {
+            openItem(pool.kind, item);
+            setFocusedId(item.id);
+            break;
+          }
         }
         setSearchParams({}, { replace: true });
       })
@@ -267,6 +281,7 @@ export function Education() {
   };
 
   const openCreate = () => {
+    setEditorKind(entity);
     if (entity === "education") setEduForm({ ...EMPTY_EDUCATION_FORM });
     else if (entity === "certifications")
       setCertForm({ ...EMPTY_CERTIFICATION_FORM });
@@ -284,6 +299,7 @@ export function Education() {
     kind: Entity,
     item: EducationItemOut | CertificationOut | AchievementOut
   ) => {
+    setEditorKind(kind);
     if (kind === "education") {
       setEduForm(educationFormFromItem(item as EducationItemOut));
     } else if (kind === "certifications") {
@@ -299,12 +315,12 @@ export function Education() {
     setActivePane("editor");
   };
 
-  const openEdit = (id: string) => {
-    if (entity === "education") {
+  const openEdit = (id: string, kind: Entity = entity) => {
+    if (kind === "education") {
       const item = items.find((i) => i.id === id);
       if (!item) return;
       openItem("education", item);
-    } else if (entity === "certifications") {
+    } else if (kind === "certifications") {
       const cert = certs.find((c) => c.id === id);
       if (!cert) return;
       openItem("certifications", cert);
@@ -320,20 +336,20 @@ export function Education() {
       EducationEditorForm & CertificationEditorForm & AchievementEditorForm
     >
   ) => {
-    if (entity === "education")
+    if (editorKind === "education")
       setEduForm((prev) => ({ ...prev, ...partial }));
-    else if (entity === "certifications")
+    else if (editorKind === "certifications")
       setCertForm((prev) => ({ ...prev, ...partial }));
     else setAchForm((prev) => ({ ...prev, ...partial }));
     setDirty(true);
     setShowErrors(false);
   };
 
-  const switchEntity = (next: Entity) => {
-    if (next === entity) return;
+  const switchView = (next: "all" | Entity) => {
+    if (next === view) return;
     guard(() => {
       closeEditor();
-      setEntity(next);
+      setView(next);
       setSelectedIds([]);
       setFilters((prev) => ({ ...prev, aspects: [], statuses: [] }));
     });
@@ -387,7 +403,7 @@ export function Education() {
   const save = async () => {
     setShowErrors(true);
     setError("");
-    if (entity === "education") {
+    if (editorKind === "education") {
       const payload = educationToIn(eduForm);
       if (!payload.institution) return;
       setSaving(true);
@@ -412,7 +428,7 @@ export function Education() {
       } finally {
         setSaving(false);
       }
-    } else if (entity === "certifications") {
+    } else if (editorKind === "certifications") {
       const payload = certificationToIn(certForm);
       if (!payload.name) return;
       setSaving(true);
@@ -465,17 +481,17 @@ export function Education() {
     }
   };
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, kind: Entity = entity) => {
     setError("");
     try {
-      if (entity === "education") {
+      if (kind === "education") {
         const item = items.find((i) => i.id === id);
         if (!item) return;
         await deleteEducationItem(item.id);
         setItems((prev) => prev.filter((i) => i.id !== id));
         if (selectedId === id) closeEditor();
         setDeleted([{ entity: "education", item }]);
-      } else if (entity === "certifications") {
+      } else if (kind === "certifications") {
         const cert = certs.find((c) => c.id === id);
         if (!cert) return;
         await deleteCertification(cert.id);
@@ -613,10 +629,10 @@ export function Education() {
     }
   };
 
-  const duplicateEntry = async (id: string) => {
+  const duplicateEntry = async (id: string, kind: Entity = entity) => {
     setError("");
     try {
-      if (entity === "education") {
+      if (kind === "education") {
         const item = items.find((i) => i.id === id);
         if (!item) return;
         const created = await createEducationItem({
@@ -624,7 +640,7 @@ export function Education() {
           program: `${item.program} ${t("education.copySuffix")}`.trim(),
         });
         if (created) setItems((prev) => [created, ...prev]);
-      } else if (entity === "certifications") {
+      } else if (kind === "certifications") {
         const cert = certs.find((c) => c.id === id);
         if (!cert) return;
         const created = await createCertification({
@@ -645,6 +661,126 @@ export function Education() {
       setError(apiDetail(err));
     }
   };
+
+  const eduCard = (item: EducationItemOut) => (
+    <RailCard
+      key={item.id}
+      id={item.id}
+      icon={LEVEL_ICONS[item.level] ?? GraduationCap}
+      title={item.program || item.institution}
+      subtitle={[
+        item.institution,
+        formatPeriod(item.start, item.in_progress ? null : item.end),
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      active={item.id === selectedId && editorOpen}
+      selected={selectedIds.includes(item.id)}
+      focused={item.id === focusedId}
+      onOpen={() => guard(() => openEdit(item.id, "education"))}
+      onToggleSelect={() => toggleSelect(item.id)}
+      onDuplicate={() => void duplicateEntry(item.id, "education")}
+      onDelete={() => void remove(item.id, "education")}
+      badges={
+        <>
+          {item.in_progress && (
+            <Badge tone="accent">{t("education.inProgressBadge")}</Badge>
+          )}
+          {item.status === "draft" && (
+            <Badge tone="warn">{t("education.draftBadge")}</Badge>
+          )}
+          {item.source !== "self_report" && (
+            <Badge tone="muted">
+              {item.source === "cv_parse" ? t("education.fromCv") : item.source}
+            </Badge>
+          )}
+        </>
+      }
+    />
+  );
+
+  const certCard = (cert: CertificationOut) => {
+    const expiry = expiryState(cert.expires);
+    return (
+      <RailCard
+        key={cert.id}
+        id={cert.id}
+        icon={Award}
+        title={cert.name}
+        subtitle={[
+          cert.issuer,
+          cert.issued
+            ? t("education.issuedTag", { date: cert.issued.slice(0, 7) })
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        active={cert.id === selectedId && editorOpen}
+        selected={selectedIds.includes(cert.id)}
+        focused={cert.id === focusedId}
+        onOpen={() => guard(() => openEdit(cert.id, "certifications"))}
+        onToggleSelect={() => toggleSelect(cert.id)}
+        onDuplicate={() => void duplicateEntry(cert.id, "certifications")}
+        onDelete={() => void remove(cert.id, "certifications")}
+        badges={
+          <>
+            {expiry === "expired" && (
+              <Badge tone="danger">{t("education.expired")}</Badge>
+            )}
+            {expiry === "soon" && (
+              <Badge tone="warn">{t("education.expiringSoon")}</Badge>
+            )}
+            {cert.status === "draft" && (
+              <Badge tone="warn">{t("education.draftBadge")}</Badge>
+            )}
+            {cert.source !== "self_report" && (
+              <Badge tone="muted">
+                {cert.source === "cv_parse"
+                  ? t("education.fromCv")
+                  : cert.source}
+              </Badge>
+            )}
+          </>
+        }
+      />
+    );
+  };
+
+  const achievementCard = (achievement: AchievementOut) => (
+    <RailCard
+      key={achievement.id}
+      id={achievement.id}
+      icon={ACHIEVEMENT_KIND_ICONS[achievement.kind] ?? Award}
+      title={achievement.title}
+      subtitle={[
+        achievement.issuer,
+        achievement.date ? achievement.date.slice(0, 7) : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      active={achievement.id === selectedId && editorOpen}
+      selected={selectedIds.includes(achievement.id)}
+      focused={achievement.id === focusedId}
+      onOpen={() => guard(() => openEdit(achievement.id, "achievements"))}
+      onToggleSelect={() => toggleSelect(achievement.id)}
+      onDuplicate={() => void duplicateEntry(achievement.id, "achievements")}
+      onDelete={() => void remove(achievement.id, "achievements")}
+      badges={
+        <>
+          {achievement.status === "draft" && (
+            <Badge tone="warn">{t("education.draftBadge")}</Badge>
+          )}
+          {achievement.source !== "self_report" && (
+            <Badge tone="muted">
+              {achievement.source === "cv_parse"
+                ? t("education.fromCv")
+                : achievement.source}
+            </Badge>
+          )}
+        </>
+      }
+    />
+  );
 
   return (
     <div className="ca-workspace flex min-h-0 flex-col gap-3 lg:h-full" data-testid="education-page">
@@ -668,7 +804,7 @@ export function Education() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {entity === "education" && highestLevel && (
+          {view === "education" && highestLevel && (
             <span
               className="text-sm text-[var(--as-muted-fg)]"
               data-testid="education-derived"
@@ -681,34 +817,25 @@ export function Education() {
                 : ""}
             </span>
           )}
-          <div
-            className="flex gap-1 rounded-lg border border-[var(--as-border)] p-0.5"
-            role="group"
-            aria-label={t("education.entryTypeAria")}
-            data-testid="education-entity-toggle"
-          >
-            {(
-              [
-                ["education", "education.entity.education"],
-                ["certifications", "education.entity.certifications"],
-                ["achievements", "education.entity.achievements"],
-              ] as const
-            ).map(([value, labelKey]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={entity === value}
-                onClick={() => switchEntity(value)}
-                data-testid={`education-entity-${value}`}
-                className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 ${
-                  entity === value
-                    ? "bg-[var(--as-surface-raised)] text-[var(--as-fg)]"
-                    : "text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
-                }`}
-              >
-                {t(labelKey)}
-              </button>
-            ))}
+          <div data-testid="education-entity-toggle" className="min-w-0">
+            <SegmentedTabs
+              ariaLabel={t("education.entryTypeAria")}
+              className="max-w-xl"
+              items={[
+                { value: "all", label: t("education.entity.all") },
+                { value: "education", label: t("education.entity.education") },
+                {
+                  value: "certifications",
+                  label: t("education.entity.certifications"),
+                },
+                {
+                  value: "achievements",
+                  label: t("education.entity.achievements"),
+                },
+              ]}
+              value={view}
+              onValueChange={(next) => switchView(next as "all" | Entity)}
+            />
           </div>
           <Button variant="default" onClick={openCreate} data-testid="add-education">
             <Plus className="mr-1 h-4 w-4" aria-hidden /> {t("education.addEntry")}
@@ -760,7 +887,7 @@ export function Education() {
           } ca-ws-pane cv-pane-enter min-h-0 flex-col gap-3 overflow-y-auto outline-none`}
           data-testid="education-rail"
         >
-          {entity === "education" && items.length > 0 && (
+          {view === "education" && items.length > 0 && (
             <section
               className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
               data-testid="education-overview"
@@ -872,52 +999,89 @@ export function Education() {
             )}
           </section>
 
-          <BulkBar
-            count={selectedIds.length}
-            total={
-              (
-                entity === "education"
-                  ? visEdu
-                  : entity === "certifications"
-                    ? visCerts
-                    : visAch
-              ).length
-            }
-            onClear={() => setSelectedIds([])}
-            onSelectAll={selectAllVisible}
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={bulkBusy}
-              onClick={() => void bulkSetStatus("active")}
-              data-testid="bulk-set-active"
+          {view !== "all" && (
+            <BulkBar
+              count={selectedIds.length}
+              total={
+                (
+                  entity === "education"
+                    ? visEdu
+                    : entity === "certifications"
+                      ? visCerts
+                      : visAch
+                ).length
+              }
+              onClear={() => setSelectedIds([])}
+              onSelectAll={selectAllVisible}
             >
-              {t("experience.bulk.activate")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={bulkBusy}
-              onClick={() => void bulkSetStatus("draft")}
-              data-testid="bulk-set-draft"
-            >
-              {t("experience.bulk.draft")}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={bulkBusy}
-              onClick={() => setBulkConfirm(true)}
-              data-testid="bulk-delete"
-            >
-              <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
-              {t("common.delete")}
-            </Button>
-          </BulkBar>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => void bulkSetStatus("active")}
+                data-testid="bulk-set-active"
+              >
+                {t("experience.bulk.activate")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => void bulkSetStatus("draft")}
+                data-testid="bulk-set-draft"
+              >
+                {t("experience.bulk.draft")}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setBulkConfirm(true)}
+                data-testid="bulk-delete"
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                {t("common.delete")}
+              </Button>
+            </BulkBar>
+          )}
 
-          <section className="space-y-2.5" data-testid="education-list">
-            {entity === "education" ? (
+<section className="space-y-2.5" data-testid="education-list">
+            {view === "all" ? (
+              visEdu.length + visCerts.length + visAch.length === 0 ? (
+                <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
+                  {items.length + certs.length + achievements.length > 0
+                    ? t("common.noFilterMatches")
+                    : t("education.emptyAll")}
+                </p>
+              ) : (
+                <>
+                  {visEdu.length > 0 && (
+                    <ListGroup
+                      label={t("education.entity.education")}
+                      count={visEdu.length}
+                    >
+                      {visEdu.map(eduCard)}
+                    </ListGroup>
+                  )}
+                  {visCerts.length > 0 && (
+                    <ListGroup
+                      label={t("education.entity.certifications")}
+                      count={visCerts.length}
+                    >
+                      {visCerts.map(certCard)}
+                    </ListGroup>
+                  )}
+                  {visAch.length > 0 && (
+                    <ListGroup
+                      label={t("education.entity.achievements")}
+                      count={visAch.length}
+                    >
+                      {visAch.map(achievementCard)}
+                    </ListGroup>
+                  )}
+                </>
+              )
+            ) : entity === "education" ? (
               visEdu.length === 0 ? (
                 <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
                   {items.length > 0
@@ -925,46 +1089,7 @@ export function Education() {
                     : t("education.emptyEducation")}
                 </p>
               ) : (
-                visEdu.map((item) => (
-                  <RailCard
-                    key={item.id}
-                    id={item.id}
-                    icon={
-                      LEVEL_ICONS[item.level] ?? GraduationCap
-                    }
-                    title={item.program || item.institution}
-                    subtitle={[
-                      item.institution,
-                      formatPeriod(item.start, item.in_progress ? null : item.end),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                    active={item.id === selectedId && editorOpen}
-                    selected={selectedIds.includes(item.id)}
-                    focused={item.id === focusedId}
-                    onOpen={() => guard(() => openEdit(item.id))}
-                    onToggleSelect={() => toggleSelect(item.id)}
-                    onDuplicate={() => void duplicateEntry(item.id)}
-                    onDelete={() => void remove(item.id)}
-                    badges={
-                      <>
-                        {item.in_progress && (
-                          <Badge tone="accent">{t("education.inProgressBadge")}</Badge>
-                        )}
-                        {item.status === "draft" && (
-                          <Badge tone="warn">{t("education.draftBadge")}</Badge>
-                        )}
-                        {item.source !== "self_report" && (
-                          <Badge tone="muted">
-                            {item.source === "cv_parse"
-                              ? t("education.fromCv")
-                              : item.source}
-                          </Badge>
-                        )}
-                      </>
-                    }
-                  />
-                ))
+                visEdu.map(eduCard)
               )
             ) : entity === "certifications" ? (
               visCerts.length === 0 ? (
@@ -974,55 +1099,8 @@ export function Education() {
                     : t("education.emptyCertifications")}
                 </p>
               ) : (
-                visCerts.map((cert) => {
-                  const expiry = expiryState(cert.expires);
-                  return (
-                    <RailCard
-                      key={cert.id}
-                      id={cert.id}
-                      icon={Award}
-                      title={cert.name}
-                      subtitle={[
-                        cert.issuer,
-                        cert.issued
-                          ? t("education.issuedTag", {
-                              date: cert.issued.slice(0, 7),
-                            })
-                          : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      active={cert.id === selectedId && editorOpen}
-                      selected={selectedIds.includes(cert.id)}
-                      focused={cert.id === focusedId}
-                      onOpen={() => guard(() => openEdit(cert.id))}
-                      onToggleSelect={() => toggleSelect(cert.id)}
-                      onDuplicate={() => void duplicateEntry(cert.id)}
-                      onDelete={() => void remove(cert.id)}
-                      badges={
-                        <>
-                          {expiry === "expired" && (
-                            <Badge tone="danger">{t("education.expired")}</Badge>
-                          )}
-                          {expiry === "soon" && (
-                            <Badge tone="warn">{t("education.expiringSoon")}</Badge>
-                          )}
-                          {cert.status === "draft" && (
-                            <Badge tone="warn">{t("education.draftBadge")}</Badge>
-                          )}
-                          {cert.source !== "self_report" && (
-                            <Badge tone="muted">
-                              {cert.source === "cv_parse"
-                                ? t("education.fromCv")
-                                : cert.source}
-                            </Badge>
-                          )}
-                        </>
-                      }
-                     />
-                   );
-                 })
-               )
+                visCerts.map(certCard)
+              )
             ) : visAch.length === 0 ? (
               <p className="px-2 py-6 text-center text-sm text-[var(--as-muted-fg)]">
                 {achievements.length > 0
@@ -1030,43 +1108,7 @@ export function Education() {
                   : t("education.emptyAchievements")}
               </p>
             ) : (
-              visAch.map((achievement) => (
-                <RailCard
-                  key={achievement.id}
-                  id={achievement.id}
-                  icon={ACHIEVEMENT_KIND_ICONS[achievement.kind] ?? Award}
-                  title={achievement.title}
-                  subtitle={[
-                    achievement.issuer,
-                    achievement.date
-                      ? achievement.date.slice(0, 7)
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  active={achievement.id === selectedId && editorOpen}
-                  selected={selectedIds.includes(achievement.id)}
-                  focused={achievement.id === focusedId}
-                  onOpen={() => guard(() => openEdit(achievement.id))}
-                  onToggleSelect={() => toggleSelect(achievement.id)}
-                  onDuplicate={() => void duplicateEntry(achievement.id)}
-                  onDelete={() => void remove(achievement.id)}
-                  badges={
-                    <>
-                      {achievement.status === "draft" && (
-                        <Badge tone="warn">{t("education.draftBadge")}</Badge>
-                      )}
-                      {achievement.source !== "self_report" && (
-                        <Badge tone="muted">
-                          {achievement.source === "cv_parse"
-                            ? t("education.fromCv")
-                            : achievement.source}
-                        </Badge>
-                      )}
-                    </>
-                  }
-                />
-              ))
+              visAch.map(achievementCard)
             )}
           </section>
         </div>
@@ -1079,7 +1121,7 @@ export function Education() {
           } ca-ws-pane cv-pane-enter min-h-0 flex-col rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] outline-none`}
         >
           {editorOpen ? (
-            entity === "education" ? (
+            editorKind === "education" ? (
               <EducationEditor
                 form={eduForm}
                 onChange={patchForm}
@@ -1104,7 +1146,7 @@ export function Education() {
                     .catch(() => undefined);
                 }}
               />
-            ) : entity === "certifications" ? (
+            ) : editorKind === "certifications" ? (
               <CertificationEditor
                 form={certForm}
                 onChange={patchForm}
@@ -1219,6 +1261,32 @@ function Badge({
     <span className={`rounded-full px-2 py-0.5 text-[11px] ${tones[tone]}`}>
       {children}
     </span>
+  );
+}
+
+/** Group header for the combined "All" rail: one list, sections per
+ * entity type so cards stay scannable without hiding anything. */
+function ListGroup({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-baseline gap-2 px-1">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+          {label}
+        </h3>
+        <span className="text-xs tabular-nums text-[var(--as-muted-fg)]">
+          {count}
+        </span>
+      </div>
+      {children}
+    </div>
   );
 }
 

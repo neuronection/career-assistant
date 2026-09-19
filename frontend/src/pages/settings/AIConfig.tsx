@@ -6,7 +6,7 @@ import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
 import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
-import { EmptyState, Spinner } from "@/components/ui";
+import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
 import { ProvidersTab } from "@/components/settings/ProvidersTab";
 import { ModelsTab } from "@/components/settings/ModelsTab";
 import { TasksTab } from "@/components/settings/TasksTab";
@@ -88,20 +88,16 @@ export function AIConfig() {
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActive(tab)}
-            data-testid={`tab-${tab}`}
-            className={`text-sm px-4 py-2 capitalize ${
-              activeTab === tab ? "bg-primary-600 text-white" : "bg-white hover:bg-slate-50"
-            }`}
-          >
-            {t(`aiSettings.tab.${tab}`, { defaultValue: tab })}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs
+        ariaLabel={t("aiSettings.tabsAria")}
+        className="max-w-md"
+        items={TABS.filter((tab) => tab !== "web" || user?.is_admin).map((tab) => ({
+          value: tab,
+          label: t(`aiSettings.tab.${tab}`, { defaultValue: tab }),
+        }))}
+        value={activeTab}
+        onValueChange={(next) => setActive(next as AITab)}
+      />
 
       {activeTab === "providers" && (
         <ProvidersTab

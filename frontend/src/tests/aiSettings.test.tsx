@@ -103,7 +103,12 @@ describe("AIConfig (settings > AI)", () => {
 
   it("defaults to the providers tab and lists providers", async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByTestId("tab-providers")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Providers" })).toHaveAttribute(
+        "aria-selected",
+        "true"
+      )
+    );
     await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
     expect(screen.getByText("Global providers")).toBeInTheDocument();
   });

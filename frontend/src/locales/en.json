@@ -676,9 +676,9 @@
   },
   "taxonomy": {
     "kind": {
-      "interests": "interests",
-      "skills": "skills",
-      "paths": "paths",
+      "interests": "Interests",
+      "skills": "Skills",
+      "paths": "Paths",
       "enrichment": "Enrichment"
     },
     "newTag": "New tag",
@@ -713,7 +713,8 @@
     "enrichmentApply": "Apply",
     "enrichmentReject": "Discard",
     "noEnrichment": "No enrichment proposals",
-    "noEnrichmentBody": "AI-generated job enrichment proposals appear here for review."
+    "noEnrichmentBody": "AI-generated job enrichment proposals appear here for review.",
+    "tabsAria": "Taxonomy sections"
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
@@ -722,7 +723,8 @@
     "tab": {
       "providers": "Providers",
       "models": "Models",
-      "tasks": "Tasks"
+      "tasks": "Tasks",
+      "web": "Web"
     },
     "nothingTitle": "Nothing configured yet",
     "nothingBody": "Without providers the built-in env default (AI_PROVIDER=mock) serves every task.",
@@ -851,7 +853,8 @@
       "university_parse": "University PDF Parsing",
       "chat": "Career Assistant Chat",
       "assist": "Contextual Ask-AI Buttons"
-    }
+    },
+    "tabsAria": "AI configuration sections"
   },
   "onboarding": {
     "heroTitleSide": "Find the work that fits you.",
@@ -1983,6 +1986,7 @@
     "present": "present",
     "entryTypeAria": "Entry type",
     "entity": {
+      "all": "All",
       "education": "Education",
       "certifications": "Certifications",
       "achievements": "Achievements"
@@ -2136,7 +2140,8 @@
     "languageUnspecified": "Not specified",
     "deadlineLabel": "Application deadline",
     "deptDescriptionPlaceholder": "What the department covers (optional).",
-    "saveDepartment": "Save department"
+    "saveDepartment": "Save department",
+    "emptyAll": "Nothing here yet — add your first entry."
   },
   "interviews": {
     "title": "Interview practice",

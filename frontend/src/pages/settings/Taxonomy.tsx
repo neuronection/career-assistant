@@ -13,7 +13,7 @@ import {
 } from "@/api/taxonomy";
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
-import { EmptyState, Spinner } from "@/components/ui";
+import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
 
 interface PathRow {
   id: string;
@@ -160,21 +160,16 @@ export function Taxonomy() {
   return (
     <div className="space-y-4" data-testid="settings-taxonomy">
       <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          {(["interests", "skills", "paths", "enrichment"] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => setKind(k)}
-              className={`text-sm px-4 py-2 rounded-lg border capitalize ${
-                kind === k
-                  ? "bg-primary-600 text-white border-primary-600"
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              {t(`taxonomy.kind.${k}`)}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          ariaLabel={t("taxonomy.tabsAria")}
+          className="max-w-lg"
+          items={(["interests", "skills", "paths", "enrichment"] as const).map((k) => ({
+            value: k,
+            label: t(`taxonomy.kind.${k}`),
+          }))}
+          value={kind}
+          onValueChange={(next) => setKind(next as typeof kind)}
+        />
         {kind !== "paths" && kind !== "enrichment" && (
           <button
             onClick={() => setCreating((v) => !v)}
