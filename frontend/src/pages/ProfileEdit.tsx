@@ -400,14 +400,14 @@ function CvImportStatus() {
   if (rows === null) return null;
   if (rows.length === 0) {
     return (
-      <p className="mt-2 text-xs text-[var(--as-muted-fg)]" data-testid="import-cv-status">
+      <p className="text-xs text-[var(--as-muted-fg)]" data-testid="import-cv-status">
         {t("profileImport.panel.empty")}
       </p>
     );
   }
   const latest = rows[0];
   return (
-    <p className="mt-2 text-xs text-[var(--as-muted-fg)]" data-testid="import-cv-status">
+    <p className="text-xs text-[var(--as-muted-fg)]" data-testid="import-cv-status">
       {t("profileImport.panel.summary", {
         count: rows.length,
         filename: latest.document.filename,
@@ -472,33 +472,6 @@ function OverviewSection({
               })}
             </p>
           )}
-        <div
-          className="mt-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
-          data-testid="import-cv-panel"
-        >
-          <div className="flex items-start gap-3">
-            <FileUp
-              className="mt-0.5 h-5 w-5 shrink-0 text-[var(--as-accent)]"
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[var(--as-fg)]">
-                {t("profileImport.title")}
-              </p>
-              <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
-                {t("profileImport.subtitle")}
-              </p>
-              <CvImportStatus />
-            </div>
-            <Button
-              size="sm"
-              onClick={() => navigate("/profile/import")}
-              data-testid="import-cv-entry"
-            >
-              {t("profileImport.open")}
-            </Button>
-          </div>
-        </div>
         {p.ai_summary && (
           <div
             className="mt-3 rounded-lg border border-[color-mix(in_srgb,var(--as-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,transparent)] p-3"
@@ -519,6 +492,33 @@ function OverviewSection({
             )}
           </div>
         )}
+      </ProfileSectionCard>
+      <ProfileSectionCard
+        name="import_cv"
+        title={t("profileEdit.importCvTitle")}
+        description={t("profileEdit.importCvBody")}
+      >
+        <div
+          className="flex items-center gap-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+          data-testid="import-cv-panel"
+        >
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)]"
+            aria-hidden
+          >
+            <FileUp className="h-5 w-5 text-[var(--as-accent)]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <CvImportStatus />
+          </div>
+          <Button
+            size="sm"
+            onClick={() => navigate("/profile/import")}
+            data-testid="import-cv-entry"
+          >
+            {t("profileEdit.importCvAction")}
+          </Button>
+        </div>
       </ProfileSectionCard>
       <ProfileSectionCard
         name="stage"

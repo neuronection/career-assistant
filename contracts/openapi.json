@@ -22770,6 +22770,53 @@
         ]
       }
     },
+    "/api/v1/cv/{cv_id}/preview.png": {
+      "get": {
+        "description": "First-page PNG thumbnail of the current state (plan: CV card\npreviews) \u2014 render-hash cached on disk, 503 with the capability\nmessage when the print engine is missing.",
+        "operationId": "preview_cv_png_api_v1_cv__cv_id__preview_png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Cv Png",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
     "/api/v1/cv/{cv_id}/runs": {
       "get": {
         "description": "Runs & metrics for one CV (plan 65.3): the generation run plus\nevery polish re-run, newest first \u2014 each with the polish trace\n(iterations, ops ledger, coverage, stages) and the run's LLM-call\nledger from `ai_generations` plus per-run/task aggregates.\n\nOwner-scoped; the rows prefer the finished run's `result.cv_id` and\nonly ride the CV's mid-run `run_id` while the job is still RUNNING\n(working content may be rewritten on later co-pilot edits).",

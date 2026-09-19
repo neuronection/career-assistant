@@ -4,9 +4,6 @@ import { useTranslation } from "react-i18next";
 import { FileText, Plus, Copy, Trash2, MailPlus, Sparkles, Wand2 } from "lucide-react";
 import { Button, Card, ConfirmationModal, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import { listCvDraftHistory } from "@/api/cvIntake";
-import { StatusChip } from "@/components/intake/CvStatus";
-import type { DraftHistoryRow } from "@/types/cvIntake";
 import {
   createCoverLetter,
   createCv,
@@ -22,6 +19,7 @@ import { suggestTemplates, fetchTemplates } from "@/api/cvTemplates";
 import type { TemplatePickSummary } from "@/api/cvTemplates";
 import { GenerateCvFlow } from "@/components/cv/GenerateCvFlow";
 import { GenerateCvModal } from "@/components/cv/GenerateCvModal";
+import { CvThumbnail } from "@/components/cv/CvThumbnail";
 import { SegmentedRow } from "@/components/cv/formPrimitives";
 import type { CvDocumentOut } from "@/types/cv";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
@@ -194,37 +192,41 @@ export function CvStudio() {
 
   return (
     <div className="mx-auto w-full max-w-5xl p-6" data-testid="cv-studio">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--as-fg)]">{t("cvStudio.title")}</h1>
-          <p className="text-sm text-[var(--as-muted-fg)]">
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--as-fg)]">{t("cvStudio.title")}</h1>
+          <p className="mt-1 max-w-prose text-sm text-[var(--as-muted-fg)]">
             {t("cvStudio.subtitle")}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             to="/cv/synth"
             data-testid="synth-library-link"
-            className="text-sm px-3 py-2 flex items-center gap-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-surface-raised)] hover:text-[var(--as-fg)]"
           >
-            <Wand2 className="h-4 w-4" /> {t("cvSynth.title")}
+            <Wand2 className="h-4 w-4" aria-hidden /> {t("cvSynth.title")}
           </Link>
-          <Button variant="outline" onClick={openLetterModal} data-testid="new-letter">
-            <MailPlus className="mr-1 h-4 w-4" /> {t("cvStudio.newLetter")}
+          <Button
+            variant="outline"
+            onClick={openLetterModal}
+            disabled
+            title={t("common.comingSoon")}
+            data-testid="new-letter"
+          >
+            <MailPlus className="mr-1.5 h-4 w-4" /> {t("cvStudio.newLetter")}
           </Button>
           <Button onClick={openNewCv} data-testid="new-cv">
-            <Plus className="mr-1 h-4 w-4" /> {t("cvStudio.newCv")}
+            <Plus className="mr-1.5 h-4 w-4" /> {t("cvStudio.newCv")}
           </Button>
         </div>
-      </div>
+      </header>
 
       {error && (
         <p role="alert" className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </p>
       )}
-
-      <ImportedCvsPanel />
 
       {loading ? (
         <p className="text-sm text-[var(--as-muted-fg)]">{t("common.loading")}</p>
@@ -236,66 +238,94 @@ export function CvStudio() {
           action={<Button onClick={openNewCv}>{t("cvStudio.createCv")}</Button>}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {cvs.map((cv) => (
-            <Card key={cv.id} className="flex flex-col justify-between p-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="text-left text-lg font-medium hover:underline"
-                    onClick={() => navigate(`/cv/${cv.id}`)}
-                  >
-                    {cv.title}
-                  </button>
-                  {cv.kind === "cover_letter" && (
-                    <span
-                      className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--as-muted-fg)]"
-                      data-testid="cv-kind"
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-[var(--as-fg)]">
+            {t("cvStudio.yourCvs")}
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {cvs.map((cv) => (
+              <Card
+                key={cv.id}
+                className="flex cursor-pointer gap-3 p-4 transition-colors hover:border-[var(--as-accent)]"
+                onClick={() => navigate(`/cv/${cv.id}`)}
+              >
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <button
+                        className="text-left text-lg font-medium hover:underline"
+                        onClick={() => navigate(`/cv/${cv.id}`)}
+                      >
+                        {cv.title}
+                      </button>
+                      {cv.kind === "cover_letter" && (
+                        <span
+                          className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--as-muted-fg)]"
+                          data-testid="cv-kind"
+                        >
+                          {t("cvStudio.coverLetter")}
+                        </span>
+                      )}
+                      {cv.working_content?.generated_by === "cv_draft" && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--as-accent)]"
+                          data-testid="cv-generated"
+                        >
+                          <Sparkles className="h-3 w-3" aria-hidden />
+                          {t("cvStudio.aiDraft")}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      role="group"
+                      aria-label={t("cvStudio.cardActions")}
+                      className="flex shrink-0 items-center overflow-hidden rounded-full border border-[var(--as-border)] bg-[var(--as-surface)]"
                     >
-                      {t("cvStudio.coverLetter")}
-                    </span>
-                  )}
-                  {cv.working_content?.generated_by === "cv_draft" && (
-                    <span
-                      className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--as-accent)]"
-                      data-testid="cv-generated"
-                    >
-                      <Sparkles className="h-3 w-3" aria-hidden />
-                      {t("cvStudio.aiDraft")}
-                    </span>
-                  )}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDuplicate(cv);
+                        }}
+                        aria-label={t("cvStudio.duplicateAria", { title: cv.title })}
+                        title={t("cvStudio.duplicateAria", { title: cv.title })}
+                        className="p-1.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-surface-raised)] hover:text-[var(--as-fg)]"
+                      >
+                        <Copy className="h-4 w-4" aria-hidden />
+                      </button>
+                      <span className="h-5 w-px bg-[var(--as-border)]" aria-hidden />
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteTarget(cv);
+                        }}
+                        aria-label={t("cvStudio.deleteAria", { title: cv.title })}
+                        title={t("cvStudio.deleteAria", { title: cv.title })}
+                        data-testid={`delete-cv-${cv.id}`}
+                        className="p-1.5 text-[var(--as-danger)] transition-colors hover:bg-[var(--as-surface-raised)]"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--as-muted-fg)]">
+                    {t("cvStudio.cardMeta", {
+                      count: cv.max_pages,
+                      status: cv.status,
+                      language: cv.language.toUpperCase(),
+                      version:
+                        cv.latest_version != null
+                          ? `v${cv.latest_version}`
+                          : t("cvStudio.notCompiled"),
+                    })}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-[var(--as-muted-fg)]">
-                  {t("cvStudio.cardMeta", {
-                    count: cv.max_pages,
-                    status: cv.status,
-                    language: cv.language.toUpperCase(),
-                    version:
-                      cv.latest_version != null
-                        ? `v${cv.latest_version}`
-                        : t("cvStudio.notCompiled"),
-                  })}
-                </p>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Button variant="outline" onClick={() => navigate(`/cv/${cv.id}`)}>
-                  {t("cvStudio.open")}
-                </Button>
-                <Button variant="ghost" onClick={() => handleDuplicate(cv)} aria-label={t("cvStudio.duplicateAria", { title: cv.title })}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setDeleteTarget(cv)}
-                  aria-label={t("cvStudio.deleteAria", { title: cv.title })}
-                  data-testid={`delete-cv-${cv.id}`}
-                >
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+                <CvThumbnail cvId={cv.id} stamp={Date.parse(cv.updated_at)} />
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
 
       <ConfirmationModal
@@ -537,63 +567,5 @@ export function CvStudio() {
 
       <GenerateCvModal open={generateOpen} onOpenChange={setGenerateOpen} />
     </div>
-  );
-}
-
-/** "Your imported CVs": the kind=cv source files uploaded through
- * /profile/import. Kept light — a bridge to the import workspace, not
- * a second history list. */
-function ImportedCvsPanel() {
-  const { t } = useTranslation();
-  const [rows, setRows] = useState<DraftHistoryRow[] | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    listCvDraftHistory()
-      .then((history) => {
-        if (!cancelled) setRows(history);
-      })
-      .catch(() => {
-        if (!cancelled) setRows([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  if (rows === null || rows.length === 0) return null;
-  return (
-    <section
-      className="mb-6 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
-      data-testid="cvstudio-imports-panel"
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-[var(--as-fg)]">
-          {t("cvStudio.importedCvsTitle")}
-        </h2>
-        <Link
-          to="/profile/import"
-          className="text-xs text-[var(--as-accent)] hover:underline"
-          data-testid="cvstudio-imports-open"
-        >
-          {t("cvStudio.importedCvsOpen")}
-        </Link>
-      </div>
-      <ul className="mt-2 divide-y divide-[var(--as-border)]">
-        {rows.slice(0, 3).map((row) => (
-          <li key={row.document_id}>
-            <Link
-              to={`/profile/import/${row.document_id}`}
-              className="flex items-center gap-2 py-2 text-sm hover:underline"
-              data-testid={`cvstudio-import-${row.document_id}`}
-            >
-              <FileText className="h-4 w-4 shrink-0 text-[var(--as-muted-fg)]" aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-[var(--as-fg)]">
-                {row.document.filename}
-              </span>
-              <StatusChip row={row} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

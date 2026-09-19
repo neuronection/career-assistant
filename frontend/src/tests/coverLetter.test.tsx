@@ -248,24 +248,17 @@ beforeEach(() => {
 });
 
 describe("CvStudio cover letters", () => {
-  it("badges cover letters in the list and opens the letter builder", async () => {
+  it("badges cover letters in the list and keeps the creation entry disabled", async () => {
     fetchCvs.mockResolvedValue([resumeCv, letterCv]);
     createCoverLetter.mockResolvedValue(letterCv);
     mockBuilderLoad("cover_letter");
     fetchCoverLetterBrief.mockResolvedValue(brief);
     draftCoverLetter.mockResolvedValue(suggestion);
-    const user = userEvent.setup();
     renderApp();
     expect(await screen.findByTestId("cv-studio")).toBeInTheDocument();
     expect(screen.getByTestId("cv-kind")).toHaveTextContent("Cover letter");
 
-    await user.click(screen.getByTestId("new-letter"));
-    const select = await screen.findByTestId("letter-posting-select");
-    await user.selectOptions(select, "post-1");
-    await user.click(screen.getByTestId("create-letter"));
-
-    await waitFor(() => expect(createCoverLetter).toHaveBeenCalledWith({ posting_id: "post-1" }));
-    expect(await screen.findByTestId("letter-brief")).toBeInTheDocument();
+    expect(screen.getByTestId("new-letter")).toBeDisabled();
   });
 });
 
@@ -349,7 +342,7 @@ describe("CvBuilder cover-letter mode", () => {
 });
 
 describe("PostingDetail cover-letter entry point", () => {
-  it("creates a cover letter for the posting and opens the builder", async () => {
+  it("keeps the cover-letter CTA disabled until the feature ships", async () => {
     fetchPostingDetail.mockResolvedValue({
       id: "post-1",
       ref: "abc",
@@ -359,9 +352,6 @@ describe("PostingDetail cover-letter entry point", () => {
       url: "",
     });
     createCoverLetter.mockResolvedValue(letterCv);
-    mockBuilderLoad("cover_letter");
-    fetchCoverLetterBrief.mockResolvedValue(brief);
-    const user = userEvent.setup();
     render(
       <TooltipProvider>
         <MemoryRouter initialEntries={["/postings"]}>
@@ -370,15 +360,11 @@ describe("PostingDetail cover-letter entry point", () => {
               path="/postings"
               element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
             />
-            <Route path="/cv/:id" element={<CvBuilder />} />
           </Routes>
         </MemoryRouter>
       </TooltipProvider>
     );
-    await user.click(await screen.findByTestId("draft-cover-letter"));
-    await waitFor(() =>
-      expect(createCoverLetter).toHaveBeenCalledWith({ posting_id: "post-1" })
-    );
-    expect(await screen.findByTestId("letter-brief")).toBeInTheDocument();
+    expect(await screen.findByTestId("draft-cover-letter")).toBeDisabled();
+    expect(createCoverLetter).not.toHaveBeenCalled();
   });
 });

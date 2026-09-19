@@ -5,7 +5,6 @@ import i18next from "i18next";
 import { ExternalLink, GraduationCap, Quote, Sparkles } from "lucide-react";
 
 import { fetchPostingDetail } from "@/api/postings";
-import { createCoverLetter } from "@/api/cv";
 import {
   createInterviewSession,
   startInterviewSession,
@@ -108,24 +107,9 @@ export function PostingDetail({
   const { t } = useTranslation();
   const [posting, setPosting] = useState<JobPostingItem | null>(null);
   const [activeId, setActiveId] = useState(postingId);
-  const [letterBusy, setLetterBusy] = useState(false);
-  const [letterError, setLetterError] = useState("");
   const [interviewBusy, setInterviewBusy] = useState(false);
   const [interviewError, setInterviewError] = useState("");
   const navigate = useNavigate();
-
-  async function draftLetter() {
-    setLetterBusy(true);
-    setLetterError("");
-    try {
-      const letter = await createCoverLetter({ posting_id: activeId });
-      onClose();
-      navigate(`/cv/${letter.id}`);
-    } catch (err) {
-      setLetterError(apiDetail(err));
-      setLetterBusy(false);
-    }
-  }
 
   async function practiceInterview() {
     setInterviewBusy(true);
@@ -221,12 +205,12 @@ export function PostingDetail({
               variant="outline"
               size="sm"
               className="ml-auto"
-              disabled={letterBusy}
-              onClick={() => void draftLetter()}
+              disabled
+              title={t("common.comingSoon")}
               data-testid="draft-cover-letter"
             >
               <Sparkles className="mr-1 h-3.5 w-3.5" />
-              {letterBusy ? t("postingDetail.creating") : t("postingDetail.draftLetter")}
+              {t("postingDetail.draftLetter")}
             </Button>
             <Button
               variant="outline"
@@ -248,12 +232,6 @@ export function PostingDetail({
               {interviewError}
             </p>
           )}
-          {letterError && (
-            <p role="alert" className="text-xs text-red-600" data-testid="letter-error">
-              {letterError}
-            </p>
-          )}
-
           <p className="text-slate-500">
             {posting.org}
             {posting.location?.city ? ` · ${posting.location.city}` : ""}

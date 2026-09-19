@@ -562,6 +562,29 @@ describe("CvStudio", () => {
     await waitFor(() => expect(deleteCv).toHaveBeenCalledWith("cv-1"));
   });
 
+  it("shows a first-page thumbnail on the card and degrades without the engine", async () => {
+    renderStudio();
+    expect(
+      await screen.findByRole("heading", { name: "Your CVs" })
+    ).toBeInTheDocument();
+    const thumb = await screen.findByTestId("cv-card-thumbnail");
+    expect(thumb).toHaveAttribute("data-thumbnail-state", "loading");
+    const image = within(thumb).getByRole("img");
+    expect(image).toHaveAttribute(
+      "src",
+      `/api/v1/cv/cv-1/preview.png?v=${Date.parse(cv.updated_at)}`
+    );
+    fireEvent.error(image);
+    expect(thumb).toHaveAttribute("data-thumbnail-state", "error");
+    expect(within(thumb).queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("opens the CV when the card (thumbnail) is clicked", async () => {
+    renderStudio();
+    fireEvent.click(await screen.findByTestId("cv-card-thumbnail"));
+    expect(await screen.findByTestId("preview-frame")).toBeInTheDocument();
+  });
+
   it("gallery shows a grid-only picker with previews and per-card customize", async () => {
     fetchTemplates.mockResolvedValue([
       template,
@@ -1692,42 +1715,13 @@ describe("CvBuilder", () => {
   });
 });
 
-describe("CvStudio — import bridging", () => {
+describe("CvStudio — import routing", () => {
   it("the New CV modal offers an Import-from-CV mode that routes to the workspace", async () => {
     renderStudio();
     fireEvent.click(await screen.findByTestId("new-cv"));
     fireEvent.click(await screen.findByRole("button", { name: "Import from CV" }));
     fireEvent.click(await screen.findByTestId("import-cv-go"));
     expect(await screen.findByTestId("import-dest")).toBeInTheDocument();
-  });
-
-  it("shows the imported source CVs panel with status chips", async () => {
-    const { listCvDraftHistory } = await import("@/api/cvIntake");
-    vi.mocked(listCvDraftHistory).mockResolvedValue([
-      {
-        document_id: "doc-9",
-        status: "applied",
-        updated_at: "2026-09-09T09:00:00Z",
-        report: { created: { skills: 2 } },
-        document: {
-          id: "doc-9",
-          filename: "imported-cv.pdf",
-          mime: "application/pdf",
-          size_bytes: 1024,
-          page_count: 1,
-          status: "ready",
-          error: "",
-          created_at: "2026-09-09T09:00:00Z",
-        },
-      },
-    ]);
-    renderStudio();
-    const panel = await screen.findByTestId("cvstudio-imports-panel");
-    expect(panel).toHaveTextContent("imported-cv.pdf");
-    expect(panel).toHaveTextContent("Imported");
-    expect(
-      screen.getByTestId("cvstudio-import-doc-9")
-    ).toHaveAttribute("href", "/profile/import/doc-9");
   });
 });
 

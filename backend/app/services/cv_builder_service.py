@@ -9,10 +9,12 @@ source of truth.
 """
 
 from dataclasses import asdict
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import ValidationError
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.cv_template_model import CvTemplate
@@ -23,6 +25,7 @@ from app.services.cv_context_service import CvResolution, apply_overrides, resol
 from app.services.cv_renderer import RenderMetrics, render_cv, validate_blocks
 from app.services.cv_service import CvService
 from app.services.cv_template_service import CvTemplateService
+from app.services.engagement_service import canonical_hash
 
 FALLBACK_CONTENT: dict = {
     "blocks": [
@@ -303,6 +306,42 @@ class CvBuilderService:
             language=str(cv.language or "en"),
         )
         return result.html
+
+    async def thumbnail_png_cached(self, cv: CvDocument) -> tuple[bytes, str]:
+        """First-page PNG of the CV's current state, render-hash cached.
+
+        `previews/cv/{cv_id}/{render_hash}-p1.png` under the data dir —
+        the hash is `canonical_hash` of the would-be version payload (the
+        same value the next compile stores), so any edit, template or
+        photo change simply misses. Only the newest thumbnail per CV is
+        kept; older ones are pruned. A cache miss needs the print engine:
+        `PDFEngineUnavailable` propagates for the 503 capability answer.
+        """
+        from app.services.cv_pdf_service import (
+            PDFEngineUnavailable,
+            measure_pages,
+            thumbnail_image,
+        )
+
+        html, payload, _resolution, _metrics = await self.render_state(cv)
+        render_hash = canonical_hash(payload)
+        cache_dir = Path(settings.data_dir_path) / "previews" / "cv" / str(cv.id)
+        cache_path = cache_dir / f"{render_hash}-p1.png"
+        if cache_path.exists():
+            return cache_path.read_bytes(), render_hash
+        measure = await measure_pages(html, page_size=str(cv.page_size), max_images=1)
+        if not measure.images:
+            raise PDFEngineUnavailable(
+                "The CV preview could not be rendered — the print engine "
+                "may be missing."
+            )
+        _mime, png = thumbnail_image(measure.images[0][1])
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path.write_bytes(png)
+        for stale in cache_dir.glob("*-p1.png"):
+            if stale.name != cache_path.name:
+                stale.unlink(missing_ok=True)
+        return png, render_hash
 
     async def restore(self, cv: CvDocument, version: CvVersion) -> CvDocument:
         """Copy a version's blocks forward into the working state."""

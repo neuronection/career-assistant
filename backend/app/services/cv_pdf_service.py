@@ -44,6 +44,7 @@ PAGE_PX: dict[str, tuple[int, int]] = {
     "letter": (816, 1056),
 }
 MAX_SCREENSHOT_PAGES = 4
+THUMBNAIL_MAX_WIDTH = 360
 IDLE_SHUTDOWN_SECONDS = 300
 
 # None = the bundled/default Playwright chromium; channels fall back to the
@@ -340,6 +341,28 @@ async def measure_pages(
         return PageMeasure(None, None, [])
     images = _render_pdf_page_images(pdf, max_images) if max_images > 0 else []
     return PageMeasure(pages, "pdf", images)
+
+
+def thumbnail_image(
+    png: bytes, max_width: int = THUMBNAIL_MAX_WIDTH
+) -> tuple[str, bytes]:
+    """Downscale a rasterized page PNG to listing-card width.
+
+    Never upscales: pages already narrower than the cap pass through.
+    Resampling from the 1.5× render keeps small text readable at card
+    size; never clamped, never a hard engine dependency (callers pass
+    bytes they already hold).
+    """
+    from PIL import Image
+
+    with Image.open(io.BytesIO(png)) as image:
+        if image.width <= max_width:
+            return "image/png", png
+        height = max(1, round(image.height * max_width / image.width))
+        resized = image.resize((max_width, height), Image.Resampling.LANCZOS)
+        buffer = io.BytesIO()
+        resized.save(buffer, format="PNG")
+        return "image/png", buffer.getvalue()
 
 
 async def engine_check() -> tuple[bool, str]:

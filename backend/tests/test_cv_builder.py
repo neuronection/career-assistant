@@ -509,3 +509,81 @@ async def test_version_preview_renders_immutable_snapshot(
         f"/api/v1/cv/{cv['id']}/versions/99/preview", headers=auth_headers
     )
     assert missing.status_code == 404
+
+
+async def test_preview_png_cached_and_capability_gated(
+    client, auth_headers, profile_ready, seeded_catalog, monkeypatch, tmp_path
+):
+    """The card thumbnail renders once through the print engine, caches by
+    render hash (an edit misses, older files are pruned), and answers 503
+    with the capability message when the engine is missing."""
+    from pathlib import Path
+
+    from app.core.config import settings
+    from app.services import cv_pdf_service
+    from app.services.cv_pdf_service import PDFEngineUnavailable, PageMeasure
+
+    monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
+    await _experience(client, auth_headers)
+    cv = await _make_cv(client, auth_headers)
+
+    calls = {"n": 0}
+
+    async def fake_measure(html, page_size="a4", max_images=4):
+        calls["n"] += 1
+        return PageMeasure(1, "pdf", [("image/png", b"png-full-res")])
+
+    monkeypatch.setattr(cv_pdf_service, "measure_pages", fake_measure)
+    monkeypatch.setattr(
+        cv_pdf_service,
+        "thumbnail_image",
+        lambda png, max_width=360: ("image/png", b"png-thumb"),
+    )
+
+    url = f"/api/v1/cv/{cv['id']}/preview.png"
+    cache_dir = Path(settings.data_dir_path) / "previews" / "cv" / cv["id"]
+
+    first = await client.get(url, headers=auth_headers)
+    assert first.status_code == 200, first.text
+    assert first.headers["content-type"] == "image/png"
+    etag = first.headers["etag"]
+    assert calls["n"] == 1
+    assert len(list(cache_dir.glob("*-p1.png"))) == 1
+
+    second = await client.get(url, headers=auth_headers)
+    assert second.status_code == 200
+    assert second.headers["etag"] == etag
+    assert calls["n"] == 1, "the render-hash cache must skip the second render"
+
+    edited = await client.patch(
+        f"/api/v1/cv/{cv['id']}",
+        json={"working_content": {"blocks": [{"kind": "header"}, {"kind": "summary"}]}},
+        headers=auth_headers,
+    )
+    assert edited.status_code == 200, edited.text
+    fresh = await client.get(url, headers=auth_headers)
+    assert fresh.status_code == 200
+    assert fresh.headers["etag"] != etag, "an edit must miss the cache"
+    assert calls["n"] == 2
+    assert len(list(cache_dir.glob("*-p1.png"))) == 1, "old thumbnails are pruned"
+
+    async def engine_missing(html, page_size="a4", max_images=4):
+        raise PDFEngineUnavailable("The print engine is not installed.")
+
+    monkeypatch.setattr(cv_pdf_service, "measure_pages", engine_missing)
+    other_cv = await _make_cv(client, auth_headers, title="Second CV")
+    capability = await client.get(
+        f"/api/v1/cv/{other_cv['id']}/preview.png", headers=auth_headers
+    )
+    assert capability.status_code == 503
+    assert "print engine" in capability.json()["detail"]
+
+
+async def test_preview_png_hides_foreign_cvs(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    """The PNG route is owner-scoped exactly like the HTML preview (404)."""
+    cv = await _make_cv(client, auth_headers)
+    other = await _second_user(client)
+    response = await client.get(f"/api/v1/cv/{cv['id']}/preview.png", headers=other)
+    assert response.status_code == 404

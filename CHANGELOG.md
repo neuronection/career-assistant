@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Profile → Overview separates "Profile completeness" from CV import**
+  — the Import-from-CV strip no longer lives inside the completeness
+  card; it is its own section led by the hook "Do you already have a
+  CV? Use it to autofill your profile" (upload → we extract
+  experience/education/skills → nothing lands without your tick).
+- **Cover letters are gated off until the feature ships** — the
+- **Cover letters are gated off until the feature ships** — the
+  "New cover letter" button in CV Studio and the "Draft cover letter"
+  action on postings render disabled (with a "Coming soon" hint); the
+  hidden creation flows stay wired for a clean re-enable.
+
 ### Fixed
 - **Chat CV attachments no longer lost before the send** — asking AI
   about the open Studio CV could answer "no CV attached": the one-shot
@@ -22,6 +34,23 @@ All notable changes to **Career Assistant** are documented here.
   attaching nothing — the exact path behind "no CV attached" replies.
 
 ### Added
+- **CV Studio cards show a first-page preview** — every CV in the
+  listing now carries a small thumbnail of its first page on the right
+  of the card, printed through the PDF engine, downscaled to
+  card-friendly size, and disk-cached per render (any edit, template or
+  photo change invalidates it automatically; only the newest thumbnail
+  is kept). Without a print engine the card falls back to a quiet
+  placeholder — the listing never blocks on it. The whole card is
+  clickable (thumbnail included) and opens the CV; the redundant Open
+  button is gone and duplicate/delete collapsed into a compact
+  segmented pill in the card's top-right corner. Imported source CVs
+  no longer render on the page at
+  all — they are sources, not studio CVs, and live in the import
+  workspace (/profile/import, still reachable via New CV → Import from
+  CV and the Profile page), so the list shows exactly one thing: your
+  CVs. The page header was rebalanced too — clear action hierarchy
+  (quiet Synthesized variants link → outline New cover letter → primary
+  New CV) with room to breathe next to the description.
 - **Chat can rewrite a CV's bullets (plan 107)** — with a CV attached,
   "update the bullets on this CV" now works end to end: the assistant
   reads the CV's bullet items (`read_cv_items` — ids, current bullets,

@@ -634,6 +634,30 @@ async def preview_cv(
     )
 
 
+@router.get("/{cv_id}/preview.png")
+async def preview_cv_png(
+    cv_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """First-page PNG thumbnail of the current state (plan: CV card
+    previews) — render-hash cached on disk, 503 with the capability
+    message when the print engine is missing."""
+    cv, builder = await _owned_builder(cv_id, user.id, db)
+    try:
+        png, render_hash = await builder.thumbnail_png_cached(cv)
+    except PDFEngineUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "ETag": f'"{render_hash}"',
+        },
+    )
+
+
 @router.post("/{cv_id}/compile", response_model=CvCompileOut, status_code=201)
 async def compile_cv(
     cv_id: uuid.UUID,
