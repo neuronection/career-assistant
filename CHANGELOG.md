@@ -4,7 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.13.0] - 2026-09-19
+
 ### Changed
+- **Shared UI library updated to @neuronection/assistant-ui 0.43.0** — the
+  About page's family grid gains the fourth member (Desktop Assistant):
+  four cards in a 2×2 responsive grid.
 - **Profile → Education adopts the segmented workspace pattern** — the
   entity switcher is the library SegmentedTabs with a new **All** view:
   every entry type (Education / Certifications / Achievements) renders
@@ -23,7 +28,6 @@ All notable changes to **Career Assistant** are documented here.
   card; it is its own section led by the hook "Do you already have a
   CV? Use it to autofill your profile" (upload → we extract
   experience/education/skills → nothing lands without your tick).
-- **Cover letters are gated off until the feature ships** — the
 - **Cover letters are gated off until the feature ships** — the
   "New cover letter" button in CV Studio and the "Draft cover letter"
   action on postings render disabled (with a "Coming soon" hint); the
