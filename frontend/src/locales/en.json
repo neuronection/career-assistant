@@ -1952,6 +1952,10 @@
     "previews": {
       "imageTitle": "Template preview: {{title}}",
       "imageAlt": "First page of the {{title}} template"
+    },
+    "selectionMenu": {
+      "copy": "Copy",
+      "quote": "Quote in chat"
     }
   },
   "demand": {

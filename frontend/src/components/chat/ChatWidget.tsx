@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
 import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
+import { ChatSelectionMenu } from "@/components/chat/ChatSelectionMenu";
+import { copyText } from "@/lib/clipboard";
 import {
   LiveTemplatePreviews,
   MessageTemplatePreviews,
@@ -82,9 +84,11 @@ function TraceMeta({ message }: { message: ChatMessageRow }) {
 }
 
 /**
- * Post-turn trace for an assistant reply (persisted-trace wave): per-tool
- * observation cards + the phase/tool timeline from `metadata_json`.
- * Legacy messages without execution windows keep the compact badges.
+ * Post-turn trace for an assistant reply (persisted-trace wave): the
+ * `ChatTraceTimeline` is the SINGLE trace surface — its tool rows carry
+ * the expandable parsed args/response, so no separate per-tool card
+ * stack. Legacy messages without execution windows keep the compact
+ * badges.
  */
 function MessageTrace({ message }: { message: ChatMessageRow }) {
   const { t } = useTranslation();
@@ -112,17 +116,6 @@ function MessageTrace({ message }: { message: ChatMessageRow }) {
   }
   return (
     <div className="mt-1 flex w-full flex-col gap-1" data-testid="chat-message-trace">
-      {tools.map((tool, index) => (
-        <ChatToolCard
-          key={`${tool.name}-${index}`}
-          name={tool.name}
-          title={tool.title}
-          status={tool.status === "failed" ? "failed" : "done"}
-          args={tool.args_summary}
-          result={tool.result_summary}
-          durationMs={tool.duration_ms}
-        />
-      ))}
       <ChatTraceTimeline
         trace={{
           model: meta?.model ?? null,
@@ -415,7 +408,7 @@ function MessageList({ compact }: { compact: boolean }) {
             : false
         }
         actions={{
-          onCopy: () => void navigator.clipboard.writeText(message.content),
+          onCopy: () => void copyText(message.content),
           onEdit:
             message.role === "user"
               ? () => {
@@ -471,50 +464,53 @@ function MessageList({ compact }: { compact: boolean }) {
   const livePreviews = live ? <LiveTemplatePreviews /> : null;
 
   return (
-    <ChatTranscript
-      items={chat.viewMessages}
-      renderItem={renderItem}
-      emptyState={<ChatEmptyState compact={compact} />}
-      live={
-        live ? (
-          <ChatMessage
-            role="assistant"
-            status={
-              chat.stream.status === "interrupted"
-                ? "interrupted"
-                : chat.stream.status === "error"
-                  ? "error"
-                  : "streaming"
-            }
-            error={chat.stream.error ?? undefined}
-            actions={
-              chat.stream.error?.retryable
-                ? { onRetry: () => void chat.retry() }
-                : undefined
-            }
-            content={
-              <>
-                {toolCards}
-                {livePreviews}
-                <ProposalCards cards={proposalCards} />
-                {chat.stream.text !== null ? (
-                  <>
-                    <MarkdownSurface value={chat.stream.text} streaming />
-                    <span className="animate-pulse text-slate-400">▍</span>
-                  </>
-                ) : chat.stream.status === "error" ? null : (
-                  <ChatTurnStatus
-                    variant="card"
-                    label={turnLabel}
-                    startedAt={chat.stream.startedAt ?? undefined}
-                  />
-                )}
-              </>
-            }
-          />
-        ) : undefined
-      }
-    />
+    <ChatSelectionMenu>
+      <ChatTranscript
+        className="selection:bg-[color-mix(in_srgb,var(--as-accent)_22%,transparent)]"
+        items={chat.viewMessages}
+        renderItem={renderItem}
+        emptyState={<ChatEmptyState compact={compact} />}
+        live={
+          live ? (
+            <ChatMessage
+              role="assistant"
+              status={
+                chat.stream.status === "interrupted"
+                  ? "interrupted"
+                  : chat.stream.status === "error"
+                    ? "error"
+                    : "streaming"
+              }
+              error={chat.stream.error ?? undefined}
+              actions={
+                chat.stream.error?.retryable
+                  ? { onRetry: () => void chat.retry() }
+                  : undefined
+              }
+              content={
+                <>
+                  {toolCards}
+                  {livePreviews}
+                  <ProposalCards cards={proposalCards} />
+                  {chat.stream.text !== null ? (
+                    <>
+                      <MarkdownSurface value={chat.stream.text} streaming />
+                      <span className="animate-pulse text-slate-400">▍</span>
+                    </>
+                  ) : chat.stream.status === "error" ? null : (
+                    <ChatTurnStatus
+                      variant="card"
+                      label={turnLabel}
+                      startedAt={chat.stream.startedAt ?? undefined}
+                    />
+                  )}
+                </>
+              }
+            />
+          ) : undefined
+        }
+      />
+    </ChatSelectionMenu>
   );
 }
 

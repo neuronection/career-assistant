@@ -286,7 +286,7 @@ describe("ChatWidget (library surface)", () => {
     expect(badges).toHaveTextContent("1 tool");
   });
 
-  it("renders the persisted tool cards and trace timeline after the turn (legacy-free)", async () => {
+  it("renders the trace timeline as the single persisted trace surface", async () => {
     useChatStore.setState({
       activeSessionId: "s1",
       messages: [
@@ -326,16 +326,17 @@ describe("ChatWidget (library surface)", () => {
     await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
     const trace = await screen.findByTestId("chat-message-trace");
     expect(trace).toBeInTheDocument();
-    expect(screen.getAllByText("Searching the job catalog").length).toBeGreaterThan(0);
-    await user.click(screen.getAllByText("Searching the job catalog")[0]);
-    expect(await screen.findByText("query")).toBeInTheDocument();
-    expect(screen.getByText("nursing")).toBeInTheDocument();
-    expect(screen.queryByText(/"query": "nursing"/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Searching the job catalog")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Show response trace" }));
     expect(screen.getByText("Total 1.9 s")).toBeInTheDocument();
     expect(screen.getByText("210 tokens")).toBeInTheDocument();
     expect(screen.getByText("writing the reply")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "search_jobs details" }));
+    expect(await screen.findByText("query")).toBeInTheDocument();
+    expect(screen.getByText("nursing")).toBeInTheDocument();
+    expect(screen.queryByText(/"query": "nursing"/)).not.toBeInTheDocument();
   });
 
   it("renders the builder copilot's persisted trace with expandable tool details", async () => {
@@ -388,7 +389,7 @@ describe("ChatWidget (library surface)", () => {
     await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
     const trace = await screen.findByTestId("chat-message-trace");
     expect(trace).toBeInTheDocument();
-    expect(screen.getAllByText("Reading the builder state").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Reading the builder state")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Show response trace" }));
     expect(screen.getByText("planning changes")).toBeInTheDocument();
     expect(screen.getByText("applying changes")).toBeInTheDocument();
