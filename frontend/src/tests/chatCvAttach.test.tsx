@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 
 import { ChatDock } from "@/components/chat/ChatWidget";
 import { openCvChat } from "@/components/chat/cvChatLink";
@@ -84,6 +84,26 @@ function mount(route = "/") {
   );
 }
 
+/** Mounts with a nav probe so a test can switch the Studio route the
+ * way the user does — the auto-attach effect tracks the route. */
+function mountWithNav(route: string) {
+  function NavProbe() {
+    const navigate = useNavigate();
+    return (
+      <button
+        data-testid="nav-cv-2"
+        onClick={() => navigate("/cv/cv-2")}
+      />
+    );
+  }
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <NavProbe />
+      <ChatDock />
+    </MemoryRouter>,
+  );
+}
+
 describe("CV reference attachments (plan 78.3)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -99,8 +119,57 @@ describe("CV reference attachments (plan 78.3)", () => {
     const chip = await screen.findByTestId("chat-attachment-cv-1");
     expect(chip).toHaveTextContent("Backend CV");
     expect(useChatStore.getState().attachments).toEqual([
-      { kind: "cv", cv_id: "cv-1", title: "Backend CV" },
+      { kind: "cv", cv_id: "cv-1", title: "Backend CV", auto: true },
     ]);
+  });
+
+  it("replaces the auto reference when another CV is opened while fresh", async () => {
+    mountWithNav("/cv/cv-1");
+    await screen.findByTestId("chat-attachment-cv-1");
+    await userEvent.click(screen.getByTestId("nav-cv-2"));
+    await screen.findByTestId("chat-attachment-cv-2");
+    expect(screen.queryByTestId("chat-attachment-cv-1")).not.toBeInTheDocument();
+    expect(useChatStore.getState().attachments).toEqual([
+      { kind: "cv", cv_id: "cv-2", title: "Design CV", auto: true },
+    ]);
+  });
+
+  it("accumulates references when the conversation already started", async () => {
+    useChatStore.setState({
+      messages: [
+        {
+          id: "u0",
+          role: "user",
+          content: "earlier turn",
+          created_at: "2026-09-14T12:00:00Z",
+          metadata_json: null,
+        },
+      ],
+    });
+    mountWithNav("/cv/cv-1");
+    await screen.findByTestId("chat-attachment-cv-1");
+    await userEvent.click(screen.getByTestId("nav-cv-2"));
+    await screen.findByTestId("chat-attachment-cv-2");
+    expect(screen.getByTestId("chat-attachment-cv-1")).toBeInTheDocument();
+    expect(useChatStore.getState().attachments.map((a) => a.cv_id)).toEqual([
+      "cv-1",
+      "cv-2",
+    ]);
+  });
+
+  it("never replaces a manually attached chip", async () => {
+    const user = userEvent.setup();
+    mountWithNav("/");
+    await user.click(screen.getByTestId("chat-attach-open"));
+    await screen.findByTestId("chat-attach-cv-cv-1");
+    await user.click(screen.getByTestId("chat-attach-cv-cv-1"));
+    await user.click(screen.getByTestId("nav-cv-2"));
+    await screen.findByTestId("chat-attachment-cv-2");
+    expect(screen.getByTestId("chat-attachment-cv-1")).toBeInTheDocument();
+    const entries = useChatStore.getState().attachments;
+    expect(entries.map((a) => a.cv_id)).toEqual(["cv-1", "cv-2"]);
+    expect(entries.find((a) => a.cv_id === "cv-1")?.auto).toBeUndefined();
+    expect(entries.find((a) => a.cv_id === "cv-2")?.auto).toBe(true);
   });
 
   it("sends the auto-attached Studio CV with the message", async () => {

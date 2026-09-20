@@ -4,6 +4,12 @@ import type { ChatCvAttachment, ChatMessage, ChatSession } from "@/types";
 
 export type ChatMode = "bubble" | "docked";
 
+/** Composer entry: the wire shape plus a client-only marker for
+ * route-driven attaches — the open Studio CV's chip may be REPLACED by
+ * the next opened CV while the conversation has not started (manual
+ * chips, without the marker, are never touched by that swap). */
+export type ComposerCvAttachment = ChatCvAttachment & { auto?: boolean };
+
 const CHAT_MODE_KEY = "ca:chat:mode";
 
 function loadPersistedChatMode(): ChatMode {
@@ -48,8 +54,12 @@ interface ChatState {
    * session transition openCvChat performs after requesting the attach —
    * per-surface local state lost them between `setPendingCvAttach` and
    * `openSession` settling (the send then carried no attachments). */
-  attachments: ChatCvAttachment[];
+  attachments: ComposerCvAttachment[];
   attachCv: (cv: { id: string; title: string }) => void;
+  /** Auto-attach the open Studio CV: yields the previous auto chip so
+   * the side panel references the CURRENTLY open CV only (manual
+   * chips and already-started conversations are untouched). */
+  autoAttachCv: (cv: { id: string; title: string }) => void;
   detachCv: (cvId: string) => void;
   clearAttachments: () => void;
   setChatMode: (mode: ChatMode) => void;
@@ -150,6 +160,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       attachments: [
         ...current,
         { kind: "cv", cv_id: cv.id, title: cv.title },
+      ],
+    });
+  },
+
+  autoAttachCv: (cv) => {
+    const current = get().attachments;
+    if (current.some((entry) => entry.cv_id === cv.id)) {
+      return;
+    }
+    set({
+      attachments: [
+        ...current.filter((entry) => !entry.auto),
+        { kind: "cv", cv_id: cv.id, title: cv.title, auto: true },
       ],
     });
   },

@@ -92,7 +92,16 @@ export function useCareerChat() {
     }
     let cancelled = false;
     void cvTitle(openCvId).then((title) => {
-      if (!cancelled && !detachedHere.current.has(openCvId)) {
+      if (cancelled || detachedHere.current.has(openCvId)) {
+        return;
+      }
+      // A chat without messages has no conversation to protect: the
+      // open CV is THE reference, so the previous auto chip yields.
+      // Once the conversation started, references accumulate as before.
+      const fresh = useChatStore.getState().messages.length === 0;
+      if (fresh) {
+        useChatStore.getState().autoAttachCv({ id: openCvId, title });
+      } else {
         attachCv({ id: openCvId, title });
       }
     });

@@ -14,6 +14,12 @@ All notable changes to **Career Assistant** are documented here.
   Health / Career / Study.
 
 ### Fixed
+- **Side-panel chat stacked a chip per opened CV** — the Studio route
+  auto-attached every CV you opened, so switching between CVs left the
+  previous references riding along. While the conversation has not
+  started, the open CV is now THE reference: a newly opened CV replaces
+  the auto-attached chip (manual chips and started conversations keep
+  the additive behavior).
 - **Chat dropped the Studio CV reference on a fast first message** —
   "Ask AI" opened the dock and claimed a session asynchronously; a
   message sent before the bootstrap settled spawned a second session
