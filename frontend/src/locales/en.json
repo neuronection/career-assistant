@@ -980,6 +980,8 @@
     "coverLetter": "Cover letter",
     "cardMeta_one": "{{status}} · {{language}} · max {{count}} page · {{version}}",
     "cardMeta_other": "{{status}} · {{language}} · max {{count}} pages · {{version}}",
+    "cardCreated": "Created {{date}}",
+    "cardUpdated": "Updated {{date}}",
     "notCompiled": "not compiled yet",
     "thumbnailAlt": "CV first-page preview",
     "yourCvs": "Your CVs",

@@ -24,6 +24,18 @@ import { SegmentedRow } from "@/components/cv/formPrimitives";
 import type { CvDocumentOut } from "@/types/cv";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
 
+function formatStamp(iso: string | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+}
+
 export function CvStudio() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -319,6 +331,15 @@ export function CvStudio() {
                           ? `v${cv.latest_version}`
                           : t("cvStudio.notCompiled"),
                     })}
+                  </p>
+                  <p
+                    className="mt-0.5 text-[11px] text-[var(--as-muted-fg)]"
+                    data-testid={`cv-card-dates-${cv.id}`}
+                  >
+                    {t("cvStudio.cardCreated", {
+                      date: formatStamp(cv.created_at),
+                    })}{" "}
+                    · {t("cvStudio.cardUpdated", { date: formatStamp(cv.updated_at) })}
                   </p>
                 </div>
                 <CvThumbnail cvId={cv.id} stamp={Date.parse(cv.updated_at)} />

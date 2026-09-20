@@ -578,7 +578,10 @@ describe("CvStudio", () => {
     );
     fireEvent.error(image);
     expect(thumb).toHaveAttribute("data-thumbnail-state", "error");
-    expect(within(thumb).queryByRole("img")).not.toBeInTheDocument();
+
+    const dates = await screen.findByTestId("cv-card-dates-cv-1");
+    expect(dates).toHaveTextContent("Created");
+    expect(dates).toHaveTextContent("Updated");
   });
 
   it("opens the CV when the card (thumbnail) is clicked", async () => {
