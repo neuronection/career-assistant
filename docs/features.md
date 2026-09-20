@@ -189,12 +189,20 @@ structured profile.
   the whole CV with per-section fallbacks, it lands in the builder with an
   automatic restorable version, and an agentic **polish loop** critiques the
   rendered pages (vision + ATS lint + a coverage matrix) and applies fixes
-  through the same audited path.
+  through the same audited path. The loop's round count is your choice
+  (1–12 polish rounds), it can escalate a persistent style brief to the
+  AI template designer (and per-section container overrides + an
+  `elevation` token exist for expressive looks), template-version churn
+  is coalesced per run, and an **enrich step** fetches a few of your own
+  linked pages (GitHub repos, portfolios) on demand to ground the
+  descriptions.
 - **Per-CV context selection** — controls which profile items can render; the
   renderer snapshot carries per-item traceability, and AI writing (summaries,
   bullet rewrites, tailor-to-posting with must-have coverage,
   translate-assist) only sees what you included. Precedence:
-  override > variant > source.
+  override > variant > source — and bullets are strictly two-layer:
+  per-item bullets variants (pinned through their own slot) replace an
+  item's achievement list; overrides never carry achievements.
 - **Deep UI/template customization** — full design-token editor (colors,
   typography with embedded fonts, spacing per area, page margins, two-column
   newspaper flow, section heading icons, photo shapes, skill bars, grouped
@@ -205,7 +213,8 @@ structured profile.
   import/export file-first (hash-verified).
 - **Variant library** (`/cv/synth`) — AI-written or manual item variants
   (summarized, expanded, restyled, aimed at a posting, translated, steered by
-  a custom instruction) that any CV can prefer over verbatim profile text;
+  a custom instruction — including bullets-only variants that replace just
+  an item's achievement list) that any CV can prefer over verbatim profile text;
   staleness is detected when the source changes, you star to activate, and a
   dedicated variant editor drafts fill-in-form with slot comparison against
   what's on the CV now, with an in-editor AI generate-fill.

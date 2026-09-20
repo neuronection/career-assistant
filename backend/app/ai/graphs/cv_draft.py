@@ -20,6 +20,7 @@ builder).
 
 import copy
 import logging
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,10 +32,14 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.agents.cv_drafter import draft_section, plan_structure
+from app.ai.agents.cv_drafter import (
+    ENRICH_SYSTEM,
+    draft_section,
+    plan_structure,
+)
 from app.ai.gateway import RunRef
 from app.ai.schemas import CvDraftStructure, CvDraftTexts
-from app.models.enums import CvVersionCreator
+from app.models.enums import AITaskType, CvVersionCreator
 from app.models.posting_model import JobPosting
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_generate import CvGenerateRequest
@@ -127,6 +132,7 @@ class CvDraftState(TypedDict, total=False):
     polish: dict
     critique: dict
     review_lint: dict
+    web_evidence: dict
 
 
 @dataclass
@@ -494,6 +500,132 @@ def make_plan_node(deps: GraphDeps):
     return plan
 
 
+MAX_ENRICH_ROUNDS = 2
+MAX_ENRICH_SOURCES = 3
+ENRICH_TOOL_KEYS = ("github_repo", "fetch_url", "web_search")
+
+
+def _candidate_links(state: CvDraftState) -> list[tuple[str, str, str]]:
+    """Planned items' own links, GitHub first: (ref_key, url, label)."""
+    context = state.get("context") or {}
+    planned: set[str] = set()
+    for section in (state.get("plan") or {}).get("sections") or []:
+        planned.update(str(i) for i in section.get("item_ids") or [])
+    github: list[tuple[str, str, str]] = []
+    other: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for item in context.get("items") or []:
+        item_id = str(item.get("item_id") or "")
+        if planned and item_id not in planned:
+            continue
+        ref_key = f"{item.get('source_key')}:{item_id}"
+        for link in (item.get("payload") or {}).get("links") or []:
+            url = str((link or {}).get("url") or "")
+            if not url.startswith("http") or url in seen:
+                continue
+            seen.add(url)
+            entry = (ref_key, url, str(item.get("label") or ""))
+            (github if "github.com" in url.lower() else other).append(entry)
+    return (github + other)[:MAX_ENRICH_SOURCES]
+
+
+def make_enrich_node(deps: GraphDeps):
+    """Agentic on-demand sourcing (plan-80 tools, bound on demand): the
+    model fetches a few of the candidate's OWN linked pages to ground
+    descriptions — bounded rounds, capped sources, reference-data-only.
+    No links (or no usable tools) → the node is a no-op."""
+
+    async def enrich(state: CvDraftState) -> dict:
+        if await _is_cancelled(deps):
+            return {"abort_reason": "cancelled"}
+        candidates = _candidate_links(state)
+        if not candidates:
+            return {}
+        from langchain_core.messages import HumanMessage, ToolMessage
+
+        from app.ai.gateway import ainvoke_agent
+        from app.ai.tools.langchain import tool_spec
+        from app.ai.tools.registry import run_tool
+
+        specs = [spec for key in ENRICH_TOOL_KEYS if (spec := tool_spec(key))]
+        if not specs:
+            return {}
+        listing = "\n".join(
+            f"[{ref_key}] {label} — {url}" for ref_key, url, label in candidates
+        )
+        prompt = (
+            f"CANDIDATE LINKED PAGES (fetch at most {MAX_ENRICH_SOURCES}):\n"
+            f"{listing}\n\nFetch the ones that will make this CV's "
+            "descriptions stronger, then stop."
+        )
+        evidence: dict[str, list[dict]] = {}
+        messages: list = [HumanMessage(content=prompt)]
+        user_id = UUID(state["user_id"])
+        await _report(deps, PROGRESS_PLAN + 1, "checking linked sources")
+        for round_index in range(MAX_ENRICH_ROUNDS):
+            try:
+                message = await ainvoke_agent(
+                    deps.db,
+                    AITaskType.CV_DRAFT,
+                    system=ENRICH_SYSTEM,
+                    messages=messages,
+                    tools=specs,
+                    user_id=user_id,
+                    run=_run_ref(state, f"cv_draft.enrich:{round_index}"),
+                )
+            except Exception:  # noqa: BLE001 — enrichment is best-effort
+                return {"web_evidence": evidence} if evidence else {}
+            calls = message.tool_calls or []
+            if not calls:
+                break
+            messages = [*messages, message]
+            for call in calls:
+                name = str(call.get("name") or "")
+                if name not in ENRICH_TOOL_KEYS:
+                    continue
+                args = dict(call.get("args") or {})
+                result = await run_tool(deps.db, name, user_id, args)
+                if not isinstance(result, dict) or result.get("available") is False:
+                    continue
+                url = str(
+                    result.get("url") or args.get("url") or args.get("repo") or ""
+                )
+                ref_key = next(
+                    (
+                        candidate_ref
+                        for candidate_ref, candidate_url, _ in candidates
+                        if candidate_url in url or url in candidate_url
+                    ),
+                    candidates[0][0],
+                )
+                evidence.setdefault(ref_key, []).append(
+                    {
+                        "source": name,
+                        "url": url,
+                        "title": str(
+                            result.get("title") or result.get("full_name") or ""
+                        ),
+                        "text": str(
+                            result.get("text") or result.get("readme_text") or ""
+                        )[:4000],
+                    }
+                )
+                messages = [
+                    *messages,
+                    ToolMessage(
+                        content=json.dumps(result, default=str)[:4000],
+                        tool_call_id=str(call.get("id") or ""),
+                    ),
+                ]
+                if len(evidence) >= MAX_ENRICH_SOURCES:
+                    break
+            if len(evidence) >= MAX_ENRICH_SOURCES:
+                break
+        return {"web_evidence": evidence} if evidence else {}
+
+    return enrich
+
+
 def make_synthesize_node(deps: GraphDeps):
     async def synthesize(state: CvDraftState) -> dict:
         """Plan 69.2: ground the planner's gap variants as CV_SYNTH drafts.
@@ -611,6 +743,12 @@ def make_draft_node(deps: GraphDeps):
             ]
             clamped: list[dict] = []
             retry_note = ""
+            web_evidence = state.get("web_evidence") or {}
+            linked_sources = {
+                str(item.get("item_id")): web_evidence[f"{kind}:{item.get('item_id')}"]
+                for item in items
+                if web_evidence.get(f"{kind}:{item.get('item_id')}")
+            }
             for _attempt in range(DRAFT_RETRIES + 1):
                 try:
                     result: CvDraftTexts = await draft_section(
@@ -624,6 +762,7 @@ def make_draft_node(deps: GraphDeps):
                         tone=request.tone,
                         length=request.length,
                         retry_note=retry_note,
+                        linked_sources=linked_sources or None,
                         run=_run_ref(state, "cv_draft.draft"),
                     )
                 except Exception as exc:  # noqa: BLE001 — fallback, never fail
@@ -1954,7 +2093,9 @@ def build_cv_draft_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
     builder.add_conditional_edges(
         "collect", route_by_abort, {"end": END, "continue": "plan"}
     )
-    builder.add_edge("plan", "synthesize")
+    builder.add_node("enrich", make_enrich_node(deps))
+    builder.add_edge("plan", "enrich")
+    builder.add_edge("enrich", "synthesize")
     builder.add_edge("synthesize", "draft")
     builder.add_conditional_edges(
         "draft", route_by_abort, {"end": END, "continue": "assemble"}

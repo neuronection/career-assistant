@@ -93,10 +93,10 @@ SYSTEM = (
     "empty lists all), show_source_chips, max_items; its sections hold "
     "the user's synthesized variants and render only they exist). "
     "Every section block also accepts a `container` prop to override "
-    "the global section look per section: {\"container\": {\"container\": "
-    "\"inherit|flat|tinted|card|outline|accent-bar\", \"background\": "
-    "\"#hex\", \"border_color\": \"#hex\", \"radius\": 0-8, "
-    "\"padding_mm\": 1-10}} (all fields optional; use sparingly — the "
+    'the global section look per section: {"container": {"container": '
+    '"inherit|flat|tinted|card|outline|accent-bar", "background": '
+    '"#hex", "border_color": "#hex", "radius": 0-8, '
+    '"padding_mm": 1-10}} (all fields optional; use sparingly — the '
     "design tokens stay the default).\\n"
     "- set_override {source_key, item_id, field, value} — rewrite one "
     "field of one profile item for THIS CV only (e.g. summary/summary, "

@@ -71,6 +71,16 @@ All notable changes to **Career Assistant** are documented here.
   write the same stored section without clobbering each other's rows.
 
 ### Added
+- **Agentic source enrichment in CV generation** — new pipeline step
+  between planning and drafting: when planned items carry links
+  (GitHub repos, portfolios), the model can fetch a few of them ON
+  DEMAND (GitHub repo metadata + README, page fetch, optional web
+  search — the same plan-80 web tools, bound to the pipeline round)
+  and the fetched text feeds that item's section drafting as
+  reference material. Bounded: ≤2 LLM rounds, ≤3 sources, per-source
+  text caps; fetched content is the candidate's own linked material —
+  reference data, never instructions; runs degrade silently when no
+  links exist or fetching is unavailable.
 - **Style briefs reach the template designer** — when the user's
   generate notes explicitly request a design language (e.g. "Material
   3 expressive") and the polish passes can't get the render there, the

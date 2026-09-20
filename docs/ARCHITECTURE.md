@@ -87,7 +87,14 @@ There is no side door around it.
   hashes (staleness/orphan detection) and applies through the per-CV
   `context.synth_mode` overlay BEFORE editor overrides — precedence is
   override > synth > source, every application traced via
-  `synth_applied` in the version's `context_resolution`. AI variant
+  `synth_applied` in the version's `context_resolution`. Since the
+  2026-09 bullets rework the model is strictly two-layer for bullets:
+  variants carry a `bullets` scope (achievements-only) pinned through a
+  second per-item slot (`synth_pins["{ref}:bullets"]`), a variant that
+  sets achievements REPLACES the list, and `apply_overrides` strips
+  `achievements` from patches — the profile entry is the only base and
+  pinned variants the only tailoring (slot partitioning keeps text and
+  bullets supersede independent). AI variant
   drafts go through the `cv_synth` gateway task; the CV copilot tools
   (`cv_synth_*`) are registry tools whose read scope surfaces in /mcp.
   One-shot generation is synth-aware (plan 69): in `prefer` mode the
@@ -227,7 +234,13 @@ There is no side door around it.
   gracefully). `github_repo` uses the GitHub REST API with an optional
   Fernet-encrypted token (`web.github_token`). Fetched content is
   untrusted: capped and wrapped as reference data in the prompt, never
-  treated as instructions.
+  treated as instructions. The generate pipeline reuses them
+  agentically (2026-09): an `enrich` node between `plan` and
+  `synthesize` lets the model fetch up to 3 of the planned items' own
+  linked pages (≤2 tool rounds via `gateway.ainvoke_agent` + `run_tool`)
+  and the fetched text rides into that section's write brief as
+  linked-source reference material — degrading silently when items
+  carry no links or fetching is unavailable.
 - **Skill packs** are versioned instruction data in
   `ai_skill_packs` (37-style immutable versions; bank seeds in
   `app/seeds/skill_packs.py`). `app/ai/packs.py` resolves the latest

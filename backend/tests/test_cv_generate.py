@@ -963,3 +963,79 @@ async def test_cv_runs_endpoint_assembles_the_run_ledger(
         headers={"Authorization": f"Bearer {other.json()['access_token']}"},
     )
     assert foreign.status_code == 404
+
+
+async def test_enrich_agent_fetches_a_linked_github_repo_for_the_writer(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """The enrich agent fetches an item's GitHub link ON DEMAND and the
+    README rides into the writer as linked-source material."""
+    import app.ai.graphs.cv_draft as graph_module
+    from langchain_core.messages import AIMessage
+
+    await _experience(
+        client,
+        auth_headers,
+        links=[{"label": "repo", "url": "https://github.com/me/pipelines"}],
+    )
+
+    async def _fake_agent(db, task, *, system, messages, tools, user_id=None, run=None):
+        assert any(
+            spec.get("function", {}).get("name") == "github_repo" for spec in tools
+        ), "the enrich round binds the web tools"
+        if any(getattr(m, "tool_calls", None) for m in messages):
+            return AIMessage(content="done")
+        return AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "github_repo",
+                    "args": {"repo": "https://github.com/me/pipelines"},
+                    "id": "call_1",
+                    "type": "tool_call",
+                }
+            ],
+        )
+
+    called = {"n": 0}
+
+    async def _counting_agent(*args, **kwargs):
+        called["n"] += 1
+        return await _fake_agent(*args, **kwargs)
+
+    monkeypatch.setattr("app.ai.gateway.ainvoke_agent", _counting_agent)
+
+    async def _fake_run_tool(db, key, user_id, args):
+        assert key == "github_repo"
+        return {
+            "available": True,
+            "url": "https://github.com/me/pipelines",
+            "full_name": "me/pipelines",
+            "readme_text": (
+                "Resumable job pipelines with retries and backpressure controls."
+            ),
+        }
+
+    monkeypatch.setattr("app.ai.tools.registry.run_tool", _fake_run_tool)
+
+    real_draft = graph_module.draft_section
+    seen: list[dict] = []
+
+    async def spy_draft(db, user_id, **kwargs):
+        if kwargs.get("linked_sources"):
+            seen.append(kwargs["linked_sources"])
+        return await real_draft(db, user_id, **kwargs)
+
+    monkeypatch.setattr(graph_module, "draft_section", spy_draft)
+
+    result = await _service(db).generate(
+        UUID(_uid(auth_headers)), CvGenerateRequest(), run_id=uuid.uuid4()
+    )
+    await db.commit()
+    assert result["status"] == "completed"
+    assert called["n"] >= 1, "the enrich round ran"
+    assert seen, "the writer received linked sources"
+    merged = [block for call in seen for blocks in call.values() for block in blocks]
+    assert any("Resumable job pipelines" in block["text"] for block in merged), (
+        "the fetched README reached the writer"
+    )
