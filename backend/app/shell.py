@@ -518,6 +518,10 @@ def run(tray_only: bool = False) -> None:
     if tray_only and tray is None:
         window.show()  # no tray host: degrade to a visible window
 
+    # Blob/anchor downloads (CV export, uploaded originals, data export) are
+    # cancelled silently by every pywebview backend unless enabled here.
+    webview.settings["ALLOW_DOWNLOADS"] = True
+
     webview.start(private_mode=False, debug=settings.DEBUG)
 
     # Window gone (quit or real close): same shutdown order as —
