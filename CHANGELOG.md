@@ -4,7 +4,40 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Print "wrench" icon rendered mangled** — the skills-section glyph's
+  SVG path was corrupt geometry; replaced with the proper Feather tool
+  path (regression-pinned by test).
+- **Polish reviewer invented theme keys** — `apply_theme` rejections
+  like "Unknown theme: material_3" wasted polish passes; the reviewer
+  now receives the available theme registry and is bound to those keys.
+- **Drafter echoed profile aspiration notes verbatim** — generated
+  summaries could quote placeholder/test strings (e.g. "(Test —
+  123123213)"): the drafter prompt treats aspirations as direction,
+  never copy, and the polish reviewer now suggests a summary
+  `set_override` rewrite when it spots artifact text.
+- **CV summary rendered as raw Python dict** — the Summary block
+  (and the markdown/DOCX exports and the length lint) printed the
+  payload dict repr (`{'summary': '…'}`) instead of the objective text
+  whenever the profile had aspirations; the AI polish passes kept
+  "fixing" a value that re-rendered broken every pass. The renderer,
+  metrics and exports now read the payload's text. Regression-tested
+  through the preview API.
+- **Label-only context items rendered empty heads** — interests (and
+  any label-shaped payload) drawn through a generic items block produced
+  empty item titles; `label` joined the title fallback chain.
+
 ### Changed
+- **Bullets are a two-layer model: profile + variants** — the per-CV
+  achievements override layer is gone. Editing an item's bullets in the
+  Context tab now creates/patches a scope-`bullets` variant (reusable
+  across CVs) pinned through a second per-item pin slot
+  (`synth_pins["{source}:{id}:bullets"]`), so a pinned text variant and
+  a pinned bullets variant compose on the same item. A variant that
+  sets achievements now OWNS the list (replace, not prepend); profile
+  bullets render only when no variant sets them. Context-panel bullets
+  variants show a `bullets` badge and pin with their own star. No data
+  migration (pre-release model change).
 - **Goal focus hides out-of-scope tabs completely** — focusing a goal
   (CV / Job matching / Career guidance) now keeps only the Overview and
   the in-scope sections in the rail; Account & data no longer shows
@@ -17,6 +50,20 @@ All notable changes to **Career Assistant** are documented here.
   write the same stored section without clobbering each other's rows.
 
 ### Added
+- **Style briefs reach the template designer** — when the user's
+  generate notes explicitly request a design language (e.g. "Material
+  3 expressive") and the polish passes can't get the render there, the
+  reviewer raises a `style` finding and the pipeline escalates the
+  brief to the AI template designer (once per run, modified rung,
+  keep-or-revert like the structural ladder).
+- **`elevation` design token** — `none` / `soft` / `raised` card
+  shadows (Material-3-style) for card-section templates; editable in
+  the template editor's Design tab and available to every AI design
+  surface (builder chat `update_design`, template designer briefs).
+- **Variant edit form gains Delete** — the variant editor (CV Studio
+  Context tab and the variant library) shows a destructive Delete
+  button behind a confirmation; deleting a pinned variant also unpins
+  it from the CV, which falls back to the profile text.
 - **Education workspace: typed Add-entry in the All view** — the Add
   button becomes a dropdown asking whether the new entry is Education,
   Certification or Achievement (specific tabs keep the direct button);

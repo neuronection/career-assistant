@@ -31,6 +31,11 @@ const SECTION_STYLES = [
   { value: "flat", label: "Flat" },
   { value: "card", label: "Card" },
 ];
+const ELEVATIONS = [
+  { value: "none", label: "None" },
+  { value: "soft", label: "Soft" },
+  { value: "raised", label: "Raised" },
+];
 const HEADING_CASES = [
   { value: "uppercase", label: "UPPERCASE" },
   { value: "title", label: "Title" },
@@ -130,6 +135,9 @@ export function DesignTokenEditor({
 
       <Group title={t("templateEditor.sections", { defaultValue: "Sections" })} testId="token-sections">
         <SelectField label={t("templateEditor.sectionStyleLabel")} value={design.section_style} onChange={(section_style) => onChange({ section_style: section_style as CvDesignTokens["section_style"] })} options={SECTION_STYLES} />
+        {design.section_style === "card" && (
+          <SelectField label={t("templateEditor.elevationLabel", { defaultValue: "Elevation" })} value={design.elevation ?? "none"} onChange={(elevation) => onChange({ elevation: elevation as CvDesignTokens["elevation"] })} options={ELEVATIONS} testId="elevation-select" />
+        )}
         <RangeField label={t("templateEditor.cornerRadius")} value={design.corner_radius} min={0} max={6} onChange={(corner_radius) => onChange({ corner_radius })} suffix="mm" />
         <GapsField label={t("templateEditor.sectionGap")} value={design.section_gap_mm} options={[2, 4, 6, 8, 10, 12]} onChange={(section_gap_mm) => onChange({ section_gap_mm })} />
         <GapsField label={t("templateEditor.itemGap")} value={design.item_gap_mm} options={[1, 2, 3, 4, 5, 6]} onChange={(item_gap_mm) => onChange({ item_gap_mm })} />

@@ -4139,7 +4139,8 @@
             "default": "item",
             "enum": [
               "item",
-              "summary"
+              "summary",
+              "bullets"
             ],
             "title": "Scope",
             "type": "string"
@@ -4257,7 +4258,8 @@
             "default": "item",
             "enum": [
               "item",
-              "summary"
+              "summary",
+              "bullets"
             ],
             "title": "Scope",
             "type": "string"

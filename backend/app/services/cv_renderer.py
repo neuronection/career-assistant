@@ -21,6 +21,14 @@ from app.schemas.cv_template import DesignTokens, TemplateContent
 from app.services.cv_blocks import block_area, block_hidden, validate_blocks
 from app.services.cv_languages import display_cefr, is_proficiency_cert, proficiency_for
 
+# Card-section shadow tiers for the `elevation` design token (M3-style;
+# print-tuned — faint even at "raised", invisible on "none").
+ELEVATION_SHADOWS = {
+    "soft": "0 0.6mm 1.6mm rgba(15, 23, 42, 0.10)",
+    "raised": "0 1mm 3mm rgba(15, 23, 42, 0.16)",
+}
+
+
 FONT_STACKS = {
     "sans": "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     "serif": "Georgia, 'Times New Roman', serif",
@@ -91,6 +99,19 @@ def _page_margin_mm(design: DesignTokens) -> int:
     if design.margin_mm is not None:
         return design.margin_mm
     return DENSITY_MARGIN_MM[design.density]
+
+
+def summary_text(snapshot: dict) -> str:
+    """The summary block's plain text.
+
+    `snapshot["summary"]` is the scalar source's payload dict
+    (`{"summary": text}`); readers must never `str()` the dict itself —
+    that rendered raw Python repr onto the document (plan-106 polish
+    bug). Tolerates a pre-flattened string for robustness."""
+    value = snapshot.get("summary")
+    if isinstance(value, dict):
+        return str(value.get("summary") or "")
+    return str(value or "")
 
 
 def esc(value: Any) -> str:
@@ -324,7 +345,7 @@ def _block_lines(
         )
         return lines + _wrap_lines(contact, chars)
     if kind == "summary":
-        return _wrap_lines(str(snapshot.get("summary") or ""), chars) + 1
+        return _wrap_lines(summary_text(snapshot), chars) + 1
     if kind == "items":
         items = _ordered_by_props(snapshot.get(props.source_key) or [], props)
         lines = 1
@@ -491,7 +512,7 @@ def _ordered_by_props(items: list, props: Any) -> list:
 def _render_items(items: list, props: Any) -> str:
     rows = []
     for item in _ordered_by_props(items, props)[: props.max_items]:
-        title = esc(item.get("title") or item.get("program") or "")
+        title = esc(item.get("title") or item.get("program") or item.get("label") or "")
         org = (
             esc(item.get("org") or item.get("institution") or item.get("issuer") or "")
             if props.show_org
@@ -668,7 +689,7 @@ def _render_block(
             bool(basics.get("name")),
         )
     if kind == "summary":
-        text = str(snapshot.get("summary") or "")[: props.max_chars]
+        text = summary_text(snapshot)[: props.max_chars]
         if not text:
             return "", False
         return (
@@ -1149,6 +1170,7 @@ ul.items.items-timeline {{ border-left: 0.4mm solid var(--accent); }}
 .bar-fill {{ display: block; height: 100%; border-radius: 1mm; background: var(--accent); }}
 section.cv-card {{ background: color-mix(in srgb, var(--accent) 6%, var(--background));
      border-radius: {design.corner_radius}mm; padding: 2.5mm 3.5mm; }}
+{f"section.cv-card {{ box-shadow: {ELEVATION_SHADOWS[design.elevation]}; }}" if design.elevation != "none" else ""}
 section.cv-card h2 {{ border-bottom: none; }}
 header.cv-header {{ text-align: {align}; {header_rule}{band_rule} }}
 {band_text}

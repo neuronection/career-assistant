@@ -2,6 +2,46 @@
 
 import uuid
 
+from app.schemas.cv_template import TemplateContent
+from app.services.cv_renderer import render_cv
+
+
+def _render_with_elevation(elevation: str) -> str:
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [
+                {"kind": "summary"},
+                {
+                    "kind": "items",
+                    "props": {"title": "Work", "source_key": "experience"},
+                },
+            ],
+            "design": {"section_style": "card", "elevation": elevation},
+        }
+    )
+    snapshot = {
+        "summary": {"summary": "Objective text."},
+        "experience": [
+            {
+                "title": "DevOps intern",
+                "org": "Acme",
+                "achievements": [{"text": "Cut deploy time 40%"}],
+            }
+        ],
+    }
+    return render_cv(content, snapshot).html
+
+
+def test_elevation_token_shadows_card_sections_only_when_set():
+    raised = _render_with_elevation("raised")
+    soft = _render_with_elevation("soft")
+    none = _render_with_elevation("none")
+    assert "box-shadow: 0 1mm 3mm rgba(15, 23, 42, 0.16)" in raised
+    assert "box-shadow: 0 0.6mm 1.6mm rgba(15, 23, 42, 0.10)" in soft
+    assert "0.16" not in none and "0.10" not in none, (
+        "elevation none emits no card shadow"
+    )
+
 
 async def _second_user(client) -> dict:
     response = await client.post(
@@ -334,6 +374,49 @@ async def test_overrides_patch_snapshot(
     assert patched.status_code == 200, patched.text
     preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers)
     assert "Custom objective" in preview.json()["html"]
+
+
+async def test_summary_renders_objective_text_not_payload_repr(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    """The summary scalar snapshot is the payload dict — the renderer must
+    print its text, never the Python dict repr (plan-106 polish bug)."""
+    cv = await _make_cv(client, auth_headers)
+    preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers)
+    html = preview.json()["html"]
+    assert "Build my own app" in html, "the profile objective renders"
+    assert "{'summary'" not in html and "&#x27;summary&#x27;" not in html, (
+        "no raw payload dict syntax on the document"
+    )
+
+
+async def test_interests_items_render_labels_not_empty_heads(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    """Label-only payloads (interests) render their label as the item
+    title through the generic items block — never empty heads."""
+    cv = await _make_cv(client, auth_headers)
+    patched = await client.patch(
+        f"/api/v1/cv/{cv['id']}",
+        json={
+            "working_content": {
+                "blocks": [
+                    {"kind": "header"},
+                    {
+                        "kind": "items",
+                        "props": {"title": "Interests", "source_key": "interests"},
+                    },
+                ]
+            }
+        },
+        headers=auth_headers,
+    )
+    assert patched.status_code == 200, patched.text
+    preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers)
+    html = preview.json()["html"]
+    assert "Software" in html, "the interest label renders as the item title"
+    empty_head = "<span class='item-title'></span>"
+    assert empty_head not in html, "no empty item heads"
 
 
 async def test_restore_copy_forward(

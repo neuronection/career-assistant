@@ -39,6 +39,7 @@ from app.models.posting_model import JobPosting
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_context_service import resolve
+from app.services.cv_themes import CV_THEMES
 
 
 def _run_ref(state: Mapping[str, Any], stage: str) -> RunRef:
@@ -1095,6 +1096,18 @@ def _structural_fail(critique: dict) -> Optional[str]:
     return None
 
 
+def _style_fail(critique: dict) -> Optional[str]:
+    """The first fail-level style issue message (or None).
+
+    The reviewer raises `area: "style"` only when the user's notes
+    explicitly request a design language and the rendered pages clearly
+    don't reflect it — the hook for the brief→designer escalation."""
+    for issue in critique.get("issues") or []:
+        if issue.get("level") == "fail" and issue.get("area") == "style":
+            return str(issue.get("message") or "")[:400]
+    return None
+
+
 def _public_request(request) -> dict:
     """The trace's `request` block (§0.11): the user's prompt, unaltered."""
     return {
@@ -1236,6 +1249,7 @@ def make_review_node(deps: GraphDeps):
             notes=str(request.notes or ""),
             synth_applied=dict(resolution.synth_applied or {}),
             overrides=override_summary,
+            themes=[{"key": theme.key, "label": theme.label} for theme in CV_THEMES],
             run=_run_ref(state, "cv_draft.review"),
             with_ref=True,
         )
@@ -1571,8 +1585,10 @@ def make_fix_node(deps: GraphDeps):
             "mode": redesign.get("mode"),
         }
 
-    async def _redesign_once(db, state, cv, mode: str) -> Optional[dict]:
-        """The structural escape hatch, two rungs (escalating ladder).
+    async def _redesign_once(
+        db, state, cv, mode: str, problem: Optional[str] = None
+    ) -> Optional[dict]:
+        """The escape hatch, two rungs (escalating ladder).
 
         `modified` (first): a copy of the current template patched by the
         designer against the critique — keeps the template's identity.
@@ -1580,7 +1596,8 @@ def make_fix_node(deps: GraphDeps):
         AI-drafted private template. Both publish DRAFT through the
         template version control, switch to the result and re-merge the
         current content onto the new skeleton — the next review judges
-        keep-or-revert."""
+        keep-or-revert. `problem` overrides the critique-derived message
+        (the style-brief escalation passes the reviewer's style gap)."""
         from sqlalchemy.orm.attributes import flag_modified
 
         from app.ai.agents.cv_template_designer import draft_template
@@ -1589,7 +1606,11 @@ def make_fix_node(deps: GraphDeps):
         from app.services.cv_template_service import CvTemplateService
 
         request = _request(state)
-        message = _structural_fail(dict(state.get("critique") or {}))
+        message = (
+            problem
+            if problem is not None
+            else _structural_fail(dict(state.get("critique") or {}))
+        )
         current, _template_id = await CvBuilderService(db).template_content(cv)
         block_mix = [
             str(block.get("kind"))
@@ -1597,14 +1618,18 @@ def make_fix_node(deps: GraphDeps):
         ]
         previous_template_id = str(cv.template_id) if cv.template_id else ""
         if mode == "modified":
+            goal = (
+                "so the render matches the user's style request"
+                if problem is not None
+                else "so the persistent layout problem goes away"
+            )
             template_content = await draft_template(
                 db,
                 UUID(state["user_id"]),
                 brief=(
-                    f"Adapt this CV template so the persistent layout "
-                    f"problem goes away. Problem: {message}. Current "
-                    f"block mix: {block_mix}. Preserve the design; "
-                    f"restructure areas/sections as needed."
+                    f"Adapt this CV template {goal}. Problem: {message}. "
+                    f"Current block mix: {block_mix}. Preserve the "
+                    f"design; restructure areas/sections as needed."
                 ),
                 density=current.design.density,
                 page_budget=int(request.max_pages),
@@ -1677,8 +1702,28 @@ def make_fix_node(deps: GraphDeps):
             if _structural_fail(critique)
             else 0
         )
+        style_fail = _style_fail(critique)
+        polish["style_fails"] = (
+            int(polish.get("style_fails") or 0) + 1 if style_fail else 0
+        )
         redesign_pending = bool((polish.get("redesign") or {}).get("pending"))
         stage = str(polish.get("redesign_stage") or "")
+        if (
+            style_fail
+            and not redesign_pending
+            and not polish.get("style_redesign_done")
+            and polish["style_fails"] >= 2
+            and applied < MAX_OPS_PER_ITERATION
+        ):
+            # The brief→designer escalation (once per run, modified rung
+            # only): the reviewer flagged the render as ignoring an
+            # explicit design-language request, so the template designer
+            # re-authors the CV's design instead of more token nudges.
+            polish["style_redesign_done"] = True
+            polish["redesign"] = await _redesign_once(
+                deps.db, state, cv, "modified", problem=style_fail
+            ) or {"drafted": True}
+            redesign_pending = bool((polish.get("redesign") or {}).get("pending"))
         if (
             _structural_fail(critique)
             and stage != "fresh"

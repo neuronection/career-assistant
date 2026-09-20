@@ -18,6 +18,7 @@ export interface CvDesignTokens {
   margin_mm: number | null;
   section_style: "flat" | "card";
   corner_radius: number;
+  elevation: "none" | "soft" | "raised";
   heading_case: "uppercase" | "title" | "none";
   heading_weight: number;
   heading_rule: "line" | "none" | "accent";

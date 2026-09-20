@@ -172,7 +172,10 @@ AREA_RULES = (
     '`design.font_stack` accepts "embedded-sans" / "embedded-serif" '
     "(bundled OFL fonts) alongside sans/serif/mixed/geometric. "
     '`design.header_style`="band" paints the header as a filled '
-    "accent panel."
+    'accent panel. `design.section_style`="card" turns sections into '
+    "tinted rounded containers — pair with `design.corner_radius` and "
+    '`design.elevation` ("soft"/"raised") for layered, expressive '
+    "looks (Material-3-style); elevation prints a faint card shadow."
 )
 
 

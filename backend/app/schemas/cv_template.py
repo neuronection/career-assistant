@@ -51,6 +51,9 @@ class DesignTokens(BaseModel):
     # Modern-layout tokens: section containers, corners, heading style.
     section_style: Literal["flat", "card"] = "flat"
     corner_radius: int = Field(default=0, ge=0, le=6)
+    # Card-section elevation (Material-3-style shadow tiers); visible
+    # only when section_style is "card".
+    elevation: Literal["none", "soft", "raised"] = "none"
     heading_case: Literal["uppercase", "title", "none"] = "uppercase"
     heading_weight: int = Field(default=600, ge=400, le=800)
     # Two-column layout: a colored sidebar holds its assigned blocks.

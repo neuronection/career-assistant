@@ -98,6 +98,7 @@ const EMPTY_CONTENT: TemplateContent = {
     density: "normal",
     margin_mm: null,
     section_style: "flat",
+    elevation: "none",
     corner_radius: 0,
     heading_case: "uppercase",
     heading_weight: 600,

@@ -46,7 +46,24 @@ REVIEW_SYSTEM = (
     "content (set_context exclude, remove_block, a smaller skills "
     "max_items) only when even the compact layout cannot fit it. "
     "Sidebar content that clips or wraps badly says widen "
-    "sidebar_width_pct or densify, never drop the section."
+    "sidebar_width_pct or densify, never drop the section. "
+    "When the brief explicitly names a design language or aesthetic "
+    "(e.g. 'Material 3 expressive', 'minimal swiss', 'brutalist') and "
+    "the rendered pages clearly do not reflect it even after the safe "
+    'token fixes you can suggest, add an issue with area "style": '
+    'level "fail" (the render missed an explicitly requested look — '
+    "this routes the brief to the template designer) when the request "
+    'is explicit and unaddressed, otherwise "warn"; describe the gap '
+    "concretely against the brief and suggest update_design/"
+    "apply_theme as the first remedy. apply_theme's theme_key MUST be "
+    "one of the keys listed in the context's `themes` — never invent "
+    "one; when no listed theme fits, use update_design tokens instead. "
+    "If the summary or an override field carries obvious "
+    "placeholder/test artifacts (e.g. '(Test — 123123213)') or notes "
+    "copied verbatim from the profile's aspirations, suggest a "
+    "set_override op (source_key summary, field summary) rewriting it "
+    "into clean, professional prose — direction from the profile "
+    "informs the text, it is never quoted."
 )
 
 
@@ -269,6 +286,7 @@ async def review_build(
     notes: str = "",
     synth_applied: Optional[dict] = None,
     overrides: Optional[dict] = None,
+    themes: Optional[list[dict]] = None,
     run: Optional[RunRef] = None,
     with_ref: Literal[False] = False,
 ) -> CvBuildCritique: ...
@@ -290,6 +308,7 @@ async def review_build(
     notes: str = "",
     synth_applied: Optional[dict] = None,
     overrides: Optional[dict] = None,
+    themes: Optional[list[dict]] = None,
     run: Optional[RunRef] = None,
     with_ref: Literal[True] = True,
 ) -> "tuple[CvBuildCritique, dict]": ...
@@ -310,6 +329,7 @@ async def review_build(
     notes: str = "",
     synth_applied: Optional[dict] = None,
     overrides: Optional[dict] = None,
+    themes: Optional[list[dict]] = None,
     run: Optional[RunRef] = None,
     with_ref: bool = False,
 ) -> "CvBuildCritique | tuple[CvBuildCritique, dict]":
@@ -340,6 +360,7 @@ async def review_build(
             ],
             "synth_applied": synth_applied or {},
             "override_fields": overrides or {},
+            "themes": themes or [],
             "page_count": page_count,
             "max_pages": max_pages,
             "iteration": iteration,

@@ -31,6 +31,7 @@ from app.services.cv_renderer import (
     default_section_title,
     _display_link,
     custom_text_blocks,
+    summary_text,
 )
 from app.services.cv_blocks import block_area, block_hidden
 
@@ -145,7 +146,7 @@ def _visible_blocks(blocks: list[dict], snapshot: dict) -> list[tuple[str, dict,
             continue
         if kind == "summary":
             if snapshot.get("summary"):
-                visible.append((kind, props, {"summary": snapshot["summary"]}))
+                visible.append((kind, props, {"summary": summary_text(snapshot)}))
             continue
         if kind == "synth_items":
             entries = snapshot.get("synth") or []
@@ -577,7 +578,7 @@ def lint(
                     f"A {source_key} item has no start date.",
                 )
                 break
-    if len(str(snapshot.get("summary") or "")) > 600:
+    if len(summary_text(snapshot)) > 600:
         add("summary_length", "info", "Summary exceeds ~600 characters.")
     for kind, props, data in _visible_blocks(blocks, snapshot):
         if kind != "letter":

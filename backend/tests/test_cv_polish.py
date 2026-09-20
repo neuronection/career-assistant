@@ -428,6 +428,57 @@ async def test_structural_redesign_escape_hatch_triggers_and_keeps(
     assert trace["redesign"].get("pending") is False
 
 
+async def test_style_brief_redesign_escalates_once_and_keeps(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """A persistent fail-level `style` finding (an explicitly requested
+    design language the render ignores) escalates the brief to the
+    template designer — once, on the modified rung — and the clean
+    review keeps it. The structural ladder stays independent."""
+    from app.ai.agents.context import parse_context
+
+    def _critique(schema, prompt):
+        context = parse_context(prompt)
+        iteration = int(context.get("iteration") or 0)
+        if iteration < 2:
+            return {
+                "summary": "The render misses the requested look.",
+                "issues": [
+                    {
+                        "level": "fail",
+                        "area": "style",
+                        "message": (
+                            "The pages do not reflect the requested "
+                            "Material 3 expressive style."
+                        ),
+                    }
+                ],
+                "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+            }
+        return {
+            "summary": "Restyled build looks ready.",
+            "issues": [],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    monkeypatch.setitem(MOCK_FIXTURES, AITaskType.CV_BUILD_REVIEW.value, _critique)
+    await _experience(client, auth_headers)
+    result = await _generate(db, auth_headers)
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    trace = (await _latest_final_version(db, cv)).content["polish"]
+    assert trace["outcome"]["status"] == "completed"
+    assert trace.get("style_redesign_done") is True
+    redesigns = [
+        r for iteration in trace["iterations"] for r in iteration.get("redesign") or []
+    ]
+    assert any(r.get("mode") == "modified" for r in redesigns), redesigns
+    assert any(r["verdict"] == "kept" for r in redesigns), redesigns
+    assert trace.get("redesign_stage", "") == "", (
+        "the structural ladder stays untouched by the style escalation"
+    )
+
+
 async def test_redesign_ladder_escapes_to_fresh_when_modified_reverts(
     client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
 ):
