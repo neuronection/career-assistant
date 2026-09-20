@@ -930,7 +930,9 @@ def make_assemble_node(deps: GraphDeps):
                 drafted = section_of(kind)
                 for item in (drafted or {}).get("items") or []:
                     patch: dict = {}
-                    if str(item.get("text") or "").strip():
+                    # Certifications render head-only: a drafted description
+                    # over a thin fact row reads as fluff (or a duplicate).
+                    if kind != "certifications" and str(item.get("text") or "").strip():
                         patch["description"] = str(item["text"])
                     bullets = [
                         str(bullet)

@@ -5,11 +5,29 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **Profile education card matches the experience card** — the section
+  now carries the same outline "Open workspace" button in the card
+  header (icon + label parity) instead of a plain text link at the
+  bottom.
 - **Sidebar family menu lists Desktop Assistant** — new row (library
   `DesktopMark`, linking to neuronection.com/en/desktop/) alongside
   Health / Career / Study.
 
 ### Fixed
+- **Generator restated item headings inside descriptions** — a drafted
+  CV could print a certification twice: the AI description re-opened
+  with the item's own name/issuer (e.g. "**ECPE C2 - Proficiency**,
+  **Michigan** — …"), reading as a duplicate row under the real heading.
+  Certifications now render head-only (name, issuer, date — the profile
+  carries no cert description, so generated description text on them is
+  dropped at the merge funnel, healing existing CVs), and for other
+  sources the drafter prompt forbids restating the item's name/org
+  while the merge funnel strips an echoed lead deterministically.
+- **Desktop downloads were silent no-ops** — in the pywebview shell the
+  Download button (CV export, uploaded originals, data export) did
+  nothing: pywebview 6.2.1 cancels every download unless
+  `ALLOW_DOWNLOADS` is enabled. The shell now enables it; Linux/Windows
+  show a native save dialog preset to the Downloads folder.
 - **Polish-loop template thrash** — the reviewer could tag a style
   complaint as a `layout` fail, which insta-reverted a freshly designed
   template (the generate run ping-ponged between two templates and

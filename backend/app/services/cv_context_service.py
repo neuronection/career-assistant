@@ -10,6 +10,7 @@ preferences, dislikes) is never registered as a render source — it
 cannot leak into a CV.
 """
 
+import re
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -673,6 +674,32 @@ def build_coverage_matrix(
     )
 
 
+def _strip_subject_echo(row: dict, text: str) -> str:
+    """Drop a drafted description's leading restatement of its own row.
+
+    The renderer already prints the item's title/org as the row heading;
+    a description that re-opens with them ("**ECPE C2 - Proficiency**,
+    **Michigan** — …") reads as a duplicate record. Strips the echoed
+    title/org (markdown emphasis tolerated) up to the following dash
+    separator; text without a leading restatement passes through, and a
+    restatement that IS the whole text is kept.
+    """
+    subject = str(
+        row.get("title") or row.get("program") or row.get("label") or ""
+    ).strip()
+    issuer = str(
+        row.get("org") or row.get("institution") or row.get("issuer") or ""
+    ).strip()
+    if not subject or not text:
+        return text
+    pattern = rf"[*_\s]*{re.escape(subject)}[*_\s]*"
+    if issuer:
+        pattern += rf"[,\s]*[*_\s]*{re.escape(issuer)}[*_\s]*"
+    stripped = re.sub(pattern + r"\s*[—–-]+\s*", "", text, count=1, flags=re.IGNORECASE)
+    stripped = stripped.strip()
+    return stripped if stripped else text
+
+
 def apply_overrides(
     snapshot: dict, snapshot_index: dict[str, list[str]], overrides: dict
 ) -> dict:
@@ -691,12 +718,18 @@ def apply_overrides(
     for ref, raw_patches in overrides.items():
         # Two-layer model: achievements come from the root item or a
         # pinned bullets variant — an override patch can never carry them.
+        # Certifications are head-only: their payload has no profile
+        # description, so AI text on the row renders as fluff under the
+        # heading and is dropped at the funnel (heals older CVs).
+        source_key, _, item_id = str(ref).partition(":")
         patches = {
-            key: value for key, value in raw_patches.items() if key != "achievements"
+            key: value
+            for key, value in raw_patches.items()
+            if key != "achievements"
+            and not (source_key == "certifications" and key == "description")
         }
         if not patches:
             continue
-        source_key, _, item_id = str(ref).partition(":")
         key = "summary" if source_key == "summary" else source_key
         if key in SCALAR_KEYS:
             if snapshot_index.get(key, [None])[0] == item_id:
@@ -705,6 +738,11 @@ def apply_overrides(
         rows = [dict(row) for row in patched.get(key) or []]
         for position, ref_id in enumerate(snapshot_index.get(key) or []):
             if ref_id == item_id and position < len(rows):
+                patches = dict(patches)
+                if patches.get("description"):
+                    patches["description"] = _strip_subject_echo(
+                        rows[position], str(patches["description"])
+                    )
                 rows[position] = {**rows[position], **patches}
         patched[key] = rows
     return patched
