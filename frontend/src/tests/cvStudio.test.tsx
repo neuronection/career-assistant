@@ -88,6 +88,7 @@ const refreshSynthSourceState = vi.fn();
 const generateSynthItems = vi.fn();
 const createSynthItem = vi.fn();
 const patchSynthItem = vi.fn();
+const deleteSynthItem = vi.fn();
 
 vi.mock("@/api/universities", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/universities")>();
@@ -184,6 +185,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     createSynthItem: (...args: unknown[]) => createSynthItem(...args),
     generateSynthItems: (...args: unknown[]) => generateSynthItems(...args),
     patchSynthItem: (...args: unknown[]) => patchSynthItem(...args),
+    deleteSynthItem: (...args: unknown[]) => deleteSynthItem(...args),
     refreshSynthSourceState: (...args: unknown[]) =>
       refreshSynthSourceState(...args),
     fetchCvDesign: (...args: unknown[]) => fetchCvDesign(...args),
@@ -2121,6 +2123,31 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     expect(setContext.mock.calls[1][1].synth_pins).toEqual({});
   });
 
+  it("pins a bullets variant into its own :bullets slot", async () => {
+    fetchSynthItems.mockResolvedValue([
+      bulletsVariantRow("syn-b1", ["Cut latency 40%"]),
+    ]);
+    setContext.mockImplementation(async () => ({ ...cv }));
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    expect(
+      await screen.findByTestId("context-variant-bullets-syn-b1"),
+    ).toBeInTheDocument();
+    const star = await screen.findByTestId("context-pin-star-syn-b1");
+    expect(star.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(star);
+    await waitFor(() =>
+      expect(setContext).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({
+          synth_pins: { "experience:exp-1:bullets": "syn-b1" },
+        }),
+      ),
+    );
+  });
+
   it("offers Reset on a stale variant and re-snapshots via the API (plan 102)", async () => {
     fetchSynthItems.mockResolvedValue([
       {
@@ -2185,6 +2212,54 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
         (text.querySelector(".ProseMirror") as HTMLElement | null)?.textContent,
       ).toContain("Nested under its item"),
     );
+  });
+
+  it("deletes the variant from the edit form and unpins it from any slot", async () => {
+    const user = userEvent.setup();
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "tailored",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "Pinned text" },
+        voice: { language: "en" },
+        status: "active",
+        source: "manual",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    fetchCv.mockResolvedValue({
+      ...cv,
+      context: { ...cv.context, synth_pins: { "experience:exp-1": "syn-1" } },
+    });
+    setContext.mockImplementation(async () => ({ ...cv }));
+    deleteSynthItem.mockResolvedValue(undefined);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(await screen.findByTestId("context-variant-edit-syn-1"));
+    await screen.findByTestId("synth-editor-description-input");
+    expect(screen.getByTestId("synth-editor-delete")).toBeInTheDocument();
+    await user.click(screen.getByTestId("synth-editor-delete"));
+    await user.click(
+      await screen.findByRole("button", { name: "Delete" }),
+    );
+    await waitFor(() => expect(deleteSynthItem).toHaveBeenCalledWith("syn-1"));
+    await waitFor(() =>
+      expect(setContext).toHaveBeenCalledWith(
+        "cv-1",
+        expect.objectContaining({ synth_pins: {} }),
+      ),
+    );
+    expect(screen.queryByTestId("synth-editor-delete")).not.toBeInTheDocument();
   });
 
   it("finds variants nested under their own item row, not the group bottom", async () => {
@@ -2607,8 +2682,27 @@ describe("CvBuilder — plan 105 origin-aware sync", () => {
   });
 });
 
+  const bulletsVariantRow = (id: string, texts: string[]) => ({
+  id,
+  scope: "bullets" as const,
+  variant_key: "default",
+  target_posting_id: null,
+  source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+  source_state: [],
+  payload: { achievements: texts.map((text) => ({ text })) },
+  voice: { language: "en" },
+  status: "active",
+  source: "manual",
+  verified: true,
+  stale: false,
+  orphaned: false,
+  last_used_at: null,
+  created_at: "",
+});
+
 describe("CvBuilder — plan 106 bullets editor", () => {
-  it("edits an item's CV-local bullets into the override layer and refetches the preview", async () => {
+
+  it("saves the bullets as a bullets variant and pins it (two-layer model)", async () => {
     const user = userEvent.setup();
     previewCv.mockResolvedValue({
       ...preview,
@@ -2627,6 +2721,10 @@ describe("CvBuilder — plan 106 bullets editor", () => {
         snapshot_index: { experience: ["exp-1"] },
       },
     });
+    createSynthItem.mockResolvedValue(
+      bulletsVariantRow("syn-b1", ["Cut the deploy pipeline to minutes"]),
+    );
+    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
@@ -2646,17 +2744,21 @@ describe("CvBuilder — plan 106 bullets editor", () => {
     await user.click(within(modal).getByTestId("bullets-editor-save"));
     expect(screen.queryByTestId("bullets-editor-modal")).not.toBeInTheDocument();
     await waitFor(() =>
-      expect(patchCv).toHaveBeenCalledWith(
+      expect(createSynthItem).toHaveBeenCalledWith({
+        refs: [{ source_key: "experience", item_id: "exp-1" }],
+        scope: "bullets",
+        payload: {
+          achievements: [{ text: "Cut the deploy pipeline to minutes" }],
+        },
+        voice: { language: "en" },
+      }),
+    );
+    await waitFor(() =>
+      expect(setContext).toHaveBeenCalledWith(
         "cv-1",
         expect.objectContaining({
-          working_content: expect.objectContaining({
-            overrides: expect.objectContaining({
-              "experience:exp-1": expect.objectContaining({
-                achievements: [
-                  { text: "Cut the deploy pipeline to minutes" },
-                ],
-              }),
-            }),
+          synth_pins: expect.objectContaining({
+            "experience:exp-1:bullets": "syn-b1",
           }),
         }),
       ),
@@ -2666,45 +2768,45 @@ describe("CvBuilder — plan 106 bullets editor", () => {
     );
   });
 
-  it("shows the edited chip and reset drops the override key", async () => {
+  it("shows the edited chip for a pinned bullets variant; reset unpins it", async () => {
     const user = userEvent.setup();
     fetchCv.mockResolvedValue({
       ...cv,
-      working_content: {
-        ...cv.working_content,
-        overrides: {
-          "experience:exp-1": {
-            achievements: [{ text: "Tailored bullet" }],
-          },
-        },
+      context: {
+        ...cv.context,
+        synth_pins: { "experience:exp-1:bullets": "syn-b1" },
       },
     });
+    fetchSynthItems.mockResolvedValue([
+      bulletsVariantRow("syn-b1", ["Tailored bullet"]),
+    ]);
+    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
     await user.click(screen.getByTestId("context-bullets-experience:exp-1"));
     const modal = await screen.findByTestId("bullets-editor-modal");
     expect(within(modal).getByTestId("bullets-edited-chip")).toBeInTheDocument();
+    expect(within(modal).getByTestId("bullets-row-0")).toHaveValue(
+      "Tailored bullet",
+    );
     await user.click(within(modal).getByTestId("bullets-editor-reset"));
     const confirms = screen.getAllByRole("button", {
       name: "Reset to profile",
     });
     await user.click(confirms[confirms.length - 1]);
     await waitFor(() =>
-      expect(patchCv).toHaveBeenCalledWith(
+      expect(setContext).toHaveBeenCalledWith(
         "cv-1",
-        expect.objectContaining({
-          working_content: expect.objectContaining({
-            overrides: {},
-          }),
-        }),
+        expect.objectContaining({ synth_pins: {} }),
       ),
     );
+    expect(patchCv).not.toHaveBeenCalled();
   });
 });
 
 describe("CvBuilder — plan 106 bullet action retarget", () => {
-  it("lands bullet proposals in the editor as chips; saving writes the achievements override", async () => {
+  it("lands bullet proposals in the editor as chips; saving writes a bullets variant", async () => {
     const user = userEvent.setup();
     aiAction.mockResolvedValue({
       action: "bullet",
@@ -2745,6 +2847,10 @@ describe("CvBuilder — plan 106 bullet action retarget", () => {
         snapshot_index: { experience: ["exp-1"] },
       },
     });
+    createSynthItem.mockResolvedValue(
+      bulletsVariantRow("syn-b2", ["Shipped the QA harness"]),
+    );
+    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     fireEvent.click(
@@ -2763,27 +2869,21 @@ describe("CvBuilder — plan 106 bullet action retarget", () => {
     ).toHaveValue("Cut the deploy pipeline to minutes");
     await user.click(within(modal).getByTestId("bullets-editor-save"));
     await waitFor(() =>
-      expect(patchCv).toHaveBeenCalledWith(
-        "cv-1",
-        expect.objectContaining({
-          working_content: expect.objectContaining({
-            overrides: expect.objectContaining({
-              "experience:exp-1": expect.objectContaining({
-                achievements: [
-                  { text: "Shipped the QA harness" },
-                  { text: "Cut the deploy pipeline to minutes" },
-                  { text: "Cut flaky retries by ~<your number>%" },
-                ],
-              }),
-            }),
-          }),
-        }),
-      ),
+      expect(createSynthItem).toHaveBeenCalledWith({
+        refs: [{ source_key: "experience", item_id: "exp-1" }],
+        scope: "bullets",
+        payload: {
+          achievements: [
+            { text: "Shipped the QA harness" },
+            { text: "Cut the deploy pipeline to minutes" },
+            { text: "Cut flaky retries by ~<your number>%" },
+          ],
+        },
+        voice: { language: "en" },
+      }),
     );
-    const body = patchCv.mock.calls[patchCv.mock.calls.length - 1][1];
-    expect(
-      body.working_content.overrides["experience:exp-1"].description,
-    ).toBeUndefined();
+    const body = createSynthItem.mock.calls[createSynthItem.mock.calls.length - 1][0];
+    expect(body.payload.description).toBeUndefined();
   });
 });
 
@@ -2827,6 +2927,10 @@ describe("CvBuilder — plan 106 slice 5 generate-fill", () => {
         snapshot_index: { experience: ["exp-1"] },
       },
     });
+    createSynthItem.mockResolvedValue(
+      bulletsVariantRow("syn-b3", ["Shipped the QA harness"]),
+    );
+    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
@@ -2848,21 +2952,17 @@ describe("CvBuilder — plan 106 slice 5 generate-fill", () => {
     await user.click(within(modal).getByTestId("bullet-chips-confirm"));
     await user.click(within(modal).getByTestId("bullets-editor-save"));
     await waitFor(() =>
-      expect(patchCv).toHaveBeenCalledWith(
-        "cv-1",
-        expect.objectContaining({
-          working_content: expect.objectContaining({
-            overrides: expect.objectContaining({
-              "experience:exp-1": expect.objectContaining({
-                achievements: [
-                  { text: "Shipped the QA harness" },
-                  { text: "Automated the release train end to end" },
-                ],
-              }),
-            }),
-          }),
-        }),
-      ),
+      expect(createSynthItem).toHaveBeenCalledWith({
+        refs: [{ source_key: "experience", item_id: "exp-1" }],
+        scope: "bullets",
+        payload: {
+          achievements: [
+            { text: "Shipped the QA harness" },
+            { text: "Automated the release train end to end" },
+          ],
+        },
+        voice: { language: "en" },
+      }),
     );
   });
 });

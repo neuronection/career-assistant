@@ -219,7 +219,7 @@ export async function fetchSynthItems(
 
 export async function createSynthItem(body: {
   refs: CvContextRef[];
-  scope: "item" | "summary";
+  scope: "item" | "summary" | "bullets";
   payload: CvSynthPayload;
   variant_key?: string;
   target_posting_id?: string;

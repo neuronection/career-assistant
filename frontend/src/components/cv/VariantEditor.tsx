@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, List, Plus, Sparkles, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, List, Plus, Sparkles, Trash2, X } from "lucide-react";
 import {
   Button,
+  ConfirmationModal,
   Modal,
   ModalContent,
   ModalHeader,
@@ -59,6 +60,8 @@ interface VariantEditorProps {
   }>;
   onUseSaved?: (body: VariantEditorBody) => Promise<void>;
   onActivate?: () => Promise<void> | void;
+  /** Deletes the edited variant (editing only); the caller unpins it. */
+  onDelete?: () => Promise<void> | void;
   onClose: () => void;
   onSubmit: (body: VariantEditorBody) => Promise<void>;
 }
@@ -126,11 +129,13 @@ export function VariantEditor({
   onGenerate,
   onUseSaved,
   onActivate,
+  onDelete,
   onClose,
   onSubmit,
 }: VariantEditorProps) {
   const { t } = useTranslation();
   const editing = initial !== null;
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [refs, setRefs] = useState<string[]>(
     initial
       ? (initial.source_refs ?? []).map((ref) => refKey(ref.source_key, ref.item_id))
@@ -815,27 +820,60 @@ export function VariantEditor({
             </section>
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[var(--as-border)] px-6 py-4">
-          <Button variant="outline" onClick={onClose} data-testid="synth-editor-cancel">
-            {t("common.cancel")}
-          </Button>
-          <Button
-            disabled={!canSave || busy}
-            data-testid="synth-editor-save"
-            onClick={() => void save()}
-          >
-            {editing ? t("common.save") : t("cvSynth.editor.create")}
-          </Button>
-          {onUseSaved && (
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--as-border)] px-6 py-4">
+          {editing && onDelete ? (
+            <Button
+              variant="ghost"
+              className="text-[var(--as-danger)] hover:bg-[color-mix(in_srgb,var(--as-danger)_10%,transparent)]"
+              disabled={busy}
+              data-testid="synth-editor-delete"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />{" "}
+              {t("cvSynth.editor.delete", { defaultValue: "Delete" })}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} data-testid="synth-editor-cancel">
+              {t("common.cancel")}
+            </Button>
             <Button
               disabled={!canSave || busy}
-              data-testid="synth-editor-save-use"
-              onClick={() => void saveAndUse()}
+              data-testid="synth-editor-save"
+              onClick={() => void save()}
             >
-              {t("cvSynth.editor.saveAndUse", { defaultValue: "Save & use this" })}
+              {editing ? t("common.save") : t("cvSynth.editor.create")}
             </Button>
-          )}
+            {onUseSaved && (
+              <Button
+                disabled={!canSave || busy}
+                data-testid="synth-editor-save-use"
+                onClick={() => void saveAndUse()}
+              >
+                {t("cvSynth.editor.saveAndUse", { defaultValue: "Save & use this" })}
+              </Button>
+            )}
+          </div>
         </div>
+        <ConfirmationModal
+          open={confirmDelete}
+          onOpenChange={(open) => !open && setConfirmDelete(false)}
+          title={t("cvSynth.editor.deleteTitle", {
+            defaultValue: "Delete this variant?",
+          })}
+          description={t("cvSynth.editor.deleteBody", {
+            defaultValue:
+              "It is removed from your variant library. CVs that pinned it fall back to the profile text.",
+          })}
+          confirmLabel={t("cvSynth.editor.delete", { defaultValue: "Delete" })}
+          destructive
+          onConfirm={() => {
+            setConfirmDelete(false);
+            void onDelete?.();
+          }}
+        />
       </ModalContent>
     </Modal>
   );

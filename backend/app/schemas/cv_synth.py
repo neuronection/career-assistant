@@ -15,6 +15,7 @@ from app.schemas.cv import CvContextRef, CvContextSelection
 from app.services.rich_text import validate_rich_text
 
 CvSynthAction = Literal["summarize", "detail", "restyle", "posting_fit", "translate"]
+CvSynthScope = Literal["item", "summary", "bullets"]
 CvSynthStateStatus = Literal["draft", "active", "archived"]
 
 
@@ -62,7 +63,7 @@ class CvSynthItemCreate(BaseModel):
     """Manual variant creation (user-written text, no AI)."""
 
     refs: list[CvContextRef] = Field(min_length=1, max_length=5)
-    scope: Literal["item", "summary"] = "item"
+    scope: CvSynthScope = "item"
     payload: CvSynthPayload
     variant_key: str = Field(default="default", min_length=1, max_length=60)
     target_posting_id: Optional[uuid.UUID] = None
@@ -82,7 +83,7 @@ class CvSynthItemGenerate(BaseModel):
 
     refs: list[CvContextRef] = Field(min_length=1, max_length=40)
     action: CvSynthAction = "summarize"
-    scope: Literal["item", "summary"] = "item"
+    scope: CvSynthScope = "item"
     posting_id: Optional[uuid.UUID] = None
     language: str = Field(default="en", min_length=2, max_length=10)
     target_language: Optional[str] = Field(default=None, min_length=2, max_length=10)

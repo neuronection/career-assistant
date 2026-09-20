@@ -23,7 +23,12 @@ interface ContextPanelProps {
   onAddVariant?: (sourceKey: string) => void;
   /** Plan 72 follow-up: per-item variant pinning (`context.synth_pins`). */
   synthPins?: Record<string, string>;
-  onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  onPinVariant?: (
+    sourceKey: string,
+    itemId: string,
+    synthId: string | null,
+    slot?: "text" | "bullets"
+  ) => void;
   onEditVariant?: (variant: CvSynthItem) => void;
   /** Plan 102: re-snapshot a stale variant's source hashes (review button). */
   onResetVariant?: (variant: CvSynthItem) => void;
@@ -31,8 +36,7 @@ interface ContextPanelProps {
   onAddItem?: (sourceKey: string) => void;
   /** Plan 105: edit the profile entity behind a context item. */
   onEditItem?: (sourceKey: string, itemId: string) => void;
-  /** Plan 106: edit the CV-local bullets (override layer) of an
-   * experience-kind item. */
+  /** Plan 106: edit the item's bullets (the pinned bullets variant). */
   onEditBullets?: (sourceKey: string, itemId: string) => void;
 }
 
@@ -42,38 +46,61 @@ function refKeyOf(sourceKey: string, itemId: string): string {
 
 function variantText(variant: CvSynthItem): string {
   const payload = variant.payload || {};
+  if (variant.scope === "bullets") {
+    return (payload.achievements ?? [])
+      .map((entry) => entry.text)
+      .filter(Boolean)
+      .join(" · ");
+  }
   return payload.description || payload.summary || "";
 }
+
+type PinSlot = "text" | "bullets";
 
 function PinStar({
   pinned,
   variant,
   sourceKey,
   itemId,
+  slot = "text",
   onPin,
 }: {
   pinned: boolean;
   variant: CvSynthItem;
   sourceKey: string;
   itemId: string;
-  onPin?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  /** Which per-item pin slot this star controls (plan-106 rework). */
+  slot?: PinSlot;
+  onPin?: (
+    sourceKey: string,
+    itemId: string,
+    synthId: string | null,
+    slot?: PinSlot
+  ) => void;
 }) {
+  const kind = slot === "bullets" ? "bullets variant" : "variant";
   return (
     <button
       type="button"
       aria-pressed={pinned}
       aria-label={
         pinned
-          ? `Unpin variant ${variant.variant_key} for this item`
-          : `Make variant ${variant.variant_key} the default for this item`
+          ? `Unpin ${kind} ${variant.variant_key} for this item`
+          : `Make ${kind} ${variant.variant_key} the default for this item`
       }
       title={
-        pinned
-          ? "Unpin — the best matching variant applies again"
-          : "Make default for this item"
+        slot === "bullets"
+          ? pinned
+            ? "Unpin — profile bullets render again"
+            : "Make default bullets for this item"
+          : pinned
+            ? "Unpin — the best matching variant applies again"
+            : "Make default for this item"
       }
       data-testid={`context-pin-star-${variant.id}`}
-      onClick={() => onPin?.(sourceKey, itemId, pinned ? null : variant.id)}
+      onClick={() =>
+        onPin?.(sourceKey, itemId, pinned ? null : variant.id, slot)
+      }
       className={`shrink-0 cursor-pointer rounded p-0.5 transition-colors hover:bg-[var(--as-muted)] ${variant.status === "active" ? "" : "opacity-70"}`}
     >
       <Star
@@ -100,6 +127,7 @@ function VariantsForItem({
   itemId,
   variants,
   pinnedId,
+  pinnedBulletsId,
   onPinVariant,
   onEditVariant,
   onResetVariant,
@@ -108,7 +136,13 @@ function VariantsForItem({
   itemId: string;
   variants: CvSynthItem[];
   pinnedId: string | undefined;
-  onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  pinnedBulletsId: string | undefined;
+  onPinVariant?: (
+    sourceKey: string,
+    itemId: string,
+    synthId: string | null,
+    slot?: PinSlot
+  ) => void;
   onEditVariant?: (variant: CvSynthItem) => void;
   /** Plan 102: re-snapshot a stale variant's source hashes (review button). */
   onResetVariant?: (variant: CvSynthItem) => void;
@@ -133,6 +167,14 @@ function VariantsForItem({
               <span className="shrink-0 text-[10px] font-medium text-[var(--as-accent)]">
                 {variant.variant_key}
               </span>
+              {variant.scope === "bullets" && (
+                <span
+                  className="shrink-0 rounded-full border border-[var(--as-border)] px-1.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
+                  data-testid={`context-variant-bullets-${variant.id}`}
+                >
+                  bullets
+                </span>
+              )}
               {variant.stale && <AmberBadge testId="context-variant-stale">stale</AmberBadge>}
               {variant.stale && onResetVariant && (
                 <button
@@ -155,10 +197,14 @@ function VariantsForItem({
             )}
           </span>
           <PinStar
-            pinned={pinnedId === variant.id}
+            pinned={
+              (variant.scope === "bullets" ? pinnedBulletsId : pinnedId) ===
+              variant.id
+            }
             variant={variant}
             sourceKey={sourceKey}
             itemId={itemId}
+            slot={variant.scope === "bullets" ? "bullets" : "text"}
             onPin={onPinVariant}
           />
           {onEditVariant && (
@@ -204,7 +250,12 @@ function GroupRow({
   variants: CvSynthItem[];
   onAddVariant?: (sourceKey: string) => void;
   synthPins: Record<string, string>;
-  onPinVariant?: (sourceKey: string, itemId: string, synthId: string | null) => void;
+  onPinVariant?: (
+    sourceKey: string,
+    itemId: string,
+    synthId: string | null,
+    slot?: "text" | "bullets"
+  ) => void;
   onEditVariant?: (variant: CvSynthItem) => void;
   onResetVariant?: (variant: CvSynthItem) => void;
   onAddItem?: (sourceKey: string) => void;
@@ -381,6 +432,7 @@ function GroupRow({
                     itemId={item.item_id}
                     variants={variants}
                     pinnedId={synthPins[key]}
+                    pinnedBulletsId={synthPins[`${key}:bullets`]}
                     onPinVariant={onPinVariant}
                     onEditVariant={onEditVariant}
                     onResetVariant={onResetVariant}

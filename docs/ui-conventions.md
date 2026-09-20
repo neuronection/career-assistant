@@ -70,9 +70,11 @@ centered `max-w-7xl` column:
   always visible, never hover-reveal, and the CV-specific variant
   actions stay in their sub-row. Experience-kind rows add a fourth
   affordance, the plan-106 **Bullets editor** (`context-bullets-…` →
-  `ItemBulletsEditorModal`): the CV-local override layer
-  (`working_content.overrides`) with the resolved snapshot list as
-  base, an "Edited for this CV" chip, Reset-to-profile, a resolved
+  `ItemBulletsEditorModal`): the two-layer bullets model — saving
+  creates/patches a scope-`bullets` VARIANT pinned via the item's
+  `:bullets` synth-pin slot (no CV-local override for achievements),
+  with the resolved snapshot list as base, an "Edited for this CV"
+  chip, Reset-to-profile (unpin), a resolved
   "on the CV now" head, and AI bullets landing as ephemeral
   keep/discard chips (never auto-applied; generate-fill rides the
   bullet action with the plan-103 dirty-guard). The modal hosts the

@@ -43,18 +43,29 @@ from app.services.engagement_service import canonical_hash
 
 NO_SYNTH_SOURCES = {"basics"}
 SYNC_LIMIT = 5
+BULLETS_PIN_SUFFIX = ":bullets"
+TEXT_SCOPES = ("item", "summary")
 
 
 def swap_variant_payload(
     payload: dict, ref: tuple[str, str], variant: CvSynthItem
 ) -> None:
-    """Swap one variant's text into an item payload (plan-62 semantics).
+    """Swap one variant's text into an item payload (plan-62 semantics,
+    two-layer model): a variant that sets a field OWNS it.
 
-    Bullets ride the canonical `achievements: [{"text"}]` shape (plan
-    106); a variant's entries are PREPENDED to the item's own."""
+    Bullets-scope variants swap ONLY the canonical `achievements:
+    [{"text"}]` list (plan 106 shape) — description/summary stay with
+    the profile or the text slot's pinned variant. A variant that sets
+    achievements REPLACES the profile's list (generated from that
+    item's evidence, staleness hashes catch drift); without
+    achievements the profile bullets render untouched."""
     if not isinstance(payload, dict):
         return
     synth = variant.payload or {}
+    if variant.scope == "bullets":
+        if synth.get("achievements"):
+            payload["achievements"] = list(synth["achievements"])
+        return
     if ref[0] == "summary":
         payload["summary"] = synth.get("summary") or payload.get("summary")
         return
@@ -63,9 +74,7 @@ def swap_variant_payload(
     if synth.get("summary"):
         payload["summary"] = synth["summary"]
     if synth.get("achievements"):
-        payload["achievements"] = list(synth["achievements"]) + list(
-            payload.get("achievements") or []
-        )
+        payload["achievements"] = list(synth["achievements"])
 
 
 def _now() -> datetime:
@@ -166,7 +175,10 @@ class CvSynthService:
             {"source_key": r.source_key, "item_id": r.item_id} for r in payload.refs
         ]
         _validate_refs(refs)
-        if not payload.payload.text() and not payload.payload.achievements:
+        if payload.scope == "bullets":
+            if not payload.payload.achievements:
+                raise ValidationError("A bullets variant needs at least one bullet")
+        elif not payload.payload.text() and not payload.payload.achievements:
             raise ValidationError("A variant needs text")
         context = await _context_index(self.db, user_id)
         row = CvSynthItem(
@@ -184,8 +196,13 @@ class CvSynthService:
             source=CvSynthSource.MANUAL.value,
             verified=True,
         )
-        await self._supersede_slot(row)
         self.db.add(row)
+        # Flush first so the row's id exists — `_supersede_slot`'s
+        # `id != row.id` filter is SQL-NULL against an unflushed row and
+        # would silently skip supersede on creation (plan-102 contract:
+        # an ACTIVE row archives its slot siblings, create included).
+        await self.db.flush()
+        await self._supersede_slot(row)
         await self.db.commit()
         await self.db.refresh(row)
         return row
@@ -305,13 +322,23 @@ class CvSynthService:
 
         Supersede is the plan's contract: approving a regenerate (or any
         variant activation) retires the slot's previous owner, draft or
-        active — the slot is a one-variant window."""
+        active — the slot is a one-variant window. Slots partition by
+        scope family: text variants ('item'/'summary') and bullets
+        variants never supersede each other — one item can hold a pinned
+        text variant AND a pinned bullets variant."""
         siblings = await self.db.execute(
             select(CvSynthItem).where(
                 CvSynthItem.user_id == row.user_id,
                 CvSynthItem.source_set_hash == row.source_set_hash,
                 CvSynthItem.variant_key == row.variant_key,
-                CvSynthItem.target_posting_id == row.target_posting_id,
+                (
+                    CvSynthItem.target_posting_id.is_(None)
+                    if row.target_posting_id is None
+                    else CvSynthItem.target_posting_id == row.target_posting_id
+                ),
+                CvSynthItem.scope.in_(
+                    ("bullets",) if row.scope == "bullets" else TEXT_SCOPES
+                ),
                 CvSynthItem.status != CvSynthStatus.ARCHIVED.value,
                 CvSynthItem.id != row.id,
             )
@@ -650,6 +677,7 @@ class CvSynthService:
                     select(CvSynthItem).where(
                         CvSynthItem.user_id == user_id,
                         CvSynthItem.status == CvSynthStatus.ACTIVE.value,
+                        CvSynthItem.scope.in_(TEXT_SCOPES),
                     )
                 )
             )
@@ -726,46 +754,102 @@ class CvSynthService:
 
         Pins-only semantics (V2): a starred variant replaces that item's
         text on its own; unpinned items render verbatim profile text.
+        Two pin slots per item — `"{source}:{id}"` for the text variant
+        and `"{source}:{id}:bullets"` for the bullets variant — so a
+        pinned text variant and a pinned bullets variant compose (the
+        two-layer model: profile truth + variants, no bullets override).
         Precedence `override > synth > source` holds because the editor's
         `apply_overrides` runs AFTER this (the builder calls it in
         `render_state`), so a manual field patch always wins. Returns
-        the `synth_applied` trace map (`{ref_key: synth_id}`) recorded
-        into `CvVersion` `context_resolution` at compile."""
+        the `synth_applied` trace map (`{ref_key: synth_id}`, bullets
+        slots keyed `{ref_key}:bullets`) recorded into `CvVersion`
+        `context_resolution` at compile."""
         if not pins:
             return {}
+        text_pins = {
+            key: value
+            for key, value in pins.items()
+            if not key.endswith(BULLETS_PIN_SUFFIX)
+        }
+        bullets_pins = {
+            key[: -len(BULLETS_PIN_SUFFIX)]: value
+            for key, value in pins.items()
+            if key.endswith(BULLETS_PIN_SUFFIX)
+        }
+        applied: dict[str, str] = {}
         ref_by_id: dict[str, str] = {}
         for key, ids in resolution.snapshot_index.items():
             for item_id in ids:
                 ref_by_id.setdefault(item_id, key)
-        matches = await self.match_for_user(
-            user_id,
-            language,
-            target_posting_id,
-            refs=[(key, item_id) for item_id, key in ref_by_id.items()],
-            pins=pins,
-        )
-        matches = {
-            ref: variant
-            for ref, variant in matches.items()
-            if str(pins.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
-        }
-        if not matches:
-            return {}
-        for (source_key, item_id), variant in matches.items():
-            ref = (source_key, item_id)
-            for item in resolution.items:
-                if item.item_id == item_id:
-                    swap_variant_payload(item.payload, ref, variant)
-            index = resolution.snapshot_index.get(source_key) or []
-            rows = resolution.snapshot.get(source_key)
-            if isinstance(rows, dict):
-                swap_variant_payload(rows, ref, variant)
-            else:
-                for position, existing in enumerate(index or []):
-                    if existing == item_id and position < len(rows):
-                        swap_variant_payload(rows[position], ref, variant)
-        await self.mark_used([variant.id for variant in matches.values()])
-        return {
-            f"{source_key}:{item_id}": str(variant.id)
-            for (source_key, item_id), variant in matches.items()
-        }
+        if text_pins:
+            matches = await self.match_for_user(
+                user_id,
+                language,
+                target_posting_id,
+                refs=[(key, item_id) for item_id, key in ref_by_id.items()],
+                pins=text_pins,
+            )
+            matches = {
+                ref: variant
+                for ref, variant in matches.items()
+                if str(text_pins.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
+            }
+            for (source_key, item_id), variant in matches.items():
+                self._swap_ref(resolution, source_key, item_id, variant)
+                applied[f"{source_key}:{item_id}"] = str(variant.id)
+            if matches:
+                await self.mark_used([variant.id for variant in matches.values()])
+        if bullets_pins:
+            bullets_rows = (
+                (
+                    await self.db.execute(
+                        select(CvSynthItem).where(
+                            CvSynthItem.user_id == user_id,
+                            CvSynthItem.scope == "bullets",
+                            CvSynthItem.status == CvSynthStatus.ACTIVE.value,
+                            CvSynthItem.id.in_(
+                                [value for value in bullets_pins.values() if value]
+                            ),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            by_id = {str(row.id): row for row in bullets_rows}
+            for ref_key, synth_id in bullets_pins.items():
+                source_key, _, item_id = ref_key.partition(":")
+                row = by_id.get(str(synth_id))
+                if row is None:
+                    continue
+                if row.voice.get("language") != language:
+                    continue
+                if row.target_posting_id not in (None, target_posting_id):
+                    continue
+                self._swap_ref(resolution, source_key, item_id, row)
+                applied[f"{ref_key}{BULLETS_PIN_SUFFIX}"] = str(row.id)
+            if applied:
+                await self.mark_used(
+                    [
+                        row.id
+                        for row in by_id.values()
+                        if str(row.id) in applied.values()
+                    ]
+                )
+        return applied
+
+    @staticmethod
+    def _swap_ref(resolution, source_key: str, item_id: str, variant) -> None:
+        """Swap one variant into its resolution item + snapshot rows."""
+        ref = (source_key, item_id)
+        for item in resolution.items:
+            if item.item_id == item_id:
+                swap_variant_payload(item.payload, ref, variant)
+        index = resolution.snapshot_index.get(source_key) or []
+        rows = resolution.snapshot.get(source_key)
+        if isinstance(rows, dict):
+            swap_variant_payload(rows, ref, variant)
+        else:
+            for position, existing in enumerate(index or []):
+                if existing == item_id and position < len(rows):
+                    swap_variant_payload(rows[position], ref, variant)

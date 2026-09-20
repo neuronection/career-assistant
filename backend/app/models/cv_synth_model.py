@@ -38,7 +38,9 @@ class CvSynthItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "cv_synth_items"
     __table_args__ = (
-        CheckConstraint("scope IN ('item', 'summary')", name="scope_allowed"),
+        CheckConstraint(
+            "scope IN ('item', 'summary', 'bullets')", name="scope_allowed"
+        ),
         CheckConstraint(
             "status IN ('draft', 'active', 'archived')", name="status_allowed"
         ),

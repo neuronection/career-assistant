@@ -19,9 +19,10 @@ interface ItemBulletsEditorModalProps {
   itemId: string;
   /** Rendered item head lines (title/org), from the snapshot row. */
   head: { title: string; org: string };
-  /** The override's bullets when the item is "Edited for this CV". */
+  /** The pinned bullets variant's list ("Edited for this CV"). */
   override: CvSynthBullet[] | null;
-  /** The resolved base (snapshot row's achievements, post-swap). */
+  /** The resolved base (what renders now: variant bullets when pinned,
+   * else the profile's). */
   base: CvSynthBullet[];
   /** AI-proposed bullets (plan 106 slice 4), shown as ✓/✕ chips. */
   proposal?: BulletsProposal | null;
@@ -29,17 +30,18 @@ interface ItemBulletsEditorModalProps {
   /** Plan 106 slice 5: draft bullets from the item's evidence
    * (the `bullet` AI action). Resolves replacement bullet lines. */
   onGenerate?: () => Promise<string[]>;
-  /** Persists the full list as the override (one PATCH). */
+  /** Persists the full list as the bullets variant (create + pin, or
+   * patch the pinned one). */
   onSave: (entries: CvSynthBullet[]) => void;
-  /** Removes the override key — the CV renders profile text again. */
+  /** Unpins the bullets variant — the CV renders profile text again. */
   onReset: () => void;
   onClose: () => void;
 }
 
 const MAX_BULLETS = 12;
 
-/** Plan 106 AD3/AD5/AD6: the CV-local bullets editor. Edits the
- * override layer against the resolved snapshot base; AI proposals ride
+/** Plan 106 AD3/AD5/AD6: the bullets editor (two-layer model). Edits the
+ * pinned bullets VARIANT against the resolved base; AI proposals ride
  * ephemeral ✓/✕ chips and never write until confirmed. */
 export function ItemBulletsEditorModal({
   sourceKey,

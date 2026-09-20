@@ -479,6 +479,15 @@ export function CvSynthLibrary() {
             );
             setEditor({ open: false, initial: null });
           }}
+          onDelete={async () => {
+            const target = editor.initial;
+            if (!target) return;
+            setEditor({ open: false, initial: null });
+            await actWithNotice(
+              () => deleteSynthItem(target.id),
+              t("cvSynth.deleted"),
+            );
+          }}
           onClose={() => setEditor({ open: false, initial: null })}
           onSubmit={(body) =>
             editor.initial ? saveVariantEdit(body) : saveVariantNew(body)

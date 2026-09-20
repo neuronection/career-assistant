@@ -102,9 +102,9 @@ async def test_starred_variant_swaps_in(client, db, auth_headers):
     assert description != "Built QA tooling"
 
 
-async def test_pin_swap_bullets_keep_shape_and_prepend_order(client, db, auth_headers):
-    """Plan 106 pin: the swap writes canonical `achievements` entries and
-    the variant's bullets render BEFORE the item's own profile bullets."""
+async def test_pin_swap_bullets_replace(client, db, auth_headers):
+    """Two-layer model: a variant that sets achievements OWNS the list —
+    the profile's bullets render only when no variant sets them."""
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
     db.add(ExperienceAchievement(experience_id=item.id, text="Own grounded bullet"))
@@ -133,12 +133,109 @@ async def test_pin_swap_bullets_keep_shape_and_prepend_order(client, db, auth_he
     )
     resolution = await _resolution(client, auth_headers, cv)
     entries = resolution["snapshot"]["experience"][0]["achievements"]
-    bullets = [entry["text"] for entry in entries]
-    assert bullets[0] == "Variant bullet one", "variant bullets prepend"
-    assert bullets[-1] == "Own grounded bullet", "profile bullets follow"
+    assert [entry["text"] for entry in entries] == ["Variant bullet one"], (
+        "a variant that sets achievements replaces the profile list"
+    )
     assert all(
         isinstance(entry, dict) and set(entry) == {"text"} for entry in entries
     ), "canonical bullet shape everywhere"
+
+
+async def _make_bullets_variant(client, auth_headers, item, texts):
+    return (
+        await client.post(
+            "/api/v1/cv/synth",
+            json={
+                "refs": _refs(item),
+                "scope": "bullets",
+                "payload": {"achievements": [{"text": text} for text in texts]},
+            },
+            headers=auth_headers,
+        )
+    ).json()
+
+
+async def _cv_with_pin_map(client, auth_headers, pins: dict) -> dict:
+    cv = (
+        await client.post(
+            "/api/v1/cv",
+            json={"title": "Main", "kind": "resume"},
+            headers=auth_headers,
+        )
+    ).json()
+    await client.put(
+        f"/api/v1/cv/{cv['id']}/context",
+        json={"mode": "all", "synth_pins": pins},
+        headers=auth_headers,
+    )
+    return cv
+
+
+async def test_bullets_variant_pin_composes_with_text_variant(client, db, auth_headers):
+    """Two pin slots per item: a pinned text variant swaps the
+    description while a pinned bullets variant owns the achievements —
+    both apply together, and an unpinned bullets variant never does."""
+    item, text_variant = await _item_and_active_variant(client, db, auth_headers)
+    db.add(ExperienceAchievement(experience_id=item.id, text="Profile bullet"))
+    await db.commit()
+    bullets_variant = await _make_bullets_variant(
+        client, auth_headers, item, ["Cut latency 40%", "Shipped v2"]
+    )
+
+    unpinned = await _cv_with_pin_map(
+        client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
+    )
+    rows = (await _resolution(client, auth_headers, unpinned))["snapshot"]["experience"]
+    assert rows[0]["description"] == text_variant["payload"]["description"]
+    assert [entry["text"] for entry in rows[0]["achievements"]] == ["Profile bullet"], (
+        "pins-only: an unpinned bullets variant must not apply"
+    )
+
+    both = await _cv_with_pin_map(
+        client,
+        auth_headers,
+        {
+            "experience:" + str(item.id): text_variant["id"],
+            "experience:" + str(item.id) + ":bullets": bullets_variant["id"],
+        },
+    )
+    rows = (await _resolution(client, auth_headers, both))["snapshot"]["experience"]
+    assert rows[0]["description"] == text_variant["payload"]["description"], (
+        "the text slot's variant still owns the description"
+    )
+    assert [entry["text"] for entry in rows[0]["achievements"]] == [
+        "Cut latency 40%",
+        "Shipped v2",
+    ], "the bullets slot's variant owns the achievements"
+
+
+async def test_bullets_supersede_keeps_text_slot(client, db, auth_headers):
+    """Slots partition by scope: activating a bullets variant must not
+    archive the same item's text variant (or vice versa)."""
+    item, text_variant = await _item_and_active_variant(client, db, auth_headers)
+    first = await _make_bullets_variant(client, auth_headers, item, ["First set"])
+    second = await _make_bullets_variant(client, auth_headers, item, ["Second set"])
+
+    text_row = (
+        await client.get(f"/api/v1/cv/synth/{text_variant['id']}", headers=auth_headers)
+    ).json()
+    first_row = (
+        await client.get(f"/api/v1/cv/synth/{first['id']}", headers=auth_headers)
+    ).json()
+    assert text_row["status"] == "active", "the text slot survives bullets supersede"
+    assert first_row["status"] == "archived", "the older bullets variant superseded"
+    assert second["status"] == "active"
+
+
+async def test_bullets_variant_needs_a_bullet(client, db, auth_headers):
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    response = await client.post(
+        "/api/v1/cv/synth",
+        json={"refs": _refs(item), "scope": "bullets", "payload": {}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
 
 
 async def test_override_beats_synth(client, db, auth_headers):

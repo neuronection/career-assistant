@@ -40,7 +40,7 @@ export interface CvSynthVoice {
 
 export interface CvSynthItem {
   id: string;
-  scope: "item" | "summary";
+  scope: "item" | "summary" | "bullets";
   variant_key: string;
   target_posting_id?: string | null;
   source_refs: CvContextRef[];
@@ -66,7 +66,7 @@ export interface CvSynthGenerateRequest {
   instruction?: string;
   refs: CvContextRef[];
   action: CvSynthAction;
-  scope?: "item" | "summary";
+  scope?: "item" | "summary" | "bullets";
   posting_id?: string;
   language?: string;
   target_language?: string;

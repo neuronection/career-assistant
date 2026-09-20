@@ -25,6 +25,7 @@ import {
   fetchLint,
   fetchVersions,
   applyCvOps,
+  deleteSynthItem,
   patchCv,
   patchSynthItem,
   previewCv,
@@ -233,14 +234,18 @@ export function CvBuilder() {
         }
       | undefined;
     const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
-    const patched = overrides[key]?.achievements;
+    const pinnedId = synthPins[`${key}:bullets`];
+    const variant =
+      synthItems.find((item) => item.id === pinnedId && item.scope === "bullets") ??
+      null;
     return {
       head: { title: row?.title ?? "", org: row?.org_name ?? "" },
       base: row?.achievements ?? [],
-      override: Array.isArray(patched) ? patched : null,
+      override: variant ? (variant.payload.achievements ?? []) : null,
+      variantId: variant?.id ?? null,
       text: String(row?.description ?? ""),
     };
-  }, [bulletsEditor, snapshotRows, overrides]);
+  }, [bulletsEditor, snapshotRows, synthPins, synthItems]);
 
   const closeBulletsEditor = useCallback(() => {
     setBulletsEditor({ open: false, sourceKey: "", itemId: "" });
@@ -568,17 +573,53 @@ export function CvBuilder() {
     [refreshPreview]
   );
 
+  const deleteVariant = useCallback(
+    async (variant: CvSynthItem) => {
+      try {
+        await deleteSynthItem(variant.id);
+        const pins = { ...synthPins };
+        let unpinned = false;
+        for (const key of Object.keys(pins)) {
+          if (pins[key] === variant.id) {
+            delete pins[key];
+            unpinned = true;
+          }
+        }
+        setSynthItems(usableVariants(await fetchSynthItems()));
+        setVariantEditor({ open: false, initial: null, sourceKey: "" });
+        if (unpinned) {
+          await commitSynthMode(pins);
+        } else {
+          await refreshPreview();
+        }
+        setNotice(t("cvSynth.deleted", { defaultValue: "Variant deleted" }));
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [synthPins, commitSynthMode, refreshPreview, t]
+  );
+
   const commitSynthPin = useCallback(
-    async (sourceKey: string, itemId: string, synthId: string | null) => {
+    async (
+      sourceKey: string,
+      itemId: string,
+      synthId: string | null,
+      slot: "text" | "bullets" = "text"
+    ) => {
+      const pinKey =
+        slot === "bullets"
+          ? `${sourceKey}:${itemId}:bullets`
+          : `${sourceKey}:${itemId}`;
       const pins = { ...synthPins };
       if (synthId) {
         const variant = synthItems.find((v) => v.id === synthId);
         if (variant?.status === "draft") {
           await activateVariant(variant);
         }
-        pins[`${sourceKey}:${itemId}`] = synthId;
+        pins[pinKey] = synthId;
       } else {
-        delete pins[`${sourceKey}:${itemId}`];
+        delete pins[pinKey];
       }
       await commitSynthMode(pins);
     },
@@ -594,6 +635,49 @@ export function CvBuilder() {
       return [row, ...rest];
     });
   }, []);
+
+  // Plan-106 rework (two-layer model): the bullets editor writes a
+  // bullets VARIANT (scope "bullets"), not a CV-local override — the
+  // profile stays the base, the pinned variant owns the shown list.
+  const saveBulletsVariant = useCallback(
+    async (key: string, variantId: string | null, entries: CvSynthBullet[]) => {
+      const split = key.indexOf(":");
+      const sourceKey = key.slice(0, split);
+      const itemId = key.slice(split + 1);
+      try {
+        if (variantId) {
+          const row = await patchSynthItem(variantId, {
+            payload: { achievements: entries },
+          });
+          absorbSynthRow(row);
+          await refreshPreview();
+        } else {
+          const created = await createSynthItem({
+            refs: [{ source_key: sourceKey, item_id: itemId }],
+            scope: "bullets",
+            payload: { achievements: entries },
+            voice: { language: cv?.language ?? "en" },
+          });
+          absorbSynthRow(created);
+          await commitSynthMode({
+            ...synthPins,
+            [`${key}:bullets`]: created.id,
+          });
+        }
+        setNotice(t("cvSynth.saved"));
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [
+      absorbSynthRow,
+      commitSynthMode,
+      cv?.language,
+      refreshPreview,
+      synthPins,
+      t,
+    ]
+  );
 
   const saveVariant = useCallback(
     async (body: VariantEditorBody) => {
@@ -1381,8 +1465,8 @@ export function CvBuilder() {
                   onToggle={toggleItem}
                   onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
                   synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
-                  onPinVariant={(sourceKey, itemId, synthId) =>
-                    void commitSynthPin(sourceKey, itemId, synthId)
+                  onPinVariant={(sourceKey, itemId, synthId, slot) =>
+                    void commitSynthPin(sourceKey, itemId, synthId, slot)
                   }
                   variants={synthItems}
                   onAddVariant={(sourceKey) =>
@@ -1767,6 +1851,11 @@ export function CvBuilder() {
           onSubmit={saveVariant}
           onUseSaved={saveVariantAndUse}
           onGenerate={generateVariantDraft}
+          onDelete={
+            variantEditor.initial
+              ? () => deleteVariant(variantEditor.initial as CvSynthItem)
+              : undefined
+          }
           variants={synthItems}
         />
       )}
@@ -1803,17 +1892,16 @@ export function CvBuilder() {
           }}
           onSave={(entries) => {
             const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
+            const variantId = bulletsEditorView.variantId;
             closeBulletsEditor();
-            void applyOverridePatch({
-              [key]: { ...overrides[key], achievements: entries },
-            });
+            void saveBulletsVariant(key, variantId, entries);
           }}
           onReset={() => {
-            const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
-            const next = { ...overrides };
-            delete next[key];
+            const pinKey = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}:bullets`;
+            const pins = { ...synthPins };
+            delete pins[pinKey];
             closeBulletsEditor();
-            void persistWorking({ blocks, overrides: next }, true);
+            void commitSynthMode(pins);
           }}
           onClose={closeBulletsEditor}
         />

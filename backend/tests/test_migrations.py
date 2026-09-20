@@ -68,7 +68,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0038"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0039"], (
         "revision chain stays linear on one head"
     )
 
@@ -93,6 +93,58 @@ def test_0033_profile_proposals_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present("profile_proposals"), "re-upgrade restores the table"
+
+
+def _scope_constraint_allows_bullets() -> bool:
+    """The `scope_allowed` check constraint text admits 'bullets' — probed
+    dialect-aware (pg_constraint on Postgres, table DDL on SQLite)."""
+
+    async def probe() -> bool:
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            async with engine.connect() as conn:
+                if engine.dialect.name == "postgresql":
+                    row = await conn.execute(
+                        text(
+                            "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                            "WHERE conrelid = 'cv_synth_items'::regclass "
+                            "AND conname LIKE '%scope_allowed'"
+                        )
+                    )
+                    definition = row.scalar() or ""
+                else:
+                    row = await conn.execute(
+                        text(
+                            "SELECT sql FROM sqlite_master "
+                            "WHERE type = 'table' AND name = 'cv_synth_items'"
+                        )
+                    )
+                    definition = row.scalar() or ""
+                return "'bullets'" in definition
+        finally:
+            await engine.dispose()
+
+    return bool(asyncio.run(probe()))
+
+
+def test_0039_cv_synth_bullets_scope_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _scope_constraint_allows_bullets(), "head admits scope 'bullets'"
+
+    command.downgrade(config, "0038")
+    assert not _scope_constraint_allows_bullets(), (
+        "downgrade 0038 restores the two-scope constraint"
+    )
+
+    command.upgrade(config, "head")
+    assert _scope_constraint_allows_bullets(), "re-upgrade restores 'bullets'"
 
 
 def _schedules_checks() -> dict[str, str]:

@@ -1735,7 +1735,8 @@
     "showCefr": "Show CEFR band",
     "showLinks": "Show contact links",
     "showLocation": "Show location",
-    "showProficiency": "Latest proficiency certificate"
+    "showProficiency": "Latest proficiency certificate",
+    "elevationLabel": "Elevation"
   },
   "shared": {
     "scoreAria": "Score {{score}} of 10",
@@ -2425,7 +2426,7 @@
     "delete": "Delete",
     "deleteConfirm": "Delete this variant?",
     "deleteBody": "The profile item is untouched; only the variant is removed. This cannot be undone.",
-    "deleted": "Variant deleted.",
+    "deleted": "Variant deleted",
     "stale": "Source changed",
     "orphaned": "Source gone",
     "basedOn": "Based on",
@@ -2471,7 +2472,10 @@
       "supersedeHint": "Activating this variant replaces the active variant for the same items and key.",
       "subtitle": "Write tailored text once — star it on a CV to use it there.",
       "instructionLabel": "Custom instruction",
-      "toneNone": "No tone"
+      "toneNone": "No tone",
+      "delete": "Delete",
+      "deleteTitle": "Delete this variant?",
+      "deleteBody": "It is removed from your variant library. CVs that pinned it fall back to the profile text."
     },
     "newVariant": "Add variant",
     "created": "Variant created — activate it, then star it on a CV.",
