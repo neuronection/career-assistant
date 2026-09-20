@@ -925,6 +925,14 @@ function EducationSummaryCard() {
       name="education"
       title={t("education.title")}
       description={t("profileEdit.educationBody")}
+      actions={
+        <Button asChild variant="outline" size="sm" data-testid="education-link">
+          <Link to="/profile/education">
+            <GraduationCap className="mr-1 h-3.5 w-3.5" aria-hidden />
+            {t("profileEdit.educationLink")}
+          </Link>
+        </Button>
+      }
     >
       {loaded && items.length === 0 ? (
         <p className="text-sm text-[var(--as-muted-fg)]">
@@ -968,13 +976,6 @@ function EducationSummaryCard() {
           ))}
         </ul>
       )}
-      <Link
-        to="/profile/education"
-        className="mt-3 inline-block text-sm text-[var(--as-accent)] hover:underline"
-        data-testid="education-link"
-      >
-        {t("profileEdit.educationLink")}
-      </Link>
     </ProfileSectionCard>
   );
 }
