@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.14.0] - 2026-09-20
+
 ### Changed
 - **Profile education card matches the experience card** — the section
   now carries the same outline "Open workspace" button in the card
