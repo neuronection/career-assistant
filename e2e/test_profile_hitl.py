@@ -224,8 +224,10 @@ def test_variant_card_resolved_labels_and_drafts(page) -> None:
     library = page.get_by_test_id("synth-library")
     library.wait_for(state="visible", timeout=20_000)
     # The library rows load asynchronously — waiting on the container
-    # alone races the fetch and reads the "Loading…" placeholder.
-    library.get_by_text("Sample data internship").wait_for(
+    # alone races the fetch and reads the "Loading…" placeholder. The
+    # label text can legitimately match several elements once rendered
+    # (row + chips), so wait on the first rather than a strict locator.
+    library.get_by_text("Sample data internship").first.wait_for(
         state="visible", timeout=20_000
     )
     assert "Sample data internship" in library.inner_text()
