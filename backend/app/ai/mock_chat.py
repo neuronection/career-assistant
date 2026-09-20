@@ -6,6 +6,7 @@ module registers the CHAT structured-reply fixture with the gateway.
 """
 
 import json
+from typing import Any
 
 from app.ai.agents.context import parse_context
 from app.ai.gateway import register_mock_fixture
@@ -482,7 +483,7 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
 
     # Plan 107: the agent-round prompt is the bare context JSON (no
     # marker) — parse defensively so the CV-bullet grounding works.
-    ctx = {}
+    ctx: dict[str, Any] = {}
     try:
         ctx, _ = json.JSONDecoder().raw_decode(
             user_text[user_text.index("{") :].lstrip()

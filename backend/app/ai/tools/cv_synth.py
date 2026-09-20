@@ -12,7 +12,7 @@ attached (plan 78) — can list variants and set/unset the per-item
 default (the Context-panel star). Pinning follows plan-102 star
 semantics: a pinned draft is promoted (supersede + active) first."""
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from sqlalchemy import select
 from pydantic import BaseModel, Field
@@ -485,12 +485,18 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
     }
 
 
+def _default_bullet_source_keys() -> list[
+    Literal["experience", "projects", "volunteer"]
+]:
+    return ["experience", "projects", "volunteer"]
+
+
 class CvReadItemsInput(BaseModel):
     cv_id: str = Field(min_length=8, max_length=64)
     """Bullet-bearing rows of ONE CV, as the renderer resolves them."""
 
     source_keys: list[Literal["experience", "projects", "volunteer"]] = Field(
-        default_factory=lambda: ["experience", "projects", "volunteer"],
+        default_factory=_default_bullet_source_keys,
         max_length=3,
     )
 
@@ -530,15 +536,15 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
                 continue
             item_id = str(row.get("id") or "")
             pinned_id = selection.synth_pins.get(f"{source_key}:{item_id}:bullets")
-            variant_bullets = None
+            overridden = False
+            source_entries: Any = row.get("achievements") or []
             if pinned_id and str(pinned_id) in synth_by_id:
-                variant_bullets = (
-                    synth_by_id[str(pinned_id)].payload.get("achievements") or []
+                variant_bullets = synth_by_id[str(pinned_id)].payload.get(
+                    "achievements"
                 )
-            overridden = variant_bullets is not None
-            source_entries = (
-                variant_bullets if overridden else row.get("achievements") or []
-            )
+                if variant_bullets is not None:
+                    overridden = True
+                    source_entries = variant_bullets
             bullets = [
                 str(entry.get("text") or "")
                 for entry in source_entries

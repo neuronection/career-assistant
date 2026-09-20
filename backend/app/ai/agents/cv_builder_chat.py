@@ -29,7 +29,7 @@ from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import StructuredStream, partial_answer_text, register_mock_fixture
 from app.core.errors import DomainError, NotFoundError, ValidationError
 from app.models.enums import AITaskType, CvVersionCreator
-from app.schemas.cv import CvContextSelection
+from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_synth import (
     CvSynthBullet,
     CvSynthItemCreate,
@@ -696,10 +696,12 @@ async def apply_operation(
                     CvSynthItemUpdate(payload=payload),
                 )
             else:
-                row = await service.create_manual(
+                synth_row = await service.create_manual(
                     cv.user_id,
                     CvSynthItemCreate(
-                        refs=[{"source_key": op.source_key, "item_id": op.item_id}],
+                        refs=[
+                            CvContextRef(source_key=op.source_key, item_id=op.item_id)
+                        ],
                         scope="bullets",
                         payload=payload,
                         voice=CvSynthVoice(language=str(cv.language or "en")),
@@ -707,7 +709,7 @@ async def apply_operation(
                 )
                 existing.synth_pins = {
                     **(existing.synth_pins or {}),
-                    pin_key: str(row.id),
+                    pin_key: str(synth_row.id),
                 }
                 cv.context = existing.model_dump(mode="json")
             await db.commit()
