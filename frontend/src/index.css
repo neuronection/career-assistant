@@ -71,3 +71,27 @@ body {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
   }
 }
+
+/* Generate-flow advanced options: grouped tiles reflow by the PANEL's
+ * width (container query — the generate modal shrinks beside the chat
+ * dock, viewport breakpoints cannot see that). Below 42rem the tiles
+ * stack; the source toggles flow into 2–3 columns as room appears. */
+.cv-gen-adv {
+  container-type: inline-size;
+}
+
+@container (min-width: 42rem) {
+  .cv-gen-adv .cv-gen-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .cv-gen-adv .cv-gen-sources {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 64rem) {
+  .cv-gen-adv .cv-gen-sources {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

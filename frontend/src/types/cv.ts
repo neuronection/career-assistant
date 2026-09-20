@@ -101,6 +101,8 @@ export interface CvGenerateRequest {
   tone?: "professional" | "warm" | "concise" | "confident" | null;
   length?: "concise" | "standard" | "detailed";
   max_pages?: number;
+  /** Review→fix polish rounds before the loop finalizes (default 6). */
+  polish_iterations?: number;
   template_id?: string | null;
   include_photo?: boolean;
   sections?: CvGenerateSectionKind[];

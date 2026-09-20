@@ -56,6 +56,18 @@ PROGRESS_DRAFT_END = 85
 PROGRESS_ASSEMBLE = 95
 
 POLISH_MAX_ITERATIONS = 6
+
+
+def _polish_max(state) -> int:
+    """The run's polish cap — per-request (`polish_iterations`), falling
+    back to the shared default. The +1 pending-judgement allowance on
+    top keeps keep-or-revert verdicts resolvable within any run."""
+    try:
+        return max(1, int(_request(state).polish_iterations))
+    except Exception:  # noqa: BLE001 — malformed request state → default
+        return POLISH_MAX_ITERATIONS
+
+
 MAX_OPS_PER_ITERATION = 8
 
 DATA_URI_RE = re.compile(r"data:image/[^\"'\s)]+")
@@ -1069,10 +1081,10 @@ def route_after_review(state: CvDraftState) -> str:
         polish.get("redesign") or {}
     ).get("pending")
     if not blocking and not missing:
-        if pending_judgements and iteration <= POLISH_MAX_ITERATIONS:
+        if pending_judgements and iteration <= _polish_max(state):
             return "fix"
         return "finalize"
-    if iteration >= POLISH_MAX_ITERATIONS + (1 if pending_judgements else 0):
+    if iteration >= _polish_max(state) + (1 if pending_judgements else 0):
         return "finalize"
     if stale_stop:
         return "finalize"
@@ -1277,11 +1289,11 @@ def make_review_node(deps: GraphDeps):
         polish["iteration"] = iteration + 1
         percentage = PROGRESS_ASSEMBLE + (
             (iteration + 1) * (100 - PROGRESS_ASSEMBLE - 1)
-        ) // (POLISH_MAX_ITERATIONS + 1)
+        ) // (_polish_max(state) + 1)
         await _report(
             deps,
             min(98, percentage),
-            f"reviewing the draft (iteration {iteration + 1}/{POLISH_MAX_ITERATIONS})",
+            f"reviewing the draft (iteration {iteration + 1}/{_polish_max(state)})",
         )
         await _mirror_job_result(deps, state, polish)
         await deps.db.commit()
@@ -1349,13 +1361,20 @@ def make_fix_node(deps: GraphDeps):
     from app.ai.agents.cv_builder_chat import apply_operation
 
     async def _apply(
-        db, cv, op_dict: dict, *, max_pages_cap: int | None = None
+        db,
+        cv,
+        op_dict: dict,
+        *,
+        max_pages_cap: int | None = None,
+        styled_slot: dict | None = None,
     ) -> dict:
         """Validate + apply one op; failures are logged, never raised.
 
         `max_pages_cap` is the user's page budget: a polish-suggested
         `set_doc_options` may adjust options but never raise the budget
-        above it — trim the content instead."""
+        above it — trim the content instead. `styled_slot` carries the
+        polish loop's coalescing pointer: styled ops update the tracked
+        draft version in place instead of stacking immutable rows."""
         entry = {"op": "unknown", "ok": False, "detail": "not applied"}
         try:
             operation = op_parser.validate_python(dict(op_dict))
@@ -1374,7 +1393,7 @@ def make_fix_node(deps: GraphDeps):
                     ),
                 }
                 return entry
-            result = await apply_operation(db, cv, operation)
+            result = await apply_operation(db, cv, operation, styled_slot=styled_slot)
             if not result.ok:
                 try:
                     await db.refresh(cv)
@@ -1720,6 +1739,7 @@ def make_fix_node(deps: GraphDeps):
             # explicit design-language request, so the template designer
             # re-authors the CV's design instead of more token nudges.
             polish["style_redesign_done"] = True
+            polish["styled_slot"] = {}
             polish["redesign"] = await _redesign_once(
                 deps.db, state, cv, "modified", problem=style_fail
             ) or {"drafted": True}
@@ -1733,6 +1753,7 @@ def make_fix_node(deps: GraphDeps):
         ):
             mode = "modified" if stage == "" else "fresh"
             polish["redesign_stage"] = "modified" if mode == "modified" else "fresh"
+            polish["styled_slot"] = {}
             polish["redesign"] = await _redesign_once(deps.db, state, cv, mode) or {
                 "drafted": True
             }
@@ -1748,6 +1769,7 @@ def make_fix_node(deps: GraphDeps):
                     cv,
                     dict(suggested.get("operation") or {}),
                     max_pages_cap=int(_request(state).max_pages),
+                    styled_slot=polish.setdefault("styled_slot", {}),
                 )
                 iterations = polish.get("iterations") or []
                 if iterations:

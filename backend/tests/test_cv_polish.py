@@ -16,6 +16,7 @@ from app.ai.graphs.cv_draft import route_after_review
 from app.models.ai_model import AIGeneration
 from app.models.background_job_model import BackgroundJob
 from app.models.cv_model import CvDocument, CvVersion
+from app.models.cv_template_model import CvTemplate
 from app.models.enums import AITaskType, BackgroundJobStatus, BackgroundJobType
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_generate_service import CvGenerateService
@@ -208,6 +209,124 @@ async def test_polish_cap_stops_at_the_iteration_limit(
     final = await _latest_final_version(db, cv)
     trace = final.content["polish"]
     assert len(trace["iterations"]) == cv_draft.POLISH_MAX_ITERATIONS
+    assert trace["outcome"]["status"] == "cap"
+
+
+async def test_polish_styled_ops_coalesce_into_one_draft_version(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """Anti-churn: repeated design ops in the polish loop restyle the
+    SAME draft version in place (tracked via the trace's styled slot)
+    instead of publishing an immutable row per pass."""
+
+    def _always_fail(schema, prompt):
+        return {
+            "summary": "Tightening the layout.",
+            "issues": [
+                {
+                    "level": "fail",
+                    "area": "page_budget",
+                    "message": "Densify the layout.",
+                    "suggested_ops": [
+                        {
+                            "operation": {
+                                "op": "update_design",
+                                "design": {"spacing_scale": 0.9},
+                            },
+                            "rationale": "densify",
+                        }
+                    ],
+                }
+            ],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    created = await client.post(
+        "/api/v1/cv/templates",
+        json={
+            "title": "Coalesce base",
+            "content": {
+                "blocks": [{"kind": "header"}, {"kind": "summary"}],
+                "design": {"section_style": "card"},
+            },
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    template_id = created.json()["id"]
+
+    monkeypatch.setitem(MOCK_FIXTURES, AITaskType.CV_BUILD_REVIEW.value, _always_fail)
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(
+            language="en",
+            length="standard",
+            template_id=UUID(template_id),
+            polish_iterations=3,
+        ),
+        run_id=uuid.uuid4(),
+    )
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    trace = (await _latest_final_version(db, cv)).content["polish"]
+    assert trace["outcome"]["status"] == "cap"
+    styled = trace.get("styled_slot") or {}
+    assert styled.get("template_id") != template_id, (
+        "the slot tracks the run's own draft, never the user's template"
+    )
+    assert styled.get("version") == 2
+
+    row = await db.get(CvTemplate, UUID(template_id))
+    siblings = (
+        (
+            await db.execute(
+                select(CvTemplate).where(
+                    CvTemplate.author_key == row.author_key,
+                    CvTemplate.key == row.key,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(siblings) == 2, (
+        "the run publishes ONE own draft (the user's v1 is never "
+        "clobbered) and coalesces every later styled op into it"
+    )
+    run_draft = next(s for s in siblings if str(s.id) != template_id)
+    assert run_draft.status == "draft"
+    assert run_draft.version == 2
+    design = (run_draft.content or {}).get("design") or {}
+    assert design.get("spacing_scale", 1) < 1.0, "the last densify landed"
+
+
+async def test_polish_cap_is_request_configurable(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """`polish_iterations` raises or lowers the run's safety cap — an
+    always-failing review with a 2-round cap stops at exactly 2."""
+
+    def _always_fail(schema, prompt):
+        return {
+            "summary": "Still failing.",
+            "issues": [
+                {"level": "fail", "area": "density", "message": "Layout is off."}
+            ],
+            "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
+        }
+
+    monkeypatch.setitem(MOCK_FIXTURES, AITaskType.CV_BUILD_REVIEW.value, _always_fail)
+    await _experience(client, auth_headers)
+    result = await CvGenerateService(db).generate(
+        UUID(_uid(auth_headers)),
+        CvGenerateRequest(language="en", length="standard", polish_iterations=2),
+        run_id=uuid.uuid4(),
+    )
+    await db.commit()
+    cv = await db.get(CvDocument, UUID(result["cv_id"]))
+    trace = (await _latest_final_version(db, cv)).content["polish"]
+    assert len(trace["iterations"]) == 2
     assert trace["outcome"]["status"] == "cap"
 
 

@@ -1085,7 +1085,10 @@
     "polishOutcome": {
       "completed": "AI polish finished — review the final draft in the builder.",
       "cap": "AI polish stopped at its safety cap — the current draft is ready; edit it or run polish again."
-    }
+    },
+    "polishRounds": "AI polish rounds",
+    "groupVoice": "Voice & length",
+    "groupPageSetup": "Page setup"
   },
   "intake": {
     "slowParse": "The CV parse is taking longer than expected — try again in a moment.",

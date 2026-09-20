@@ -223,6 +223,33 @@ class CvTemplateService:
         await self.db.refresh(version)
         return version
 
+    async def update_version_content(
+        self,
+        template_id: uuid.UUID,
+        version: int,
+        user_id: uuid.UUID,
+        content: TemplateContent,
+    ) -> CvTemplate:
+        """Overwrite a DRAFT version's content in place.
+
+        Polish-loop coalescing only: the run restyles its OWN earlier
+        draft instead of stacking an immutable row per AI op. Refuses
+        anything that is not the caller's draft at that exact version —
+        published/older/user-facing rows stay immutable."""
+        template = await self.get_owned(template_id, user_id)
+        if (
+            template.version != int(version)
+            or template.status != CvTemplateStatus.DRAFT.value
+        ):
+            raise ValidationError("Version is not the caller's coalescable draft")
+        validate_blocks(content.blocks)
+        template.content = content.model_dump(mode="json")
+        template.content_hash = canonical_hash(content.model_dump(mode="json"))
+        template.ats_safe = self._ats_safe_estimate(content)
+        await self.db.commit()
+        await self.db.refresh(template)
+        return template
+
     async def duplicate(
         self, template_id: uuid.UUID, user_id: uuid.UUID, title: str | None = None
     ) -> CvTemplate:

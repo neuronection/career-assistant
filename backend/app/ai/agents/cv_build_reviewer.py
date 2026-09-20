@@ -58,6 +58,11 @@ REVIEW_SYSTEM = (
     "apply_theme as the first remedy. apply_theme's theme_key MUST be "
     "one of the keys listed in the context's `themes` — never invent "
     "one; when no listed theme fits, use update_design tokens instead. "
+    'Style findings MUST use area "style" — never "layout" or '
+    '"structure": those areas mean geometry problems (overflow, '
+    "orphaned sections, broken columns) and revert freshly redesigned "
+    "templates. Judge only the pages in front of you: never re-raise a "
+    "style finding the current render has already addressed. "
     "If the summary or an override field carries obvious "
     "placeholder/test artifacts (e.g. '(Test — 123123213)') or notes "
     "copied verbatim from the profile's aspirations, suggest a "

@@ -167,6 +167,9 @@ class OpResult(BaseModel):
     op: str
     ok: bool
     detail: str = Field(default="", max_length=300)
+    # The styled template version the op landed on — polish-loop
+    # coalescing reads this to keep restyling the SAME draft.
+    styled: Optional[dict] = None
 
 
 class CvOpsRequest(BaseModel):

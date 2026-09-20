@@ -89,6 +89,7 @@ export function GenerateCvFlow({
   const [tone, setTone] = useState("");
   const [length, setLength] = useState("standard");
   const [maxPages, setMaxPages] = useState(1);
+  const [polishRounds, setPolishRounds] = useState(6);
   const [templateId, setTemplateId] = useState("auto");
   const [includePhoto, setIncludePhoto] = useState(false);
   const [enabledSources, setEnabledSources] = useState<Set<string>>(new Set());
@@ -217,6 +218,7 @@ export function GenerateCvFlow({
       tone: tone ? (tone as CvGenerateRequest["tone"]) : undefined,
       length: length as CvGenerateRequest["length"],
       max_pages: maxPages,
+      polish_iterations: polishRounds,
       // The AI template pick runs inside the background job
       // (`resolvedTemplateId` never blocks the submit — plan-67 stall).
       template_pick: templateId === "auto" ? "ai" : "none",
@@ -437,68 +439,98 @@ export function GenerateCvFlow({
       </button>
 
       {advancedOpen && (
-        <div className="space-y-4 rounded-lg border border-[var(--as-border)] p-3">
-          <SegmentedRow
-            label={t("cvGenerate.voice")}
-            value={tone}
-            onChange={setTone}
-            options={[
-              { value: "", label: t("cvGenerate.toneDefault") },
-              { value: "professional", label: t("cvGenerate.toneProfessional") },
-              { value: "warm", label: t("cvGenerate.toneWarm") },
-              { value: "concise", label: t("cvGenerate.toneConcise") },
-              { value: "confident", label: t("cvGenerate.toneConfident") },
-            ]}
-          />
-          <SegmentedRow
-            label={t("cvGenerate.length")}
-            value={length}
-            onChange={setLength}
-            options={[
-              { value: "concise", label: t("cvGenerate.lengthConcise") },
-              { value: "standard", label: t("cvGenerate.lengthStandard") },
-              { value: "detailed", label: t("cvGenerate.lengthDetailed") },
-            ]}
-          />
-          <StepperRow
-            label={t("cvGenerate.maxPages")}
-            value={maxPages}
-            min={1}
-            max={3}
-            onChange={setMaxPages}
-          />
-          <ToggleRow
-            label={t("cvGenerate.includePhoto")}
-            checked={includePhoto}
-            onChange={setIncludePhoto}
-          />
-          {sectionOptions.length > 0 && (
-            <ChipTogglesRow
-              label={t("cvGenerate.sections")}
-              values={sectionOptions
-                .map((option) => option.value)
-                .filter((key) => sectionsOn.has(key))}
-              options={sectionOptions}
-              onChange={(next) => setSectionsOn(new Set(next))}
-            />
-          )}
-          <div className="space-y-1">
-            <p className="text-xs text-[var(--as-muted-fg)]">{t("cvGenerate.context")}</p>
-            {offerable.map((source) => (
-              <ToggleRow
-                key={source.key}
-                label={`${source.label} (${source.items.length})`}
-                checked={enabledSources.has(source.key)}
-                onChange={(checked) =>
-                  setEnabledSources((current) => {
-                    const next = new Set(current);
-                    if (checked) next.add(source.key);
-                    else next.delete(source.key);
-                    return next;
-                  })
-                }
+        <div className="cv-gen-adv space-y-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-muted)] p-3">
+          <div className="cv-gen-grid grid grid-cols-1 gap-3">
+            <div className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("cvGenerate.groupVoice")}
+              </p>
+              <SegmentedRow
+                label={t("cvGenerate.voice")}
+                value={tone}
+                onChange={setTone}
+                options={[
+                  { value: "", label: t("cvGenerate.toneDefault") },
+                  { value: "professional", label: t("cvGenerate.toneProfessional") },
+                  { value: "warm", label: t("cvGenerate.toneWarm") },
+                  { value: "concise", label: t("cvGenerate.toneConcise") },
+                  { value: "confident", label: t("cvGenerate.toneConfident") },
+                ]}
               />
-            ))}
+              <SegmentedRow
+                label={t("cvGenerate.length")}
+                value={length}
+                onChange={setLength}
+                options={[
+                  { value: "concise", label: t("cvGenerate.lengthConcise") },
+                  { value: "standard", label: t("cvGenerate.lengthStandard") },
+                  { value: "detailed", label: t("cvGenerate.lengthDetailed") },
+                ]}
+              />
+            </div>
+            <div className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("cvGenerate.groupPageSetup")}
+              </p>
+              <StepperRow
+                label={t("cvGenerate.maxPages")}
+                value={maxPages}
+                min={1}
+                max={3}
+                onChange={setMaxPages}
+              />
+              <StepperRow
+                label={t("cvGenerate.polishRounds", { defaultValue: "AI polish rounds" })}
+                value={polishRounds}
+                min={1}
+                max={12}
+                onChange={setPolishRounds}
+              />
+              <ToggleRow
+                label={t("cvGenerate.includePhoto")}
+                checked={includePhoto}
+                onChange={setIncludePhoto}
+              />
+            </div>
+            <div className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("cvGenerate.sections")}
+              </p>
+              {sectionOptions.length > 0 ? (
+                <ChipTogglesRow
+                  label=""
+                  values={sectionOptions
+                    .map((option) => option.value)
+                    .filter((key) => sectionsOn.has(key))}
+                  options={sectionOptions}
+                  onChange={(next) => setSectionsOn(new Set(next))}
+                />
+              ) : (
+                <p className="text-xs text-[var(--as-muted-fg)]">{t("common.loading")}</p>
+              )}
+            </div>
+          </div>
+          <div className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t("cvGenerate.context")}
+            </p>
+            <div className="cv-gen-sources grid grid-cols-1 gap-x-6 gap-y-0.5">
+              {offerable.map((source) => (
+                <ToggleRow
+                  key={source.key}
+                  label={`${source.label} (${source.items.length})`}
+                  checked={enabledSources.has(source.key)}
+                  onChange={(checked) =>
+                    setEnabledSources((current) => {
+                      const next = new Set(current);
+                      if (checked) next.add(source.key);
+                      else next.delete(source.key);
+                      return next;
+                    })
+                  }
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}

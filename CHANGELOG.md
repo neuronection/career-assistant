@@ -5,6 +5,20 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **Polish-loop template thrash** — the reviewer could tag a style
+  complaint as a `layout` fail, which insta-reverted a freshly designed
+  template (the generate run ping-ponged between two templates and
+  burned its passes). The reviewer is now bound: style findings use
+  area `style` (layout/structure are reserved for geometry), and it
+  judges only the current pages — addressed style findings are not
+  re-raised.
+- **Template version churn** — each AI design op used to publish a new
+  immutable template version (v2…v11 in one run). The polish loop now
+  tracks its own draft: the first styled op publishes one version and
+  every later op updates that draft in place (never the user's own
+  template or a published version). The generate request also gained a
+  **polish iterations** preference (1–12, default 6) so the safety cap
+  is configurable per run.
 - **Print "wrench" icon rendered mangled** — the skills-section glyph's
   SVG path was corrupt geometry; replaced with the proper Feather tool
   path (regression-pinned by test).

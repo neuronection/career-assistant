@@ -3258,6 +3258,13 @@
             "title": "Notes",
             "type": "string"
           },
+          "polish_iterations": {
+            "default": 6,
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Polish Iterations",
+            "type": "integer"
+          },
           "posting_text": {
             "default": "",
             "maxLength": 5000,
@@ -9311,6 +9318,18 @@
           "op": {
             "title": "Op",
             "type": "string"
+          },
+          "styled": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Styled"
           }
         },
         "required": [

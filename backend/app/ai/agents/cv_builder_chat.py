@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import StructuredStream, partial_answer_text, register_mock_fixture
-from app.core.errors import DomainError, ValidationError
+from app.core.errors import DomainError, NotFoundError, ValidationError
 from app.models.enums import AITaskType, CvVersionCreator
 from app.schemas.cv import CvContextSelection
 from app.schemas.cv_assistant import CvBuilderTurn, OpResult
@@ -354,11 +354,16 @@ def _design_candidate(current: dict, patch: dict) -> dict:
 
 
 async def _styled_template(
-    db: AsyncSession, cv, mutate_design
+    db: AsyncSession, cv, mutate_design, styled_slot: dict | None = None
 ) -> tuple["CvTemplate", str]:
     """Resolve the CV's template to an owned row with `mutate_design`
     applied — bank/read-only templates are customized on a private copy
-    (the same rule the template editor enforces)."""
+    (the same rule the template editor enforces).
+
+    `styled_slot` (polish-loop coalescing): when it points at this
+    template's own earlier DRAFT version, that version is updated in
+    place instead of stacking an immutable row per AI op. A stale or
+    foreign pointer falls through to a fresh version."""
     from app.services.cv_builder_service import CvBuilderService
     from app.services.cv_template_service import CvTemplateService
 
@@ -368,6 +373,22 @@ async def _styled_template(
     content = TemplateContent.model_validate(template.content)
     content = content.model_copy(update={"design": mutate_design(content.design)})
     templates = CvTemplateService(db)
+    if (
+        styled_slot is not None
+        and styled_slot.get("template_id")
+        and styled_slot.get("version") is not None
+    ):
+        try:
+            if UUID(str(styled_slot["template_id"])) == template.id:
+                row = await templates.update_version_content(
+                    template.id,
+                    int(styled_slot["version"]),
+                    cv.user_id,
+                    content,
+                )
+                return row, f"updated v{row.version} of “{row.title}”"
+        except (ValidationError, NotFoundError, ValueError):
+            pass
     if template.author_user_id == cv.user_id and template.author_key != "bank":
         row = await templates.new_version(template.id, cv.user_id, content)
         note = f"published v{row.version} of “{row.title}”"
@@ -377,6 +398,9 @@ async def _styled_template(
         )
         row = await templates.new_version(copy_row.id, cv.user_id, content)
         note = f"customized a private copy of “{template.title}”"
+    if styled_slot is not None:
+        styled_slot.clear()
+        styled_slot.update({"template_id": str(row.id), "version": int(row.version)})
     return row, note
 
 
@@ -398,8 +422,14 @@ def _op_args(op) -> dict:
     }
 
 
-async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
-    """Validate + apply one operation through the owning services."""
+async def apply_operation(
+    db: AsyncSession, cv, op, styled_slot: dict | None = None
+) -> OpResult:
+    """Validate + apply one operation through the owning services.
+
+    `styled_slot` (polish-loop coalescing): when set, styled ops update
+    the tracked draft version in place and report the version they
+    landed on via `OpResult.styled`."""
     kind = op.op
     try:
         if kind == "set_template":
@@ -422,10 +452,15 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
                     update=theme.design.model_dump(exclude_unset=True)
                 )
 
-            row, note = await _styled_template(db, cv, _apply_theme)
+            row, note = await _styled_template(db, cv, _apply_theme, styled_slot)
             cv.template_id = row.id
             await db.commit()
-            return OpResult(op=kind, ok=True, detail=f"theme “{theme.label}” — {note}")
+            return OpResult(
+                op=kind,
+                ok=True,
+                detail=f"theme “{theme.label}” — {note}",
+                styled={"template_id": str(row.id), "version": int(row.version)},
+            )
 
         if kind == "update_design":
             from app.services.cv_builder_service import CvBuilderService
@@ -442,10 +477,15 @@ async def apply_operation(db: AsyncSession, cv, op) -> OpResult:
             def _apply_patch(_current: DesignTokens) -> DesignTokens:
                 return patched
 
-            row, note = await _styled_template(db, cv, _apply_patch)
+            row, note = await _styled_template(db, cv, _apply_patch, styled_slot)
             cv.template_id = row.id
             await db.commit()
-            return OpResult(op=kind, ok=True, detail=f"design updated ({note})")
+            return OpResult(
+                op=kind,
+                ok=True,
+                detail=f"design updated ({note})",
+                styled={"template_id": str(row.id), "version": int(row.version)},
+            )
 
         if kind == "set_context":
             resolved = await resolve_sources(db, cv.user_id)

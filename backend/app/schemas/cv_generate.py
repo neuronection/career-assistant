@@ -51,6 +51,9 @@ class CvGenerateRequest(BaseModel):
     tone: Optional[Literal["professional", "warm", "concise", "confident"]] = None
     length: Literal["concise", "standard", "detailed"] = "standard"
     max_pages: int = Field(default=1, ge=1, le=3)
+    # Review→fix rounds the polish loop may run before it finalizes
+    # (the "safety cap"); raise it to let the AI refine longer.
+    polish_iterations: int = Field(default=6, ge=1, le=12)
     template_id: Optional[uuid.UUID] = None
     include_photo: bool = False
     sections: list[CvGenerateSectionKind] = Field(default_factory=list, max_length=10)
