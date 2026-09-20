@@ -14,6 +14,13 @@ All notable changes to **Career Assistant** are documented here.
   Health / Career / Study.
 
 ### Fixed
+- **Chat dropped the Studio CV reference on a fast first message** —
+  "Ask AI" opened the dock and claimed a session asynchronously; a
+  message sent before the bootstrap settled spawned a second session
+  and left the CV reference behind, so the assistant answered without
+  seeing the CV (bullets asks produced no proposal cards). The session
+  is claimed synchronously now and bootstrapping no longer wipes
+  composer references.
 - **Generator restated item headings inside descriptions** — a drafted
   CV could print a certification twice: the AI description re-opened
   with the item's own name/issuer (e.g. "**ECPE C2 - Proficiency**,

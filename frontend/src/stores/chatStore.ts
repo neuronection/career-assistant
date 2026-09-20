@@ -80,12 +80,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const messages = await uniApi.fetchMessages(id);
     // Composer references belong to the conversation: switching sessions
     // drops them (the pending one-shot survives — it is consumed after
-    // this settles by the openCvChat flow).
-    const keepAttachments = get().activeSessionId === id;
+    // this settles by the openCvChat flow). Bootstrap is not a switch:
+    // with no session active yet (or the target already claimed), the
+    // attachments were added FOR this conversation — keep them.
+    const switching =
+      get().activeSessionId !== null && get().activeSessionId !== id;
     set({
       activeSessionId: id,
       messages,
-      attachments: keepAttachments ? get().attachments : [],
+      attachments: switching ? [] : get().attachments,
     });
   },
 

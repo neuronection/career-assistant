@@ -60,6 +60,10 @@ export async function openCvChat(
   if (prefill) {
     writeDraft(sessionId, prefill);
   }
+  // Claim the session SYNCHRONOUSLY: a submit pressed while `openSession`
+  // is still fetching must not see `activeSessionId === null` and spawn a
+  // second session (the message then left without the CV reference).
+  useChatStore.setState({ activeSessionId: sessionId });
   // Settle the session + surface FIRST, then request the one-shot
   // attach: the consumer runs once the target session is active, so
   // the reference can't be wiped by the session transition (chips are
