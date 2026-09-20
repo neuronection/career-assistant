@@ -4,6 +4,11 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Sidebar family menu lists Desktop Assistant** — new row (library
+  `DesktopMark`, linking to neuronection.com/en/desktop/) alongside
+  Health / Career / Study.
+
 ### Fixed
 - **Polish-loop template thrash** — the reviewer could tag a style
   complaint as a `layout` fail, which insta-reverted a freshly designed

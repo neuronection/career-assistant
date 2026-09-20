@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowUpRight, Heart } from "lucide-react";
 import {
   CareerMark,
+  DesktopMark,
   HealthMark,
   NeuronectionMark,
   NeuronectionWordmark,
@@ -40,6 +41,7 @@ const FAMILY_LINKS: {
     current: true,
   },
   { name: "Study", Mark: StudyMark, href: "https://neuronection.com/en/study/" },
+  { name: "Desktop", Mark: DesktopMark, href: "https://neuronection.com/en/desktop/" },
 ];
 
 /**
