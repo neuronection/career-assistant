@@ -14,10 +14,13 @@ semantics: a pinned draft is promoted (supersede + active) first."""
 
 from typing import Literal, Optional
 
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
 
+from app.models.cv_synth_model import CvSynthItem
+from app.models.enums import CvSynthStatus
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_synth import (
     CvSynthAction,
@@ -502,7 +505,21 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
         raise PermissionDeniedError("A signed-in user is required")
     cv = await _owned_cv(db, ctx, args.cv_id)
     resolution = await CvBuilderService(db).resolution(cv)
-    overrides = (cv.working_content or {}).get("overrides") or {}
+    selection = CvContextSelection.model_validate(cv.context or {})
+    synth_by_id = {
+        str(row.id): row
+        for row in (
+            await db.execute(
+                select(CvSynthItem).where(
+                    CvSynthItem.user_id == ctx.user_id,
+                    CvSynthItem.scope == "bullets",
+                    CvSynthItem.status == CvSynthStatus.ACTIVE.value,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
     items = []
     for source_key in args.source_keys:
         rows = resolution.snapshot.get(source_key)
@@ -512,10 +529,16 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
             if not isinstance(row, dict):
                 continue
             item_id = str(row.get("id") or "")
-            patch = overrides.get(f"{source_key}:{item_id}") or {}
-            entries = patch.get("achievements")
-            overridden = isinstance(entries, list)
-            source_entries = entries if overridden else row.get("achievements") or []
+            pinned_id = selection.synth_pins.get(f"{source_key}:{item_id}:bullets")
+            variant_bullets = None
+            if pinned_id and str(pinned_id) in synth_by_id:
+                variant_bullets = (
+                    synth_by_id[str(pinned_id)].payload.get("achievements") or []
+                )
+            overridden = variant_bullets is not None
+            source_entries = (
+                variant_bullets if overridden else row.get("achievements") or []
+            )
             bullets = [
                 str(entry.get("text") or "")
                 for entry in source_entries

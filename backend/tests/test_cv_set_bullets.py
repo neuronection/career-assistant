@@ -1,5 +1,6 @@
 """cv_set_bullets HITL proposals (plan 107): grounding, apply, conflict,
-revert — the chat path onto the plan-106 CV-local override layer."""
+revert — the chat path onto the two-layer bullets model (a bullets
+variant pinned on the CV via the :bullets synth-pin slot)."""
 
 import uuid
 
@@ -7,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.errors import ValidationError
+from app.models.cv_synth_model import CvSynthItem
 from app.models.experience_model import ExperienceItem
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate, CvDocumentUpdate
@@ -88,7 +90,7 @@ async def test_create_rejects_item_off_the_cv(db, auth_headers):
         )
 
 
-async def test_apply_writes_override_entries(db, auth_headers):
+async def test_apply_writes_a_bullets_variant_and_pins_it(db, auth_headers):
     user = await _auth_user(db)
     cv = await _cv(db, user)
     item = await _experience(db, user)
@@ -97,10 +99,11 @@ async def test_apply_writes_override_entries(db, auth_headers):
     _proposal, applied, _idempotent = await _approve(db, user, proposal)
     assert applied["kind"] == "cv_set_bullets"
     fresh = await CvService(db).get_owned(cv.id, user.id)
-    overrides = (fresh.working_content or {}).get("overrides") or {}
-    assert overrides[f"experience:{item.id}"]["achievements"] == [
-        {"text": "CV bullet A"}
-    ]
+    pins = (fresh.context or {}).get("synth_pins") or {}
+    variant_id = pins[f"experience:{item.id}:bullets"]
+    variant = await db.get(CvSynthItem, uuid.UUID(variant_id))
+    assert variant.scope == "bullets"
+    assert variant.payload["achievements"] == [{"text": "CV bullet A"}]
 
 
 async def _approve(db, user, proposal):
@@ -123,49 +126,34 @@ async def test_conflict_when_cv_moved_since_proposal(db, auth_headers):
         await _approve(db, user, proposal)
 
 
-async def test_revert_restores_the_prior_override(db, auth_headers):
+async def test_revert_unpins_the_bullets_variant(db, auth_headers):
     user = await _auth_user(db)
     cv = await _cv(db, user)
     item = await _experience(db, user)
-    from app.schemas.cv import CvDocumentUpdate
-
-    await CvService(db).update(
-        cv.id,
-        user.id,
-        CvDocumentUpdate(
-            working_content={
-                "blocks": [],
-                "overrides": {
-                    f"experience:{item.id}": {
-                        "achievements": [{"text": "Earlier manual bullet"}]
-                    }
-                },
-            }
-        ),
-    )
     proposal = await _propose_bullets(db, user, cv, item, ["CV bullet A"])
     await _approve(db, user, proposal)
     reverted = await ProfileProposalService(db).revert(user.id, proposal.id)
 
     assert reverted.status == "reverted"
     fresh = await CvService(db).get_owned(cv.id, user.id)
-    overrides = (fresh.working_content or {}).get("overrides") or {}
-    assert overrides[f"experience:{item.id}"]["achievements"] == [
-        {"text": "Earlier manual bullet"}
-    ]
+    pins = (fresh.context or {}).get("synth_pins") or {}
+    assert f"experience:{item.id}:bullets" not in pins, (
+        "revert unpins — the profile bullets render again"
+    )
 
 
-async def test_revert_without_prior_override_drops_the_key(db, auth_headers):
+async def test_revert_without_a_variant_is_a_clean_noop(db, auth_headers):
     user = await _auth_user(db)
     cv = await _cv(db, user)
     item = await _experience(db, user)
     proposal = await _propose_bullets(db, user, cv, item, ["CV bullet A"])
     await _approve(db, user, proposal)
     await ProfileProposalService(db).revert(user.id, proposal.id)
+    await ProfileProposalService(db).revert(user.id, proposal.id)
 
     fresh = await CvService(db).get_owned(cv.id, user.id)
-    overrides = (fresh.working_content or {}).get("overrides") or {}
-    assert f"experience:{item.id}" not in overrides
+    pins = (fresh.context or {}).get("synth_pins") or {}
+    assert f"experience:{item.id}:bullets" not in pins
     rows = await db.execute(select(User).where(User.id == user.id))
     assert rows.scalars().one() is not None
 
@@ -299,7 +287,9 @@ async def test_chat_proposes_and_approval_applies_cv_bullets(
 
     fetched = await client.get(f"/api/v1/cv/{cv.id}", headers=auth_headers)
     assert fetched.status_code == 200, fetched.text()
-    overrides = fetched.json()["working_content"].get("overrides") or {}
-    assert overrides[f"experience:{item.id}"]["achievements"] == [
+    pins = (fetched.json().get("context") or {}).get("synth_pins") or {}
+    variant_id = pins[f"experience:{item.id}:bullets"]
+    variant = await db.get(CvSynthItem, uuid.UUID(variant_id))
+    assert variant.payload["achievements"] == [
         {"text": "Backend internship — tailored for this CV"}
     ]

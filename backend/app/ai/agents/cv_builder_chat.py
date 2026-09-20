@@ -30,6 +30,13 @@ from app.ai.gateway import StructuredStream, partial_answer_text, register_mock_
 from app.core.errors import DomainError, NotFoundError, ValidationError
 from app.models.enums import AITaskType, CvVersionCreator
 from app.schemas.cv import CvContextSelection
+from app.schemas.cv_synth import (
+    CvSynthBullet,
+    CvSynthItemCreate,
+    CvSynthPayload,
+    CvSynthItemUpdate,
+    CvSynthVoice,
+)
 from app.schemas.cv_assistant import CvBuilderTurn, OpResult
 from app.schemas.cv_template import DesignTokens, TemplateContent
 from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
@@ -89,10 +96,11 @@ SYSTEM = (
     "allowed fields per source are in `override_fields`). Rephrase the "
     "user's real content; never invent employers, dates or skills.\n"
     "- set_bullets {source_key, item_id, bullets} — replace one item's "
-    "bullet list on THIS CV (experience, projects or volunteer rows "
-    "from the state). Grounded metric-honest lines the user already has "
-    "evidence for; missing numbers stay explicit placeholders like "
-    '"<your number>".\n'
+    "bullet list through a bullets variant pinned on THIS CV "
+    "(experience, projects or volunteer rows from the state): a "
+    "SELECTIVE set of grounded, metric-honest lines the user already "
+    "has evidence for; missing numbers stay explicit placeholders like "
+    '"<your number>"; irrelevant details of the global entry stay out.\n'
     "Rules: at most 12 operations, applied in order. Use block_index and "
     "item_id values exactly as listed in the state. Set "
     "`need_visual_review` true when the user asks about looks, layout, "
@@ -500,10 +508,11 @@ async def apply_operation(
                         f"Unknown context item {ref.source_key}:{ref.item_id}"
                     )
             existing = CvContextSelection.model_validate(cv.context or {})
+            known_pin_keys = {
+                f"{source_key}:{item_id}" for source_key, item_id in known
+            } | {f"{source_key}:{item_id}:bullets" for source_key, item_id in known}
             for ref_key in op.synth_pins or {}:
-                if ref_key not in {
-                    f"{source_key}:{item_id}" for source_key, item_id in known
-                }:
+                if ref_key not in known_pin_keys:
                     raise ValidationError(f"Unknown synth pin target {ref_key}")
             if op.synth_pins:
                 from app.services.cv_synth_service import CvSynthService
@@ -654,7 +663,10 @@ async def apply_operation(
             )
 
         if kind == "set_bullets":
+            # Two-layer model: the bullets land in a bullets VARIANT
+            # pinned on this CV — never the removed overrides layer.
             from app.services.cv_builder_service import CvBuilderService
+            from app.services.cv_synth_service import CvSynthService
 
             resolution = await CvBuilderService(db).resolution(cv)
             ids = (resolution.snapshot_index or {}).get(op.source_key) or []
@@ -662,19 +674,41 @@ async def apply_operation(
                 raise ValidationError(
                     f"{op.source_key}:{op.item_id} is not in this CV's context"
                 )
-            ref = f"{op.source_key}:{op.item_id}"
-            overrides[ref] = {
-                **(overrides.get(ref) or {}),
-                "achievements": [{"text": bullet} for bullet in op.bullets],
-            }
-            _save_working(cv, blocks, overrides)
+            payload = CvSynthPayload(
+                achievements=[CvSynthBullet(text=bullet) for bullet in op.bullets]
+            )
+            service = CvSynthService(db)
+            existing = CvContextSelection.model_validate(cv.context or {})
+            pin_key = f"{op.source_key}:{op.item_id}:bullets"
+            pinned_id = (existing.synth_pins or {}).get(pin_key)
+            if pinned_id:
+                await service.update(
+                    UUID(pinned_id),
+                    cv.user_id,
+                    CvSynthItemUpdate(payload=payload),
+                )
+            else:
+                row = await service.create_manual(
+                    cv.user_id,
+                    CvSynthItemCreate(
+                        refs=[{"source_key": op.source_key, "item_id": op.item_id}],
+                        scope="bullets",
+                        payload=payload,
+                        voice=CvSynthVoice(language=str(cv.language or "en")),
+                    ),
+                )
+                existing.synth_pins = {
+                    **(existing.synth_pins or {}),
+                    pin_key: str(row.id),
+                }
+                cv.context = existing.model_dump(mode="json")
             await db.commit()
             count = len(op.bullets)
             return OpResult(
                 op=kind,
                 ok=True,
                 detail=f"{count} bullet{'s' if count != 1 else ''} set on"
-                f" {op.source_key}:{op.item_id}",
+                f" {op.source_key}:{op.item_id} (bullets variant)",
             )
 
         raise ValidationError(f"Unsupported operation: {kind}")

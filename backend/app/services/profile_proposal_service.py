@@ -30,6 +30,7 @@ from app.models.profile_entities_model import (
 )
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import Profile, UserSkill
+from app.schemas.cv import CvContextSelection
 from app.schemas.experience import ExperienceItemIn, ExperienceItemUpdate
 from app.schemas.profile import (
     AcademicsSection,
@@ -221,14 +222,19 @@ async def resolve_cv_set_bullets(
         raise ValidationError(
             "Target item is not on this CV's context — include it first"
         )
-    overrides = (cv.working_content or {}).get("overrides") or {}
-    patch = overrides.get(f"{source_key}:{item_id}") or {}
-    prior = patch.get("achievements")
-    prior_entries = (
-        [{"text": str(entry.get("text") or "")} for entry in prior]
-        if isinstance(prior, list) and all(isinstance(e, dict) for e in prior)
-        else None
-    )
+    selection = CvContextSelection.model_validate(cv.context or {})
+    pinned_id = (selection.synth_pins or {}).get(f"{source_key}:{item_id}:bullets")
+    variant_entries: list[dict] | None = None
+    if pinned_id:
+        from app.services.cv_synth_service import CvSynthService
+
+        variant = await CvSynthService(db).get_owned(uuid.UUID(str(pinned_id)), user_id)
+        entries = (variant.payload or {}).get("achievements") or []
+        variant_entries = [
+            {"text": str(entry.get("text") or "")}
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
     base = [
         {"text": str(entry.get("text") or "")}
         for entry in row.get("achievements") or []
@@ -237,8 +243,9 @@ async def resolve_cv_set_bullets(
     return {
         "cv_title": cv.title,
         "item_label": str(row.get("title") or row.get("program") or item_id),
-        "before": prior_entries if prior_entries is not None else base,
-        "prior": prior_entries,
+        "before": variant_entries if variant_entries is not None else base,
+        "prior": variant_entries,
+        "prior_variant_id": pinned_id,
         "cv_updated_at": cv.updated_at,
     }
 
@@ -1726,7 +1733,9 @@ class ProfileProposalService:
                         entity, payload.get("section"), payload.get("value") or {}
                     )
                 elif kind == ProposalKind.CV_SET_BULLETS.value:
-                    proposal.diff_json = self._cv_bullets_conflict_diff(entity, payload)
+                    proposal.diff_json = await self._cv_bullets_conflict_diff(
+                        entity, payload
+                    )
                 else:
                     spec = KIND_SPECS[kind]
                     proposal.diff_json = self._update_diff(
@@ -1916,45 +1925,81 @@ class ProfileProposalService:
     # ---------------------------------------------------------- loaders
 
     async def _apply_cv_set_bullets(self, payload: dict, user_id: uuid.UUID) -> dict:
-        """Write the approved bullet list as a per-CV override patch
-        (plan 107). Restore mode (revert) reinstates `prior` when one
-        existed or drops the override key when the CV had none."""
+        """Write the approved bullet list through the two-layer model:
+        a bullets VARIANT pinned on this CV. Restore (revert) unpins —
+        the profile bullets render again. Overrides never carry
+        achievements."""
+        from app.schemas.cv_synth import (
+            CvSynthBullet,
+            CvSynthItemCreate,
+            CvSynthItemUpdate,
+            CvSynthPayload,
+            CvSynthVoice,
+        )
         from app.services.cv_service import CvService
+        from app.services.cv_synth_service import CvSynthService
 
         cv = await CvService(self.db).get_owned(
             uuid.UUID(str(payload["cv_id"])), user_id
         )
-        key = f"{payload['source_key']}:{payload['item_id']}"
-        working = dict(cv.working_content or {})
-        overrides = dict(working.get("overrides") or {})
-        patch = dict(overrides.get(key) or {})
+        source_key = payload["source_key"]
+        item_id = payload["item_id"]
+        pin_key = f"{source_key}:{item_id}:bullets"
+        selection = CvContextSelection.model_validate(cv.context or {})
+        service = CvSynthService(self.db)
         if payload.get("restore"):
-            if payload.get("prior"):
-                patch["achievements"] = [
-                    {"text": str(entry.get("text") or "")} for entry in payload["prior"]
-                ]
-                overrides[key] = patch
-            else:
-                patch.pop("achievements", None)
-                if patch:
-                    overrides[key] = patch
-                else:
-                    overrides.pop(key, None)
+            selection.synth_pins = {
+                key: value
+                for key, value in (selection.synth_pins or {}).items()
+                if key != pin_key
+            }
         else:
-            patch["achievements"] = [
-                {"text": str(bullet)} for bullet in payload.get("bullets") or []
-            ]
-            overrides[key] = patch
-        cv.working_content = {**working, "overrides": overrides}
+            bullets_payload = CvSynthPayload(
+                achievements=[
+                    CvSynthBullet(text=str(bullet))
+                    for bullet in payload.get("bullets") or []
+                ]
+            )
+            pinned_id = (selection.synth_pins or {}).get(pin_key)
+            if pinned_id:
+                await service.update(
+                    uuid.UUID(str(pinned_id)),
+                    user_id,
+                    CvSynthItemUpdate(payload=bullets_payload),
+                )
+            else:
+                row = await service.create_manual(
+                    user_id,
+                    CvSynthItemCreate(
+                        refs=[{"source_key": source_key, "item_id": item_id}],
+                        scope="bullets",
+                        payload=bullets_payload,
+                        voice=CvSynthVoice(language=str(cv.language or "en")),
+                    ),
+                )
+                selection.synth_pins = {
+                    **(selection.synth_pins or {}),
+                    pin_key: str(row.id),
+                }
+        cv.context = selection.model_dump(mode="json")
         await self.db.flush()
         return {"kind": ProposalKind.CV_SET_BULLETS.value, "id": str(cv.id)}
 
-    def _cv_bullets_conflict_diff(self, cv: Any, payload: dict) -> list[dict]:
+    async def _cv_bullets_conflict_diff(self, cv: Any, payload: dict) -> list[dict]:
         """Fresh before-side when the CV moved since the card was
         proposed — the resolver's stored `before` is stale."""
-        key = f"{payload.get('source_key')}:{payload.get('item_id')}"
-        overrides = (cv.working_content or {}).get("overrides") or {}
-        entries = (overrides.get(key) or {}).get("achievements")
+        from app.services.cv_synth_service import CvSynthService
+
+        selection = CvContextSelection.model_validate(cv.context or {})
+        pinned_id = (selection.synth_pins or {}).get(
+            f"{payload.get('source_key')}:{payload.get('item_id')}:bullets"
+        )
+        entries = None
+        if pinned_id:
+            variant = await CvSynthService(self.db).get_owned(
+                uuid.UUID(str(pinned_id)), cv.user_id
+            )
+            entries = (variant.payload or {}).get("achievements")
         before = [
             str(entry.get("text") or "")
             for entry in entries or []

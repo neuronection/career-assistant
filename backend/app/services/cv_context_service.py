@@ -688,7 +688,14 @@ def apply_overrides(
         key: (dict(rows) if key in SCALAR_KEYS else list(rows))
         for key, rows in snapshot.items()
     }
-    for ref, patches in overrides.items():
+    for ref, raw_patches in overrides.items():
+        # Two-layer model: achievements come from the root item or a
+        # pinned bullets variant — an override patch can never carry them.
+        patches = {
+            key: value for key, value in raw_patches.items() if key != "achievements"
+        }
+        if not patches:
+            continue
         source_key, _, item_id = str(ref).partition(":")
         key = "summary" if source_key == "summary" else source_key
         if key in SCALAR_KEYS:

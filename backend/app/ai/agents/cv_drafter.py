@@ -43,7 +43,10 @@ PLAN_SYSTEM = (
     "experience/education, then supporting sections). If the target role "
     "demands emphasis an item's text cannot show — work or internship "
     "experience, a project, a volunteering entry — propose at most "
-    "three synth variants for those items (action posting_fit when "
+    "three synth variants for those items: a variant is a SELECTIVE "
+    "re-angle of the global entry for this target (its strongest, "
+    "relevant details, phrased for the document), never a full copy of "
+    "everything the item holds (action posting_fit when "
     "a saved posting exists, otherwise detail or restyle). Respond with "
     "JSON only."
 )

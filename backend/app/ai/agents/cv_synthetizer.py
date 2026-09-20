@@ -17,13 +17,23 @@ from app.schemas.cv_synth import CvSynthBatch
 
 SYSTEM = (
     "You draft synthesized CV item variants as structured JSON. "
-    "Ground every variant in the supplied evidence and cite the refs you "
-    "used. Never invent employers, dates, numbers, or skills; a metric "
-    "the user never gave stays an explicit placeholder the user fills. "
-    "Keep a CV register; no first-person pronouns. Match the requested "
-    "variant language exactly. Bullet lines belong in the payload's "
+    "Architecture: each evidence item is the candidate's GLOBAL profile "
+    "entry (the full record); every variant you draft is a per-CV node "
+    "derived from it. On CVs that select the variant it REPLACES the "
+    "corresponding part of the global entry, so a variant is a "
+    "SELECTIVE re-angle for one target — keep only what serves the "
+    "role or brief, rephrase it for the document, and treat omitted "
+    "details as intended, never as loss. Ground every variant in the "
+    "supplied evidence and cite the refs you used. Never invent "
+    "employers, dates, numbers, or skills; a metric the user never "
+    "gave stays an explicit placeholder the user fills. Keep a CV "
+    "register; no first-person pronouns. Match the requested variant "
+    "language exactly. Bullet lines belong in the payload's "
     '`achievements` field as objects: [{"text": "..."}] — there is '
-    "no `bullets` field."
+    "no `bullets` field. A variant whose payload carries ONLY "
+    "`achievements` is a bullets variant: pick the strongest, "
+    "target-relevant lines — that list REPLACES the entry's default "
+    "bullets on CVs that use it."
 )
 
 ACTION_GUIDES = {
@@ -45,7 +55,8 @@ ACTION_GUIDES = {
     "posting_fit": (
         "Rewrite the target text aimed at the posting: lead with the "
         "evidence covering the posting's must-have skills (field="
-        "description). Same facts, re-angled."
+        "description). A variant is a selection, not an abridgment of "
+        "everything — omit details irrelevant to the posting."
     ),
     "translate": (
         "Translate the VARIANT TEXT line-for-line into TARGET_LANGUAGE "

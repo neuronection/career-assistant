@@ -43,15 +43,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 - **Bullets are a two-layer model: profile + variants** — the per-CV
-  achievements override layer is gone. Editing an item's bullets in the
-  Context tab now creates/patches a scope-`bullets` variant (reusable
-  across CVs) pinned through a second per-item pin slot
+  achievements override layer is GONE everywhere: the bullets editor,
+  the builder chat's `set_bullets` op, and the `cv_set_bullets` HITL
+  tool all write a scope-`bullets` variant (reusable across CVs)
+  pinned through a second per-item pin slot
   (`synth_pins["{source}:{id}:bullets"]`), so a pinned text variant and
   a pinned bullets variant compose on the same item. A variant that
-  sets achievements now OWNS the list (replace, not prepend); profile
-  bullets render only when no variant sets them. Context-panel bullets
-  variants show a `bullets` badge and pin with their own star. No data
-  migration (pre-release model change).
+  sets achievements now OWNS the list (replace, not prepend) and
+  override patches can no longer carry achievements at resolution —
+  the profile is the only base, pinned variants the only tailoring.
+  Context-panel bullets variants show a `bullets` badge and pin with
+  their own star. No data migration (pre-release model change).
 - **Goal focus hides out-of-scope tabs completely** — focusing a goal
   (CV / Job matching / Career guidance) now keeps only the Overview and
   the in-scope sections in the rail; Account & data no longer shows
