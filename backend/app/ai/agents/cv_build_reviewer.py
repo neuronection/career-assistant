@@ -78,7 +78,16 @@ def _ref_ids(refs: list) -> list[str]:
 
 
 _REVIEW_PROPS_KEYS = frozenset(
-    {"source_key", "display", "max_items", "show_levels", "kinds", "order"}
+    {
+        "source_key",
+        "display",
+        "max_items",
+        "show_levels",
+        "kinds",
+        "order",
+        "container",
+        "selected",
+    }
 )
 
 
