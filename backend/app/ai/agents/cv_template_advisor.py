@@ -88,16 +88,24 @@ async def rank_templates(
         AITaskType.CV_TEMPLATE_PICK,
         TemplateRanking,
         system=(
-            "You rank CV template candidates for a student's new CV. Each "
-            "candidate arrives with deterministic signal scores; the "
+            "You rank CV template candidates for a student's new CV. The "
+            "candidates are curated bank templates only — a fresh CV "
+            "starts from a proven look, never an unvetted private copy. "
+            "Each candidate arrives with deterministic signal scores; the "
             "signals are the baseline — reorder them only for qualities "
             "the scores cannot see, and give one short reason per pick. "
             "The request may carry the user's emphasis notes (what this "
             "CV should highlight) and a target role: weigh both — e.g. "
             "an emphasis on projects or skills favors layouts that "
-            "surface them early. When it carries a layout_hint "
+            "surface them early. The notes may also describe the desired "
+            "look (e.g. modern, professional, elegant): prefer the "
+            "candidate whose aesthetic reads closest to that. When it "
+            "carries a layout_hint "
             "(e.g. 'sidebar' from a 'modern' brief), candidates "
-            "matching it come first. "
+            "matching it come first. When it carries `recently_used` "
+            "(the templates of the user's other CVs), treat repeats as "
+            "a last resort: prefer a fresh look unless the brief "
+            "explicitly favors the used template. "
             + (
                 "Page images ride along in candidate-ref order: judge the "
                 "actual look — density, hierarchy, use of the sidebar, "

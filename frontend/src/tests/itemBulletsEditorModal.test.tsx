@@ -149,4 +149,48 @@ describe("ItemBulletsEditorModal", () => {
     expect(onGenerate).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
+
+  it("re-syncs from refreshed props while untouched, preserving user edits", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const props = {
+      sourceKey: "experience",
+      itemId: "exp-1",
+      head: { title: "DevOps intern", org: "Acme" },
+      override: null,
+      proposal: null,
+      onProposalConsumed: vi.fn(),
+      onSave,
+      onReset: vi.fn(),
+      onClose: vi.fn(),
+    };
+    const view = render(
+      <MemoryRouter>
+        <ItemBulletsEditorModal {...props} base={BASE} />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("bullets-row-0")).toHaveValue(
+      "Shipped the QA harness"
+    );
+    view.rerender(
+      <MemoryRouter>
+        <ItemBulletsEditorModal {...props} base={[{ text: "Fresh resolved bullet" }]} />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("bullets-row-0")).toHaveValue(
+        "Fresh resolved bullet"
+      )
+    );
+    await user.clear(screen.getByTestId("bullets-row-0"));
+    await user.type(screen.getByTestId("bullets-row-0"), "My own bullet");
+    view.rerender(
+      <MemoryRouter>
+        <ItemBulletsEditorModal {...props} base={[{ text: "Another resolved bullet" }]} />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("bullets-row-0")).toHaveValue("My own bullet");
+    await user.click(screen.getByTestId("bullets-editor-save"));
+    expect(onSave).toHaveBeenCalledWith([{ text: "My own bullet" }]);
+  });
 });

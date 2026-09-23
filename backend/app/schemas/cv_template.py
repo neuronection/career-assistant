@@ -54,6 +54,15 @@ class DesignTokens(BaseModel):
     # Card-section elevation (Material-3-style shadow tiers); visible
     # only when section_style is "card".
     elevation: Literal["none", "soft", "raised"] = "none"
+    # Chip styling (skills/languages/interests chips): tint = accent wash
+    # (legacy default), outline = bordered, solid = accent fill, plain =
+    # text only. chip_tint_pct is the accent share in the tint wash.
+    chip_style: Literal["tint", "outline", "solid", "plain"] = "tint"
+    chip_tint_pct: int = Field(default=12, ge=0, le=40)
+    # Explicit chip text color; None derives so the accent wash stays
+    # theme-coherent (tint/outline/plain use the heading color, solid
+    # uses white). Sidebars always keep their own text color.
+    chip_text_color: Optional[str] = Field(default=None, pattern=HEX_COLOR)
     heading_case: Literal["uppercase", "title", "none"] = "uppercase"
     heading_weight: int = Field(default=600, ge=400, le=800)
     # Two-column layout: a colored sidebar holds its assigned blocks.

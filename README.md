@@ -63,7 +63,7 @@ A self-hosted web app that helps anyone navigate career decisions — students c
 
 Under the hood it's a **structured knowledge platform**: a job catalog organized as a family tree plus a typed relation graph, deep structured student profiles, and university admissions data — all referenced by stable keys, never loose labels. AI generates jobs, suggests relations, and scores matches, but every output is validated into typed structures and audited.
 
-More than a CV builder — but the **CV Studio** is its most mature surface today: an agentic CV workspace that generates CVs from templates, from an uploaded existing CV, or on demand from your structured profile, with deep template and design customization and an AI copilot that operates the builder for you (details in the [feature catalog](docs/features.md#cv-studio)).
+More than a CV builder — but the **CV Studio** is its most mature surface today: an agentic CV workspace that generates CVs from templates, from an uploaded existing CV, or on demand from your structured profile, with deep template and design customization and an AI copilot that operates the builder for you (details in the [feature catalog](docs/user/features.md#cv-studio)).
 
 It is **beta** software, built for anyone exploring career paths and for technical self-hosters.
 
@@ -77,7 +77,7 @@ It is **beta** software, built for anyone exploring career paths and for technic
 
 ## Features
 
-The short tour; the exhaustive one — including Autopilot, deep posting extraction, growth toolkit, variant library, MCP and more — lives in the [feature catalog](docs/features.md).
+The short tour; the exhaustive one — including Autopilot, deep posting extraction, growth toolkit, variant library, MCP and more — lives in the [feature catalog](docs/user/features.md).
 
 - **Explore a living job catalog** — browse job families as a tree, follow typed relations in an interactive graph, and enrich the catalog with AI-generated jobs that map onto the existing taxonomy. Search and filter across everything.
 - **Build a deep, structured profile** — an onboarding wizard with start paths (answer only what applies), CV intake with review-first import, and an AI analysis of your profile. Everything is typed, so matching is computed, not vibes.
@@ -198,14 +198,24 @@ flowchart LR
 
 The frontend talks to **domain endpoints** optimized for the UI: catalog (tree + graph), profile, matching, universities, chat and AI settings. All AI work runs through a single structured-output pipeline (`ainvoke_structured`): the resolved provider/model is called, the response is pydantic-validated, and the generation is audited — there is no side door around it.
 
-PDF parsing and AI generation run as FastAPI background tasks; Redis ships in the compose file for a later worker split (no Celery in v1). Deep dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+PDF parsing and AI generation run as FastAPI background tasks; Redis ships in the compose file for a later worker split (no Celery in v1). Deep dive: [docs/dev/architecture.md](docs/dev/architecture.md).
 
 ## Documentation
 
-**Getting started**
-- [Feature catalog](docs/features.md) — everything, as built (Autopilot, extraction, CV Studio, chat, scheduler)
-- [Architecture](docs/ARCHITECTURE.md) — modes, runtime topology, registries, AI pipeline
-- [Deployment](docs/deploy.md) — self-hosting with the production compose stack, TLS, upgrades, backups
+Full manual: [docs/](docs/README.md) — split by audience into a
+[user guide](docs/user/README.md) and a
+[developer guide](docs/dev/README.md); navigation is described by
+[docs/docs-tree.json](docs/docs-tree.json).
+
+**Users**
+- [Getting started](docs/user/getting-started.md) — install, first run, connect an AI provider
+- [Feature catalog](docs/user/features.md) — everything, as built (Autopilot, extraction, CV Studio, chat, scheduler)
+- [Troubleshooting](docs/user/troubleshooting.md) — common problems and fixes
+
+**Developers & operators**
+- [Architecture](docs/dev/architecture.md) — modes, runtime topology, registries, AI pipeline
+- [Development workflow](docs/dev/development.md) — setup, conventions, worktrees, verification gates
+- [Deployment](docs/dev/deployment.md) — self-hosting with the production compose stack, TLS, upgrades, backups
 - [Contributing](CONTRIBUTING.md) — dev setup, conventions, PR checklist
 - [Changelog](CHANGELOG.md) — notable changes per release
 
@@ -230,7 +240,7 @@ Interactive API docs are also available at `/docs` on a running backend.
 Career Assistant is in **public beta** (`0.10.x`). The points below are honest boundaries — not every limitation is a bug.
 
 - **Pre-1.0 APIs.** REST endpoints and DB schemas may change before `1.0`. Pin a version if you depend on it.
-- **Single-container scale.** One uvicorn process serves the API and the built SPA (see [Deployment](docs/deploy.md)); there is no horizontal-scaling story yet. A worker split is on the roadmap.
+- **Single-container scale.** One uvicorn process serves the API and the built SPA (see [Deployment](docs/dev/deployment.md)); there is no horizontal-scaling story yet. A worker split is on the roadmap.
 - **No Celery in v1.** PDF parsing and AI generation run as in-process FastAPI background tasks. Redis ships in the compose file for a later worker split; today the FastAPI process does the work itself.
 - **Single-tenant.** Students are `users`; there is no tenancy model. Multi-school/organization support is not on the v1 roadmap.
 - **AI features need a configured provider in production.** A fresh production install starts unconfigured and AI endpoints answer 503 until an admin sets a provider up in the UI. The mock provider can never serve results in production.
@@ -244,7 +254,7 @@ Career Assistant is in **public beta** (`0.10.x`). The points below are honest b
 - **CV Studio waves** — one-shot generation from your profile with a vision polish loop; the variant library; chat CV references with a builder-copilot handoff; template previews with your own data; grounded chat edits with one-click revert.
 - **Discovery wave** — skills ontology, deterministic fit engine, JobTypeMatch assessment, engagement & notifications, career stages.
 - **Live postings wave** — connector SDK (ATS/JSON-LD/RSS/CSV/URL), deep extraction with skill-level search, Explore page, Career Autopilot, express start & target mode, growth toolkit, the modular scheduler.
-- **Desktop & ops** — tray background mode, Linux packaging (`.deb` + `.AppImage`), production self-host stack ([docs/deploy.md](docs/deploy.md)), MCP server + client bridge, semantic search & skill packs, interview prep.
+- **Desktop & ops** — tray background mode, Linux packaging (`.deb` + `.AppImage`), production self-host stack ([docs/dev/deployment.md](docs/dev/deployment.md)), MCP server + client bridge, semantic search & skill packs, interview prep.
 
 **Up next**:
 

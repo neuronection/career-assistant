@@ -172,46 +172,68 @@ async def _cv_with_pin_map(client, auth_headers, pins: dict) -> dict:
 
 
 async def test_bullets_variant_pin_composes_with_text_variant(client, db, auth_headers):
-    """Two pin slots per item: a pinned text variant swaps the
-    description while a pinned bullets variant owns the achievements —
-    both apply together, and an unpinned bullets variant never does."""
+    """Plan-110 single-slot model: one star per item; a row applies what
+    its payload carries. Composition of text + bullets on one starred
+    row is the replace-free affordance (qpdate the pinned row's
+    achievements separately) — the scaled-down two-slot pin test suite."""
     item, text_variant = await _item_and_active_variant(client, db, auth_headers)
     db.add(ExperienceAchievement(experience_id=item.id, text="Profile bullet"))
     await db.commit()
-    bullets_variant = await _make_bullets_variant(
-        client, auth_headers, item, ["Cut latency 40%", "Shipped v2"]
-    )
 
-    unpinned = await _cv_with_pin_map(
+    with_guidance = await _cv_with_pin_map(
         client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
     )
-    rows = (await _resolution(client, auth_headers, unpinned))["snapshot"]["experience"]
-    assert rows[0]["description"] == text_variant["payload"]["description"]
+    rows = (await _resolution(client, auth_headers, with_guidance))["snapshot"][
+        "experience"
+    ]
+    assert rows[0]["description"] == text_variant["payload"]["description"], (
+        "the pinned text variant owns the description"
+    )
     assert [entry["text"] for entry in rows[0]["achievements"]] == ["Profile bullet"], (
-        "pins-only: an unpinned bullets variant must not apply"
+        "absent achievements keep the profile bullets (presence rule)"
     )
 
-    both = await _cv_with_pin_map(
+    compose = await _cv_synth_update(
         client,
         auth_headers,
+        text_variant["id"],
         {
-            "experience:" + str(item.id): text_variant["id"],
-            "experience:" + str(item.id) + ":bullets": bullets_variant["id"],
+            "payload": {
+                **text_variant["payload"],
+                "achievements": [
+                    {"text": "Cut latency 40%"},
+                    {"text": "Shipped v2"},
+                ],
+            }
         },
     )
-    rows = (await _resolution(client, auth_headers, both))["snapshot"]["experience"]
+    assert compose["status"] == "active"
+    rows = (await _resolution(client, auth_headers, with_guidance))["snapshot"][
+        "experience"
+    ]
     assert rows[0]["description"] == text_variant["payload"]["description"], (
-        "the text slot's variant still owns the description"
+        "one row, one star: the same single slot"
     )
     assert [entry["text"] for entry in rows[0]["achievements"]] == [
         "Cut latency 40%",
         "Shipped v2",
-    ], "the bullets slot's variant owns the achievements"
+    ], "the composed row swaps both layers"
 
 
-async def test_bullets_supersede_keeps_text_slot(client, db, auth_headers):
-    """Slots partition by scope: activating a bullets variant must not
-    archive the same item's text variant (or vice versa)."""
+async def _cv_synth_update(client, auth_headers, item_id, patch):
+    response = await client.patch(
+        f"/api/v1/cv/synth/{item_id}",
+        json=patch,
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_bullets_variants_coexist_with_text_slot(client, db, auth_headers):
+    """Multi-active library: activating a bullets candidate never
+    retires the item's other enabled variants — the per-CV star (pin)
+    decides what renders."""
     item, text_variant = await _item_and_active_variant(client, db, auth_headers)
     first = await _make_bullets_variant(client, auth_headers, item, ["First set"])
     second = await _make_bullets_variant(client, auth_headers, item, ["Second set"])
@@ -222,8 +244,8 @@ async def test_bullets_supersede_keeps_text_slot(client, db, auth_headers):
     first_row = (
         await client.get(f"/api/v1/cv/synth/{first['id']}", headers=auth_headers)
     ).json()
-    assert text_row["status"] == "active", "the text slot survives bullets supersede"
-    assert first_row["status"] == "archived", "the older bullets variant superseded"
+    assert text_row["status"] == "active"
+    assert first_row["status"] == "active"
     assert second["status"] == "active"
 
 
@@ -238,7 +260,11 @@ async def test_bullets_variant_needs_a_bullet(client, db, auth_headers):
     assert response.status_code == 400
 
 
-async def test_override_beats_synth(client, db, auth_headers):
+async def test_pin_beats_override_overrides_return_on_unpin(client, db, auth_headers):
+    """Layer order is `pin > override > source`: re-starring a variant
+    re-asserts its own fields over an older captured override (the
+    pinned row owns what it carries); unpinning restores the override
+    text so a manual patch is never lost."""
     item, _variant = await _item_and_active_variant(client, db, auth_headers)
     cv = await _cv_with_pins(
         client, auth_headers, db, item_id=str(item.id), synth_id=_variant["id"]
@@ -260,8 +286,20 @@ async def test_override_beats_synth(client, db, auth_headers):
         "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
     )
     assert preview.status_code == 200, preview.text
-    assert "Manual final text" in preview.json()["html"], (
-        "override beats synth at render time"
+    assert _variant["payload"]["description"] in preview.json()["html"], (
+        "the pinned variant's text renders over the captured override"
+    )
+    # Unpin (remove the synth star) — the override text returns.
+    await client.patch(
+        f"/api/v1/cv/{cv['id']}",
+        json={"context": {"synth_pins": {}}},
+        headers=auth_headers,
+    )
+    unpinned = await client.post(
+        "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
+    )
+    assert "Manual final text" in unpinned.json()["html"], (
+        "unpinning restores the manual patch"
     )
 
 
@@ -362,11 +400,9 @@ async def test_lint_warns_when_pin_points_at_draft(client, db, auth_headers):
     assert checks["synth_pin_inactive"]["ref"] == f"experience:{item.id}"
 
 
-async def test_lint_warns_when_pin_variant_is_archived_by_activation(
-    client, db, auth_headers
-):
-    """Activating a second variant archives the slot's previous owner —
-    a pin still pointing at the archived row must warn, not fail silently."""
+async def test_lint_silent_while_pin_variant_stays_active(client, db, auth_headers):
+    """Multi-active library: activating sibling variants never retires a
+    pinned active row — the pin stays lint-clean."""
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
     first = (
@@ -391,8 +427,6 @@ async def test_lint_warns_when_pin_variant_is_archived_by_activation(
     cv = await _cv_with_pins(
         client, auth_headers, db, item_id=str(item.id), synth_id=first["id"]
     )
-    # Activating the second retires the first (slot supersede) — the pin
-    # now points at an archived row.
     await client.patch(
         f"/api/v1/cv/synth/{second['id']}",
         json={"status": "active"},
@@ -402,5 +436,51 @@ async def test_lint_warns_when_pin_variant_is_archived_by_activation(
         await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
     ).json()
     checks = {c["id"]: c for c in lint["checks"]}
-    assert "synth_pin_inactive" in checks
-    assert "archived" in checks["synth_pin_inactive"]["message"]
+    assert "synth_pin_inactive" not in checks
+
+
+async def test_omit_bullets_flag_clears_the_list_explicitly(client, db, auth_headers):
+    """Plan-110 explicit omission: `omit_bullets: true` on a pinned row
+    clears the item's bullets (description-variant-only entry prints),
+    while an ordinary text-only variant (default serialization carries
+    `achievements: []`) MUST keep rendering the profile bullets — empty
+    list is never a signal."""
+    item, text_variant = await _item_and_active_variant(client, db, auth_headers)
+    db.add(ExperienceAchievement(experience_id=item.id, text="Profile bullet 1"))
+    await db.commit()
+
+    cv = await _cv_with_pin_map(
+        client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
+    )
+    rows = (await _resolution(client, auth_headers, cv))["snapshot"]["experience"]
+    assert [entry["text"] for entry in rows[0]["achievements"]] == [
+        "Profile bullet 1"
+    ], (
+        "a text-only pinned row keeps the profile bullets (empty list is the row's "
+        "default serialization, never an omission deal)"
+    )
+
+    omitted = await _cv_synth_update(
+        client,
+        auth_headers,
+        text_variant["id"],
+        {
+            "payload": {
+                "description": text_variant["payload"]["description"],
+                "omit_bullets": True,
+            }
+        },
+    )
+    assert omitted["status"] == "active"
+    cv_omitting = await _cv_with_pin_map(
+        client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
+    )
+    rows = (await _resolution(client, auth_headers, cv_omitting))["snapshot"][
+        "experience"
+    ]
+    assert rows[0]["achievements"] == [], (
+        "the omit_bullets deal clears the pinned item's bullet list"
+    )
+    assert rows[0]["description"] == text_variant["payload"]["description"], (
+        "the description variant renders as the only text"
+    )

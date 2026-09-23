@@ -1195,7 +1195,11 @@ def route_after_review(state: CvDraftState) -> str:
     """Deterministic gate (§3): fix, finalize or stop cleanly.
 
     Blocking findings are fail-level vision/lint issues or uncovered
-    usable items; warns never block. Cancelled runs and the iteration
+    usable items; plain warns never block — BUT a warn with concrete
+    `suggested_ops` keeps the loop going while rounds remain (they are
+    cheap, specific fixes the reviewer already justified), and a run
+    still finalizes the moment its round budget is spent or its
+    warnings repeat unchanged. Cancelled runs and the iteration
     cap finalize what is committed instead of looping — a pending
     keep-or-revert judgement (variant/redesign) extends the cap by one
     so the judgement is actually resolved and the redesign ladder can
@@ -1221,8 +1225,13 @@ def route_after_review(state: CvDraftState) -> str:
     pending_judgements = polish.get("variant_pending") or (
         polish.get("redesign") or {}
     ).get("pending")
+    suggested_warn = any(
+        issue.get("level") == "warn" and issue.get("suggested_ops") for issue in issues
+    )
     if not blocking and not missing:
         if pending_judgements and iteration <= _polish_max(state):
+            return "fix"
+        if suggested_warn and not stale_stop and iteration < _polish_max(state):
             return "fix"
         return "finalize"
     if iteration >= _polish_max(state) + (1 if pending_judgements else 0):
@@ -1403,6 +1412,7 @@ def make_review_node(deps: GraphDeps):
             synth_applied=dict(resolution.synth_applied or {}),
             overrides=override_summary,
             themes=[{"key": theme.key, "label": theme.label} for theme in CV_THEMES],
+            selection=request.context.model_dump(mode="json"),
             run=_run_ref(state, "cv_draft.review"),
             with_ref=True,
         )

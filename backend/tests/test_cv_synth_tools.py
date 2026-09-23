@@ -174,7 +174,12 @@ async def test_generate_and_update_via_tools(client, db, auth_headers):
     assert generated["created"], "the mock provider drafted a variant"
     live = generated["created"][0]
     assert live["status"] == "active", "plan 102: chat request = activation"
-    assert "live" in generated["note"]
+    assert "already live" not in generated["note"], (
+        "plan 109/110: activation is NOT rendering — the note must not "
+        "claim the CV without a pin"
+    )
+    assert "once pinned" in generated["note"]
+    assert "variant_list" in generated["note"]
 
     drafted = await run_tool(
         db,
@@ -184,11 +189,10 @@ async def test_generate_and_update_via_tools(client, db, auth_headers):
             "cv_id": str(cv["id"]),
             "refs": _refs(item),
             "action": "summarize",
-            "activate": False,
         },
     )
-    assert drafted["created"][0]["status"] == "draft"
-    assert "library" in drafted["note"]
+    assert drafted["created"][0]["status"] == "active"
+    assert "once pinned" in drafted["note"]
 
     updated = await run_tool(
         db,
@@ -207,9 +211,15 @@ async def test_variant_tools_bind_in_main_chat_only():
     assert listed["variant_pin"]["scope"] == ToolScope.WRITE.value
     chat_keys = set(main_chat_tool_keys())
     assert {"variant_list", "variant_pin"} <= chat_keys
-    assert not any(key.startswith("cv_synth") for key in chat_keys), (
-        "the cv_builder-audience family stays copilot-owned"
-    )
+    # Plan-110 follow-up: variant TEXT generation is card-only in chat —
+    # `cv_synth_generate` retired from the main-chat surface (Studio
+    # copilot tool), so there is exactly one review surface.
+    assert "cv_synth_generate" not in chat_keys
+    assert sorted(listed["cv_synth_generate"]["audiences"]) == ["cv_builder"]
+    assert not any(
+        key.startswith("cv_synth_generate") or key.startswith("cv_synth_")
+        for key in chat_keys
+    ), "the cv_builder-audience variant family stays copilot-owned"
 
 
 async def test_variant_list_slim_rows_and_verdict(client, db, auth_headers):
@@ -271,7 +281,9 @@ async def test_variant_pin_sets_default_and_promotes_drafts(client, db, auth_hea
         for row in (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
     }
     assert statuses[first["id"]] == "active", "plan 102: pin promotes drafts"
-    assert statuses[second["id"]] == "archived", "supersede retires the slot"
+    assert statuses[second["id"]] == "draft", (
+        "multi-active library: pinning one variant leaves its drawer mates alone"
+    )
 
 
 async def test_variant_pin_unpin_by_variant_and_by_slot(client, db, auth_headers):
@@ -397,3 +409,102 @@ async def test_variant_pin_guards(client, db, auth_headers):
             {"cv_id": str(cv["id"]), "unpin": True},
         )
     del item
+
+
+async def test_bulk_archive_unarchive_delete(client, db, auth_headers):
+    """One call moves many rows; stars are stripped; unknown ids fail."""
+    from sqlalchemy import select
+
+    from app.models.cv_synth_model import CvSynthItem
+
+    item = await _item(db, _uid(auth_headers))
+    cv = await _cv(client, auth_headers, db)
+
+    ids = []
+    for _ in range(3):
+        row = await run_tool(
+            db,
+            "cv_synth_generate",
+            uuid.UUID(_uid(auth_headers)),
+            {"cv_id": str(cv["id"]), "refs": _refs(item), "action": "summarize"},
+        )
+        ids.append((row["created"][0]["id"]))
+
+    response = await client.post(
+        "/api/v1/cv/synth/bulk",
+        json={"ids": ids, "action": "archive"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    rows = {
+        row["id"]: row["status"]
+        for row in (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
+    }
+    assert all(rows[i] == "archived" for i in ids)
+
+    stored = (
+        (await db.execute(select(CvSynthItem).where(CvSynthItem.id.in_(ids))))
+        .scalars()
+        .all()
+    )
+    assert all(row.status == "archived" for row in stored), "bulk persisted archive"
+
+    restore = await client.post(
+        "/api/v1/cv/synth/bulk",
+        json={"ids": ids, "action": "unarchive"},
+        headers=auth_headers,
+    )
+    assert restore.status_code == 200
+    rows = {
+        row["id"]: row["status"]
+        for row in (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
+    }
+    # Restored as drafts (no cascade supersede on bulk restore).
+    assert all(rows[i] == "draft" for i in ids)
+
+    gone = await client.post(
+        "/api/v1/cv/synth/bulk",
+        json={"ids": ids, "action": "delete"},
+        headers=auth_headers,
+    )
+    assert gone.status_code == 200
+    assert set(gone.json()["deleted"]) == set(ids)
+    remaining = (
+        (
+            await db.execute(
+                select(CvSynthItem).where(
+                    CvSynthItem.user_id == uuid.UUID(_uid(auth_headers))
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+
+    unknown = await client.post(
+        "/api/v1/cv/synth/bulk",
+        json={"ids": ids, "action": "delete"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code in (400, 422)
+    assert "Unknown variant" in unknown.json()["detail"]
+
+
+async def test_bulk_archive_strips_star(client, db, auth_headers):
+    item, row = await _item_and_active_variant(client, db, auth_headers)
+    cv = await _cv(
+        client,
+        auth_headers,
+        db,
+        pins={f"experience:{item.id}": row["id"]},
+    )
+    response = await client.post(
+        "/api/v1/cv/synth/bulk",
+        json={"ids": [row["id"]], "action": "archive"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    stored = (await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)).json()
+    pins = stored.get("context", {}).get("synth_pins") or {}
+    assert not any(str(value) == row["id"] for value in pins.values())

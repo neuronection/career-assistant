@@ -17,7 +17,7 @@ never break one mode while working on the other.
 Stack mirrors the other Neuronection assistants: FastAPI (async SQLAlchemy +
 Postgres JSONB + Alembic), React 18 + Vite + TS + Tailwind + Zustand,
 pytest/vitest, ruff. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before a task; the repo-local
+[docs/dev/architecture.md](docs/dev/architecture.md) before a task; the repo-local
 `dev/` holds only scratch notes and is gitignored.
 
 ## Repo map
@@ -48,7 +48,7 @@ health-assistant. Core rules:
   never fork or wrap it.
 - Styling via `--as-*` tokens / `data-as-*` only; this app's identity
   overrides live in its `theme.css` once wired.
-- **App UI conventions: read `docs/ui-conventions.md` before building or
+- **App UI conventions: read `docs/dev/ui-conventions.md` before building or
   restyling any page** — full-bleed workspace pattern, shared
   `formPrimitives` controls, card pickers, motion system, drag feedback
   and the preview/testability contracts that keep every surface looking
@@ -58,10 +58,20 @@ health-assistant. Core rules:
 ```bash
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once
 ./scripts/run-dev.sh                                       # backend :8100 + frontend :3100
-cd backend && ./venv/bin/pytest tests/                     # tests (uses career_test DB)
+./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
+cd backend && ./venv/bin/pytest tests -q -n auto           # equivalent direct invocation
 cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
 cd frontend && npm run build && npm run test -- --run
 ```
+
+Parallel tests (pytest-xdist): `PYTEST_XDIST_WORKERS=N` overrides the
+worker count, `PYTEST_XDIST=0` opts out. Each xdist worker gets its OWN
+database — `career_test_gw0`… (created + migrated automatically by
+`tests/xdist_routing.py` before the app engines exist), so never hand-run
+migrations for a `-n` run. SQLite workers write isolated files under
+`backend/tests/_xdist/<worker>/` (gitignored); the CI SQLite (desktop
+profile) job stays serial on one file by design. Serial runs keep plain
+`career_test` and need their one-shot `alembic upgrade head` as before.
 
 Migrations: alembic revision ids are plain sequential (`0001`…; file
 names add a slug). `env.py` reads `settings.DATABASE_URL`, so applying

@@ -29,6 +29,7 @@ from app.models.profile_entities_model import (
     ProfileAchievement,
 )
 from app.models.profile_proposal_model import ProfileProposal
+from app.models.chat_model import ChatSession
 from app.models.user_model import Profile, UserSkill
 from app.schemas.cv import CvContextSelection
 from app.schemas.experience import ExperienceItemIn, ExperienceItemUpdate
@@ -50,6 +51,8 @@ from app.schemas.profile_entities import (
 )
 from app.schemas.profile_proposal import (
     CollectionEdit,
+    CvChoiceOpPayload,
+    CvChoiceOption,
     CvSetBulletsOpPayload,
     CvSynthOpPayload,
     ProfileSectionPatchIn,
@@ -87,6 +90,47 @@ GROUNDED_KINDS = frozenset(
     }
 )
 SECTION_NAMES = ("basics", "academics", "work_preferences", "constraints")
+
+#: Entity kinds whose rendered card/CV heading already prints the item's
+#: subject (title/program/name) and issuer (org/institution/issuer) —
+#: model prose must not restate them. Kind → (subject attr, issuer attr).
+_HEADING_ECHO_KINDS: dict[str, tuple[str, str]] = {
+    ProposalKind.EXPERIENCE_ITEM.value: ("title", "org_name"),
+    ProposalKind.EDUCATION_ITEM.value: ("program", "institution"),
+    ProposalKind.CERTIFICATION.value: ("name", "issuer"),
+}
+
+
+def _strip_entity_heading_echo(kind: str, entity: Any, stored_payload: dict) -> None:
+    """Strip an echoed lead from proposed prose, in place.
+
+    The renderer already prints the item's title/org as the row heading;
+    a description or bullet that re-opens with them ("**Application
+    Support**, **OTE Group** — production tier…") reads as a duplicate
+    record. This applies the same deterministic strip the CV merge
+    funnel uses: leading subject/issuer restatement on a dash is cut,
+    prose without the echo passes through untouched."""
+    if kind not in _HEADING_ECHO_KINDS:
+        return None
+    subject_attr, issuer_attr = _HEADING_ECHO_KINDS[kind]
+    row = {
+        "title": getattr(entity, subject_attr, None),
+        "program": getattr(entity, subject_attr, None),
+        "org": getattr(entity, issuer_attr, None),
+    }
+
+    def _strip(text: str) -> str:
+        from app.services.cv_context_service import _strip_subject_echo
+
+        return _strip_subject_echo(row, text)
+
+    if isinstance(stored_payload.get("description"), str):
+        stored_payload["description"] = _strip(stored_payload["description"])
+    for entry in stored_payload.get("achievements") or []:
+        if isinstance(entry, dict) and isinstance(entry.get("text"), str):
+            entry["text"] = _strip(entry["text"])
+    return None
+
 
 #: Per-kind prose fields an anchored ``text_edit`` may target (plan 99.2).
 TEXT_FIELDS: dict[str, tuple[str, ...]] = {
@@ -223,18 +267,25 @@ async def resolve_cv_set_bullets(
             "Target item is not on this CV's context — include it first"
         )
     selection = CvContextSelection.model_validate(cv.context or {})
-    pinned_id = (selection.synth_pins or {}).get(f"{source_key}:{item_id}:bullets")
+    # Plan 110 single slot: one pin key per item; when the pinned row
+    # carries achievements, those ARE the current bullets.
+    pinned_id = (selection.synth_pins or {}).get(f"{source_key}:{item_id}")
     variant_entries: list[dict] | None = None
     if pinned_id:
         from app.services.cv_synth_service import CvSynthService
 
         variant = await CvSynthService(db).get_owned(uuid.UUID(str(pinned_id)), user_id)
         entries = (variant.payload or {}).get("achievements") or []
-        variant_entries = [
-            {"text": str(entry.get("text") or "")}
-            for entry in entries
-            if isinstance(entry, dict)
-        ]
+        if not entries:
+            # A text-only pin leaves the profile's bullets rendering — the
+            # card's "before" is the profile list, not an empty variant list.
+            pinned_id = None
+        else:
+            variant_entries = [
+                {"text": str(entry.get("text") or "")}
+                for entry in entries
+                if isinstance(entry, dict)
+            ]
     base = [
         {"text": str(entry.get("text") or "")}
         for entry in row.get("achievements") or []
@@ -243,6 +294,10 @@ async def resolve_cv_set_bullets(
     return {
         "cv_title": cv.title,
         "item_label": str(row.get("title") or row.get("program") or item_id),
+        "entity_row": {
+            "title": str(row.get("title") or ""),
+            "org": str(row.get("org_name") or row.get("org") or ""),
+        },
         "before": variant_entries if variant_entries is not None else base,
         "prior": variant_entries,
         "prior_variant_id": pinned_id,
@@ -388,6 +443,13 @@ KIND_SPECS: dict[str, KindSpec] = {
     ),
     ProposalKind.CV_SET_BULLETS.value: KindSpec(
         label="CV bullets",
+        model=None,
+        create_model=None,
+        update_model=None,
+        fields=(),
+    ),
+    ProposalKind.CV_CHOICE.value: KindSpec(
+        label="CV options",
         model=None,
         create_model=None,
         update_model=None,
@@ -640,7 +702,7 @@ def proposal_title(proposal: ProfileProposal) -> str:
 def proposal_event(proposal: ProfileProposal) -> dict:
     """SSE/metadata card payload — the one serialization shared by the
     chat stream and the list endpoint (never drift between the two)."""
-    return {
+    event = {
         "id": str(proposal.id),
         "kind": proposal.kind,
         "action": proposal.action,
@@ -656,6 +718,11 @@ def proposal_event(proposal: ProfileProposal) -> dict:
         ),
         "created_at": proposal.created_at.isoformat(),
     }
+    if proposal.kind == ProposalKind.CV_CHOICE.value:
+        # Picker cards render their body from the payload (options);
+        # snapshot-backed kinds keep hydrate() as the full-data source.
+        event["payload"] = proposal.payload_json or {}
+    return event
 
 
 def _ts(value: Optional[datetime]) -> Optional[str]:
@@ -1014,6 +1081,14 @@ async def resolve_ops(
             if isinstance(entity_id, str) and entity_id:
                 entity_id = uuid.UUID(entity_id)
             kind = str(op.get("kind") or "")
+            # cv_synth / cv_set_bullets identify via payload fields
+            # (cv_id / source_key / item_id); models echo an entity_id
+            # anyway — tolerate it instead of dropping the card.
+            if kind in (
+                ProposalKind.CV_SYNTH.value,
+                ProposalKind.CV_SET_BULLETS.value,
+            ):
+                entity_id = None
             target_key: Optional[tuple[str, str]] = None
             if entity_id is not None:
                 target_key = (kind, str(entity_id))
@@ -1080,6 +1155,8 @@ async def resolve_ops(
                 _SECTION_MODELS[patch.section].model_validate(patch.value)
             elif kind == ProposalKind.CV_SYNTH.value:
                 CvSynthOpPayload.model_validate(payload)
+            elif kind == ProposalKind.CV_CHOICE.value:
+                CvChoiceOpPayload.model_validate(payload)
             elif kind == ProposalKind.CV_SET_BULLETS.value:
                 CvSetBulletsOpPayload.model_validate(payload)
             elif action == ProposalAction.CREATE.value:
@@ -1113,6 +1190,57 @@ async def resolve_ops(
             )
             failures.append({"op": op, "reason": str(exc)})
     return resolved_ops, failures
+
+
+def _validate_choice_options(choice_payload: CvChoiceOpPayload) -> None:
+    """Creation-time validation of a cv_choice payload (plan 108).
+
+    Multi-hop untrusted input: each option's child payload is dry-run
+    against the child kind's own schema HERE; the materialization path
+    at approval re-runs the full create() pipeline, so a stale opener
+    still resolves per-option with a dropped-reason, never silently.
+    """
+
+    for option in choice_payload.options:
+        if option.action == ProposalAction.CREATE.value:
+            if option.entity_id is not None:
+                raise ValidationError("choice create options carry no entity_id")
+            child_spec = KIND_SPECS.get(option.kind)
+            if child_spec is not None and child_spec.create_model is not None:
+                child_spec.create_model.model_validate(option.payload)
+        else:
+            if option.payload and not option.entity_id:
+                raise ValidationError("choice update options need entity_id")
+            child_spec = KIND_SPECS.get(option.kind)
+            if child_spec is not None and child_spec.update_model is not None:
+                child_spec.update_model.model_validate(option.payload)
+
+
+def _cv_choice_label(payload: dict) -> str:
+    """Card title: question excerpt."""
+    question = str(payload.get("question") or "").strip()
+    return question[:200]
+
+
+def _cv_choice_diff(payload: dict) -> list[dict]:
+    """Choice-card diff: the option list as label rows (audit surface)."""
+    return [
+        {
+            "field": "options",
+            "label": "Options",
+            "before": [],
+            "after": [
+                {
+                    "key": option.get("key"),
+                    "label": option.get("label"),
+                    "description": option.get("description") or "",
+                    "kind": option.get("kind"),
+                    "action": option.get("action"),
+                }
+                for option in payload.get("options") or []
+            ],
+        }
+    ]
 
 
 class ProfileProposalService:
@@ -1162,6 +1290,11 @@ class ProfileProposalService:
                 raise ValidationError("CV bullet ops support update only")
             if entity_id is not None:
                 raise ValidationError("cv_set_bullets ops carry no entity_id")
+        elif kind == ProposalKind.CV_CHOICE.value:
+            if action != ProposalAction.CREATE.value:
+                raise ValidationError("CV choice ops support create only")
+            if entity_id is not None:
+                raise ValidationError("cv_choice ops carry no entity_id")
         elif action == ProposalAction.CREATE.value:
             if entity_id is not None:
                 raise ValidationError("create ops carry no entity_id")
@@ -1219,11 +1352,39 @@ class ProfileProposalService:
                     "item_label": resolved["item_label"],
                     "before": resolved["before"],
                     "prior": resolved["prior"],
+                    "prior_variant_id": resolved["prior_variant_id"],
                     "cv_updated_at": resolved["cv_updated_at"].isoformat(),
                 }
             )
+            # The CV prints title/org as the row heading — strip echoed
+            # leads from the proposed bullets (deterministic, same funnel
+            # as the CV generator); a bullet that says nothing BEYOND the
+            # heading is dropped entirely.
+            from app.services.cv_context_service import (
+                _heading_echo_lead_only,
+                _strip_subject_echo,
+            )
+
+            heading_row = resolved["entity_row"]
+            cleaned_bullets: list[str] = []
+            for bullet in stored_payload.get("bullets") or []:
+                text = str(bullet)
+                if _heading_echo_lead_only(heading_row, text):
+                    continue
+                cleaned = _strip_subject_echo(heading_row, text)
+                if cleaned.strip():
+                    cleaned_bullets.append(cleaned)
+            stored_payload["bullets"] = cleaned_bullets
+            if not stored_payload["bullets"]:
+                raise ValidationError("proposal strips to no bullets")
             label = self._cv_bullets_label(stored_payload)
             diff = self._cv_bullets_diff(stored_payload)
+        elif kind == ProposalKind.CV_CHOICE.value:
+            choice_payload = CvChoiceOpPayload.model_validate(payload)
+            _validate_choice_options(choice_payload)
+            stored_payload = choice_payload.model_dump(mode="json")
+            label = _cv_choice_label(stored_payload)
+            diff = _cv_choice_diff(stored_payload)
         elif action == ProposalAction.CREATE.value:
             model = spec.create_model
             assert model is not None
@@ -1255,6 +1416,7 @@ class ProfileProposalService:
                 stored_payload = validated.model_dump(mode="json", exclude_unset=True)
                 if not stored_payload:
                     raise ValidationError("update payload sets no fields")
+                _strip_entity_heading_echo(kind, entity, stored_payload)
                 diff = self._update_diff(spec, entity, stored_payload)
                 base_snapshot = _full_snapshot(kind, entity)
                 after_snapshot = {**base_snapshot, **stored_payload}
@@ -1309,6 +1471,26 @@ class ProfileProposalService:
         silently applied.
         """
         resolved_ops, dropped = await resolve_ops(self.db, user_id, ops, grounding)
+        if chat_session_id is not None:
+            # Server-injected pin target (plan-104 follow-up): a cv_synth
+            # op proposed from a builder-bound chat session carries the
+            # session's CV — approving then pins in one gesture. Model
+            # payloads never write this field.
+            session = await self.db.get(ChatSession, chat_session_id)
+            context = (session.context or {}) if session is not None else {}
+            surface = context.get("surface")
+            raw_cv = str(context.get("cv_id") or "")
+            if surface == "cv_builder" and raw_cv:
+                try:
+                    pinned_cv_id = uuid.UUID(raw_cv)
+                except ValueError:
+                    pinned_cv_id = None
+                if pinned_cv_id is not None:
+                    for resolved in resolved_ops:
+                        if resolved.get("kind") == ProposalKind.CV_SYNTH.value and not (
+                            resolved.get("payload") or {}
+                        ).get("cv_id"):
+                            resolved["payload"]["cv_id"] = pinned_cv_id
         created: list[ProfileProposal] = []
         for resolved in resolved_ops:
             try:
@@ -1632,26 +1814,60 @@ class ProfileProposalService:
     # ------------------------------------------------------------ resolve
 
     async def approve(
-        self, user_id: uuid.UUID, proposal_id: uuid.UUID
+        self,
+        user_id: uuid.UUID,
+        proposal_id: uuid.UUID,
+        option_keys: Optional[list[str]] = None,
     ) -> tuple[ProfileProposal, Optional[dict], bool]:
-        """Apply a pending proposal; idempotent once approved."""
+        """Apply a pending proposal; idempotent once approved.
+
+        ``cv_choice`` cards (plan 108) fan out: each selected option
+        materializes as a standard pending child proposal through the
+        normal create() pipeline — the choice card is a picker, not an
+        executor, so approving it never writes any entity directly.
+        """
         proposal = await self.get(user_id, proposal_id)
         if proposal.status == ProposalStatus.APPROVED.value:
             return proposal, None, True
         if proposal.status != ProposalStatus.PENDING.value:
             raise ValidationError(f"Cannot approve a {proposal.status} proposal")
+        if proposal.kind == ProposalKind.CV_CHOICE.value and not option_keys:
+            raise ValidationError("select at least one option to proceed")
+        if proposal.kind == ProposalKind.CV_CHOICE.value:
+            # Pre-terminal client-error validation: wrong keys or bounds
+            # reject with a clean validation error and leave the card
+            # pending — never burn the terminal-first commit on them.
+            choice = CvChoiceOpPayload.model_validate(dict(proposal.payload_json or {}))
+            known = {option.key for option in choice.options}
+            unknown = [key for key in option_keys if key not in known]
+            if unknown:
+                raise ValidationError(f"unknown option keys: {', '.join(unknown)}")
+            unique = list(dict.fromkeys(option_keys))
+            if len(unique) < choice.min_select:
+                raise ValidationError(f"select at least {choice.min_select} option(s)")
+            if len(unique) > choice.max_select:
+                raise ValidationError(f"select at most {choice.max_select} option(s)")
         # cv_synth apply drafts rows in a self-committing service (the
         # audit rule), so the card must reach its terminal state BEFORE
         # the apply — a crash mid-apply leaves an approved card with a
         # resolve_error, never a retryable pending one (a retry would
-        # duplicate the whole batch).
-        terminal_first = proposal.kind == ProposalKind.CV_SYNTH.value
+        # duplicate the whole batch). cv_choice children commit the same
+        # way (each create() commits), so the parent terminalizes first.
+        terminal_first = proposal.kind in (
+            ProposalKind.CV_SYNTH.value,
+            ProposalKind.CV_CHOICE.value,
+        )
         if terminal_first:
             proposal.status = ProposalStatus.APPROVED.value
             proposal.resolved_at = datetime.now(timezone.utc)
             await self.db.commit()
         try:
-            applied = await self._apply_checked(proposal)
+            if proposal.kind == ProposalKind.CV_CHOICE.value:
+                applied = await self._materialize_choice(
+                    proposal, list(option_keys or [])
+                )
+            else:
+                applied = await self._apply_checked(proposal)
         except ConflictError:
             raise
         except NotFoundError:
@@ -1682,6 +1898,68 @@ class ProfileProposalService:
                 logger.warning("create proposal returned a non-UUID id")
         await self.db.commit()
         return proposal, applied, False
+
+    async def _materialize_choice(
+        self, proposal: ProfileProposal, option_keys: list[str]
+    ) -> dict:
+        """Fan a cv_choice card out into child proposals (plan 108).
+
+        Every selected option re-enters the normal create() pipeline
+        (kind-specific validation, server-side grounding, live labels);
+        invalid/stale options drop with a reason into the parent's
+        payload record. Unknown keys are a hard error (a client bug),
+        not a silent skip.
+        """
+        choice = CvChoiceOpPayload.model_validate(dict(proposal.payload_json or {}))
+        known = {option.key: option for option in choice.options}
+        unknown = [key for key in option_keys if key not in known]
+        if unknown:
+            raise ValidationError(f"unknown option keys: {', '.join(unknown)}")
+        selected = [known[key] for key in dict.fromkeys(option_keys)]
+        if len(selected) < choice.min_select:
+            raise ValidationError(f"select at least {choice.min_select} option(s)")
+        if len(selected) > choice.max_select:
+            raise ValidationError(f"select at most {choice.max_select} option(s)")
+
+        children: list[ProfileProposal] = []
+        chosen_pairs: list[tuple[CvChoiceOption, ProfileProposal]] = []
+        dropped: list[dict] = []
+        for option in selected:
+            try:
+                child = await self.create(
+                    proposal.user_id,
+                    kind=option.kind,
+                    action=option.action,
+                    payload=option.payload,
+                    entity_id=option.entity_id,
+                    source=proposal.source or "chat",
+                    chat_session_id=proposal.chat_session_id,
+                    chat_message_id=proposal.chat_message_id,
+                    ai_generation_id=proposal.ai_generation_id,
+                )
+                children.append(child)
+                chosen_pairs.append((option, child))
+            except (DomainError, PydanticValidationError, ValueError, KeyError) as exc:
+                logger.warning(
+                    "cv_choice option %r failed to materialize: %s",
+                    option.key,
+                    str(exc)[:300],
+                )
+                dropped.append({"key": option.key, "reason": str(exc)[:300]})
+        if not children:
+            raise DomainError("no selected option could be materialized")
+
+        chose = dict(proposal.payload_json or {})
+        chose["_resolved_options"] = {
+            "keys": [option.key for option in selected],
+            "children": [
+                {"key": option.key, "child_id": str(child.id)}
+                for option, child in chosen_pairs
+            ],
+            "dropped": dropped,
+        }
+        proposal.payload_json = chose
+        return {"children": children, "dropped": dropped}
 
     async def reject(
         self, user_id: uuid.UUID, proposal_id: uuid.UUID
@@ -1728,13 +2006,42 @@ class ProfileProposalService:
                 kind, user_id, proposal.entity_id
             )
             if _ts(updated_at) != _ts(proposal.base_updated_at):
-                if kind == ProposalKind.PROFILE_SECTION.value:
-                    proposal.diff_json = self._section_diff(
-                        entity, payload.get("section"), payload.get("value") or {}
+                if kind == ProposalKind.CV_SET_BULLETS.value:
+                    # The CV's timestamp moves on ANY bullets activity
+                    # (each approval rewrites cv.context pins), so a
+                    # plain timestamp check false-conflicts siblings on
+                    # the same CV. The honest sentinel is granular: the
+                    # card's own item bullets (fresh override?? snapshot
+                    # snapshot list) and its pin state must still match.
+                    resolved = await resolve_cv_set_bullets(self.db, user_id, payload)
+                    fresh_before = [
+                        str(entry.get("text") or "")
+                        for entry in resolved["before"]
+                        if isinstance(entry, dict)
+                    ]
+                    stored_before = [
+                        str(entry.get("text") or "")
+                        if isinstance(entry, dict)
+                        else str(entry)
+                        for entry in payload.get("before") or []
+                    ]
+                    pin_moved = (resolved["prior_variant_id"] or "") != (
+                        str(payload.get("prior_variant_id") or "")
                     )
-                elif kind == ProposalKind.CV_SET_BULLETS.value:
+                    if fresh_before == stored_before and not pin_moved:
+                        return await self._apply(
+                            kind,
+                            proposal.action,
+                            proposal.entity_id,
+                            payload,
+                            user_id,
+                        )
                     proposal.diff_json = await self._cv_bullets_conflict_diff(
                         entity, payload
+                    )
+                elif kind == ProposalKind.PROFILE_SECTION.value:
+                    proposal.diff_json = self._section_diff(
+                        entity, payload.get("section"), payload.get("value") or {}
                     )
                 else:
                     spec = KIND_SPECS[kind]
@@ -1799,13 +2106,29 @@ class ProfileProposalService:
                     row.id, user_id, CvSynthItemUpdate(status="active")
                 )
             activated.append(row)
-        return {
+        applied = {
             "queued": False,
             "kind": "cv_synth",
             "items": [
                 {"id": str(row.id), "variant_key": row.variant_key} for row in activated
             ],
         }
+        cv_id = payload.get("cv_id")
+        if activated and cv_id:
+            # Plan-104 follow-up, one gesture: accept → activate AND star
+            # the variants on the proposing session's CV so the Studio's
+            # live preview renders them with no extra hand trip.
+            try:
+                cv_id_parsed = uuid.UUID(str(cv_id))
+            except ValueError:
+                cv_id_parsed = None
+            if cv_id_parsed is not None:
+                pinned_now = await service.pin_variants_on_cv(
+                    user_id, cv_id_parsed, activated
+                )
+                if pinned_now:
+                    applied["pinned_cv_id"] = str(cv_id_parsed)
+        return applied
 
     async def _apply(
         self,
@@ -1944,7 +2267,7 @@ class ProfileProposalService:
         )
         source_key = payload["source_key"]
         item_id = payload["item_id"]
-        pin_key = f"{source_key}:{item_id}:bullets"
+        pin_key = f"{source_key}:{item_id}"
         selection = CvContextSelection.model_validate(cv.context or {})
         service = CvSynthService(self.db)
         if payload.get("restore"):
@@ -1962,10 +2285,20 @@ class ProfileProposalService:
             )
             pinned_id = (selection.synth_pins or {}).get(pin_key)
             if pinned_id:
+                # Plan 110: the pinned row keeps its other fields
+                # (description/summary) — achievements are a field patch,
+                # never a whole-payload clobber.
+                merged = dict(
+                    (
+                        await service.get_owned(uuid.UUID(str(pinned_id)), user_id)
+                    ).payload
+                    or {}
+                )
+                merged["achievements"] = list(bullets_payload.achievements)
                 await service.update(
                     uuid.UUID(str(pinned_id)),
                     user_id,
-                    CvSynthItemUpdate(payload=bullets_payload),
+                    CvSynthItemUpdate(payload=CvSynthPayload.model_validate(merged)),
                 )
             else:
                 row = await service.create_manual(
@@ -1992,7 +2325,7 @@ class ProfileProposalService:
 
         selection = CvContextSelection.model_validate(cv.context or {})
         pinned_id = (selection.synth_pins or {}).get(
-            f"{payload.get('source_key')}:{payload.get('item_id')}:bullets"
+            f"{payload.get('source_key')}:{payload.get('item_id')}"
         )
         entries = None
         if pinned_id:
@@ -2006,17 +2339,23 @@ class ProfileProposalService:
             if isinstance(entry, dict)
         ]
         after = [str(b) for b in payload.get("bullets") or []]
-        rows = [
-            {"field": "removed_bullet", "from": b, "to": None}
-            for b in before
-            if b not in after
+        # The card's diff contract is field/label/before/after rows with
+        # structured [{text}] values (the HITL renderer draws chips).
+        return [
+            {
+                "field": "bullets",
+                "label": "Bullets",
+                "before": [
+                    {
+                        "text": str(entry.get("text") or "")
+                        if isinstance(entry, dict)
+                        else str(entry)
+                    }
+                    for entry in before
+                ],
+                "after": [{"text": b} for b in after],
+            }
         ]
-        rows.extend(
-            {"field": "added_bullet", "from": None, "to": b}
-            for b in after
-            if b not in before
-        )
-        return rows
 
     def _cv_bullets_label(self, payload: dict) -> str:
         return (
@@ -2030,11 +2369,15 @@ class ProfileProposalService:
             for b in payload.get("before") or []
         ]
         after = [str(b) for b in payload.get("bullets") or []]
-        removed = [b for b in before if b not in after]
-        added = [b for b in after if b not in before]
-        rows = [{"field": "removed_bullet", "from": b, "to": None} for b in removed]
-        rows.extend({"field": "added_bullet", "from": None, "to": b} for b in added)
-        return rows
+        # The card's diff contract: one structured row (chips both sides).
+        return [
+            {
+                "field": "bullets",
+                "label": "Bullets",
+                "before": [{"text": b} for b in before],
+                "after": [{"text": b} for b in after],
+            }
+        ]
 
     async def _load_entity(
         self,

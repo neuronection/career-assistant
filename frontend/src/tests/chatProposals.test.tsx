@@ -12,7 +12,8 @@ const previewApi = vi.hoisted(() => vi.fn());
 const revertApi = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/profileProposals", () => ({
-  approveProfileProposal: (id: string) => approveApi(id),
+  approveProfileProposal: (id: string, optionKeys?: string[]) =>
+    approveApi(id, optionKeys),
   rejectProfileProposal: (id: string) => rejectApi(id),
   fetchProfileProposals: () => listApi(),
   dismissProfileProposal: vi.fn(),
@@ -108,7 +109,7 @@ describe("MessageProposals / ProposalCards", () => {
     });
     render(<MessageProposals message={messageWith([CARD])} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
-    expect(approveApi).toHaveBeenCalledWith("prop-1");
+    expect(approveApi).toHaveBeenCalledWith("prop-1", undefined)
     await waitFor(() => {
       expect(screen.getByText("Approved")).toBeInTheDocument();
     });
@@ -141,7 +142,7 @@ describe("MessageProposals / ProposalCards", () => {
       already: false,
     });
     await user.click(screen.getByRole("button", { name: "Confirm delete" }));
-    expect(approveApi).toHaveBeenCalledWith("prop-1");
+    expect(approveApi).toHaveBeenCalledWith("prop-1", undefined)
   });
 
   it("reject keeps the card visible in the rejected state", async () => {
@@ -205,7 +206,7 @@ describe("MessageProposals / ProposalCards", () => {
     expect(screen.getByText("projects:p-1")).toBeInTheDocument();
     expect(screen.getByText("experience:p-2")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Draft variants" }));
-    expect(approveApi).toHaveBeenCalledWith("prop-1");
+    expect(approveApi).toHaveBeenCalledWith("prop-1", undefined)
     await waitFor(() => {
       expect(
         screen.getByText("Activated — see the Synth Library"),
@@ -516,5 +517,96 @@ describe("profileProposalsStore", () => {
     expect(overrides.a).toMatchObject({ status: "approved" });
     expect(overrides.b).toMatchObject({ status: "rejected" });
     expect(useProfileProposalsStore.getState().pendingCount).toBe(1);
+  });
+});
+
+describe("cv_choice multi-select card (plan 108)", () => {
+  const choiceCard = (options: Record<string, unknown>[]): ProfileProposalCardData => ({
+    ...CARD,
+    id: "choice-1",
+    kind: "cv_choice",
+    action: "create",
+    title: "Which adjustments would you like to implement?",
+    payload: {
+      question: "Which adjustments would you like to implement?",
+      min_select: 1,
+      max_select: 2,
+      options,
+    },
+  });
+
+  const options: Record<string, unknown>[] = [
+    {
+      key: "variant",
+      kind: "cv_synth",
+      action: "create",
+      label: "Full-entry variant for this CV",
+      description: "this CV only — the profile item stays untouched",
+      payload: { refs: [{ source_key: "projects", item_id: "a" }], action: "restyle" },
+    },
+    {
+      key: "bullets",
+      kind: "cv_set_bullets",
+      action: "update",
+      label: "Tighter bullets",
+      description: "this CV only — the description keeps rendering",
+      payload: {
+        cv_id: "cv-1",
+        source_key: "projects",
+        item_id: "a",
+        bullets: ["b1"],
+      },
+    },
+  ];
+
+  beforeEach(() => {
+    resetStore();
+    approveApi.mockReset();
+    rejectApi.mockReset();
+  });
+
+  it("renders options as selectable rows and needs a selection", async () => {
+    const user = userEvent.setup();
+    render(<MessageProposals message={messageWith([choiceCard(options)])} />);
+    const proceedButton = await screen.findByTestId(
+      "hitl-choice-proceed-choice-1",
+    );
+    expect(proceedButton).toBeDisabled();
+    await user.click(screen.getByTestId("hitl-choice-option-bullets"));
+    expect(proceedButton).toBeEnabled();
+    await user.click(proceedButton);
+    expect(approveApi).toHaveBeenCalledWith("choice-1", ["bullets"]);
+  });
+
+  it("supports multi-select up to max_select", async () => {
+    const user = userEvent.setup();
+    render(<MessageProposals message={messageWith([choiceCard(options)])} />);
+    await screen.findByTestId("hitl-choice-proceed-choice-1");
+    await user.click(screen.getByTestId("hitl-choice-option-variant"));
+    await user.click(screen.getByTestId("hitl-choice-option-bullets"));
+    await user.click(screen.getByTestId("hitl-choice-proceed-choice-1"));
+    expect(approveApi).toHaveBeenCalledWith("choice-1", [
+      "variant",
+      "bullets",
+    ]);
+  });
+
+  it("single-select behaves like an either/or radio", async () => {
+    const user = userEvent.setup();
+    const single = { ...choiceCard(options), payload: { ...choiceCard(options).payload, max_select: 1 } };
+    render(<MessageProposals message={messageWith([single])} />);
+    const radioA = (await screen.findByTestId(
+      "hitl-choice-option-variant",
+    )) as HTMLInputElement;
+    const radioB = screen.getByTestId(
+      "hitl-choice-option-bullets",
+    ) as HTMLInputElement;
+    expect(radioA.getAttribute("type")).toBe("radio");
+    expect(radioB.getAttribute("type")).toBe("radio");
+    await user.click(radioA);
+    expect(radioA.checked).toBe(true);
+    await user.click(radioB);
+    expect(radioB.checked).toBe(true);
+    expect(radioA.checked).toBe(false);
   });
 });

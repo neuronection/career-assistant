@@ -28,10 +28,12 @@ from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.ai.gateway import RunRef
 from app.core.errors import NotFoundError, ValidationError
 from app.models.cv_synth_model import CvSynthItem
+from app.models.cv_model import CvDocument
 from app.models.enums import CvSynthSource, CvSynthStatus
 from app.schemas.cv_synth import (
     CvSynthItemCreate,
@@ -50,30 +52,35 @@ TEXT_SCOPES = ("item", "summary")
 def swap_variant_payload(
     payload: dict, ref: tuple[str, str], variant: CvSynthItem
 ) -> None:
-    """Swap one variant's text into an item payload (plan-62 semantics,
-    two-layer model): a variant that sets a field OWNS it.
+    """Swap one variant into an item payload by FIELD PRESENCE
+    (plan 110 AD1 — one variant per item, one pin slot): each present
+    field of the variant's payload OWNS that layer, `scope` is pure
+    provenance and no longer branches the swap.
 
-    Bullets-scope variants swap ONLY the canonical `achievements:
-    [{"text"}]` list (plan 106 shape) — description/summary stay with
-    the profile or the text slot's pinned variant. A variant that sets
-    achievements REPLACES the profile's list (generated from that
-    item's evidence, staleness hashes catch drift); without
-    achievements the profile bullets render untouched."""
+    `description`/`summary` present → swap the text layer;
+    `achievements` present → REPLACE the profile's canonical
+    `achievements: [{"text"}]` list (generated from that item's
+    evidence, staleness hashes catch drift); absent layers stay with
+    the profile or any other pinned variant's remaining fields."""
     if not isinstance(payload, dict):
         return
     synth = variant.payload or {}
-    if variant.scope == "bullets":
-        if synth.get("achievements"):
-            payload["achievements"] = list(synth["achievements"])
+    if not synth:
         return
     if ref[0] == "summary":
-        payload["summary"] = synth.get("summary") or payload.get("summary")
+        if synth.get("summary"):
+            payload["summary"] = synth["summary"]
         return
     if synth.get("description") is not None:
         payload["description"] = synth["description"]
     if synth.get("summary"):
         payload["summary"] = synth["summary"]
-    if synth.get("achievements"):
+    if synth.get("omit_bullets"):
+        # Plan 110: the explicit omission deal — the pinned row clears
+        # the item's bullet list entirely (empty `achievements` is the
+        # default serialization of text-only rows, never a signal).
+        payload["achievements"] = []
+    elif synth.get("achievements"):
         payload["achievements"] = list(synth["achievements"])
 
 
@@ -124,6 +131,14 @@ def _source_state_of(
 def _set_hash(refs: list[dict]) -> str:
     """Canonical hash of the sorted typed refs (lookup + dedupe key)."""
     return canonical_hash(sorted(_ref_tuple(ref) for ref in refs))
+
+
+def _posting_text(posting) -> str:
+    """The posting's prompt-facing text (title + raw description +
+    extracted skills/responsibilities), capped for one prompt slot."""
+    from app.services.embedding_service import compose_posting_text
+
+    return compose_posting_text(posting)[:2000]
 
 
 def _validate_refs(refs: list[dict]) -> None:
@@ -197,12 +212,7 @@ class CvSynthService:
             verified=True,
         )
         self.db.add(row)
-        # Flush first so the row's id exists — `_supersede_slot`'s
-        # `id != row.id` filter is SQL-NULL against an unflushed row and
-        # would silently skip supersede on creation (plan-102 contract:
-        # an ACTIVE row archives its slot siblings, create included).
         await self.db.flush()
-        await self._supersede_slot(row)
         await self.db.commit()
         await self.db.refresh(row)
         return row
@@ -289,8 +299,11 @@ class CvSynthService:
         if payload.variant_key is not None:
             row.variant_key = payload.variant_key
         if payload.status is not None:
-            if payload.status == CvSynthStatus.ACTIVE.value:
-                await self._supersede_slot(row)
+            # Multi-active library model: activation no longer sweeps
+            # the slot — many rows of one item can be enabled at once.
+            # Per-CV usage stays single via the pin (`synth_pins`): the
+            # star decides what actually renders, and the pin-priority
+            # block in `match_for_user` beats every fallback.
             row.status = payload.status
         await self.db.commit()
         await self.db.refresh(row)
@@ -317,39 +330,140 @@ class CvSynthService:
         await self.db.refresh(row)
         return row
 
-    async def _supersede_slot(self, row: CvSynthItem) -> None:
-        """Archive every other row in this row's slot (drafts included).
-
-        Supersede is the plan's contract: approving a regenerate (or any
-        variant activation) retires the slot's previous owner, draft or
-        active — the slot is a one-variant window. Slots partition by
-        scope family: text variants ('item'/'summary') and bullets
-        variants never supersede each other — one item can hold a pinned
-        text variant AND a pinned bullets variant."""
-        siblings = await self.db.execute(
-            select(CvSynthItem).where(
-                CvSynthItem.user_id == row.user_id,
-                CvSynthItem.source_set_hash == row.source_set_hash,
-                CvSynthItem.variant_key == row.variant_key,
-                (
-                    CvSynthItem.target_posting_id.is_(None)
-                    if row.target_posting_id is None
-                    else CvSynthItem.target_posting_id == row.target_posting_id
-                ),
-                CvSynthItem.scope.in_(
-                    ("bullets",) if row.scope == "bullets" else TEXT_SCOPES
-                ),
-                CvSynthItem.status != CvSynthStatus.ARCHIVED.value,
-                CvSynthItem.id != row.id,
-            )
-        )
-        for sibling in siblings.scalars().all():
-            sibling.status = CvSynthStatus.ARCHIVED.value
-
     async def delete(self, item_id: uuid.UUID, user_id: uuid.UUID) -> None:
         row = await self.get_owned(item_id, user_id)
+        cvs = await self.db.execute(
+            select(CvDocument).where(
+                CvDocument.user_id == user_id,
+                CvDocument.context.isnot(None),
+            )
+        )
+        self._strip_pins(cvs.scalars().all(), {str(item_id)})
         await self.db.delete(row)
         await self.db.commit()
+
+    async def pin_single(
+        self,
+        cv: CvDocument,
+        user_id: uuid.UUID,
+        source_key: str,
+        item_id: str,
+        synth_id: Optional[str],
+    ) -> CvDocument:
+        """Star (or unstar) ONE item's variant on one CV.
+
+        A surgical read-modify-write of `context.synth_pins` — never a
+        whole-map replace, so concurrent writers cannot erase each
+        other's stars. Pinning promotes a draft to active (plan 102:
+        the star IS the approval); archived rows refuse. Returns the
+        refreshed CV document."""
+        if ":" in item_id:
+            raise ValidationError(f"malformed item id: {item_id!r}")
+        key = f"{source_key}:{item_id}"
+        context = dict(cv.context or {})
+        pins = dict(context.get("synth_pins") or {})
+        if synth_id:
+            try:
+                row_id = uuid.UUID(synth_id)
+            except ValueError as exc:
+                raise ValidationError(f"malformed variant id: {synth_id!r}") from exc
+            row = await self.get_owned(row_id, user_id)
+            if row.status == CvSynthStatus.ARCHIVED.value:
+                raise ValidationError(
+                    "archived variants cannot be pinned — restore the row first"
+                )
+            if row.status == CvSynthStatus.DRAFT.value:
+                row.status = CvSynthStatus.ACTIVE.value
+            pins[key] = str(row.id)
+        else:
+            pins.pop(key, None)
+            pins.pop(key + BULLETS_PIN_SUFFIX, None)
+        context["synth_pins"] = pins
+        cv.context = context
+        await self.db.commit()
+        await self.db.refresh(cv)
+        return cv
+
+    async def bulk(
+        self,
+        user_id: uuid.UUID,
+        ids: list[uuid.UUID],
+        action: str,
+    ) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
+        """Archive / restore / delete many rows in one committed call.
+
+        Library hygiene across mods: archive also strips any star
+        (``synth_pins``) pointing at the archived ids so the slot star
+        doesn't dangle on a retired row, unarchive activates through
+        the same supersede path as single-row activation, delete pops
+        the stars before the rows go. Unknown ids fail with the full
+        offending list (a bulk call is one atomic decision, never a
+        partial one). Returns (affected, deleted).
+        """
+        if action not in ("archive", "unarchive", "delete"):
+            raise ValidationError(f"Unknown bulk action: {action!r}")
+        rows = await self.db.execute(
+            select(CvSynthItem).where(
+                CvSynthItem.user_id == user_id, CvSynthItem.id.in_(ids)
+            )
+        )
+        found = list(rows.scalars().all())
+        known_ids = {row.id for row in found}
+        missing = [str(item_id) for item_id in ids if item_id not in known_ids]
+        if missing:
+            raise ValidationError(
+                f"Unknown variant id(s): {', '.join(missing[:5])}"
+                + ("…" if len(missing) > 5 else "")
+            )
+        id_set = {str(item_id) for item_id in ids}
+        affected: list[uuid.UUID] = []
+        deleted: list[uuid.UUID] = []
+        cvs = await self.db.execute(
+            select(CvDocument).where(
+                CvDocument.user_id == user_id,
+                CvDocument.context.isnot(None),
+            )
+        )
+        cv_rows = cvs.scalars().all()
+        if action == "archive":
+            for row in found:
+                if row.status == CvSynthStatus.ARCHIVED.value:
+                    continue
+                row.status = CvSynthStatus.ARCHIVED.value
+                affected.append(row.id)
+            if affected:
+                self._strip_pins(cv_rows, {str(i) for i in affected})
+        elif action == "unarchive":
+            # Back to draft — restoring N rows of one slot must NOT
+            # cascade-supersede each other (a loop of activations would
+            # archive all but the newest). Draft is the safe restore
+            # state; the single-slot star flow promotes from there.
+            for row in found:
+                if row.status == CvSynthStatus.ARCHIVED.value:
+                    row.status = CvSynthStatus.DRAFT.value
+                    affected.append(row.id)
+        else:
+            for cv in cv_rows:
+                self._strip_pins([cv], id_set)
+            for row in found:
+                await self.db.delete(row)
+            deleted = list(ids)
+        await self.db.commit()
+        return affected, deleted
+
+    @staticmethod
+    def _strip_pins(cv_rows, doomed: set[str]) -> None:
+        """Drop `synth_pins` keys whose star points at a doomed row id."""
+        for cv in cv_rows:
+            pins = (cv.context or {}).get("synth_pins")
+            if not isinstance(pins, dict) or not pins:
+                continue
+            keep = {
+                key: value for key, value in pins.items() if str(value) not in doomed
+            }
+            if len(keep) != len(pins):
+                (cv.context or {})["synth_pins"] = keep
+                flag_modified(cv, "context")
 
     async def mark_used(self, ids: list[uuid.UUID]) -> None:
         """Stamp `last_used_at` on the applying rows (resolver hook)."""
@@ -361,6 +475,54 @@ class CvSynthService:
         for row in rows.scalars().all():
             row.last_used_at = _now()
         await self.db.commit()
+
+    async def pin_variants_on_cv(
+        self, user_id: uuid.UUID, cv_id: uuid.UUID, rows: list[CvSynthItem]
+    ) -> bool:
+        """Auto-star freshly activated variants on one owned CV.
+
+        Approve-and-pin semantics (plan-104 follow-up): the pairing is
+        the proposing CV, so accepting the card saves the rows in the
+        library AND puts them live on that CV in one gesture. The pin
+        key is the single-slot per-item key; the rest of the context
+        selection (mode/include/exclude) is preserved; unpin reverts.
+        No-op when the CV is not owned or the rows carry no refs.
+        """
+        if not rows or cv_id is None:
+            return False
+        from app.schemas.cv import CvContextSelection, CvDocumentUpdate
+        from app.services.cv_service import CvService
+
+        owned = await self.db.execute(
+            select(CvDocument).where(
+                CvDocument.user_id == user_id, CvDocument.id == cv_id
+            )
+        )
+        cv = owned.scalars().first()
+        if cv is None:
+            return False
+        selection = CvContextSelection.model_validate(cv.context or {})
+        pins = dict(selection.synth_pins)
+        for row in rows:
+            for ref in row.source_refs or []:
+                key = f"{ref['source_key']}:{ref['item_id']}"
+                if key.endswith(BULLETS_PIN_SUFFIX):
+                    key = key[: -len(BULLETS_PIN_SUFFIX)]
+                pins[key] = str(row.id)
+        await CvService(self.db).update(
+            cv.id,
+            user_id,
+            CvDocumentUpdate(
+                context=CvContextSelection(
+                    mode=selection.mode,
+                    include=selection.include,
+                    exclude=selection.exclude,
+                    synth_pins=pins,
+                )
+            ),
+        )
+        await self.mark_used([row.id for row in rows])
+        return True
 
     # ------------------------- AI generation -------------------------
 
@@ -519,10 +681,14 @@ class CvSynthService:
             action=action,
             tone=row.voice.get("tone"),
             length=row.voice.get("length"),
+            instruction=row.voice.get("instruction"),
+            language=row.voice.get("language") or "en",
             target_language=row.voice.get("language")
             if action == "translate"
             else None,
-            translate_of=row.id if action == "translate" else None,
+            translate_of=uuid.UUID(str(row.voice["translate_of"]))
+            if action == "translate" and row.voice.get("translate_of")
+            else (row.id if action == "translate" else None),
             posting_id=row.target_posting_id,
             variant_key=row.variant_key,
         )
@@ -560,8 +726,13 @@ class CvSynthService:
                     for skill in extract.skills
                     if skill.priority == "must_have"
                 ],
+                "text": _posting_text(posting),
             }
-        return {"title": posting.title, "must_have_skills": []}
+        return {
+            "title": posting.title,
+            "must_have_skills": [],
+            "text": _posting_text(posting),
+        }
 
     async def _persist_batch(
         self,
@@ -624,6 +795,10 @@ class CvSynthService:
                     "tone": request.tone,
                     "length": request.length,
                     "action": request.action,
+                    "instruction": request.instruction,
+                    "translate_of": str(request.translate_of)
+                    if request.translate_of
+                    else None,
                 },
                 status=CvSynthStatus.DRAFT.value,
                 source=CvSynthSource.AI.value,
@@ -651,6 +826,64 @@ class CvSynthService:
             cv.user_id, cv.language, cv.target_posting_id, refs
         )
 
+    async def pin_overlay_snapshot(
+        self,
+        user_id: uuid.UUID,
+        language: str,
+        target_posting_id: Optional[uuid.UUID],
+        pins: dict,
+        snapshot: dict,
+        snapshot_index: dict[str, list[str]],
+    ) -> None:
+        """Re-assert the user's stars AFTER the override layer.
+
+        Layer precedence is `pin > override > source` (plan 110 follow-up):
+        the star is the most explicit user decision — an older captured
+        override must not mute the pinned variant's own text (the exact
+        "pinned variant shows only its bullets" bug when an older
+        override still owned the description). Fields the row does not
+        carry stay with the override/source layers.
+        Mutates ``snapshot`` rows in place; called per render, never
+        stored."""
+        if not pins or not snapshot:
+            return
+        normalized: dict[str, str] = {}
+        for key, value in pins.items():
+            if key.endswith(BULLETS_PIN_SUFFIX):
+                key = key[: -len(BULLETS_PIN_SUFFIX)]
+            if value:
+                normalized[str(key)] = str(value)
+        if not normalized:
+            return
+        ref_keys: list[tuple[str, str]] = []
+        for source_key, ids in snapshot_index.items():
+            key = "summary" if source_key == "summary" else source_key
+            for item_id in ids:
+                ref_keys.append((key, item_id))
+        matches = await self.match_for_user(
+            user_id,
+            language,
+            target_posting_id,
+            refs=ref_keys,
+            pins=normalized,
+        )
+        matches = {
+            ref: variant
+            for ref, variant in matches.items()
+            if str(normalized.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
+        }
+        for (source_key, item_id), variant in matches.items():
+            index = snapshot_index.get(source_key) or []
+            rows = snapshot.get(source_key)
+            if isinstance(rows, dict):
+                swap_variant_payload(rows, (source_key, item_id), variant)
+            elif isinstance(rows, list):
+                for position, existing in enumerate(index):
+                    if existing == item_id and position < len(rows):
+                        swap_variant_payload(
+                            rows[position], (source_key, item_id), variant
+                        )
+
     async def match_for_user(
         self,
         user_id: uuid.UUID,
@@ -677,7 +910,6 @@ class CvSynthService:
                     select(CvSynthItem).where(
                         CvSynthItem.user_id == user_id,
                         CvSynthItem.status == CvSynthStatus.ACTIVE.value,
-                        CvSynthItem.scope.in_(TEXT_SCOPES),
                     )
                 )
             )
@@ -750,92 +982,49 @@ class CvSynthService:
         resolution,
         pins: dict | None = None,
     ) -> dict:
-        """Overlay: swap the per-ref pinned variants' text into the snapshot.
-
-        Pins-only semantics (V2): a starred variant replaces that item's
-        text on its own; unpinned items render verbatim profile text.
-        Two pin slots per item — `"{source}:{id}"` for the text variant
-        and `"{source}:{id}:bullets"` for the bullets variant — so a
-        pinned text variant and a pinned bullets variant compose (the
-        two-layer model: profile truth + variants, no bullets override).
-        Precedence `override > synth > source` holds because the editor's
-        `apply_overrides` runs AFTER this (the builder calls it in
-        `render_state`), so a manual field patch always wins. Returns
-        the `synth_applied` trace map (`{ref_key: synth_id}`, bullets
-        slots keyed `{ref_key}:bullets`) recorded into `CvVersion`
-        `context_resolution` at compile."""
+        """Overlay: swap each pinned variant's PRESENT fields into the
+        snapshot (plan 110 AD1/AD3b: ONE pin slot per item,
+        `"{source}:{id}"` — a row applies what its payload carries, so
+        text and bullets compose on one starred row; matches are
+        scope-agnostic). Legacy `"{source}:{id}:bullets"` keys from
+        pre-110 versions are read with tolerance and folded into the
+        single slot here — write paths emit ONLY the single form.
+        Precedence `override > synth > source` holds because the
+        editor's `apply_overrides` runs AFTER this (the builder calls
+        it in `render_state`), so a manual field patch always wins.
+        Returns the `synth_applied` trace map (`{ref_key: synth_id}`)
+        recorded into `CvVersion` `context_resolution` at compile."""
         if not pins:
             return {}
-        text_pins = {
-            key: value
-            for key, value in pins.items()
-            if not key.endswith(BULLETS_PIN_SUFFIX)
-        }
-        bullets_pins = {
-            key[: -len(BULLETS_PIN_SUFFIX)]: value
-            for key, value in pins.items()
-            if key.endswith(BULLETS_PIN_SUFFIX)
-        }
+        normalized: dict[str, str] = {}
+        for key, value in pins.items():
+            if key.endswith(BULLETS_PIN_SUFFIX):
+                key = key[: -len(BULLETS_PIN_SUFFIX)]
+            if value:
+                normalized[key] = value
         applied: dict[str, str] = {}
         ref_by_id: dict[str, str] = {}
         for key, ids in resolution.snapshot_index.items():
             for item_id in ids:
                 ref_by_id.setdefault(item_id, key)
-        if text_pins:
+        if normalized:
             matches = await self.match_for_user(
                 user_id,
                 language,
                 target_posting_id,
                 refs=[(key, item_id) for item_id, key in ref_by_id.items()],
-                pins=text_pins,
+                pins=normalized,
             )
             matches = {
                 ref: variant
                 for ref, variant in matches.items()
-                if str(text_pins.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
+                if str(normalized.get(f"{ref[0]}:{ref[1]}", "")) == str(variant.id)
             }
             for (source_key, item_id), variant in matches.items():
                 self._swap_ref(resolution, source_key, item_id, variant)
                 applied[f"{source_key}:{item_id}"] = str(variant.id)
             if matches:
                 await self.mark_used([variant.id for variant in matches.values()])
-        if bullets_pins:
-            bullets_rows = (
-                (
-                    await self.db.execute(
-                        select(CvSynthItem).where(
-                            CvSynthItem.user_id == user_id,
-                            CvSynthItem.scope == "bullets",
-                            CvSynthItem.status == CvSynthStatus.ACTIVE.value,
-                            CvSynthItem.id.in_(
-                                [value for value in bullets_pins.values() if value]
-                            ),
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            by_id = {str(row.id): row for row in bullets_rows}
-            for ref_key, synth_id in bullets_pins.items():
-                source_key, _, item_id = ref_key.partition(":")
-                row = by_id.get(str(synth_id))
-                if row is None:
-                    continue
-                if row.voice.get("language") != language:
-                    continue
-                if row.target_posting_id not in (None, target_posting_id):
-                    continue
-                self._swap_ref(resolution, source_key, item_id, row)
-                applied[f"{ref_key}{BULLETS_PIN_SUFFIX}"] = str(row.id)
-            if applied:
-                await self.mark_used(
-                    [
-                        row.id
-                        for row in by_id.values()
-                        if str(row.id) in applied.values()
-                    ]
-                )
         return applied
 
     @staticmethod

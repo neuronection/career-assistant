@@ -459,7 +459,10 @@ describe("ChatWidget (library surface)", () => {
     await user.click(await screen.findByRole("button", { name: "Available tools" }));
     const dialog = await screen.findByTestId("chat-tools-dialog");
     expect(dialog).toHaveTextContent("Tools the assistant can use");
-    expect(aiApi.fetchAiTools).toHaveBeenCalledWith({ includeCapabilities: true });
+    expect(aiApi.fetchAiTools).toHaveBeenCalledWith({
+      includeCapabilities: true,
+      bindableOnly: true,
+    });
     expect(await screen.findByText("search_jobs")).toBeInTheDocument();
     expect(screen.getByText("Searching the job catalog")).toBeInTheDocument();
     expect(screen.getByText("read")).toBeInTheDocument();

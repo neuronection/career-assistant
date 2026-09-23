@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_synth import (
+    CvSynthBulkIn,
+    CvSynthBulkOut,
     CvSynthGenerateOut,
     CvSynthItemCreate,
     CvSynthItemGenerate,
@@ -103,6 +105,23 @@ async def list_synth_items(
         _out(entry["row"], {"stale": entry["stale"], "orphaned": entry["orphaned"]})
         for entry in rows
     ]
+
+
+@router.post("/bulk", response_model=CvSynthBulkOut)
+async def bulk_synth_items(
+    payload: CvSynthBulkIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvSynthBulkOut:
+    """Archive / restore / delete many variants in one committed call.
+
+    Library hygiene: archival strips stars pointing at the affected
+    rows, restore uses the single activation path, delete pops the
+    stars before deleting. Unknown ids fail the whole call."""
+    affected, deleted = await CvSynthService(db).bulk(
+        user.id, payload.ids, payload.action
+    )
+    return CvSynthBulkOut(affected=affected, deleted=deleted)
 
 
 @router.post("", response_model=CvSynthItemOut, status_code=status.HTTP_201_CREATED)

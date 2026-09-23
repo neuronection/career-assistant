@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import {
@@ -68,10 +68,18 @@ export function ItemBulletsEditorModal({
   const [bullets, setBullets] = useState<string[]>(() =>
     initial.length ? initial : [""]
   );
+  /** Whether the user edited the list while open — only an untouched
+   * draft re-syncs when a refetch refreshes `override`/`base` (the old
+   * one-shot initializer froze stale props into the fields). */
+  const [touched, setTouched] = useState(false);
   const [generated, setGenerated] = useState<string[] | null>(null);
   const [generating, setGenerating] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => {
+    if (!touched) setBullets(initial.length ? initial : [""]);
+  }, [initial, touched]);
 
   const pendingProposals = useMemo(() => {
     const source = generated ?? proposal?.bullets ?? [];
@@ -86,13 +94,18 @@ export function ItemBulletsEditorModal({
     else onClose();
   };
 
-  const setText = (index: number, text: string) =>
+  const setText = (index: number, text: string) => {
+    setTouched(true);
     setBullets((prev) => prev.map((b, i) => (i === index ? text : b)));
-  const remove = (index: number) =>
+  };
+  const remove = (index: number) => {
+    setTouched(true);
     setBullets((prev) =>
       prev.length === 1 ? [""] : prev.filter((_, i) => i !== index)
     );
-  const move = (index: number, delta: -1 | 1) =>
+  };
+  const move = (index: number, delta: -1 | 1) => {
+    setTouched(true);
     setBullets((prev) => {
       const next = [...prev];
       const target = index + delta;
@@ -100,6 +113,7 @@ export function ItemBulletsEditorModal({
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  };
 
   const cleaned = () =>
     bullets.map((b) => b.trim()).filter(Boolean);
@@ -114,6 +128,7 @@ export function ItemBulletsEditorModal({
   };
 
   const confirmProposals = () => {
+    setTouched(true);
     setBullets((prev) => {
       const kept = prev.map((b) => b.trim()).filter(Boolean);
       return [...kept, ...pendingProposals].slice(0, MAX_BULLETS);
@@ -147,6 +162,7 @@ export function ItemBulletsEditorModal({
 
   const reset = () => {
     setConfirmReset(false);
+    setTouched(true);
     setBullets(baseTexts.length ? baseTexts : [""]);
     onReset();
   };
@@ -273,7 +289,10 @@ export function ItemBulletsEditorModal({
               type="button"
               className="flex items-center gap-1 rounded p-1 text-xs text-[var(--as-accent)] transition-colors hover:underline"
               data-testid="bullets-add"
-              onClick={() => setBullets((prev) => [...prev, ""])}
+              onClick={() => {
+                setTouched(true);
+                setBullets((prev) => [...prev, ""]);
+              }}
             >
               <Plus className="h-3.5 w-3.5" aria-hidden />
               {t("cvBuilder.addBullet")}

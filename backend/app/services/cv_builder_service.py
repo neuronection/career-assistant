@@ -110,9 +110,14 @@ class CvBuilderService:
         newest), deduped to one entry per distinct variant so a
         multi-ref variant lists once. Variants already overlay-applied
         in `prefer` mode are excluded — their text renders inside the
-        referenced item. Stale variants are NOT filtered (overlay
+        referenced item. A PINNED ref never lists here (pin
+        exclusivity): the star decides what renders for that item, and
+        when it cannot apply the profile text does — never another
+        variant's text. Stale variants are NOT filtered (overlay
         parity)."""
         from app.services.cv_synth_service import CvSynthService
+
+        from app.services.cv_synth_service import BULLETS_PIN_SUFFIX
 
         refs = [
             (source_key, item_id)
@@ -121,6 +126,16 @@ class CvBuilderService:
         ]
         if not refs:
             return []
+        pinned_refs: set[tuple[str, str]] = set()
+        for pin_key in pins or {}:
+            base = (
+                pin_key[: -len(BULLETS_PIN_SUFFIX)]
+                if pin_key.endswith(BULLETS_PIN_SUFFIX)
+                else pin_key
+            )
+            source_key, _, item_id = base.partition(":")
+            if source_key and item_id:
+                pinned_refs.add((source_key, item_id))
         matches = await CvSynthService(self.db).match_for_user(
             cv.user_id,
             cv.language,
@@ -133,12 +148,23 @@ class CvBuilderService:
         entries: list[dict] = []
         seen: set[str] = set()
         for _source_key, item_id in refs:
+            if (_source_key, item_id) in pinned_refs:
+                # Pin exclusivity: the star is the user's explicit choice
+                # for this item — when it cannot apply, the profile text
+                # renders; another variant's text never jumps in.
+                continue
             variant = matches.get((_source_key, item_id))
             if variant is None or str(variant.id) in seen:
                 continue
             if str(variant.id) in excluded:
                 continue
             seen.add(str(variant.id))
+            payload = variant.payload or {}
+            if not (payload.get("description") is not None or payload.get("summary")):
+                # Plan 110 AD4b: bullets-only winners apply THROUGH their
+                # item (field presence) — an empty highlights block row
+                # would render a title-less duplicate.
+                continue
             source_refs = [
                 {
                     "source_key": ref["source_key"],
@@ -221,6 +247,21 @@ class CvBuilderService:
             resolution.snapshot_index,
             working.get("overrides") or {},
         )
+        # Pin > override > source: the starred variant re-asserts its
+        # own fields AFTER the override layer (an older captured patch
+        # must not mute the pinned variant's text).
+        selection = cv.context or {}
+        if selection.get("synth_pins") if isinstance(selection, dict) else None:
+            from app.services.cv_synth_service import CvSynthService
+
+            await CvSynthService(self.db).pin_overlay_snapshot(
+                cv.user_id,
+                str(cv.language or "en"),
+                cv.target_posting_id,
+                selection.get("synth_pins") or {},
+                snapshot,
+                resolution.snapshot_index,
+            )
         result = render_cv(
             render_input,
             snapshot,
@@ -258,11 +299,25 @@ class CvBuilderService:
         if not with_overrides:
             return resolution.snapshot
         working = cv.working_content or {}
-        return apply_overrides(
+        snapshot = apply_overrides(
             resolution.snapshot,
             resolution.snapshot_index,
             working.get("overrides") or {},
         )
+        context = cv.context or {}
+        pins = context.get("synth_pins") if isinstance(context, dict) else None
+        if pins:
+            from app.services.cv_synth_service import CvSynthService
+
+            await CvSynthService(self.db).pin_overlay_snapshot(
+                cv.user_id,
+                str(cv.language or "en"),
+                cv.target_posting_id,
+                pins,
+                snapshot,
+                resolution.snapshot_index,
+            )
+        return snapshot
 
     async def compile(
         self,

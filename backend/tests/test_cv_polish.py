@@ -65,6 +65,64 @@ def test_gate_finalizes_warn_level_findings():
     assert route_after_review(state) == "finalize"
 
 
+def test_gate_routes_fix_on_warn_findings_with_suggested_ops():
+    """A plain warn never blocks, but a warn the reviewer already
+    equipped with concrete suggested ops gets applied while rounds
+    remain — brief-following fixes should not die as commentary."""
+    state = _review_state(
+        critique={
+            "issues": [
+                {
+                    "level": "warn",
+                    "area": "style",
+                    "message": "fit the brief's palette",
+                    "suggested_ops": [
+                        {"operation": {"op": "apply_theme", "theme_key": "teal_modern"}}
+                    ],
+                }
+            ],
+            "coverage": {"missing": []},
+        }
+    )
+    assert route_after_review(state) == "fix"
+
+
+def test_gate_finalizes_when_only_warn_ops_and_the_cap_is_reached():
+    state = _review_state(
+        critique={
+            "issues": [
+                {
+                    "level": "warn",
+                    "area": "style",
+                    "suggested_ops": [
+                        {"operation": {"op": "apply_theme", "theme_key": "teal_modern"}}
+                    ],
+                }
+            ]
+        }
+    )
+    state["polish"]["iteration"] = cv_draft.POLISH_MAX_ITERATIONS
+    assert route_after_review(state) == "finalize"
+
+
+def test_gate_finalizes_when_stale_warns_repeat():
+    state = _review_state(
+        critique={
+            "issues": [
+                {
+                    "level": "warn",
+                    "area": "style",
+                    "suggested_ops": [
+                        {"operation": {"op": "apply_theme", "theme_key": "teal_modern"}}
+                    ],
+                }
+            ]
+        }
+    )
+    state["polish"]["stale_rounds"] = 2
+    assert route_after_review(state) == "finalize"
+
+
 def test_gate_never_loops_past_the_cap():
     state = _review_state()
     state["polish"]["iteration"] = cv_draft.POLISH_MAX_ITERATIONS

@@ -1,6 +1,8 @@
 """Plan 72 follow-up: per-CV synth pinning (context.synth_pins) — a pin
-swaps that variant's text in for its ref (pins-only semantics), and the
-highlights snapshot cross-lists pinned rows; dead pins fall through."""
+swaps that variant's text in for its ref (pins-only semantics), the
+highlights snapshot cross-lists UNPINNED winners only, and dead pins
+render profile text without any auto-winner jump-in (pin exclusivity).
+Also the surgical pin endpoint (`PUT /cv/{id}/context/pin`)."""
 
 import uuid
 from datetime import date
@@ -161,14 +163,15 @@ async def test_pin_gates_on_language_and_falls_back(client, db, auth_headers):
     )
     html = preview.json()["html"]
     assert "German text" not in html, "a foreign-language pin never applies"
-    assert "Winner text" not in html, "pins-only: unsupported stars fall through"
+    assert "Winner text" not in html, "pin exclusivity: no auto-winner jump-in"
     assert "Built QA tooling" in html, "verbatim profile text renders instead"
     await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
     version = (await db.execute(select(CvVersion))).scalars().first()
     entries = version.content["snapshot"].get("synth", [])
-    assert "Winner text" in [entry["description"] for entry in entries], (
-        "the highlights snapshot lists the eligible variant even though the "
-        "dead pin never applied"
+    assert "Winner text" not in [entry["description"] for entry in entries], (
+        "a pinned ref never cross-lists another variant in the "
+        "highlights snapshot — the star owns the item, and a dead "
+        "star falls through to profile text, never to the auto-winner"
     )
 
 
@@ -232,7 +235,7 @@ async def test_highlights_snapshot_respects_pins(client, db, auth_headers):
     assert [entry["id"] for entry in entries] == [str(awaited["id"])]
 
 
-async def test_unknown_pin_id_falls_back_to_winner(client, db, auth_headers):
+async def test_unknown_pin_id_never_cross_lists_the_winner(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
     await _variant(
@@ -261,8 +264,9 @@ async def test_unknown_pin_id_falls_back_to_winner(client, db, auth_headers):
     preview = await client.post(
         "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
     )
-    assert "Winner text" in preview.json()["html"], (
-        "a pin pointing at a missing variant degrades to the matched winner"
+    assert "Winner text" not in preview.json()["html"], (
+        "a pin pointing at a missing variant is a DEAD pin: profile text "
+        "renders, the auto-winner never jumps into the highlights block"
     )
 
 
@@ -440,3 +444,283 @@ async def test_pin_applies_for_activated_ai_project_variant(
     assert "delivered measurable outcomes" in html, (
         "the pinned activated project variant must render"
     )
+
+
+async def _pin(client, auth_headers, cv, *, source_key, item_id, synth_id=None):
+    return await client.put(
+        f"/api/v1/cv/{cv['id']}/context/pin",
+        json={
+            "source_key": source_key,
+            "item_id": item_id,
+            "synth_id": synth_id,
+        },
+        headers=auth_headers,
+    )
+
+
+async def test_pin_endpoint_stars_and_preserves_other_slots(client, db, auth_headers):
+    """The surgical pin write merges into the stored map — pinning item B
+    after item A never erases A's star (the lost-update the full-map
+    PUTs used to cause)."""
+    uid = _uid_of(auth_headers)
+    item_a = await _make_item(db, uid, title="Backend Intern")
+    item_b = await _make_item(db, uid, title="Frontend Intern", start=date(2025, 1, 1))
+    var_a = await _variant(
+        client, auth_headers, item_a, variant_key="default", text="A"
+    )
+    var_b = await _variant(
+        client, auth_headers, item_b, variant_key="default", text="B"
+    )
+    cv = await _cv(client, auth_headers)
+
+    first = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item_a.id),
+        synth_id=str(var_a["id"]),
+    )
+    assert first.status_code == 200, first.text
+    pins = first.json()["context"]["synth_pins"]
+    assert pins == {f"experience:{item_a.id}": str(var_a["id"])}
+
+    second = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item_b.id),
+        synth_id=str(var_b["id"]),
+    )
+    assert second.status_code == 200, second.text
+    pins = second.json()["context"]["synth_pins"]
+    assert pins == {
+        f"experience:{item_a.id}": str(var_a["id"]),
+        f"experience:{item_b.id}": str(var_b["id"]),
+    }, "the second surgical write must not erase the first star"
+
+    unpinned = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item_a.id),
+        synth_id=None,
+    )
+    assert unpinned.status_code == 200, unpinned.text
+    pins = unpinned.json()["context"]["synth_pins"]
+    assert pins == {f"experience:{item_b.id}": str(var_b["id"])}
+
+
+async def test_pin_endpoint_promotes_a_draft(client, db, auth_headers):
+    """The star IS the approval (plan 102): pinning a draft row
+    activates it in the same write."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    generated = await client.post(
+        "/api/v1/cv/synth/generate",
+        json={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "summarize",
+            "language": "en",
+        },
+        headers=auth_headers,
+    )
+    assert generated.status_code == 200, generated.text
+    draft = generated.json()["items"][0]
+    assert draft["status"] == "draft"
+
+    cv = await _cv(client, auth_headers)
+    response = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id=str(draft["id"]),
+    )
+    assert response.status_code == 200, response.text
+    pins = response.json()["context"]["synth_pins"]
+    assert pins[f"experience:{item.id}"] == str(draft["id"])
+
+    row = (
+        await client.get(f"/api/v1/cv/synth/{draft['id']}", headers=auth_headers)
+    ).json()
+    assert row["status"] == "active", "pinning a draft promotes it"
+
+
+async def test_pin_endpoint_rejects_archived_and_foreign_rows(client, db, auth_headers):
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    archived = await _variant(
+        client, auth_headers, item, variant_key="default", text="x"
+    )
+    bulk = await client.post(
+        "/api/v1/cv/synth/bulk",
+        json={"ids": [archived["id"]], "action": "archive"},
+        headers=auth_headers,
+    )
+    assert bulk.status_code == 200, bulk.text
+    cv = await _cv(client, auth_headers)
+    archived_pin = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id=str(archived["id"]),
+    )
+    assert archived_pin.status_code == 400, archived_pin.text
+
+    missing = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id="ffffffff-0000-0000-0000-000000000001",
+    )
+    assert missing.status_code == 404, missing.text
+
+
+async def test_pin_endpoint_rejects_another_users_variant(client, db, auth_headers):
+    """Tenant isolation: a star can only name the caller's own rows."""
+    from app.models.cv_synth_model import CvSynthItem
+    from app.models.user_model import User
+
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    other = User(
+        email="foreign-pin@example.com",
+        password_hash="$2b$12$foreignpinplaceholder",
+    )
+    db.add(other)
+    await db.flush()
+    foreign = CvSynthItem(
+        user_id=other.id,
+        scope="item",
+        variant_key="default",
+        source_refs=[{"source_key": "experience", "item_id": str(item.id)}],
+        source_state=[],
+        source_set_hash="foreign",
+        payload={"description": "not yours"},
+        evidence_refs=[],
+        voice={"language": "en"},
+        status="active",
+        source="manual",
+        verified=True,
+    )
+    db.add(foreign)
+    await db.commit()
+    await db.refresh(foreign)
+
+    cv = await _cv(client, auth_headers)
+    response = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id=str(foreign.id),
+    )
+    assert response.status_code == 404, response.text
+    refreshed = await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)
+    assert refreshed.json()["context"].get("synth_pins") == {}
+
+
+async def test_single_delete_strips_pins(client, db, auth_headers):
+    """DELETE /cv/synth/{id} pops every star pointing at the row — a
+    dangling pin must never survive a delete (bulk already did)."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    variant = await _variant(
+        client, auth_headers, item, variant_key="default", text="x"
+    )
+    cv = await _cv(client, auth_headers)
+    pinned = await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id=str(variant["id"]),
+    )
+    assert pinned.status_code == 200, pinned.text
+    assert pinned.json()["context"]["synth_pins"]
+
+    deleted = await client.delete(
+        f"/api/v1/cv/synth/{variant['id']}", headers=auth_headers
+    )
+    assert deleted.status_code in (200, 204), deleted.text
+
+    refreshed = await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)
+    assert refreshed.json()["context"].get("synth_pins") == {}, (
+        "the star pointed at a deleted row and must be gone"
+    )
+
+
+async def test_resolution_responses_carry_synth_applied(client, db, auth_headers):
+    """`synth_applied` is the applied-variant truth the UI stars
+    cross-check: present on both the context GET and the preview."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    variant = await _variant(
+        client, auth_headers, item, variant_key="alt", text="Starred truth"
+    )
+    cv = await _cv(client, auth_headers)
+    await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id=str(variant["id"]),
+    )
+    ref_key = f"experience:{item.id}"
+
+    context = await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
+    assert context.status_code == 200, context.text
+    applied = context.json()["synth_applied"]
+    assert applied.get(ref_key) == str(variant["id"])
+
+    preview = await client.post(
+        f"/api/v1/cv/{cv['id']}/preview", json={}, headers=auth_headers
+    )
+    assert preview.status_code == 200, preview.text
+    applied = preview.json()["resolution"]["synth_applied"]
+    assert applied.get(ref_key) == str(variant["id"])
+
+
+async def test_dead_pin_is_reported_as_not_applied(client, db, auth_headers):
+    """A language-gated pin renders profile text AND stays absent from
+    `synth_applied` — the UI can finally show an inactive star."""
+    uid = _uid_of(auth_headers)
+    item = await _make_item(db, uid)
+    foreign = await client.post(
+        "/api/v1/cv/synth",
+        json={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "payload": {"description": "German text"},
+            "variant_key": "de-variant",
+            "voice": {"language": "de"},
+        },
+        headers=auth_headers,
+    )
+    assert foreign.status_code == 201, foreign.text
+    cv = await _cv(client, auth_headers)
+    await _pin(
+        client,
+        auth_headers,
+        cv,
+        source_key="experience",
+        item_id=str(item.id),
+        synth_id=foreign.json()["id"],
+    )
+    context = await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
+    assert context.status_code == 200, context.text
+    ref_key = f"experience:{item.id}"
+    assert context.json()["synth_applied"].get(ref_key) is None, (
+        "a dead pin never lands in synth_applied"
+    )
+    assert str(item.id) in context.json()["snapshot_index"].get("experience", [])

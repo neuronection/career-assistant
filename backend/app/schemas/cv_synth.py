@@ -31,11 +31,19 @@ class CvSynthBullet(BaseModel):
 
 
 class CvSynthPayload(BaseModel):
-    """The validated synthesized text (only text-bearing fields land)."""
+    """The validated synthesized text (only text-bearing fields land).
+
+    `omit_bullets` (plan 110) is an EXPLICIT omission deal: a pinned
+    row with it clears the item's bullet list — the item prints its
+    (variant) description only. It exists because empty
+    `achievements` is the default serialization of every text-only
+    variant and can never be a user signal; presence semantics stay
+    unchanged otherwise."""
 
     description: Optional[str] = Field(default=None, max_length=4000)
     summary: Optional[str] = Field(default=None, max_length=2000)
     achievements: list[CvSynthBullet] = Field(default_factory=list, max_length=12)
+    omit_bullets: bool = Field(default=False)
 
     @field_validator("description", "summary")
     @classmethod
@@ -57,6 +65,8 @@ class CvSynthVoice(BaseModel):
     tone: Optional[str] = None
     length: Optional[str] = None
     action: Optional[str] = None
+    instruction: Optional[str] = Field(default=None, max_length=600)
+    translate_of: Optional[uuid.UUID] = None
 
 
 class CvSynthItemCreate(BaseModel):
@@ -91,9 +101,10 @@ class CvSynthItemGenerate(BaseModel):
     length: Optional[str] = None
     instruction: Optional[str] = Field(
         default=None,
-        max_length=300,
+        max_length=600,
         description="Free-text steering for the AI (plan 103); never "
-        "overrides the grounding contract.",
+        "overrides the grounding contract. Short steering only — recreate "
+        "or rework an existing variant via regenerate_of, not by retyping.",
     )
     variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
     translate_of: Optional[uuid.UUID] = None
@@ -141,6 +152,20 @@ class CvSynthItemOut(BaseModel):
     orphaned: bool = False
     last_used_at: Optional[str] = None
     created_at: Optional[str] = None
+
+
+class CvSynthBulkIn(BaseModel):
+    """Body of POST /cv/synth/bulk — multi-row archive/restore/delete."""
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+    action: Literal["archive", "unarchive", "delete"]
+
+
+class CvSynthBulkOut(BaseModel):
+    """{id, kind} outcome rows of one bulk call."""
+
+    affected: list[uuid.UUID] = Field(default_factory=list)
+    deleted: list[uuid.UUID] = Field(default_factory=list)
 
 
 class CvSynthPreviewIn(BaseModel):

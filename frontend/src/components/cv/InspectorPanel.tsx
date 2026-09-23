@@ -11,7 +11,7 @@ import { Button, SegmentedTabs } from "@/components/ui";
 import { PhotoPicker } from "@/components/cv/PhotoPicker";
 import { SectionsPanel } from "@/components/cv/SectionsPanel";
 import { DesignTokenEditor } from "@/components/cv/DesignTokenEditor";
-import { SelectField } from "@/components/cv/formPrimitives";
+import { SelectField, StepperRow } from "@/components/cv/formPrimitives";
 import { useTranslation } from "react-i18next";
 import {
   LetterDraftSlideOver,
@@ -25,6 +25,7 @@ import type { CvArea, CvAreaId } from "@/components/cv/areas";
 import type {
   CoverLetterSuggestionOut,
   CvBlock,
+  CvOverridePatch,
   CvProposal,
   CvSuggestionOut,
 } from "@/types/cv";
@@ -39,6 +40,12 @@ const TABS: { id: InspectorTab; label: string; icon: typeof Layers }[] = [
   { id: "sections", label: "Sections", icon: LayoutList },
   { id: "context", label: "Context", icon: Layers },
   { id: "design", label: "Design", icon: Palette },
+];
+
+const CV_LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "de", label: "Deutsch" },
+  { value: "el", label: "Ελληνικά" },
 ];
 
 interface InspectorPanelProps {
@@ -70,6 +77,10 @@ interface InspectorPanelProps {
   onDesignReset: () => void;
   onPageSize: (pageSize: string) => void;
   pageSize: string;
+  maxPages: number;
+  onMaxPages: (maxPages: number) => void;
+  language: string;
+  onLanguage: (language: string) => void;
   photos: GalleryPhoto[];
   photoId: string;
   onPhoto: (photoId: string) => void;
@@ -82,6 +93,9 @@ interface InspectorPanelProps {
   skillOptions?: { id: string; label: string }[];
   itemOptions?: Record<string, { id: string; label: string }[]>;
   synthOptions?: { id: string; label: string; stale?: boolean }[];
+  overrides?: Record<string, CvOverridePatch>;
+  onUpdateOverride?: (ref: string, field: string, value: string) => void;
+  summaryFallback?: string;
   onDuplicateBlock: (index: number) => void;
   onAddBlock: (kind: string, area?: CvAreaId) => void;
   onMoveBlock: (index: number, delta: number) => void;
@@ -172,6 +186,10 @@ function DesignTab({
   onDesignReset,
   onPageSize,
   pageSize,
+  maxPages,
+  onMaxPages,
+  language,
+  onLanguage,
   photos,
   photoId,
   onPhoto,
@@ -298,6 +316,20 @@ function DesignTab({
               { value: "letter", label: "Letter" },
             ]}
             testId="page-size-select"
+          />
+          <StepperRow
+            label={t("cvBuilder.maxPages", { defaultValue: "Max pages" })}
+            value={maxPages}
+            min={1}
+            max={10}
+            onChange={onMaxPages}
+          />
+          <SelectField
+            label={t("cvBuilder.language", { defaultValue: "Language" })}
+            value={language}
+            onChange={onLanguage}
+            options={CV_LANGUAGES}
+            testId="cv-language-select"
           />
         </section>
 

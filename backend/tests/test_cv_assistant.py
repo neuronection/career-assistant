@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from datetime import date
 
 from sqlalchemy import select
 
@@ -82,10 +83,18 @@ def test_cv_builder_tools_registered():
         "cv_set_override",
     ):
         assert key in listed, key
-        # Plan 107: the visual review serves the general chat too.
-        expected = (
-            ["chat", "cv_builder"] if key == "cv_review_visual" else ["cv_builder"]
-        )
+        # The styling allowlist serves the general chat too: inspection
+        # + restyle ops bind there; content/section editors stay owned
+        # by the builder copilot only.
+        chat_allowed = {
+            "cv_read_state",
+            "cv_review_visual",
+            "cv_set_template",
+            "cv_apply_theme",
+            "cv_update_design",
+            "cv_set_context",
+        }
+        expected = ["chat", "cv_builder"] if key in chat_allowed else ["cv_builder"]
         assert listed[key]["audiences"] == expected
         assert listed[key]["builtin"] is True
         assert listed[key]["requires_user"] is True
@@ -130,6 +139,44 @@ async def test_apply_theme_duplicates_bank_template(client, db, auth_headers):
     assert bank.content["design"]["accent_color"] != "#0f766e"
 
 
+async def test_second_customize_session_on_same_bank_template_appends(
+    client, db, auth_headers
+):
+    """A later run styling the SAME bank template again duplicates it
+    under the same private slug — the version must chain (v2), never
+    collide with the first copy's v1 (uq_cv_templates_version)."""
+    from app.services.cv_template_service import CvTemplateService
+
+    await _seed_bank(db)
+    cv, _json = await _owned_cv(db, client, auth_headers)
+    from app.services.cv_builder_service import CvBuilderService
+
+    bank = await CvBuilderService(db).template_row(cv)
+
+    first = await apply_operation(
+        db, cv, ApplyThemeOp(op="apply_theme", theme_key="teal_modern")
+    )
+    assert first.ok, first.detail
+    first_version = (
+        await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
+    ).version
+    first_key = (
+        await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
+    ).key
+    # A fresh generate run would land back on the untouched bank row.
+    cv.template_id = bank.id
+    await db.commit()
+    second = await apply_operation(
+        db, cv, UpdateDesignOp(op="update_design", design={"base_size_pt": 9})
+    )
+    assert second.ok, second.detail
+    row = await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
+    assert row.author_user_id == cv.user_id
+    assert row.key == first_key, "the same private chain continues"
+    assert row.version == first_version + 1, "chain version must move forward"
+    assert row.content["design"]["base_size_pt"] == 9
+
+
 async def test_update_design_rejects_unknown_tokens(client, db, auth_headers):
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
@@ -162,6 +209,375 @@ async def test_update_design_on_owned_template_publishes_version(
     assert after.key == before.key
     assert after.version == before.version + 1
     assert after.content["design"]["base_size_pt"] == 9
+
+
+async def test_set_context_never_empties_the_cv(client, db, auth_headers):
+    """Empty-outcome guard: an AI op selecting nothing (custom with an
+    empty include, none without one, exclude covering all items) is
+    refused — a CV with zero context renders nothing."""
+    from app.schemas.cv_assistant import SetContextOp
+
+    await _seed_bank(db)
+    cv, _json = await _owned_cv(db, client, auth_headers)
+    for op in (
+        SetContextOp(op="set_context", mode="custom", include=[], exclude=[]),
+        SetContextOp(op="set_context", mode="none", include=[], exclude=[]),
+    ):
+        result = await apply_operation(db, cv, op)
+        assert not result.ok, result.detail
+        assert "deselect everything" in result.detail
+
+    # mode all without excludes is the reset-to-everything baseline.
+    result = await apply_operation(
+        db, cv, SetContextOp(op="set_context", mode="all", include=[], exclude=[])
+    )
+    assert result.ok, result.detail
+
+
+async def test_read_state_flags_stale_selection_refs(client, db, auth_headers):
+    """Custom selections saved against profile rows that later
+    regenerated (new item ids) silently render nothing — the digest
+    must name the stale refs so the copilot can repair them."""
+    from app.ai.agents.cv_builder_chat import build_builder_context
+    from app.schemas.cv import CvContextRef, CvContextSelection
+    from app.services.cv_context_service import resolve_sources
+
+    cv, _json = await _owned_cv(db, client, auth_headers)
+    resolved = await resolve_sources(db, cv.user_id)
+    source_key, items = next(iter(resolved.items()))
+    fresh_id = items[0].item_id
+    ghost_id = "0" * 8
+    context = CvContextSelection.model_validate(cv.context or {})
+    context.mode = "custom"
+    context.include = [CvContextRef(source_key=source_key, item_id=fresh_id)]
+    context.exclude = [CvContextRef(source_key=source_key, item_id=ghost_id)]
+    cv.context = context.model_dump(mode="json")
+    await db.commit()
+
+    digest = await build_builder_context(db, cv)
+    selection = digest["selection"]
+    assert selection["mode"] == "custom"
+    assert f"{source_key}:{ghost_id}" in selection["stale"]
+    assert f"{source_key}:{fresh_id}" in selection["include"]
+
+
+async def _pinned_project_variant(
+    client, db, auth_headers, uid
+) -> tuple[object, object]:
+    """A project item whose pinned variant replaces description AND
+    bullets on a CV (mode custom keeps only that item)."""
+    from app.models.experience_model import ExperienceItem
+
+    item = ExperienceItem(
+        user_id=uid,
+        kind="project",
+        title="Desktop Assistant",
+        org_name="Neuronection",
+        start=date(2024, 1, 1),
+        description="Long original project description from the profile",
+        status="active",
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    row = (
+        await client.post(
+            "/api/v1/cv/synth/generate",
+            json={
+                "refs": [{"source_key": "projects", "item_id": str(item.id)}],
+                "action": "summarize",
+            },
+            headers=auth_headers,
+        )
+    ).json()["items"][0]
+    variant_id = row["id"]
+    patched = await client.patch(
+        f"/api/v1/cv/synth/{variant_id}",
+        json={
+            "status": "active",
+            "payload": {
+                "description": "Concise variant description",
+                "achievements": [{"text": "Variant bullet"}],
+            },
+        },
+        headers=auth_headers,
+    )
+    assert patched.status_code == 200, patched.text
+    await _seed_bank(db)
+    cv, _json = await _owned_cv(db, client, auth_headers)
+    saved = await client.put(
+        f"/api/v1/cv/{cv.id}/context",
+        json={
+            "mode": "custom",
+            "include": [{"source_key": "projects", "item_id": str(item.id)}],
+            "synth_pins": {f"projects:{item.id}": variant_id},
+        },
+        headers=auth_headers,
+    )
+    assert saved.status_code == 200, saved.text
+    fresh = await CvService(db).get_owned(cv.id, cv.user_id)
+    await db.refresh(fresh)
+    return fresh, item
+
+
+async def test_read_state_sources_carry_effective_variant_layers(
+    client, db, auth_headers
+):
+    """cv_read_state reports what the CV PRINTS: a pinned variant's text
+    replaces the profile's in `sources` (never both layers' texts side
+    by side), `variant` flags the swap, and off-CV pool rows stay
+    label+detail only."""
+    fresh, item = await _pinned_project_variant(
+        client, db, auth_headers, await _user_id(db)
+    )
+    digest = await build_builder_context(db, fresh)
+    entry = next(
+        row
+        for row in digest["sources"]["projects"]["items"]
+        if row["item_id"] == str(item.id)
+    )
+    assert entry["selected"] is True
+    assert entry["variant"] is True
+    assert entry["description"] == "Concise variant description"
+    assert entry["bullets"] == ["Variant bullet"]
+    assert "Long original project description" not in json.dumps(digest["sources"])
+
+
+async def test_read_state_off_cv_pool_rows_stay_light(client, db, auth_headers):
+    uid = await _user_id(db)
+    from app.models.experience_model import ExperienceItem
+
+    outsider = ExperienceItem(
+        user_id=uid,
+        kind="project",
+        title="Off CV Project",
+        org_name="Lab",
+        start=date(2024, 3, 1),
+        description="Not included anywhere",
+        status="active",
+    )
+    db.add(outsider)
+    await db.commit()
+    await db.refresh(outsider)
+    waitstaff = ExperienceItem(
+        user_id=uid,
+        kind="job",
+        title="Bar Staff",
+        org_name="Coffee Bar",
+        start=date(2023, 5, 1),
+        description="Off-CV job",
+        status="active",
+    )
+    db.add(waitstaff)
+    await db.commit()
+    await db.refresh(waitstaff)
+    await _seed_bank(db)
+    cv, _json = await _owned_cv(db, client, auth_headers)
+    await client.put(
+        f"/api/v1/cv/{cv.id}/context",
+        json={
+            "mode": "custom",
+            "include": [
+                {"source_key": "summary", "item_id": "summary"},
+                {"source_key": "projects", "item_id": str(outsider.id)},
+            ],
+        },
+        headers=auth_headers,
+    )
+    fresh = await CvService(db).get_owned(cv.id, cv.user_id)
+    await db.refresh(fresh)
+    digest = await build_builder_context(db, fresh)
+    experience = digest["sources"]["experience"]["items"]
+    assert experience and all(row["selected"] is False for row in experience)
+    assert all("description" not in row and "bullets" not in row for row in experience)
+
+
+async def test_read_state_rendered_sections_report_layers(client, db, auth_headers):
+    """`rendered` is the deterministic what-prints truth per entry:
+    each printed item's headline with its own description/bullet layers,
+    and per-section counts — one bulleted item never reads as
+    "the section prints bullets"."""
+    uid = await _user_id(db)
+    from app.models.experience_model import ExperienceAchievement, ExperienceItem
+
+    plain = ExperienceItem(
+        user_id=uid,
+        kind="project",
+        title="Host Web Services",
+        org_name="Lab",
+        start=date(2024, 2, 1),
+        description="A dense project description",
+        status="active",
+    )
+    db.add(plain)
+    await db.commit()
+    await db.refresh(plain)
+    bulleted = ExperienceItem(
+        user_id=uid,
+        kind="project",
+        title="Desktop Assistant",
+        org_name="Neuronection",
+        start=date(2024, 1, 1),
+        description="A concise project description",
+        status="active",
+    )
+    db.add(bulleted)
+    await db.commit()
+    await db.refresh(bulleted)
+    db.add(ExperienceAchievement(experience_id=bulleted.id, text="Profile bullet"))
+    await db.commit()
+
+    await _seed_bank(db)
+    cv, _json = await _owned_cv(db, client, auth_headers)
+    added = await apply_operation(
+        db,
+        cv,
+        AddBlockOp(
+            op="add_block",
+            kind="items",
+            props={"title": "Projects", "source_key": "projects"},
+        ),
+    )
+    assert added.ok, added.detail
+    block_index = len(cv.working_content["blocks"]) - 1
+    silenced = await apply_operation(
+        db,
+        cv,
+        UpdateBlockPropsOp(
+            op="update_block_props",
+            block_index=block_index,
+            props={"show_achievements": False},
+        ),
+    )
+    assert silenced.ok, silenced.detail
+    fresh = await CvService(db).get_owned(cv.id, cv.user_id)
+    await db.refresh(fresh)
+
+    digest = await build_builder_context(db, fresh)
+    projects = next(
+        section for section in digest["rendered"] if section["section"] == "Projects"
+    )
+    assert projects["items"] == 2
+    assert projects["with_description"] == 2
+    assert projects["with_bullets"] == 0, "the prop gate silences every bullet"
+    host = next(
+        entry for entry in projects["entries"] if "Host Web Services" in entry["title"]
+    )
+    assert host["title"] == "Host Web Services — Lab"
+    assert host["description"] is True and host["bullets"] is False
+
+    unwrapped = await apply_operation(
+        db,
+        fresh,
+        UpdateBlockPropsOp(
+            op="update_block_props",
+            block_index=block_index,
+            props={"show_achievements": True},
+        ),
+    )
+    assert unwrapped.ok, unwrapped.detail
+    fresh = await CvService(db).get_owned(cv.id, cv.user_id)
+    await db.refresh(fresh)
+    projects = next(
+        section
+        for section in (await build_builder_context(db, fresh))["rendered"]
+        if section["section"] == "Projects"
+    )
+    assert (
+        next(
+            entry
+            for entry in projects["entries"]
+            if "Host Web Services" in entry["title"]
+        )["bullets"]
+        is False
+    )
+    desktop = next(
+        entry for entry in projects["entries"] if "Desktop Assistant" in entry["title"]
+    )
+    assert desktop["bullets"] is True and desktop["bullet_count"] == 1
+    assert projects["with_bullets"] == 1, "exactly one entry prints bullets"
+
+
+async def test_critique_pages_prompt_carries_rendered_truth(monkeypatch):
+    """The visual critique prompt embeds the rendered ground truth and
+    its system line binds content claims to it."""
+    import app.ai.agents.cv_template_designer as designer
+
+    captured: dict = {}
+
+    async def _fake_invoke(_db, _task, _schema, system, user, **_kwargs):
+        captured["system"] = system
+        captured["user"] = user
+        return designer.CvVisualCritique()
+
+    monkeypatch.setattr(designer, "ainvoke_structured", _fake_invoke)
+    await designer.critique_pages(
+        None,
+        None,
+        template_summary="t",
+        lint={},
+        max_pages=1,
+        page_count=1,
+        rendered=[
+            {
+                "section": "Projects",
+                "items": 2,
+                "entries": [
+                    {
+                        "title": "Host Web Services — Lab",
+                        "description": True,
+                        "bullets": False,
+                        "bullet_count": 0,
+                    },
+                    {
+                        "title": "Desktop Assistant — Neuronection",
+                        "description": True,
+                        "bullets": True,
+                        "bullet_count": 1,
+                    },
+                ],
+                "with_description": 2,
+                "with_bullets": 1,
+            }
+        ],
+    )
+    from app.ai.agents.context import parse_context
+
+    ctx = parse_context(captured["user"])
+    assert ctx["rendered"][0]["with_bullets"] == 1
+    assert ctx["rendered"][0]["entries"][1]["bullets"] is True
+    assert ctx["rendered"][0]["section"] == "Projects"
+    assert "with_bullets" in captured["system"]
+
+
+async def test_template_switch_grounded_on_layout_facts(client, db, auth_headers):
+    """Template switches are verified, not narrated from a name:
+    `templates` carry factual layout/ATS facts, the op detail states the
+    applied template's layout, and a styling op's result carries `after`
+    (applied template + rendered layers) so a chat claim like "this
+    two-column template creates room beside the narrative" can only
+    follow the actual design."""
+    await _seed_bank(db)
+    cv, created = await _owned_cv(db, client, auth_headers)
+    user_id = await _user_id(db)
+    state = await run_tool(db, "cv_read_state", user_id, {"cv_id": created["id"]})
+    assert state["template"]["layout"] in ("single", "sidebar")
+    assert all("layout" in row and "ats_safe" in row for row in state["templates"]), (
+        "every candidate template carries its factual layout"
+    )
+    candidate = next(row for row in state["templates"] if not row["ats_safe"])
+    out = await run_tool(
+        db,
+        "cv_set_template",
+        user_id,
+        {"cv_id": created["id"], "template_id": candidate["id"]},
+    )
+    assert out["ok"] is True
+    assert "layout" in out["detail"], out["detail"]
+    assert out["after"]["template"] == candidate["title"]
+    assert out["after"]["layout"] == candidate["layout"]
+    assert out["after"]["estimated_pages"] >= 1
+    assert isinstance(out["after"]["rendered"], list)
 
 
 async def test_set_context_validates_items(client, db, auth_headers):

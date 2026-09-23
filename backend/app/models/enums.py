@@ -752,6 +752,7 @@ class ProposalKind(str, Enum):
     PROFILE_SECTION = "profile_section"
     CV_SYNTH = "cv_synth"
     CV_SET_BULLETS = "cv_set_bullets"
+    CV_CHOICE = "cv_choice"
 
 
 class ProposalAction(str, Enum):

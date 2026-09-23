@@ -152,11 +152,27 @@ class CvTemplateService:
         key: str | None = None,
         status: CvTemplateStatus = CvTemplateStatus.DRAFT,
     ) -> CvTemplate:
-        """Create version 1 of a new template (validated like any write)."""
+        """Create version 1 of a new template (validated like any write).
+
+        The version continues an existing private chain when one is
+        already present: re-customizing a bank template (duplicate →
+        same "(customized)" slug) must append `version N+1`, never
+        collide with the earlier copy's v1 (uq_cv_templates_version)."""
         validate_blocks(content.blocks)
+        template_key = slugify_key(key or title)
+        rows = await self.db.execute(
+            select(CvTemplate.version)
+            .where(
+                CvTemplate.author_key == str(user_id),
+                CvTemplate.key == template_key,
+            )
+            .order_by(CvTemplate.version.desc())
+            .limit(1)
+        )
+        latest = rows.scalar()
         template = CvTemplate(
-            key=slugify_key(key or title),
-            version=1,
+            key=template_key,
+            version=(latest or 0) + 1,
             title=title,
             description=description,
             author_user_id=user_id,
@@ -499,6 +515,28 @@ class CvTemplateService:
 
     # ----------------------------------------------------------- suggest
 
+    async def _recent_template_ids(
+        self, user_id: uuid.UUID, limit: int = 5
+    ) -> set[uuid.UUID]:
+        """The templates of the user's most recent CVs (recency-limited).
+
+        Grists for the variety mill: the auto pick should not hand every
+        new CV the same look just because the brief is similar to the
+        last one. Non-destructive — a genuinely better-matching template
+        still wins over a repeat penalty."""
+        from app.models.cv_model import CvDocument
+
+        rows = await self.db.execute(
+            select(CvDocument.template_id)
+            .where(
+                CvDocument.user_id == user_id,
+                CvDocument.template_id.is_not(None),
+            )
+            .order_by(CvDocument.created_at.desc())
+            .limit(limit)
+        )
+        return {row for row in rows.scalars().all()}
+
     async def suggest(
         self,
         user_id: uuid.UUID,
@@ -515,16 +553,25 @@ class CvTemplateService:
         and, with the PDF engine present, the top candidates' sample
         renders ride along so the ranking judges the request and the
         actual LOOK, not the metadata; without them it degrades to the
-        metadata-only baseline."""
+        metadata-only baseline. Templates already used by the user's
+        recent CVs are demoted so consecutive fills vary the look."""
         from app.ai.agents.cv_template_advisor import (
             TemplateCandidate,
             rank_templates,
         )
 
         rows = await self.list_templates(user_id)
+        # The auto/AI pick runs on a fresh generate with no explicit
+        # template choice: rank CURATED bank templates only. The user's
+        # own templates (tests, one-offs, older styled copies) would
+        # otherwise win by recency luck even when the brief asks for a
+        # look they don't express; the explicit picker in the UI(or an
+        # explicit template_id) still reaches them.
+        rows = [row for row in rows if row.author_key == "bank"]
         if not rows:
             return {"picks": [], "candidates_considered": 0}
         layout_hint = _layout_hint(notes)
+        recent_ids = await self._recent_template_ids(user_id)
         scored: list[tuple[float, int, CvTemplate]] = []
         for index, row in enumerate(rows):
             score = 5.0
@@ -535,9 +582,16 @@ class CvTemplateService:
                 score += 1.5 if layout_hint == "sidebar" else 0.8
             if row.ats_safe:
                 score += 1.2
+            if row.id in recent_ids:
+                # Variety lever, not a ban: a template the user's recent
+                # CVs already showcase drops below every fresh candidate
+                # but stays ranked (an explicit brief still elevates via
+                # the advisor, and a sole-fit template wins outright).
+                score -= 3.0
             scored.append((-score, index, row))
         scored.sort(key=lambda entry: (entry[0], entry[1]))
         ordered = [entry[2] for entry in scored]
+        recent_titles = [row.title for row in ordered if row.id in recent_ids]
         candidates = [
             TemplateCandidate(
                 ref=f"t{index}",
@@ -559,6 +613,8 @@ class CvTemplateService:
             target["notes"] = notes.strip()[:2000]
         if layout_hint:
             target["layout_hint"] = layout_hint
+        if recent_titles:
+            target["recently_used"] = recent_titles
         images = await self._candidate_thumbnails(ordered[:VISUAL_PICK_CANDIDATES])
         ranking = await rank_templates(
             self.db, user_id, candidates, target or None, images=images or None
@@ -618,7 +674,10 @@ class CvTemplateService:
             raise
         except Exception:  # noqa: BLE001 — one bad template degrades
             return None
-        return measure.images[0] if measure.images else None
+        if not measure.images:
+            return None
+        mime, png = measure.images[0]
+        return png
 
     async def preview_png_cached(
         self, template_id: uuid.UUID, user_id: uuid.UUID

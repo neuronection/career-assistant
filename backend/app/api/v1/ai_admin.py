@@ -273,6 +273,10 @@ async def list_all_models(
             "name": model.name,
             "model_name": model.model_name,
             "tier": model.tier,
+            # The stored capability tags ship so task pickers filter on
+            # what the per-model edit dialog declares — not on the
+            # client's model-name guesses.
+            "caps": list(model.caps or []),
             "provider_name": provider.name,
             "provider_scope": provider.scope,
             "provider_type": provider.provider_type,
@@ -322,17 +326,29 @@ async def set_assignment(
 @router.get("/tools")
 async def tools(
     include_capabilities: bool = False,
+    bindable_only: bool = False,
     user: User = Depends(get_current_user),
 ) -> list[dict]:
     """Registered AI tools (callable only, unless capabilities are opted in).
 
     ``include_capabilities=true`` adds the non-callable HITL capability
     rows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep
-    the callable-only default.
-    """
+    the callable-only default. ``bindable_only=true`` narrows to the
+    subset the main chat's LLM actually binds (the chat-audience
+    allowlist) — the chat's "tools the assistant can use" dialog shows
+    THAT, not the whole copilot/admin registry."""
     listed = list_tools()
     if not include_capabilities:
         listed = [t for t in listed if t.get("kind") == "tool"]
+    if bindable_only:
+        from app.ai.tools.langchain import main_chat_tool_keys
+
+        bindable = set(main_chat_tool_keys())
+        listed = [
+            t
+            for t in listed
+            if t.get("key") in bindable or (t.get("hitl") and include_capabilities)
+        ]
     return listed
 
 

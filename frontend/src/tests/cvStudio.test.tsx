@@ -55,6 +55,7 @@ const fetchContextStatus = vi.fn();
 const compileCv = vi.fn();
 const patchCv = vi.fn();
 const setContext = vi.fn();
+const setSynthPin = vi.fn();
 const aiAction = vi.fn();
 const exportCv = vi.fn();
 const fetchExperienceRows = vi.fn();
@@ -176,6 +177,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     compileCv: (...args: unknown[]) => compileCv(...args),
     patchCv: (...args: unknown[]) => patchCv(...args),
     setContext: (...args: unknown[]) => setContext(...args),
+    setSynthPin: (...args: unknown[]) => setSynthPin(...args),
     aiAction: (...args: unknown[]) => aiAction(...args),
     exportCv: (...args: unknown[]) => exportCv(...args),
     restoreVersion: (...args: unknown[]) => restoreVersion(...args),
@@ -505,12 +507,45 @@ beforeEach(async () => {
     ...body,
   }));
   setContext.mockImplementation(async () => ({ ...cv }));
+  setSynthPin.mockImplementation(
+    async (
+      _id: string,
+      sourceKey: string,
+      itemId: string,
+      synthId: string | null,
+    ) => {
+      const key = `${sourceKey}:${itemId}`;
+      const pins = {
+        ...((cv.context?.synth_pins as Record<string, string>) ?? {}),
+      };
+      if (synthId) pins[key] = synthId;
+      else delete pins[key];
+      return { ...cv, context: { ...(cv.context ?? {}), synth_pins: pins } };
+    },
+  );
   fetchSynthItems.mockResolvedValue([]);
   previewCv.mockImplementation(async () => {
     const lastPatch = patchCv.mock.calls[patchCv.mock.calls.length - 1]?.[1] as
       | { working_content?: { blocks?: typeof preview.blocks } }
       | undefined;
-    return { ...preview, blocks: lastPatch?.working_content?.blocks ?? preview.blocks };
+    // The applied-variant truth follows the document's pins (like the real
+    // backend), with the latest pin write overlaid.
+    const synthApplied: Record<string, string> = {
+      ...((cv.context?.synth_pins as Record<string, string>) ?? {}),
+    };
+    const lastPin = setSynthPin.mock.calls[setSynthPin.mock.calls.length - 1] as
+      | [string, string, string, string | null]
+      | undefined;
+    if (lastPin) {
+      const key = `${lastPin[1]}:${lastPin[2]}`;
+      if (lastPin[3]) synthApplied[key] = lastPin[3];
+      else delete synthApplied[key];
+    }
+    return {
+      ...preview,
+      blocks: lastPatch?.working_content?.blocks ?? preview.blocks,
+      resolution: { ...preview.resolution, synth_applied: synthApplied },
+    };
   });
   aiAction.mockResolvedValue({
     action: "summary",
@@ -1060,6 +1095,24 @@ describe("CvBuilder", () => {
     await waitFor(() => expect(patchCv).toHaveBeenCalledTimes(2), { timeout: 3000 });
     const blocks = patchCv.mock.calls[1][1].working_content.blocks;
     expect(blocks[blocks.length - 1].props.text).toBe("Few words about me");
+  });
+
+  it("edits the summary text as a CV override", async () => {
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("sections");
+    fireEvent.click(screen.getByTestId("configure-section-1"));
+    const editor = await screen.findByTestId("summary-text-1");
+    fireEvent.change(editor, {
+      target: { value: "Typed summary from the studio." },
+    });
+    await waitFor(() => expect(patchCv).toHaveBeenCalled(), { timeout: 3000 });
+    const body = patchCv.mock.calls[patchCv.mock.calls.length - 1][1] as {
+      working_content: { overrides: Record<string, { summary: string }> };
+    };
+    expect(body.working_content.overrides["summary:summary"].summary).toBe(
+      "Typed summary from the studio."
+    );
   });
 
   it("marks estimated page boundaries when the CV grows over one page", async () => {
@@ -2040,12 +2093,12 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
       void screen.queryByTestId("context-variant-toggle-syn-1");
   });
 
-  it("stars a draft variant by promoting it (plan 102), pin inactive retired", async () => {
+  it("stars a draft variant through the surgical pin endpoint (plan 102)", async () => {
     cv.context = {
       mode: "all",
       include: [],
       exclude: [],
-      synth_pins: { "experience:exp-1": "syn-gone" },
+      synth_pins: {},
     };
     fetchSynthItems.mockResolvedValue([
       {
@@ -2066,19 +2119,19 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
         created_at: "",
       },
     ]);
-    patchSynthItem.mockImplementation(async () => ({}));
-    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
     fireEvent.click(screen.getByTestId("context-group-header-experience"));
     await screen.findByTestId("context-variant-syn-1");
-    expect(screen.queryByTestId("context-pin-inactive")).toBeNull();
     fireEvent.click(await screen.findByTestId("context-pin-star-syn-1"));
     await waitFor(() =>
-      expect(patchSynthItem).toHaveBeenCalledWith("syn-1", {
-        status: "active",
-      }),
+      expect(setSynthPin).toHaveBeenCalledWith(
+        "cv-1",
+        "experience",
+        "exp-1",
+        "syn-1",
+      ),
     );
     cv.context = { mode: "all", include: [], exclude: [] };
   });
@@ -2103,7 +2156,6 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
         created_at: "",
       },
     ]);
-    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
@@ -2112,25 +2164,72 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     expect(star.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(star);
     await waitFor(() =>
-      expect(setContext).toHaveBeenCalledWith(
+      expect(setSynthPin).toHaveBeenCalledWith(
         "cv-1",
-        expect.objectContaining({
-          synth_pins: { "experience:exp-1": "syn-1" },
-        }),
+        "experience",
+        "exp-1",
+        "syn-1",
       ),
     );
     const starred = await screen.findByTestId("context-pin-star-syn-1");
     expect(starred.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(starred);
-    await waitFor(() => expect(setContext).toHaveBeenCalledTimes(2));
-    expect(setContext.mock.calls[1][1].synth_pins).toEqual({});
+    await waitFor(() => expect(setSynthPin).toHaveBeenCalledTimes(2));
+    expect(setSynthPin.mock.calls[1]).toEqual([
+      "cv-1",
+      "experience",
+      "exp-1",
+      null,
+    ]);
   });
 
-  it("pins a bullets variant into its own :bullets slot", async () => {
+  it("marks a pinned variant not-rendering when the preview omits it from synth_applied", async () => {
+    cv.context = {
+      mode: "all",
+      include: [],
+      exclude: [],
+      synth_pins: { "experience:exp-1": "syn-1" },
+    };
+    fetchSynthItems.mockResolvedValue([
+      {
+        id: "syn-1",
+        scope: "item",
+        variant_key: "de-variant",
+        target_posting_id: null,
+        source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+        source_state: [],
+        payload: { description: "German text" },
+        voice: { language: "de" },
+        status: "active",
+        source: "manual",
+        verified: true,
+        stale: false,
+        orphaned: false,
+        last_used_at: null,
+        created_at: "",
+      },
+    ]);
+    previewCv.mockImplementation(async () => ({
+      ...preview,
+      resolution: { ...preview.resolution, synth_applied: {} },
+    }));
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    expect(
+      await screen.findByTestId("context-variant-inactive-syn-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("context-pin-star-syn-1").getAttribute("data-inactive"),
+    ).toBe("true");
+    cv.context = { mode: "all", include: [], exclude: [] };
+  });
+
+  it("pins a bullets variant on the single slot (plan 110)", async () => {
     fetchSynthItems.mockResolvedValue([
       bulletsVariantRow("syn-b1", ["Cut latency 40%"]),
     ]);
-    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
@@ -2142,11 +2241,11 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     expect(star.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(star);
     await waitFor(() =>
-      expect(setContext).toHaveBeenCalledWith(
+      expect(setSynthPin).toHaveBeenCalledWith(
         "cv-1",
-        expect.objectContaining({
-          synth_pins: { "experience:exp-1:bullets": "syn-b1" },
-        }),
+        "experience",
+        "exp-1",
+        "syn-b1",
       ),
     );
   });
@@ -2242,7 +2341,6 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
       ...cv,
       context: { ...cv.context, synth_pins: { "experience:exp-1": "syn-1" } },
     });
-    setContext.mockImplementation(async () => ({ ...cv }));
     deleteSynthItem.mockResolvedValue(undefined);
     renderBuilder();
     await screen.findByTestId("preview-frame");
@@ -2251,16 +2349,14 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     fireEvent.click(await screen.findByTestId("context-variant-edit-syn-1"));
     await screen.findByTestId("synth-editor-description-input");
     expect(screen.getByTestId("synth-editor-delete")).toBeInTheDocument();
+    const fetchCvCalls = fetchCv.mock.calls.length;
     await user.click(screen.getByTestId("synth-editor-delete"));
     await user.click(
       await screen.findByRole("button", { name: "Delete" }),
     );
     await waitFor(() => expect(deleteSynthItem).toHaveBeenCalledWith("syn-1"));
     await waitFor(() =>
-      expect(setContext).toHaveBeenCalledWith(
-        "cv-1",
-        expect.objectContaining({ synth_pins: {} }),
-      ),
+      expect(fetchCv.mock.calls.length).toBeGreaterThan(fetchCvCalls),
     );
     expect(screen.queryByTestId("synth-editor-delete")).not.toBeInTheDocument();
   });
@@ -2352,6 +2448,44 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     );
   });
 
+  it("the editor's On-the-CV-now row follows the star, not the newest active row", async () => {
+    const row = (id: string, text: string, created: string) => ({
+      id,
+      scope: "item",
+      variant_key: "tailored",
+      target_posting_id: null,
+      source_refs: [{ source_key: "experience", item_id: "exp-1" }],
+      source_state: [],
+      payload: { description: text },
+      voice: { language: "en" },
+      status: "active",
+      source: "manual",
+      verified: true,
+      stale: false,
+      orphaned: false,
+      last_used_at: null,
+      created_at: created,
+    });
+    cv.context = {
+      mode: "all",
+      include: [],
+      exclude: [],
+      synth_pins: { "experience:exp-1": "syn-pinned" },
+    };
+    fetchSynthItems.mockResolvedValue([
+      row("syn-newer", "Newest active text", "2026-09-20T00:00:00Z"),
+      row("syn-pinned", "Pinned text", "2026-09-10T00:00:00Z"),
+    ]);
+    renderBuilder();
+    await screen.findByTestId("preview-frame");
+    await openInspectorTab("context");
+    fireEvent.click(screen.getByTestId("context-group-header-experience"));
+    fireEvent.click(await screen.findByTestId("context-variant-edit-syn-newer"));
+    const previewRow = await screen.findByTestId("synth-editor-preview");
+    expect(previewRow).toHaveTextContent("Pinned text");
+    cv.context = { mode: "all", include: [], exclude: [] };
+  });
+
   it("steps through the slot's rows with the chevrons (plan 103)", async () => {
     const row = (id: string, text: string, created: string) => ({
       id,
@@ -2414,11 +2548,6 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
       created_at: "",
     };
     fetchSynthItems.mockResolvedValue([draft]);
-    patchSynthItem.mockImplementation(async () => ({
-      ...draft,
-      status: "active",
-    }));
-    setContext.mockImplementation(async () => ({ ...cv }));
     renderBuilder();
     await screen.findByTestId("preview-frame");
     await openInspectorTab("context");
@@ -2428,16 +2557,11 @@ describe("CvBuilder — plan 72 synth highlights + item ordering", () => {
     expect(screen.queryByTestId("context-variant-activate-syn-1")).toBeNull();
     fireEvent.click(await screen.findByTestId("context-pin-star-syn-1"));
     await waitFor(() =>
-      expect(patchSynthItem).toHaveBeenCalledWith("syn-1", {
-        status: "active",
-      }),
-    );
-    await waitFor(() =>
-      expect(setContext).toHaveBeenCalledWith(
+      expect(setSynthPin).toHaveBeenCalledWith(
         "cv-1",
-        expect.objectContaining({
-          synth_pins: { "experience:exp-1": "syn-1" },
-        }),
+        "experience",
+        "exp-1",
+        "syn-1",
       ),
     );
   });
@@ -2519,7 +2643,7 @@ describe("template editor: version history + diff", () => {
 });
 
 describe("CvBuilder — plan 104 chat live sync", () => {
-  it("refetches preview + meta + synth rows when a chat mutation bumps the data revision", async () => {
+  it("refetches the document + preview + meta + synth rows when a chat mutation bumps the data revision", async () => {
     const { useCvBuilderLink } = await import("@/stores/cvBuilderLinkStore");
     useCvBuilderLink.setState({ dataRevision: 0 });
     renderBuilder();
@@ -2527,6 +2651,7 @@ describe("CvBuilder — plan 104 chat live sync", () => {
     const initialCalls = previewCv.mock.calls.length;
     expect(initialCalls).toBeGreaterThan(0);
     const initialSynth = fetchSynthItems.mock.calls.length;
+    const initialCv = fetchCv.mock.calls.length;
 
     act(() => {
       useCvBuilderLink.getState().notifyDataChanged();
@@ -2536,6 +2661,7 @@ describe("CvBuilder — plan 104 chat live sync", () => {
       { timeout: 3000 },
     );
     expect(fetchSynthItems.mock.calls.length).toBeGreaterThan(initialSynth);
+    expect(fetchCv.mock.calls.length).toBeGreaterThan(initialCv);
   });
 
   it("ignores revision 0 (no chat mutation yet) and stays quiet otherwise", async () => {
@@ -2705,7 +2831,7 @@ describe("CvBuilder — plan 105 origin-aware sync", () => {
 
 describe("CvBuilder — plan 106 bullets editor", () => {
 
-  it("saves the bullets as a bullets variant and pins it (two-layer model)", async () => {
+  it("saves the bullets as a bullets variant and pins it (single slot)", async () => {
     const user = userEvent.setup();
     previewCv.mockResolvedValue({
       ...preview,
@@ -2757,13 +2883,11 @@ describe("CvBuilder — plan 106 bullets editor", () => {
       }),
     );
     await waitFor(() =>
-      expect(setContext).toHaveBeenCalledWith(
+      expect(setSynthPin).toHaveBeenCalledWith(
         "cv-1",
-        expect.objectContaining({
-          synth_pins: expect.objectContaining({
-            "experience:exp-1:bullets": "syn-b1",
-          }),
-        }),
+        "experience",
+        "exp-1",
+        "syn-b1",
       ),
     );
     await waitFor(() =>
@@ -2777,7 +2901,7 @@ describe("CvBuilder — plan 106 bullets editor", () => {
       ...cv,
       context: {
         ...cv.context,
-        synth_pins: { "experience:exp-1:bullets": "syn-b1" },
+        synth_pins: { "experience:exp-1": "syn-b1" },
       },
     });
     fetchSynthItems.mockResolvedValue([
@@ -2799,9 +2923,11 @@ describe("CvBuilder — plan 106 bullets editor", () => {
     });
     await user.click(confirms[confirms.length - 1]);
     await waitFor(() =>
-      expect(setContext).toHaveBeenCalledWith(
+      expect(setSynthPin).toHaveBeenCalledWith(
         "cv-1",
-        expect.objectContaining({ synth_pins: {} }),
+        "experience",
+        "exp-1",
+        null,
       ),
     );
     expect(patchCv).not.toHaveBeenCalled();

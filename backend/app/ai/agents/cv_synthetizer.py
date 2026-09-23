@@ -96,9 +96,9 @@ def _evidence_line(item: dict) -> str:
     if item.get("detail"):
         parts.append(str(item["detail"]))
     if text:
-        parts.append(str(text)[:400])
+        parts.append(str(text)[:1600])
     if skills:
-        parts.append("skills: " + ", ".join(str(s) for s in skills[:8]))
+        parts.append("skills: " + ", ".join(str(s) for s in skills[:16]))
     return f"[{item.get('source_key')}:{item.get('item_id')}] " + " | ".join(
         part for part in parts if part
     )
@@ -138,6 +138,8 @@ def build_user_prompt(
             f"POSTING: {posting.get('title') or ''} — must-have skills: "
             + ", ".join(posting.get("must_have_skills") or [])
         )
+        if posting.get("text"):
+            lines.extend(["", "POSTING TEXT:", str(posting["text"])[:2000]])
     if action == "translate":
         lines.append(f"TARGET_LANGUAGE: {target_language or language}")
         lines.extend(["", "VARIANT TEXTS (translate these, no additions):"])

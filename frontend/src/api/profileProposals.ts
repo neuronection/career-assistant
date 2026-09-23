@@ -24,9 +24,11 @@ export async function fetchProfileProposals(
 
 export async function approveProfileProposal(
   id: string,
+  optionKeys?: string[],
 ): Promise<ProfileProposalResolveResponse> {
   const { data } = await api.post<ProfileProposalResolveResponse>(
     `/me/profile-proposals/${id}/approve`,
+    optionKeys?.length ? { option_keys: optionKeys } : {},
   );
   return data;
 }

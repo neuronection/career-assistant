@@ -19,8 +19,18 @@ import type { FlowStep } from "@/components/ui";
 /** Write-scope tools whose completion changes a CV's resolved content. */
 const CHAT_MUTATION_TOOLS = new Set([
   "variant_pin",
-  "cv_synth_generate",
   "cv_synth_update",
+  "cv_set_template",
+  "cv_apply_theme",
+  "cv_update_design",
+  "cv_set_context",
+  "cv_set_doc_options",
+  "cv_add_block",
+  "cv_remove_block",
+  "cv_move_block",
+  "cv_update_block_props",
+  "cv_set_override",
+  "cv_set_bullets",
 ]);
 
 /** The open Studio CV id, or null. */

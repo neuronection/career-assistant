@@ -86,15 +86,35 @@ There is no side door around it.
   the profile: each variant cites typed source refs + source content
   hashes (staleness/orphan detection) and applies through the per-CV
   `context.synth_mode` overlay BEFORE editor overrides — precedence is
-  override > synth > source, every application traced via
-  `synth_applied` in the version's `context_resolution`. Since the
-  2026-09 bullets rework the model is strictly two-layer for bullets:
-  variants carry a `bullets` scope (achievements-only) pinned through a
-  second per-item slot (`synth_pins["{ref}:bullets"]`), a variant that
-  sets achievements REPLACES the list, and `apply_overrides` strips
-  `achievements` from patches — the profile entry is the only base and
-  pinned variants the only tailoring (slot partitioning keeps text and
-  bullets supersede independent). AI variant
+  override > synth > source; every application is traced via
+  `synth_applied` (the version's `context_resolution`, AND the live
+  `GET /cv/{id}/context` / `POST /cv/{id}/preview` resolution payloads,
+  so the UI's stars cross-check what actually rendered). **Plan 110
+  (one variant per item) collapsed the two-layer pin slots into a
+  single pin**: `swap_variant_payload` applies by FIELD PRESENCE
+  (description present → text layer swapped; `achievements` present →
+  the bullet list; both → full entry) regardless of the row's `scope`
+  (now pure provenance shown as a badge — a bullets-only pin swaps just
+  bullets; a merged row composes both). `_supersede_slot` is whole-row
+  (one-variant window per refset/variant_key/posting) and remaps any
+  star pointing at an archived sibling onto the new owner so a pinned
+  star never goes silently dead. `snapshotted variants apply through
+  `match_for_user` scope-agnostically; the synth_items highlights
+  block filters rows by payload presence (bullets-only winners render
+  via their item, not an empty highlight). Legacy `:bullets`-suffixed
+  pin keys are read-tolerant everywhere (old immutable versions) while
+  all write paths, the bullets editor and `variant_pin` emit only the
+  single `{ref}` key; one data migration (0041) folded existing stars
+  preserving per-field winners. Pins are written SURGICALLY —
+  `PUT /cv/{id}/context/pin` (`{source_key, item_id, synth_id|null}`)
+  read-modify-writes the one slot and promotes a pinned draft to active
+  in the same commit, so a stale client map can never erase another
+  slot's star (the builder adopts the returned document; a single-row
+  `DELETE /cv/synth/{id}` likewise pops every star pointing at the row).
+  A PINNED ref is EXCLUSIVE in the highlights snapshot: when the star
+  cannot apply (draft/foreign language/other posting) the item renders
+  profile text and NO other variant jumps in — the star never lies
+  silently (the UI marks it amber "not rendering"). AI variant
   drafts go through the `cv_synth` gateway task; the CV copilot tools
   (`cv_synth_*`) are registry tools whose read scope surfaces in /mcp.
   One-shot generation is synth-aware (plan 69): in `prefer` mode the
@@ -392,6 +412,22 @@ per-kind `ProfileSnapshotCard` (labelled rows, chips for scalar lists,
 highlighted prose spans) instead of a generic dump; pre-101 rows keep
 the legacy rendering.
 
+**Plan 109 — CV entry-improvement scope honesty** (CHAT v13): the chat
+prompts carry a scope taxonomy for items-section entries because
+description and bullet list render as INDEPENDENT layers (both print
+when both exist — CV FACTS): a `cv_set_bullets` rewrite touches only
+the override-layer bullets (the profile/snapshot description keeps
+rendering), a synthesized variant tailors the FULL entry through the
+per-CV pin (`synth_pins`, reversible via unpin), and a profile edit
+affects every CV. The prompts instruct the model to inspect both
+fields first, narrate the scope in one line before proposing, never
+pitch a bullets-only rewrite as "making the entry concise" while a
+description renders, and—before claiming any variant renders—to call
+`variant_list` with the attached CV's id so rows carry their per-CV
+applicability `verdict` (rows without `cv_id` are status-only; a
+verdict-less list is an unfinished read). The prompt payload guard
+trails live in `tests/test_prompt_scope_rules.py`.
+
 **Profile-edit grounding persists in the session** (plan 81): the
 plan-77 read-only digests (`my_experience` / `my_skills` /
 `my_education` / `my_profile_digest`) are keyword-triggered only until
@@ -456,6 +492,6 @@ app in the tray — scheduled work continues in-process.
 - Dev: `docker compose -f docker/docker-compose.dev-db.yml up -d` then
   `./scripts/run-dev.sh` (honcho: backend :8100 + vite :3100).
 - Deploy: `docker/docker-compose.standalone.yml` (app + Postgres + nginx,
-  TLS-ready) or `prod.yml` behind your own LB — see [deploy.md](deploy.md).
+  TLS-ready) or `prod.yml` behind your own LB — see [deployment.md](deployment.md).
 - Verification gates: backend pytest + ruff; frontend build + vitest
   (`AGENTS.md` has the exact commands).

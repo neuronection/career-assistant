@@ -69,17 +69,11 @@ class CvSynthGenerateInput(BaseModel):
     length: Optional[str] = None
     instruction: Optional[str] = Field(
         default=None,
-        max_length=300,
-        description="Optional free-text steering, e.g. 'emphasize teamwork'; "
-        "grounding rules always win.",
-    )
-    activate: bool = Field(
-        default=True,
-        description=(
-            "Plan 102: the user's request in chat is the approval — "
-            "created variants go live immediately. Pass false only to "
-            "leave them as drafts."
-        ),
+        max_length=600,
+        description="Optional SHORT free-text steering, e.g. 'emphasize "
+        "teamwork'; grounding rules always win. To recreate or rework an "
+        "EXISTING variant, pass its id as regenerate_of and keep this "
+        "steering brief — never retype the variant text here.",
     )
 
 
@@ -435,9 +429,13 @@ async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
     )
     service = CvSynthService(db)
     rows = await service.generate(ctx.user_id, request)
-    if args.activate and rows:
-        from app.schemas.cv_synth import CvSynthItemUpdate
+    # Plan-102 HITL contract, forced: the user's chat request IS the
+    # approval — the chat surface never parks variants in draft
+    # purgatory. Drafts remain a Library-only concept (the
+    # /cv/synth/generate endpoint and the editor form keep them).
+    from app.schemas.cv_synth import CvSynthItemUpdate
 
+    if rows:
         for row in rows:
             await service.update(
                 row.id, ctx.user_id, CvSynthItemUpdate(status="active")
@@ -453,9 +451,11 @@ async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
             for row in rows
         ],
         "note": (
-            "Created and activated — already live on the CV."
-            if args.activate
-            else "Draft-then-approve: activate in the library to use them."
+            "Created and activated — the rows are active library "
+            "candidates, but a variant renders on the CV only once "
+            "pinned (variant_pin, or the item's star in the Synth "
+            "Library); check variant_list verdicts before claiming "
+            "anything renders."
         ),
     }
 
@@ -512,13 +512,14 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
     cv = await _owned_cv(db, ctx, args.cv_id)
     resolution = await CvBuilderService(db).resolution(cv)
     selection = CvContextSelection.model_validate(cv.context or {})
+    # Plan 110: scope-agnostic — a pinned row can be bullets-only, a
+    # composed full row or a text row; the slot is one pin key now.
     synth_by_id = {
         str(row.id): row
         for row in (
             await db.execute(
                 select(CvSynthItem).where(
                     CvSynthItem.user_id == ctx.user_id,
-                    CvSynthItem.scope == "bullets",
                     CvSynthItem.status == CvSynthStatus.ACTIVE.value,
                 )
             )
@@ -535,16 +536,23 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
             if not isinstance(row, dict):
                 continue
             item_id = str(row.get("id") or "")
-            pinned_id = selection.synth_pins.get(f"{source_key}:{item_id}:bullets")
-            overridden = False
-            source_entries: Any = row.get("achievements") or []
-            if pinned_id and str(pinned_id) in synth_by_id:
-                variant_bullets = synth_by_id[str(pinned_id)].payload.get(
-                    "achievements"
-                )
-                if variant_bullets is not None:
-                    overridden = True
-                    source_entries = variant_bullets
+            # Plan 110 single slot: the one pin key names the row. The
+            # bullets layer is overridden only when the row REPLACES the
+            # list (achievements present) or EXPLICITLY clears it
+            # (`omit_bullets`) — a text-only pin leaves the profile
+            # bullets rendering, matching `swap_variant_payload`.
+            pinned_id = selection.synth_pins.get(f"{source_key}:{item_id}") or ""
+            pinned_row = synth_by_id.get(str(pinned_id))
+            pinned_payload = pinned_row.payload if pinned_row is not None else {}
+            replaces = bool(pinned_payload.get("achievements"))
+            omits = bool(pinned_payload.get("omit_bullets"))
+            overridden = replaces or omits
+            if replaces:
+                source_entries: Any = pinned_payload["achievements"]
+            elif omits:
+                source_entries = []
+            else:
+                source_entries = row.get("achievements") or []
             bullets = [
                 str(entry.get("text") or "")
                 for entry in source_entries
@@ -556,6 +564,13 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
                     "item_id": item_id,
                     "title": str(row.get("title") or ""),
                     "org": str(row.get("org_name") or ""),
+                    # Grounding completeness: the description and dates
+                    # the CV actually renders for this row — bullets-only
+                    # reads made copilots claim "no text exists" on
+                    # fully-described entries (2026-09-21 session).
+                    "description": str(row.get("description") or "")[:2000],
+                    "start": str(row.get("start") or ""),
+                    "end": str(row.get("end") or ""),
                     "bullets": bullets[:12],
                     "bullets_overridden_for_this_cv": overridden,
                 }
@@ -563,7 +578,16 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
     return {"cv_id": str(cv.id), "items": items}
 
 
-def _tool(key, title, description, input_model, handler, scope, cost="cheap"):
+def _tool(
+    key,
+    title,
+    description,
+    input_model,
+    handler,
+    scope,
+    cost="cheap",
+    audiences=None,
+):
     return AITool(
         key=key,
         title=title,
@@ -571,7 +595,7 @@ def _tool(key, title, description, input_model, handler, scope, cost="cheap"):
         input_model=input_model,
         handler=handler,
         scope=scope,
-        audiences=AUDIENCES,
+        audiences=audiences or AUDIENCES,
         cost_hint=cost,
         requires_user=True,
     )
@@ -624,13 +648,23 @@ CV_SYNTH_TOOLS: list[AITool] = [
         "cv_synth_generate",
         "Generate synthesized variants",
         "Generate AI variants over the given CV's context refs (summarize / "
-        "detail / restyle / posting_fit / translate). The user's request "
-        "is the approval — variants go live immediately (pass "
-        "activate=false to keep drafts).",
+        "detail / restyle / posting_fit / translate). Retired from the "
+        "main chat surface (plan-110 follow-up): chat variant asks go "
+        "through the HITL cv_synth card — one review surface. This tool "
+        "stays for the Studio copilot audience only. Activation is NOT "
+        "rendering: a variant swaps in on a CV only once pinned — call "
+        "variant_pin (or state plainly that the user still needs to "
+        "star it). The profile item itself is never modified. "
+        "Recreating or reworking a variant that already exists: pass "
+        "the row's id via regenerate_of (or translate via "
+        "translate_of) instead of rebuilding every field, and keep "
+        "`instruction` a SHORT steering sentence (it is capped — long "
+        "instructions are rejected).",
         CvSynthGenerateInput,
         _generate_synths,
         ToolScope.WRITE,
         cost="standard",
+        audiences=frozenset({"cv_builder"}),
     ),
     _tool(
         "cv_synth_update",

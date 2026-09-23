@@ -45,19 +45,49 @@ REVIEW_SYSTEM = (
     "remain look levers, not fit levers), then trimming "
     "content (set_context exclude, remove_block, a smaller skills "
     "max_items) only when even the compact layout cannot fit it. "
+    "Capping a section's max_items is a LOSSY last resort: prefer "
+    "trimming duplicated/low-signal sources, then shortening long "
+    "descriptions, before cutting whole entries; when you do cap, keep "
+    "as many items as the fitted layout supports — do not jump to a "
+    "small cap (4 or fewer) while denser levers or per-item "
+    "shortening are still unused, and say in the issue text which "
+    "items were dropped and why. A projects section that holds 6-8 "
+    "short entries on a densified page beats 4 generous ones. "
+    "When you cap or when a block keeps fewer entries than the source "
+    "offers, SELECT which entries survive: an `order` list of item ids "
+    "(update_block_props — the ids are in each block's source listing; "
+    "the user's/pre-ordered entries render first and decide what "
+    "truncation keeps) must accompany the cap, aligned with the brief "
+    "— truncation otherwise keeps whatever arrived first, silently "
+    "hiding exactly the entries the brief asked to emphasize. "
+    "For hiding whole entries, context is the cleanest lever: "
+    "set_context echoing the reported `context_selection` (SAME mode, "
+    "include and pins echoed verbatim) with ONLY the exclude list "
+    "extended by the target item ids ({source_key, item_id}). Mode "
+    "all + targeted excludes disables just those items and keeps "
+    "everything else; the Context tab shows and reverses it — far more "
+    "expressive than a count cap, and it never invents or assumes: "
+    "never switch modes (all/none/custom) and never shrink an include "
+    "list the user already chose. Prefer an exclusion when a whole "
+    "entry is unwanted; prefer cap+order when it is only a block-local "
+    "display fit. "
     "Sidebar content that clips or wraps badly says widen "
     "sidebar_width_pct or densify, never drop the section. "
-    "When the brief explicitly names a design language or aesthetic "
-    "(e.g. 'Material 3 expressive', 'minimal swiss', 'brutalist') and "
-    "the rendered pages clearly do not reflect it even after the safe "
+    "The user_notes ARE the brief: any request that describes the "
+    "desired look — naming an aesthetic (e.g. 'Material 3 expressive', "
+    "'minimal swiss', 'brutalist') OR clearly asking for one ('modern "
+    "professional', 'elegant', 'catchy', 'a distinctive banner look') — "
+    "is a style constraint you must honor. When the rendered pages "
+    "clearly do not reflect it even after the safe "
     'token fixes you can suggest, add an issue with area "style": '
-    'level "fail" (the render missed an explicitly requested look — '
-    "this routes the brief to the template designer) when the request "
-    'is explicit and unaddressed, otherwise "warn"; describe the gap '
-    "concretely against the brief and suggest update_design/"
-    "apply_theme as the first remedy. apply_theme's theme_key MUST be "
-    "one of the keys listed in the context's `themes` — never invent "
-    "one; when no listed theme fits, use update_design tokens instead. "
+    'level "fail" (the render missed a requested look — '
+    "this routes the brief to the template designer) when the look is "
+    'explicit and unaddressed, otherwise "warn"; describe the gap '
+    "against the brief. apply_theme on a curated theme is the FIRST "
+    "remedy when a theme's palette matches the brief — its theme_key "
+    "MUST be one of the keys listed in the context's `themes` — never "
+    "invent one; when no listed theme fits, use update_design tokens "
+    "instead. "
     'Style findings MUST use area "style" — never "layout" or '
     '"structure": those areas mean geometry problems (overflow, '
     "orphaned sections, broken columns) and revert freshly redesigned "
@@ -344,6 +374,7 @@ async def review_build(
     synth_applied: Optional[dict] = None,
     overrides: Optional[dict] = None,
     themes: Optional[list[dict]] = None,
+    selection: Optional[dict] = None,
     run: Optional[RunRef] = None,
     with_ref: bool = False,
 ) -> "CvBuildCritique | tuple[CvBuildCritique, dict]":
@@ -353,9 +384,12 @@ async def review_build(
     matrix (`available` cut into included/dropped/missing); both are
     host-side truth — the model judges and suggests, it never audits ids
     on its own. `notes` is the user's brief the build must satisfy.
-    `synth_applied` (`{ref_key: synth_id}`) and `override_fields`
-    (`{ref_key: [fields]}`) say exactly which items lean on a synthesized
-    variant or a manual field patch.
+    `selection` is the CV's current context selection (mode + include/
+    exclude refs) — the model echoes it verbatim when suggesting a
+    targeted `set_context` exclusion. `synth_applied` (`{ref_key:
+    synth_id}`) and `override_fields` (`{ref_key: [fields]}`) say
+    exactly which items lean on a synthesized variant or a manual field
+    patch.
     """
     prompt = context_json(
         {
@@ -375,6 +409,7 @@ async def review_build(
             "synth_applied": synth_applied or {},
             "override_fields": overrides or {},
             "themes": themes or [],
+            "context_selection": selection or {},
             "page_count": page_count,
             "max_pages": max_pages,
             "iteration": iteration,

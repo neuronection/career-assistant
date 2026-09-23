@@ -29,14 +29,15 @@ secrets.json
 # Uploads / runtime
 backend/uploads/
 backend/tests/_uploads/
+backend/tests/_xdist/
 backend/celerybeat-schedule*
 logging/
 logs/
 *.log
 
-# Local planning notes
-dev/
-dev
+# Local planning notes (repo root only — docs/dev/ is tracked documentation)
+/dev/
+/dev
 
 # Editors / OS
 .idea/

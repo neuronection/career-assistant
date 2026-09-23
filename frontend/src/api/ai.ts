@@ -97,11 +97,15 @@ export interface AiToolInfo {
 
 export async function fetchAiTools(options?: {
   includeCapabilities?: boolean;
+  bindableOnly?: boolean;
 }): Promise<AiToolInfo[]> {
   const { data } = await api.get<AiToolInfo[]>("/ai/tools", {
-    params: options?.includeCapabilities
-      ? { include_capabilities: true }
-      : undefined,
+    params: {
+      ...(options?.includeCapabilities
+        ? { include_capabilities: true }
+        : {}),
+      ...(options?.bindableOnly ? { bindable_only: true } : {}),
+    },
   });
   return data;
 }

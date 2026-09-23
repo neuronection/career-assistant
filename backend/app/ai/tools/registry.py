@@ -108,6 +108,49 @@ def get_tool(key: str) -> AITool:
     return tool
 
 
+logger = logging.getLogger(__name__)
+
+
+def _coerce_tool_args(input_model: type, args: dict, key: str) -> Any:
+    """Validate tool args, clamping over-long model-provided strings once.
+
+    LLM tool calls routinely stuff prose (the user's whole message) into
+    string args; a `string_too_long` error then turned into `flow_failed`
+    with the turn rejected. Services already degrade prose queries via
+    per-word fallbacks, so truncating to the field's max_length is safe;
+    anything else (or still-invalid args) stays a hard DomainError.
+    """
+    try:
+        return input_model.model_validate(args)
+    except ValidationError:
+        clamped = False
+        cleaned = dict(args)
+        field_max: dict[str, int] = {}
+        for name, field in input_model.model_fields.items():
+            for length in field.metadata or []:
+                if getattr(length, "max_length", None):
+                    field_max[name] = length.max_length
+        for name, value in cleaned.items():
+            max_len = field_max.get(name)
+            if isinstance(value, str) and max_len and len(value) > max_len:
+                cleaned[name] = value[:max_len]
+                clamped = True
+            elif (
+                isinstance(value, list)
+                and name in field_max
+                and len(value) > field_max[name]
+            ):
+                cleaned[name] = value[: field_max[name]]
+                clamped = True
+        if not clamped:
+            raise DomainError(f"Invalid input for tool {key}")
+        try:
+            return input_model.model_validate(cleaned)
+        except ValidationError as retry:  # noqa: BLE001 — surface the real shape issue
+            logger.warning("tool args still invalid after clamp: %s (%s)", key, retry)
+            raise DomainError(f"Invalid input for tool {key}: {retry}") from retry
+
+
 def list_tools() -> list[dict]:
     """Registry contents for the settings UI / MCP surface (41b).
 
@@ -144,10 +187,7 @@ async def run_tool(
     tool = get_tool(key)
     if tool.kind != "tool":
         raise DomainError(f"Not a callable tool: {key}")
-    try:
-        parsed = tool.input_model.model_validate(args or {})
-    except ValidationError as exc:
-        raise DomainError(f"Invalid input for tool {key}: {exc}") from exc
+    parsed = _coerce_tool_args(tool.input_model, args or {}, key)
     if tool.requires_user and user_id is None:
         raise PermissionDeniedError(f"Tool {key} requires a signed-in user")
     handler = tool.handler

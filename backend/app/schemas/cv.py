@@ -182,6 +182,16 @@ class CvResolutionOut(BaseModel):
     snapshot_index: dict[str, list[str]]
     items: list[CvContextItemRef]
     resolved_at: datetime
+    synth_applied: dict[str, str] = Field(default_factory=dict)
+
+
+class CvSynthPinIn(BaseModel):
+    """Surgical single-slot pin write: star (or unstar, `synth_id=None`)
+    ONE item's variant on one CV — never a whole-map replace."""
+
+    source_key: str = Field(min_length=1, max_length=60)
+    item_id: str = Field(min_length=1, max_length=64)
+    synth_id: Optional[str] = Field(default=None, max_length=64)
 
 
 class CvPreviewOut(BaseModel):

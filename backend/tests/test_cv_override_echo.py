@@ -88,6 +88,29 @@ def test_education_program_and_institution_echo_stripped():
     )
 
 
+def test_summary_override_materializes_without_profile_aspirations():
+    """A CV whose profile has no aspirations resolves no `summary` scalar;
+    typing one in the studio must still produce a renderable summary."""
+    result = apply_overrides({}, {}, {"summary:summary": {"summary": "Typed text"}})
+    assert result["summary"] == {"summary": "Typed text"}
+
+
+def test_summary_override_patches_existing_scalar():
+    snapshot = {"summary": {"summary": "Profile text"}}
+    index = {"summary": ["summary"]}
+    result = apply_overrides(
+        snapshot, index, {"summary:summary": {"summary": "Edited"}}
+    )
+    assert result["summary"] == {"summary": "Edited"}
+
+
+def test_summary_override_ignored_for_mismatched_scalar_id():
+    snapshot = {"summary": {"summary": "Profile text"}}
+    index = {"summary": ["summary"]}
+    result = apply_overrides(snapshot, index, {"summary:other": {"summary": "Nope"}})
+    assert result["summary"] == {"summary": "Profile text"}
+
+
 def test_certification_descriptions_are_head_only():
     snapshot = {
         "certifications": [

@@ -1550,6 +1550,8 @@
     "designSaved": "Saved",
     "notAtsSafe": "not ATS-safe",
     "pageSize": "Page size",
+    "maxPages": "Max pages",
+    "language": "Language",
     "templateBank": "Applying changes creates your own copy",
     "templateLoading": "Loading template…",
     "templateOwned": "Your customized template",
@@ -1591,6 +1593,7 @@
       "sidebarText": "Sidebar text",
       "bg": "BG",
       "border": "Border",
+      "chipText": "Chip text",
       "group": "Colors"
     },
     "fontLabel": "Font",
@@ -1733,7 +1736,9 @@
       "interests": "Interests",
       "interests_desc": "A few personal interests to end the page",
       "spacer": "Spacer",
-      "spacer_desc": "Extra breathing room between sections"
+      "spacer_desc": "Extra breathing room between sections",
+      "qr": "QR code",
+      "qr_desc": "Scannable code linking to your site or profile"
     },
     "excludeProficiency": "Hide proficiency certificates",
     "kinds": "Include kinds",
@@ -1741,7 +1746,10 @@
     "showLinks": "Show contact links",
     "showLocation": "Show location",
     "showProficiency": "Latest proficiency certificate",
-    "elevationLabel": "Elevation"
+    "elevationLabel": "Elevation",
+    "chipStyle": "Chip style",
+    "chipTint": "Chip tint",
+    "runningFooter": "Running footer"
   },
   "shared": {
     "scoreAria": "Score {{score}} of 10",
@@ -1905,6 +1913,10 @@
     "proposals": {
       "approve": "Approve",
       "approveVariants": "Draft variants",
+      "choice": {
+        "optionsLabel": "Choose what to implement",
+        "proceed": "Proceed with selected"
+      },
       "reject": "Reject",
       "confirmDelete": "Confirm delete",
       "cancel": "Cancel",
@@ -2390,6 +2402,24 @@
     "subtitle": "AI-written or manual variants of your profile items — reusable across every CV.",
     "backToStudio": "Back to CV Studio",
     "unknownSource": "Unknown source",
+    "bulk": {
+      "select": "Select",
+      "done": "Done",
+      "clear": "Clear selection",
+      "selectArchived": "Select archived",
+      "selectGroup": "Select all in group",
+      "archive": "Archive selected",
+      "unarchive": "Restore selected",
+      "draft": "Set draft",
+      "activate": "Activate selected",
+      "delete": "Delete selected",
+      "setDraft": "Moved the selected variants to draft",
+      "activated": "Activated the selected variants",
+      "archived": "Archived the selected variants",
+      "unarchived": "Restored the selected variants as drafts",
+      "deleted": "Deleted the selected variants",
+      "deleteBody": "Delete the selected variants? The paired profile entries keep their text."
+    },
     "sources": {
       "experience": "Experience",
       "projects": "Projects",
@@ -2453,6 +2483,7 @@
       "refsReadonly": "The items this variant is based on are fixed after creation.",
       "refChipRemove": "Remove linked item",
       "draftHint": "This variant is a draft — activate it to make it eligible for a star.",
+      "archivedHint": "Archived — this variant is retired from the enabled pool. Restore it in the Synth Library to re-activate.",
       "generateOverwrite": "Generate will replace the text you have typed — continue?",
       "generateFill": "AI generate",
       "advanced": "Advanced",
@@ -2465,6 +2496,9 @@
       "noRefs": "Record profile items first.",
       "textLabel": "Description text",
       "bulletsLabel": "Bullet points",
+      "omitBullets": "Omit bullets (description only)",
+      "omitBulletsHint": "Pins a variant that drops this item's bullets — the description renders alone",
+      "omitNote": "Bullets list omitted for this item while the flag is on",
       "bulletPlaceholder": "A strong, evidence-based bullet",
       "bulletAdd": "Add bullet",
       "variantKeyLabel": "Variant key",

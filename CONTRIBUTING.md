@@ -53,9 +53,17 @@ These are enforced in review — they are what keeps the codebase coherent:
 
 ## Docs pointers
 
-- [Architecture](docs/ARCHITECTURE.md) — modes, runtime topology, registries,
+The manual lives in [`docs/`](docs/README.md) — split into a
+[user guide](docs/user/README.md) and a
+[developer guide](docs/dev/README.md), with navigation described by
+[`docs/docs-tree.json`](docs/docs-tree.json). Update the matching page in the
+same commit as your change.
+
+- [Architecture](docs/dev/architecture.md) — modes, runtime topology, registries,
   AI pipeline. Keep it truthful when architecture changes.
-- [Deployment](docs/deploy.md) — compose stacks, nginx/TLS, upgrades,
+- [Development workflow](docs/dev/development.md) — setup, conventions, git
+  worktrees and the verification gates.
+- [Deployment](docs/dev/deployment.md) — compose stacks, nginx/TLS, upgrades,
   backups. Changes under `docker/` or the ops scripts must update it.
 
 ## Repository layout

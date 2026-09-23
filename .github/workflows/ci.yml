@@ -45,8 +45,8 @@ jobs:
           ruff format --check app tests careerassistant
       - name: Migrate test database
         run: alembic upgrade head
-      - name: Run tests (coverage floor)
-        run: pytest tests/ --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=76
+      - name: Run tests (coverage floor, xdist-parallel)
+        run: pytest tests/ -n auto --dist loadfile --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=76
       - name: OpenAPI contract diff
         run: python ../scripts/check-openapi.py --check
       - name: Type check (mypy)

@@ -32,6 +32,7 @@ import {
   refreshSynthSourceState,
   restoreVersion,
   setContext,
+  setSynthPin,
 } from "@/api/cv";
 import { useToastStore } from "@/stores/toastStore";
 import { fetchTemplates } from "@/api/cvTemplates";
@@ -85,10 +86,6 @@ function toBackendLength(length?: string): "short" | "medium" | "long" {
   return "medium";
 }
 
-function usableVariants(items: CvSynthItem[]): CvSynthItem[] {
-  return items.filter((item) => item.status !== "archived");
-}
-
 export function CvBuilder() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
@@ -96,8 +93,16 @@ export function CvBuilder() {
   const pushToast = useToastStore((state) => state.push);
   const [cv, setCv] = useState<CvDocumentOut | null>(null);
   const [sources, setSources] = useState<CvContextSourceOut[]>([]);
-  const [synthItems, setSynthItems] = useState<CvSynthItem[]>([]);
+  const [allVariants, setAllVariants] = useState<CvSynthItem[]>([]);
   const synthPins = ((cv?.context?.synth_pins ?? {}) as Record<string, string>) ?? {};
+  const synthItems = useMemo(
+    () => allVariants.filter((item) => item.status !== "archived"),
+    [allVariants]
+  );
+  const archivedVariants = useMemo(
+    () => allVariants.filter((item) => item.status === "archived"),
+    [allVariants]
+  );
   const [variantEditor, setVariantEditor] = useState<{
     open: boolean;
     initial: CvSynthItem | null;
@@ -152,6 +157,10 @@ export function CvBuilder() {
   const [critique, setCritique] = useState<CvAssistantCritique | null>(null);
   const [critiqueDismissed, setCritiqueDismissed] = useState(false);
   const [snapshotRows, setSnapshotRows] = useState<Record<string, unknown>>({});
+  /** The applied-variant truth from the last preview — `{ref_key:
+   * synth_id}` for pins that actually rendered; null until the first
+   * resolution lands (stars cross-check it, null never flags). */
+  const [synthApplied, setSynthApplied] = useState<Record<string, string> | null>(null);
   const [designState, setDesignState] = useState<CvDesignTokens | null>(null);
   const [designSaved, setDesignSaved] = useState<CvDesignTokens | null>(null);
   const [designMeta, setDesignMeta] = useState<{
@@ -234,10 +243,11 @@ export function CvBuilder() {
         }
       | undefined;
     const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
-    const pinnedId = synthPins[`${key}:bullets`];
+    const pinnedId = synthPins[key];
     const variant =
-      synthItems.find((item) => item.id === pinnedId && item.scope === "bullets") ??
-      null;
+      synthItems.find(
+        (item) => item.id === pinnedId && item.payload.achievements,
+      ) ?? null;
     return {
       head: { title: row?.title ?? "", org: row?.org_name ?? "" },
       base: row?.achievements ?? [],
@@ -252,23 +262,42 @@ export function CvBuilder() {
     setBulletsProposal(null);
   }, []);
 
+  const previewSeq = useRef(0);
   const refreshPreview = useCallback(async () => {
+    const seq = ++previewSeq.current;
     setPreviewLoading(true);
     try {
       const result = await previewCv(id);
+      if (seq !== previewSeq.current) return;
       setHtml(result.html);
       setMetrics(result.metrics);
       setBlocks(result.blocks ?? []);
       setSnapshotRows(result.resolution.snapshot ?? {});
+      setSynthApplied(result.resolution.synth_applied ?? {});
       const next = new Set<string>();
       for (const [key, ids] of Object.entries(result.resolution.snapshot_index)) {
         for (const itemId of ids) next.add(refKey(key, itemId));
       }
       setSelected(next);
     } catch (err) {
+      if (seq !== previewSeq.current) return;
       setError(apiDetail(err));
     } finally {
-      setPreviewLoading(false);
+      if (seq === previewSeq.current) setPreviewLoading(false);
+    }
+  }, [id]);
+
+  // Document-write ordering: every writer that installs a server document
+  // takes a ticket; only the newest ticket may `setCv`, so a slow older
+  // response can never overwrite a newer pin state.
+  const docSeq = useRef(0);
+  const refreshDocument = useCallback(async () => {
+    const seq = ++docSeq.current;
+    try {
+      const document = await fetchCv(id);
+      if (seq === docSeq.current) setCv(document);
+    } catch {
+      // best-effort: the writer paths surface their own errors
     }
   }, [id]);
 
@@ -347,12 +376,16 @@ export function CvBuilder() {
     }
   };
 
-  const applyPageSize = async (page_size: string) => {
+  const applyDocOptions = async (patch: {
+    page_size?: string;
+    max_pages?: number;
+    language?: string;
+  }) => {
     try {
-      const out = await applyCvOps(id, [{ op: "set_doc_options", page_size }]);
+      const out = await applyCvOps(id, [{ op: "set_doc_options", ...patch }]);
       setHtml(out.state.html);
       setMetrics(out.state.metrics as CvRenderMetrics);
-      setCv((prev) => (prev ? ({ ...prev, page_size } as CvDocumentOut) : prev));
+      setCv((prev) => (prev ? ({ ...prev, ...patch } as CvDocumentOut) : prev));
     } catch (err) {
       setError(apiDetail(err));
     }
@@ -389,12 +422,12 @@ export function CvBuilder() {
           fetchTemplates().catch(() => []),
           fetchPostings({ saved: true }).catch(() => ({ items: [] })),
           fetchPhotoGallery().catch(() => []),
-          fetchSynthItems().then(usableVariants).catch(() => [] as CvSynthItem[]),
+          fetchSynthItems().catch(() => [] as CvSynthItem[]),
         ]);
         if (cancelled) return;
         setCv(document);
         setSources(context.sources);
-        setSynthItems(variants);
+        setAllVariants(variants);
         setTemplates(templateList);
         setSavedPostings(
           postings.items.map((row) => ({
@@ -499,58 +532,28 @@ export function CvBuilder() {
         return { source_key: source, item_id: item };
       });
       try {
-        await setContext(id, {
+        const seq = ++docSeq.current;
+        const updated = await setContext(id, {
           mode: "custom",
           include,
           exclude: [],
           synth_pins: synthPins,
         });
+        if (seq === docSeq.current) setCv(updated);
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
+        void refreshDocument();
       }
     },
-    [id, synthPins, refreshPreview]
-  );
-
-  const commitSynthMode = useCallback(
-    async (pins?: Record<string, string>) => {
-      const include = [...selected].map((value) => {
-        const [source, item] = value.split(":");
-        return { source_key: source, item_id: item };
-      });
-      try {
-        const effectivePins = pins ?? synthPins;
-        await setContext(id, {
-          mode: "custom",
-          include,
-          exclude: [],
-          synth_pins: effectivePins,
-        });
-        setCv((prev) =>
-          prev
-            ? ({
-                ...prev,
-                context: {
-                  ...(prev.context ?? {}),
-                  synth_pins: effectivePins,
-                },
-              } as CvDocumentOut)
-            : prev,
-        );
-        await refreshPreview();
-      } catch (err) {
-        setError(apiDetail(err));
-      }
-    },
-    [id, selected, synthPins, refreshPreview]
+    [id, synthPins, refreshPreview, refreshDocument]
   );
 
   const activateVariant = useCallback(
     async (variant: CvSynthItem) => {
       try {
         await patchSynthItem(variant.id, { status: "active" });
-        setSynthItems(usableVariants(await fetchSynthItems()));
+        setAllVariants(await fetchSynthItems());
         setNotice(t("cvSynth.activated"));
         await refreshPreview();
       } catch (err) {
@@ -564,7 +567,7 @@ export function CvBuilder() {
     async (variant: CvSynthItem) => {
       try {
         await refreshSynthSourceState(variant.id);
-        setSynthItems(usableVariants(await fetchSynthItems()));
+        setAllVariants(await fetchSynthItems());
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
@@ -576,28 +579,19 @@ export function CvBuilder() {
   const deleteVariant = useCallback(
     async (variant: CvSynthItem) => {
       try {
+        // The server pops any pins pointing at the row across ALL of
+        // the user's CVs — refetch the document so local stars follow.
         await deleteSynthItem(variant.id);
-        const pins = { ...synthPins };
-        let unpinned = false;
-        for (const key of Object.keys(pins)) {
-          if (pins[key] === variant.id) {
-            delete pins[key];
-            unpinned = true;
-          }
-        }
-        setSynthItems(usableVariants(await fetchSynthItems()));
+        setAllVariants(await fetchSynthItems());
         setVariantEditor({ open: false, initial: null, sourceKey: "" });
-        if (unpinned) {
-          await commitSynthMode(pins);
-        } else {
-          await refreshPreview();
-        }
+        await refreshDocument();
+        await refreshPreview();
         setNotice(t("cvSynth.deleted", { defaultValue: "Variant deleted" }));
       } catch (err) {
         setError(apiDetail(err));
       }
     },
-    [synthPins, commitSynthMode, refreshPreview, t]
+    [refreshDocument, refreshPreview, t]
   );
 
   const commitSynthPin = useCallback(
@@ -605,32 +599,34 @@ export function CvBuilder() {
       sourceKey: string,
       itemId: string,
       synthId: string | null,
-      slot: "text" | "bullets" = "text"
+      _slot: "text" | "bullets" = "text",
     ) => {
-      const pinKey =
-        slot === "bullets"
-          ? `${sourceKey}:${itemId}:bullets`
-          : `${sourceKey}:${itemId}`;
-      const pins = { ...synthPins };
-      if (synthId) {
-        const variant = synthItems.find((v) => v.id === synthId);
-        if (variant?.status === "draft") {
-          await activateVariant(variant);
+      const wasDraft =
+        synthId !== null && synthItems.some((v) => v.id === synthId && v.status === "draft");
+      try {
+        // Surgical single-slot write: the server promotes drafts and
+        // merges into the stored map — a stale local pin map can never
+        // erase other slots' stars.
+        const seq = ++docSeq.current;
+        const updated = await setSynthPin(id, sourceKey, itemId, synthId);
+        if (seq === docSeq.current) setCv(updated);
+        if (wasDraft) {
+          setAllVariants(await fetchSynthItems());
         }
-        pins[pinKey] = synthId;
-      } else {
-        delete pins[pinKey];
+        await refreshPreview();
+      } catch (err) {
+        setError(apiDetail(err));
+        void refreshDocument();
       }
-      await commitSynthMode(pins);
     },
-    [synthPins, synthItems, commitSynthMode, activateVariant]
+    [id, synthItems, refreshPreview, refreshDocument]
   );
 
   // Plan 103 2d: optimistic landing — patch the saved row into the
   // list synchronously; the following fetch reconciles (position,
   // computed state).
   const absorbSynthRow = useCallback((row: CvSynthItem) => {
-    setSynthItems((previous) => {
+    setAllVariants((previous) => {
       const rest = previous.filter((item) => item.id !== row.id);
       return [row, ...rest];
     });
@@ -646,8 +642,21 @@ export function CvBuilder() {
       const itemId = key.slice(split + 1);
       try {
         if (variantId) {
+          // Plan-110 composition: the pinned row keeps its other fields;
+          // achievements are a field patch, never a whole-payload clobber.
+          const existing = synthItems.find((v) => v.id === variantId);
+          const mergedPayload: Record<string, unknown> = {
+            ...(existing?.payload ?? {}),
+            achievements: entries,
+          };
+          if (entries.some((entry) => (entry.text ?? "").trim() !== "")) {
+            // The user wrote bullets — the omission deal is superseded.
+            delete mergedPayload.omit_bullets;
+          } else {
+            mergedPayload.omit_bullets = true;
+          }
           const row = await patchSynthItem(variantId, {
-            payload: { achievements: entries },
+            payload: mergedPayload,
           });
           absorbSynthRow(row);
           await refreshPreview();
@@ -659,22 +668,22 @@ export function CvBuilder() {
             voice: { language: cv?.language ?? "en" },
           });
           absorbSynthRow(created);
-          await commitSynthMode({
-            ...synthPins,
-            [`${key}:bullets`]: created.id,
-          });
+          const seq = ++docSeq.current;
+          const updated = await setSynthPin(id, sourceKey, itemId, created.id);
+          if (seq === docSeq.current) setCv(updated);
         }
         setNotice(t("cvSynth.saved"));
       } catch (err) {
         setError(apiDetail(err));
+        void refreshDocument();
       }
     },
     [
       absorbSynthRow,
-      commitSynthMode,
+      id,
       cv?.language,
       refreshPreview,
-      synthPins,
+      refreshDocument,
       t,
     ]
   );
@@ -701,7 +710,7 @@ export function CvBuilder() {
         }
         setVariantEditor({ open: false, initial: null, sourceKey: "" });
         setNotice(t("cvSynth.saved"));
-        setSynthItems(usableVariants(await fetchSynthItems()));
+        setAllVariants(await fetchSynthItems());
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
@@ -734,21 +743,27 @@ export function CvBuilder() {
         absorbSynthRow(row);
         const promote = await patchSynthItem(row.id, { status: "active" });
         absorbSynthRow(promote);
-        const pins = { ...synthPins };
         const firstRef = body.refs[0];
         if (firstRef) {
-          pins[`${firstRef.source_key}:${firstRef.item_id}`] = row.id;
+          const seq = ++docSeq.current;
+          const updated = await setSynthPin(
+            id,
+            firstRef.source_key,
+            firstRef.item_id,
+            row.id,
+          );
+          if (seq === docSeq.current) setCv(updated);
         }
-        await commitSynthMode(pins);
         setVariantEditor({ open: false, initial: null, sourceKey: "" });
         setNotice(t("cvSynth.activated"));
-        setSynthItems(usableVariants(await fetchSynthItems()));
+        setAllVariants(await fetchSynthItems());
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
+        void refreshDocument();
       }
     },
-    [synthPins, absorbSynthRow, commitSynthMode, refreshPreview, t]
+    [id, absorbSynthRow, refreshPreview, refreshDocument, t]
   );
 
   const generateVariantDraft = useCallback(
@@ -759,12 +774,13 @@ export function CvBuilder() {
       const out = await generateSynthItems({
         refs,
         action: request.action,
-        language: request.target_language ?? "en",
+        language: request.language ?? request.target_language ?? "en",
         target_language:
           request.action === "translate" ? request.target_language : undefined,
         tone: request.tone ?? undefined,
         length: toBackendLength(request.length),
         instruction: request.instruction,
+        translate_of: request.translate_of,
       });
       const row = out.items[0];
       if (!row) {
@@ -796,12 +812,14 @@ export function CvBuilder() {
 
   const applyAssistantState = useCallback(
     (state: CvAssistantState) => {
+      docSeq.current += 1;
       setCv((prev) => (prev ? ({ ...prev, ...state.document } as CvDocumentOut) : prev));
       setBlocks(state.blocks ?? []);
       setOverrides(state.overrides ?? {});
       setHtml(state.html);
       setMetrics(state.metrics);
       setCritique(state.critique ?? null);
+      setSynthApplied(state.resolution?.synth_applied ?? {});
       const next = new Set<string>();
       for (const [key, ids] of Object.entries(state.resolution?.snapshot_index ?? {})) {
         for (const itemId of ids) next.add(refKey(key, itemId));
@@ -813,16 +831,22 @@ export function CvBuilder() {
   );
 
   const lastBuilderState = useCvBuilderLink((state) => state.lastBuilderState);
+  const clearBuilderState = useCvBuilderLink((state) => state.clearBuilderState);
   useEffect(() => {
-    if (lastBuilderState) {
+    if (!lastBuilderState) return;
+    // Consume it exactly once, and only if it belongs to THIS CV — a
+    // leftover state from a chat turn on another CV must never
+    // overwrite this builder's fresh data.
+    clearBuilderState();
+    if (lastBuilderState.document?.id === id) {
       applyAssistantState(lastBuilderState);
     }
-  }, [lastBuilderState, applyAssistantState]);
+  }, [lastBuilderState, applyAssistantState, clearBuilderState, id]);
 
   const dataRevision = useCvBuilderLink((state) => state.dataRevision);
   const refreshSynthRows = useCallback(async () => {
     try {
-      setSynthItems(usableVariants(await fetchSynthItems()));
+      setAllVariants(await fetchSynthItems());
     } catch {
       // best-effort: the preview refresh below is the visible part
     }
@@ -839,12 +863,17 @@ export function CvBuilder() {
     }
     const timer = setTimeout(() => {
       // Never race the editor's debounced autosave: commit pending local
-      // edits first, then pull the server's resolved state.
-      useCvBuilderLink.getState().flushPendingSave();
-      void refreshPreview();
-      void refreshSources();
-      void refreshMeta(useCvBuilderLink.getState().lastDataOrigin !== "local");
-      void refreshSynthRows();
+      // edits FIRST (awaited), then pull the server's resolved state —
+      // the document included, so chat-side pins reach the stars instead
+      // of being clobbered by the next stale full-context write.
+      void (async () => {
+        await flushPendingSave();
+        await refreshDocument();
+        await refreshPreview();
+        void refreshSources();
+        void refreshMeta(useCvBuilderLink.getState().lastDataOrigin !== "local");
+        void refreshSynthRows();
+      })();
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1020,6 +1049,16 @@ export function CvBuilder() {
     persistWorking({ blocks: next, overrides });
   }
 
+  function updateOverride(ref: string, field: string, value: string) {
+    persistWorking({
+      blocks,
+      overrides: {
+        ...overrides,
+        [ref]: { ...(overrides[ref] ?? {}), [field]: value },
+      },
+    });
+  }
+
   function setBlockHidden(index: number, hidden: boolean) {
     const next = blocks.map((block, position) =>
       position === index ? { ...block, hidden } : block
@@ -1040,18 +1079,28 @@ export function CvBuilder() {
             program?: string;
             issuer?: string;
             label?: string;
+            stale?: boolean;
           };
           return {
             id: String(entry.id ?? entry.item_id ?? ""),
             label: String(
               entry.title ?? entry.program ?? entry.issuer ?? entry.label ?? ""
             ),
+            stale: entry.stale === true,
           };
         })
         .filter((entry) => entry.id && entry.label);
       if (list.length > 0) out[key] = list;
     }
     return out;
+  }, [snapshotRows]);
+
+  const summaryFallback = useMemo(() => {
+    const value = snapshotRows.summary;
+    if (value && typeof value === "object") {
+      return String((value as { summary?: unknown }).summary ?? "");
+    }
+    return typeof value === "string" ? value : "";
   }, [snapshotRows]);
 
   const synthOptions = useMemo(
@@ -1079,10 +1128,11 @@ export function CvBuilder() {
     async (photoDocumentId: string) => {
       setError("");
       try {
+        const seq = ++docSeq.current;
         const updated = await patchCv(id, {
           photo_document_id: photoDocumentId || null,
         });
-        setCv(updated);
+        if (seq === docSeq.current) setCv(updated);
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
@@ -1118,10 +1168,11 @@ export function CvBuilder() {
     async (templateId: string) => {
       setError("");
       try {
+        const seq = ++docSeq.current;
         const updated = await patchCv(id, {
           template_id: templateId || null,
         });
-        setCv(updated);
+        if (seq === docSeq.current) setCv(updated);
         await refreshPreview();
       } catch (err) {
         setError(apiDetail(err));
@@ -1134,8 +1185,9 @@ export function CvBuilder() {
     async (title: string) => {
       setError("");
       try {
+        const seq = ++docSeq.current;
         const updated = await patchCv(id, { title });
-        setCv(updated);
+        if (seq === docSeq.current) setCv(updated);
       } catch (err) {
         setError(apiDetail(err));
       }
@@ -1465,10 +1517,12 @@ export function CvBuilder() {
                   onToggle={toggleItem}
                   onToggleGroup={(source, includeAll) => void toggleGroup(source, includeAll)}
                   synthPins={(cv?.context?.synth_pins as Record<string, string>) ?? {}}
+                  appliedPins={synthApplied}
                   onPinVariant={(sourceKey, itemId, synthId, slot) =>
                     void commitSynthPin(sourceKey, itemId, synthId, slot)
                   }
                   variants={synthItems}
+                  archivedVariants={archivedVariants}
                   onAddVariant={(sourceKey) =>
                     setVariantEditor({ open: true, initial: null, sourceKey })
                   }
@@ -1511,7 +1565,11 @@ export function CvBuilder() {
             onDesignApply={() => void applyDesign()}
             onDesignReset={resetDesign}
             pageSize={cv.page_size}
-            onPageSize={(page_size) => void applyPageSize(page_size)}
+            onPageSize={(page_size) => void applyDocOptions({ page_size })}
+            maxPages={cv.max_pages}
+            onMaxPages={(max_pages) => void applyDocOptions({ max_pages })}
+            language={cv.language}
+            onLanguage={(language) => void applyDocOptions({ language })}
             photos={photos}
             photoId={cv.photo_document_id ?? ""}
             onPhoto={(photoId) => void applyPhoto(photoId)}
@@ -1521,13 +1579,16 @@ export function CvBuilder() {
             blocks={blocks}
             areas={areas}
             skillOptions={Array.isArray(snapshotRows.skills)
-              ? (snapshotRows.skills as { item_id?: string; label?: string; title?: string }[]).map((row) => ({
-                  id: String(row.item_id ?? row.label ?? ""),
+              ? (snapshotRows.skills as { id?: string; item_id?: string; label?: string; title?: string }[]).map((row) => ({
+                  id: String(row.id ?? row.item_id ?? row.label ?? ""),
                   label: String(row.label ?? row.title ?? ""),
                 }))
               : []}
             itemOptions={itemOptions}
             synthOptions={synthOptions}
+            overrides={overrides}
+            onUpdateOverride={updateOverride}
+            summaryFallback={summaryFallback}
             onAddBlock={addBlock}
             onMoveBlock={moveBlock}
             onAssignArea={assignArea}
@@ -1857,6 +1918,7 @@ export function CvBuilder() {
               : undefined
           }
           variants={synthItems}
+          synthPins={synthPins}
         />
       )}
 
@@ -1897,11 +1959,20 @@ export function CvBuilder() {
             void saveBulletsVariant(key, variantId, entries);
           }}
           onReset={() => {
-            const pinKey = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}:bullets`;
-            const pins = { ...synthPins };
-            delete pins[pinKey];
+            const sourceKey = bulletsEditor.sourceKey;
+            const itemId = bulletsEditor.itemId;
             closeBulletsEditor();
-            void commitSynthMode(pins);
+            void (async () => {
+              try {
+                const seq = ++docSeq.current;
+                const updated = await setSynthPin(id, sourceKey, itemId, null);
+                if (seq === docSeq.current) setCv(updated);
+                await refreshPreview();
+              } catch (err) {
+                setError(apiDetail(err));
+                void refreshDocument();
+              }
+            })();
           }}
           onClose={closeBulletsEditor}
         />

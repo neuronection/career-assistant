@@ -67,6 +67,23 @@ export async function setContext(
   return data;
 }
 
+/** Surgical single-slot pin write — never a whole-map replace, so a
+ * stale client map cannot erase other slots' pins. `synthId=null`
+ * unpins the item. */
+export async function setSynthPin(
+  id: string,
+  sourceKey: string,
+  itemId: string,
+  synthId: string | null
+): Promise<CvDocumentOut> {
+  const { data } = await api.put<CvDocumentOut>(`/cv/${id}/context/pin`, {
+    source_key: sourceKey,
+    item_id: itemId,
+    synth_id: synthId,
+  });
+  return data;
+}
+
 export async function fetchContextStatus(
   id: string
 ): Promise<CvContextStatusOut> {
@@ -250,6 +267,17 @@ export async function patchSynthItem(
   }
 ): Promise<CvSynthItem> {
   const { data } = await api.patch<CvSynthItem>(`/cv/synth/${id}`, body);
+  return data;
+}
+
+export async function bulkSynthItems(
+  ids: string[],
+  action: "archive" | "unarchive" | "delete"
+): Promise<{ affected: string[]; deleted: string[] }> {
+  const { data } = await api.post<{ affected: string[]; deleted: string[] }>(
+    "/cv/synth/bulk",
+    { ids, action }
+  );
   return data;
 }
 

@@ -663,6 +663,8 @@ export interface ProfileProposalCardData {
   source: string;
   chat_session_id?: string | null;
   created_at: string;
+  /** Picker cards (plan 108): the option list rides the payload. */
+  payload?: Record<string, unknown>;
 }
 
 export interface JobMatchDetail {

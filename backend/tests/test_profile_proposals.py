@@ -61,6 +61,40 @@ async def _propose(
     )
 
 
+async def test_update_proposal_strips_echoed_heading(db, auth_headers):
+    """The heading (title + org) renders above the text — a proposed
+    description reopen with it is stripped deterministically, echoing
+    achievements lose the lead, and the card's diff shows the cleaned
+    text."""
+    user = await _auth_user(db)
+    item = await _experience(db, user)
+    proposal = await _propose(
+        db,
+        user,
+        action="update",
+        payload={
+            "description": (
+                "Siemens internship, Siemens — production tier support "
+                "and incident triage for telecom provisioning."
+            ),
+            "achievements": [
+                {"text": "Siemens internship — kept the batches alive"},
+                {"text": "Siemens — production tier tickets"},
+                {"text": "Automated the deployment fan-out"},
+            ],
+        },
+        entity_id=item.id,
+    )
+
+    stored = proposal.payload_json
+    assert stored["description"].startswith("production tier support")
+    assert stored["achievements"][0]["text"] == "kept the batches alive"
+    assert stored["achievements"][1]["text"] == "production tier tickets"
+    assert stored["achievements"][2]["text"] == "Automated the deployment fan-out"
+    by_field = {row["field"]: row for row in proposal.diff_json}
+    assert by_field["description"]["after"].startswith("production tier support")
+
+
 async def test_update_proposal_diff_and_idempotent_approve(db, auth_headers):
     user = await _auth_user(db)
     item = await _experience(db, user)
@@ -659,8 +693,9 @@ async def test_cv_synth_card_inline_drafts(db, auth_headers):
         .scalars()
         .all()
     )
-    assert sum(row.status == "active" for row in rows) == 1
-    assert sum(row.status == "archived" for row in rows) == len(rows) - 1
+    assert all(row.status == "active" for row in rows), (
+        "multi-active library: a second approved card never retires the first batch"
+    )
 
 
 async def test_cv_synth_card_queues_large_batch(db, auth_headers):
@@ -911,3 +946,86 @@ async def test_cv_synth_narration_refs_carry_labels(db, auth_headers):
         },
     )
     assert missing == ["Unknown item (experience)"]
+
+
+async def test_cv_synth_accept_pins_on_session_cv_and_renders(db, auth_headers):
+    """Plan-104 follow-up, one gesture: approving a cv_synth card whose
+    payload carries the session's CV activates the variants AND stars
+    them on that CV — the Studio preview renders them without a second
+    hand trip; synths still render because the pin holds."""
+    from sqlalchemy import select
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.models.chat_model import ChatSession
+    from app.models.cv_model import CvDocument
+
+    user = await _auth_user(db)
+    item = await _experience(db, user)
+    cv = CvDocument(
+        user_id=user.id,
+        title="Studio CV",
+        working_content={"blocks": [], "overrides": {}},
+    )
+    session = ChatSession(
+        user_id=user.id,
+        title="cv chat",
+        context={"surface": "cv_builder", "cv_id": "not-a-uuid-yet"},
+    )
+    db.add(cv)
+    db.add(session)
+    await db.commit()
+    await db.refresh(cv)
+    await db.refresh(session)
+
+    proposal = await _propose(
+        db,
+        user,
+        kind="cv_synth",
+        action="create",
+        payload={
+            "refs": [{"source_key": "experience", "item_id": str(item.id)}],
+            "action": "summarize",
+        },
+    )
+    # The chat flow's server-injected pin target (create_from_ops).
+    proposal.payload_json["cv_id"] = str(cv.id)
+    flag_modified(proposal, "payload_json")
+    await db.commit()
+
+    resolved, applied, _ = await ProfileProposalService(db).approve(
+        user.id, proposal.id
+    )
+    assert resolved.status == "approved"
+    assert applied["queued"] is False
+    assert applied.get("pinned_cv_id") == str(cv.id)
+
+    refetched = (
+        (await db.execute(select(CvDocument).where(CvDocument.id == cv.id)))
+        .scalars()
+        .one()
+    )
+    pins = refetched.context.get("synth_pins") or {}
+    ref_key = f"experience:{item.id}"
+    assert pins.get(ref_key) == applied["items"][0]["id"], (
+        "approve stars the variant on the session's CV"
+    )
+
+
+def test_template_preview_gate_ignores_text_restyle_words():
+    """Card-resolution summaries quote variant actions ("restyle");
+    the 4-render template comparison must not fire for those — only
+    template-ish nouns gate the vision pass."""
+    from app.ai.agents.cv_builder_chat import (
+        PREVIEW_INTENT_WORDS,
+        _is_template_preview_intent,
+    )
+
+    assert "restyle" not in PREVIEW_INTENT_WORDS
+    assert not _is_template_preview_intent(
+        "restyle the Health Assistant project description"
+    )
+    assert not _is_template_preview_intent(
+        "resolved card: Add CV variants · Health Assistant · restyle — approved"
+    )
+    assert _is_template_preview_intent("which template should I switch to?")
+    assert _is_template_preview_intent("make the look more modern, maybe a theme")

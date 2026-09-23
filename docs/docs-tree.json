@@ -1,0 +1,326 @@
+{
+  "version": 1,
+  "project": "career-assistant",
+  "title": "Career Assistant",
+  "description": "AI-guided career discovery, matching and CV generation — self-hosted web app and local desktop app.",
+  "audiences": [
+    {
+      "id": "user",
+      "title": "User Guide",
+      "description": "How to install Career Assistant, build your profile, explore the job catalog, search live postings, use Autopilot and CV Studio, and get the most out of the assistant.",
+      "categories": [
+        {
+          "id": "start",
+          "title": "Start here",
+          "icon": "Play",
+          "items": [
+            {
+              "id": "overview",
+              "file": "user/README.md",
+              "title": "User guide overview",
+              "description": "How to use Career Assistant — the guided tour and the full list of user guides."
+            },
+            {
+              "id": "getting-started",
+              "file": "user/getting-started.md",
+              "title": "Getting started",
+              "description": "Install Career Assistant (desktop app, Docker or bare metal), connect an AI provider, complete onboarding and take your first steps."
+            },
+            {
+              "id": "onboarding-and-profile",
+              "file": "user/onboarding-and-profile.md",
+              "title": "Onboarding and your profile",
+              "description": "The onboarding wizard and start paths, every structured profile section, and importing an existing CV into your profile."
+            },
+            {
+              "id": "features",
+              "file": "user/features.md",
+              "title": "Feature catalog",
+              "description": "Everything Career Assistant ships, as built — catalog, matching, postings, Autopilot, CV Studio, chat, scheduler and more."
+            }
+          ]
+        },
+        {
+          "id": "discover",
+          "title": "Discover",
+          "icon": "Compass",
+          "items": [
+            {
+              "id": "explore-the-catalog",
+              "file": "user/explore-the-catalog.md",
+              "title": "Explore the job catalog",
+              "description": "Browse job families as a tree, follow typed relations in the graph, read rich job attributes and extend the catalog with AI."
+            },
+            {
+              "id": "matching-and-rankings",
+              "file": "user/matching-and-rankings.md",
+              "title": "Matching and rankings",
+              "description": "AI match scores with rationale, your own scores and interest status, the deterministic fit engine, filterable rankings and the compare tray."
+            },
+            {
+              "id": "universities",
+              "file": "user/universities.md",
+              "title": "Universities and pathways",
+              "description": "Upload a university admission PDF, review the parsed draft, and connect degrees to jobs through pathway links."
+            },
+            {
+              "id": "assessment",
+              "file": "user/assessment.md",
+              "title": "Assessment and metrics",
+              "description": "The JobTypeMatch assessment pipeline, the metric dimension registry, your metric profile and career stages."
+            }
+          ]
+        },
+        {
+          "id": "jobs",
+          "title": "Live jobs",
+          "icon": "Briefcase",
+          "items": [
+            {
+              "id": "postings-and-search",
+              "file": "user/postings-and-search.md",
+              "title": "Postings and search",
+              "description": "Connector engines, the live postings feed, deep extraction into skills and benefits, and the Explore page's filters and saved searches."
+            },
+            {
+              "id": "career-autopilot",
+              "file": "user/career-autopilot.md",
+              "title": "Career Autopilot",
+              "description": "Describe a goal once and let an agent search your connected boards on cadence, rank by fit and deliver explainable shortlists within budgets."
+            },
+            {
+              "id": "growth",
+              "file": "user/growth.md",
+              "title": "Growth toolkit",
+              "description": "Roadmaps for skill gaps, near-miss radar, learning resources, market snapshots and quarterly check-ins."
+            }
+          ]
+        },
+        {
+          "id": "cv",
+          "title": "CV Studio",
+          "icon": "FileText",
+          "items": [
+            {
+              "id": "cv-studio",
+              "file": "user/cv-studio.md",
+              "title": "CV Studio overview",
+              "description": "Three ways to a CV, the builder workspace, context selection, versions, honest page counting and every export format."
+            },
+            {
+              "id": "cv-design-and-templates",
+              "file": "user/cv-design-and-templates.md",
+              "title": "Templates and design",
+              "description": "The versioned template bank, the full design-token editor, two-template compare and the printed-page visual review."
+            },
+            {
+              "id": "cv-variants",
+              "file": "user/cv-variants.md",
+              "title": "Variant library",
+              "description": "AI-written and manual item variants, bullets-only variants, staleness detection and the per-item pin model."
+            },
+            {
+              "id": "cover-letters",
+              "file": "user/cover-letters.md",
+              "title": "Cover letters",
+              "description": "Per-posting cover letters: the deterministic brief, evidence-cited AI drafts and the shared template/export pipeline."
+            }
+          ]
+        },
+        {
+          "id": "assistant",
+          "title": "The assistant",
+          "icon": "MessageSquare",
+          "items": [
+            {
+              "id": "assistant-chat",
+              "file": "user/assistant-chat.md",
+              "title": "Chat and proposals",
+              "description": "Chat grounded in your catalog and postings, profile edits as review cards with previews and revert, the builder copilot and MCP access."
+            },
+            {
+              "id": "interviews",
+              "file": "user/interviews.md",
+              "title": "Interview prep",
+              "description": "Posting-grounded mock interviews, coached practice with a rubric, debrief aggregates and weak-area retry."
+            }
+          ]
+        },
+        {
+          "id": "settings",
+          "title": "Settings and operations",
+          "icon": "Settings",
+          "items": [
+            {
+              "id": "notifications-and-scheduler",
+              "file": "user/notifications-and-scheduler.md",
+              "title": "Notifications and scheduler",
+              "description": "The notification funnel, channels and quiet hours, and the one periodic engine that runs saved searches, digests and syncs."
+            },
+            {
+              "id": "desktop-app",
+              "file": "user/desktop-app.md",
+              "title": "Desktop app",
+              "description": "Run Career Assistant locally: the pywebview window, the tray, background scheduling, native notifications and auto-start."
+            },
+            {
+              "id": "settings",
+              "file": "user/settings.md",
+              "title": "Settings reference",
+              "description": "Every settings page explained: AI configuration, models and tasks, taxonomy, users, scheduler, notifications and the AI audit."
+            },
+            {
+              "id": "privacy-and-security",
+              "file": "user/privacy-and-security.md",
+              "title": "Privacy and security",
+              "description": "Where your data lives, how AI keys are encrypted, the trust boundary, the audit trail and production boot guards."
+            },
+            {
+              "id": "troubleshooting",
+              "file": "user/troubleshooting.md",
+              "title": "Troubleshooting",
+              "description": "Common problems and fixes — AI 503s, upload limits, desktop tray issues, PDF engine and export problems."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dev",
+      "title": "Developer Guide",
+      "description": "Architecture, workflow and internal systems for people building, extending, testing or self-hosting Career Assistant.",
+      "categories": [
+        {
+          "id": "start",
+          "title": "Start here",
+          "icon": "Play",
+          "items": [
+            {
+              "id": "overview",
+              "file": "dev/README.md",
+              "title": "Developer overview",
+              "description": "Where to start as a contributor: the map of the codebase and the ground rules for changing it."
+            },
+            {
+              "id": "development",
+              "file": "dev/development.md",
+              "title": "Development workflow",
+              "description": "Local setup, the run-dev/seed loop, conventions, git worktrees for concurrent sessions and the verification gates."
+            },
+            {
+              "id": "testing",
+              "file": "dev/testing.md",
+              "title": "Testing",
+              "description": "pytest and vitest setup, parallel xdist databases, fixtures, the SQLite desktop job and what to mock."
+            }
+          ]
+        },
+        {
+          "id": "architecture",
+          "title": "Architecture",
+          "icon": "Boxes",
+          "items": [
+            {
+              "id": "architecture",
+              "file": "dev/architecture.md",
+              "title": "Architecture overview",
+              "description": "Dual-mode runtime topology, the registry extension points, the structured AI pipeline and the two product modes."
+            },
+            {
+              "id": "data-model",
+              "file": "dev/data-model.md",
+              "title": "Data model",
+              "description": "The dialect-aware schema: taxonomy and joins, typed JSONB shapes, user data, CV data, postings and audit tables."
+            },
+            {
+              "id": "frontend",
+              "file": "dev/frontend.md",
+              "title": "Frontend",
+              "description": "The React 18 + Vite SPA: routing, Zustand stores, API client, the shared assistant-ui library, theming and i18n."
+            },
+            {
+              "id": "ui-conventions",
+              "file": "dev/ui-conventions.md",
+              "title": "UI conventions",
+              "description": "The workspace pattern, shared form primitives, design tokens, motion, drag-and-drop, previews and testability contracts."
+            },
+            {
+              "id": "security",
+              "file": "dev/security.md",
+              "title": "Security model",
+              "description": "Secrets and encryption, auth, the AI trust boundary, SSRF and upload guards, rate limiting and production boot guards."
+            }
+          ]
+        },
+        {
+          "id": "backend",
+          "title": "Backend systems",
+          "icon": "Server",
+          "items": [
+            {
+              "id": "api",
+              "file": "dev/api.md",
+              "title": "REST API",
+              "description": "The versioned domain API: auth, routers by area, error shapes, pagination, streaming and the OpenAPI contract."
+            },
+            {
+              "id": "ai-layer",
+              "file": "dev/ai-layer.md",
+              "title": "AI layer",
+              "description": "The gateway-only invocation path, tasks and capabilities, agents, LangGraph flows, tools, skill packs, embeddings and MCP."
+            },
+            {
+              "id": "connectors",
+              "file": "dev/connectors.md",
+              "title": "Connector SDK",
+              "description": "Building posting connectors: the base contract, built-in engines, the entry-point plugin registry and the contract tests."
+            },
+            {
+              "id": "scheduler-and-jobs",
+              "file": "dev/scheduler-and-jobs.md",
+              "title": "Scheduler and jobs",
+              "description": "The background job queue, job types, scheduler triggers, misfire policies, and the notification funnel."
+            },
+            {
+              "id": "cv-engine",
+              "file": "dev/cv-engine.md",
+              "title": "CV engine",
+              "description": "Block-kind registry, the deterministic renderer, context resolution and variants, PDF measurement and the polish loop."
+            },
+            {
+              "id": "migrations",
+              "file": "dev/migrations.md",
+              "title": "Migrations",
+              "description": "Alembic discipline: sequential revision ids, dialect-aware migrations, data migrations and testing both dialects."
+            }
+          ]
+        },
+        {
+          "id": "operations",
+          "title": "Operations",
+          "icon": "Wrench",
+          "items": [
+            {
+              "id": "deployment",
+              "file": "dev/deployment.md",
+              "title": "Deployment",
+              "description": "Self-hosting with the production and standalone compose stacks, TLS, upgrades, backups and bare-metal installs."
+            },
+            {
+              "id": "desktop-packaging",
+              "file": "dev/desktop-packaging.md",
+              "title": "Desktop packaging",
+              "description": "The PyInstaller build, deb/AppImage/Windows packaging, the PDF engine bootstrap and the enginecheck probe."
+            },
+            {
+              "id": "adding-features",
+              "file": "dev/adding-features.md",
+              "title": "Adding features",
+              "description": "End-to-end recipes: a new endpoint, an AI task, a connector, a scheduler trigger, a CV block kind and a UI page."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

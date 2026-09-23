@@ -742,15 +742,41 @@ async def _run_cv_synth(
             settled.append(row)
         rows = settled
     drafts = [row for row in rows if row.status == CvSynthStatus.DRAFT.value]
+    body = ""
+    if activate and rows:
+        # Approve-and-pin (plan-104 follow-up): a queued batch from a
+        # builder-bound card pins on that CV as part of the apply.
+        raw_request = (job.payload or {}).get("request") or {}
+        raw_cv = str(raw_request.get("cv_id") or "")
+        if raw_cv:
+            try:
+                cv_id = uuid.UUID(raw_cv)
+                pinned_now = await service.pin_variants_on_cv(
+                    _require_user(job), cv_id, rows
+                )
+            except ValueError:
+                pinned_now = False
+            except Exception:  # noqa: BLE001 — rows are already active; never
+                # lose the completion notification over a failed pin.
+                logger.exception("cv_synth pin-on-cv failed for job %s", job.id)
+                pinned_now = False
+            if pinned_now:
+                body = (
+                    f"{len(rows)} new variants were activated and pinned "
+                    "— the CV preview refreshes in the Studio."
+                )
     if activate and rows:
         from app.services.notification_service import NotificationService
 
+        body = body or (
+            f"{len(rows)} new variants were activated — find them in "
+            "the CV synth library."
+        )
         await NotificationService(db).emit(
             "cv_synth_ready",
             [_require_user(job)],
             title="Synthesized variants are active",
-            body=f"{len(rows)} new variants were activated — find them in "
-            "the CV synth library.",
+            body=body,
             payload={"count": len(rows), "ids": [str(r.id) for r in rows]},
             source_ref={"kind": "cv_synth", "job_id": str(job.id)},
         )

@@ -28,10 +28,15 @@ class ApplyThemeOp(BaseModel):
 
 
 class UpdateDesignOp(BaseModel):
-    """Patch design tokens on the rendered template (duplicate-if-bank)."""
+    """Patch design tokens on the rendered template (duplicate-if-bank).
+
+    Null values are allowed so optional tokens (e.g. `chip_text_color`)
+    can be reset to their derived default."""
 
     op: Literal["update_design"] = "update_design"
-    design: dict[str, Union[str, int, float, bool]] = Field(min_length=1, max_length=30)
+    design: dict[str, Optional[Union[str, int, float, bool]]] = Field(
+        min_length=1, max_length=30
+    )
 
 
 class SetContextOp(BaseModel):
@@ -90,11 +95,14 @@ class SetBlockAreaOp(BaseModel):
 
 
 class UpdateBlockPropsOp(BaseModel):
-    """Merge a props patch into the block at a context-listed index."""
+    """Merge a props patch into the block at a context-listed index.
+
+    Null values are allowed so optional fields (e.g. a per-block heading
+    `icon`) can be reset to their schema default."""
 
     op: Literal["update_block_props"] = "update_block_props"
     block_index: int = Field(ge=0, le=24)
-    props: dict[str, Union[str, int, float, bool, list, dict]] = Field(
+    props: dict[str, Optional[Union[str, int, float, bool, list, dict]]] = Field(
         min_length=1, max_length=30
     )
 
@@ -135,6 +143,25 @@ class SetOverrideOp(BaseModel):
         return validate_rich_text(value, 4000)
 
 
+class UpsertVariantOp(BaseModel):
+    """Full-entry synthesized variant for THIS CV (restyle/summarize).
+
+    Drafted through the audited CV_SYNTH funnel inside the copilot turn,
+    activated AND starred on this CV in one operation (plan-104
+    follow-up: the prompt's 'prefer a variant' guidance needs an op that
+    actually exists). The profile item is never modified."""
+
+    op: Literal["upsert_variant"] = "upsert_variant"
+    source_key: str = Field(min_length=1, max_length=40)
+    item_id: str = Field(min_length=1, max_length=64)
+    action: Literal["restyle", "summarize"] = "restyle"
+    instruction: str = Field(
+        default="",
+        max_length=600,
+        description="Optional SHORT steering sentence.",
+    )
+
+
 BuilderOp = Annotated[
     Union[
         SetTemplateOp,
@@ -148,6 +175,7 @@ BuilderOp = Annotated[
         SetBlockAreaOp,
         UpdateBlockPropsOp,
         SetOverrideOp,
+        UpsertVariantOp,
     ],
     Field(discriminator="op"),
 ]

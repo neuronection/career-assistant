@@ -19,7 +19,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@neuronection/assistant-ui";
-import type { CvBlock, CvAreaId } from "@/types/cv";
+import type { CvBlock, CvAreaId, CvOverridePatch } from "@/types/cv";
 import {
   ACHIEVEMENT_KIND_OPTIONS,
   blockHasTitle,
@@ -34,7 +34,9 @@ import { areaOf, areasForDesign, type CvArea } from "@/components/cv/areas";
 import {
   ChipTogglesRow,
   SegmentedRow,
+  SelectField,
   StepperRow,
+  TextareaField,
   ToggleRow,
 } from "@/components/cv/formPrimitives";
 import { CustomTextEditor, CustomTextToggle } from "@/components/cv/CustomTextEditor";
@@ -60,6 +62,55 @@ function asNumber(value: unknown, fallback: number): number {
 
 function isOn(value: unknown): boolean {
   return value === true;
+}
+
+const DATE_POSITION_OPTIONS = [
+  { value: "auto", label: "Auto" },
+  { value: "inline", label: "Beside title" },
+  { value: "stacked", label: "Own line" },
+];
+
+const ICON_OPTIONS = [
+  { value: "briefcase", label: "Briefcase" },
+  { value: "gradcap", label: "Graduation cap" },
+  { value: "wrench", label: "Wrench" },
+  { value: "globe", label: "Globe" },
+  { value: "award", label: "Award" },
+  { value: "heart", label: "Heart" },
+  { value: "chat", label: "Chat" },
+  { value: "flag", label: "Flag" },
+  { value: "user", label: "User" },
+  { value: "link", label: "Link" },
+  { value: "github", label: "GitHub" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "mail", label: "Mail" },
+  { value: "phone", label: "Phone" },
+  { value: "location", label: "Location" },
+];
+
+function iconValue(value: unknown): string {
+  if (value == null) return "default";
+  const raw = String(value);
+  return raw === "" ? "none" : raw;
+}
+
+function IconField({
+  props,
+  onUpdate,
+}: {
+  props: Record<string, unknown>;
+  onUpdate: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <SelectField
+      label="Heading icon"
+      value={iconValue(props.icon)}
+      options={[{ value: "default", label: "Template default" }, { value: "none", label: "None" }, ...ICON_OPTIONS]}
+      onChange={(next) =>
+        onUpdate({ icon: next === "default" ? null : next === "none" ? "" : next })
+      }
+    />
+  );
 }
 
 function optionLabel(
@@ -151,32 +202,62 @@ function FieldGroup({ label, children }: { label: string; children: ReactNode })
   );
 }
 
+interface SummaryEditContext {
+  index: number;
+  text: string;
+  fallback: string;
+  onChange?: (text: string) => void;
+}
+
 function configFor(
   block: CvBlock,
   onUpdate: (patch: Record<string, unknown>) => void,
   skillOptions: { id: string; label: string }[] = [],
   itemOptions: { id: string; label: string }[] = [],
-  synthOptions: { id: string; label: string; stale?: boolean }[] = []
+  synthOptions: { id: string; label: string; stale?: boolean }[] = [],
+  summary?: SummaryEditContext
 ): ReactNode {
   const props = block.props ?? {};
   switch (block.kind) {
     case "summary":
       return (
-        <FieldGroup label="Content">
-          <StepperRow
-            label="Max characters"
-            value={asNumber(props.max_chars, 600)}
-            min={200}
-            max={1200}
-            step={50}
-            onChange={(max_chars) => onUpdate({ max_chars })}
-          />
-        </FieldGroup>
+        <>
+          <FieldGroup label="Content">
+            {summary?.onChange && (
+              <TextareaField
+                label="Summary text"
+                value={summary.text}
+                onChange={summary.onChange}
+                rows={4}
+                maxLength={1200}
+                counter
+                autoGrow
+                placeholder={
+                  summary.fallback
+                    ? `Using profile aspirations — ${summary.fallback}`
+                    : "Write a short, evidence-based summary…"
+                }
+                hint="Leave empty to use your profile aspirations."
+                testId={`summary-text-${summary.index}`}
+              />
+            )}
+            <IconField props={props} onUpdate={onUpdate} />
+            <StepperRow
+              label="Max characters"
+              value={asNumber(props.max_chars, 600)}
+              min={200}
+              max={1200}
+              step={50}
+              onChange={(max_chars) => onUpdate({ max_chars })}
+            />
+          </FieldGroup>
+        </>
       );
     case "items":
       return (
         <>
           <FieldGroup label="Content">
+            <IconField props={props} onUpdate={onUpdate} />
             <SegmentedRow
               label="Data source"
               value={String(props.source_key ?? "experience")}
@@ -214,6 +295,12 @@ function configFor(
               value={String(props.date_format ?? "mon_yyyy")}
               options={DATE_FORMAT_OPTIONS}
               onChange={(date_format) => onUpdate({ date_format })}
+            />
+            <SegmentedRow
+              label="Date position"
+              value={String(props.date_position ?? "auto")}
+              options={DATE_POSITION_OPTIONS}
+              onChange={(date_position) => onUpdate({ date_position })}
             />
             <StepperRow
               label="Max items"
@@ -274,6 +361,7 @@ function configFor(
             </FieldGroup>
           )}
           <FieldGroup label="Display">
+            <IconField props={props} onUpdate={onUpdate} />
             <ToggleRow
               label="Show source chips"
               checked={props.show_source_chips !== false}
@@ -292,6 +380,7 @@ function configFor(
     case "skills":
       return (
         <FieldGroup label="Display">
+          <IconField props={props} onUpdate={onUpdate} />
           <SegmentedRow
             label="Display"
             value={String(props.display ?? "chips")}
@@ -323,6 +412,7 @@ function configFor(
     case "languages":
       return (
         <FieldGroup label="Display">
+          <IconField props={props} onUpdate={onUpdate} />
           <SegmentedRow
             label="Format"
             value={String(props.display ?? "chips")}
@@ -350,6 +440,7 @@ function configFor(
         : ACHIEVEMENT_KIND_OPTIONS.map((option) => option.value);
       return (
         <FieldGroup label="Types">
+          <IconField props={props} onUpdate={onUpdate} />
           <ChipTogglesRow
             label="Types"
             values={kinds}
@@ -362,6 +453,7 @@ function configFor(
     case "interests":
       return (
         <FieldGroup label="Display">
+          <IconField props={props} onUpdate={onUpdate} />
           <StepperRow
             label="Max items"
             value={asNumber(props.max_items, 6)}
@@ -380,6 +472,29 @@ function configFor(
             min={2}
             max={20}
             onChange={(height_mm) => onUpdate({ height_mm })}
+            suffix="mm"
+          />
+        </FieldGroup>
+      );
+    case "qr":
+      return (
+        <FieldGroup label="Display">
+          <SegmentedRow
+            label="Link"
+            value={String(props.link_kind ?? "web")}
+            options={[
+              { value: "web", label: "Website" },
+              { value: "github", label: "GitHub" },
+              { value: "linkedin", label: "LinkedIn" },
+            ]}
+            onChange={(link_kind) => onUpdate({ link_kind })}
+          />
+          <StepperRow
+            label="Size"
+            value={asNumber(props.size_mm, 24)}
+            min={10}
+            max={40}
+            onChange={(size_mm) => onUpdate({ size_mm })}
             suffix="mm"
           />
         </FieldGroup>
@@ -414,6 +529,11 @@ export interface SectionsPanelProps {
   skillOptions?: { id: string; label: string }[];
   itemOptions?: Record<string, { id: string; label: string }[]>;
   synthOptions?: { id: string; label: string; stale?: boolean }[];
+  /** The CV's working-content field patches (summary text editor). */
+  overrides?: Record<string, CvOverridePatch>;
+  onUpdateOverride?: (ref: string, field: string, value: string) => void;
+  /** Profile-derived summary text (placeholder when no override typed). */
+  summaryFallback?: string;
   onAddBlock: (kind: string, area?: CvAreaId) => void;
   onMoveBlock: (index: number, delta: number) => void;
   onAssignArea?: (index: number, area: CvAreaId) => void;
@@ -449,6 +569,7 @@ function SectionCard({
   skillOptions = [],
   itemOptions = [],
   synthOptions = [],
+  summaryEdit,
 }: {
   block: CvBlock;
   index: number;
@@ -470,6 +591,7 @@ function SectionCard({
   skillOptions?: { id: string; label: string }[];
   itemOptions?: { id: string; label: string }[];
   synthOptions?: { id: string; label: string; stale?: boolean }[];
+  summaryEdit?: SummaryEditContext;
 }) {
   const { t } = useTranslation();
   const Icon = blockIconOf(block.kind);
@@ -483,6 +605,8 @@ function SectionCard({
   let summary: string | null = null;
   if (hidden) {
     summary = "Hidden";
+  } else if (block.kind === "summary" && summaryEdit?.text.trim()) {
+    summary = summaryEdit.text.trim();
   } else {
     summary = summaryFor(block);
   }
@@ -661,7 +785,8 @@ function SectionCard({
               (patch) => onUpdateBlockProps(index, patch),
               skillOptions,
               itemOptions,
-              synthOptions
+              synthOptions,
+              summaryEdit
             )}
             {block.kind !== "header" && block.kind !== "spacer" && (
               <FieldGroup label="Container">
@@ -687,6 +812,9 @@ export function SectionsPanel({
   skillOptions = [],
   itemOptions = {},
   synthOptions = [],
+  overrides = {},
+  onUpdateOverride,
+  summaryFallback = "",
   onAddBlock,
   onMoveBlock,
   onAssignArea,
@@ -779,6 +907,18 @@ export function SectionsPanel({
         block.kind === "items" ? itemOptions[String(block.props?.source_key ?? "")] ?? [] : []
       }
       synthOptions={block.kind === "synth_items" ? synthOptions : []}
+      summaryEdit={
+        block.kind === "summary"
+          ? {
+              index,
+              text: String(overrides["summary:summary"]?.summary ?? ""),
+              fallback: summaryFallback,
+              onChange: onUpdateOverride
+                ? (text) => onUpdateOverride("summary:summary", "summary", text)
+                : undefined,
+            }
+          : undefined
+      }
     />
   );
 

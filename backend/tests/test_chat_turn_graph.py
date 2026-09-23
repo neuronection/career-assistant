@@ -55,15 +55,30 @@ def test_in_memory_saver_checkpoints_a_trivial_graph():
 
 
 def test_main_chat_tool_keys_exclude_owned_families_and_capabilities():
-    from app.ai.tools.langchain import chat_tool_specs, main_chat_tool_keys
+    from app.ai.tools.langchain import (
+        MAIN_CHAT_CV_TOOLS,
+        chat_tool_specs,
+        main_chat_tool_keys,
+    )
 
     keys = main_chat_tool_keys()
     assert "my_experience" in keys
     assert "compare_jobs" in keys
     assert "my_notifications" in keys
-    assert not any(key.startswith(("cv_", "web_")) for key in keys), (
-        "surface-owned families stay unbound in main chat"
+    assert not any(key.startswith("web_") for key in keys), (
+        "surface-owned web family stays unbound in main chat"
     )
+    assert {
+        "cv_read_state",
+        "cv_review_visual",
+        "cv_set_template",
+        "cv_apply_theme",
+        "cv_update_design",
+        "cv_set_context",
+    } <= set(keys), "the CV allowlist binds in main chat"
+    assert not any(
+        key.startswith("cv_") and key not in MAIN_CHAT_CV_TOOLS for key in keys
+    ), "non-allowlisted cv_* stay unbound (content editors stay builder-side)"
     assert "propose_profile_edits" not in keys, "capabilities never bind"
 
     specs = chat_tool_specs()
@@ -73,6 +88,8 @@ def test_main_chat_tool_keys_exclude_owned_families_and_capabilities():
     assert spec["type"] == "function"
     assert spec["function"]["parameters"]["type"] == "object"
     assert "limit" in spec["function"]["parameters"]["properties"]
+    styling = by_name["cv_update_design"]
+    assert styling["function"]["description"].startswith("Patch design tokens")
 
     only_callable = chat_tool_specs(["search_jobs", "propose_profile_edits", "ghost"])
     assert [s["function"]["name"] for s in only_callable] == ["search_jobs"], (
@@ -85,6 +102,42 @@ def _checkpoint_id(ms_ago: int) -> str:
     100 ns timestamp prefix (the same math the prune compares)."""
     ticks = int((time.time() - ms_ago / 1000) * 1000) * 10_000 + _GREGORIAN_100NS
     return f"{ticks >> 12:012x}" + "0" * 20
+
+
+def test_salvage_streamed_chat_reply_keeps_a_streamed_answer():
+    """A structurally-broken reply stream no longer kills the turn: the
+    answer bytes the UI already rendered are kept as the reply."""
+    from app.ai.graphs.chat_turn import salvage_streamed_chat_reply
+
+    streamed = (
+        '{"answer": "The navy sidebar reads dated; slate is better",'
+        '"referenced_job_codes": ['  # truncated tail
+    )
+    salvaged = salvage_streamed_chat_reply(streamed)
+    assert salvaged is not None
+    assert salvaged["answer"] == "The navy sidebar reads dated; slate is better"
+    assert salvaged["profile_ops"] == []
+    assert salvage_streamed_chat_reply("") is None
+    assert salvage_streamed_chat_reply('{"referenced_job_codes": [1]}') is None
+
+
+def test_extract_json_repairs_a_truncated_object():
+    """Flash models hitting a cutoff leak a truncated JSON object; the
+    largest brace-closed prefix still carries the answer field."""
+    from app.ai.gateway import _extract_json
+
+    truncated = (
+        '{"answer": "modern slate looks professional",\n'
+        '  "profile_ops": [],\n  "referenced_job_codes": ["S1A2B3C4"'
+    )
+    out = _extract_json(truncated)
+    assert out["answer"] == "modern slate looks professional"
+    # A prose-wrapped but complete object still parses.
+    wrapped = 'Sure! {"answer": "hi"} Hope that helps.'
+    assert _extract_json(wrapped)["answer"] == "hi"
+    # A fenced object parses.
+    fenced = '```json\n{"answer": "fenced"}\n```'
+    assert _extract_json(fenced)["answer"] == "fenced"
 
 
 def test_prune_checkpoints_removes_stale_threads(tmp_path: Path):

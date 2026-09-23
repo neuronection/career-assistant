@@ -4,6 +4,8 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 export interface ItemOption {
   id: string;
   label: string;
+  /** Override drift: the CV's captured text differs from the profile. */
+  stale?: boolean;
 }
 
 /**
@@ -135,7 +137,18 @@ export function ItemsOrderEditor({
               >
                 ⠿
               </span>
-              <span className="min-w-0 flex-1 truncate">{index + 1}. {labelOf(id)}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {index + 1}. {labelOf(id)}
+                {options.find((option) => option.id === id)?.stale ? (
+                  <span
+                    className="ml-1 text-[10px] text-amber-700"
+                    title="The CV's captured text no longer matches the profile for this item"
+                    data-testid={`items-order-stale-${id}`}
+                  >
+                    (profile changed)
+                  </span>
+                ) : null}
+              </span>
               <button
                 type="button"
                 aria-label={`Move ${labelOf(id)} up`}

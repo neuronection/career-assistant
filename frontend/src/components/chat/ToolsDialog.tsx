@@ -35,7 +35,7 @@ export function ToolsDialog({
     let cancelled = false;
     setTools(null);
     setError(false);
-    fetchAiTools({ includeCapabilities: true })
+    fetchAiTools({ includeCapabilities: true, bindableOnly: true })
       .then((rows) => {
         if (!cancelled) {
           setTools(rows);

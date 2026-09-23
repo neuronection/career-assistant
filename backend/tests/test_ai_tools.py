@@ -155,11 +155,43 @@ async def test_tools_endpoint_capabilities_opt_in(client, auth_headers):
     assert cap["hitl"] is True
 
 
+async def test_tools_endpoint_bindable_filter_matches_the_chat_bind_set(
+    client, auth_headers
+):
+    """The chat's "tools the assistant can use" dialog must list what the
+    LLM actually binds — the chat allowlist + HITL capability rows — not
+    the whole copilot registry (block/override editors never bind)."""
+    from app.ai.tools.langchain import main_chat_tool_keys
+
+    rows = (
+        await client.get(
+            "/api/v1/ai/tools",
+            params={"include_capabilities": True, "bindable_only": True},
+            headers=auth_headers,
+        )
+    ).json()
+    keys = {r["key"] for r in rows}
+    bindable = set(main_chat_tool_keys())
+    for entry in keys:
+        assert entry in bindable or entry == "propose_profile_edits"
+    assert "cv_read_state" in keys, "the chat CV allowlist is visible"
+    assert "cv_add_block" not in keys, "builder-only editors stay out"
+    assert "cv_set_override" not in keys
+    assert "propose_profile_edits" in keys, "the HITL capability row rides"
+
+
 async def test_run_tool_validates_and_passes_user(db):
     result = await run_tool(db, "search_jobs", None, {"query": "nurse"})
     assert isinstance(result, list)
     with pytest.raises(DomainError, match="Invalid input for tool search_jobs"):
         await run_tool(db, "search_jobs", None, {"limit": 3})
+
+
+async def test_run_tool_clamps_prose_query(db):
+    """A chat-sentence query over the cap is truncated, not fatal (one
+    sloppy model call must never kill the turn with `send_failed`)."""
+    result = await run_tool(db, "search_jobs", None, {"query": "data science " * 30})
+    assert isinstance(result, list)
 
 
 async def test_run_tool_enforces_requires_user(db):

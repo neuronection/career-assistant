@@ -21,6 +21,7 @@ until then — the graph shape does not change, only what feeds ``synth``.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -39,6 +40,7 @@ from app.ai.gateway import (
 from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType, ProposalKind
 from app.models.user_model import User
+from app.services import chat_tool_memory
 
 MAX_PROFILE_OPS = 5
 
@@ -47,8 +49,26 @@ MAX_PROFILE_OPS = 5
 #: calls are dropped with a persisted reason, never silently. Plan 99.1
 #: raises the tool cap: read-before-edit adds one full-content read per
 #: edited target on top of the digests (cheap DB point lookups).
+#: Tool-round budgets (plan 98 phase 3): LLM calls per turn stay ≤ 4
+#: (rounds + synth) and executed tools per turn are capped — over-budget
+#: calls are dropped with a persisted reason, never silently. Plan 99.1
+#: raises the tool cap: read-before-edit adds one full-content read per
+#: edited target on top of the digests (cheap DB point lookups). Raised
+#: to 14 (2026-09-21): a heavy edit turn budgets 4 digests + up to 6
+#: entity reads + variant/choice grounding in ONE round — 10 exhausted
+#: the budget and silently dropped the grounding the reply needed.
 MAX_AGENT_ROUNDS = 3
-MAX_TOOL_CALLS_PER_TURN = 10
+MAX_TOOL_CALLS_PER_TURN = 14
+
+
+def _trace_digest(value: object, cap: int = 900) -> str:
+    """Serialized, capped tool detail for the trace rows (SSE + write)."""
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        text = str(value)
+    return text[:cap]
+
 
 #: Digest tools whose model-pulled results persist into the plan-81
 #: session cache (so later keyword-less turns stay grounded).
@@ -108,6 +128,9 @@ class ChatTurnState(TypedDict, total=False):
     op_errors: list[dict]
     ops_done: bool
     ops_overflow: int
+    #: True when the streamed reply saved only its streamed answer text
+    #: (a structurally broken tail no longer kills the turn).
+    reply_salvaged: bool
 
 
 @dataclass
@@ -362,6 +385,11 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         except Exception as exc:  # noqa: BLE001 — an observation, not a failure
             result = {"error": str(exc)}
         executed += 1
+        # Trace honesty (plan 109 follow-up): a registry tool's trace row
+        # carries what actually ran and returned — a bare tool name hid
+        # the grounding the reply was built on.
+        result_digest = _trace_digest(result)
+        args_digest = _trace_digest(call["args"], cap=400)
         if call["name"] not in READ_TOOLS:
             extra[call["name"]] = result
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -378,6 +406,23 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                 chat_digest_cache.save(
                     deps.session,
                     {call["name"]: chat_digest_cache.fresh_entry(result, sig)},
+                )
+        elif call["name"] in chat_tool_memory.MEMORY_TOOLS:
+            # Conversation memory: web pulls the model makes itself ride
+            # the same session-scoped cache, so later turns stay
+            # consistent with what was already fetched.
+            ident = chat_tool_memory.ident_for(call["name"], call.get("args"))
+            if ident and chat_tool_memory.memorable(call["name"], result):
+                chat_tool_memory.save(
+                    deps.session,
+                    {
+                        chat_tool_memory.entry_key(call["name"], ident): {
+                            "tool": call["name"],
+                            "ident": ident,
+                            "payload": result,
+                            "sig": "",
+                        }
+                    },
                 )
         elif call["name"] in READ_TOOLS:
             # plan 99.1: full-content reads ground this turn's
@@ -413,8 +458,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                 "name": call["name"],
                 "title": TOOL_TITLES.get(call["name"], call["name"]),
                 "status": "done",
-                "args": "",
-                "result": "",
+                "args": args_digest,
+                "result": result_digest,
                 "duration_ms": duration_ms,
             },
         )
@@ -424,10 +469,10 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                 "title": TOOL_TITLES.get(call["name"], call["name"]),
                 "status": "done",
                 "start_ms": int((started - deps.turn_started) * 1000),
-                "args_summary": "",
+                "args_summary": args_digest,
                 "duration_ms": duration_ms,
                 "results": [call["name"].replace("my_", "")],
-                "result_summary": call["name"].replace("my_", ""),
+                "result_summary": result_digest,
             }
         )
     tool_metadata = dict(state.get("tool_metadata") or {})
@@ -482,6 +527,22 @@ def _open_generate(deps: TurnDeps) -> float:
     return now
 
 
+def salvage_streamed_chat_reply(raw: str):
+    """A broken structured stream's streamed answer text, if any.
+
+    The UI already rendered the partial ``answer`` value while the JSON
+    tail was missing/broken — the verdict "turn failed" after bytes the
+    user actually read is worse than a degraded reply. Returns an
+    answer-only ChatReply payload, or None when nothing was streamed.
+    """
+    salvaged = partial_answer_text(raw).strip()
+    if not salvaged:
+        return None
+    from app.ai.schemas import ChatReply
+
+    return ChatReply(answer=salvaged[:8000]).model_dump(mode="json")
+
+
 async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
     """The structured streaming reply (one gateway call, unchanged)."""
     from app.ai.agents.prompts import CHATBOT
@@ -502,6 +563,20 @@ async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
             deps.emit("delta", {"text": partial[sent:]})
             sent = len(partial)
     if stream.reply is None:
+        # Salvage: the streamed answer text reached the UI; a broken
+        # JSON tail (length cutoff, chatty retry prose) must not kill
+        # the whole turn — keep the streamed answer, drop the payload
+        # fields the model failed to complete.
+        salvaged = salvage_streamed_chat_reply("".join(stream._raw))
+        if salvaged is not None:
+            return {
+                "reply": salvaged,
+                "model": stream.model,
+                "tokens_in": stream.tokens_in,
+                "tokens_out": stream.tokens_out,
+                "prompt": prompt,
+                "reply_salvaged": True,
+            }
         from app.core.errors import DomainError
 
         raise DomainError(stream.error or "AI produced no valid reply")

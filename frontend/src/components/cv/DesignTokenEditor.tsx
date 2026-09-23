@@ -55,6 +55,19 @@ const SIDEBAR_SIDES = [
   { value: "right", label: "Right" },
 ];
 
+const RUNNING_FOOTERS = [
+  { value: "none", label: "None" },
+  { value: "name", label: "Name (from page 2)" },
+  { value: "numbers", label: "Page numbers (from page 2)" },
+];
+
+const CHIP_STYLES = [
+  { value: "tint", label: "Tint" },
+  { value: "outline", label: "Outline" },
+  { value: "solid", label: "Solid" },
+  { value: "plain", label: "Plain" },
+];
+
 const NAME_STYLES = [
   { value: "plain", label: "Plain" },
   { value: "accent_surname", label: "Accent surname" },
@@ -97,6 +110,7 @@ export function DesignTokenEditor({
         <ColorField label={t("templateEditor.color.body")} value={design.text_color} onChange={(text_color) => onChange({ text_color })} />
         <ColorField label={t("templateEditor.color.muted")} value={design.muted_color} onChange={(muted_color) => onChange({ muted_color })} />
         <ColorField label={t("templateEditor.color.background")} value={design.background_color} onChange={(background_color) => onChange({ background_color })} />
+        <ColorField label={t("templateEditor.color.border")} value={design.border_color} onChange={(border_color) => onChange({ border_color })} />
       </Group>
 
       <Group title={t("templateEditor.typography", { defaultValue: "Typography" })} testId="token-typography">
@@ -141,11 +155,56 @@ export function DesignTokenEditor({
         <RangeField label={t("templateEditor.cornerRadius")} value={design.corner_radius} min={0} max={6} onChange={(corner_radius) => onChange({ corner_radius })} suffix="mm" />
         <GapsField label={t("templateEditor.sectionGap")} value={design.section_gap_mm} options={[2, 4, 6, 8, 10, 12]} onChange={(section_gap_mm) => onChange({ section_gap_mm })} />
         <GapsField label={t("templateEditor.itemGap")} value={design.item_gap_mm} options={[1, 2, 3, 4, 5, 6]} onChange={(item_gap_mm) => onChange({ item_gap_mm })} />
+        <SelectField
+          label={t("templateEditor.chipStyle", { defaultValue: "Chip style" })}
+          value={design.chip_style ?? "tint"}
+          onChange={(chip_style) => onChange({ chip_style: chip_style as CvDesignTokens["chip_style"] })}
+          options={CHIP_STYLES}
+          testId="chip-style-select"
+        />
+        {(!design.chip_style || design.chip_style === "tint") && (
+          <RangeField
+            label={t("templateEditor.chipTint", { defaultValue: "Chip tint" })}
+            value={design.chip_tint_pct ?? 12}
+            min={0}
+            max={40}
+            onChange={(chip_tint_pct) => onChange({ chip_tint_pct })}
+            suffix="%"
+          />
+        )}
+        <SelectField
+          label={t("templateEditor.color.chipText")}
+          value={design.chip_text_color ? "custom" : "auto"}
+          onChange={(next) =>
+            next === "custom"
+              ? onChange({ chip_text_color: design.heading_color })
+              : onChange({ chip_text_color: null })
+          }
+          options={[
+            { value: "auto", label: t("templateEditor.auto") },
+            { value: "custom", label: "Custom" },
+          ]}
+          testId="chip-text-select"
+        />
+        {design.chip_text_color && (
+          <ColorField
+            label={t("templateEditor.color.chipText")}
+            value={design.chip_text_color}
+            onChange={(chip_text_color) => onChange({ chip_text_color })}
+          />
+        )}
       </Group>
 
       <Group title={t("templateEditor.page", { defaultValue: "Page" })} testId="token-page">
         <SelectField label={t("templateEditor.densityLabel")} value={design.density} onChange={(density) => onChange({ density: density as CvDesignTokens["density"] })} options={DENSITIES} />
         <GapsField label={t("templateEditor.pageMargin")} value={design.margin_mm} options={[0, 5, 8, 12, 16, 20, 25]} onChange={(margin_mm) => onChange({ margin_mm })} />
+        <SelectField
+          label={t("templateEditor.runningFooter", { defaultValue: "Running footer" })}
+          value={design.running_footer ?? "none"}
+          onChange={(running_footer) => onChange({ running_footer: running_footer as CvDesignTokens["running_footer"] })}
+          options={RUNNING_FOOTERS}
+          testId="running-footer-select"
+        />
       </Group>
 
       {showLayout && (

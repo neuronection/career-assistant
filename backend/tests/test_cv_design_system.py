@@ -655,6 +655,112 @@ def test_languages_proficiency_certificate_inline_and_latest():
     assert "Greek — native</span>" in html
 
 
+def test_chip_style_default_matches_legacy_tint():
+    html = _languages_cv()
+    assert (
+        ".chip { background: color-mix(in srgb, var(--accent) 12%, "
+        "var(--background)); color: var(--heading); border-radius: 1mm; "
+        "padding: 0 1.6mm" in html
+    )
+    assert (
+        ".cv-sidebar .chip { background: color-mix(in srgb, currentColor 20%, "
+        "transparent); color: inherit; }" in html
+    )
+
+
+def test_chip_style_variants_change_the_chip_rule():
+    from app.schemas.cv_template import DesignTokens
+    from app.services.cv_renderer import _chip_rules
+
+    solid, sidebar = _chip_rules(
+        DesignTokens.model_validate({"chip_style": "solid"}), 10
+    )
+    assert "background: var(--accent); color: #ffffff" in solid
+    assert sidebar == ""
+    outline, sidebar = _chip_rules(
+        DesignTokens.model_validate({"chip_style": "outline", "chip_tint_pct": 25}), 10
+    )
+    assert "border: 0.3mm solid color-mix(in srgb, var(--accent) 50%" in outline
+    assert "border-color: color-mix(in srgb, currentColor 45%" in sidebar
+    plain, sidebar = _chip_rules(
+        DesignTokens.model_validate({"chip_style": "plain"}), 10
+    )
+    assert "background: transparent" in plain
+    assert sidebar == ".cv-sidebar .chip { color: inherit; }"
+
+
+def test_chip_text_color_derives_by_default_and_overrides():
+    from app.schemas.cv_template import DesignTokens
+    from app.services.cv_renderer import _chip_rules
+
+    derived, _ = _chip_rules(DesignTokens.model_validate({}), 10)
+    assert "color: var(--heading);" in derived
+    solid, _ = _chip_rules(DesignTokens.model_validate({"chip_style": "solid"}), 10)
+    assert "color: #ffffff" in solid
+    custom, _ = _chip_rules(
+        DesignTokens.model_validate({"chip_text_color": "#0f172a"}), 10
+    )
+    assert "color: #0f172a;" in custom
+    custom_solid, _ = _chip_rules(
+        DesignTokens.model_validate(
+            {"chip_style": "solid", "chip_text_color": "#0f172a"}
+        ),
+        10,
+    )
+    assert "color: #0f172a" in custom_solid
+
+
+def test_explicit_chip_text_color_wins_in_the_sidebar():
+    from app.schemas.cv_template import DesignTokens
+    from app.services.cv_renderer import _chip_rules
+
+    # Derived: the sidebar keeps its own text color.
+    _, sidebar = _chip_rules(DesignTokens.model_validate({"chip_style": "outline"}), 10)
+    assert "color: inherit" in sidebar
+    # Explicit: the user's chip text color beats the sidebar tint.
+    _, sidebar = _chip_rules(
+        DesignTokens.model_validate(
+            {"chip_style": "outline", "chip_text_color": "#16a34a"}
+        ),
+        10,
+    )
+    assert "color: inherit" not in sidebar
+    assert "border-color: color-mix(in srgb, currentColor 45%" in sidebar
+    _, sidebar = _chip_rules(
+        DesignTokens.model_validate(
+            {"chip_style": "tint", "chip_text_color": "#ffffff"}
+        ),
+        10,
+    )
+    assert "color: inherit" not in sidebar
+    assert "background: color-mix(in srgb, currentColor 20%" in sidebar
+    _, sidebar = _chip_rules(
+        DesignTokens.model_validate(
+            {"chip_style": "plain", "chip_text_color": "#ffffff"}
+        ),
+        10,
+    )
+    assert sidebar == ""
+
+
+def test_chip_tint_pct_scales_the_tint_wash():
+    content = TemplateContent.model_validate(
+        {
+            "blocks": [{"kind": "languages", "props": {"title": "Languages"}}],
+            "design": {"chip_tint_pct": 30},
+        }
+    )
+    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+
+    snapshot = {**SAMPLE_SNAPSHOT, "languages": LANGS, "certifications": CERTS}
+    html = render_cv(content, snapshot).html
+    assert (
+        ".chip { background: color-mix(in srgb, var(--accent) 30%, "
+        "var(--background))" in html
+    )
+    assert "currentColor 38%" in html
+
+
 ECPE = {
     "title": ("Examination for the Certificate of Proficiency in English (ECPE) - C2"),
     "org": "University of Michigan",

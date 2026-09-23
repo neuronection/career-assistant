@@ -191,13 +191,16 @@ async def test_source_delete_marks_orphaned(client, db, auth_headers):
     assert rows[0]["stale"] is False
 
 
-async def test_activate_supersedes_slot_siblings(client, db, auth_headers):
+async def test_multiple_actives_coexist_per_item(client, db, auth_headers):
+    """Multi-active library model: creating/activating further variants
+    of an item never retires the earlier ones — per-CV usage is decided
+    by the pin (`synth_pins`), not by activation."""
     item = await _make_item(db, _uid(auth_headers))
     first = await _seed_variant(client, auth_headers, item, text="first")
     second = await _seed_variant(client, auth_headers, item, text="second")
     rows = (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
     by_id = {r["id"]: r for r in rows}
-    assert by_id[first["id"]]["status"] == "archived", "one active per slot"
+    assert by_id[first["id"]]["status"] == "active"
     assert by_id[second["id"]]["status"] == "active"
 
 

@@ -446,6 +446,33 @@ async def test_model_caps_persist(db, client, auth_headers):
     assert "telepathy" in str(rejected.json()["detail"])
 
 
+async def test_all_models_listing_ships_the_declared_caps(client, auth_headers):
+    """The task-assignment pickers filter their dropdown on the DECLARED
+    capabilities — the /models listing must carry caps, or a saved
+    vision model never matches a 'vision"-required task and the picker
+    always degrades to filename guesses."""
+    created = await client.post(
+        "/api/v1/ai/providers",
+        json={"name": "Listing Co", "provider_type": "mock", "scope": "system"},
+        headers=auth_headers,
+    )
+    provider_id = created.json()["id"]
+    model = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={
+            "name": "Vision",
+            "model_name": "some-vl-model",
+            "caps": ["text", "vision"],
+        },
+        headers=auth_headers,
+    )
+    assert model.status_code == 201, model.text
+    listing = await client.get("/api/v1/ai/models", headers=auth_headers)
+    row = next(m for m in listing.json() if m["id"] == model.json()["id"])
+    assert row["caps"] == ["text", "vision"]
+    assert row["provider_scope"] == "system"
+
+
 async def test_member_cannot_edit_system_model(client, auth_headers):
     created = await client.post(
         "/api/v1/ai/providers",

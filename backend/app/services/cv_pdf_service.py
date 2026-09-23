@@ -116,6 +116,12 @@ async def _get_playwright() -> object:
     loop = asyncio.get_running_loop()
     if _PLAYWRIGHT is not None and _PLAYWRIGHT_LOOP is loop:
         return _PLAYWRIGHT
+    stale, stale_loop = _PLAYWRIGHT, _PLAYWRIGHT_LOOP
+    if stale is not None and stale_loop is not None and stale_loop.is_closed():
+        try:
+            await asyncio.wait_for(stale.stop(), timeout=10)
+        except Exception:  # noqa: BLE001 — a closed loop's driver is unreachable
+            pass
     try:
         from playwright.async_api import async_playwright
     except Exception as exc:  # noqa: BLE001 - optional dependency
@@ -148,6 +154,10 @@ async def _launch_browser(p) -> object:
         try:
             browser = await p.chromium.launch(**kwargs)
             _BROWSER_CHANNEL = channel
+            try:
+                browser.on("disconnected", _on_browser_disconnected)
+            except Exception:  # noqa: BLE001 — duck-typed engines may not emit
+                pass
             return browser
         except Exception as exc:  # noqa: BLE001 — try the next candidate
             last_error = exc
@@ -168,17 +178,46 @@ async def _get_browser(p) -> object:
             _IDLE_HANDLE.cancel()
             _IDLE_HANDLE = None
         return _BROWSER
+    stale, stale_loop = _BROWSER, _BROWSER_LOOP
     _BROWSER = None
     _BROWSER_LOOP = loop
+    if stale is not None and stale_loop is not None and stale_loop.is_closed():
+        try:
+            await asyncio.wait_for(stale.close(), timeout=10)
+        except Exception:  # noqa: BLE001 — a closed loop's browser is unreachable
+            pass
     _BROWSER = await _launch_browser(p)
     return _BROWSER
 
 
-def _drop_browser() -> None:
-    """Forget the cached browser (it died); the next render relaunches."""
+def _on_browser_disconnected(browser: object) -> None:
+    """Drop a dead browser from the cache the moment it disconnects.
+
+    Without this, the next render reuses the closed handle and raises
+    `TargetClosedError` — which drops it again, leaking the process."""
     global _BROWSER, _BROWSER_CHANNEL
-    _BROWSER = None
-    _BROWSER_CHANNEL = _UNRESOLVED
+    if _BROWSER is browser:
+        _BROWSER = None
+        _BROWSER_CHANNEL = _UNRESOLVED
+
+
+async def _discard_browser() -> None:
+    """Remove the cached browser AND close it so its process never leaks.
+
+    A dead/flaky browser dropped by the retry path used to be forgotten
+    without a `close()`, so every failed render left a zombie Chromium
+    tree behind — enough failures wedged the host and later renders hung
+    on `new_page`."""
+    global _BROWSER, _BROWSER_CHANNEL
+    async with _engine_lock():
+        browser, _BROWSER = _BROWSER, None
+        _BROWSER_CHANNEL = _UNRESOLVED
+    if browser is None:
+        return
+    try:
+        await asyncio.wait_for(browser.close(), timeout=10)
+    except Exception:  # noqa: BLE001 — best-effort cleanup, never mask the render error
+        pass
 
 
 def _schedule_idle_close() -> None:
@@ -189,16 +228,7 @@ def _schedule_idle_close() -> None:
         _IDLE_HANDLE = None
 
     async def _close() -> None:
-        global _BROWSER, _BROWSER_CHANNEL
-        async with _engine_lock():
-            if _BROWSER is None:
-                return
-            browser, _BROWSER = _BROWSER, None
-            _BROWSER_CHANNEL = _UNRESOLVED
-            try:
-                await browser.close()
-            except Exception:  # noqa: BLE001 — best-effort cleanup
-                pass
+        await _discard_browser()
 
     loop = asyncio.get_running_loop()
     _IDLE_HANDLE = loop.call_later(
@@ -268,8 +298,7 @@ async def html_to_pdf(html: str) -> bytes:
             raise
         except Exception as exc:  # noqa: BLE001 — engine failures degrade cleanly
             last_error = exc
-            async with _engine_lock():
-                _drop_browser()
+            await _discard_browser()
             if attempt:
                 break
     raise PDFEngineUnavailable(

@@ -27,6 +27,7 @@ from app.schemas.cv import (
     CvDocumentUpdate,
     CvPreviewOut,
     CvResolutionOut,
+    CvSynthPinIn,
     CvTemplateMeta,
     CvVersionOut,
 )
@@ -507,7 +508,11 @@ async def get_context(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CvResolutionOut:
-    """Resolve the CV's selection: snapshot + per-item trace (no render)."""
+    """Resolve the CV's selection: snapshot + per-item trace (no render).
+
+    `synth_applied` is the applied-variant truth: `{ref_key: synth_id}`
+    for every pin that actually rendered this resolution — the UI's
+    stars cross-check against it (a pin missing here is inactive)."""
     cv, builder = await _owned_builder(cv_id, user.id, db)
     resolution = await builder.resolution(cv)
     return CvResolutionOut(
@@ -523,6 +528,7 @@ async def get_context(
             for ref in resolution.item_refs()
         ],
         resolved_at=resolution.resolved_at,
+        synth_applied=resolution.synth_applied or {},
     )
 
 
@@ -630,6 +636,7 @@ async def preview_cv(
             snapshot_index=resolution.snapshot_index,
             items=[CvContextItemRef(**ref) for ref in resolution.item_refs()],
             resolved_at=resolution.resolved_at,
+            synth_applied=resolution.synth_applied or {},
         ),
     )
 
@@ -652,7 +659,7 @@ async def preview_cv_png(
         content=png,
         media_type="image/png",
         headers={
-            "Cache-Control": "private, max-age=86400",
+            "Cache-Control": "private, max-age=60",
             "ETag": f'"{render_hash}"',
         },
     )
@@ -742,6 +749,36 @@ async def set_context(
     """Replace the per-CV context selection (all-minus / none-plus / custom)."""
     service = CvService(db)
     updated = await service.update(cv_id, user.id, CvDocumentUpdate(context=payload))
+    return await _out(db, service, updated)
+
+
+@router.put("/{cv_id}/context/pin", response_model=CvDocumentOut)
+async def set_synth_pin(
+    cv_id: uuid.UUID,
+    payload: CvSynthPinIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvDocumentOut:
+    """Star/unstar ONE item's variant (the single `synth_pins` slot).
+
+    A surgical read-modify-write — unlike the full-context PUT it can
+    never erase other slots' pins with a stale client map. Pinning
+    promotes a draft row to active; archived rows refuse. Returns the
+    updated document (context included)."""
+    from app.services.cv_synth_service import CvSynthService
+
+    service = CvService(db)
+    cv = await service.get_owned(cv_id, user.id)
+    try:
+        updated = await CvSynthService(db).pin_single(
+            cv,
+            user.id,
+            payload.source_key,
+            payload.item_id,
+            payload.synth_id,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return await _out(db, service, updated)
 
 

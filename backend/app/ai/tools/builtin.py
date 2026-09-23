@@ -13,16 +13,20 @@ from app.ai.tools.base import AITool, ToolContext, ToolScope
 
 
 class SearchJobsInput(BaseModel):
-    """Keyword search over the published catalog."""
+    """Keyword search over the published catalog.
 
-    query: str = Field(min_length=1)
+    The query is search TERMS only (skill, role, city) — never a chat
+    sentence; the model passes user prose here otherwise, and the
+    server then has to heuristically un-stick it."""
+
+    query: str = Field(min_length=1, max_length=120)
     limit: int = Field(default=8, ge=1, le=25)
 
 
 class SearchPostingsInput(BaseModel):
     """Open-vacancy search over the explore vocabulary."""
 
-    query: str = ""
+    query: str = Field(default="", max_length=200)
     filters: dict = Field(default_factory=dict)
     n: int = Field(default=5, ge=1, le=25)
 
@@ -254,7 +258,11 @@ BUILTIN_TOOLS: list[AITool] = [
     AITool(
         key="search_jobs",
         title="Search catalog jobs",
-        description="Keyword search over the published job catalog.",
+        description=(
+            "Keyword search over the published job catalog. The query is "
+            "SHORT search terms (skill, role, city) — never a chat "
+            "sentence."
+        ),
         input_model=SearchJobsInput,
         handler=_search_jobs,
         scope=ToolScope.READ,
@@ -265,7 +273,8 @@ BUILTIN_TOOLS: list[AITool] = [
         title="Search open postings",
         description=(
             "Search live vacancies from connected boards (explore filters,"
-            " per-posting fit)."
+            " per-posting fit). The query — if any — holds short search "
+            "terms, never a chat sentence."
         ),
         input_model=SearchPostingsInput,
         handler=_search_postings,

@@ -29,6 +29,10 @@ export interface CvSynthPayload {
   description?: string;
   summary?: string;
   achievements?: CvSynthBullet[];
+  /** Plan 110: explicit omission — the pinned row clears the item's
+   * bullets (empty `achievements` is the text-only serialization and
+   * never a signal). */
+  omit_bullets?: boolean;
 }
 
 export interface CvSynthVoice {
@@ -325,6 +329,9 @@ export interface CvPreviewOut {
     snapshot_index: Record<string, string[]>;
     items: CvContextResolutionRef[];
     resolved_at: string;
+    /** The applied-variant truth: `{ref_key: synth_id}` for every pin
+     * that actually rendered — stars cross-check against it. */
+    synth_applied?: Record<string, string>;
   };
 }
 

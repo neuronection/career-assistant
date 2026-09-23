@@ -79,6 +79,41 @@ def register_mock_fixture(
     MOCK_FIXTURES[task.value] = builder
 
 
+def _rebalanced_prefix(prefix: str) -> Optional[str]:
+    """Close whatever the truncated JSON prefix left open, or None.
+
+    Minimal-only scan: track string state and the bracket stack; a cut
+    is recoverable when the string state resolves (drop a volatile
+    trailing backslash, close an open quote) and the stack closes
+    cleanly."""
+    stack: list[str] = []
+    closers = {"{": "}", "[": "]"}
+    in_string = escape = False
+    for ch in prefix:
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack or closers[stack[-1]] != ch:
+                return None
+            stack.pop()
+    if escape:
+        return None
+    repaired = prefix + '"' if in_string else prefix
+    if stack:
+        repaired += "".join(closers[bracket] for bracket in reversed(stack))
+    return repaired
+
+
 def _extract_json(text: str) -> dict:
     """Best-effort extraction of a JSON object from a model reply."""
     text = text.strip()
@@ -87,10 +122,41 @@ def _extract_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        # Prose-wrapped reply: take the widest {...} region it contains.
         match = re.search(r"\{.*\}", text, flags=re.DOTALL)
         if match:
-            return json.loads(match.group(0))
-        raise
+            candidate = match.group(0)
+        elif text.startswith("{"):
+            # Unguarded truncation: the object started but never closed.
+            candidate = text
+        else:
+            raise
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            # Truncated object (stream hit a length/finish cutoff): keep
+            # the largest cut that still parses with auto-closures — the
+            # "answer" field usually landed long before the cut. Cuts
+            # walk newest-first over value boundaries only (a value end
+            # or a comma), bounded so pathological input terminates.
+            attempts = 0
+            position = len(candidate)
+            while position > 1 and attempts < 64:
+                attempts += 1
+                boundary = max(
+                    (m.start() for m in re.finditer(r"\}|,", candidate[:position])),
+                    default=0,
+                )
+                if boundary < 1:
+                    break
+                repaired = _rebalanced_prefix(candidate[:boundary])
+                if repaired is not None:
+                    try:
+                        return json.loads(repaired)
+                    except json.JSONDecodeError:
+                        pass
+                position = boundary
+            raise
 
 
 class StructuredAIError(Exception):
@@ -927,23 +993,43 @@ class StructuredStream:
             if self.reply is None:
                 raw_snippet = "".join(self._raw).strip()
                 if raw_snippet:
-                    audit_error = f"{audit_error} | raw={raw_snippet[:300]!r}"
-            if self.reply is None and "AINotConfigured" not in self.error:
-                latency = (time.perf_counter() - started) * 1000
-                await _record(
-                    db,
-                    user_id,
-                    task,
-                    resolved.provider_type,
-                    user,
-                    None,
-                    None,
-                    None,
-                    latency,
-                    "error",
-                    audit_error,
-                    provider_type=resolved.provider_type,
-                )
+                    # Debuggability: the audit `output` keeps the full raw
+                    # reply (the error column cap hides the tail that
+                    # actually broke validation), the error line keeps a
+                    # 600-char head.
+                    audit_error = f"{audit_error} | raw={raw_snippet[:600]!r}"
+                    if "AINotConfigured" not in self.error:
+                        latency = (time.perf_counter() - started) * 1000
+                        await _record(
+                            db,
+                            user_id,
+                            task,
+                            resolved.provider_type,
+                            user,
+                            {"raw": raw_snippet[:4000]},
+                            self.tokens_in,
+                            self.tokens_out,
+                            latency,
+                            "error",
+                            audit_error,
+                            provider_type=resolved.provider_type,
+                        )
+                elif "AINotConfigured" not in self.error:
+                    latency = (time.perf_counter() - started) * 1000
+                    await _record(
+                        db,
+                        user_id,
+                        task,
+                        resolved.provider_type,
+                        user,
+                        None,
+                        self.tokens_in,
+                        self.tokens_out,
+                        latency,
+                        "error",
+                        audit_error,
+                        provider_type=resolved.provider_type,
+                    )
             raise
 
 

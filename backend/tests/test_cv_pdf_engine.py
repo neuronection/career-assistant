@@ -159,6 +159,63 @@ async def test_html_to_pdf_drops_a_dead_browser_and_retries(monkeypatch):
     assert playwright.chromium.browser.calls == 2, "the dead page was retried"
 
 
+async def test_failed_render_closes_every_discarded_browser(monkeypatch):
+    """A dead/flaky browser is CLOSED, not merely forgotten — the old
+    `_drop_browser` leaked a Chromium process on every failure, which
+    eventually wedged the host and hung later renders on `new_page`."""
+
+    class _Browser:
+        def __init__(self):
+            self.closes = 0
+
+        async def new_page(self):
+            raise RuntimeError("Target closed")
+
+        async def close(self):
+            self.closes += 1
+
+    launched: list[_Browser] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            browser = _Browser()
+            launched.append(browser)
+            return browser
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    async def _fake_get_playwright():
+        return _Playwright()
+
+    monkeypatch.setattr(pdf_service, "_get_playwright", _fake_get_playwright)
+    with pytest.raises(PDFEngineUnavailable):
+        await pdf_service.html_to_pdf("<html></html>")
+
+    assert len(launched) == 2, "the dead browser was retried once"
+    assert all(browser.closes == 1 for browser in launched), (
+        "each discarded browser must be closed so its process cannot leak"
+    )
+    assert pdf_service._BROWSER is None
+    assert pdf_service._BROWSER_CHANNEL is pdf_service._UNRESOLVED
+
+
+def test_disconnected_browser_is_evicted_from_the_cache():
+    """A disconnect clears the cache only for the browser it happened to —
+    so the next render relaunches instead of reusing a closed handle."""
+    sentinel = object()
+    other = object()
+    pdf_service._BROWSER = sentinel
+    pdf_service._BROWSER_CHANNEL = None
+
+    pdf_service._on_browser_disconnected(other)
+    assert pdf_service._BROWSER is sentinel
+
+    pdf_service._on_browser_disconnected(sentinel)
+    assert pdf_service._BROWSER is None
+    assert pdf_service._BROWSER_CHANNEL is pdf_service._UNRESOLVED
+
+
 def test_bundled_browsers_path_prefers_env_and_frozen_layout(monkeypatch, tmp_path):
     bundled = tmp_path / "ms-playwright"
     bundled.mkdir()

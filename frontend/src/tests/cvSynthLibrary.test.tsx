@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { CvSynthLibrary } from "@/pages/CvSynthLibrary";
@@ -369,7 +369,8 @@ describe("CvSynthLibrary", () => {
       .setup()
       .click(within(document.body).getByTestId("synth-editor-save"));
     await waitFor(() => expect(createSynthItem).toHaveBeenCalled());
-    expect(createSynthItem.mock.calls[0][0]).toMatchObject({
+    // eslint-disable-next-line no-console
+    expect(createSynthItem.mock.calls[createSynthItem.mock.calls.length - 1]?.[0]).toMatchObject({
       refs: [{ source_key: "experience", item_id: ITEM_ID }],
       payload: { description: "My own tailored text", achievements: [] },
       voice: { language: "en" },
@@ -384,6 +385,32 @@ describe("CvSynthLibrary", () => {
       "synth-editor-save",
     ) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
+  });
+});
+
+describe("variant editor omit-bullets (plan 110)", () => {
+  it("creates an omit-bullets variant through the editor", async () => {
+    fetchSynthItems.mockResolvedValue([]);
+    await renderLibrary();
+    await userEvent.setup().click(screen.getByTestId("synth-add-variant"));
+    const text = within(document.body).getByTestId(
+      "synth-editor-description-input",
+    );
+    const refCheckbox = within(document.body).getByTestId(
+      `synth-editor-ref-experience:${ITEM_ID}`,
+    ) as HTMLInputElement;
+    await userEvent.setup().click(refCheckbox);
+    await typeIntoSynthEditor(text, "Tightened tailored text");
+    fireEvent.click(within(document.body).getByTestId("synth-editor-omit-bullets"));
+    await userEvent
+      .setup()
+      .click(within(document.body).getByTestId("synth-editor-save"));
+    await waitFor(() => expect(createSynthItem).toHaveBeenCalled());
+    // eslint-disable-next-line no-console
+    expect(createSynthItem.mock.calls[createSynthItem.mock.calls.length - 1]?.[0]).toMatchObject({
+      refs: [{ source_key: "experience", item_id: ITEM_ID }],
+      payload: { omit_bullets: true, achievements: [] },
+    });
   });
 });
 

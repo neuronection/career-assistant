@@ -43,6 +43,17 @@ def test_elevation_token_shadows_card_sections_only_when_set():
     )
 
 
+def test_summary_block_renders_override_text():
+    content = TemplateContent.model_validate({"blocks": [{"kind": "summary"}]})
+    rendered = render_cv(content, {"summary": {"summary": "Typed in studio."}}).html
+    assert "Typed in studio." in rendered
+
+
+def test_empty_summary_block_is_omitted():
+    content = TemplateContent.model_validate({"blocks": [{"kind": "summary"}]})
+    assert "class='summary'" not in render_cv(content, {}).html
+
+
 async def _second_user(client) -> dict:
     response = await client.post(
         "/api/v1/auth/register",

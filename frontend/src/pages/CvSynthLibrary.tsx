@@ -11,6 +11,7 @@ import {
 import { apiDetail } from "@/api/client";
 import {
   createSynthItem,
+  bulkSynthItems,
   deleteSynthItem,
   fetchContextSources,
   fetchSynthItems,
@@ -33,6 +34,14 @@ const ACTIONS: CvSynthAction[] = [
   "posting_fit",
   "translate",
 ];
+
+const BULK_NOTICE: Record<string, string> = {
+  archive: "archived",
+  unarchive: "unarchived",
+  delete: "deleted",
+  draft: "setDraft",
+  activate: "activated",
+};
 
 interface Group {
   key: string;
@@ -86,6 +95,30 @@ export function CvSynthLibrary() {
     initial: null,
   });
   const [actions, setActions] = useState<Record<string, CvSynthAction>>({});
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkDelete, setBulkDelete] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const selectedIds = useMemo(() => Array.from(selected), [selected]);
+  const archivedCount = items.filter((item) => item.status === "archived").length;
+
+  const bulkRun = async (
+    action: "archive" | "unarchive" | "delete" | "draft" | "activate"
+  ) => {
+    if (selectedIds.length === 0) return;
+    await act(async () => {
+      if (action === "draft" || action === "activate") {
+        await Promise.all(
+          selectedIds.map((id) =>
+            patchSynthItem(id, { status: action === "draft" ? "draft" : "active" })
+          )
+        );
+      } else {
+        await bulkSynthItems(selectedIds, action);
+      }
+      setSelected(new Set());
+    }, t(`cvSynth.bulk.${BULK_NOTICE[action]}`));
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,7 +245,110 @@ export function CvSynthLibrary() {
         </Link>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {selectMode && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || archivedCount === 0}
+            data-testid="synth-select-archived"
+            onClick={() =>
+              setSelected(
+                new Set(
+                  items
+                    .filter((item) => item.status === "archived")
+                    .map((item) => item.id)
+                )
+              )
+            }
+          >
+            {t("cvSynth.bulk.selectArchived", { defaultValue: "Select archived" })}
+            {" ("}
+            {archivedCount}
+            {")"}
+          </Button>
+        )}
+        {selectMode && selectedIds.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            data-testid="synth-bulk-archive"
+            onClick={() => void bulkRun("archive")}
+          >
+            {t("cvSynth.bulk.archive", { defaultValue: "Archive" })}
+          </Button>
+        )}
+        {selectMode && selectedIds.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            data-testid="synth-bulk-unarchive"
+            onClick={() => void bulkRun("unarchive")}
+          >
+            {t("cvSynth.bulk.unarchive", { defaultValue: "Restore" })}
+          </Button>
+        )}
+        {selectMode && selectedIds.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            data-testid="synth-bulk-draft"
+            onClick={() => void bulkRun("draft")}
+          >
+            {t("cvSynth.bulk.draft", { defaultValue: "Set draft" })}
+          </Button>
+        )}
+        {selectMode && selectedIds.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            data-testid="synth-bulk-activate"
+            onClick={() => void bulkRun("activate")}
+          >
+            {t("cvSynth.bulk.activate", { defaultValue: "Activate" })}
+          </Button>
+        )}
+        {selectMode && selectedIds.length > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            data-testid="synth-bulk-delete"
+            onClick={() => setBulkDelete(true)}
+          >
+            <span className="text-red-600">
+              {t("cvSynth.bulk.delete", { defaultValue: "Delete" })}
+            </span>
+          </Button>
+        )}
+        {selectMode && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            data-testid="synth-selection-clear"
+            onClick={() => setSelected(new Set())}
+          >
+            {t("cvSynth.bulk.clear", { defaultValue: "Clear selection" })}
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant={selectMode ? "outline" : undefined}
+          data-testid="synth-select-mode"
+          onClick={() => {
+            setSelectMode((current) => !current);
+            setSelected(new Set());
+          }}
+        >
+          {selectMode
+            ? t("cvSynth.bulk.done", { defaultValue: "Done" })
+            : t("cvSynth.bulk.select", { defaultValue: "Select" })}
+        </Button>
         <Button
           size="sm"
           data-testid="synth-add-variant"
@@ -302,15 +438,58 @@ export function CvSynthLibrary() {
                   </Button>
                 </div>
               </div>
+              {selectMode && (
+                <div className="mb-1.5 flex items-center gap-2 text-xs text-[var(--as-muted-fg)]">
+                  <input
+                    type="checkbox"
+                    className="accent-[var(--as-accent)]"
+                    data-testid={`synth-group-select-${group.key}`}
+                    checked={group.items.every((item) => selected.has(item.id))}
+                    onChange={(event) => {
+                      const next = new Set(selected);
+                      for (const item of group.items) {
+                        if (event.target.checked) next.add(item.id);
+                        else next.delete(item.id);
+                      }
+                      setSelected(next);
+                    }}
+                  />
+                  {t("cvSynth.bulk.selectGroup", { defaultValue: "Select all in group" })}
+                </div>
+              )}
               <ul className="divide-y rounded-lg border">
                 {group.items.map((item) => (
                   <li
                     key={item.id}
-                    className="p-3 flex items-start justify-between gap-4"
+                    className={`p-3 flex items-start justify-between gap-4 ${
+                      item.status === "archived" ? "opacity-60 bg-slate-50" : ""
+                    }`}
                     data-testid={`synth-variant-${item.id}`}
+                    data-status={item.status}
                   >
+                    {selectMode && (
+                      <input
+                        type="checkbox"
+                        className="mt-1 accent-[var(--as-accent)]"
+                        data-testid={`synth-select-${item.id}`}
+                        checked={selected.has(item.id)}
+                        aria-label={`Select variant ${item.id}`}
+                        onChange={(event) => {
+                          const next = new Set(selected);
+                          if (event.target.checked) next.add(item.id);
+                          else next.delete(item.id);
+                          setSelected(next);
+                        }}
+                      />
+                    )}
                     <div className="min-w-0">
-                      <p className="line-clamp-2 text-sm text-slate-900 break-words">
+                      <p
+                        className={`line-clamp-2 text-sm break-words ${
+                          item.status === "archived"
+                            ? "text-slate-500"
+                            : "text-slate-900"
+                        }`}
+                      >
                         {itemText(item) || t("cvSynth.emptyBody")}
                       </p>
                       {item.source_refs.length > 0 && (
@@ -341,7 +520,16 @@ export function CvSynthLibrary() {
                         </div>
                       )}
                       <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                        <span
+                          className={
+                            item.status === "active"
+                              ? "px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--as-accent)_10%,transparent)] text-[var(--as-accent)] font-medium"
+                              : item.status === "draft"
+                                ? "px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium"
+                                : "px-1.5 py-0.5 rounded bg-[var(--as-muted)] text-[var(--as-muted-fg)] font-medium"
+                          }
+                          data-testid={`synth-status-${item.id}`}
+                        >
                           {t(`cvSynth.status.${item.status}`)}
                         </span>
                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
@@ -459,6 +647,22 @@ export function CvSynthLibrary() {
               () => deleteSynthItem(target.id),
               t("cvSynth.deleted"),
             );
+          }}
+        />
+      )}
+
+      {bulkDelete && (
+        <ConfirmationModal
+          open
+          onOpenChange={(next) => !next && setBulkDelete(false)}
+          title={t("cvSynth.deleteConfirm")}
+          description={t("cvSynth.bulk.deleteBody", { defaultValue: "Delete the selected variants? The paired profile entries keep their text." })}
+          confirmLabel={t("cvSynth.bulk.delete", { defaultValue: "Delete" })}
+          destructive
+          busy={busy}
+          onConfirm={async () => {
+            setBulkDelete(false);
+            await bulkRun("delete");
           }}
         />
       )}

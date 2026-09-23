@@ -161,13 +161,19 @@ async def test_explore_filters_are_index_backed_on_postgres(db):
     )
     sql = _compiled(query, postgresql)
     try:
-        await db.execute(text("SET enable_seqscan = off"))
+        # `SET LOCAL` rides the outer transaction: the planner state can't
+        # leak into (or survive on) a pooled connection, which matters
+        # under pytest-xdist where workers share the same Postgres server.
+        await db.execute(text("SET LOCAL enable_seqscan = off"))
         plan = "\n".join(
             row[0] for row in (await db.execute(text(f"EXPLAIN {sql}"))).fetchall()
         )
     finally:
-        await db.execute(text("SET enable_seqscan = on"))
-    assert "ix_postings_" in plan, plan
+        await db.execute(text("SET LOCAL enable_seqscan = on"))
+    # Either posting index keeps the query index-backed; which one the
+    # planner picks is cost statistics, and cost ties flip under parallel
+    # workers (an empty-with-dead-tuples table races ANALYZE).
+    assert "ix_postings_" in plan or "ix_job_postings_" in plan, plan
     assert "Seq Scan on job_postings" not in plan, plan
 
 

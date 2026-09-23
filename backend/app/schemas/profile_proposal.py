@@ -26,6 +26,7 @@ ProposalKindLiteral = Literal[
     "profile_section",
     "cv_synth",
     "cv_set_bullets",
+    "cv_choice",
 ]
 
 PROFILE_SECTIONS: tuple[str, ...] = (
@@ -129,6 +130,11 @@ class CvSynthOpPayload(BaseModel):
     tone: Optional[str] = Field(default=None, max_length=60)
     length: Optional[str] = Field(default=None, max_length=20)
     variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    #: Server-injected (never model-written): the builder-bound session's
+    #: CV — approve pins the activated variants on it (plan-104 follow-up:
+    #: accept → activate + star + live preview), instead of leaving the
+    #: user a manual hand-trip to the studio.
+    cv_id: Optional[UUID] = None
 
 
 class CvSetBulletsOpPayload(BaseModel):
@@ -157,6 +163,66 @@ class CvSetBulletsOpPayload(BaseModel):
             if text:
                 cleaned.append(text)
         return cleaned
+
+
+class CvChoiceOption(BaseModel):
+    """One selectable option of a cv_choice card (plan 108).
+
+    ``payload`` is the CHILD op payload, validated against the child
+    kind's own schema here and re-validated (with server-side
+    grounding/labeling) when the parent card fans out on approval —
+    multi-hop untrusted input, never trusted from creation time.
+    """
+
+    key: str = Field(min_length=1, max_length=60, pattern=r"[a-z0-9_-]+")
+    kind: ProposalKindLiteral
+    action: Literal["create", "update"] = "create"
+    label: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=400)
+    entity_id: Optional[UUID] = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class CvChoiceOpPayload(BaseModel):
+    """A multi-select picker card (plan 108): question + options; the
+    user selects some, and the resolution MATERIALIZES each selected
+    option as a standard pending child proposal (never executes an op
+    directly — the card is a picker, not an executor)."""
+
+    model_config = {"extra": "forbid"}
+
+    question: str = Field(min_length=1, max_length=400)
+    options: list[CvChoiceOption] = Field(min_length=2, max_length=8)
+    min_select: int = Field(default=1, ge=1)
+    max_select: int = Field(default=1, ge=1)
+
+    @field_validator("options")
+    @classmethod
+    def _unique_non_nested_keys(
+        cls, options: list[CvChoiceOption]
+    ) -> list[CvChoiceOption]:
+        if len({option.key for option in options}) != len(options):
+            raise ValueError("option keys must be unique")
+        if any(option.kind == "cv_choice" for option in options):
+            raise ValueError("a cv_choice card cannot nest cv_choice options")
+        return options
+
+    @model_validator(mode="after")
+    def _shape(self) -> "CvChoiceOpPayload":
+        self.max_select = min(self.max_select, len(self.options))
+        if self.min_select > self.max_select:
+            raise ValueError("min_select cannot exceed max_select")
+        return self
+
+
+class CvChoiceApproveIn(BaseModel):
+    """Approve body for option pickers: the selected option keys.
+
+    Keys stay optional at the HTTP edge (plain approvals post `{}`);
+    ``cv_choice`` semantics enforce them in the service.
+    """
+
+    option_keys: list[str] = Field(default_factory=list, max_length=16)
 
 
 class ProfileProposalOut(BaseModel):
@@ -189,6 +255,7 @@ class ProfileProposalResolveOut(BaseModel):
     proposal: ProfileProposalOut
     applied: Optional[dict[str, Any]] = None
     already: bool = False
+    children: list[ProfileProposalOut] = Field(default_factory=list)
 
 
 class CvSynthPreviewSource(BaseModel):

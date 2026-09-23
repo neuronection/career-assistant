@@ -177,6 +177,126 @@ function ProposalCard({
   );
 }
 
+/** One choice card (plan 108): a multi-select picker. Options ride the
+ * card payload; selecting some and proceeding materializes each as a
+ * standard pending card (the picker never executes anything itself). */
+function ChoiceProposalCard({ card }: { card: ProfileProposalCardData }) {
+  const { t } = useTranslation();
+  const override = useProfileProposalsStore((state) => state.overrides[card.id]);
+  const setBusy = useProfileProposalsStore((state) => state.setBusy);
+  const [selected, setSelected] = useState<string[]>([]);
+  const status = override?.status ?? card.status;
+  const choice = (card.payload ?? {}) as {
+    options?: { key: string; label: string; description?: string }[];
+    min_select?: number;
+    max_select?: number;
+  };
+  const options = choice.options ?? [];
+  const pending = status === "pending" && !override?.busy;
+  const single = (choice.max_select ?? 1) <= 1;
+  const maxSelect = single ? 1 : (choice.max_select ?? options.length);
+  const toggle = (key: string) => {
+    if (!pending) return;
+    if (single) {
+      setSelected((current) => (current[0] === key ? [] : [key]));
+      return;
+    }
+    setSelected((current) => {
+      if (current.includes(key)) {
+        return current.filter((entry) => entry !== key);
+      }
+      if (current.length >= maxSelect) return current;
+      return [...current, key];
+    });
+  };
+  const belowMin = selected.length < (choice.min_select ?? 1);
+
+  return (
+    <div
+      data-testid={`hitl-choice-${card.id}`}
+      className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+    >
+      <p className="text-sm font-medium text-[var(--as-fg)]">{card.title}</p>
+      <div
+        role="group"
+        aria-label={t("chat.proposals.choice.optionsLabel")}
+        className="mt-2 flex flex-col gap-1"
+      >
+        {options.map((option) => {
+          const checked = selected.includes(option.key);
+          return (
+            <label
+              key={option.key}
+              className={`flex cursor-pointer items-start gap-2 rounded-[calc(var(--as-radius)*0.75)] border px-2.5 py-1.5 text-sm transition-colors ${
+                checked
+                  ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_10%,transparent)]"
+                  : "border-[var(--as-border)] hover:border-[var(--as-accent)]"
+              } ${pending ? "" : "pointer-events-none opacity-60"}`}
+            >
+              <input
+                type={single ? "radio" : "checkbox"}
+                checked={checked}
+                disabled={!single && !checked && selected.length >= maxSelect}
+                onChange={() => toggle(option.key)}
+                className="mt-0.5 accent-[var(--as-accent)]"
+                data-testid={`hitl-choice-option-${option.key}`}
+              />
+              <span className="min-w-0">
+                <span className="block font-medium text-[var(--as-fg)]">
+                  {option.label}
+                </span>
+                {option.description ? (
+                  <span className="block text-xs text-[var(--as-muted-fg)]">
+                    {option.description}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {pending ? (
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={belowMin || selected.length === 0}
+            data-testid={`hitl-choice-proceed-${card.id}`}
+            onClick={() => {
+              setBusy(card.id, true);
+              void useProfileProposalsStore
+                .getState()
+                .resolve(card.id, "approve", selected);
+            }}
+            className="rounded-[var(--as-radius)] bg-[var(--as-accent)] px-3 py-1.5 text-sm font-medium text-[var(--as-accent-fg)] transition-opacity disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)]"
+          >
+            {t("chat.proposals.choice.proceed")}
+          </button>
+          <button
+            type="button"
+            data-testid={`hitl-choice-dismiss-${card.id}`}
+            onClick={() => {
+              setBusy(card.id, true);
+              void useProfileProposalsStore.getState().resolve(card.id, "reject");
+            }}
+            className="rounded-[var(--as-radius)] border border-[var(--as-border)] px-3 py-1.5 text-sm font-medium text-[var(--as-muted-fg)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)]"
+          >
+            {t("chat.proposals.reject")}
+          </button>
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-[var(--as-muted-fg)]">
+          {t(`chat.proposals.${status}`, {
+            defaultValue: t("chat.proposals.pending"),
+          })}
+        </p>
+      )}
+      {override?.error ? (
+        <p className="mt-1 text-xs text-[var(--as-danger)]">{override.error}</p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * The HITL card stack (plan 77) — live-turn cards (store) or persisted
  * cards (message metadata) both render through this; resolve state comes
@@ -204,9 +324,17 @@ export function ProposalCards({
   }
   return (
     <div className="mt-1 flex w-full flex-col gap-1.5" data-testid="hitl-cards">
-      {cards.map((card) => (
-        <ProposalCard key={card.id} card={card} onOpenPreview={setPreviewCard} />
-      ))}
+      {cards.map((card) =>
+        card.kind === "cv_choice" ? (
+          <ChoiceProposalCard key={card.id} card={card} />
+        ) : (
+          <ProposalCard
+            key={card.id}
+            card={card}
+            onOpenPreview={setPreviewCard}
+          />
+        ),
+      )}
       {droppedCount > 0 ? (
         <p
           className="text-xs text-[var(--as-muted-fg)]"

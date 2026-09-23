@@ -222,7 +222,7 @@ def test_summarize_caps_trace_strings():
     SUMMARY_LIMIT — on the wire and in the persisted trace alike."""
     from app.ai.agents.chatbot import SUMMARY_LIMIT, _summarize
 
-    assert len(_summarize({"blob": "x" * 500})) == SUMMARY_LIMIT
+    assert len(_summarize({"blob": "x" * (SUMMARY_LIMIT + 500)})) == SUMMARY_LIMIT
     assert _summarize({"code": "DATA-01"}) == '{"code": "DATA-01"}'
     assert _summarize(None) == "null"
     assert _summarize(object()).startswith('"')

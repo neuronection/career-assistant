@@ -34,6 +34,9 @@ interface CvBuilderLinkState {
    * "Profile changed" toast, local Studio edits skip it. */
   lastDataOrigin: "chat" | "local";
   applyBuilderState: (state: CvAssistantState) => void;
+  /** Consumed by the mounted builder: the applied state is cleared so
+   * it can never land on a different CV's builder later. */
+  clearBuilderState: () => void;
   applyTurnTrace: (cvId: string, trace: LiveTurnTraceInput | null) => void;
   registerFlush: (flush: (() => void) | null) => void;
   flushPendingSave: () => void;
@@ -51,6 +54,7 @@ export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
   dataRevision: 0,
   lastDataOrigin: "chat",
   applyBuilderState: (state) => set({ lastBuilderState: state }),
+  clearBuilderState: () => set({ lastBuilderState: null }),
   applyTurnTrace: (cvId, trace) => {
     const key = turnKey(cvId);
     if (trace === null) {

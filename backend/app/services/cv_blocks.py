@@ -391,11 +391,43 @@ def register_block_kind(spec: BlockSpec) -> None:
     REGISTRY[spec.kind] = spec
 
 
+def _heal_required_props(spec: "BlockSpec", props: dict) -> dict | None:
+    """Registry-sourced backfill for REQUIRED fields the AI omitted.
+
+    Deterministic healing, one honest step: only model-required fields
+    (no schema default) that the registry's own sample announces are
+    filled in — optional fields stay untouched so bad values remain
+    validation errors. None = the sample cannot help either."""
+    schema = spec.props_schema
+    try:
+        required = {
+            name for name, field in schema.model_fields.items() if field.is_required()
+        }
+    except Exception:  # noqa: BLE001 — reflection must never crash healing
+        return None
+    healed = dict(props)
+    filled = False
+    for name in required:
+        if name in healed and healed[name] not in (None, "", {}, []):
+            continue
+        if name not in spec.sample:
+            continue
+        value = spec.sample[name]
+        if value in (None, "", {}, []):
+            continue
+        healed[name] = value
+        filled = True
+    return healed if filled else None
+
+
 def validate_blocks(blocks: list[dict]) -> list[tuple[str, BaseModel]]:
     """Validate every block against its registry kind (hard-reject unknown).
 
-    Returns (kind, validated_props) pairs; raises ValidationError with a
-    per-block report otherwise.
+    AI-drafted props may omit required fields with clean schema defaults
+    (e.g. an `items` block without `source_key`): such props are HEALED
+    from the registry sample — required-field backfill only, optional
+    fields untouched — before validation. Returns (kind, validated_props)
+    pairs; raises ValidationError with a per-block report otherwise.
     """
     validated: list[tuple[str, BaseModel]] = []
     problems: list[str] = []
@@ -405,11 +437,23 @@ def validate_blocks(blocks: list[dict]) -> list[tuple[str, BaseModel]]:
         if spec is None:
             problems.append(f"block {index}: unknown kind {kind!r}")
             continue
+        props_in = dict(block.get("props") or {})
         try:
-            props = spec.props_schema.model_validate(block.get("props") or {})
-        except Exception as exc:  # noqa: BLE001 - pydantic errors are report text
-            problems.append(f"block {index} ({kind}): {exc}")
-            continue
+            props = spec.props_schema.model_validate(props_in)
+        except Exception:
+            healed = _heal_required_props(spec, props_in)
+            if healed is None:
+                try:
+                    props = spec.props_schema.model_validate(props_in)
+                except Exception as exc:  # noqa: BLE001 - pydantic errors are report text
+                    problems.append(f"block {index} ({kind}): {exc}")
+                    continue
+            else:
+                try:
+                    props = spec.props_schema.model_validate(healed)
+                except Exception as exc:  # noqa: BLE001 - pydantic errors are report text
+                    problems.append(f"block {index} ({kind}): {exc}")
+                    continue
         validated.append((kind, props))
     if problems:
         raise ValidationError("; ".join(problems))

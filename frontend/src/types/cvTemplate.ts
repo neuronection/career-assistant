@@ -29,6 +29,10 @@ export interface CvDesignTokens {
   section_gap_mm: number | null;
   item_gap_mm: number | null;
   border_color: string;
+  running_footer?: "none" | "name" | "numbers";
+  chip_style?: "tint" | "outline" | "solid" | "plain";
+  chip_tint_pct?: number;
+  chip_text_color?: string | null;
   layout: "single" | "sidebar";
   sidebar_side: "left" | "right";
   sidebar_color: string;

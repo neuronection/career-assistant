@@ -244,7 +244,11 @@ async def draft_template(
         system = (
             "You design CV templates as structured packages of blocks. "
             "Use only the registered block kinds provided in the brief; "
-            "respect the page budget; keep typography readable. Leave "
+            "respect the page budget; keep typography readable. Every "
+            "block's props must satisfy the registry's required fields "
+            "— an `items` block NEEDS source_key (experience/projects/"
+            "volunteer/education/certifications); prefer fully "
+            "specifying props over emitting empty props objects. Leave "
             "design.margin_mm unset unless the brief explicitly asks for "
             "full-bleed or unusual margins; it is bounded 0-25mm. " + AREA_RULES
         )
@@ -269,16 +273,22 @@ async def critique_pages(
     max_pages: int,
     page_count: int,
     images: list[tuple[str, bytes]] | None = None,
+    rendered: list[dict] | None = None,
 ) -> CvVisualCritique:
     """Vision critique of rendered pages; degrades to lint-only facts.
 
     With no images the model still receives the deterministic lint report
     and proposes token-level fixes (no vision required to be useful).
+    `rendered` is the deterministic what-actually-prints ground truth
+    (per visible section: headlines, item count, description/bullet
+    layers) — content claims anchor to it, so a bullet-less section can
+    never be reported as printing bullets.
     """
     prompt = context_json(
         {
             "template_summary": template_summary,
             "lint": lint,
+            "rendered": rendered or [],
             "page_count": page_count,
             "max_pages": max_pages,
             "pages": [f"[PAGE {index}]" for index in range(page_count)],
@@ -290,8 +300,17 @@ async def critique_pages(
         CvVisualCritique,
         system=(
             "You review CV page images for layout quality: overflow, "
-            "crowding, alignment, hierarchy, contrast. Propose only safe "
-            "design-token fixes; never invent CV content."
+            "crowding, alignment, hierarchy, contrast. `rendered` is the "
+            "deterministic ground truth of what prints per section: each "
+            "printed entry's headline with ITS OWN description/bullet "
+            "layer truth, plus with_description/with_bullets counts. "
+            "Those counts are exact: write 'all N entries print bullets' "
+            "ONLY when with_bullets equals N, and name the specific "
+            "entries when only some do. Content claims MUST match "
+            "`rendered`: never claim a section or an entry prints a "
+            "layer its entry marks off, never name sections or items "
+            "absent from it, never invent CV content. Propose only safe "
+            "design-token fixes."
         ),
         user=prompt,
         user_id=user_id,

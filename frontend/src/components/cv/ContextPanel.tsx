@@ -18,11 +18,18 @@ interface ContextPanelProps {
   selected: Set<string>;
   onToggle: (sourceKey: string, itemId: string) => void;
   onToggleGroup: (source: CvContextSourceOut, includeAll: boolean) => void;
-  /** Plan 72: the caller's draft + active variants, nested under their items (archived excluded upstream). */
+  /** Plan 72: the caller's draft + active variants, nested under their items. */
   variants?: CvSynthItem[];
+  /** Archived variants under the same items — read-only history rows. */
+  archivedVariants?: CvSynthItem[];
   onAddVariant?: (sourceKey: string) => void;
   /** Plan 72 follow-up: per-item variant pinning (`context.synth_pins`). */
   synthPins?: Record<string, string>;
+  /** The applied-variant truth from the preview (`resolution
+   * .synth_applied`) — null before the first resolution lands. A star
+   * whose pin is missing here is inactive (amber), never silently
+   * dead. */
+  appliedPins?: Record<string, string> | null;
   onPinVariant?: (
     sourceKey: string,
     itemId: string,
@@ -59,6 +66,7 @@ type PinSlot = "text" | "bullets";
 
 function PinStar({
   pinned,
+  inactive = false,
   variant,
   sourceKey,
   itemId,
@@ -66,6 +74,9 @@ function PinStar({
   onPin,
 }: {
   pinned: boolean;
+  /** Pinned but NOT rendering (draft/language/posting mismatch) — the
+   * server's `synth_applied` decides; shown amber, never silently. */
+  inactive?: boolean;
   variant: CvSynthItem;
   sourceKey: string;
   itemId: string;
@@ -89,22 +100,31 @@ function PinStar({
           : `Make ${kind} ${variant.variant_key} the default for this item`
       }
       title={
-        slot === "bullets"
-          ? pinned
-            ? "Unpin — profile bullets render again"
-            : "Make default bullets for this item"
-          : pinned
-            ? "Unpin — the best matching variant applies again"
-            : "Make default for this item"
+        inactive
+          ? "Pinned but not rendering — language, posting or status mismatch"
+          : slot === "bullets"
+            ? pinned
+              ? "Unpin — profile bullets render again"
+              : "Make default bullets for this item"
+            : pinned
+              ? "Unpin — the best matching variant applies again"
+              : "Make default for this item"
       }
       data-testid={`context-pin-star-${variant.id}`}
+      data-inactive={inactive ? "true" : undefined}
       onClick={() =>
         onPin?.(sourceKey, itemId, pinned ? null : variant.id, slot)
       }
       className={`shrink-0 cursor-pointer rounded p-0.5 transition-colors hover:bg-[var(--as-muted)] ${variant.status === "active" ? "" : "opacity-70"}`}
     >
       <Star
-        className={`h-3.5 w-3.5 ${pinned ? "fill-[var(--as-accent)] text-[var(--as-accent)]" : "text-[var(--as-muted-fg)]"}`}
+        className={`h-3.5 w-3.5 ${
+          pinned
+            ? inactive
+              ? "fill-amber-400 text-amber-600"
+              : "fill-[var(--as-accent)] text-[var(--as-accent)]"
+            : "text-[var(--as-muted-fg)]"
+        }`}
         aria-hidden
       />
     </button>
@@ -126,8 +146,9 @@ function VariantsForItem({
   sourceKey,
   itemId,
   variants,
+  archivedVariants = [],
   pinnedId,
-  pinnedBulletsId,
+  appliedPins,
   onPinVariant,
   onEditVariant,
   onResetVariant,
@@ -135,8 +156,11 @@ function VariantsForItem({
   sourceKey: string;
   itemId: string;
   variants: CvSynthItem[];
+  /** Archived rows under the same item — read-only history. */
+  archivedVariants?: CvSynthItem[];
   pinnedId: string | undefined;
-  pinnedBulletsId: string | undefined;
+  /** The applied-variant truth map (null before the first resolution). */
+  appliedPins?: Record<string, string> | null;
   onPinVariant?: (
     sourceKey: string,
     itemId: string,
@@ -147,12 +171,19 @@ function VariantsForItem({
   /** Plan 102: re-snapshot a stale variant's source hashes (review button). */
   onResetVariant?: (variant: CvSynthItem) => void;
 }) {
+  const appliedId = appliedPins?.[refKeyOf(sourceKey, itemId)];
+  const hasResolution = appliedPins != null;
   const rows = variants.filter((variant) =>
     (variant.source_refs ?? []).some(
       (ref) => ref.source_key === sourceKey && ref.item_id === itemId,
     ),
   );
-  if (rows.length === 0) return null;
+  const archivedRows = (archivedVariants ?? []).filter((variant) =>
+    (variant.source_refs ?? []).some(
+      (ref) => ref.source_key === sourceKey && ref.item_id === itemId,
+    ),
+  );
+  if (rows.length === 0 && archivedRows.length === 0) return null;
   return (
     <div className="ml-5 space-y-0.5">
       <ul className="space-y-0.5 border-l border-dashed border-[var(--as-border)] pl-2">
@@ -189,6 +220,11 @@ function VariantsForItem({
                 </button>
               )}
               {variant.orphaned && <AmberBadge testId="context-variant-orphan">gone</AmberBadge>}
+              {pinnedId === variant.id && hasResolution && appliedId !== variant.id && (
+                <AmberBadge testId={`context-variant-inactive-${variant.id}`}>
+                  not rendering
+                </AmberBadge>
+              )}
             </span>
             {variantText(variant) && (
               <span className="line-clamp-2 text-[var(--as-muted-fg)]">
@@ -197,9 +233,9 @@ function VariantsForItem({
             )}
           </span>
           <PinStar
-            pinned={
-              (variant.scope === "bullets" ? pinnedBulletsId : pinnedId) ===
-              variant.id
+            pinned={pinnedId === variant.id}
+            inactive={
+              pinnedId === variant.id && hasResolution && appliedId !== variant.id
             }
             variant={variant}
             sourceKey={sourceKey}
@@ -221,6 +257,40 @@ function VariantsForItem({
           )}
         </li>
       ))}
+      {archivedRows.map((variant) => (
+        <li
+          key={`archived-${sourceKey}-${itemId}-${variant.id}`}
+          className="flex items-center gap-1.5 rounded px-0.5 py-1 text-xs opacity-55"
+          data-testid={`context-variant-archived-${variant.id}`}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1">
+              <span className="shrink-0 text-[10px] font-medium text-[var(--as-muted-fg)]">
+                {variant.variant_key}
+              </span>
+              {variant.scope === "bullets" && (
+                <span
+                  className="shrink-0 rounded-full border border-[var(--as-border)] px-1.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
+                  data-testid={`context-variant-archived-bullets-${variant.id}`}
+                >
+                  bullets
+                </span>
+              )}
+              <span
+                className="shrink-0 rounded-full border border-[var(--as-border)] px-1.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
+                data-testid={`context-variant-archived-badge-${variant.id}`}
+              >
+                archived
+              </span>
+            </span>
+            {variantText(variant) && (
+              <span className="line-clamp-1 text-[var(--as-muted-fg)]">
+                {variantText(variant)}
+              </span>
+            )}
+          </span>
+        </li>
+      ))}
       </ul>
     </div>
   );
@@ -232,8 +302,10 @@ function GroupRow({
   onToggle,
   onToggleGroup,
   variants,
+  archivedVariants,
   onAddVariant,
   synthPins,
+  appliedPins,
   onPinVariant,
   onEditVariant,
   onResetVariant,
@@ -248,8 +320,10 @@ function GroupRow({
   onToggle: (sourceKey: string, itemId: string) => void;
   onToggleGroup: (source: CvContextSourceOut, includeAll: boolean) => void;
   variants: CvSynthItem[];
+  archivedVariants?: CvSynthItem[];
   onAddVariant?: (sourceKey: string) => void;
   synthPins: Record<string, string>;
+  appliedPins?: Record<string, string> | null;
   onPinVariant?: (
     sourceKey: string,
     itemId: string,
@@ -431,8 +505,9 @@ function GroupRow({
                     sourceKey={source.key}
                     itemId={item.item_id}
                     variants={variants}
+                    archivedVariants={archivedVariants}
                     pinnedId={synthPins[key]}
-                    pinnedBulletsId={synthPins[`${key}:bullets`]}
+                    appliedPins={appliedPins}
                     onPinVariant={onPinVariant}
                     onEditVariant={onEditVariant}
                     onResetVariant={onResetVariant}
@@ -453,8 +528,10 @@ export function ContextPanel({
   onToggle,
   onToggleGroup,
   variants = [],
+  archivedVariants = [],
   onAddVariant,
   synthPins = {},
+  appliedPins = null,
   onPinVariant,
   onEditVariant,
   onResetVariant,
@@ -526,8 +603,10 @@ export function ContextPanel({
             onToggle={onToggle}
             onToggleGroup={onToggleGroup}
             variants={variants}
+            archivedVariants={archivedVariants}
             onAddVariant={onAddVariant}
             synthPins={synthPins}
+            appliedPins={appliedPins}
             onPinVariant={onPinVariant}
             onEditVariant={onEditVariant}
             onResetVariant={onResetVariant}

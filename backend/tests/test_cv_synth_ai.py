@@ -245,8 +245,10 @@ async def test_generate_bulk_rides_queue_and_notifies(client, db, auth_headers):
 # ------------------------------------------------------------------ verification
 
 
-async def test_regenerate_supersede_on_activation(client, db, auth_headers):
-    """Regenerate → fresh draft; activating it supersedes the old one."""
+async def test_regenerate_coexists_on_activation(client, db, auth_headers):
+    """Regenerate → fresh draft; activating it keeps the earlier one
+    active (multi-active library — regeneration is a new candidate, not
+    a slot takeover)."""
     item = (await _make_items(db, _uid(auth_headers)))[0]
     first = (
         await client.post(
@@ -255,6 +257,11 @@ async def test_regenerate_supersede_on_activation(client, db, auth_headers):
             headers=auth_headers,
         )
     ).json()["items"][0]
+    await client.patch(
+        f"/api/v1/cv/synth/{first['id']}",
+        json={"status": "active"},
+        headers=auth_headers,
+    )
     regenerated = (
         await client.post(
             f"/api/v1/cv/synth/{first['id']}/regenerate", headers=auth_headers
@@ -276,8 +283,8 @@ async def test_regenerate_supersede_on_activation(client, db, auth_headers):
     assert activated["status"] == "active"
     rows = (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
     by_id = {r["id"]: r for r in rows}
-    assert by_id[first["id"]]["status"] == "archived", (
-        "approving the regenerate supersedes the stale draft"
+    assert by_id[first["id"]]["status"] == "active", (
+        "multi-active library: activation never retires the earlier row"
     )
     assert by_id[second["id"]]["status"] == "active"
 

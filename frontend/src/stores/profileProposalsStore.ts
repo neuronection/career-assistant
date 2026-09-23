@@ -70,7 +70,11 @@ interface ProfileProposalsState {
   receiveLive: (card: ProfileProposalCardData) => void;
   clearLive: () => void;
   setBusy: (id: string, busy: boolean) => void;
-  resolve: (id: string, action: "approve" | "reject") => Promise<void>;
+  resolve: (
+    id: string,
+    action: "approve" | "reject",
+    optionKeys?: string[],
+  ) => Promise<void>;
   revert: (id: string) => Promise<void>;
   loadPreview: (
     id: string,
@@ -114,7 +118,7 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
         overrides: { ...state.overrides, [id]: { ...current, busy } },
       }));
     },
-    resolve: async (id, action) => {
+    resolve: async (id, action, optionKeys?) => {
       const current = get().overrides[id] ?? { status: "pending" as const };
       set((state) => ({
         overrides: {
@@ -125,7 +129,7 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
       try {
         const response =
           action === "approve"
-            ? await approveProfileProposal(id)
+            ? await approveProfileProposal(id, optionKeys)
             : await rejectProfileProposal(id);
         const resolved = response.proposal;
         const status = resolved.status;
@@ -170,9 +174,17 @@ export const useProfileProposalsStore = create<ProfileProposalsState>(
           useCvBuilderLink.getState().notifyDataChanged();
         }
       } catch (error) {
-        const detail =
-          (error as { response?: { data?: { detail?: string } } })?.response?.data
-            ?.detail ?? "Resolve failed";
+        const rawDetail = (error as { response?: { data?: { detail?: unknown } } })
+          ?.response?.data?.detail;
+        // FastAPI validation errors send an array of objects — one text
+        // for the card, the full shape for the console.
+        const text =
+          typeof rawDetail === "string"
+            ? rawDetail
+            : rawDetail == null
+              ? "Resolve failed"
+              : JSON.stringify(rawDetail);
+        const detail = text || "Resolve failed";
         // 409 conflict: the backend flips the proposal to conflict with a
         // fresh diff — reflect it without losing the card.
         set((state) => ({

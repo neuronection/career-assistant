@@ -1,8 +1,9 @@
 # Feature catalog
 
-Everything Career Assistant ships, as built. The [README](../README.md) is the
+Everything Career Assistant ships, as built. The [README](https://github.com/neuronection/career-assistant/blob/main/README.md) is the
 short version; this page is the reference. Statuses live in
-[CHANGELOG.md](../CHANGELOG.md); the runtime architecture is in [ARCHITECTURE.md](ARCHITECTURE.md).
+[CHANGELOG.md](https://github.com/neuronection/career-assistant/blob/main/CHANGELOG.md); the runtime architecture is in
+[architecture.md](../dev/architecture.md).
 
 ## Job catalog
 

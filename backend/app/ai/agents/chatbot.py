@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job_model import Job
 from app.models.posting_model import JobSource
+from app.services import chat_tool_memory
 from app.services.chat_digest_cache import context_without_cache
 
 
@@ -152,8 +153,6 @@ OPEN_ROLE_KEYWORDS = {
     "postings",
     "apply",
     "applying",
-    "real jobs",
-    "open roles",
 }
 NOTIFICATION_KEYWORDS = {
     "notification",
@@ -207,6 +206,7 @@ QUERY_FILLER = {
     "my",
     "us",
     "get",
+    "real",
     # category words, never search targets
     "open",
     "roles",
@@ -219,7 +219,18 @@ QUERY_FILLER = {
 
 
 def _query_from_message(message: str) -> str:
-    """Strip intent keywords/filler, keep the searchable target words."""
+    """Strip chat-prose filler/intent words, keep the searchable target
+    words.
+
+    WHY this exists: the model is free with prose in tool arguments
+    (untrusted input), and search results must not invent intent from
+    it. This deterministic tokenizer pass is the server-side defense —
+    the corpus is English-only because the catalog is.
+
+    The set holds SINGLE TOKENS only: the engine splits on whitespace
+    first, so any phrase entry ("real jobs") can never match and is
+    dead weight. Category words (jobs/role/posting…) act as stopwords
+    too — they name the intent, never the target."""
     words = [token.strip(".,!?;:()[]\"'") for token in message.split()]
     return " ".join(
         word for word in words if word.lower() not in QUERY_FILLER and len(word) > 1
@@ -738,7 +749,7 @@ WEB_SEARCH_KEYWORDS = {
     "whats the latest",
     "web search",
 }
-SUMMARY_LIMIT = 300
+SUMMARY_LIMIT = 2400
 MAX_TRACE_TOOLS = 12
 
 EXPERIENCE_KEYWORDS = {
@@ -1046,26 +1057,52 @@ async def prepare_chat_prompt(
 
     # Web tools (plan 80): pasted links resolve through fetch/github_repo;
     # an explicit search ask runs the optional SearXNG web_search.
+    memory_entries: dict = {}
     lowered_urls = _detect_web_urls(message)
     for index, url in enumerate(lowered_urls[:2]):
-        if "github.com/" in url.lower():
+        base = "github_repo" if "github.com/" in url.lower() else "fetch_url"
+        if base == "github_repo":
             key = "github_repo" if index == 0 else f"github_repo_{index}"
             tool_result, meta = await _timed("github_repo", {"repo": url})
         else:
-            tool_result, meta = await _timed("fetch_url", {"url": url})
             key = "fetch_url" if index == 0 else f"fetch_url_{index}"
+            tool_result, meta = await _timed("fetch_url", {"url": url})
             if key not in TOOL_TITLES:
                 TOOL_TITLES[key] = TOOL_TITLES["fetch_url"]
         tool_results[key] = tool_result
         meta["results"] = _web_result_summary(key, tool_result)
         meta["result_summary"] = _summarize(meta["results"])
         metadata_tools.append(meta)
+        if chat_tool_memory.memorable(base, tool_result):
+            memory_entries[chat_tool_memory.entry_key(base, url)] = {
+                "tool": base,
+                "ident": url,
+                "payload": tool_result,
+                "sig": "",
+            }
     if any(keyword in lowered for keyword in WEB_SEARCH_KEYWORDS):
-        tool_result, meta = await _timed("web_search", {"query": message[:200]})
+        query = message[:200]
+        tool_result, meta = await _timed("web_search", {"query": query})
         tool_results["web_search"] = tool_result
         meta["results"] = _web_result_summary("web_search", tool_result)
         meta["result_summary"] = _summarize(meta["results"])
         metadata_tools.append(meta)
+        if chat_tool_memory.memorable("web_search", tool_result):
+            memory_entries[chat_tool_memory.entry_key("web_search", query)] = {
+                "tool": "web_search",
+                "ident": query,
+                "payload": tool_result,
+                "sig": "",
+            }
+    if memory_entries and session is not None:
+        chat_tool_memory.save(session, memory_entries)
+    # Conversation memory (consistency): cached web tool pulls from
+    # earlier turns re-ride the prompt as compact summaries so a
+    # follow-up ("what does that repo do again?") answers from the same
+    # context instead of a blind re-call.
+    memory = chat_tool_memory.load(session)
+    if memory:
+        tool_results["chat_memory"] = chat_tool_memory.ground_section(memory)
 
     prompt = _build_user_prompt(
         profile_summary, history, message, tool_results, page_context, cv_references

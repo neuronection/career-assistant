@@ -39,7 +39,10 @@ export interface CvAssistantState {
   overrides: Record<string, Record<string, string>>;
   html: string;
   metrics: CvRenderMetrics;
-  resolution: { snapshot_index: Record<string, string[]> };
+  resolution: {
+    snapshot_index: Record<string, string[]>;
+    synth_applied?: Record<string, string>;
+  };
   operations: CvAssistantOpResult[];
   critique: CvAssistantCritique | null;
   version: number | null;

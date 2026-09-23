@@ -101,6 +101,13 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
     icon: MoveVertical,
     props: { height_mm: 4 },
   },
+  {
+    value: "qr",
+    label: "templateEditor.block.qr",
+    description: "templateEditor.block.qr_desc",
+    icon: QrCode,
+    props: { link_kind: "web", size_mm: 24 },
+  },
 ];
 
 export function blockTypeOf(kind: string): BlockTypeSpec | undefined {

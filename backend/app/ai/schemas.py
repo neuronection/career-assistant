@@ -170,6 +170,7 @@ class ProfileOp(BaseModel):
         "profile_section",
         "cv_synth",
         "cv_set_bullets",
+        "cv_choice",
     ]
     action: Literal["create", "update", "delete"]
     entity_id: Optional[str] = Field(default=None, max_length=64)

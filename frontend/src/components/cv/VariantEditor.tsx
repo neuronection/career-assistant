@@ -20,7 +20,11 @@ type CvSynthAction = "summarize" | "detail" | "restyle" | "posting_fit" | "trans
 export interface VariantEditorBody {
   refs: { source_key: string; item_id: string }[];
   scope: "item" | "summary";
-  payload: { description: string; achievements: CvSynthBullet[] };
+  payload: {
+    description: string;
+    achievements: CvSynthBullet[];
+    omit_bullets: boolean;
+  };
   variant_key: string;
   target_posting_id?: string | null;
   voice: { language: string };
@@ -31,10 +35,14 @@ export interface VariantEditorBody {
 
 export interface VariantGenerateRequest {
   action: CvSynthAction;
+  /** The variant's language — non-translate runs draft IN it. */
+  language?: string;
   target_language?: string;
   tone?: string;
   length?: string;
   instruction?: string;
+  /** Translate runs need the master row to translate FROM. */
+  translate_of?: string;
 }
 
 
@@ -49,6 +57,9 @@ interface VariantEditorProps {
   /** The caller's draft + active variants; the editor derives the slot
    * (same refs, variant_key, posting) for the back/forward browser. */
   variants?: CvSynthItem[];
+  /** The CV's `context.synth_pins` — the star decides "On the CV now"
+   * (multi-active library: status alone does NOT mean it renders). */
+  synthPins?: Record<string, string>;
   onGenerate?: (
     request: VariantGenerateRequest,
     refs: { source_key: string; item_id: string }[]
@@ -126,6 +137,7 @@ export function VariantEditor({
   defaultSourceKey,
   busy = false,
   variants = [],
+  synthPins = {},
   onGenerate,
   onUseSaved,
   onActivate,
@@ -152,6 +164,9 @@ export function VariantEditor({
     const texts = textsOf(initial?.payload);
     return texts.length ? texts : [""];
   });
+  const [omitBullets, setOmitBullets] = useState(
+    initial?.payload?.omit_bullets ?? false,
+  );
   const [variantKey, setVariantKey] = useState(initial?.variant_key ?? "default");
   const [language, setLanguage] = useState(
     initial?.voice?.language ?? defaultLanguage
@@ -218,6 +233,7 @@ export function VariantEditor({
   function loadRow(row: CvSynthItem) {
     setLoadedId(row.id);
     setDescription(row.payload.description ?? "");
+    setOmitBullets(row.payload?.omit_bullets ?? false);
     const texts = textsOf(row.payload);
     setBullets(texts.length ? texts : [""]);
     setLanguage(row.voice.language ?? defaultLanguage);
@@ -244,10 +260,14 @@ export function VariantEditor({
       const result = await onGenerate(
         {
           action: genAction,
+          language: genAction === "translate" ? undefined : language,
           target_language:
             genAction === "translate" ? genTargetLanguage : undefined,
           tone: genTone === "none" ? undefined : genTone,
-          length: genAdvanced ? genLength : undefined,
+          length: genLength,
+          instruction: genInstruction.trim() || undefined,
+          translate_of:
+            genAction === "translate" ? (initial?.id ?? undefined) : undefined,
         },
         toOptions(refs)
       );
@@ -292,6 +312,7 @@ export function VariantEditor({
           .map((bullet) => bullet.trim())
           .filter(Boolean)
           .map((text) => ({ text })),
+        omit_bullets: omitBullets,
       },
       variant_key: variantKey.trim() || "default",
       target_posting_id: postingId || null,
@@ -312,12 +333,22 @@ export function VariantEditor({
     await onUseSaved?.(body);
   }
 
-  // Plan 103 2b: the letter currently applied for this slot — the slot's
-  // active row, else the slot's newest row — against the form payload.
+  // Plan 103 2b: the letter currently applied for this slot — against
+  // the form payload. The STAR decides (multi-active library: status
+  // alone does NOT mean it renders): any current ref's pin names the
+  // row; a pin whose row is gone means no variant renders (profile
+  // text — plan-110 pin exclusivity). Unpinned slots fall back to the
+  // slot's active row.
   const onCvRow = useMemo(() => {
+    for (const key of refs) {
+      const pinnedId = synthPins[key];
+      if (!pinnedId) continue;
+      const pinnedRow = variants.find((row) => row.id === pinnedId);
+      return pinnedRow ?? null;
+    }
     const pool = slotRows.length > 0 ? slotRows : loadedId && initial ? [initial] : [];
     return pool.find((row) => row.status === "active") ?? null;
-  }, [slotRows, initial, loadedId]);
+  }, [slotRows, initial, loadedId, refs, synthPins, variants]);
   const currentText = variantTextOf(onCvRow?.payload ?? ({} as CvSynthPayload));
   return (
     <Modal open={open} onOpenChange={(next) => !next && onClose()}>
@@ -352,6 +383,41 @@ export function VariantEditor({
                 );
               })}
               <span className="ml-1">{t("cvSynth.editor.refsReadonly")}</span>
+              {initial?.status && (
+                <span
+                  className={`ml-1 rounded-full px-2 py-0.5 font-medium ${
+                    initial.status === "active"
+                      ? "bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)] text-[var(--as-accent)]"
+                      : initial.status === "draft"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
+                  }`}
+                  data-testid={`synth-editor-status-${initial.id}`}
+                >
+                  {t(`cvSynth.status.${initial.status}`)}
+                </span>
+              )}
+              <span
+                className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
+                data-testid="synth-editor-holder-variant-key"
+              >
+                {initial?.variant_key ?? "default"}
+              </span>
+              <span
+                className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
+                data-testid="synth-editor-holder-language"
+              >
+                {initial?.voice?.language ?? defaultLanguage}
+              </span>
+              {initial?.target_posting_id && (
+                <span
+                  className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
+                  data-testid="synth-editor-holder-posting"
+                >
+                  {savedPostings?.find((p) => p.id === initial.target_posting_id)
+                    ?.title ?? initial.target_posting_id.slice(0, 8)}
+                </span>
+              )}
             </div>
           ) : (
             <section>
@@ -471,7 +537,12 @@ export function VariantEditor({
                     key={action}
                     type="button"
                     aria-pressed={genAction === action}
-                    disabled={action === "posting_fit" && !initial?.target_posting_id && postingId === ""}
+                    disabled={
+                      (action === "posting_fit" &&
+                        !initial?.target_posting_id &&
+                        postingId === "") ||
+                      (action === "translate" && !initial)
+                    }
                     data-testid={`synth-editor-gen-action-${action}`}
                     onClick={() => setGenAction(action)}
                     className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
@@ -566,7 +637,12 @@ export function VariantEditor({
               className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"
               data-testid="synth-editor-draft-row"
             >
-              <span>{t("cvSynth.editor.draftHint")}</span>
+              <span>
+                {t("cvSynth.editor.draftHint", {
+                  defaultValue:
+                    "Draft — nothing renders from this variant until it is activated and starred.",
+                })}
+              </span>
               <Button
                 size="sm"
                 variant="outline"
@@ -576,6 +652,17 @@ export function VariantEditor({
               >
                 {t("cvSynth.activate")}
               </Button>
+            </div>
+          )}
+          {editing && initial?.status === "archived" && (
+            <div
+              className="rounded-lg bg-[var(--as-muted)] px-3 py-2 text-xs text-[var(--as-muted-fg)]"
+              data-testid="synth-editor-archived-row"
+            >
+              {t("cvSynth.editor.archivedHint", {
+                defaultValue:
+                  "Archived — this variant is retired from the enabled pool. Restore it in the Synth Library to re-activate.",
+              })}
             </div>
           )}
 
@@ -670,6 +757,7 @@ export function VariantEditor({
                     onClick={() => {
                       setLoadedId(row.id);
                       setDescription(row.payload?.description ?? "");
+                      setOmitBullets(row.payload?.omit_bullets ?? false);
                       {
                         const texts = textsOf(row.payload);
                         setBullets(texts.length ? texts : [""]);
@@ -709,11 +797,35 @@ export function VariantEditor({
           </section>
 
           <section className="space-y-1">
-            <span className="text-xs text-[var(--as-muted-fg)]">
-              {t("cvSynth.editor.bulletsLabel")}
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-[var(--as-muted-fg)]">
+                {t("cvSynth.editor.bulletsLabel")}
+              </span>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--as-muted-fg)]"
+                title={t("cvSynth.editor.omitBulletsHint", {
+                  defaultValue:
+                    "Pins a variant that drops this item's bullets — the description renders alone",
+                })}
+              >
+                <input
+                  type="checkbox"
+                  checked={omitBullets}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setOmitBullets(event.target.checked);
+                    if (event.target.checked) setBullets([]);
+                    else if (bullets.length === 0) setBullets([""]);
+                  }}
+                  data-testid="synth-editor-omit-bullets"
+                />
+                {t("cvSynth.editor.omitBullets", {
+                  defaultValue: "Omit bullets (description only)",
+                })}
+              </label>
+            </div>
             <div className="space-y-1.5" data-testid="synth-editor-bullets">
-              {bullets.map((bullet, index) => (
+              {omitBullets ? null : bullets.map((bullet, index) => (
                 <div key={index} className="flex items-center gap-1">
                   <input
                     value={bullet}
@@ -747,15 +859,27 @@ export function VariantEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                size="sm"
-                variant="ghost"
-                type="button"
-                data-testid="synth-editor-bullet-add"
-                onClick={() => setBullets((current) => [...current, ""])}
-              >
-                <Plus className="h-3 w-3" /> {t("cvSynth.editor.bulletAdd")}
-              </Button>
+              {omitBullets ? (
+                <p
+                  className="text-[11px] text-[var(--as-muted-fg)]"
+                  data-testid="synth-editor-omit-note"
+                >
+                  {t("cvSynth.editor.omitNote", {
+                    defaultValue:
+                      "Bullets list omitted for this item while the flag is on",
+                  })}
+                </p>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  data-testid="synth-editor-bullet-add"
+                  onClick={() => setBullets((current) => [...current, ""])}
+                >
+                  <Plus className="h-3 w-3" /> {t("cvSynth.editor.bulletAdd")}
+                </Button>
+              )}
             </div>
           </section>
 

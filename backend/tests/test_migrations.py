@@ -68,7 +68,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0039"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0041"], (
         "revision chain stays linear on one head"
     )
 
@@ -426,3 +426,382 @@ def test_0037_proposal_reverted_status_roundtrip():
 
     command.upgrade(config, "head")
     assert "reverted" in _proposal_status_checks()
+
+
+def test_0041_one_slot_pin_fold():
+    """Plan-110 data migration: `:bullets` pins fold onto the single key
+    with per-field winner semantics — two DIFFERENT pinned rows merge
+    into the text winner (achievements adopted only when it had none)
+    and the duplicate bullets row archives; a lone pin keeps its row."""
+
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+    from app.models.cv_model import CvDocument
+    from app.models.cv_synth_model import CvSynthItem
+    from app.models.user_model import User
+
+    config = _configured()
+    # The suite DB may sit at head from an earlier test — force the
+    # pre-fold revision so this data migration actually runs below.
+    command.downgrade(config, "0040")
+    command.upgrade(config, "0040")
+
+    async def seed():
+        engine = create_async_engine(settings.DATABASE_URL)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with maker() as session:
+                user = (await session.execute(select(User).limit(1))).scalars().first()
+                if user is None:
+                    user = User(
+                        email="fold0041@example.com",
+                        password_hash="$2b$12$foldmigrationplaceholder",
+                    )
+                    session.add(user)
+                    await session.flush()
+                item_id = str(user.id)
+                text_row = CvSynthItem(
+                    user_id=user.id,
+                    scope="item",
+                    variant_key="default",
+                    source_refs=[{"source_key": "experience", "item_id": item_id}],
+                    source_state=[],
+                    source_set_hash="fold0041",
+                    payload={"description": "Text winner description"},
+                    evidence_refs=[],
+                    voice={"language": "en"},
+                    status="active",
+                    source="manual",
+                    verified=True,
+                )
+                bullets_row = CvSynthItem(
+                    user_id=user.id,
+                    scope="bullets",
+                    variant_key="default",
+                    source_refs=[{"source_key": "experience", "item_id": item_id}],
+                    source_state=[],
+                    source_set_hash="fold0041",
+                    payload={"achievements": [{"text": "from B"}]},
+                    evidence_refs=[],
+                    voice={"language": "en"},
+                    status="active",
+                    source="manual",
+                    verified=True,
+                )
+                session.add_all([text_row, bullets_row])
+                await session.flush()
+                cv = CvDocument(
+                    user_id=user.id,
+                    title="Fold",
+                    context={
+                        "mode": "custom",
+                        "synth_pins": {
+                            f"experience:{item_id}": str(text_row.id),
+                            f"experience:{item_id}:bullets": str(bullets_row.id),
+                        },
+                    },
+                )
+                session.add(cv)
+                await session.commit()
+                return {
+                    "cv": str(cv.id),
+                    "text": str(text_row.id),
+                    "bullets": str(bullets_row.id),
+                    "item_key": f"experience:{item_id}",
+                }
+        finally:
+            await engine.dispose()
+
+    seeded = asyncio.run(seed())
+    command.upgrade(config, "0041")
+
+    async def verify():
+        engine = create_async_engine(settings.DATABASE_URL)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with maker() as session:
+                cv = (
+                    (
+                        await session.execute(
+                            select(CvDocument).where(CvDocument.id == seeded["cv"])
+                        )
+                    )
+                    .scalars()
+                    .one()
+                )
+                text_row = (
+                    (
+                        await session.execute(
+                            select(CvSynthItem).where(CvSynthItem.id == seeded["text"])
+                        )
+                    )
+                    .scalars()
+                    .one()
+                )
+                bullets_row = (
+                    (
+                        await session.execute(
+                            select(CvSynthItem).where(
+                                CvSynthItem.id == seeded["bullets"]
+                            )
+                        )
+                    )
+                    .scalars()
+                    .one()
+                )
+                return cv.context.get("synth_pins"), text_row, bullets_row
+        finally:
+            await engine.dispose()
+
+    pins, text_row, bullets_row = asyncio.run(verify())
+    assert pins.get(seeded["item_key"]) == seeded["text"], (
+        "the single pin key keeps the text winner"
+    )
+    assert not any(key.endswith(":bullets") for key in pins), "legacy keys folded"
+    assert text_row.payload["achievements"] == [{"text": "from B"}], (
+        "the text row adopted the bullets (per-field winner merge)"
+    )
+    assert text_row.status == "active"
+    assert bullets_row.status == "archived", "the duplicate bullets row retired"
+    asyncio.run(_cleanup_fold_data(seeded))
+
+
+async def _cleanup_fold_data(seeded: dict) -> None:
+    from sqlalchemy import delete
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+    from app.models.cv_model import CvDocument
+    from app.models.cv_synth_model import CvSynthItem
+    from app.models.user_model import User
+
+    engine = create_async_engine(settings.DATABASE_URL)
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with maker() as session:
+            await session.execute(
+                delete(CvSynthItem).where(CvSynthItem.id == seeded["text"])
+            )
+            await session.execute(
+                delete(CvSynthItem).where(CvSynthItem.id == seeded["bullets"])
+            )
+            await session.execute(delete(CvDocument).where(CvDocument.title == "Fold"))
+            await session.execute(
+                delete(User).where(User.email == "fold0041@example.com")
+            )
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+
+def test_0041_fold_states_and_cross_cv_guard():
+    """The other three fold states (bullets-only, same row, both gone) plus
+    the cross-CV guard: a folded bullets row that another CV still pins on
+    the PLAIN key must NOT be archived."""
+
+    import uuid as _uuid
+
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+    from app.models.cv_model import CvDocument
+    from app.models.cv_synth_model import CvSynthItem
+    from app.models.user_model import User
+
+    config = _configured()
+    command.downgrade(config, "0040")
+    command.upgrade(config, "0040")
+
+    async def seed():
+        engine = create_async_engine(settings.DATABASE_URL)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with maker() as session:
+                user = User(
+                    email="fold0041b@example.com",
+                    password_hash="$2b$12$foldmigrationplaceholder",
+                )
+                session.add(user)
+                await session.flush()
+
+                def row(scope: str, payload: dict) -> CvSynthItem:
+                    return CvSynthItem(
+                        user_id=user.id,
+                        scope=scope,
+                        variant_key="default",
+                        source_refs=[
+                            {"source_key": "experience", "item_id": str(user.id)}
+                        ],
+                        source_state=[],
+                        source_set_hash="fold0041b",
+                        payload=payload,
+                        evidence_refs=[],
+                        voice={"language": "en"},
+                        status="active",
+                        source="manual",
+                        verified=True,
+                    )
+
+                t_merge = row("item", {"description": "text winner"})
+                b_merge = row("bullets", {"achievements": [{"text": "from bullets"}]})
+                b_only = row("bullets", {"achievements": [{"text": "only bullets"}]})
+                t_same = row("item", {"description": "same row"})
+                session.add_all([t_merge, b_merge, b_only, t_same])
+                await session.flush()
+
+                ref_merge = f"experience:{_uuid.uuid4()}"
+                ref_only = f"experience:{_uuid.uuid4()}"
+                ref_same = f"experience:{_uuid.uuid4()}"
+                ref_gone = f"experience:{_uuid.uuid4()}"
+                gone_a, gone_b = str(_uuid.uuid4()), str(_uuid.uuid4())
+
+                cv_a = CvDocument(
+                    user_id=user.id,
+                    title="FoldA",
+                    context={
+                        "mode": "custom",
+                        "synth_pins": {
+                            ref_merge: str(t_merge.id),
+                            f"{ref_merge}:bullets": str(b_merge.id),
+                            f"{ref_only}:bullets": str(b_only.id),
+                            ref_same: str(t_same.id),
+                            f"{ref_same}:bullets": str(t_same.id),
+                            ref_gone: gone_a,
+                            f"{ref_gone}:bullets": gone_b,
+                        },
+                    },
+                )
+                cv_b = CvDocument(
+                    user_id=user.id,
+                    title="FoldB",
+                    context={
+                        "mode": "custom",
+                        "synth_pins": {ref_merge: str(b_merge.id)},
+                    },
+                )
+                session.add_all([cv_a, cv_b])
+                await session.commit()
+                return {
+                    "user": user.id,
+                    "cv_a": str(cv_a.id),
+                    "cv_b": str(cv_b.id),
+                    "t_merge": str(t_merge.id),
+                    "b_merge": str(b_merge.id),
+                    "b_only": str(b_only.id),
+                    "t_same": str(t_same.id),
+                    "ref_merge": ref_merge,
+                    "ref_only": ref_only,
+                    "ref_same": ref_same,
+                    "ref_gone": ref_gone,
+                }
+        finally:
+            await engine.dispose()
+
+    seeded = asyncio.run(seed())
+    command.upgrade(config, "0041")
+
+    async def verify():
+        engine = create_async_engine(settings.DATABASE_URL)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with maker() as session:
+                cv_a = (
+                    (
+                        await session.execute(
+                            select(CvDocument).where(CvDocument.id == seeded["cv_a"])
+                        )
+                    )
+                    .scalars()
+                    .one()
+                )
+                cv_b = (
+                    (
+                        await session.execute(
+                            select(CvDocument).where(CvDocument.id == seeded["cv_b"])
+                        )
+                    )
+                    .scalars()
+                    .one()
+                )
+                items = {
+                    str(r.id): r
+                    for r in (
+                        await session.execute(
+                            select(CvSynthItem).where(
+                                CvSynthItem.id.in_(
+                                    [
+                                        seeded[k]
+                                        for k in (
+                                            "t_merge",
+                                            "b_merge",
+                                            "b_only",
+                                            "t_same",
+                                        )
+                                    ]
+                                )
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                }
+                return (
+                    cv_a.context.get("synth_pins"),
+                    cv_b.context.get("synth_pins"),
+                    items,
+                )
+        finally:
+            await engine.dispose()
+
+    pins_a, pins_b, items = asyncio.run(verify())
+    assert not any(key.endswith(":bullets") for key in pins_a), "legacy keys folded"
+    assert pins_a.get(seeded["ref_merge"]) == seeded["t_merge"]
+    assert pins_a.get(seeded["ref_only"]) == seeded["b_only"], (
+        "a bullets-only star keeps its row on the single key"
+    )
+    assert pins_a.get(seeded["ref_same"]) == seeded["t_same"], (
+        "both keys on the same row collapse to one"
+    )
+    assert seeded["ref_gone"] not in pins_a, "a pin to two deleted rows never dangles"
+    assert items[seeded["t_merge"]].payload["achievements"] == [
+        {"text": "from bullets"}
+    ]
+    assert items[seeded["b_only"]].status == "active"
+    assert items[seeded["t_same"]].status == "active"
+    assert items[seeded["b_merge"]].status == "active", (
+        "a bullets row another CV still pins on the plain key must not be archived"
+    )
+    assert pins_b.get(seeded["ref_merge"]) == seeded["b_merge"], (
+        "the other CV's plain pin is untouched"
+    )
+
+    async def cleanup():
+        from sqlalchemy import delete
+
+        engine = create_async_engine(settings.DATABASE_URL)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with maker() as session:
+                for value in (
+                    seeded["t_merge"],
+                    seeded["b_merge"],
+                    seeded["b_only"],
+                    seeded["t_same"],
+                ):
+                    await session.execute(
+                        delete(CvSynthItem).where(CvSynthItem.id == value)
+                    )
+                await session.execute(
+                    delete(CvDocument).where(CvDocument.title.in_(["FoldA", "FoldB"]))
+                )
+                await session.execute(
+                    delete(User).where(User.email == "fold0041b@example.com")
+                )
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(cleanup())

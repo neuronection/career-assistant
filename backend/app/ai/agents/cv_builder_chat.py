@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from app.models.cv_template_model import CvTemplate
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
@@ -34,12 +35,12 @@ from app.schemas.cv_synth import (
     CvSynthBullet,
     CvSynthItemCreate,
     CvSynthPayload,
-    CvSynthItemUpdate,
     CvSynthVoice,
 )
 from app.schemas.cv_assistant import CvBuilderTurn, OpResult
 from app.schemas.cv_template import DesignTokens, TemplateContent
 from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
+from app.services.cv_template_service import slugify_key
 from app.services.cv_blocks import block_area
 from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
 from app.services.cv_themes import CV_THEMES, THEMES_BY_KEY
@@ -62,11 +63,16 @@ SYSTEM = (
     "corner_radius, elevation (none/soft/raised — soft card shadows, "
     "Material-3-style; visible with section_style card), "
     "heading_case, heading_weight, heading_rule, layout, "
-    "sidebar_side, sidebar_color, sidebar_width_pct, main_padding_mm, "
+    "sidebar_side, sidebar_color, sidebar_text_color, sidebar_width_pct, "
+    "main_padding_mm, "
     "sidebar_padding_mm, show_icons, icon_size_mm, show_photo, "
     "photo_shape (circle/rounded/square/arch), photo_size_mm, "
     "section_gap_mm, item_gap_mm, name_style (plain/accent_surname), "
-    "show_heading_icons, main_columns, sidebar_columns). font_stack also "
+    "show_heading_icons, main_columns, sidebar_columns, running_footer "
+    "(none/name/numbers — page-2+ footer), chip_style (tint/outline/"
+    "solid/plain — skills & languages chips), chip_tint_pct (0–40, "
+    "accent share of the chip wash) and chip_text_color (optional hex; "
+    "null derives from the theme). font_stack also "
     "accepts embedded-sans / embedded-serif (bundled OFL fonts). Hex "
     "colors look like #1d4ed8. Styling a bank template automatically "
     "customizes a private copy.\n"
@@ -98,6 +104,15 @@ SYSTEM = (
     '"#hex", "border_color": "#hex", "radius": 0-8, '
     '"padding_mm": 1-10}} (all fields optional; use sparingly — the '
     "design tokens stay the default).\\n"
+    "- upsert_variant {source_key, item_id, action, instruction?} — "
+    "generate ONE full-entry synthesized variant for THIS CV over the "
+    "item's profile evidence (restyle or summarize; revises description "
+    "AND bullets), then activate AND star it on this CV: its text "
+    "replaces the profile entry at render (reversible via unpin, the "
+    "profile item itself is never modified). Keep `instruction` a "
+    "SHORT steering sentence. PREFER a variant over a bullets pointer "
+    "when the description and bullets duplicate, conflict or are both "
+    "long.\n"
     "- set_override {source_key, item_id, field, value} — rewrite one "
     "field of one profile item for THIS CV only (e.g. summary/summary, "
     "experience/description, education/description, basics/headline; "
@@ -117,10 +132,32 @@ SYSTEM = (
     "images ride along in that exact order (first entry = first image): "
     "judge candidates by what you SEE in them (density, whitespace, "
     "typography, fit for the user's request) and say which preview you "
-    "recommend and why. set_template remains the only switching op "
+    "recommend and why. Without images, judge by the `templates` facts: "
+    "each entry carries its factual `layout` (single/sidebar) and "
+    "`ats_safe` — a template's NAME describes nothing ('Modern "
+    "Two-Column' is single-column), and after a template/theme/design "
+    "op narrate only the result's `after` facts. set_template remains "
+    "the only switching op "
     "and ids must come from `templates`. "
     "Answer concisely, list what you changed, and suggest one next step. "
-    "If the request is conversational, return no operations."
+    "SCOPE FIRST before rewriting an items-section entry: the "
+    "description and the bullet list are independent layers and BOTH "
+    "print when both exist — inspect the item's `description` and "
+    "`bullets` in `sources` (the effective layers THIS CV prints: a "
+    "pinned variant's text replaces the profile's and `variant` marks "
+    "it; an override wins over both) and the section's `rendered` "
+    "entry before proposing anything; a bullets-only rewrite does NOT "
+    "shorten the entry (the description keeps rendering above the "
+    "bullets). When description and bullets duplicate, conflict or are "
+    "both long, PREFER the upsert_variant op (the full-entry restyle "
+    "is the only op that revises BOTH layers) over a bullets pointer; "
+    "a bullets-only request is right only when the user explicitly "
+    "asks for bullets or the description is already "
+    "concise. State the scope in one line (bullets only / full-entry "
+    "variant for this CV / profile edit affecting every CV), name what "
+    "stays unchanged, and never pitch a bullets-only rewrite as making "
+    "the entry concise while a long description still renders. If the "
+    "request is conversational, return no operations."
 )
 
 MAX_REFINE_ROUNDS = 2
@@ -140,7 +177,6 @@ PREVIEW_INTENT_WORDS = {
     "themes",
     "style",
     "styling",
-    "styled",
     "font",
     "fonts",
     "serif",
@@ -149,9 +185,10 @@ PREVIEW_INTENT_WORDS = {
     "colors",
     "colour",
     "layout",
-    "modern",
-    "minimal",
-    "restyle",
+    # Restyle is the TEXT-variant action word (synth cards narrate it);
+    # keeping it out of the preview gate stops approved-card summaries
+    # from triggering the 4-render template comparison pass.
+    # ("styled" too — it appears in "restyle"/card copy.)
     "redesign",
     "look",
     "appearance",
@@ -230,6 +267,195 @@ def _tool_event(tools: list[dict], **spec) -> dict:
     }
 
 
+def _context_selection_context(cv, resolution, resolved_sources=None) -> dict:
+    """The CV's context selection, all three views the copilot needs:
+    mode, the explicit include/exclude lists (what is toggled off), the
+    effective per-source item ids the renderer draws, and — crucially —
+    which refs went STALE (ids that no longer match any profile item:
+    context was saved, then the profile rows regenerated with new ids;
+    a custom selection silently renders nothing fro its stale refs).
+    Lists capped — the ids ride each item's `detail`/row anyway."""
+    context = CvContextSelection.model_validate(cv.context or {})
+    cap = 40
+    known = set()
+    for source_key, items in (resolved_sources or {}).items():
+        for item in items:
+            known.add(f"{source_key}:{item.item_id}")
+    include = [f"{ref.source_key}:{ref.item_id}" for ref in context.include[:cap]]
+    exclude = [f"{ref.source_key}:{ref.item_id}" for ref in context.exclude[:cap]]
+    stale = [ref for ref in (*include, *exclude) if ref not in known]
+    return {
+        "mode": context.mode,
+        "include": include,
+        "exclude": exclude,
+        "stale": stale,
+        "selected_items": {
+            key: ids[:cap] for key, ids in (resolution.snapshot_index or {}).items()
+        },
+    }
+
+
+def _effective_rows(effective: dict, key: str, snapshot_index: dict) -> dict[str, dict]:
+    """The CV's post-swap, post-override snapshot rows by item id."""
+    rows = effective.get(key)
+    if isinstance(rows, dict):
+        ids = snapshot_index.get(key) or []
+        return {str(ids[0]): rows} if ids else {}
+    return {
+        str(row.get("id")): row
+        for row in (rows or [])
+        if isinstance(row, dict) and row.get("id")
+    }
+
+
+def _layer_entry(item, row: dict) -> dict:
+    """One selected source item's EFFECTIVE layers: the text the CV
+    actually prints — variant text when a variant applies, the override
+    patch when set. Never the original profile text next to the
+    variant: the variant owns the layer it carries."""
+    description = str(row.get("description") or row.get("summary") or "")
+    bullets = [
+        str(a.get("text") or "")
+        for a in (row.get("achievements") or [])[:6]
+        if isinstance(a, dict) and a.get("text")
+    ]
+    return {
+        "description": _cap(description),
+        "bullets": [_cap(text) for text in bullets],
+    }
+
+
+def _source_items(
+    source_key: str, items: list, effective: dict, snapshot_index: dict, applied: dict
+) -> list[dict]:
+    """Per-source digest rows: off-CV items stay label+detail (the pool
+    cv_set_context picks from); on-CV items expose the effective layers
+    plus which text source renders (pinned variant vs profile)."""
+    key = "summary" if source_key == "summary" else source_key
+    rows_by_id = _effective_rows(effective, key, snapshot_index)
+    out: list[dict] = []
+    for item in items:
+        entry: dict = {
+            "item_id": item.item_id,
+            "label": item.label,
+            "detail": item.detail,
+        }
+        row = rows_by_id.get(str(item.item_id))
+        if row is None:
+            entry["selected"] = False
+            out.append(entry)
+            continue
+        entry["selected"] = True
+        entry["variant"] = f"{source_key}:{item.item_id}" in applied
+        entry.update(_layer_entry(item, row))
+        out.append(entry)
+    return out
+
+
+def _row_layers(row: dict, show_description: bool, show_achievements: bool) -> dict:
+    """One snapshot row's layer truth: does the description / bullet
+    list actually emit for THIS item (block prop AND non-empty text)?
+    Section-level any() is deliberately avoided — "one item has a
+    bullet" must never read as "the section prints bullets"."""
+    description = show_description and bool(str(row.get("description") or "").strip())
+    bullet_texts = [
+        str(a.get("text") or "")
+        for a in (row.get("achievements") or [])
+        if isinstance(a, dict) and str(a.get("text") or "").strip()
+    ]
+    bullets = show_achievements and bool(bullet_texts)
+    return {
+        "description": description,
+        "bullets": bullets,
+        "bullet_count": len(bullet_texts) if bullets else 0,
+    }
+
+
+def _headline(row: dict) -> str:
+    return " — ".join(
+        part
+        for part in (
+            str(row.get("title") or row.get("program") or row.get("label") or ""),
+            str(row.get("org") or row.get("institution") or ""),
+        )
+        if part
+    )
+
+
+def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
+    """Ground truth of what prints, per visible section: the printed
+    headlines with EACH item's own description/bullet layer truth (block
+    props AND non-empty content) plus section counts. The visual
+    critique anchors its content claims here instead of guessing from
+    pixels."""
+    from app.services.cv_export_service import _visible_blocks
+
+    sections: list[dict] = []
+    for kind, props, data in _visible_blocks(blocks, effective):
+        show_description = bool(props.get("show_description", True))
+        show_achievements = bool(props.get("show_achievements", True))
+        if kind == "items":
+            rows = [
+                row
+                for row in (data or [])[: int(props.get("max_items") or 30)]
+                if isinstance(row, dict)
+            ]
+            layers = [
+                _row_layers(row, show_description, show_achievements) for row in rows
+            ]
+            sections.append(
+                {
+                    "section": str(
+                        props.get("title") or props.get("source_key") or kind
+                    ),
+                    "items": len(rows),
+                    "entries": _cap(
+                        [
+                            {"title": _headline(row), **layer}
+                            for row, layer in zip(rows, layers)
+                        ]
+                    ),
+                    "with_description": sum(layer["description"] for layer in layers),
+                    "with_bullets": sum(layer["bullets"] for layer in layers),
+                }
+            )
+        elif kind == "synth_items":
+            entries_raw = [entry for entry in (data or []) if isinstance(entry, dict)]
+            layers = [_row_layers(entry, True, True) for entry in entries_raw]
+            sections.append(
+                {
+                    "section": str(props.get("title") or "variants"),
+                    "items": len(entries_raw),
+                    "entries": _cap(
+                        [
+                            {"title": str(entry.get("title") or ""), **layer}
+                            for entry, layer in zip(entries_raw, layers)
+                        ]
+                    ),
+                    "with_description": sum(layer["description"] for layer in layers),
+                    "with_bullets": sum(layer["bullets"] for layer in layers),
+                }
+            )
+        elif kind == "summary":
+            sections.append(
+                {
+                    "section": str(props.get("title") or "Summary"),
+                    "items": 1,
+                    "entries": [
+                        {
+                            "title": "Summary",
+                            "description": True,
+                            "bullets": False,
+                            "bullet_count": 0,
+                        }
+                    ],
+                    "with_description": 1,
+                    "with_bullets": 0,
+                }
+            )
+    return sections
+
+
 async def build_builder_context(db: AsyncSession, cv) -> dict:
     """The full builder state digest grounding the copilot."""
     from app.services.cv_builder_service import CvBuilderService
@@ -243,20 +469,41 @@ async def build_builder_context(db: AsyncSession, cv) -> dict:
     html, _payload, _res, metrics = await builder.render_state(cv)
     working = cv.working_content or {}
     blocks = working.get("blocks") or template_content.blocks
+    effective = _payload.get("snapshot") or {}
 
     resolved = await resolve_sources(db, cv.user_id)
     sources = {
         key: {
             "label": CV_CONTEXT_SOURCES[key].label,
-            "items": [
-                {"item_id": item.item_id, "label": item.label, "detail": item.detail}
-                for item in items[:25]
-            ],
+            "items": _source_items(
+                key,
+                items[:25],
+                effective,
+                resolution.snapshot_index,
+                resolution.synth_applied or {},
+            ),
         }
         for key, items in resolved.items()
     }
 
     templates = await CvTemplateService(db).list_templates(cv.user_id)
+
+    def _template_facts(row) -> dict:
+        """Layout facts the model must use instead of a template's name:
+        its design layout and ATS flag (names lie — 'Modern Two-Column'
+        is a single-column package)."""
+        from app.schemas.cv_template import TemplateContent
+
+        return {
+            "layout": TemplateContent.model_validate(row.content).design.layout,
+            "ats_safe": bool(row.ats_safe),
+        }
+
+    current_style = (
+        _template_facts(template)
+        if template is not None
+        else {"layout": "single", "ats_safe": True}
+    )
     lint = await CvExportService(db).lint_report(cv)
 
     return {
@@ -273,9 +520,15 @@ async def build_builder_context(db: AsyncSession, cv) -> dict:
             "title": template.title if template else "built-in fallback",
             "source": template.source if template else "bank",
             "owned": bool(template and template.author_user_id == cv.user_id),
+            **current_style,
         },
         "templates": [
-            {"id": str(row.id), "title": row.title, "source": row.source}
+            {
+                "id": str(row.id),
+                "title": row.title,
+                "source": row.source,
+                **_template_facts(row),
+            }
             for row in templates[:20]
             if template_id is None or str(row.id) != template_id
         ],
@@ -294,13 +547,9 @@ async def build_builder_context(db: AsyncSession, cv) -> dict:
             for index, raw in enumerate(blocks)
         ],
         "overrides": _cap(working.get("overrides") or {}),
-        "selection": {
-            "mode": (cv.context or {}).get("mode", "all"),
-            "selected_items": {
-                key: ids for key, ids in (resolution.snapshot_index or {}).items()
-            },
-        },
+        "selection": _context_selection_context(cv, resolution, resolved),
         "sources": sources,
+        "rendered": _rendered_sections(blocks, effective),
         "override_fields": OVERRIDE_FIELD_HINTS,
         "metrics": {
             "estimated_pages": metrics.estimated_pages,
@@ -409,11 +658,31 @@ async def _styled_template(
         row = await templates.new_version(template.id, cv.user_id, content)
         note = f"published v{row.version} of “{row.title}”"
     else:
-        copy_row = await templates.duplicate(
-            template.id, cv.user_id, f"{template.title} (customized)"
+        from app.models.cv_template_model import CvTemplate
+
+        # Re-customize the same bank template: reuse the private copy
+        # chain the earlier session created (same seen-by-slug key)
+        # instead of echoing another base row into it.
+        copy_key = slugify_key(f"{template.title} (customized)")
+        rows = await db.execute(
+            select(CvTemplate)
+            .where(
+                CvTemplate.author_user_id == cv.user_id,
+                CvTemplate.key == copy_key,
+            )
+            .order_by(CvTemplate.version.desc())
+            .limit(1)
         )
-        row = await templates.new_version(copy_row.id, cv.user_id, content)
-        note = f"customized a private copy of “{template.title}”"
+        reuse = rows.scalars().first()
+        if reuse is not None:
+            row = await templates.new_version(reuse.id, cv.user_id, content)
+            note = f"restyled the private copy of “{template.title}”"
+        else:
+            copy_row = await templates.duplicate(
+                template.id, cv.user_id, f"{template.title} (customized)"
+            )
+            row = await templates.new_version(copy_row.id, cv.user_id, content)
+            note = f"customized a private copy of “{template.title}”"
     if styled_slot is not None:
         styled_slot.clear()
         styled_slot.update({"template_id": str(row.id), "version": int(row.version)})
@@ -454,9 +723,17 @@ async def apply_operation(
             template = await CvTemplateService(db).get_readable(
                 UUID(op.template_id), cv.user_id
             )
+            design = TemplateContent.model_validate(template.content).design
             cv.template_id = template.id
             await db.commit()
-            return OpResult(op=kind, ok=True, detail=f"template “{template.title}”")
+            return OpResult(
+                op=kind,
+                ok=True,
+                detail=(
+                    f"template “{template.title}” — {design.layout} layout, "
+                    f"{'ATS-safe' if template.ats_safe else 'not ATS-safe'}"
+                ),
+            )
 
         if kind == "apply_theme":
             theme = THEMES_BY_KEY.get(op.theme_key)
@@ -518,7 +795,7 @@ async def apply_operation(
             existing = CvContextSelection.model_validate(cv.context or {})
             known_pin_keys = {
                 f"{source_key}:{item_id}" for source_key, item_id in known
-            } | {f"{source_key}:{item_id}:bullets" for source_key, item_id in known}
+            }
             for ref_key in op.synth_pins or {}:
                 if ref_key not in known_pin_keys:
                     raise ValidationError(f"Unknown synth pin target {ref_key}")
@@ -538,6 +815,21 @@ async def apply_operation(
                     else existing.synth_pins
                 ),
             )
+            # Empty-outcome guard (deterministic): an op that deselects
+            # EVERYTHING (custom with an empty include, none without one,
+            # or an exclude that eats every item) leaves the CV with
+            # nothing to render — refuse instead of wiping the context.
+            from app.services.cv_context_service import select_items
+
+            kept = select_items(resolved, selection)
+            if not any(kept.values()):
+                raise ValidationError(
+                    "Refusing to deselect everything — the CV's context "
+                    "would be empty. To hide items, extend the exclude "
+                    "list only with what the user named and keep the "
+                    "rest; echo the current selection (mode all) with "
+                    "nothing else when unsure."
+                )
             cv.context = selection.model_dump(mode="json")
             await db.commit()
             return OpResult(
@@ -651,6 +943,50 @@ async def apply_operation(
                 detail=f"{blocks[op.block_index]['kind']} props updated",
             )
 
+        if kind == "upsert_variant":
+            from app.schemas.cv_synth import (
+                CvSynthItemGenerate,
+                CvSynthItemUpdate,
+            )
+            from app.services.cv_synth_service import CvSynthService
+
+            service = CvSynthService(db)
+            rows = await service.generate(
+                cv.user_id,
+                CvSynthItemGenerate(
+                    refs=[
+                        {
+                            "source_key": op.source_key,
+                            "item_id": op.item_id,
+                        }
+                    ],
+                    action=op.action,
+                    language=str(cv.language or "en"),
+                    instruction=op.instruction or None,
+                ),
+            )
+            if not rows:
+                raise ValidationError(
+                    "The variant draft produced no usable text over the "
+                    "referenced item — try restyle with a one-line "
+                    "instruction or a summarize pass"
+                )
+            for index, row in enumerate(rows):
+                if row.status == "draft":
+                    rows[index] = await service.update(
+                        row.id, cv.user_id, CvSynthItemUpdate(status="active")
+                    )
+            await service.pin_variants_on_cv(cv.user_id, cv.id, rows)
+            await db.commit()
+            return OpResult(
+                op=kind,
+                ok=True,
+                detail=(
+                    f"full-entry variant active and pinned on this CV "
+                    f"({op.action}; description AND bullets revised)"
+                ),
+            )
+
         if kind == "set_override":
             from app.services.cv_builder_service import CvBuilderService
 
@@ -687,13 +1023,19 @@ async def apply_operation(
             )
             service = CvSynthService(db)
             existing = CvContextSelection.model_validate(cv.context or {})
-            pin_key = f"{op.source_key}:{op.item_id}:bullets"
+            # Plan 110: the single pin slot; the pin key moves to the
+            # (new or updated) achievements-only row wholesale.
+            pin_key = f"{op.source_key}:{op.item_id}"
             pinned_id = (existing.synth_pins or {}).get(pin_key)
             if pinned_id:
+                merged_payload = dict(
+                    (await service.get_owned(UUID(pinned_id), cv.user_id)).payload or {}
+                )
+                merged_payload["achievements"] = list(payload.achievements)
                 await service.update(
                     UUID(pinned_id),
                     cv.user_id,
-                    CvSynthItemUpdate(payload=payload),
+                    CvSynthItemUpdate(payload=merged_payload),
                 )
             else:
                 synth_row = await service.create_manual(
@@ -736,10 +1078,11 @@ async def apply_operation(
 
 
 async def _critique_preview(
-    db: AsyncSession, cv, *, user_id, lint: dict
+    db: AsyncSession, cv, *, user_id, lint: dict, rendered: list[dict] | None = None
 ) -> tuple[Optional["CvVisualCritique"], str]:
     """Screenshot the rendered preview and critique it; capability-
-    detected on both the Chromium engine and a configured vision task."""
+    detected on both the Chromium engine and a vision task. `rendered`
+    rides along as the deterministic what-actually-prints ground truth."""
     from app.ai.agents.cv_template_designer import critique_pages
     from app.ai.providers.resolution import resolve_task_model
     from app.services.cv_builder_service import CvBuilderService
@@ -768,6 +1111,7 @@ async def _critique_preview(
         user_id,
         template_summary=template.title if template else "",
         lint=lint,
+        rendered=rendered or [],
         max_pages=cv.max_pages,
         page_count=measure.pages or 1,
         images=measure.images,
@@ -780,6 +1124,32 @@ def _critique_digest(critique) -> dict:
         "summary": critique.summary,
         "issues": [issue.model_dump() for issue in critique.issues],
         "safe_token_fixes": critique.safe_token_fixes,
+    }
+
+
+async def styled_after(db: AsyncSession, cv) -> dict:
+    """The deterministic post-op state after a template/theme/design op:
+    the applied template's factual layout, the page fit of the user's
+    content under it and the rendered layers — the tool result's ground
+    truth so a switch is narrated from the render, never from a name."""
+    from app.services.cv_builder_service import CvBuilderService
+
+    builder = CvBuilderService(db)
+    html, payload, _res, metrics = await builder.render_state(cv)
+    template = await builder.template_row(cv)
+    from app.schemas.cv_template import TemplateContent
+
+    layout = (
+        TemplateContent.model_validate(template.content).design.layout
+        if template is not None
+        else "single"
+    )
+    return {
+        "template": template.title if template else None,
+        "layout": layout,
+        "estimated_pages": metrics.estimated_pages,
+        "overflow": metrics.overflow,
+        "rendered": _rendered_sections(payload["blocks"], payload["snapshot"]),
     }
 
 
@@ -817,7 +1187,10 @@ async def builder_state_payload(
         "overrides": (cv.working_content or {}).get("overrides") or {},
         "html": html,
         "metrics": metrics,
-        "resolution": {"snapshot_index": resolution.snapshot_index},
+        "resolution": {
+            "snapshot_index": resolution.snapshot_index,
+            "synth_applied": resolution.synth_applied or {},
+        },
         "operations": operations or [],
         "critique": _critique_digest(critique) if critique is not None else None,
         "version": version_number,
@@ -1106,7 +1479,11 @@ async def builder_turn_events(
             yield "node_started", {"id": "review", "label": steps[3]["label"]}
             review_started = time.monotonic()
             critique, critique_note = await _critique_preview(
-                db, cv, user_id=user_id, lint=digest.get("lint") or {}
+                db,
+                cv,
+                user_id=user_id,
+                lint=digest.get("lint") or {},
+                rendered=digest.get("rendered") or [],
             )
             yield (
                 "tool_call",

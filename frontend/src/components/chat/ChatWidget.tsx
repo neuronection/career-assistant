@@ -53,6 +53,7 @@ import {
 } from "@/lib/assistantPrompts";
 import { SessionList } from "@/components/chat/SessionList";
 import { ToolsDialog } from "@/components/chat/ToolsDialog";
+import { renderToolResult } from "@/components/chat/toolResultView";
 import {
   CareerChatProvider,
   useCareerChatContext,
@@ -456,6 +457,7 @@ function MessageList({ compact }: { compact: boolean }) {
             status={call.status}
             args={call.args}
             result={call.result}
+            renderResult={renderToolResult}
             durationMs={call.durationMs}
           />
         ))}

@@ -3,7 +3,7 @@
 Per-process counters, keyed `(bucket, identity)` — adequate for the
 single-process self-host/desktop deployments this project ships as. For a
 multi-replica deployment the counters would need to move to shared storage
-(out of scope; documented in docs/deploy.md).
+(out of scope; documented in docs/dev/deployment.md).
 """
 
 import time

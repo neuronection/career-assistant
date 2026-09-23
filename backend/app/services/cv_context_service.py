@@ -674,6 +674,25 @@ def build_coverage_matrix(
     )
 
 
+def _echo_lead_pattern(subject: str, issuer: str) -> str | None:
+    """Regex for the leading self-restatement of a rendered heading.
+
+    Matches the subject, optionally followed by (or replaced with) the
+    issuer — "Subject — task", "Subject, Issuer — task" and bare
+    "Issuer — task" all restate the heading the renderer already
+    prints. The caller anchors at the string start."""
+    subject, issuer = subject.strip(), issuer.strip()
+    if not subject and not issuer:
+        return None
+    if subject and issuer:
+        return (
+            rf"[*_\s]*(?:{re.escape(subject)}(?:[*_\s]*[,\s]*[*_\s]*"
+            rf"{re.escape(issuer)}[*_\s]*)?|{re.escape(issuer)}[*_\s]*)"
+        )
+    echoed = re.escape(subject or issuer)
+    return rf"[*_\s]*{echoed}[*_\s]*"
+
+
 def _strip_subject_echo(row: dict, text: str) -> str:
     """Drop a drafted description's leading restatement of its own row.
 
@@ -690,14 +709,35 @@ def _strip_subject_echo(row: dict, text: str) -> str:
     issuer = str(
         row.get("org") or row.get("institution") or row.get("issuer") or ""
     ).strip()
-    if not subject or not text:
+    if not text:
         return text
-    pattern = rf"[*_\s]*{re.escape(subject)}[*_\s]*"
-    if issuer:
-        pattern += rf"[,\s]*[*_\s]*{re.escape(issuer)}[*_\s]*"
-    stripped = re.sub(pattern + r"\s*[—–-]+\s*", "", text, count=1, flags=re.IGNORECASE)
+    lead = _echo_lead_pattern(subject, issuer)
+    if lead is None:
+        return text
+    stripped = re.sub(
+        rf"^\s*{lead}[*_\s]*\s*[—–-]+\s*",
+        "",
+        text,
+        count=1,
+        flags=re.IGNORECASE,
+    )
     stripped = stripped.strip()
     return stripped if stripped else text
+
+
+def _heading_echo_lead_only(row: dict, text: str) -> bool:
+    """True when text is nothing BUT a heading restatement (drops a
+    bullet that carries no substance)."""
+    subject = str(
+        row.get("title") or row.get("program") or row.get("label") or ""
+    ).strip()
+    issuer = str(
+        row.get("org") or row.get("institution") or row.get("issuer") or ""
+    ).strip()
+    lead = _echo_lead_pattern(subject, issuer)
+    if lead is None:
+        return not text.strip()
+    return bool(re.fullmatch(lead + r"[—–\-:,. \s]*", text, flags=re.IGNORECASE))
 
 
 def apply_overrides(
@@ -732,17 +772,35 @@ def apply_overrides(
             continue
         key = "summary" if source_key == "summary" else source_key
         if key in SCALAR_KEYS:
-            if snapshot_index.get(key, [None])[0] == item_id:
+            index = snapshot_index.get(key)
+            # An indexed scalar must match its singleton item id. An
+            # absent scalar (a CV whose profile has no aspirations) is
+            # MATERIALIZED by the override — the editor can type a
+            # summary from scratch, not only patch an existing one.
+            if not index or index[0] == item_id:
                 patched[key] = {**(patched.get(key) or {}), **patches}
             continue
         rows = [dict(row) for row in patched.get(key) or []]
         for position, ref_id in enumerate(snapshot_index.get(key) or []):
             if ref_id == item_id and position < len(rows):
                 patches = dict(patches)
+                capture_stale = False
+                if patches.get("description"):
+                    # Override drift: a non-empty patch differs from the
+                    # live profile description AND the row already had
+                    # one (an added description is not drift — the row
+                    # had nothing to diverge from).
+                    before_text = str(rows[position].get("description") or "").strip()
+                    capture_stale = (
+                        bool(before_text)
+                        and str(patches["description"]).strip() != before_text
+                    )
                 if patches.get("description"):
                     patches["description"] = _strip_subject_echo(
                         rows[position], str(patches["description"])
                     )
                 rows[position] = {**rows[position], **patches}
+                if capture_stale:
+                    rows[position]["stale"] = True
         patched[key] = rows
     return patched

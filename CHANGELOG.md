@@ -4,6 +4,460 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Documentation is now split by audience** — `docs/` is a two-tree manual:
+  a [user guide](docs/user/README.md) and a
+  [developer guide](docs/dev/README.md), with a repo-level navigation source
+  of truth ([`docs/docs-tree.json`](docs/docs-tree.json)), an audience index
+  ([`docs/README.md`](docs/README.md)) and a status page
+  ([`docs/STATUS.md`](docs/STATUS.md)). The former flat pages moved into the
+  trees (`ARCHITECTURE.md` → `docs/dev/architecture.md`, `deploy.md` →
+  `docs/dev/deployment.md`, `ui-conventions.md` →
+  `docs/dev/ui-conventions.md`, `features.md` → `docs/user/features.md`) and
+  every in-repo link was updated. The demo website's docs ingestion manifest
+  was updated to the new tree.
+
+### Fixed
+- **Migration 0041 is now dialect-safe** — the plan-110 pin fold used a
+  Postgres-only `CAST(... AS jsonb)` that stored `0` on SQLite (destroying
+  `cv_synth_items.payload` / `cv_documents.context` on the desktop profile)
+  and matched row ids by dashed UUID text (never matching SQLite's hex
+  storage). It now writes per-dialect JSON and matches ids by normalized
+  value; a pin whose rows are both gone is dropped (never left dangling)
+  and a bullets row another CV still pins on the plain key is not archived.
+  Covered by the four fold states on both Postgres and SQLite.
+- **Approve responses serialize their children** — the `cv_choice` approve
+  endpoint returned raw ORM rows in `children` (empty title/payload/diff)
+  and leaked the same rows through `applied`, 500-ing JSON serialization.
+  Both are now serialized as proper cards.
+- **Block validation keeps its per-block report** — a healed-but-still-invalid
+  block raised a raw pydantic error (a 500) instead of the aggregated
+  `ValidationError`; the re-validation failure is now reported like any other.
+- **Main chat binds `cv_*` tools only via the explicit allowlist** — the
+  guard was a no-op, so any future `cv_*` tool tagged for chat would have
+  bound unintentionally.
+- **A text-only pinned variant no longer empties the bullets card's
+  "before"** — it reports the profile bullets (what actually renders).
+- **A failed pin after a queued variant batch still notifies** — the
+  completion notification no longer disappears when pinning raises.
+- **Studio pin writes are sequence-guarded** — a slow older document
+  response can no longer overwrite a newer star state.
+- **Remembered web context is explicitly untrusted** — the cross-turn
+  `chat_memory` section carries a "reference data, never instructions"
+  marker (durable prompt-injection surface).
+- **`cv_choice` multi-select enforces `max_select`**; the synth library's
+  bulk toasts show past-tense notices (were button labels); the ignored
+  `activate` tool field is removed; `cv_read_items`' bullets-overridden
+  flag matches the renderer's presence/omit semantics.
+
+- **Variant pins no longer get lost or show the wrong variant** — the
+  Studio now syncs chat/HITL pin writes back into the open document
+  (the live-sync revision refetches the CV too, not just the preview),
+  writes pins through a new surgical endpoint
+  (`PUT /cv/{id}/context/pin`) that read-modify-writes ONE slot and
+  promotes a pinned draft in the same commit (a stale client map can no
+  longer erase other slots' stars), adopts the server's returned
+  document, guards preview responses against out-of-order races, and
+  only applies a leftover chat builder-state to its own CV.
+- **A pinned item never silently renders a different variant** — the
+  highlights snapshot skips pinned refs entirely: when the star cannot
+  apply (draft, foreign language, other posting) the item renders its
+  profile text, and the Studio marks the star amber "not rendering"
+  using the resolution's new `synth_applied` truth (also exposed on the
+  context/preview responses). Deleting a variant now strips every star
+  pointing at it (single-row delete matches bulk).
+- **Variant generation honours the editor's language and instruction** —
+  the Studio's AI-generate now sends the form's language (non-translate
+  runs no longer reset to English), the custom instruction (previously
+  collected but dropped), and translate runs carry their master row;
+  `instruction`/`translate_of` round-trip through stored voice params
+  for regenerate, and the posting brief plus evidence now carry the
+  posting text and the full item description instead of a thin digest.
+- **Bullets editor no longer freezes stale text while open** — an
+  untouched draft re-syncs when a refetch resolves new bullets; user
+  edits are preserved.
+- **CV thumbnails refresh within a minute of a variant edit** (the
+  listing PNG cache drops from a day to 60s; the ETag revalidates).
+- **The PDF engine no longer leaks a Chromium process per failed render**
+  — a flaky/dead browser dropped by the retry path was forgotten without
+  a `close()`, so repeated failures piled up zombie browser trees until
+  the host wedged and later renders hung; discarded browsers are now
+  closed (best-effort, timed) and a `disconnected` browser is evicted
+  from the cache immediately so it is never reused.
+
+- **Card resolutions no longer trigger the template-preview pass** —
+  the deterministic gate treated "restyle"/"styled" as template-look
+  intent, so an approved text-variant card (quoted back verbatim as a
+  resolution summary) fired a 4-render vision comparison for no
+  reason. Those text-restyle words are out of the gate; template/theme/
+  font/layout nouns still route the comparison pass.
+- **Copilot variant asks no longer kill the turn with `send_failed`** —
+  the copilot's "prefer a restyle variant" guidance had no matching op,
+  so the model invented an op literal outside the plan union and
+  structured validation dropped the whole reply. The vocabulary gains
+  `upsert_variant {source_key, item_id}`: one audited full-entry
+  variant for THIS CV (description AND bullets), activated and starred
+  on this CV in the same gesture. Failed structured replies now also
+  keep the full raw model output in the audit trail (`ai_generations`.
+  `output.raw`) so the actual breakage is visible, not a truncated
+  preview.
+- **Approve = activate + pin + live preview** — accepting a variants
+  card from a builder-bound chat session now saves the rows in the
+  Synth Library AND stars them on that CV in one committed gesture
+  (the server injects the session's CV into the card, never the
+  model); the Studio's live preview refreshes on approval via the
+  existing data-revision hook. Queued large batches pin the same way
+  when they land; unpin reverts.
+- **One variant-creation surface in chat** — `cv_synth_generate` is
+  retired from the main chat (tool + binding + prompt): chat variant
+  asks always surface the HITL `cv_synth` review card; the tool stays
+  Studio-copilot-only. Committed OpenAPI contract refreshed in the
+  same change set.
+- **A pinned variant now renders its own text over older captured
+  overrides** — layer order is `pin > override > source`: the starred
+  variant re-asserts the fields it carries per render (a stale captured
+  patch could previously mute the pinned variant's description so only
+  its bullets showed); unpinning returns the override text.
+- **Many variants can be enabled at once — one star per CV decides what
+  renders** — activating a variant no longer auto-archives its siblings
+  (the slot-sweep is retired; replace the plan-110 whole-row window
+  with a multi-active library). The single per-CV pin (`synth_pins`)
+  stays authoritative for what swaps in, so per-CV output is unchanged.
+- **The variant editor reads state at a glance** — editing shows a
+  status badge (active/draft/archived), plus variant_key, language and
+  posting chips, and status-specific hints (draft → activate option,
+  archived → restore in the library).
+- **Bulk manage the Synth Library** — /cv/synth gains a select mode:
+  per-row checkboxes, per-group select-all, one-click "select archived",
+  and bulk archive / restore as drafts / delete (one committed backend
+  call; delete and archive strip any star pointing at the affected
+  rows, so pins never dangle). Unknown ids fail the whole call — a
+  bulk action is atomic, never partial.
+- **The chat tool surface never parks variants in draft purgatory** —
+  `cv_synth_generate` activates its rows unconditionally (plan-102
+  contract forced): the user's chat request is the approval, so a
+  model passing `activate: false` (accepted for shape compatibility,
+  ignored) can no longer sidestep HITL. Drafts stay a Library-only
+  concept (the `/cv/synth/generate` endpoint and the editor form).
+- **Library rows now read their status at a glance** — archived
+  variants render dimmed with a status badge (active/draft/archived
+  colored), instead of every status looking like the same gray chip.
+- **CV Studio context shows each item's archived variants** — the
+  context panel nests the item's archived rows (dimmed, no pin/edit
+  actions) under the active/draft ones, so earlier configured
+  variants are visible where they belong, not only in the library.
+- **CV chat reviews the CV as it actually prints** — the visual review
+  (`cv_review_visual`) and CV state read (`cv_read_state`) now carry a
+  deterministic ground truth of what prints: per entry, its headline
+  with its OWN description/bullet layers and bullet count, plus exact
+  per-section `with_description`/`with_bullets` counts — and the
+  effective per-item text the CV uses (a pinned variant's text replaces
+  the profile's, `variant` flag) instead of both appearing side by side.
+  The vision critique's content claims are bound to that truth ("all
+  entries print bullets" only when the count says so) and the chat
+  prompt drops any claim `rendered` contradicts — no more "all six
+  projects print bullets" reviews of a CV where only one does.
+- **Template switches are verified, not narrated from a name** —
+  `cv_read_state` lists every candidate template with its factual
+  `layout` (single/sidebar) and `ats_safe` flag ("Modern Two-Column"
+  is single-column — names lie); a `cv_set_template`/theme/design op
+  result now carries an `after` block (applied template + layout,
+  estimated pages, which sections/entries print under it) and the chat
+  prompt may only narrate a switch from those facts, never claim
+  columns or "room beside the narrative" from the template's name.
+
+### Added
+- **Summary text is editable in CV Studio** — the Summary section's config
+  now carries a text area writing a `summary:summary` working-content
+  override, so the CV's summary can be typed directly instead of only
+  coming from the profile's aspirations. The profile text still renders
+  when the override is empty; a typed summary also materializes on a CV
+  whose profile has no aspirations (previously such a block silently
+  rendered nothing).
+- **Parallel backend suite (pytest-xdist)** — backend tests now run across
+  all cores (`-n auto` in CI's postgres job and via the default
+  `scripts/run-tests.sh` path) with per-worker databases created and
+  migrated automatically by the test suite, so 16 concurrent workers no
+  longer contend on one `career_test` database (the shared-DB lock waits
+  on the lazily-inserted default user throttled earlier parallel attempts
+  to ~2× throughput). SQLite-parallel workers get isolated files under
+  `tests/_xdist/<worker>/` (also isolating the checkpointer's sibling
+  `checkpoints.db`); the CI SQLite job stays serial on one file, and
+  `pytest-xdist` joined `backend/requirements-dev.txt`.
+- **Omit-bullets variants (plan 110 follow-up)** — a synthesized
+  variant can now explicitly drop an item's bullet list
+  (`omit_bullets` on the variant payload): pinning it renders the
+  variant description alone. Empty `achievements` stays meaningless
+  (it's how text-only variants serialize), so accidental bullet-stripping
+  by pinning a normal text variant is impossible — omission has to be
+  set on purpose.
+
+- **One variant per item (plan 110)** — synthesized variants are now
+  unified around ONE starred row per item instead of separate text and
+  bullets pin slots: a variant applies whatever its payload carries
+  (description text, bullets, or both as a full entry), the Synth
+  Library shows a single star per item (bullets provenance kept as a
+  badge), and bullets-only rows no longer duplicate full-entry rows.
+  Rewriting an item's bullets patches the pinned variant's achievements
+  in place (any other fields it carries are preserved), so pasting a
+  text variant AND separate bullets no longer creates two competing
+  pins. Existing per-CV stars migrated in-place with per-field winner
+  semantics (text winner keeps its description; the bullets winner's
+  list merges in; the duplicate bullets row is archived, never
+  deleted). Rejected: silent newest-wins — the merge preserves what you
+  actually starred.
+
+- **Multi-select choice cards in chat (plan 108)** — when several
+  plausible adjustments fit the same target, the assistant can now
+  propose ONE `cv_choice` card with 2–8 options (each naming its scope:
+  this-CV only vs shared profile); the user ticks what to implement and
+  proceeds once. Approving materializes each selected option as a
+  standard approval card (context selection, bullets, variants, profile
+  edits) — nothing executes before the individual approvals, and every
+  child stays reversible.
+
+### Fixed
+- **Chat stays consistent across turns for web tool pulls** — fetched
+  pages, GitHub repo lookups and web-search results now persist on the
+  chat session (reserved `chat_tool_memory` key, 8-entry / 1800-char
+  caps, 24h TTL) and re-ground later turns as compact `chat_memory`
+  summaries (repo/page identity + excerpt, search top titles), so a
+  follow-up like "what does that repo do again?" answers from the same
+  context instead of a blind re-call. The reserved key never echoes in
+  page context or session payloads.
+- **Approving the variants card works again** — the approve body schema
+  required `option_keys` for every card kind, so any plain approval
+  (the card's Draft/Approve action, which posts `{}`) turned into a
+  request-validation 422; keys stay required only for `cv_choice`
+  cards, where the service already enforces them.
+- **Resolve failures no longer crash the card UI** — a non-string API
+  `detail` (FastAPI validation error arrays) broke the proposal store's
+  error path with `toLowerCase is not a function`; non-string details
+  are now stringified and still shown on the card.
+- **Skills "Limit to skills" actually limits to the selected skills** —
+  the Studio block picker built its chip ids from a stale `item_id`
+  field while the resolved snapshot rows carry `id`, so toggles stored
+  labels the renderer could never match (selection appeared inert) and
+  legacy label entries in old selections were silently dropped. The
+  options ids now match the resolved ids and the renderer accepts both
+  id- and label-form selections in the render and page-count paths
+  (older mixed selections keep working).
+- **One sloppy tool call can no longer fail the chat turn** — the tool
+  executor clamps model-provided strings/lists once to the input's
+  max_length (LLMs stuff the whole user message into `search_jobs`
+  query) and re-validates; only then does it raise. Previously any
+  `string_too_long` turned the whole turn into `send_failed`.
+- **Search tools take search terms, not chat prose** — the catalog and
+  postings tools bound/validate their query inputs and their tool
+  descriptions now say "short search terms — never a chat sentence";
+  the server-side prose-stripper stays as the untrusted-input defense
+  (single-token filler set — the phrase entries in it could never match;
+  dead weight removed), and the agent-round rule keeps non-job asks out
+  of the search tools.
+
+- **Per-turn grounding budget no longer starves heavy edit turns** —
+  the chat turn's tool budget rises 10 → 14 (4 profile digests + up to
+  6 read-before-edit entity reads + variant/choice grounding now fit
+  one heavy edit turn instead of silently dropping reads). LLM-round
+  and per-entity op caps unchanged by design.
+
+- **Copilot claims about CV text are now groundable** — `read_cv_items`
+  rows carry the item's rendered description and dates too (bullets-only
+  rows made the copilot declare "no text exists" on fully-described
+  entries), and pinned-row lookups are scope-agnostic after the
+  single-star rework until now.
+- **Honest tool traces** — the chat turn's trace rows (~ the tool
+  inspector) carry actual arguments and capped result JSON for every
+  registry tool instead of a bare tool name, so what the assistant saw
+  is auditable from the trace.
+
+- **CV variant generation failed on rewording asks** — generate calls
+  retried existing variants by retyping long instructions that tripped
+  the 300-character cap; the cap is now 600 and the tool/tool-schema
+  descriptions steer recreations through `regenerate_of` (existing
+  variant id) with short steering text. The grounding agent no longer
+  feeds non-job asks into `search_jobs` (it wasted rounds matching
+  obscure catalog categories).
+
+- **CV entry-improvement scope honesty (CHAT v13)** — the assistant now
+  inspects an item's description AND bullets before proposing rewrites
+  (they render independently), narrates the change scope in one line
+  (bullet override / per-CV variant / profile edit), never presents a
+  bullets-only rewrite as shortening the entry while a description
+  still renders, and requires `variant_list` to be called with the
+  attached CV's id so variants are only claimed as rendering when
+  their per-CV applicability verdict confirms it.
+
+- **CV Studio preview didn't refresh after copilot edits** — only the
+  synth tools triggered the builder's live refetch; every `cv_*` write
+  op (context, bullets, overrides, template/theme/design, blocks, doc
+  options) now bumps the builder link so the preview re-renders as soon
+  as the op commits.
+
+- **Copilot couldn't reliably edit what a CV includes** — `cv_set_context`
+  accepted undocumented `{source_key, item_id}` refs while `cv_read_state`
+  reported them as `'source_key:item_id'` strings, so the model kept
+  echoing strings that failed validation. The tool descriptions now spell
+  out the read→split→extend workflow and the ref object shape.
+
+- **Template previews broke with a tuple** — `first_page_png` returned
+  the renderer's `(mime, bytes)` pair while its callers expect raw PNG
+  bytes: the chat template-comparison previews 500'd on
+  `preview.png` (write_bytes) and the builder copilot's template
+  preview tool fed nested tuples to the vision model. It now returns
+  the PNG bytes.
+- **Proposed item text repeated the rendered heading** — chat cards for
+  experience/education/certification updates (and CV bullet rewrites)
+  could re-open with the item's own title/org, printing as a duplicate
+  row under the heading. The card funnel now applies the same
+  deterministic strip the CV merge funnel uses (subject/org/institution
+  echo leads — with or without the company inside the lead, anchored
+  to the text start), an achievement line that carries nothing beyond
+  the heading is dropped from bullet lists, and the prompts forbid
+  restating the heading in descriptions and bullets.
+- **Stale context selections were invisible — and unfixable by the
+  chat** — a CV saved with a custom selection keeps the item ids it
+  was generated against; when the profile rows later regenerate with
+  new ids, the stale refs silently render as nothing and `cv_read_state`
+  didn't distinguish them from live ones. The selection digest now
+  names its stale refs, and the chat prompt directs the assistant to
+  repair in-turn: rewrite the dead refs with the current ids from
+  `sources` (matched by title), instead of telling the user to fix it
+  by hand in the Studio.
+- **A chat context op could deselect everything** — `cv_set_context`
+  with an empty selection (custom with no includes, none, or an
+  exclude covering all items) wiped the CV's content context in one
+  approved op. The op now dry-runs the selection and refuses
+  empty outcomes ("deselect everything" guidance for the model), the
+  tool description states the echo-then-extend semantics, and a fresh
+  chat turn restores a mode-all baseline in one call.
+- **One bullets approval false-conflicted every sibling card** — bullets
+  proposals conflict-check against the CV's timestamp, but each
+  approval rewrites the CV's context (pins the variant), so the
+  remaining cards for other items flipped to "changed since proposed"
+  even though their own items never moved. The sentinel is now
+  granular for bullets: the card conflicts only when its own item's
+  current bullet state (override ?? snapshot list) or its pin state
+  changed since proposal; unrelated CV activity applies cleanly.
+- **CV bullet cards showed empty previews** — the bullets diff rows
+  used a `from/to` shape while the HITL card contract is
+  `field/label/before/after` with structured values, so every row
+  rendered "added_bullet — → —". Bullets now emit one structured
+  row (current vs proposed, rendered as chips). The chat prompt also
+  instructs the assistant to ground bullet rewrites on the
+  variant-or-profile basis `read_cv_items` reports
+  (`bullets_overridden_for_this_cv`) and to say which basis it used.
+- **CV bullet cards died on an echoed entity id** — the chat op
+  pipeline dropped every `cv_set_bullets` proposal whenever the model
+  also echoed an `entity_id` (the ops identify via payload fields
+  cv_id/source_key/item_id) — the resolver now clamps the stray field
+  instead of dropping the card.
+- **A truncated AI reply killed the whole chat turn** — a structured
+  chat reply stream that hit a length cutoff (or leaked prose before
+  the JSON) failed structured parsing after the answer had already
+  streamed to the UI, and the turn aborted. The structured extractor
+  now repairs truncated JSON objects (largest valid brace-closed
+  prefix with auto-closed strings/brackets), and the chat turn keeps
+  the streamed answer text as a degraded reply — text the UI
+  already rendered is never discarded as "turn failed".
+- **Vision-capable models went missing in the task assignment pickers**
+  — the `/ai/models` listing that feeds Settings → AI tasks built its
+  payload without the declared capabilities, so the picker filtered
+  every dropdown with filename guesses ("No matches") even for a
+  correctly saved vision model. The listing now ships the stored caps,
+  and CV Visual Review/OCR become assignable right after the model is
+  saved.
+- **Template designer AI drafts died on busy validation** — a drafted
+  package listing an `items` block with empty props failed the whole
+  AI task after retries on a missing required field. The block
+  validator now heals AI-drafted blocks deterministically: required
+  props with clean schema defaults are backfilled from the block
+  registry's own sample (required-field backfill only; genuinely bad
+  values still reject), and the designer prompt names the required
+  fields up front.
+- **Styling edits crashed against a template version collision** —
+  re-styling the same bank template (a second AI run, or copilot
+  `apply_theme`/`update_design` after an earlier one) duplicated it
+  under the same private slug at hardcoded version 1, violating the
+  template version uniqueness and silently rejecting the styling edit
+  in the polish loop. Creating a template now continues an existing
+  private chain (version N+1), and the styled op reuses and extends
+  that chain instead of echoing another base copy.
+- **AI-generate picked a private test template over curated ones** — the
+  auto match ranked every template you own alongside the bank, so a
+  scratch/test template could win your fresh CV by recency luck; the
+  ranking now ranges over curated bank templates only (your own remain
+  one explicit picker click away), and the advisor prompt weighs a
+  "modern/elegant" brief toward the candidate whose aesthetic reads
+  closest to it. Consecutive fills now vary the look: templates used by
+  your most recent CVs are demoted in the baseline and named to the
+  advisor as repeats of last resort.
+- **A style brief in the generate notes was ignored** — the build
+  reviewer's style route demanded the brief to name a concrete design
+  language, so "make it modern, professional, elegant" landed as mere
+  commentary. The brief now counts as a hard style constraint: the
+  reviewer flags the mismatch (fail when explicit) and its first
+  remedy is applying a curated theme whose palette fits the look
+  (personalized tokens when none fits). Capping a section's item count
+  is now an explicitly lossy last resort: the reviewer is instructed to
+  densify and shorten first and keep as many entries as the fitted
+  layout supports instead of jumping to a tiny cap — and to SELECT the
+  survivors. Item-level fit now has the full ladder: caps come with an
+  `order` list of item ids (truncation keeps brief-aligned entries,
+  not whatever arrived first), and hiding whole entries happens via a
+  targeted contextual exclusion (`set_context` echoing the current
+  selection and only extending `exclude` — the Context tab shows and
+  reverses it; the reviewer now sees the selection and is told to
+  never switch modes or shrink a user-chosen include list).
+
+### Added
+- **Chat prompts restructured around CV work** — a deterministic "CV
+  facts" section (description AND bullets both render; empty-bullets →
+  description only; sections with zero resolved items disappear;
+  max_items keeps the pinned/reordered entries first) ends the
+  model's guessing about renderer behavior; a "look before you claim"
+  rule requires tool-backed evidence (state/items read, visual review)
+  for any rendering statement; and an "improving a CV" decision tree
+  routes each ask (fit → context trims, item text → variants, style →
+  review + theme/tokens, structure → builder) with its reversibility
+  named. Variant generation now binds in main chat
+  (`cv_synth_generate`): the assistant can draft
+  summarize/detail/restyle/posting-fit variants for an attached CV's
+  items and pin the winner — the profile item itself is never
+  modified.
+- **Restyle a CV from the main chat** — a narrow styling allowlist of
+  the builder tools now binds in general chat side-by-side with the
+  copilot: read the state, run the visual review, switch templates,
+  apply a curated theme and patch design tokens, all through the same
+  audited op path against an attached CV. Section-content editors
+  (blocks, context, overrides) stay builder-owned, and the prompts
+  direct the chat to ground on read + visual-review before advising
+  on colors and to verify a restyle with a visual review, and to
+  control the CV's content selection: `read_state.selection` now ships
+  the explicit include/exclude lists next to mode and the effective
+  rendered ids, so the chat can answer "what's enabled" and toggle
+  items (echo verbatim, extend the exclude list only).
+- **CV builder: chips, icons, and doc options are now configurable in the
+  UI** (parity with what the AI copilot could already set). New design
+  tokens `chip_style` (tint/outline/solid/plain) and `chip_tint_pct`
+  (0–40%) style the skills/languages/interests chips — the grey accent
+  wash is no longer the only look; a `chip_text_color` token (Auto =
+  derived from the theme, Custom = explicit hex) settles text contrast
+  on top of any wash; `border_color` joins the color
+  editor and `running_footer` (none / name / page numbers from page 2)
+  joins the page group. Section config gains a per-block heading icon
+  picker (template default, none, or a registry glyph), a "date
+  position" control (auto / beside title / own line) for experience
+  lists, and the QR block is addable with link + size options. The
+  Design tab now also edits the document's max pages and language.
+
+### Changed
+- **AI copilot vocabulary follows the new tokens** — `update_design`
+  can patch `chip_style`, `chip_tint_pct`, `chip_text_color` and
+  `running_footer`, and `update_design`/`update_block_props` accept
+  `null` values so optional fields (chip text color, a per-block
+  heading icon) can reset to their derived default.
+
 ## [v0.14.0] - 2026-09-20
 
 ### Changed
@@ -407,7 +861,7 @@ All notable changes to **Career Assistant** are documented here.
 - **README restructure** — the developer/feature detail that had grown in
   "Features", "Structured by design" and the "Recently shipped" rollout wave
   deduplicated into a compact feature tour plus a new
-  [docs/features.md](docs/features.md) feature catalog ("everything, as
+  [docs/user/features.md](docs/user/features.md) feature catalog ("everything, as
   built", the family-standard pattern); seed-count and version drift
   (0.7.x → 0.10.x) fixed in Scope.
 

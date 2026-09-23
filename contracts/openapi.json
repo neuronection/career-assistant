@@ -2523,6 +2523,21 @@
         "title": "CvApplyRequest",
         "type": "object"
       },
+      "CvChoiceApproveIn": {
+        "description": "Approve body for option pickers: the selected option keys.\n\nKeys stay optional at the HTTP edge (plain approvals post `{}`);\n``cv_choice`` semantics enforce them in the service.",
+        "properties": {
+          "option_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Option Keys",
+            "type": "array"
+          }
+        },
+        "title": "CvChoiceApproveIn",
+        "type": "object"
+      },
       "CvCompileOut": {
         "properties": {
           "html": {
@@ -3545,7 +3560,8 @@
                   "set_override": "#/components/schemas/SetOverrideOp",
                   "set_template": "#/components/schemas/SetTemplateOp",
                   "update_block_props": "#/components/schemas/UpdateBlockPropsOp",
-                  "update_design": "#/components/schemas/UpdateDesignOp"
+                  "update_design": "#/components/schemas/UpdateDesignOp",
+                  "upsert_variant": "#/components/schemas/UpsertVariantOp"
                 },
                 "propertyName": "op"
               },
@@ -3582,6 +3598,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/SetOverrideOp"
+                },
+                {
+                  "$ref": "#/components/schemas/UpsertVariantOp"
                 }
               ]
             },
@@ -3742,6 +3761,13 @@
               "type": "array"
             },
             "title": "Snapshot Index",
+            "type": "object"
+          },
+          "synth_applied": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Synth Applied",
             "type": "object"
           }
         },
@@ -4087,6 +4113,59 @@
         "title": "CvSuggestionOut",
         "type": "object"
       },
+      "CvSynthBulkIn": {
+        "description": "Body of POST /cv/synth/bulk \u2014 multi-row archive/restore/delete.",
+        "properties": {
+          "action": {
+            "enum": [
+              "archive",
+              "unarchive",
+              "delete"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids",
+          "action"
+        ],
+        "title": "CvSynthBulkIn",
+        "type": "object"
+      },
+      "CvSynthBulkOut": {
+        "description": "{id, kind} outcome rows of one bulk call.",
+        "properties": {
+          "affected": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "deleted": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Deleted",
+            "type": "array"
+          }
+        },
+        "title": "CvSynthBulkOut",
+        "type": "object"
+      },
       "CvSynthBullet": {
         "description": "One canonical CV bullet (plan 106): `{\"text\": str}` everywhere.",
         "properties": {
@@ -4200,14 +4279,14 @@
           "instruction": {
             "anyOf": [
               {
-                "maxLength": 300,
+                "maxLength": 600,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Free-text steering for the AI (plan 103); never overrides the grounding contract.",
+            "description": "Free-text steering for the AI (plan 103); never overrides the grounding contract. Short steering only \u2014 recreate or rework an existing variant via regenerate_of, not by retyping.",
             "title": "Instruction"
           },
           "language": {
@@ -4482,7 +4561,7 @@
         "type": "object"
       },
       "CvSynthPayload": {
-        "description": "The validated synthesized text (only text-bearing fields land).",
+        "description": "The validated synthesized text (only text-bearing fields land).\n\n`omit_bullets` (plan 110) is an EXPLICIT omission deal: a pinned\nrow with it clears the item's bullet list \u2014 the item prints its\n(variant) description only. It exists because empty\n`achievements` is the default serialization of every text-only\nvariant and can never be a user signal; presence semantics stay\nunchanged otherwise.",
         "properties": {
           "achievements": {
             "items": {
@@ -4504,6 +4583,11 @@
             ],
             "title": "Description"
           },
+          "omit_bullets": {
+            "default": false,
+            "title": "Omit Bullets",
+            "type": "boolean"
+          },
           "summary": {
             "anyOf": [
               {
@@ -4518,6 +4602,41 @@
           }
         },
         "title": "CvSynthPayload",
+        "type": "object"
+      },
+      "CvSynthPinIn": {
+        "description": "Surgical single-slot pin write: star (or unstar, `synth_id=None`)\nONE item's variant on one CV \u2014 never a whole-map replace.",
+        "properties": {
+          "item_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Item Id",
+            "type": "string"
+          },
+          "source_key": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Source Key",
+            "type": "string"
+          },
+          "synth_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synth Id"
+          }
+        },
+        "required": [
+          "source_key",
+          "item_id"
+        ],
+        "title": "CvSynthPinIn",
         "type": "object"
       },
       "CvSynthPreviewIn": {
@@ -4667,6 +4786,18 @@
             ],
             "title": "Action"
           },
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
           "language": {
             "default": "en",
             "maxLength": 10,
@@ -4695,6 +4826,18 @@
               }
             ],
             "title": "Tone"
+          },
+          "translate_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translate Of"
           }
         },
         "title": "CvSynthVoice",
@@ -10611,7 +10754,8 @@
               "user_skill",
               "profile_section",
               "cv_synth",
-              "cv_set_bullets"
+              "cv_set_bullets",
+              "cv_choice"
             ],
             "title": "Kind",
             "type": "string"
@@ -10733,6 +10877,13 @@
               }
             ],
             "title": "Applied"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileProposalOut"
+            },
+            "title": "Children",
+            "type": "array"
           },
           "proposal": {
             "$ref": "#/components/schemas/ProfileProposalOut"
@@ -13530,7 +13681,7 @@
         "type": "object"
       },
       "UpdateBlockPropsOp": {
-        "description": "Merge a props patch into the block at a context-listed index.",
+        "description": "Merge a props patch into the block at a context-listed index.\n\nNull values are allowed so optional fields (e.g. a per-block heading\n`icon`) can be reset to their schema default.",
         "properties": {
           "block_index": {
             "maximum": 24.0,
@@ -13566,6 +13717,9 @@
                 {
                   "additionalProperties": true,
                   "type": "object"
+                },
+                {
+                  "type": "null"
                 }
               ]
             },
@@ -13583,7 +13737,7 @@
         "type": "object"
       },
       "UpdateDesignOp": {
-        "description": "Patch design tokens on the rendered template (duplicate-if-bank).",
+        "description": "Patch design tokens on the rendered template (duplicate-if-bank).\n\nNull values are allowed so optional tokens (e.g. `chip_text_color`)\ncan be reset to their derived default.",
         "properties": {
           "design": {
             "additionalProperties": {
@@ -13599,6 +13753,9 @@
                 },
                 {
                   "type": "boolean"
+                },
+                {
+                  "type": "null"
                 }
               ]
             },
@@ -13618,6 +13775,51 @@
           "design"
         ],
         "title": "UpdateDesignOp",
+        "type": "object"
+      },
+      "UpsertVariantOp": {
+        "description": "Full-entry synthesized variant for THIS CV (restyle/summarize).\n\nDrafted through the audited CV_SYNTH funnel inside the copilot turn,\nactivated AND starred on this CV in one operation (plan-104\nfollow-up: the prompt's 'prefer a variant' guidance needs an op that\nactually exists). The profile item is never modified.",
+        "properties": {
+          "action": {
+            "default": "restyle",
+            "enum": [
+              "restyle",
+              "summarize"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "instruction": {
+            "default": "",
+            "description": "Optional SHORT steering sentence.",
+            "maxLength": 600,
+            "title": "Instruction",
+            "type": "string"
+          },
+          "item_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Item Id",
+            "type": "string"
+          },
+          "op": {
+            "const": "upsert_variant",
+            "default": "upsert_variant",
+            "title": "Op",
+            "type": "string"
+          },
+          "source_key": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Source Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_key",
+          "item_id"
+        ],
+        "title": "UpsertVariantOp",
         "type": "object"
       },
       "UsageRollup": {
@@ -17521,7 +17723,7 @@
     },
     "/api/v1/ai/tools": {
       "get": {
-        "description": "Registered AI tools (callable only, unless capabilities are opted in).\n\n``include_capabilities=true`` adds the non-callable HITL capability\nrows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep\nthe callable-only default.",
+        "description": "Registered AI tools (callable only, unless capabilities are opted in).\n\n``include_capabilities=true`` adds the non-callable HITL capability\nrows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep\nthe callable-only default. ``bindable_only=true`` narrows to the\nsubset the main chat's LLM actually binds (the chat-audience\nallowlist) \u2014 the chat's \"tools the assistant can use\" dialog shows\nTHAT, not the whole copilot/admin registry.",
         "operationId": "tools_api_v1_ai_tools_get",
         "parameters": [
           {
@@ -17531,6 +17733,16 @@
             "schema": {
               "default": false,
               "title": "Include Capabilities",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bindable_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Bindable Only",
               "type": "boolean"
             }
           }
@@ -20699,6 +20911,53 @@
         ]
       }
     },
+    "/api/v1/cv/synth/bulk": {
+      "post": {
+        "description": "Archive / restore / delete many variants in one committed call.\n\nLibrary hygiene: archival strips stars pointing at the affected\nrows, restore uses the single activation path, delete pops the\nstars before deleting. Unknown ids fail the whole call.",
+        "operationId": "bulk_synth_items_api_v1_cv_synth_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvSynthBulkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvSynthBulkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Bulk Synth Items",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
     "/api/v1/cv/synth/generate": {
       "post": {
         "description": "Draft synthesized variants (\u22645 refs inline; more \u2192 queued bulk).",
@@ -22263,7 +22522,7 @@
     },
     "/api/v1/cv/{cv_id}/context": {
       "get": {
-        "description": "Resolve the CV's selection: snapshot + per-item trace (no render).",
+        "description": "Resolve the CV's selection: snapshot + per-item trace (no render).\n\n`synth_applied` is the applied-variant truth: `{ref_key: synth_id}`\nfor every pin that actually rendered this resolution \u2014 the UI's\nstars cross-check against it (a pin missing here is inactive).",
         "operationId": "get_context_api_v1_cv__cv_id__context_get",
         "parameters": [
           {
@@ -22362,6 +22621,65 @@
           }
         ],
         "summary": "Set Context",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
+    "/api/v1/cv/{cv_id}/context/pin": {
+      "put": {
+        "description": "Star/unstar ONE item's variant (the single `synth_pins` slot).\n\nA surgical read-modify-write \u2014 unlike the full-context PUT it can\nnever erase other slots' pins with a stale client map. Pinning\npromotes a draft row to active; archived rows refuse. Returns the\nupdated document (context included).",
+        "operationId": "set_synth_pin_api_v1_cv__cv_id__context_pin_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CvSynthPinIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvDocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Synth Pin",
         "tags": [
           "cv"
         ]
@@ -27352,6 +27670,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CvChoiceApproveIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

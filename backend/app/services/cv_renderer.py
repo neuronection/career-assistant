@@ -395,7 +395,7 @@ def _block_lines(
             skill_rows = [
                 s
                 for s in skill_rows
-                if isinstance(s, dict) and str(s.get("id") or "") in chosen
+                if isinstance(s, dict) and _chosen_matches(chosen, s)
             ]
         count = min(len(skill_rows), props.max_items)
         chips_per_row = max(2, chars // 14)
@@ -447,6 +447,12 @@ def _block_lines(
     if kind == "qr":
         return max(1, int(getattr(props, "size_mm", 24) // 5)) + 1
     return 1
+
+
+def _chosen_matches(chosen: set[str], row: dict) -> bool:
+    """Selection match by context id OR label (plan-72 ids + legacy label
+    selections from older UI states and free-form ops entries)."""
+    return str(row.get("id") or "") in chosen or str(row.get("label") or "") in chosen
 
 
 def _contact_line(basics: dict, props: Any, design: Any = None) -> str:
@@ -771,9 +777,7 @@ def _render_block(
         if selected_ids:
             chosen = {str(x) for x in selected_ids}
             skills = [
-                s
-                for s in skills
-                if isinstance(s, dict) and str(s.get("id") or "") in chosen
+                s for s in skills if isinstance(s, dict) and _chosen_matches(chosen, s)
             ]
             if not skills:
                 return "", False
@@ -1082,6 +1086,62 @@ def _page_margin_boxes(design: DesignTokens, snapshot: dict | None) -> tuple[str
     return " ".join(inner), standalone
 
 
+def _chip_rules(design: DesignTokens, base: float) -> tuple[str, str]:
+    """Chip styling rules for the `chip_style`/`chip_tint_pct` tokens.
+
+    Returns (chip, sidebar_chip): the base `.chip` rule and the
+    `.cv-sidebar .chip` override. The override adapts chips to the
+    sidebar's own text color — EXCEPT when `chip_text_color` is set
+    explicitly: user choice beats the column tint, so the base rule's
+    text color wins there too (background/border still adapt)."""
+    radius = max(1, design.corner_radius)
+    size = round(base * 0.95, 2)
+    tint = design.chip_tint_pct
+    text = design.chip_text_color or "var(--heading)"
+    custom = design.chip_text_color
+
+    def sidebar_chip(*clauses: str) -> str:
+        body = "; ".join(clause for clause in clauses if clause)
+        return f".cv-sidebar .chip {{ {body}; }}" if body else ""
+
+    if design.chip_style == "solid":
+        return (
+            f".chip {{ background: var(--accent); "
+            f"color: {design.chip_text_color or '#ffffff'}; "
+            f"border-radius: {radius}mm; padding: 0.4mm 1.8mm; "
+            f"font-size: {size}pt; }}",
+            "",
+        )
+    if design.chip_style == "outline":
+        return (
+            f".chip {{ background: transparent; color: {text}; "
+            f"border: 0.3mm solid color-mix(in srgb, var(--accent) "
+            f"{max(10, tint * 2)}%, var(--background)); border-radius: "
+            f"{radius}mm; padding: 0.2mm 1.8mm; font-size: {size}pt; }}",
+            sidebar_chip(
+                *(["color: inherit"] if not custom else []),
+                "border-color: color-mix(in srgb, currentColor 45%, transparent)",
+            ),
+        )
+    if design.chip_style == "plain":
+        override = sidebar_chip("color: inherit") if not custom else ""
+        return (
+            f".chip {{ background: transparent; color: {text}; font-size: {size}pt; }}",
+            override,
+        )
+    two = min(40, tint + 8)
+    sidebar = sidebar_chip(
+        f"background: color-mix(in srgb, currentColor {two}%, transparent)",
+        *(["color: inherit"] if not custom else []),
+    )
+    return (
+        f".chip {{ background: color-mix(in srgb, var(--accent) {tint}%, "
+        f"var(--background)); color: {text}; border-radius: "
+        f"{radius}mm; padding: 0 1.6mm; font-size: {size}pt; }}",
+        sidebar,
+    )
+
+
 def _css(
     design: DesignTokens,
     page_size: str,
@@ -1100,6 +1160,7 @@ def _css(
         body_font = fonts
         heading_font = fonts
     align = "center" if design.header_style == "centered" else "left"
+    chip_rule, sidebar_chip_rule = _chip_rules(design, base)
     heading_transform = {
         "uppercase": "uppercase",
         "title": "capitalize",
@@ -1150,8 +1211,11 @@ h2 {{ font-family: {heading_font}; font-size: {round(base * 1.15, 2)}pt; color: 
 .name-accent {{ color: var(--accent); }}
 /* Each contact piece (icon + value) is one atomic unit: it never splits
    across lines, and only wraps internally when it cannot fit the full
-   width (strict sidebars, oversized links). */
-.contact-icons .cpi, .contact .cpi {{ display: inline-flex; align-items: baseline;
+   width (strict sidebars, oversized links). Icons center against the
+   text line (the SVG box's own baseline edge would otherwise float it
+   above the text); the .icn vertical-align stays for heading contexts
+   (flex ignores it). */
+.contact-icons .cpi, .contact .cpi {{ display: inline-flex; align-items: center;
      max-width: 100%; vertical-align: bottom; }}
 .contact-icons .cpi {{ margin-right: 3mm; white-space: nowrap; }}
 .contact .cpi {{ white-space: nowrap; }}
@@ -1218,9 +1282,7 @@ ul.items.date-stacked .item-period {{ display: block; margin: 0.2mm 0; }}
 .item-links {{ margin-top: 0.3mm; font-size: 0.92em; color: var(--muted, var(--text)); }}
 ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
 .chips {{ display: flex; flex-wrap: wrap; gap: 1.2mm; width: 100%; }}
-.chip {{ background: color-mix(in srgb, var(--accent) 12%, var(--background));
-        color: var(--heading); border-radius: {max(1, design.corner_radius)}mm;
-        padding: 0 1.6mm; font-size: {round(base * 0.95, 2)}pt; }}
+{chip_rule}
 .skill-group {{ break-inside: avoid; }}
 .qr-wrap {{ display: flex; justify-content: center; padding: 1mm 0; }}
 .cv-sidebar .qr-wrap img {{ background: #ffffff; }}
@@ -1250,8 +1312,7 @@ ul.ach {{ list-style: disc; margin: 0.5mm 0 0 5mm; color: var(--text); }}
 .cv-sidebar .bar-fill {{ background: currentColor; }}
 .cv-sidebar .item-org, .cv-sidebar .item-period {{ color: inherit; opacity: 0.8; }}
 .cv-sidebar .item-title {{ color: inherit; }}
-.cv-sidebar .chip {{ background: color-mix(in srgb, currentColor 20%, transparent);
-     color: inherit; }}
+{sidebar_chip_rule}
 .cv-sidebar a {{ color: inherit; }}
 @media screen {{
   html {{ background: #e2e8f0; }}

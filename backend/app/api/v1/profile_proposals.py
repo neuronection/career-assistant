@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.profile_proposal import (
+    CvChoiceApproveIn,
     ProfileProposalOut,
     ProfileProposalPreviewOut,
     ProfileProposalResolveOut,
@@ -66,14 +67,27 @@ async def list_profile_proposals(
 )
 async def approve_profile_proposal(
     proposal_id: UUID,
+    body: Optional[CvChoiceApproveIn] = None,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ) -> ProfileProposalResolveOut:
     proposal, applied, already = await ProfileProposalService(db).approve(
-        user.id, proposal_id
+        user.id, proposal_id, option_keys=body.option_keys if body else None
+    )
+    children = [_out(row) for row in (applied or {}).get("children", [])]
+    # `applied["children"]` holds ORM rows (service-internal); the response
+    # carries the serialized `children` field instead, so drop the raw rows
+    # from the generic `applied` dict or JSON serialization fails.
+    safe_applied = (
+        {key: value for key, value in applied.items() if key != "children"}
+        if applied is not None
+        else None
     )
     return ProfileProposalResolveOut(
-        proposal=_out(proposal), applied=applied, already=already
+        proposal=_out(proposal),
+        applied=safe_applied,
+        already=already,
+        children=children,
     )
 
 

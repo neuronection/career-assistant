@@ -34,6 +34,9 @@ from app.models.user_model import Profile, UserSkill
 
 CACHE_KEY = "profile_digests"
 
+#: Session tool memory reserved key (chat_tool_memory) — same strip rule.
+TOOL_MEMORY_CONTEXT_KEY = "chat_tool_memory"
+
 # Full-item read entries (plan 99.1) live under the same reserved key,
 # prefixed per entity; they satisfy the read-before-edit gate in later
 # turns exactly like fresh reads do.
@@ -57,12 +60,13 @@ _SIG_TABLES: dict[str, tuple] = {
 
 
 def context_without_cache(context: Optional[dict]) -> Optional[dict]:
-    """Echo ``session.context`` outward without the reserved cache key."""
+    """Echo ``session.context`` outward without the reserved cache keys."""
     if not context:
         return context
-    if CACHE_KEY not in context:
+    reserved = {CACHE_KEY, TOOL_MEMORY_CONTEXT_KEY}
+    if not any(key in context for key in reserved):
         return context
-    stripped = {k: v for k, v in context.items() if k != CACHE_KEY}
+    stripped = {k: v for k, v in context.items() if k not in reserved}
     return stripped
 
 

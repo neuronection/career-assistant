@@ -232,6 +232,32 @@ async def test_template_import_rejects_unknown_block_kind(client, auth_headers):
     assert "unknown kind" in response.json()["detail"]
 
 
+def test_validate_blocks_heals_missing_required_props_from_the_registry():
+    """AI-drafted blocks may omit required fields with clean schema
+    defaults (the template designer's `items` block with empty props):
+    the validator HEALS them from the registry sample — required-field
+    backfill only — instead of failing the whole AI task."""
+    validated = validate_blocks(
+        [
+            {"kind": "items", "props": {}},
+            {"kind": "items"},
+            {"kind": "skills", "props": {"source_key": "ignored"}},
+        ]
+    )
+    items_props = [props for kind, props in validated[:2]]
+    assert all(props.source_key == "experience" for props in items_props)
+    assert items_props[0].max_items > 0, "sample defaults ride along"
+    skills_props = validated[2][1]
+    assert skills_props.display == "chips", "optional props stay defaulted"
+
+
+def test_validate_blocks_still_rejects_genuinely_bad_props():
+    from app.core.errors import ValidationError as DomainValidationError
+
+    with pytest.raises(DomainValidationError):
+        validate_blocks([{"kind": "skills", "props": {"display": "magnetic"}}])
+
+
 async def test_template_public_visibility_unreachable(client, db, auth_headers):
     from app.models.enums import CvTemplateVisibility
 
@@ -717,6 +743,69 @@ async def test_suggest_layout_hint_boosts_sidebar_candidates(client, db, auth_he
     top = await db.get(CvTemplate, UUID(top_id))
     content = TemplateContent.model_validate(top.content)
     assert content.design.layout == "sidebar", "the layout hint wins the baseline"
+
+
+async def test_suggest_demotes_recently_used_templates(
+    client, db, auth_headers, monkeypatch
+):
+    """Variety lever, not a ban: the templates the user's recent CVs
+    already showcase drop below fresh candidates in the determinstic
+    baseline, and the advisor target names them for the AI ranking."""
+    from app.models.cv_model import CvDocument
+
+    await seed_cv_template_bank(db)
+    template = await db.execute(
+        select(CvTemplate).where(CvTemplate.author_key == "bank")
+    )
+    template = template.scalars().first()
+    db.add(
+        CvDocument(
+            user_id=UUID(_uid(auth_headers)),
+            title="Previous CV",
+            kind="resume",
+            language="en",
+            page_size="a4",
+            max_pages=1,
+            status="draft",
+            template_id=template.id,
+        )
+    )
+    await db.commit()
+
+    import app.ai.agents.cv_template_advisor as advisor
+
+    seen: dict[str, object] = {}
+    real_rank = advisor.rank_templates
+
+    async def _spy(db, user_id, candidates, target=None, images=None):
+        seen["target"] = target
+        return await real_rank(db, user_id, candidates, target)
+
+    monkeypatch.setattr(advisor, "rank_templates", _spy)
+    result = await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)), language="en"
+    )
+    target = seen["target"] or {}
+    assert template.title in (target.get("recently_used") or [])
+    top = await db.get(CvTemplate, UUID(result["picks"][0]["template_id"]))
+    assert top.id != template.id, "a repeat is demoted below every fresh pick"
+
+
+async def test_suggest_never_ranks_the_user_s_own_templates(
+    client, db, auth_headers, monkeypatch
+):
+    """A fresh generate's auto pick ranges over curated bank templates
+    only: private copies (tests, one-offs, older styled duplicates)
+    must not win by recency luck when the brief asks for a look they
+    don't express. The explicit picker reaches them instead."""
+    await seed_cv_template_bank(db)
+    own = await _make_template(client, auth_headers)
+    result = await CvTemplateService(db).suggest(
+        UUID(_uid(auth_headers)), language="en", notes="modern and elegant"
+    )
+    assert result["picks"]
+    picked = {pick["template_id"] for pick in result["picks"]}
+    assert own["id"] not in picked
 
 
 async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):

@@ -1,6 +1,6 @@
 """cv_set_bullets HITL proposals (plan 107): grounding, apply, conflict,
 revert — the chat path onto the two-layer bullets model (a bullets
-variant pinned on the CV via the :bullets synth-pin slot)."""
+variant pinned on the CV via the single synth-pin slot (plan 110))."""
 
 import uuid
 
@@ -11,7 +11,7 @@ from app.core.errors import ValidationError
 from app.models.cv_synth_model import CvSynthItem
 from app.models.experience_model import ExperienceItem
 from app.models.user_model import User
-from app.schemas.cv import CvDocumentCreate, CvDocumentUpdate
+from app.schemas.cv import CvDocumentCreate
 from app.services.cv_service import CvService
 from app.services.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
@@ -53,6 +53,69 @@ async def _propose_bullets(db, user, cv, item, bullets):
     )
 
 
+async def test_resolver_tolerates_a_stray_entity_id(db, auth_headers):
+    """Models echo an entity_id on cv_set_bullets ops even though the
+    identity rides the payload (cv_id / source_key / item_id) — the
+    resolver must clamp it, not drop the card."""
+    from app.services.profile_proposal_service import resolve_ops
+
+    user = await _auth_user(db)
+    cv = await _cv(db, user)
+    item = await _experience(db, user)
+    resolved, failures = await resolve_ops(
+        db,
+        user.id,
+        [
+            {
+                "kind": "cv_set_bullets",
+                "action": "update",
+                "entity_id": str(item.id),
+                "payload": {
+                    "cv_id": str(cv.id),
+                    "source_key": "experience",
+                    "item_id": str(item.id),
+                    "bullets": ["CV bullet A"],
+                },
+            }
+        ],
+        grounding=set(),
+    )
+    assert not failures
+    assert len(resolved) == 1
+    assert resolved[0]["entity_id"] is None
+
+
+async def test_create_strips_echoed_heading_from_proposed_bullets(db, auth_headers):
+    """Bullets must not reopen with the item's heading (title/org render
+    above them): an echo lead is cut deterministically, an echo-only
+    bullet is dropped."""
+    user = await _auth_user(db)
+    cv = await _cv(db, user)
+    item = await _experience(db, user)
+    proposal = await _propose_bullets(
+        db,
+        user,
+        cv,
+        item,
+        [
+            "Backend internship — resolved stencil tickets",
+            "Backend internship, Acme — triaged queues",
+            "Backend internship",  # echo-only → dropped
+            "Migrated the staging vault",  # no echo → untouched
+        ],
+    )
+    assert proposal.payload_json["bullets"] == [
+        "resolved stencil tickets",
+        "triaged queues",
+        "Migrated the staging vault",
+    ]
+    assert proposal.diff_json[0]["after"] == [
+        {"text": "resolved stencil tickets"},
+        {"text": "triaged queues"},
+        {"text": "Migrated the staging vault"},
+    ]
+
+
 async def test_create_grounds_before_and_labels(db, auth_headers):
     user = await _auth_user(db)
     cv = await _cv(db, user)
@@ -67,8 +130,12 @@ async def test_create_grounds_before_and_labels(db, auth_headers):
     assert payload["cv_title"] == "Target CV"
     assert payload["before"] == [{"text": "Profile bullet one"}]
     assert proposal.diff_json == [
-        {"field": "removed_bullet", "from": "Profile bullet one", "to": None},
-        {"field": "added_bullet", "from": None, "to": "CV bullet A"},
+        {
+            "field": "bullets",
+            "label": "Bullets",
+            "before": [{"text": "Profile bullet one"}],
+            "after": [{"text": "CV bullet A"}],
+        }
     ]
 
 
@@ -100,7 +167,7 @@ async def test_apply_writes_a_bullets_variant_and_pins_it(db, auth_headers):
     assert applied["kind"] == "cv_set_bullets"
     fresh = await CvService(db).get_owned(cv.id, user.id)
     pins = (fresh.context or {}).get("synth_pins") or {}
-    variant_id = pins[f"experience:{item.id}:bullets"]
+    variant_id = pins[f"experience:{item.id}"]
     variant = await db.get(CvSynthItem, uuid.UUID(variant_id))
     assert variant.scope == "bullets"
     assert variant.payload["achievements"] == [{"text": "CV bullet A"}]
@@ -110,20 +177,69 @@ async def _approve(db, user, proposal):
     return await ProfileProposalService(db).approve(user.id, proposal.id)
 
 
-async def test_conflict_when_cv_moved_since_proposal(db, auth_headers):
+async def test_conflict_when_the_item_moved_since_proposal(db, auth_headers):
+    """The granular sentinel: the conflict fires when the target item's
+    own bullet state moved (edited achievements, repinned variant) —
+    an unrelated CV mutation must not poison the card (each approval
+    rewrites cv.context pins and bumps the CV's timestamp)."""
     user = await _auth_user(db)
     cv = await _cv(db, user)
     item = await _experience(db, user)
-    proposal = await _propose_bullets(db, user, cv, item, ["CV bullet A"])
-    await CvService(db).update(
-        cv.id,
+    other = await ExperienceService(db).create_item(
         user.id,
-        CvDocumentUpdate(working_content={"blocks": [], "overrides": {}}),
+        {
+            "title": "Second internship",
+            "kind": "internship",
+            "org_name": "Beta",
+            "start": "2025-07-01",
+            "open_ended": True,
+            "achievements": [{"text": "Profile bullet two"}],
+        },
     )
+    proposal = await _propose_bullets(db, user, cv, item, ["CV bullet A"])
+    sibling = await _propose_bullets(db, user, cv, other, ["CV bullet two revised"])
+    await ExperienceService(db).update_item(
+        user.id,
+        item.id,
+        {"achievements": [{"text": "Profile bullet one CHANGED"}]},
+    )
+    await _approve(db, user, sibling)
+
     from app.core.errors import ConflictError
 
     with pytest.raises(ConflictError):
         await _approve(db, user, proposal)
+
+
+async def test_sibling_bullets_cards_apply_after_one_approval(db, auth_headers):
+    """Approving one bullets card bumps the CV (context pin) — the
+    remaining card on the SAME CV for a DIFFERENT item must still apply
+    instead of false-conflicting."""
+    user = await _auth_user(db)
+    cv = await _cv(db, user)
+    item = await _experience(db, user)
+    other = await ExperienceService(db).create_item(
+        user.id,
+        {
+            "title": "Second internship",
+            "kind": "internship",
+            "org_name": "Beta",
+            "start": "2025-07-01",
+            "open_ended": True,
+            "achievements": [{"text": "Profile bullet two"}],
+        },
+    )
+    proposal = await _propose_bullets(db, user, cv, item, ["CV bullet A"])
+    sibling = await _propose_bullets(db, user, cv, other, ["CV bullet two revised"])
+    await _approve(db, user, proposal)
+    applied = await _approve(db, user, sibling)
+
+    assert applied is not None
+    pins = ((await CvService(db).get_owned(cv.id, user.id)).context or {}).get(
+        "synth_pins"
+    ) or {}
+    assert f"experience:{item.id}" in pins
+    assert f"experience:{other.id}" in pins
 
 
 async def test_revert_unpins_the_bullets_variant(db, auth_headers):
@@ -137,7 +253,7 @@ async def test_revert_unpins_the_bullets_variant(db, auth_headers):
     assert reverted.status == "reverted"
     fresh = await CvService(db).get_owned(cv.id, user.id)
     pins = (fresh.context or {}).get("synth_pins") or {}
-    assert f"experience:{item.id}:bullets" not in pins, (
+    assert f"experience:{item.id}" not in pins, (
         "revert unpins — the profile bullets render again"
     )
 
@@ -153,7 +269,7 @@ async def test_revert_without_a_variant_is_a_clean_noop(db, auth_headers):
 
     fresh = await CvService(db).get_owned(cv.id, user.id)
     pins = (fresh.context or {}).get("synth_pins") or {}
-    assert f"experience:{item.id}:bullets" not in pins
+    assert f"experience:{item.id}" not in pins
     rows = await db.execute(select(User).where(User.id == user.id))
     assert rows.scalars().one() is not None
 
@@ -288,8 +404,8 @@ async def test_chat_proposes_and_approval_applies_cv_bullets(
     fetched = await client.get(f"/api/v1/cv/{cv.id}", headers=auth_headers)
     assert fetched.status_code == 200, fetched.text()
     pins = (fetched.json().get("context") or {}).get("synth_pins") or {}
-    variant_id = pins[f"experience:{item.id}:bullets"]
+    variant_id = pins[f"experience:{item.id}"]
     variant = await db.get(CvSynthItem, uuid.UUID(variant_id))
-    assert variant.payload["achievements"] == [
-        {"text": "Backend internship — tailored for this CV"}
-    ]
+    assert variant.payload["achievements"] == [{"text": "tailored for this CV"}], (
+        "the echoed heading lead is stripped at card creation"
+    )
