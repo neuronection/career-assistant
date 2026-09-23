@@ -12,7 +12,7 @@ import logging
 from importlib import metadata
 from typing import Any, Optional
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools.base import AITool, ToolContext
@@ -111,7 +111,7 @@ def get_tool(key: str) -> AITool:
 logger = logging.getLogger(__name__)
 
 
-def _coerce_tool_args(input_model: type, args: dict, key: str) -> Any:
+def _coerce_tool_args(input_model: type[BaseModel], args: dict, key: str) -> Any:
     """Validate tool args, clamping over-long model-provided strings once.
 
     LLM tool calls routinely stuff prose (the user's whole message) into

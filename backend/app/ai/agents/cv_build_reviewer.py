@@ -331,6 +331,7 @@ async def review_build(
     synth_applied: Optional[dict] = None,
     overrides: Optional[dict] = None,
     themes: Optional[list[dict]] = None,
+    selection: Optional[dict] = None,
     run: Optional[RunRef] = None,
     with_ref: Literal[False] = False,
 ) -> CvBuildCritique: ...
@@ -353,6 +354,7 @@ async def review_build(
     synth_applied: Optional[dict] = None,
     overrides: Optional[dict] = None,
     themes: Optional[list[dict]] = None,
+    selection: Optional[dict] = None,
     run: Optional[RunRef] = None,
     with_ref: Literal[True] = True,
 ) -> "tuple[CvBuildCritique, dict]": ...

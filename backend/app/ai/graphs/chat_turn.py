@@ -411,7 +411,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
             # Conversation memory: web pulls the model makes itself ride
             # the same session-scoped cache, so later turns stay
             # consistent with what was already fetched.
-            ident = chat_tool_memory.ident_for(call["name"], call.get("args"))
+            ident = chat_tool_memory.ident_for(call["name"], call.get("args") or {})
             if ident and chat_tool_memory.memorable(call["name"], result):
                 chat_tool_memory.save(
                     deps.session,

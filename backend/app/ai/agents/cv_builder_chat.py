@@ -954,12 +954,7 @@ async def apply_operation(
             rows = await service.generate(
                 cv.user_id,
                 CvSynthItemGenerate(
-                    refs=[
-                        {
-                            "source_key": op.source_key,
-                            "item_id": op.item_id,
-                        }
-                    ],
+                    refs=[CvContextRef(source_key=op.source_key, item_id=op.item_id)],
                     action=op.action,
                     language=str(cv.language or "en"),
                     instruction=op.instruction or None,
@@ -971,10 +966,10 @@ async def apply_operation(
                     "referenced item — try restyle with a one-line "
                     "instruction or a summarize pass"
                 )
-            for index, row in enumerate(rows):
-                if row.status == "draft":
+            for index, synth_row in enumerate(rows):
+                if synth_row.status == "draft":
                     rows[index] = await service.update(
-                        row.id, cv.user_id, CvSynthItemUpdate(status="active")
+                        synth_row.id, cv.user_id, CvSynthItemUpdate(status="active")
                     )
             await service.pin_variants_on_cv(cv.user_id, cv.id, rows)
             await db.commit()
@@ -1035,7 +1030,9 @@ async def apply_operation(
                 await service.update(
                     UUID(pinned_id),
                     cv.user_id,
-                    CvSynthItemUpdate(payload=merged_payload),
+                    CvSynthItemUpdate(
+                        payload=CvSynthPayload.model_validate(merged_payload)
+                    ),
                 )
             else:
                 synth_row = await service.create_manual(

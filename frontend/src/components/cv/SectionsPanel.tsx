@@ -95,16 +95,16 @@ function iconValue(value: unknown): string {
 }
 
 function IconField({
-  props,
+  icon,
   onUpdate,
 }: {
-  props: Record<string, unknown>;
+  icon: unknown;
   onUpdate: (patch: Record<string, unknown>) => void;
 }) {
   return (
     <SelectField
       label="Heading icon"
-      value={iconValue(props.icon)}
+      value={iconValue(icon)}
       options={[{ value: "default", label: "Template default" }, { value: "none", label: "None" }, ...ICON_OPTIONS]}
       onChange={(next) =>
         onUpdate({ icon: next === "default" ? null : next === "none" ? "" : next })
@@ -241,7 +241,7 @@ function configFor(
                 testId={`summary-text-${summary.index}`}
               />
             )}
-            <IconField props={props} onUpdate={onUpdate} />
+            <IconField icon={props.icon} onUpdate={onUpdate} />
             <StepperRow
               label="Max characters"
               value={asNumber(props.max_chars, 600)}
@@ -257,7 +257,7 @@ function configFor(
       return (
         <>
           <FieldGroup label="Content">
-            <IconField props={props} onUpdate={onUpdate} />
+            <IconField icon={props.icon} onUpdate={onUpdate} />
             <SegmentedRow
               label="Data source"
               value={String(props.source_key ?? "experience")}
@@ -361,7 +361,7 @@ function configFor(
             </FieldGroup>
           )}
           <FieldGroup label="Display">
-            <IconField props={props} onUpdate={onUpdate} />
+            <IconField icon={props.icon} onUpdate={onUpdate} />
             <ToggleRow
               label="Show source chips"
               checked={props.show_source_chips !== false}
@@ -380,7 +380,7 @@ function configFor(
     case "skills":
       return (
         <FieldGroup label="Display">
-          <IconField props={props} onUpdate={onUpdate} />
+          <IconField icon={props.icon} onUpdate={onUpdate} />
           <SegmentedRow
             label="Display"
             value={String(props.display ?? "chips")}
@@ -412,7 +412,7 @@ function configFor(
     case "languages":
       return (
         <FieldGroup label="Display">
-          <IconField props={props} onUpdate={onUpdate} />
+          <IconField icon={props.icon} onUpdate={onUpdate} />
           <SegmentedRow
             label="Format"
             value={String(props.display ?? "chips")}
@@ -440,7 +440,7 @@ function configFor(
         : ACHIEVEMENT_KIND_OPTIONS.map((option) => option.value);
       return (
         <FieldGroup label="Types">
-          <IconField props={props} onUpdate={onUpdate} />
+          <IconField icon={props.icon} onUpdate={onUpdate} />
           <ChipTogglesRow
             label="Types"
             values={kinds}
@@ -453,7 +453,7 @@ function configFor(
     case "interests":
       return (
         <FieldGroup label="Display">
-          <IconField props={props} onUpdate={onUpdate} />
+          <IconField icon={props.icon} onUpdate={onUpdate} />
           <StepperRow
             label="Max items"
             value={asNumber(props.max_items, 6)}

@@ -89,14 +89,17 @@ def test_chat_rewrites_attached_cv_bullets(page) -> None:
 
     fetched = page.request.get(f"{API}/cv/{cv_id}")
     assert fetched.ok, fetched.text()
-    # Since the two-layer model (plan 107: bullets become variants) the
-    # approved rewrite lands as a :bullets synth variant pinned on the
-    # CV — never a working_content override.
+    # Plan 110: one pin slot per item — the approved rewrite lands as an
+    # achievements-only synth variant starred on the plain
+    # `experience:{item_id}` key (the `:bullets` suffix is retired), never
+    # a working_content override.
     pins = (fetched.json().get("context") or {}).get("synth_pins") or {}
-    keys = [k for k in pins if k.startswith("experience:") and k.endswith(":bullets")]
+    keys = [k for k in pins if k.startswith("experience:")]
     assert keys, "the approved bullets variant pin landed on the CV"
     variant_id = pins[keys[0]]
     variant = page.request.get(f"{API}/cv/synth/{variant_id}")
     assert variant.ok, variant.text()
     achievements = variant.json()["payload"]["achievements"]
-    assert achievements == [{"text": "Bullet Intern — tailored for this CV"}]
+    assert achievements == [{"text": "tailored for this CV"}], (
+        "the echoed heading lead is stripped at card creation"
+    )
