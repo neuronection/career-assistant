@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.15.0] - 2026-09-23
+
 ### Changed
 - **Documentation is now split by audience** — `docs/` is a two-tree manual:
   a [user guide](docs/user/README.md) and a
