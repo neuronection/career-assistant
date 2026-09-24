@@ -790,6 +790,10 @@ function PhotoSection() {
   );
 }
 
+/** Items shown per group on a profile summary card before the "+N more"
+ * link — keeps the card scannable, never a silent truncation. */
+const SUMMARY_ITEM_LIMIT = 3;
+
 function ExperienceSummaryCard() {
   const { t } = useTranslation();
   const [items, setItems] = useState<ExperienceItemOut[]>([]);
@@ -860,7 +864,7 @@ function ExperienceSummaryCard() {
             <span className="h-px flex-1 bg-[var(--as-border)]" aria-hidden />
           </div>
           <ul className="mt-1.5 space-y-1 text-sm text-[var(--as-fg)]">
-            {list.map((item) => (
+            {list.slice(0, SUMMARY_ITEM_LIMIT).map((item) => (
               <li
                 key={item.id}
                 className="flex items-center gap-2"
@@ -883,6 +887,15 @@ function ExperienceSummaryCard() {
               </li>
             ))}
           </ul>
+          {list.length > SUMMARY_ITEM_LIMIT && (
+            <Link
+              to="/profile/experience"
+              className="mt-1 inline-block text-xs font-medium text-[var(--as-accent)] hover:underline"
+              data-testid={`experience-group-more-${kind}`}
+            >
+              {t("profileEdit.moreItems", { count: list.length - SUMMARY_ITEM_LIMIT })}
+            </Link>
+          )}
         </div>
       ))}
     </ProfileSectionCard>
@@ -918,7 +931,7 @@ function EducationSummaryCard() {
   }, [items]);
 
   const inProgress = items.filter((i) => i.in_progress && i.status === "active");
-  const top = useMemo(() => items.slice(0, 3), [items]);
+  const top = useMemo(() => items.slice(0, SUMMARY_ITEM_LIMIT), [items]);
 
   return (
     <ProfileSectionCard
@@ -975,6 +988,15 @@ function EducationSummaryCard() {
             </li>
           ))}
         </ul>
+      )}
+      {items.length > SUMMARY_ITEM_LIMIT && (
+        <Link
+          to="/profile/education"
+          className="mt-1 inline-block text-xs font-medium text-[var(--as-accent)] hover:underline"
+          data-testid="education-summary-more"
+        >
+          {t("profileEdit.moreItems", { count: items.length - SUMMARY_ITEM_LIMIT })}
+        </Link>
       )}
     </ProfileSectionCard>
   );

@@ -64,6 +64,9 @@ function experienceCardData(snapshot: Snapshot | null) {
   const skillsRaw = Array.isArray(snapshot.skills)
     ? (snapshot.skills as Snapshot[])
     : [];
+  const linksRaw = Array.isArray(snapshot.links)
+    ? (snapshot.links as Snapshot[])
+    : [];
   return {
     id: "preview",
     title: String(snapshot.title ?? ""),
@@ -73,8 +76,16 @@ function experienceCardData(snapshot: Snapshot | null) {
     end: (snapshot.end as string | undefined) ?? null,
     open_ended: Boolean(snapshot.open_ended),
     hours_per_week: (snapshot.hours_per_week as number | undefined) ?? null,
+    onsite_policy: (snapshot.onsite_policy as string | undefined) ?? null,
     status: String(snapshot.status ?? "active"),
     description: (snapshot.description as string | undefined) ?? "",
+    links: linksRaw
+      .map((row) => ({
+        label: (row.label as string | undefined) ?? null,
+        url: String(row.url ?? ""),
+        kind: (row.kind as string | undefined) ?? null,
+      }))
+      .filter((link) => link.url),
     achievements: Array.isArray(snapshot.achievements)
       ? (snapshot.achievements as { text: string }[])
       : [],
@@ -82,6 +93,7 @@ function experienceCardData(snapshot: Snapshot | null) {
       skill_key: String(row.skill_key ?? ""),
       skill_label: String(row.skill_label ?? row.skill_key ?? ""),
       role_in_item: row.role_in_item as string | undefined,
+      level_claim: (row.level_claim as number | undefined) ?? null,
     })),
   };
 }
@@ -247,7 +259,7 @@ export function ProposalPreviewModal({
           <ExperienceItemCard
             item={experienceCardData(snapshot)!}
             highlight={highlight}
-            showAchievements
+            density="full"
             testId={`hitl-preview-${which}-card`}
           />
         ) : (
@@ -267,7 +279,7 @@ export function ProposalPreviewModal({
           <ExperienceItemCard
             item={experienceCardData(snapshot)!}
             highlight={highlight}
-            showAchievements
+            density="full"
             testId={`hitl-preview-card-${index}`}
           />
         )

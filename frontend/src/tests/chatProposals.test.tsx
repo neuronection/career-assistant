@@ -610,3 +610,40 @@ describe("cv_choice multi-select card (plan 108)", () => {
     expect(radioA.checked).toBe(false);
   });
 });
+
+const MANY_DIFF_CARD: ProfileProposalCardData = {
+  ...CARD,
+  diff: [
+    { field: "title", label: "Title", before: "A", after: "B" },
+    { field: "org_name", label: "Organization", before: "X", after: "Y" },
+    { field: "start", label: "Start date", before: "2025-01-01", after: "2025-02-01" },
+    { field: "end", label: "End date", before: "2025-06-01", after: "2025-07-01" },
+    { field: "hours_per_week", label: "Hours per week", before: 35, after: 20 },
+  ],
+};
+
+describe("MessageProposals density", () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it("compact caps the diff rows behind a Show all expander", async () => {
+    render(
+      <MessageProposals message={messageWith([MANY_DIFF_CARD])} density="compact" />,
+    );
+    expect(screen.queryByText("End date")).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Show all 5 fields" });
+    const user = userEvent.setup();
+    await user.click(toggle);
+    expect(screen.getByText("End date")).toBeInTheDocument();
+  });
+
+  it("default density renders every diff row", () => {
+    render(<MessageProposals message={messageWith([MANY_DIFF_CARD])} />);
+    expect(screen.getByText("End date")).toBeInTheDocument();
+    expect(screen.getByText("Hours per week")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /show all/i }),
+    ).not.toBeInTheDocument();
+  });
+});

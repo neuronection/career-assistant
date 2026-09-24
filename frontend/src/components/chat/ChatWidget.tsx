@@ -33,6 +33,7 @@ import {
   buildBranchTree,
   type BranchTree,
   type ChatMessageView,
+  type HitlDensity,
 } from "@/components/ui/chat";
 import { Button, PopoverButton } from "@/components/ui";
 import {
@@ -371,7 +372,13 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
   );
 }
 
-function MessageList({ compact }: { compact: boolean }) {
+function MessageList({
+  compact,
+  density,
+}: {
+  compact: boolean;
+  density: HitlDensity;
+}) {
   const chat = useCareerChatContext();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -430,7 +437,7 @@ function MessageList({ compact }: { compact: boolean }) {
             <>
               <MessageTrace message={raw} />
               <MessageTemplatePreviews message={raw} />
-              <MessageProposals message={raw} />
+              <MessageProposals message={raw} density={density} />
             </>
           ) : undefined
         }
@@ -493,7 +500,7 @@ function MessageList({ compact }: { compact: boolean }) {
                 <>
                   {toolCards}
                   {livePreviews}
-                  <ProposalCards cards={proposalCards} />
+                  <ProposalCards cards={proposalCards} density={density} />
                   {chat.stream.text !== null ? (
                     <>
                       <MarkdownSurface value={chat.stream.text} streaming />
@@ -672,6 +679,7 @@ function ChatSurface({
 }) {
   const { t } = useTranslation();
   const compact = variant === "bubble";
+  const density: HitlDensity = variant === "page" ? "full" : "compact";
   return (
     <ChatPanel
       variant={variant}
@@ -692,7 +700,7 @@ function ChatSurface({
           )}
         </>
       }
-      transcript={<MessageList compact={compact} />}
+      transcript={<MessageList compact={compact} density={density} />}
       composer={<ComposerBar />}
     />
   );

@@ -4,6 +4,7 @@ import { Undo2 } from "lucide-react";
 
 import {
   HitlProposalCard,
+  type HitlDensity,
   type HitlProposalAction as ProfileProposalCardAction,
 } from "@/components/ui/chat";
 import type {
@@ -68,9 +69,11 @@ function mapRevertError(
 function ProposalCard({
   card,
   onOpenPreview,
+  density,
 }: {
   card: ProfileProposalCardData;
   onOpenPreview: (card: ProfileProposalCardData) => void;
+  density?: HitlDensity;
 }) {
   const { t } = useTranslation();
   const override = useProfileProposalsStore(
@@ -105,6 +108,7 @@ function ProposalCard({
         action={card.action as ProfileProposalCardAction}
         diff={card.diff}
         destructive={card.destructive}
+        density={density}
         busy={state.busy}
         error={state.error ? mapRevertError(state.error, t) : undefined}
         onPreview={showPreviewButton ? () => onOpenPreview(card) : undefined}
@@ -134,6 +138,8 @@ function ProposalCard({
           expired: t("chat.proposals.expired"),
           reverted: t("chat.proposals.reverted"),
           conflictHint: t("chat.proposals.conflictHint"),
+          showAll: t("chat.proposals.showAllFields"),
+          showFewer: t("chat.proposals.showFewerFields"),
         }}
       />
       {reversible ? (
@@ -310,10 +316,12 @@ export function ProposalCards({
   cards,
   droppedCount = 0,
   droppedReasons = [],
+  density,
 }: {
   cards: ProfileProposalCardData[];
   droppedCount?: number;
   droppedReasons?: { kind?: string | null; reason: string }[];
+  density?: HitlDensity;
 }) {
   const { t } = useTranslation();
   const [previewCard, setPreviewCard] =
@@ -332,6 +340,7 @@ export function ProposalCards({
             key={card.id}
             card={card}
             onOpenPreview={setPreviewCard}
+            density={density}
           />
         ),
       )}
@@ -366,7 +375,13 @@ export function ProposalCards({
   );
 }
 
-export function MessageProposals({ message }: { message: ChatMessage }) {
+export function MessageProposals({
+  message,
+  density,
+}: {
+  message: ChatMessage;
+  density?: HitlDensity;
+}) {
   const pipelineErrors = (message.metadata_json?.profile_op_errors ?? []).map(
     (error) =>
       ({
@@ -382,6 +397,7 @@ export function MessageProposals({ message }: { message: ChatMessage }) {
         ...(message.metadata_json?.proposals_dropped_reasons ?? []),
         ...pipelineErrors,
       ]}
+      density={density}
     />
   );
 }

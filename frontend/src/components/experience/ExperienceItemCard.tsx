@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
-import { Briefcase, Copy, Trash2 } from "lucide-react";
+import { Briefcase, Copy, Link2, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { KIND_ICONS } from "@/components/experience/ExperienceEditor";
+import { safeExternalUrl } from "@/lib/url";
+
+export type ItemCardDensity = "compact" | "full";
 
 /** Minimum shape both the workspace list and the plan-99 preview
  * snapshots render through this card (ExperienceItemOut satisfies it). */
@@ -15,9 +18,16 @@ export interface ExperienceItemCardData {
   end?: string | null;
   open_ended?: boolean;
   hours_per_week?: number | null;
+  onsite_policy?: string | null;
   status: string;
   description?: string | null;
-  skills: { skill_key: string; skill_label: string }[];
+  links?: { label?: string | null; url: string; kind?: string | null }[] | null;
+  skills: {
+    skill_key: string;
+    skill_label: string;
+    role_in_item?: string | null;
+    level_claim?: number | null;
+  }[];
   achievements?: { text: string }[] | null;
 }
 
@@ -35,7 +45,10 @@ export interface ExperienceItemCardProps {
   onDelete?: () => void;
   selectSlot?: ReactNode;
   testId?: string;
-  showAchievements?: boolean;
+  /** `compact` (workspace list) = headline + clamped description + first
+   * tags; `full` (HITL preview) = everything the item carries: full
+   * description, achievements, all tags with role/level, links, on-site. */
+  density?: ItemCardDensity;
 }
 
 export function periodEnd(
@@ -109,12 +122,14 @@ export function ExperienceItemCard({
   onDelete,
   selectSlot,
   testId,
-  showAchievements = false,
+  density = "compact",
 }: ExperienceItemCardProps) {
   const { t } = useTranslation();
   const Icon = KIND_ICONS[item.kind as keyof typeof KIND_ICONS] ?? Briefcase;
   const base = testId ?? `experience-item-${item.id}`;
   const hasHighlight = highlight.some((term) => term && item.description?.includes(term));
+  const full = density === "full";
+  const links = (item.links ?? []).filter((link) => safeExternalUrl(link.url));
   return (
     <article
       className={`group relative rounded-xl border p-2.5 transition-colors duration-150 ${
@@ -167,16 +182,23 @@ export function ExperienceItemCard({
               {item.hours_per_week
                 ? ` · ${t("experience.hoursShort", { hours: item.hours_per_week })}`
                 : ""}
+              {full && item.onsite_policy
+                ? ` · ${t(`experience.onsite.${item.onsite_policy}`, {
+                    defaultValue: item.onsite_policy,
+                  })}`
+                : ""}
             </span>
             {item.description ? (
               <span
-                className="mt-0.5 line-clamp-1 block text-xs leading-snug text-[var(--as-muted-fg)]/90"
+                className={`mt-0.5 block text-xs leading-snug text-[var(--as-muted-fg)]/90 ${
+                  full ? "whitespace-pre-line" : "line-clamp-1"
+                }`}
                 title={item.description}
               >
                 {hasHighlight ? highlightText(item.description, highlight) : item.description}
               </span>
             ) : null}
-            {showAchievements && (item.achievements ?? []).length > 0 && (
+            {full && (item.achievements ?? []).length > 0 && (
               <span className="mt-1 flex flex-col gap-0.5 text-xs leading-snug text-[var(--as-muted-fg)]/90">
                 {item.achievements!.map((a, i) => (
                   <span key={i}>· {a.text}</span>
@@ -185,15 +207,19 @@ export function ExperienceItemCard({
             )}
             {item.skills.length > 0 && (
               <span className="mt-1 flex flex-wrap gap-1">
-                {item.skills.slice(0, 3).map((s) => (
+                {(full ? item.skills : item.skills.slice(0, 3)).map((s) => (
                   <span
                     key={s.skill_key}
                     className="rounded-full border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]"
                   >
                     {s.skill_label}
+                    {full && s.role_in_item ? ` · ${s.role_in_item}` : ""}
+                    {full && typeof s.level_claim === "number"
+                      ? ` · lvl ${s.level_claim}`
+                      : ""}
                   </span>
                 ))}
-                {item.skills.length > 3 && (
+                {!full && item.skills.length > 3 && (
                   <span className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]">
                     +{item.skills.length - 3}
                   </span>
@@ -203,6 +229,23 @@ export function ExperienceItemCard({
           </span>
         </span>
       </button>
+      {full && links.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-[2.375rem]">
+          {links.map((link) => (
+            <a
+              key={link.url}
+              href={safeExternalUrl(link.url) ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex max-w-full items-center gap-1 text-[10px] text-[var(--as-accent)] hover:underline"
+              data-testid="experience-item-link"
+            >
+              <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">{link.label || link.url}</span>
+            </a>
+          ))}
+        </div>
+      )}
       {onDuplicate && (
         <button
           type="button"

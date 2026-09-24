@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Compact and full item cards** — chat proposal cards now render
+  **compact** on the bubble and side-dock chat shapes (diff rows capped at
+  three behind a *Show all N fields* expander) and **full** on the `/chat`
+  page and inside the Preview modal, derived from the chat surface, not a
+  preference. The profile Experience and Education summary cards each show
+  three entries with a *+N more* link to the workspace (Experience was
+  previously unbounded). Rides the `density` prop that lands in
+  `@neuronection/assistant-ui` (`chat-hitl`, minor) — the app depends on
+  that release for `density`/`HitlDensity`.
+- **Experience cards surface the full entry in full density** — the full
+  view renders the un-clamped description, all achievement bullets, every
+  skill tag with its role/level, the entry's links and its on-site policy.
+  Links were previously dropped from *every* read-only surface (including
+  the HITL preview); they are now rendered through a `http(s)`-only
+  guard (`safeExternalUrl`) with `rel="noopener noreferrer"`.
+
 ## [v0.15.0] - 2026-09-23
 
 ### Changed

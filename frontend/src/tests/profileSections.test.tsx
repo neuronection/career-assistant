@@ -1414,6 +1414,47 @@ describe("ProfileEdit (settings-shell restructure)", () => {
     expect(summaries[1]).toHaveTextContent("Capstone"); // e0 — kind groups sort jobs first
   });
 
+  it("caps a summary group at three items and links the remainder", async () => {
+    const items = Array.from({ length: 4 }, (_, i) => ({
+      id: `p${i}`,
+      kind: "project" as const,
+      title: `Project ${i}`,
+      org_name: "",
+      org_id: null,
+      start: `202${i}-01-01`,
+      end: `202${i}-06-30`,
+      open_ended: false,
+      hours_per_week: null,
+      onsite_policy: null,
+      description: "",
+      links: [],
+      source: "self_report" as const,
+      status: "active" as const,
+      created_at: "2026-09-01T00:00:00Z",
+      skills: [],
+      achievements: [],
+    }));
+    vi.mocked((await import("@/api/experience")).fetchExperience).mockResolvedValue({
+      items,
+      years_of_experience: 2,
+    });
+    render(
+      <MemoryRouter>
+        <ProfileEdit />
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Experience" }));
+    expect(await screen.findByTestId("experience-summary-p3")).toBeInTheDocument();
+    expect(screen.queryByTestId("experience-summary-p0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("experience-group-more-project")).toHaveTextContent(
+      "+1 more"
+    );
+    expect(screen.getByTestId("experience-group-more-project")).toHaveAttribute(
+      "href",
+      "/profile/experience"
+    );
+  });
+
   it("summarizes education (derived level + entries) with a link to the workspace", async () => {
     render(
       <MemoryRouter>
@@ -1432,6 +1473,37 @@ describe("ProfileEdit (settings-shell restructure)", () => {
       "href",
       "/profile/education"
     );
+  });
+
+  it("links the education remainder past the summary cap", async () => {
+    const items = Array.from({ length: 4 }, (_, i) => ({
+      id: `ed${i}`,
+      institution: `School ${i}`,
+      org_name: "",
+      program: "",
+      level: "bachelor",
+      start: "2020-09-01",
+      end: "2024-06-30",
+      in_progress: false,
+      grade_band: null,
+      focus_subjects: [],
+      description: "",
+      source: "self_report" as const,
+      status: "active" as const,
+      university_id: null,
+      department_id: null,
+      created_at: "2026-09-06T00:00:00Z",
+    }));
+    vi.mocked((await import("@/api/education")).fetchEducation).mockResolvedValue(items);
+    render(
+      <MemoryRouter>
+        <ProfileEdit />
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Education" }));
+    const more = await screen.findByTestId("education-summary-more");
+    expect(more).toHaveTextContent("+1 more");
+    expect(more).toHaveAttribute("href", "/profile/education");
   });
 
   it("keeps the account & data danger zone as the last section", async () => {

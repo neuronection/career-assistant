@@ -76,10 +76,12 @@ export type {
   HitlProposalCardLabels,
   HitlProposalStatus,
   HitlProposalAction,
+  HitlDensity,
   FieldDiffProps,
   FieldDiffValue,
   FieldDiffLabels,
   FieldSummaryProps,
+  CappedRowsLabels,
 } from "@neuronection/assistant-ui/chat-hitl";
 
 export { ChatComposer } from "@neuronection/assistant-ui/chat-composer";

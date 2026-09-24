@@ -167,6 +167,37 @@ status vocabulary (`StatusChip`, `statusLabelKey`, `reportSummary`,
 overview's import panel (`import-cv-panel` with a live
 `import-cv-status` line) consumes the same label keys.
 
+### 2c. The item-card density pattern (plan 112, 2026-09)
+
+Any surface that renders a *list* of items (a HITL proposal's diff rows,
+an experience/education card, a profile summary card) is either
+**compact** or **full** — one vocabulary, never a per-surface ad-hoc cap:
+
+- **`density: "compact" | "full"`** is a presentational prop, no state.
+  The library `chat-hitl` card (`HitlProposalCard`, `FieldDiff`,
+  `FieldSummary`) takes it; app cards (`ExperienceItemCard`) mirror it.
+  Default is always `full`, so a consumer that never passes it renders
+  exactly as before.
+- **The caller derives density from context, never from a user
+  preference.** Chat: `variant === "page" ? "full" : "compact"`
+  (`ChatWidget.tsx` → `MessageList` → `ProposalCards`), because the
+  bubble/docked panes are space-constrained; the Preview modal is always
+  `full`.
+- **Compact truncates but never silently.** The library's `CappedRows`
+  caps at 3 rows behind a "Show all N fields" expander
+  (`data-hitl-action="toggle-rows"`); summary cards use a `+N more`
+  link to the full workspace (experience group + education). A count
+  badge tells the user how many exist.
+- **Full shows everything the item carries.** For experience that means
+  the un-clamped description, all achievements, every skill tag with its
+  role/level, links, hours and on-site policy; for education, grade
+  band, focus subjects, description and in-progress.
+- **Links are user input.** Route every rendered URL through
+  `safeExternalUrl` (`lib/url.ts` — absolute `http(s)` only, drops
+  `javascript:`/`data:`/relative) and render
+  `target="_blank" rel="noopener noreferrer"`. Anchors live *outside*
+  the card's `<button>` — never nest an `<a>` inside a button.
+
 ## 2a. The profile section-card pattern (plans 50, 2026-09)
 
 Profile data entry (profile page `/profile`, onboarding wizard
