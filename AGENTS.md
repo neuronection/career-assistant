@@ -14,6 +14,16 @@ local profile, tray/background scheduler, `python -m careerassistant`, PyInstall
 packaging). Keep the schema dialect-aware (Postgres + SQLite verified) and
 never break one mode while working on the other.
 
+**Identity class D** (family ADR-0013): desktop initializes `auth_mode=open`
+— implicit local owner + auto-provisioned Default profile, zero auth UI (an
+`authenticated` desktop instance is an explicit initialization choice: login
+at boot, registration off). Web is always authenticated and ships the family
+user-management surface. Profiles are 1:N per user; `X-Profile-Id` is
+ownership-checked (403 on mismatch, 400 when absent in web mode). Secrets
+are separated per purpose (`SESSION`/`REFRESH`/`DATA` keys — never derived
+from one another). Datastore: SQLite desktop / PostgreSQL web (family
+ADR-0022).
+
 Stack mirrors the other Neuronection assistants: FastAPI (async SQLAlchemy +
 Postgres JSONB + Alembic), React 18 + Vite + TS + Tailwind + Zustand,
 pytest/vitest, ruff. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and
