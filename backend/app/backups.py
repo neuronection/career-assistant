@@ -1,11 +1,16 @@
-"""Local (desktop) backups: consistent SQLite snapshot + uploads + secret.
+"""Local (desktop) backups: consistent SQLite snapshot + uploads + keys.
 
 Backups are zips under `<data_dir>/backups/`:
     backup-YYYYMMDD-HHMMSS.zip
         manifest.json        {created_at, app_version, contents}
         career-assistant.db  consistent snapshot (VACUUM INTO)
         uploads/…            uploaded documents
-        secret.key           required to decrypt stored AI keys
+        auth_keys.json       per-instance key family (identity-auth §8) —
+                             without it a restore can decrypt nothing and
+                             every session invalidates
+        secret.key           legacy pre-P3d key (kept when present so
+                             restored old snapshots can still drain their
+                             JWT-derived ciphertext via migration 0044)
 Retention keeps 14 daily and 8 weekly archives.
 """
 
@@ -59,7 +64,9 @@ def create_backup(data_dir: Path) -> Path:
 
     created = datetime.now(timezone.utc)
     out = backups_dir(data_dir) / (f"backup-{created.strftime('%Y%m%d-%H%M%S')}.zip")
+    keys_file = data_dir / "auth_keys.json"
     secret = data_dir / "secret.key"
+    contents = ["db", "uploads"]
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as bundle:
         snapshot = data_dir / f".snapshot-{created.strftime('%Y%m%d-%H%M%S')}.db"
         try:
@@ -74,15 +81,19 @@ def create_backup(data_dir: Path) -> Path:
                     bundle.write(
                         file_path, arcname=str(file_path.relative_to(data_dir))
                     )
+        if keys_file.is_file():
+            bundle.write(keys_file, arcname="auth_keys.json")
+            contents.append("auth_keys.json")
         if secret.is_file():
             bundle.write(secret, arcname="secret.key")
+            contents.append("secret.key")
         bundle.writestr(
             "manifest.json",
             json.dumps(
                 {
                     "created_at": created.isoformat(),
                     "app_version": settings.VERSION,
-                    "contents": ["db", "uploads", "secret.key"],
+                    "contents": contents,
                 },
                 indent=2,
             ),
@@ -192,8 +203,8 @@ def verify_or_repair_database(data_dir: Path) -> str:
 
 
 def restore_backup(data_dir: Path, archive: Path) -> dict:
-    """Replace the live db/uploads/secret with an archive's contents."""
-    restored = {"db": False, "uploads": 0, "secret": False}
+    """Replace the live db/uploads/keys with an archive's contents."""
+    restored = {"db": False, "uploads": 0, "keys": False, "secret": False}
     with zipfile.ZipFile(archive) as bundle:
         names = bundle.namelist()
         db_path = _db_path(data_dir)
@@ -211,6 +222,9 @@ def restore_backup(data_dir: Path, archive: Path) -> dict:
                 restored["db"] = True
             finally:
                 shutil.rmtree(staging, ignore_errors=True)
+        if "auth_keys.json" in names:
+            bundle.extract("auth_keys.json", data_dir)
+            restored["keys"] = True
         if "secret.key" in names:
             bundle.extract("secret.key", data_dir)
             restored["secret"] = True

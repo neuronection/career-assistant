@@ -16,7 +16,7 @@ from app.services.cv_blocks import REGISTRY, SAMPLE_SNAPSHOT, validate_blocks
 from app.services.cv_renderer import render_cv
 from app.services.cv_template_service import CvTemplateService
 from app.services.engagement_service import canonical_hash
-from tests.conftest import _uid
+from tests.conftest import _uid, session_headers
 
 
 VALID_CONTENT = {
@@ -166,7 +166,7 @@ async def test_template_crud_versions_and_ownership(client, db, auth_headers):
         "/api/v1/auth/register",
         json={"email": "tmpler@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     steal = await client.patch(
         f"/api/v1/cv/templates/{template['id']}",
         json={"title": "X", "content": VALID_CONTENT},
@@ -195,7 +195,7 @@ async def test_template_export_import_round_trip(client, db, auth_headers):
         "/api/v1/auth/register",
         json={"email": "importer@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
 
     tampered = {**package, "content": {**package["content"], "design": {}}}
     rejected = await client.post(
@@ -867,7 +867,7 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
         "/api/v1/auth/register",
         json={"email": "other@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    other_headers = session_headers(second)
     other_cv = await client.post(
         "/api/v1/cv", json={"title": "Theirs"}, headers=other_headers
     )
@@ -895,7 +895,7 @@ async def test_template_stats_admin_only(client, db, auth_headers):
     )
     row.is_admin = True
     await db.commit()
-    admin = {"Authorization": f"Bearer {first.json()['access_token']}"}
+    admin = session_headers(first)
     allowed = await client.get("/api/v1/cv/templates/stats", headers=admin)
     assert allowed.status_code == 200, allowed.text
     assert isinstance(allowed.json(), list)
@@ -907,7 +907,7 @@ async def test_template_stats_admin_only(client, db, auth_headers):
     if second.status_code == 201:
         denied = await client.get(
             "/api/v1/cv/templates/stats",
-            headers={"Authorization": f"Bearer {second.json()['access_token']}"},
+            headers=session_headers(second),
         )
         assert denied.status_code == 403, denied.text
 
@@ -1093,13 +1093,12 @@ async def test_preview_png_cached_and_capability_gated(
 async def test_preview_png_hides_foreign_templates(db, auth_headers):
     """A private template owned by someone else is invisible to the PNG
     route exactly like the HTML preview (404, not 403)."""
-    from app.core.config import settings
     from app.core.errors import NotFoundError
     from app.models.user_model import User
     from app.services.cv_template_service import CvTemplateService
 
     owner_rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
+        select(User).where(User.email == "student@example.com")
     )
     owner = owner_rows.scalars().first()
     private = await CvTemplateService(db).create(

@@ -21,6 +21,12 @@ app-specific delta.
 
 ## The rules
 
+> **Alignment doctrine (plan 16):** pre-release databases are dev
+> artifacts to recreate — destructive migrations are fine (document
+> them), downgrades may be irreversible in spirit but must stay runnable
+> for the round-trip tests, and no backwards-compatibility shims are
+> written.
+
 1. **Model first.** Edit the SQLAlchemy model exactly as the schema should
    look, then write the revision to match.
 2. **One head, never two.** `down_revision` is the current head's id string.
@@ -55,6 +61,18 @@ behave differently:
 Migration `0041` is the cautionary example: it fixed exactly these three
 mistakes (Postgres-only JSON cast, dashed-UUID matching, and a dangling-pin
 case) and is covered by four fold states on both dialects.
+
+## Migration notes (newest first)
+
+- **`0043_profiles_one_to_many`** (plan 16 P3b): `profiles` becomes
+  family 1:N — drops the `ix_profiles_user_id` UNIQUE index (recreated
+  non-unique) and adds `name` (backfilled `"Default"`), `is_default`
+  (backfilled `true` — pre-change rows are 1:1, so each is its user's
+  only profile), `last_used_at` and `color`. Existing rows are kept.
+  The **downgrade is destructive**: it deletes every non-oldest profile
+  per user before restoring the UNIQUE index. Covered by
+  `tests/test_migrations.py::test_0043_profiles_one_to_many_legacy_backfill`
+  (legacy shape on `0042` → upgrade → assert the backfill + 1:N).
 
 ## Running migrations
 

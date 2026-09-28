@@ -13,14 +13,14 @@ from app.connectors.base import (
     RawPosting,
 )
 from app.connectors.registry import register_connector, reset_registry
-from app.core.security import decode_access_token
+from tests.conftest import decode_session_token
 from app.models.engagement_model import NotificationRule
 from app.models.taxonomy_model import Skill
 
 
 def _user_id(auth_headers) -> uuid_mod.UUID:
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    return decode_access_token(token)[0]
+    return decode_session_token(token)[0]
 
 
 @pytest.fixture

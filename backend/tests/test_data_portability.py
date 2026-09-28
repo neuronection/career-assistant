@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.models.user_model import Profile, User
+from tests.conftest import session_headers
 
 
 async def _register(client: AsyncClient, email: str) -> dict:
@@ -17,7 +18,7 @@ async def _register(client: AsyncClient, email: str) -> dict:
         json={"email": email, "password": "supersecret1", "full_name": "T"},
     )
     assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 async def test_export_job_produces_downloadable_zip(client, db, auth_headers):
@@ -89,9 +90,7 @@ async def test_export_download_is_private(client, db, auth_headers):
     assert stolen.status_code == 404
 
 
-async def test_delete_account_cascades_and_requires_password(
-    client, db, multi_user_mode
-):
+async def test_delete_account_cascades_and_requires_password(client, db):
     headers = await _register(client, "deleteme@example.com")
     user = (
         (await db.execute(select(User).where(User.email == "deleteme@example.com")))
@@ -103,7 +102,7 @@ async def test_delete_account_cascades_and_requires_password(
     wrong = await client.request(
         "DELETE", "/api/v1/me", json={"password": "not-it"}, headers=headers
     )
-    assert wrong.status_code == 400
+    assert wrong.status_code == 403
 
     ok = await client.request(
         "DELETE", "/api/v1/me", json={"password": "supersecret1"}, headers=headers
@@ -116,22 +115,25 @@ async def test_delete_account_cascades_and_requires_password(
         await db.execute(select(Profile).where(Profile.user_id == user_id))
     ).scalars().first() is None
     me_again = await client.get("/api/v1/auth/me", headers=headers)
-    assert me_again.status_code == 401 if multi_user_mode else 200
+    assert me_again.status_code == 401
 
 
-async def test_last_admin_cannot_self_delete(client, db, multi_user_mode):
-    """Multi-user only: in single-user mode there is no second user to take
-    over, so self-delete is the only admin's way out and stays allowed."""
+async def test_last_admin_can_self_delete(client, db):
+    """§12 `DELETE /api/v1/me` is password-confirmed cascade delete for
+    every user — the kit (family reference, shared with study) carries no
+    last-admin self-delete guard; the guard rails live on
+    `PATCH /api/v1/admin/users` (no self-demotion, no last-admin demote).
+    Plan 16 P3a note: career's in-tree self-delete guard shipped away
+    with its auth code — recorded in the changelog."""
     admin = await _register(client, "dp-admin@example.com")
     await _register(client, "second@example.com")
     me = (await client.get("/api/v1/auth/me", headers=admin)).json()
     assert me["is_admin"] is True
 
-    denied = await client.request(
+    ok = await client.request(
         "DELETE", "/api/v1/me", json={"password": "supersecret1"}, headers=admin
     )
-    assert denied.status_code == 400
-    assert "last admin" in denied.json()["detail"]
+    assert ok.status_code == 204
 
 
 async def test_sole_user_can_delete_account(client, db):
@@ -157,6 +159,9 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     connection.close()
     (data_dir / "uploads").mkdir()
     (data_dir / "uploads" / "doc.txt").write_text("document")
+    (data_dir / "auth_keys.json").write_text(
+        '{"session": "s", "refresh": "r", "data": "d"}'
+    )
     (data_dir / "secret.key").write_text("s3cret")
 
     monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
@@ -169,9 +174,15 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     connection.execute("DROP TABLE t")
     connection.commit()
     connection.close()
+    (data_dir / "auth_keys.json").unlink()
+    (data_dir / "secret.key").unlink()
 
     summary = backups.restore_backup(data_dir, archive)
     assert summary["db"] is True and summary["secret"] is True
+    # The key family rides every backup — without it a restore can
+    # decrypt nothing and every session invalidates (identity-auth §8).
+    assert summary["keys"] is True
+    assert (data_dir / "auth_keys.json").is_file()
     connection = sqlite3.connect(db_path)
     rows = connection.execute("SELECT x FROM t").fetchall()
     connection.close()

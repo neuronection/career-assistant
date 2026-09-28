@@ -9,7 +9,7 @@ beats generic → variant order).
 import uuid
 from datetime import date
 
-from tests.conftest import _make_posting, _uid
+from tests.conftest import _make_posting, _uid, session_headers
 
 from app.models.experience_model import ExperienceItem
 
@@ -135,7 +135,7 @@ async def test_refresh_source_state_is_owner_scoped(client, db, auth_headers):
             "full_name": "Other Student",
         },
     )
-    other_headers = {"Authorization": "Bearer " + other.json()["access_token"]}
+    other_headers = session_headers(other)
     denied = await client.post(
         f"/api/v1/cv/synth/{row['id']}/refresh-source-state",
         headers=other_headers,
@@ -494,7 +494,7 @@ async def test_preview_is_owner_scoped(client, auth_headers, db):
             "full_name": "Other Student",
         },
     )
-    other_headers = {"Authorization": "Bearer " + other.json()["access_token"]}
+    other_headers = session_headers(other)
     preview = await client.post(
         "/api/v1/cv/synth/preview",
         json={

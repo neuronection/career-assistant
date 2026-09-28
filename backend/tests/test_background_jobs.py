@@ -6,14 +6,12 @@ from httpx import AsyncClient
 
 from app.models.background_job_model import BackgroundJob
 from app.services.job_worker import JobWorker, enqueue
+from tests.conftest import register_user
 
 
-async def _make_user(client: AsyncClient) -> str:
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={"email": "worker@example.com", "password": "supersecret1"},
-    )
-    return response.json()["access_token"]
+async def _make_user(client: AsyncClient) -> dict:
+    """Register the worker user; returns its session headers."""
+    return await register_user(client, "worker@example.com", "supersecret1")
 
 
 async def _enqueue(db, job_type: str = "job_generate", **kwargs) -> BackgroundJob:
@@ -120,8 +118,7 @@ async def test_recover_orphans_requeues_or_fails(db):
 
 
 async def test_batch_score_endpoint_returns_202_with_job(client, db):
-    token = await _make_user(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = await _make_user(client)
     response = await client.post("/api/v1/match/score", json={}, headers=headers)
     assert response.status_code == 202
     body = response.json()
@@ -131,8 +128,7 @@ async def test_batch_score_endpoint_returns_202_with_job(client, db):
 
 
 async def test_generate_endpoint_returns_202_with_job(client, db, seeded_catalog):
-    token = await _make_user(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = await _make_user(client)
     response = await client.post(
         "/api/v1/jobs/generate", json={"count": 2}, headers=headers
     )

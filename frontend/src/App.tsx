@@ -1,8 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Layout } from "@/components/Layout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { SessionGate } from "@/components/SessionGate";
 import { SettingsShell } from "@/components/SettingsShell";
 import { About } from "@/pages/About";
+import { Account } from "@/pages/settings/Account";
 import { AIConfig } from "@/pages/settings/AIConfig";
 import { AIAudit } from "@/pages/settings/AIAudit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
@@ -49,9 +50,9 @@ export function App() {
       <Routes>
         <Route
           element={
-            <ProtectedRoute>
+            <SessionGate>
               <Layout />
-            </ProtectedRoute>
+            </SessionGate>
           }
         >
           <Route path="/" element={<Dashboard />} />
@@ -92,7 +93,8 @@ export function App() {
           <Route path="/cv/templates/:id" element={<CvTemplateEditor />} />
           <Route path="/about" element={<About />} />
           <Route path="/settings" element={<SettingsShell />}>
-            <Route index element={<Navigate to="/settings/ai" replace />} />
+            <Route index element={<Navigate to="/settings/account" replace />} />
+            <Route path="account" element={<Account />} />
             <Route path="ai" element={<AIConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
             <Route path="users" element={<Users />} />

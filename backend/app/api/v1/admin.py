@@ -1,4 +1,7 @@
-"""Admin surface: catalog moderation, user management, AI audit viewer."""
+"""Admin surface: catalog moderation and AI audit viewer.
+
+User management (`/admin/users`, reset-password, force-logout) is the
+auth-kit's §12 surface now — see `nx_auth.user_admin` (plan 16 P3a)."""
 
 import uuid
 from datetime import datetime
@@ -12,10 +15,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.errors import DomainError, ValidationError
-from app.core.security import hash_password
 from app.models.enums import BackgroundJobType
 from app.models.ai_model import AIGeneration
-from app.models.matching_model import MatchInsight
 from app.models.user_model import User
 from app.schemas.job import JobOut
 from app.services.deps import get_current_user, require_admin
@@ -30,15 +31,6 @@ router = APIRouter(
 class BulkJobActionIn(BaseModel):
     ids: list[uuid.UUID] = Field(min_length=1)
     action: str  # "publish" | "reject"
-
-
-class UserPatchIn(BaseModel):
-    is_active: Optional[bool] = None
-    is_admin: Optional[bool] = None
-
-
-class ResetPasswordIn(BaseModel):
-    new_password: str = Field(min_length=10, max_length=128)
 
 
 @router.get("/jobs", response_model=list[JobOut])
@@ -79,117 +71,6 @@ async def bulk_job_action(
             rejected += 1
     await db.commit()
     return {"published": published, "rejected": rejected}
-
-
-class AdminUserOut(BaseModel):
-    id: uuid.UUID
-    email: str
-    full_name: str
-    is_admin: bool
-    is_active: bool
-    created_at: datetime
-    token_version: int
-    insight_count: int
-
-    model_config = {"from_attributes": True}
-
-
-async def _admin_user_out(db: AsyncSession, user: User) -> AdminUserOut:
-    insights = (
-        await db.execute(
-            select(func.count(MatchInsight.id)).where(MatchInsight.user_id == user.id)
-        )
-    ).scalar() or 0
-    return AdminUserOut(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        is_admin=user.is_admin,
-        is_active=user.is_active,
-        created_at=user.created_at,
-        token_version=user.token_version,
-        insight_count=int(insights),
-    )
-
-
-@router.get("/users", response_model=list[AdminUserOut])
-async def list_users(db: AsyncSession = Depends(get_db)) -> list[AdminUserOut]:
-    """All accounts with activity counts."""
-    users = (await db.execute(select(User).order_by(User.created_at))).scalars().all()
-    return [await _admin_user_out(db, u) for u in users]
-
-
-@router.patch("/users/{user_id}", response_model=AdminUserOut)
-async def patch_user(
-    user_id: uuid.UUID,
-    data: UserPatchIn,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-) -> AdminUserOut:
-    """Activate/deactivate or promote/demote a user (with guard rails)."""
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-
-    if data.is_admin is not None and data.is_admin != user.is_admin:
-        if user.id == admin.id:
-            raise ValidationError("You cannot change your own admin role")
-        if user.is_admin and not data.is_admin:
-            admins = (
-                await db.execute(
-                    select(func.count(User.id)).where(User.is_admin.is_(True))
-                )
-            ).scalar() or 0
-            if admins <= 1:
-                raise ValidationError("Cannot demote the last admin")
-        user.is_admin = data.is_admin
-        user.token_version += 1  # role changed — outstanding tokens die
-
-    if data.is_active is not None and data.is_active != user.is_active:
-        if user.id == admin.id:
-            raise ValidationError("You cannot deactivate your own account")
-        user.is_active = data.is_active
-        user.token_version += 1  # deactivated users lose sessions immediately
-
-    await db.commit()
-    await db.refresh(user)
-    return await _admin_user_out(db, user)
-
-
-@router.post("/users/{user_id}/reset-password", response_model=AdminUserOut)
-async def reset_password(
-    user_id: uuid.UUID,
-    data: ResetPasswordIn,
-    _admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-) -> AdminUserOut:
-    """Set a new password for a user (share it out-of-band) and revoke sessions."""
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    user.password_hash = hash_password(data.new_password)
-    user.failed_login_attempts = 0
-    user.locked_until = None
-    user.token_version += 1
-    await db.commit()
-    await db.refresh(user)
-    return await _admin_user_out(db, user)
-
-
-@router.post("/users/{user_id}/force-logout", response_model=AdminUserOut)
-async def force_logout(
-    user_id: uuid.UUID,
-    _admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-) -> AdminUserOut:
-    """Invalidate every outstanding token for a user."""
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    user.token_version += 1
-    await db.commit()
-    await db.refresh(user)
-    return await _admin_user_out(db, user)
 
 
 class AIGenerationOut(BaseModel):

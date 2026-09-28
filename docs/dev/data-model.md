@@ -20,8 +20,11 @@ documents. Every JSONB write is validated by pydantic on the way in.
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `users` | `user_model.py` | Accounts (single-user mode creates one default admin) |
-| `profiles` | `user_model.py` | The structured profile document |
+| `users` | `user_model.py` | Accounts (family-normative `users`, identity-auth §5) |
+| `profiles` | `user_model.py` | The structured profile document — family 1:N per user (`name`, `is_default`, `last_used_at`, `preferences` + career's JSON sections; §5/§6) |
+| `auth_sessions` | `identity_model.py` | Refresh families (rotation + reuse detection, §5) |
+| `instance_settings` | `identity_model.py` | Instance access-mode facts (`auth_mode`, `demo_mode` — init-only, §4) |
+| `audit_events` | `identity_model.py` | Append-only auth/admin audit trail (§5) |
 | `user_interests` | `user_model.py` | FK join to `interest_tags` (never JSONB) |
 | `user_skills` | `user_model.py` | FK join to `skills`, with level |
 | `experience_items`, `experience_skills`, `experience_achievements` | `experience_model.py` | Jobs, internships, freelance, projects, volunteering + their links |

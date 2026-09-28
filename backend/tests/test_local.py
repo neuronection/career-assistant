@@ -1,15 +1,12 @@
-"""Local desktop profile: secret file, env bootstrap, window state, shell utils."""
+"""Local desktop profile: env bootstrap, window state, shell utils."""
 
-import stat
 from pathlib import Path
 
 import pytest
 
 from app.local import (
-    SECRET_FILE,
     bootstrap_environment,
     default_data_dir,
-    ensure_secret_file,
 )
 from app.shell import (
     WindowGeometryTracker,
@@ -33,7 +30,6 @@ def clean_env(monkeypatch):
         "DATA_DIR",
         "DATABASE_URL",
         "UPLOAD_DIR",
-        "JWT_SECRET",
         "CAREER_ENV_FILE",
         "APPDATA",
         "XDG_DATA_HOME",
@@ -52,43 +48,32 @@ def test_default_data_dir_platform_default(clean_env, monkeypatch):
     assert default_data_dir() == Path("/xdg/CareerAssistant")
 
 
-def test_ensure_secret_file_creates_strong_secret_once(tmp_path):
-    path = tmp_path / SECRET_FILE
-    first = ensure_secret_file(path)
-    assert path.is_file()
-    assert len(first) >= 32
-    mode = stat.S_IMODE(path.stat().st_mode)
-    assert mode & 0o077 == 0
-    assert ensure_secret_file(path) == first
-
-
-def test_ensure_secret_file_regenerates_empty_file(tmp_path):
-    path = tmp_path / SECRET_FILE
-    path.write_text("")
-    assert len(ensure_secret_file(path)) >= 32
-
-
 def test_bootstrap_environment_sets_sqlite_defaults(clean_env, tmp_path):
     env = bootstrap_environment(tmp_path, environ={})
     assert env["DATA_DIR"] == str(tmp_path)
     assert env["DATABASE_URL"].startswith(f"sqlite+aiosqlite:///{tmp_path}")
     assert env["UPLOAD_DIR"] == str(tmp_path / "uploads")
-    assert env["JWT_SECRET"] == env["JWT_SECRET"] and len(env["JWT_SECRET"]) >= 32
     assert (tmp_path / "uploads").is_dir()
     assert (tmp_path / "logs").is_dir()
-    assert (tmp_path / SECRET_FILE).is_file()
     assert env["CAREER_ENV_FILE"] == str(tmp_path / "env")
+
+
+def test_bootstrap_environment_seeds_no_key_material(clean_env, tmp_path):
+    """P3d: the desktop bootstrap no longer mints a legacy `secret.key` or
+    a JWT secret — the auth-kit KeyRing owns key material (generated 0600
+    `auth_keys.json`, identity-auth §8)."""
+    env = bootstrap_environment(tmp_path, environ={})
+    assert "JWT_SECRET" not in env
+    assert not (tmp_path / "secret.key").exists()
+    assert not (tmp_path / "auth_keys.json").exists()
 
 
 def test_bootstrap_environment_never_overrides_real_env(clean_env, tmp_path):
     env = {
         "DATABASE_URL": "postgresql+asyncpg://keep@me/db",
-        "JWT_SECRET": "explicit-secret-value-0123456789abcdef0123456789",
     }
     bootstrap_environment(tmp_path, environ=env)
     assert env["DATABASE_URL"] == "postgresql+asyncpg://keep@me/db"
-    assert env["JWT_SECRET"] == "explicit-secret-value-0123456789abcdef0123456789"
-    assert not (tmp_path / SECRET_FILE).exists()
 
 
 def test_find_free_port_is_bindable():

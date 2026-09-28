@@ -1,4 +1,4 @@
-"""Local (desktop) profile bootstrap: data dir, secrets, env, migrations.
+"""Local (desktop) profile bootstrap: data dir, env, migrations.
 
 Imported only by the `careerassistant` entrypoint — everything here runs
 before `app.core.config` is imported so plain environment variables carry the
@@ -8,14 +8,12 @@ desktop defaults into Settings.
 import asyncio
 import logging
 import os
-import secrets
 import sys
 from pathlib import Path
 from typing import MutableMapping
 
 logger = logging.getLogger(__name__)
 
-SECRET_FILE = "secret.key"
 ENV_FILE = "env"
 SKIP_SEED_VAR = "CAREER_SKIP_SEED"
 
@@ -35,26 +33,6 @@ def default_data_dir(environ: MutableMapping[str, str] | None = None) -> Path:
     return base / "CareerAssistant"
 
 
-def ensure_secret_file(path: Path) -> str:
-    """Read the local JWT secret, creating a strong one on first run.
-
-    The file is created once and never silently rewritten: AI provider keys
-    are Fernet-encrypted with a key derived from this secret, so rotating it
-    would make stored keys undecryptable. Losing the file means re-entering
-    provider keys in Settings → AI Configuration.
-    """
-    if path.is_file():
-        existing = path.read_text(encoding="utf-8").strip()
-        if existing:
-            return existing
-    value = secrets.token_urlsafe(48)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(value + "\n")
-    os.chmod(path, 0o600)
-    return value
-
-
 def bootstrap_environment(
     data_dir: Path, environ: MutableMapping[str, str] | None = None
 ) -> MutableMapping[str, str]:
@@ -72,8 +50,13 @@ def bootstrap_environment(
     env.setdefault(
         "CAREER_ENV_FILE", str(data_dir / ENV_FILE)
     )  # optional user overrides file
-    if not env.get("JWT_SECRET"):
-        env["JWT_SECRET"] = ensure_secret_file(data_dir / SECRET_FILE)
+    # Entrypoint half of the instance-mode matrix (identity-auth §4):
+    # `python -m careerassistant` is the desktop entrypoint.
+    env.setdefault("CAREER_IDENTITY_MODE", "desktop")
+    # Per-instance keys (identity-auth §8) are NOT seeded here: the
+    # auth-kit KeyRing persists a generated 0600 auth_keys.json in the
+    # data dir (app.core.keys), and the retired JWT-derived `secret.key`
+    # is read only by migration 0044's legacy ciphertext drain.
     return env
 
 

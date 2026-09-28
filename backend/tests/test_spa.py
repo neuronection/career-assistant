@@ -85,9 +85,17 @@ async def test_existing_static_asset_is_served(spa_dist, monkeypatch):
 
 
 async def test_unmatched_api_path_returns_json_404_not_html(spa_dist, monkeypatch):
+    from tests.conftest import mint_session_headers
+
     app = _make_app(monkeypatch, spa_dist)
     async with await _client(app) as client:
-        response = await client.get("/api/v1/does-not-exist")
+        # Anonymous ⇒ 401 (session enforcement, §4.2) — the JSON-404
+        # contract below is the authenticated answer to a missing route.
+        anonymous = await client.get("/api/v1/does-not-exist")
+        assert anonymous.status_code == 401
+        response = await client.get(
+            "/api/v1/does-not-exist", headers=mint_session_headers()
+        )
         assert response.status_code == 404
         assert "application/json" in response.headers["content-type"]
         assert response.json() == {"detail": "Not Found"}

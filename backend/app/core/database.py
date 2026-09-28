@@ -4,12 +4,14 @@ from datetime import date, datetime
 from typing import AsyncGenerator
 from uuid import UUID
 
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
@@ -76,6 +78,34 @@ if settings.DATABASE_URL.startswith("sqlite"):
 AsyncSessionLocal = async_sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
 )
+
+
+def _sync_database_url(url: str) -> str:
+    """Same database through the sync driver (identity-auth kit bridge).
+
+    The auth-kit store protocols are synchronous (auth-kit README
+    "Scope"); career adapts them over a dedicated sync engine on the
+    same database — the same pattern as study's `app/auth/stores.py`
+    session factory. Auth writes are short single-row transactions.
+    """
+    return url.replace("+asyncpg", "+psycopg").replace("+aiosqlite", "")
+
+
+_sync_engine_kwargs: dict = {"pool_pre_ping": True, "echo": False}
+if settings.DATABASE_URL.startswith("sqlite"):
+    _sync_engine_kwargs = {
+        "pool_pre_ping": True,
+        "connect_args": {"timeout": 30},
+        "echo": False,
+    }
+
+sync_engine = create_engine(
+    _sync_database_url(settings.DATABASE_URL), **_sync_engine_kwargs
+)
+if settings.DATABASE_URL.startswith("sqlite"):
+    event.listens_for(sync_engine, "connect")(sqlite_pragmas)
+
+AuthSessionLocal = sessionmaker(bind=sync_engine, expire_on_commit=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

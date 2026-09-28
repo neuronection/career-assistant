@@ -15,6 +15,7 @@ from app.models.university_model import Department, University
 from app.models.user_model import Profile, User
 from app.services.fit.service import FitService
 from app.services.profile_entities_service import effective_education_level
+from tests.conftest import session_headers
 
 
 async def _register_second(client) -> dict:
@@ -22,7 +23,7 @@ async def _register_second(client) -> dict:
         "/api/v1/auth/register",
         json={"email": "other48@example.com", "password": "supersecret1"},
     )
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 async def test_education_crud_and_ownership(client, db, auth_headers):

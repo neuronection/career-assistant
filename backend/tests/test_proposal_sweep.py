@@ -5,8 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
-from app.core.config import settings
-from app.core.security import decode_access_token
+from tests.conftest import decode_session_token
 from app.models.enums import ScheduleKind
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.schedule_model import Schedule
@@ -19,13 +18,11 @@ from app.services.scheduler.runner import SchedulerService
 
 def _uid(auth_headers) -> str:
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    return decode_access_token(token)[0]
+    return decode_session_token(token)[0]
 
 
 async def _user(db) -> User:
-    rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-    )
+    rows = await db.execute(select(User).where(User.email == "student@example.com"))
     return rows.scalars().one()
 
 

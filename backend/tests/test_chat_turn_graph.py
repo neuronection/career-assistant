@@ -234,7 +234,7 @@ async def test_ainvoke_agent_audits_tool_calls(db, monkeypatch):
 
 
 async def _assign_mock_model(db):
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
     from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
     from app.models.user_model import User
 

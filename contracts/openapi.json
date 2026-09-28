@@ -23,6 +23,21 @@
         "title": "AcademicsSection",
         "type": "object"
       },
+      "AccountDeleteIn": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "AccountDeleteIn",
+        "type": "object"
+      },
       "AchievementIn": {
         "properties": {
           "metric": {
@@ -165,54 +180,47 @@
         "title": "AddBlockOp",
         "type": "object"
       },
-      "AdminUserOut": {
+      "AdminPasswordResetIn": {
         "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
+          "new_password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "New Password",
             "type": "string"
-          },
-          "email": {
-            "title": "Email",
-            "type": "string"
-          },
-          "full_name": {
-            "title": "Full Name",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "insight_count": {
-            "title": "Insight Count",
-            "type": "integer"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "is_admin": {
-            "title": "Is Admin",
-            "type": "boolean"
-          },
-          "token_version": {
-            "title": "Token Version",
-            "type": "integer"
           }
         },
         "required": [
-          "id",
-          "email",
-          "full_name",
-          "is_admin",
-          "is_active",
-          "created_at",
-          "token_version",
-          "insight_count"
+          "new_password"
         ],
-        "title": "AdminUserOut",
+        "title": "AdminPasswordResetIn",
+        "type": "object"
+      },
+      "AdminUserUpdateIn": {
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_admin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Admin"
+          }
+        },
+        "title": "AdminUserUpdateIn",
         "type": "object"
       },
       "AdmissionCreate": {
@@ -5046,19 +5054,6 @@
         "title": "DegreeLevel",
         "type": "string"
       },
-      "DeleteAccountIn": {
-        "properties": {
-          "password": {
-            "title": "Password",
-            "type": "string"
-          }
-        },
-        "required": [
-          "password"
-        ],
-        "title": "DeleteAccountIn",
-        "type": "object"
-      },
       "DemandInfo": {
         "properties": {
           "note": {
@@ -7348,6 +7343,59 @@
         "title": "HobbyItem",
         "type": "object"
       },
+      "InstanceConfigOut": {
+        "properties": {
+          "auth_mode": {
+            "title": "Auth Mode",
+            "type": "string"
+          },
+          "demo_mode": {
+            "title": "Demo Mode",
+            "type": "boolean"
+          },
+          "registration_enabled": {
+            "title": "Registration Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "demo_mode",
+          "auth_mode",
+          "registration_enabled"
+        ],
+        "title": "InstanceConfigOut",
+        "type": "object"
+      },
+      "InstanceUpdateIn": {
+        "properties": {
+          "auth_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "open",
+                  "authenticated"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Mode"
+          },
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "InstanceUpdateIn",
+        "type": "object"
+      },
       "InterestItem": {
         "properties": {
           "source": {
@@ -8559,11 +8607,14 @@
       "LoginIn": {
         "properties": {
           "email": {
-            "format": "email",
+            "maxLength": 320,
+            "minLength": 1,
             "title": "Email",
             "type": "string"
           },
           "password": {
+            "maxLength": 1024,
+            "minLength": 1,
             "title": "Password",
             "type": "string"
           }
@@ -9480,6 +9531,28 @@
           "ok"
         ],
         "title": "OpResult",
+        "type": "object"
+      },
+      "PasswordChangeIn": {
+        "properties": {
+          "current_password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChangeIn",
         "type": "object"
       },
       "PathGraphOut": {
@@ -10625,6 +10698,33 @@
         "title": "ProfileAchievementPatch",
         "type": "object"
       },
+      "ProfileIn": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProfileIn",
+        "type": "object"
+      },
       "ProfileLink": {
         "description": "A contact/profile link: shared shape with 40's links.",
         "properties": {
@@ -10656,6 +10756,82 @@
           "url"
         ],
         "title": "ProfileLink",
+        "type": "object"
+      },
+      "ProfileOut": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_default"
+        ],
+        "title": "ProfileOut",
+        "type": "object"
+      },
+      "ProfilePatch": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "is_default": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Default"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "ProfilePatch",
         "type": "object"
       },
       "ProfileProposalOut": {
@@ -11525,19 +11701,20 @@
       "RegisterIn": {
         "properties": {
           "email": {
-            "format": "email",
+            "maxLength": 320,
+            "minLength": 3,
             "title": "Email",
             "type": "string"
           },
           "full_name": {
             "default": "",
-            "maxLength": 160,
+            "maxLength": 200,
             "title": "Full Name",
             "type": "string"
           },
           "password": {
-            "maxLength": 128,
-            "minLength": 10,
+            "maxLength": 1024,
+            "minLength": 1,
             "title": "Password",
             "type": "string"
           }
@@ -11633,21 +11810,6 @@
           "block_index"
         ],
         "title": "RemoveBlockOp",
-        "type": "object"
-      },
-      "ResetPasswordIn": {
-        "properties": {
-          "new_password": {
-            "maxLength": 128,
-            "minLength": 10,
-            "title": "New Password",
-            "type": "string"
-          }
-        },
-        "required": [
-          "new_password"
-        ],
-        "title": "ResetPasswordIn",
         "type": "object"
       },
       "ResolveOut": {
@@ -13445,24 +13607,6 @@
         "title": "ThreadsOut",
         "type": "object"
       },
-      "TokenOut": {
-        "properties": {
-          "access_token": {
-            "title": "Access Token",
-            "type": "string"
-          },
-          "token_type": {
-            "default": "bearer",
-            "title": "Token Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "access_token"
-        ],
-        "title": "TokenOut",
-        "type": "object"
-      },
       "TranscribeOut": {
         "properties": {
           "model": {
@@ -13898,69 +14042,6 @@
           "metrics"
         ],
         "title": "UserMetricsOut",
-        "type": "object"
-      },
-      "UserOut": {
-        "properties": {
-          "email": {
-            "format": "email",
-            "title": "Email",
-            "type": "string"
-          },
-          "full_name": {
-            "title": "Full Name",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "is_admin": {
-            "default": false,
-            "title": "Is Admin",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "full_name",
-          "is_active"
-        ],
-        "title": "UserOut",
-        "type": "object"
-      },
-      "UserPatchIn": {
-        "properties": {
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          },
-          "is_admin": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Admin"
-          }
-        },
-        "title": "UserPatchIn",
         "type": "object"
       },
       "UserSkillIn": {
@@ -14565,12 +14646,6 @@
         "title": "SeenIn",
         "type": "object"
       }
-    },
-    "securitySchemes": {
-      "HTTPBearer": {
-        "scheme": "bearer",
-        "type": "http"
-      }
     }
   },
   "info": {
@@ -14678,12 +14753,47 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Audit Generations",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/instance": {
+      "patch": {
+        "description": "`auth_mode` transitions per identity-auth \u00a74.5 (audited).\n\n`password` re-verifies the caller's current password (403 on\nmismatch, generic). Exception per \u00a74.5: an `open \u2192 authenticated`\ntransition performed by the password-less implicit owner *sets*\ncredentials for that owner (\"it becomes a normal admin user\") \u2014\nre-verification cannot apply to a row without a password, and\nrequiring one first would make the \u00a74.5 transition unreachable.\n`authenticated \u2192 open` additionally needs the explicit `auth_mode`\nin the body (the \u00a74.5 \"explicit confirmation\"), is refused while\nother user rows exist, and revokes every session. Server entrypoints\nnever run `open` (\u00a74.4).",
+        "operationId": "update_instance_api_v1_admin_instance_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Instance",
         "tags": [
           "admin"
         ]
@@ -14758,11 +14868,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Moderation Queue",
         "tags": [
           "admin"
@@ -14807,11 +14912,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Bulk Job Action",
         "tags": [
           "admin"
@@ -14839,11 +14939,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Enrichment Queue",
         "tags": [
           "admin"
@@ -14890,11 +14985,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Apply Enrichment",
         "tags": [
           "admin"
@@ -14941,11 +15031,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Reject Enrichment",
         "tags": [
           "admin"
@@ -14990,11 +15075,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Broadcast",
         "tags": [
           "notifications"
@@ -15066,11 +15146,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Admin Organizations",
         "tags": [
           "admin"
@@ -15095,11 +15170,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Backfill Organizations",
         "tags": [
           "admin"
@@ -15158,11 +15228,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Add Organization Alias",
         "tags": [
           "admin"
@@ -15221,11 +15286,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Merge Organization",
         "tags": [
           "admin"
@@ -15272,11 +15332,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Promote Organization",
         "tags": [
           "admin"
@@ -15326,11 +15381,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Path Moderation Queue",
         "tags": [
           "admin"
@@ -15377,11 +15427,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Publish Path",
         "tags": [
           "admin"
@@ -15428,11 +15473,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Reject Path",
         "tags": [
           "admin"
@@ -15516,11 +15556,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Admin List Postings",
         "tags": [
           "admin"
@@ -15548,11 +15583,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Posting Connectors",
         "tags": [
           "admin"
@@ -15577,11 +15607,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Posting Feature Map",
         "tags": [
           "admin"
@@ -15609,11 +15634,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Posting Sources",
         "tags": [
           "admin"
@@ -15658,11 +15678,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Posting Source",
         "tags": [
           "admin"
@@ -15721,11 +15736,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Posting Source",
         "tags": [
           "admin"
@@ -15772,11 +15782,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Sync Posting Source",
         "tags": [
           "admin"
@@ -15823,11 +15828,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Reextract Posting",
         "tags": [
           "admin"
@@ -15886,11 +15886,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Manual Map Posting",
         "tags": [
           "admin"
@@ -15918,11 +15913,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Admin Schedules",
         "tags": [
           "admin"
@@ -15981,11 +15971,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Admin Update Schedule",
         "tags": [
           "admin"
@@ -16032,11 +16017,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Admin Run Schedule Now",
         "tags": [
           "admin"
@@ -16064,11 +16044,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Skill Proposals",
         "tags": [
           "admin"
@@ -16127,11 +16102,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Merge Skill",
         "tags": [
           "admin"
@@ -16178,11 +16148,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Promote Skill",
         "tags": [
           "admin"
@@ -16191,7 +16156,6 @@
     },
     "/api/v1/admin/users": {
       "get": {
-        "description": "All accounts with activity counts.",
         "operationId": "list_users_api_v1_admin_users_get",
         "responses": {
           "200": {
@@ -16199,7 +16163,8 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/AdminUserOut"
+                    "additionalProperties": true,
+                    "type": "object"
                   },
                   "title": "Response List Users Api V1 Admin Users Get",
                   "type": "array"
@@ -16209,11 +16174,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Users",
         "tags": [
           "admin"
@@ -16222,15 +16182,13 @@
     },
     "/api/v1/admin/users/{user_id}": {
       "patch": {
-        "description": "Activate/deactivate or promote/demote a user (with guard rails).",
-        "operationId": "patch_user_api_v1_admin_users__user_id__patch",
+        "operationId": "update_user_api_v1_admin_users__user_id__patch",
         "parameters": [
           {
             "in": "path",
             "name": "user_id",
             "required": true,
             "schema": {
-              "format": "uuid",
               "title": "User Id",
               "type": "string"
             }
@@ -16240,7 +16198,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserPatchIn"
+                "$ref": "#/components/schemas/AdminUserUpdateIn"
               }
             }
           },
@@ -16251,7 +16209,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminUserOut"
+                  "additionalProperties": true,
+                  "title": "Response Update User Api V1 Admin Users  User Id  Patch",
+                  "type": "object"
                 }
               }
             },
@@ -16268,12 +16228,7 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Patch User",
+        "summary": "Update User",
         "tags": [
           "admin"
         ]
@@ -16281,29 +16236,20 @@
     },
     "/api/v1/admin/users/{user_id}/force-logout": {
       "post": {
-        "description": "Invalidate every outstanding token for a user.",
-        "operationId": "force_logout_api_v1_admin_users__user_id__force_logout_post",
+        "operationId": "force_logout_user_api_v1_admin_users__user_id__force_logout_post",
         "parameters": [
           {
             "in": "path",
             "name": "user_id",
             "required": true,
             "schema": {
-              "format": "uuid",
               "title": "User Id",
               "type": "string"
             }
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminUserOut"
-                }
-              }
-            },
+          "204": {
             "description": "Successful Response"
           },
           "422": {
@@ -16317,12 +16263,7 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Force Logout",
+        "summary": "Force Logout User",
         "tags": [
           "admin"
         ]
@@ -16330,15 +16271,13 @@
     },
     "/api/v1/admin/users/{user_id}/reset-password": {
       "post": {
-        "description": "Set a new password for a user (share it out-of-band) and revoke sessions.",
-        "operationId": "reset_password_api_v1_admin_users__user_id__reset_password_post",
+        "operationId": "reset_user_password_api_v1_admin_users__user_id__reset_password_post",
         "parameters": [
           {
             "in": "path",
             "name": "user_id",
             "required": true,
             "schema": {
-              "format": "uuid",
               "title": "User Id",
               "type": "string"
             }
@@ -16348,21 +16287,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResetPasswordIn"
+                "$ref": "#/components/schemas/AdminPasswordResetIn"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminUserOut"
-                }
-              }
-            },
+          "204": {
             "description": "Successful Response"
           },
           "422": {
@@ -16376,12 +16308,7 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Reset Password",
+        "summary": "Reset User Password",
         "tags": [
           "admin"
         ]
@@ -16429,11 +16356,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Assignments",
         "tags": [
           "ai-settings"
@@ -16487,11 +16409,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Set Assignment",
         "tags": [
           "ai-settings"
@@ -16534,11 +16451,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Assist",
         "tags": [
           "chat"
@@ -16565,11 +16477,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Budgets",
         "tags": [
           "ai-settings"
@@ -16610,11 +16517,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Budget",
         "tags": [
           "ai-settings"
@@ -16652,11 +16554,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Budget",
         "tags": [
           "ai-settings"
@@ -16679,11 +16576,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Config Summary",
         "tags": [
           "ai-settings"
@@ -16730,11 +16622,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Recompute Embeddings",
         "tags": [
           "ai-settings"
@@ -16762,11 +16649,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Embeddings Status",
         "tags": [
           "ai-settings"
@@ -16794,11 +16676,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Mcp Servers",
         "tags": [
           "ai-settings"
@@ -16843,11 +16720,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Register Mcp Server",
         "tags": [
           "ai-settings"
@@ -16906,11 +16778,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Invoke Mcp Tool",
         "tags": [
           "ai-settings"
@@ -16957,11 +16824,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Refresh Mcp Server",
         "tags": [
           "ai-settings"
@@ -17029,11 +16891,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Set Mcp Tool Enabled",
         "tags": [
           "ai-settings"
@@ -17058,11 +16915,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Mcp Token Status",
         "tags": [
           "ai-settings"
@@ -17085,11 +16937,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Rotate Mcp Token",
         "tags": [
           "ai-settings"
@@ -17117,11 +16964,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List All Models",
         "tags": [
           "ai-settings"
@@ -17159,11 +17001,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Model",
         "tags": [
           "ai-settings"
@@ -17216,11 +17053,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Model",
         "tags": [
           "ai-settings"
@@ -17247,11 +17079,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Providers",
         "tags": [
           "ai-settings"
@@ -17292,11 +17119,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Provider",
         "tags": [
           "ai-settings"
@@ -17324,11 +17146,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Provider Presets",
         "tags": [
           "ai-settings"
@@ -17366,11 +17183,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Provider",
         "tags": [
           "ai-settings"
@@ -17423,11 +17235,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Provider",
         "tags": [
           "ai-settings"
@@ -17477,11 +17284,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Fetch External Models",
         "tags": [
           "ai-settings"
@@ -17530,11 +17332,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Models",
         "tags": [
           "ai-settings"
@@ -17587,11 +17384,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Add Model",
         "tags": [
           "ai-settings"
@@ -17619,11 +17411,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Skill Packs",
         "tags": [
           "ai"
@@ -17651,11 +17438,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Tasks",
         "tags": [
           "ai-settings"
@@ -17710,11 +17492,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Test Connection",
         "tags": [
           "ai-settings"
@@ -17774,11 +17551,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Tools",
         "tags": [
           "ai-settings"
@@ -17821,11 +17593,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Transcribe",
         "tags": [
           "ai"
@@ -17874,11 +17641,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Usage Rollups",
         "tags": [
           "ai-settings"
@@ -17901,11 +17663,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Web Settings",
         "tags": [
           "ai-settings"
@@ -17946,11 +17703,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Web Settings",
         "tags": [
           "ai-settings"
@@ -17978,11 +17730,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "History",
         "tags": [
           "assessments"
@@ -18028,11 +17775,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Run",
         "tags": [
           "assessments"
@@ -18136,11 +17878,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Templates",
         "tags": [
           "assessments"
@@ -18183,11 +17920,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Template",
         "tags": [
           "assessments"
@@ -18232,11 +17964,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Draft Template Ai New",
         "tags": [
           "assessments"
@@ -18281,11 +18008,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Import Template",
         "tags": [
           "assessments"
@@ -18332,11 +18054,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Template",
         "tags": [
           "assessments"
@@ -18391,11 +18108,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Template",
         "tags": [
           "assessments"
@@ -18452,11 +18164,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Draft Template Ai Extend",
         "tags": [
           "assessments"
@@ -18503,11 +18210,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Export Template",
         "tags": [
           "assessments"
@@ -18554,11 +18256,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Run Template",
         "tags": [
           "assessments"
@@ -18605,11 +18302,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get State",
         "tags": [
           "assessments"
@@ -18656,11 +18348,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Advance",
         "tags": [
           "assessments"
@@ -18717,11 +18404,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Submit Answers",
         "tags": [
           "assessments"
@@ -18778,11 +18460,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Assist",
         "tags": [
           "assessments"
@@ -18829,11 +18506,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Cancel",
         "tags": [
           "assessments"
@@ -18880,20 +18552,33 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Results",
         "tags": [
           "assessments"
         ]
       }
     },
+    "/api/v1/auth/demo": {
+      "post": {
+        "operationId": "demo_login_api_v1_auth_demo_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Demo Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
-        "description": "Exchange credentials for a bearer token (rate limited per IP + email).",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -18909,9 +18594,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenOut"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -18933,28 +18616,81 @@
         ]
       }
     },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "operationId": "logout_all_api_v1_auth_logout_all_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout All",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
-        "description": "Current authenticated user.",
         "operationId": "me_api_v1_auth_me_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserOut"
+                  "additionalProperties": true,
+                  "title": "Response Me Api V1 Auth Me Get",
+                  "type": "object"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh",
         "tags": [
           "auth"
         ]
@@ -18962,7 +18698,6 @@
     },
     "/api/v1/auth/register": {
       "post": {
-        "description": "Create an account and return a bearer token.",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -18975,12 +18710,10 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenOut"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -18997,35 +18730,6 @@
           }
         },
         "summary": "Register",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/revoke-sessions": {
-      "post": {
-        "description": "Invalidate every outstanding token for the caller (\"sign out everywhere\").",
-        "operationId": "revoke_sessions_api_v1_auth_revoke_sessions_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Revoke Sessions Api V1 Auth Revoke Sessions Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Revoke Sessions",
         "tags": [
           "auth"
         ]
@@ -19052,11 +18756,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Findings",
         "tags": [
           "autopilot"
@@ -19113,11 +18812,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Finding Feedback",
         "tags": [
           "autopilot"
@@ -19145,11 +18839,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Goals",
         "tags": [
           "autopilot"
@@ -19192,11 +18881,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Goal",
         "tags": [
           "autopilot"
@@ -19233,11 +18917,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Goal",
         "tags": [
           "autopilot"
@@ -19282,11 +18961,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Goal Detail",
         "tags": [
           "autopilot"
@@ -19341,11 +19015,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Patch Goal",
         "tags": [
           "autopilot"
@@ -19392,11 +19061,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Run Goal",
         "tags": [
           "autopilot"
@@ -19446,11 +19110,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Goal Runs",
         "tags": [
           "autopilot"
@@ -19516,11 +19175,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Jobs",
         "tags": [
           "background-jobs"
@@ -19565,11 +19219,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Job",
         "tags": [
           "background-jobs"
@@ -19614,11 +19263,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Cancel Job",
         "tags": [
           "background-jobs"
@@ -19661,11 +19305,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Download Export",
         "tags": [
           "background-jobs"
@@ -19718,11 +19357,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Edit Message",
         "tags": [
           "chat"
@@ -19765,11 +19399,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Regenerate Message",
         "tags": [
           "chat"
@@ -19818,11 +19447,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Select Message",
         "tags": [
           "chat"
@@ -19849,11 +19473,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Sessions",
         "tags": [
           "chat"
@@ -19894,11 +19513,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Session",
         "tags": [
           "chat"
@@ -19936,11 +19550,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Session",
         "tags": [
           "chat"
@@ -19993,11 +19602,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Rename Session",
         "tags": [
           "chat"
@@ -20046,11 +19650,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Messages",
         "tags": [
           "chat"
@@ -20101,11 +19700,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Send Message",
         "tags": [
           "chat"
@@ -20150,11 +19744,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Tree",
         "tags": [
           "chat"
@@ -20181,11 +19770,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Cvs",
         "tags": [
           "cv"
@@ -20226,11 +19810,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Cv",
         "tags": [
           "cv"
@@ -20253,11 +19832,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Context Sources",
         "tags": [
           "cv"
@@ -20300,11 +19874,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Cover Letter",
         "tags": [
           "cv"
@@ -20349,11 +19918,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Cover Letter Brief",
         "tags": [
           "cv"
@@ -20396,11 +19960,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Generate Cv",
         "tags": [
           "cv"
@@ -20445,11 +20004,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Generate Status",
         "tags": [
           "cv"
@@ -20494,11 +20048,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Generate Preview",
         "tags": [
           "cv"
@@ -20526,11 +20075,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Cv Drafts",
         "tags": [
           "cv"
@@ -20587,11 +20131,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Apply Cv Draft",
         "tags": [
           "cv"
@@ -20629,11 +20168,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Discard Cv Draft",
         "tags": [
           "cv"
@@ -20680,11 +20214,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Cv Drafts",
         "tags": [
           "cv"
@@ -20731,11 +20260,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Parse Cv Document",
         "tags": [
           "cv"
@@ -20855,11 +20379,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Synth Items",
         "tags": [
           "cv"
@@ -20900,11 +20419,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Synth Item",
         "tags": [
           "cv"
@@ -20947,11 +20461,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Bulk Synth Items",
         "tags": [
           "cv"
@@ -20994,11 +20503,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Generate Synth Items",
         "tags": [
           "cv"
@@ -21041,11 +20545,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Synth Matches",
         "tags": [
           "cv"
@@ -21083,11 +20582,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Synth Item",
         "tags": [
           "cv"
@@ -21130,11 +20624,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Synth Item",
         "tags": [
           "cv"
@@ -21187,11 +20676,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Synth Item",
         "tags": [
           "cv"
@@ -21236,11 +20720,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Refresh Synth Source State",
         "tags": [
           "cv"
@@ -21285,11 +20764,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Regenerate Synth Item",
         "tags": [
           "cv"
@@ -21316,11 +20790,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Templates",
         "tags": [
           "cv-templates"
@@ -21361,11 +20830,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Template",
         "tags": [
           "cv-templates"
@@ -21408,11 +20872,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Draft Ai Template",
         "tags": [
           "cv-templates"
@@ -21455,11 +20914,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Import Template",
         "tags": [
           "cv-templates"
@@ -21502,11 +20956,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Draft",
         "tags": [
           "cv-templates"
@@ -21534,11 +20983,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Template Stats",
         "tags": [
           "cv-templates"
@@ -21583,11 +21027,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Suggest Templates",
         "tags": [
           "cv-templates"
@@ -21615,11 +21054,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Themes",
         "tags": [
           "cv-templates"
@@ -21657,11 +21091,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Template",
         "tags": [
           "cv-templates"
@@ -21714,11 +21143,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Template",
         "tags": [
           "cv-templates"
@@ -21782,11 +21206,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Template Diff",
         "tags": [
           "cv-templates"
@@ -21849,11 +21268,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Duplicate Template",
         "tags": [
           "cv-templates"
@@ -21900,11 +21314,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Export Template",
         "tags": [
           "cv-templates"
@@ -21949,11 +21358,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Template",
         "tags": [
           "cv-templates"
@@ -22018,11 +21422,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Template With Cv",
         "tags": [
           "cv-templates"
@@ -22065,11 +21464,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Template Png",
         "tags": [
           "cv-templates"
@@ -22119,11 +21513,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Template Versions",
         "tags": [
           "cv-templates"
@@ -22189,11 +21578,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Visual Review",
         "tags": [
           "cv-templates"
@@ -22231,11 +21615,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Cv",
         "tags": [
           "cv"
@@ -22278,11 +21657,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Cv",
         "tags": [
           "cv"
@@ -22335,11 +21709,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Cv",
         "tags": [
           "cv"
@@ -22393,11 +21762,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Ai Cover Letter",
         "tags": [
           "cv"
@@ -22460,11 +21824,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Ai Suggest",
         "tags": [
           "cv"
@@ -22509,11 +21868,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Compile Cv",
         "tags": [
           "cv"
@@ -22558,11 +21912,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Context",
         "tags": [
           "cv"
@@ -22615,11 +21964,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Set Context",
         "tags": [
           "cv"
@@ -22674,11 +22018,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Set Synth Pin",
         "tags": [
           "cv"
@@ -22723,11 +22062,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Context Status",
         "tags": [
           "cv"
@@ -22772,11 +22106,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Cv Design",
         "tags": [
           "cv"
@@ -22821,11 +22150,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Duplicate Cv",
         "tags": [
           "cv"
@@ -22878,11 +22202,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Export Cv",
         "tags": [
           "cv"
@@ -22929,11 +22248,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Lint Cv",
         "tags": [
           "cv"
@@ -22988,11 +22302,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Apply Cv Ops",
         "tags": [
           "cv"
@@ -23049,11 +22358,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Polish Cv",
         "tags": [
           "cv"
@@ -23098,11 +22402,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Cv",
         "tags": [
           "cv"
@@ -23145,11 +22444,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Cv Png",
         "tags": [
           "cv"
@@ -23198,11 +22492,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Cv Runs",
         "tags": [
           "cv"
@@ -23251,11 +22540,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Versions",
         "tags": [
           "cv"
@@ -23310,11 +22594,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Save Version",
         "tags": [
           "cv"
@@ -23368,11 +22647,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Version",
         "tags": [
           "cv"
@@ -23426,11 +22700,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Restore Version",
         "tags": [
           "cv"
@@ -23453,11 +22722,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Dashboard Target",
         "tags": [
           "onboarding"
@@ -23512,11 +22776,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Documents",
         "tags": [
           "documents"
@@ -23570,11 +22829,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Upload Document",
         "tags": [
           "documents"
@@ -23612,11 +22866,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Document",
         "tags": [
           "documents"
@@ -23659,11 +22908,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Document",
         "tags": [
           "documents"
@@ -23710,11 +22954,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Apply Document",
         "tags": [
           "documents"
@@ -23757,11 +22996,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Download Document",
         "tags": [
           "documents"
@@ -23813,11 +23047,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Page Image",
         "tags": [
           "documents"
@@ -23897,11 +23126,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Feed",
         "tags": [
           "engagement"
@@ -23946,11 +23170,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Hide Job",
         "tags": [
           "engagement"
@@ -23995,11 +23214,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Save Job",
         "tags": [
           "engagement"
@@ -24044,11 +23258,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Mark Seen",
         "tags": [
           "engagement"
@@ -24071,11 +23280,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Feed Unseen Count",
         "tags": [
           "engagement"
@@ -24103,11 +23307,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Growth Plans",
         "tags": [
           "growth"
@@ -24150,11 +23349,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Post Growth Plan",
         "tags": [
           "growth"
@@ -24182,11 +23376,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Growth Radar",
         "tags": [
           "growth"
@@ -24243,14 +23432,30 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Patch Growth Step",
         "tags": [
           "growth"
+        ]
+      }
+    },
+    "/api/v1/instance/config": {
+      "get": {
+        "operationId": "get_instance_config_api_v1_instance_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Instance Config",
+        "tags": [
+          "instance"
         ]
       }
     },
@@ -24274,11 +23479,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Sessions",
         "tags": [
           "interview"
@@ -24319,11 +23519,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Session",
         "tags": [
           "interview"
@@ -24368,11 +23563,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Session",
         "tags": [
           "interview"
@@ -24417,11 +23607,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Debrief Session",
         "tags": [
           "interview"
@@ -24476,11 +23661,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Patch Plan",
         "tags": [
           "interview"
@@ -24525,11 +23705,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Retry Weak Areas",
         "tags": [
           "interview"
@@ -24574,11 +23749,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Start Session",
         "tags": [
           "interview"
@@ -24770,11 +23940,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Jobs",
         "tags": [
           "jobs"
@@ -24815,11 +23980,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Job",
         "tags": [
           "jobs"
@@ -24866,11 +24026,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Generate",
         "tags": [
           "jobs"
@@ -24949,11 +24104,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Graph",
         "tags": [
           "jobs"
@@ -25001,11 +24151,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Relations",
         "tags": [
           "jobs"
@@ -25033,11 +24178,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Family Tree",
         "tags": [
           "jobs"
@@ -25081,11 +24221,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Job",
         "tags": [
           "jobs"
@@ -25127,11 +24262,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Job",
         "tags": [
           "jobs"
@@ -25183,11 +24313,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Job",
         "tags": [
           "jobs"
@@ -25233,11 +24358,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Job Match Detail",
         "tags": [
           "matching"
@@ -25295,11 +24415,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Job Paths",
         "tags": [
           "paths"
@@ -25355,11 +24470,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Job Paths Graph",
         "tags": [
           "paths"
@@ -25405,11 +24515,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Suggest Job Paths",
         "tags": [
           "paths"
@@ -25453,11 +24558,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Publish Job",
         "tags": [
           "jobs"
@@ -25505,11 +24605,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Suggest Job Relations",
         "tags": [
           "jobs"
@@ -25579,11 +24674,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Market Snapshot",
         "tags": [
           "growth"
@@ -25656,11 +24746,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Market Trend",
         "tags": [
           "growth"
@@ -25727,11 +24812,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Candidates",
         "tags": [
           "matching"
@@ -25781,11 +24861,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Compare Jobs",
         "tags": [
           "matching"
@@ -25832,11 +24907,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Refit Fit",
         "tags": [
           "matching"
@@ -25891,11 +24961,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Insights",
         "tags": [
           "matching"
@@ -25938,11 +25003,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Rate Job",
         "tags": [
           "matching"
@@ -26001,11 +25061,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Score Jobs",
         "tags": [
           "matching"
@@ -26014,13 +25069,12 @@
     },
     "/api/v1/me": {
       "delete": {
-        "description": "Permanently delete the caller's account and personal data.",
-        "operationId": "delete_my_account_api_v1_me_delete",
+        "operationId": "delete_me_api_v1_me_delete",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DeleteAccountIn"
+                "$ref": "#/components/schemas/AccountDeleteIn"
               }
             }
           },
@@ -26041,12 +25095,7 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Delete My Account",
+        "summary": "Delete Me",
         "tags": [
           "me"
         ]
@@ -26072,11 +25121,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Achievements",
         "tags": [
           "me"
@@ -26117,11 +25161,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Achievement",
         "tags": [
           "me"
@@ -26159,11 +25198,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Achievement",
         "tags": [
           "me"
@@ -26216,11 +25250,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Achievement",
         "tags": [
           "me"
@@ -26245,11 +25274,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Bootstrap",
         "tags": [
           "me"
@@ -26276,11 +25300,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Certifications",
         "tags": [
           "me"
@@ -26321,11 +25340,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Certification",
         "tags": [
           "me"
@@ -26363,11 +25377,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Certification",
         "tags": [
           "me"
@@ -26420,11 +25429,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Certification",
         "tags": [
           "me"
@@ -26449,11 +25453,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Checkin",
         "tags": [
           "growth"
@@ -26496,11 +25495,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Post Checkin",
         "tags": [
           "growth"
@@ -26523,11 +25517,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Me Completeness",
         "tags": [
           "onboarding"
@@ -26550,11 +25539,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Cv Readiness",
         "tags": [
           "me"
@@ -26581,11 +25565,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Education",
         "tags": [
           "me"
@@ -26626,11 +25605,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Education",
         "tags": [
           "me"
@@ -26668,11 +25642,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Education",
         "tags": [
           "me"
@@ -26725,11 +25694,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Education",
         "tags": [
           "me"
@@ -26780,11 +25744,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Experience",
         "tags": [
           "experience"
@@ -26825,11 +25784,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Experience",
         "tags": [
           "experience"
@@ -26852,11 +25806,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Experience Derivation",
         "tags": [
           "experience"
@@ -26879,11 +25828,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Apply Experience Derivation",
         "tags": [
           "experience"
@@ -26920,11 +25864,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Experience",
         "tags": [
           "experience"
@@ -26977,11 +25916,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Experience",
         "tags": [
           "experience"
@@ -27004,11 +25938,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Export My Data",
         "tags": [
           "me"
@@ -27033,11 +25962,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Followups",
         "tags": [
           "me"
@@ -27080,11 +26004,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Patch Followup Prefs",
         "tags": [
           "me"
@@ -27111,11 +26030,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Me Nudges",
         "tags": [
           "onboarding"
@@ -27161,11 +26075,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Dismiss A Nudge",
         "tags": [
           "onboarding"
@@ -27210,12 +26119,46 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put Onboarding Path",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/password": {
+      "patch": {
+        "operationId": "change_password_api_v1_me_password_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Password",
         "tags": [
           "me"
         ]
@@ -27230,11 +26173,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Photo",
         "tags": [
           "profile"
@@ -27257,11 +26195,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Photo State",
         "tags": [
           "profile"
@@ -27304,11 +26237,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Upload Photo",
         "tags": [
           "profile"
@@ -27336,11 +26264,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Photos",
         "tags": [
           "profile"
@@ -27383,11 +26306,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Upload Gallery Photo",
         "tags": [
           "profile"
@@ -27425,11 +26343,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Gallery Photo",
         "tags": [
           "profile"
@@ -27476,11 +26389,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Set Default Photo",
         "tags": [
           "profile"
@@ -27527,11 +26435,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put Scoring Weights",
         "tags": [
           "me"
@@ -27603,11 +26506,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Profile Proposals",
         "tags": [
           "profile-proposals"
@@ -27644,11 +26542,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Dismiss Profile Proposal",
         "tags": [
           "profile-proposals"
@@ -27709,11 +26602,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Approve Profile Proposal",
         "tags": [
           "profile-proposals"
@@ -27757,11 +26645,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Preview Profile Proposal",
         "tags": [
           "profile-proposals"
@@ -27805,11 +26688,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Reject Profile Proposal",
         "tags": [
           "profile-proposals"
@@ -27853,11 +26731,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Revert Profile Proposal",
         "tags": [
           "profile-proposals"
@@ -27885,11 +26758,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Schedules",
         "tags": [
           "scheduler"
@@ -27960,11 +26828,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Searches",
         "tags": [
           "engagement"
@@ -28005,11 +26868,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Record Search",
         "tags": [
           "engagement"
@@ -28047,11 +26905,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Search",
         "tags": [
           "engagement"
@@ -28096,11 +26949,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Save Search",
         "tags": [
           "engagement"
@@ -28146,11 +26994,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Saved Search Schedule",
         "tags": [
           "scheduler"
@@ -28205,14 +27048,70 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Schedule Saved Search",
         "tags": [
           "scheduler"
+        ]
+      }
+    },
+    "/api/v1/me/sessions": {
+      "get": {
+        "operationId": "list_my_sessions_api_v1_me_sessions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List My Sessions Api V1 Me Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List My Sessions",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/sessions/{family_id}": {
+      "delete": {
+        "operationId": "revoke_my_session_api_v1_me_sessions__family_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family_id",
+            "required": true,
+            "schema": {
+              "title": "Family Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke My Session",
+        "tags": [
+          "me"
         ]
       }
     },
@@ -28236,11 +27135,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Skills",
         "tags": [
           "skills"
@@ -28285,11 +27179,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put My Skills",
         "tags": [
           "skills"
@@ -28333,11 +27222,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Skill Gaps",
         "tags": [
           "skills"
@@ -28374,11 +27258,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete My Skill",
         "tags": [
           "skills"
@@ -28430,11 +27309,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Patch My Skill",
         "tags": [
           "skills"
@@ -28479,11 +27353,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Skill Evidence",
         "tags": [
           "experience"
@@ -28528,11 +27397,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put Stage",
         "tags": [
           "me"
@@ -28560,11 +27424,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Engine Dimensions",
         "tags": [
           "metrics"
@@ -28587,11 +27446,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Metrics",
         "tags": [
           "metrics"
@@ -28616,11 +27470,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Recompute Interest Affinity",
         "tags": [
           "metrics"
@@ -28648,11 +27497,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Outcomes",
         "tags": [
           "metrics"
@@ -28677,11 +27521,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Recompute Revealed Preferences",
         "tags": [
           "metrics"
@@ -28725,11 +27564,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "My Metric",
         "tags": [
           "metrics"
@@ -28752,11 +27586,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Metric Registry",
         "tags": [
           "metrics"
@@ -28822,11 +27651,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Skill Transferability",
         "tags": [
           "metrics"
@@ -28851,11 +27675,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Recompute Transferability",
         "tags": [
           "metrics"
@@ -28944,11 +27763,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Notifications",
         "tags": [
           "notifications"
@@ -28993,11 +27807,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Dismiss Notifications",
         "tags": [
           "notifications"
@@ -29020,11 +27829,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Preferences",
         "tags": [
           "notifications"
@@ -29065,11 +27869,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put Global Preferences",
         "tags": [
           "notifications"
@@ -29123,11 +27922,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put Kind Preference",
         "tags": [
           "notifications"
@@ -29172,11 +27966,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Mark Notifications Read",
         "tags": [
           "notifications"
@@ -29199,11 +27988,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Rules",
         "tags": [
           "engagement"
@@ -29244,11 +28028,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Put Rule",
         "tags": [
           "engagement"
@@ -29269,11 +28048,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Stream",
         "tags": [
           "notifications"
@@ -29316,11 +28090,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Subscribe Push",
         "tags": [
           "notifications"
@@ -29357,11 +28126,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Unsubscribe Push",
         "tags": [
           "notifications"
@@ -29424,11 +28188,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Threads",
         "tags": [
           "notifications"
@@ -29452,11 +28211,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Unread Count",
         "tags": [
           "notifications"
@@ -29479,11 +28233,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Vapid Key",
         "tags": [
           "notifications"
@@ -29526,11 +28275,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Express",
         "tags": [
           "onboarding"
@@ -29576,11 +28320,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Resolve",
         "tags": [
           "onboarding"
@@ -29702,11 +28441,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings",
         "tags": [
           "postings"
@@ -29751,11 +28485,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings Applied",
         "tags": [
           "postings"
@@ -29778,11 +28507,6 @@
             "description": "Successful Response"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings Explore",
         "tags": [
           "postings"
@@ -29827,11 +28551,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings Hide",
         "tags": [
           "postings"
@@ -29876,11 +28595,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings Save",
         "tags": [
           "postings"
@@ -30051,11 +28765,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings Search",
         "tags": [
           "postings"
@@ -30100,11 +28809,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Postings Seen",
         "tags": [
           "postings"
@@ -30175,11 +28879,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Posting Detail",
         "tags": [
           "postings"
@@ -30190,6 +28889,24 @@
       "get": {
         "description": "The caller's structured profile (+ completeness).",
         "operationId": "get_profile_api_v1_profile_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -30202,13 +28919,18 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Profile",
         "tags": [
           "profile"
@@ -30217,6 +28939,24 @@
       "put": {
         "description": "Merge validated section updates into the profile.",
         "operationId": "update_profile_api_v1_profile_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -30251,11 +28991,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Profile",
         "tags": [
           "profile"
@@ -30266,6 +29001,24 @@
       "post": {
         "description": "Run the AI profile analyst and store the structured summary.",
         "operationId": "ai_analyze_api_v1_profile_ai_analyze_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -30278,16 +29031,171 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Ai Analyze",
         "tags": [
           "profile"
+        ]
+      }
+    },
+    "/api/v1/profiles": {
+      "get": {
+        "operationId": "get_profiles_api_v1_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileOut"
+                  },
+                  "title": "Response Get Profiles Api V1 Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Profiles",
+        "tags": [
+          "profiles"
+        ]
+      },
+      "post": {
+        "operationId": "add_profile_api_v1_profiles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Profile",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/api/v1/profiles/{profile_id}": {
+      "delete": {
+        "description": "Delete an owned profile (identity-auth \u00a712): profile-scoped rows\ncascade; deleting the last profile re-provisions Default.",
+        "operationId": "remove_profile_api_v1_profiles__profile_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "title": "Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Profile",
+        "tags": [
+          "profiles"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_profile_api_v1_profiles__profile_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "title": "Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfilePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Profile",
+        "tags": [
+          "profiles"
         ]
       }
     },
@@ -30512,11 +29420,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Rankings",
         "tags": [
           "matching"
@@ -30603,11 +29506,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Skills",
         "tags": [
           "skills"
@@ -30651,11 +29549,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Skill",
         "tags": [
           "skills"
@@ -30761,11 +29654,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Skill Resource",
         "tags": [
           "growth"
@@ -30847,11 +29735,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Interests",
         "tags": [
           "taxonomy"
@@ -30892,11 +29775,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Interest",
         "tags": [
           "taxonomy"
@@ -30943,11 +29821,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Interest",
         "tags": [
           "taxonomy"
@@ -31000,11 +29873,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Interest",
         "tags": [
           "taxonomy"
@@ -31079,11 +29947,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Skills",
         "tags": [
           "taxonomy"
@@ -31124,11 +29987,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Skill",
         "tags": [
           "taxonomy"
@@ -31175,11 +30033,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Delete Skill",
         "tags": [
           "taxonomy"
@@ -31232,11 +30085,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Update Skill",
         "tags": [
           "taxonomy"
@@ -31307,11 +30155,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Universities",
         "tags": [
           "universities"
@@ -31352,11 +30195,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create University",
         "tags": [
           "universities"
@@ -31411,11 +30249,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Add Admission",
         "tags": [
           "universities"
@@ -31458,11 +30291,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Job Link",
         "tags": [
           "universities"
@@ -31509,11 +30337,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get University",
         "tags": [
           "universities"
@@ -31568,11 +30391,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Add Department",
         "tags": [
           "universities"

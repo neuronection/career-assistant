@@ -7,7 +7,6 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
@@ -32,9 +31,7 @@ async def builder_env(db, monkeypatch):
 
 
 async def _auth_user(db) -> User:
-    rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-    )
+    rows = await db.execute(select(User).where(User.email == "student@example.com"))
     return rows.scalars().one()
 
 

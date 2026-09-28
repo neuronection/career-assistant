@@ -10,12 +10,14 @@ import { useIsShortViewport } from "@/hooks/useMediaQuery";
 import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
 import { useChatStore } from "@/stores/chatStore";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ProfileSwitcherMenu } from "@/components/ProfileSwitcherMenu";
 import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
 import { CompareTray } from "@/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
 import { NAV, resolveActiveId, toNavItem } from "@/config/nav";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
+import { useProfilesStore } from "@/stores/profilesStore";
 import { useDevModeStore } from "@/stores/devModeStore";
 import { DevMenu } from "@/components/DevMenu";
 
@@ -34,6 +36,7 @@ export function Layout() {
   const isExperienceRoute = useMatch("/profile/experience") !== null;
   const isEducationRoute = useMatch("/profile/education") !== null;
   const chatMode = useChatStore((state) => state.chatMode);
+  const profileEpoch = useProfilesStore((state) => state.epoch);
   const devModeEnabled = useDevModeStore((state) => state.enabled);
   const fullBleed =
     isBuilderRoute ||
@@ -148,13 +151,17 @@ export function Layout() {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
+            {user && <ProfileSwitcherMenu />}
             {user && <NotificationBell />}
             {user && (
               <UserMenu
-                name={user.full_name || undefined}
-                email={user.email}
-                items={[]}
-                onItemSelect={() => {}}
+                user={
+                  user.full_name
+                    ? { name: user.full_name, email: user.email }
+                    : { email: user.email }
+                }
+                onLogout={() => void useAuthStore.getState().logout()}
+                logoutLabel={t("auth.signOut")}
               />
             )}
           </div>
@@ -167,7 +174,9 @@ export function Layout() {
                 : "mx-auto max-w-7xl px-4 py-6"
             }
           >
-            <Outlet />
+            {/* Profile switch (§6) re-mounts the page subtree so every
+                route refetches under the new X-Profile-Id scope (§15). */}
+            <Outlet key={profileEpoch} />
           </div>
         </main>
       </div>

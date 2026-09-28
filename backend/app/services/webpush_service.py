@@ -86,17 +86,24 @@ async def get_or_create_vapid_keys() -> dict:
                 }
                 return _keys_cache
         keys = generate_vapid_keys()
-        db.add(
-            AppSetting(
-                key=VAPID_SETTING_KEY,
-                value={
-                    "public_key": keys["public_key"],
-                    "private_key_enc": encrypt_secret(keys["private_key"]),
-                    "subject": "",
-                },
-                description="VAPID keys for the browser push channel",
+        value = {
+            "public_key": keys["public_key"],
+            "private_key_enc": encrypt_secret(keys["private_key"]),
+            "subject": "",
+        }
+        if row is None:
+            db.add(
+                AppSetting(
+                    key=VAPID_SETTING_KEY,
+                    value=value,
+                    description="VAPID keys for the browser push channel",
+                )
             )
-        )
+        else:
+            # The row survives but its private key is gone (cleared by the
+            # P3d ciphertext drain, or unreadable) — regenerate in place
+            # rather than colliding on the unique key.
+            row.value = value
         await db.commit()
         _keys_cache = keys
         return keys

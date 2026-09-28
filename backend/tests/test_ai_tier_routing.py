@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.ai.providers.resolution import resolve_task_model
 from app.ai.providers.service import AIProviderService
 from app.ai.tasks import TASKS_BY_NAME, task_tier
-from app.core.security import hash_password
+from nx_auth.passwords import hash_password
 from app.core.encryption import encrypt_secret
 from app.models.ai_model import AIGeneration
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment

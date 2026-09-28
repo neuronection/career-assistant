@@ -23,6 +23,7 @@ from app.services.assessment.question_kinds import (
     is_scoring_capable,
     reset_registry,
 )
+from tests.conftest import session_headers
 
 
 def _mcq(skill_key="programming", delta=3.0):
@@ -338,7 +339,7 @@ async def test_export_import_round_trip_byte_stable(
         "/api/v1/auth/register",
         json={"email": "importer37@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     imported = await client.post(
         "/api/v1/assessments/templates/import",
         json={"package": package},

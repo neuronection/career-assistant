@@ -4,8 +4,18 @@ back to the previous shape and upgrade again on the suite's test DB."""
 import asyncio
 import os
 
+import pytest
 from alembic import command
 from alembic.config import Config
+
+
+@pytest.fixture(autouse=True)
+def _restore_head_after_migration_test():
+    """Data-migration tests run ON a pinned revision — the suite's schema
+    must come back to head after each one (the identity fixtures wipe
+    tables that only exist at head)."""
+    yield
+    command.upgrade(_configured(), "head")
 
 
 def _configured() -> Config:
@@ -13,6 +23,31 @@ def _configured() -> Config:
 
     os.environ["DATABASE_URL"] = settings.DATABASE_URL
     return Config("alembic.ini")
+
+
+async def _ensure_fold_user(session, email: str) -> str:
+    """A `users` row id for data-migration fixtures, via raw SQL.
+
+    The ORM `User` model carries the 0042 identity columns and cannot
+    map below that revision — migrations under test run on older shapes.
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    row = (await session.execute(text("SELECT id FROM users LIMIT 1"))).first()
+    if row is not None:
+        return str(row[0])
+    user_id = _uuid.uuid4()
+    await session.execute(
+        text(
+            "INSERT INTO users (id, email, password_hash, full_name, is_active, "
+            "is_admin, failed_login_attempts, token_version) VALUES "
+            "(:id, :email, :hash, '', true, false, 0, 1)"
+        ),
+        {"id": user_id, "email": email, "hash": "$2b$12$foldmigrationplaceholder"},
+    )
+    return str(user_id)
 
 
 def _table_present(table: str = "cv_synth_items") -> bool:
@@ -68,7 +103,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0041"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0044"], (
         "revision chain stays linear on one head"
     )
 
@@ -93,6 +128,120 @@ def test_0033_profile_proposals_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present("profile_proposals"), "re-upgrade restores the table"
+
+
+def test_0042_identity_core_roundtrip():
+    """Identity core (§5): the normative tables and `users` OIDC link
+    survive the migration round-trip."""
+    config = _configured()
+
+    command.upgrade(config, "head")
+    for table in ("auth_sessions", "instance_settings", "audit_events"):
+        assert _table_present(table), f"{table} exists at head"
+    assert _column_present("users", "oidc_issuer"), "users carries oidc_issuer (§5)"
+    assert _column_present("users", "oidc_subject"), "users carries oidc_subject (§5)"
+
+    command.downgrade(config, "0041")
+    for table in ("auth_sessions", "instance_settings", "audit_events"):
+        assert not _table_present(table), f"downgrade 0041 drops {table}"
+    assert not _column_present("users", "oidc_issuer")
+
+    command.upgrade(config, "head")
+    assert _table_present("auth_sessions"), "re-upgrade restores the tables"
+
+
+def test_0043_profiles_one_to_many_legacy_backfill():
+    """`profiles` 1:N (plan 16 P3b): legacy 1:1 rows upgrade in place —
+    `name` backfilled "Default", `is_default` true — and a second profile
+    per user is accepted afterwards (the unique index is gone)."""
+    config = _configured()
+    command.downgrade(config, "0042")
+
+    async def seed_legacy() -> list:
+        import uuid
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        user_ids = [uuid.uuid4() for _ in range(2)]
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            async with engine.begin() as conn:
+                for index, user_id in enumerate(user_ids):
+                    await conn.execute(
+                        text(
+                            "INSERT INTO users (id, email, password_hash, "
+                            "full_name, is_active, is_admin, failed_login_attempts, "
+                            "token_version) VALUES (:id, :email, "
+                            "'$2b$12$foldmigrationplaceholder', '', true, false, 0, 1)"
+                        ),
+                        {"id": user_id, "email": f"legacy{index}@example.com"},
+                    )
+                    await conn.execute(
+                        text(
+                            "INSERT INTO profiles (id, user_id, basics, academics, "
+                            "hobbies, likes, dislikes, aspirations, work_preferences, "
+                            "preferences, constraints) VALUES (:id, :user_id, "
+                            "'{}', '{}', '[]', '[]', '[]', '[]', '{}', '{}', '{}')"
+                        ),
+                        {"id": uuid.uuid4(), "user_id": user_id},
+                    )
+        finally:
+            await engine.dispose()
+        return user_ids
+
+    user_ids = asyncio.run(seed_legacy())
+
+    command.upgrade(config, "head")
+
+    async def probe() -> tuple[list[tuple], int]:
+        import uuid
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            async with engine.begin() as conn:
+                rows = list(
+                    (
+                        await conn.execute(
+                            text(
+                                "SELECT name, is_default FROM profiles "
+                                "WHERE user_id = :uid ORDER BY created_at"
+                            ),
+                            {"uid": user_ids[0]},
+                        )
+                    ).all()
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO profiles (id, user_id, basics, academics, "
+                        "hobbies, likes, dislikes, aspirations, work_preferences, "
+                        "preferences, constraints) VALUES (:id, :user_id, "
+                        "'{}', '{}', '[]', '[]', '[]', '[]', '{}', '{}', '{}')"
+                    ),
+                    {"id": uuid.uuid4(), "user_id": user_ids[0]},
+                )
+                count = (
+                    await conn.execute(
+                        text("SELECT count(*) FROM profiles WHERE user_id = :uid"),
+                        {"uid": user_ids[0]},
+                    )
+                ).scalar()
+        finally:
+            await engine.dispose()
+        return rows, int(count)
+
+    rows, count = asyncio.run(probe())
+    assert [row[0] for row in rows] == ["Default"] and bool(rows[0][1]), (
+        "legacy rows backfill name + is_default (§5)"
+    )
+    assert count == 2, "the unique index is gone — one user may own many profiles"
 
 
 def _scope_constraint_allows_bullets() -> bool:
@@ -440,7 +589,6 @@ def test_0041_one_slot_pin_fold():
     from app.core.config import settings
     from app.models.cv_model import CvDocument
     from app.models.cv_synth_model import CvSynthItem
-    from app.models.user_model import User
 
     config = _configured()
     # The suite DB may sit at head from an earlier test — force the
@@ -453,17 +601,12 @@ def test_0041_one_slot_pin_fold():
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
-                user = (await session.execute(select(User).limit(1))).scalars().first()
-                if user is None:
-                    user = User(
-                        email="fold0041@example.com",
-                        password_hash="$2b$12$foldmigrationplaceholder",
-                    )
-                    session.add(user)
-                    await session.flush()
-                item_id = str(user.id)
+                # Raw SQL: the ORM User model carries the 0042 columns
+                # and cannot map below that revision (see helper).
+                user_id = await _ensure_fold_user(session, "fold0041@example.com")
+                item_id = user_id
                 text_row = CvSynthItem(
-                    user_id=user.id,
+                    user_id=user_id,
                     scope="item",
                     variant_key="default",
                     source_refs=[{"source_key": "experience", "item_id": item_id}],
@@ -477,7 +620,7 @@ def test_0041_one_slot_pin_fold():
                     verified=True,
                 )
                 bullets_row = CvSynthItem(
-                    user_id=user.id,
+                    user_id=user_id,
                     scope="bullets",
                     variant_key="default",
                     source_refs=[{"source_key": "experience", "item_id": item_id}],
@@ -493,7 +636,7 @@ def test_0041_one_slot_pin_fold():
                 session.add_all([text_row, bullets_row])
                 await session.flush()
                 cv = CvDocument(
-                    user_id=user.id,
+                    user_id=user_id,
                     title="Fold",
                     context={
                         "mode": "custom",
@@ -620,21 +763,16 @@ def test_0041_fold_states_and_cross_cv_guard():
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
-                user = User(
-                    email="fold0041b@example.com",
-                    password_hash="$2b$12$foldmigrationplaceholder",
-                )
-                session.add(user)
-                await session.flush()
+                # Raw SQL: the ORM User model carries the 0042 columns
+                # and cannot map below that revision (see helper).
+                user_id = await _ensure_fold_user(session, "fold0041b@example.com")
 
                 def row(scope: str, payload: dict) -> CvSynthItem:
                     return CvSynthItem(
-                        user_id=user.id,
+                        user_id=user_id,
                         scope=scope,
                         variant_key="default",
-                        source_refs=[
-                            {"source_key": "experience", "item_id": str(user.id)}
-                        ],
+                        source_refs=[{"source_key": "experience", "item_id": user_id}],
                         source_state=[],
                         source_set_hash="fold0041b",
                         payload=payload,
@@ -659,7 +797,7 @@ def test_0041_fold_states_and_cross_cv_guard():
                 gone_a, gone_b = str(_uuid.uuid4()), str(_uuid.uuid4())
 
                 cv_a = CvDocument(
-                    user_id=user.id,
+                    user_id=user_id,
                     title="FoldA",
                     context={
                         "mode": "custom",
@@ -675,7 +813,7 @@ def test_0041_fold_states_and_cross_cv_guard():
                     },
                 )
                 cv_b = CvDocument(
-                    user_id=user.id,
+                    user_id=user_id,
                     title="FoldB",
                     context={
                         "mode": "custom",
@@ -685,7 +823,7 @@ def test_0041_fold_states_and_cross_cv_guard():
                 session.add_all([cv_a, cv_b])
                 await session.commit()
                 return {
-                    "user": user.id,
+                    "user": user_id,
                     "cv_a": str(cv_a.id),
                     "cv_b": str(cv_b.id),
                     "t_merge": str(t_merge.id),
@@ -805,3 +943,252 @@ def test_0041_fold_states_and_cross_cv_guard():
             await engine.dispose()
 
     asyncio.run(cleanup())
+
+
+def test_0044_data_key_family_wipe_and_drain(monkeypatch):
+    """Plan 16 P3d (C7): stored AI provider keys are wiped outright; the
+    remaining Fernet-sealed values are re-encrypted under the DATA_KEY
+    family where the legacy JWT-derived source still decrypts them and
+    cleared otherwise — never left as JWT-derived ciphertext."""
+    import base64
+    import hashlib
+    import uuid
+    from datetime import datetime, timezone
+
+    from cryptography.fernet import Fernet, InvalidToken
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+    from app.core.encryption import decrypt_secret
+
+    legacy_secret = "legacy-jwt-secret-0123456789abcdef"
+    legacy = Fernet(
+        base64.urlsafe_b64encode(hashlib.sha256(legacy_secret.encode()).digest())
+    )
+
+    def sealed(plaintext: str) -> str:
+        return "enc::" + legacy.encrypt(plaintext.encode()).decode()
+
+    config = _configured()
+    command.downgrade(config, "0043")
+
+    import sqlalchemy as sa
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    json_col = JSONB().with_variant(sa.JSON(), "sqlite")
+    providers = sa.table(
+        "ai_providers",
+        sa.column("id", sa.Uuid()),
+        sa.column("name", sa.String),
+        sa.column("scope", sa.String),
+        sa.column("user_id", sa.Uuid()),
+        sa.column("provider_type", sa.String),
+        sa.column("api_base", sa.String),
+        sa.column("api_key_encrypted", sa.String),
+        sa.column("is_active", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    app_settings = sa.table(
+        "app_settings",
+        sa.column("id", sa.Uuid()),
+        sa.column("key", sa.String),
+        sa.column("value", json_col),
+        sa.column("description", sa.String),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    mcp_servers = sa.table(
+        "ai_mcp_servers",
+        sa.column("id", sa.Uuid()),
+        sa.column("name", sa.String),
+        sa.column("transport", sa.String),
+        sa.column("url", sa.String),
+        sa.column("command", sa.String),
+        sa.column("token", sa.String),
+        sa.column("enabled", sa.Boolean),
+        sa.column("discovered_tools", json_col),
+        sa.column("enabled_tools", json_col),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+
+    now = datetime.now(timezone.utc)
+    names = {
+        "settings": ["t.p3d.github", "t.p3d.vapid", "t.p3d.bogus"],
+        "mcp": ["t-p3d-bridge", "t-p3d-bridge-bogus"],
+        "providers": ["t-p3d-provider-sealed", "t-p3d-provider-plain"],
+    }
+
+    async def seed():
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            async with engine.begin() as conn:
+                for name, key in zip(
+                    names["providers"], (sealed("sk-secret-123"), "sk-plain-legacy")
+                ):
+                    await conn.execute(
+                        providers.insert().values(
+                            id=uuid.uuid4(),
+                            name=name,
+                            scope="system",
+                            user_id=None,
+                            provider_type="openai_compatible",
+                            api_base="https://api.openai.com/v1",
+                            api_key_encrypted=key,
+                            is_active=True,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
+                await conn.execute(
+                    app_settings.insert().values(
+                        id=uuid.uuid4(),
+                        key="t.p3d.github",
+                        value={"token": sealed("ghp_legacy")},
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                await conn.execute(
+                    app_settings.insert().values(
+                        id=uuid.uuid4(),
+                        key="t.p3d.vapid",
+                        value={
+                            "public_key": "P",
+                            "private_key_enc": sealed("vapid_private"),
+                            "subject": "",
+                        },
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                await conn.execute(
+                    app_settings.insert().values(
+                        id=uuid.uuid4(),
+                        key="t.p3d.bogus",
+                        value={"token": "enc::not-actually-ciphertext"},
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                await conn.execute(
+                    mcp_servers.insert().values(
+                        id=uuid.uuid4(),
+                        name="t-p3d-bridge",
+                        transport="http",
+                        url="https://mcp.example/sse",
+                        command="",
+                        token=sealed("bridge-token"),
+                        enabled=True,
+                        discovered_tools=[],
+                        enabled_tools=[],
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                await conn.execute(
+                    mcp_servers.insert().values(
+                        id=uuid.uuid4(),
+                        name="t-p3d-bridge-bogus",
+                        transport="http",
+                        url="https://mcp.example/sse",
+                        command="",
+                        token="enc::not-actually-ciphertext",
+                        enabled=True,
+                        discovered_tools=[],
+                        enabled_tools=[],
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(seed())
+
+    monkeypatch.setenv("JWT_SECRET", legacy_secret)
+    try:
+        command.upgrade(config, "head")
+
+        async def probe():
+            engine = create_async_engine(settings.DATABASE_URL)
+            try:
+                async with engine.connect() as conn:
+                    provider_rows = (
+                        await conn.execute(
+                            sa.select(
+                                providers.c.name, providers.c.api_key_encrypted
+                            ).where(providers.c.name.in_(names["providers"]))
+                        )
+                    ).fetchall()
+                    setting_rows = {
+                        row[0]: row[1]
+                        for row in (
+                            await conn.execute(
+                                sa.select(
+                                    app_settings.c.key, app_settings.c.value
+                                ).where(app_settings.c.key.in_(names["settings"]))
+                            )
+                        ).fetchall()
+                    }
+                    mcp_rows = {
+                        row[0]: row[1]
+                        for row in (
+                            await conn.execute(
+                                sa.select(
+                                    mcp_servers.c.name, mcp_servers.c.token
+                                ).where(mcp_servers.c.name.in_(names["mcp"]))
+                            )
+                        ).fetchall()
+                    }
+                    return provider_rows, setting_rows, mcp_rows
+            finally:
+                await engine.dispose()
+
+        provider_rows, setting_rows, mcp_rows = asyncio.run(probe())
+
+        # 1. Provider keys are wiped (sealed AND legacy-plaintext alike).
+        assert dict(provider_rows) == {
+            "t-p3d-provider-sealed": None,
+            "t-p3d-provider-plain": None,
+        }
+
+        # 2. Decryptable sealed values ride over under the DATA_KEY.
+        github_token = setting_rows["t.p3d.github"]["token"]
+        assert github_token.startswith("enc::")
+        assert decrypt_secret(github_token) == "ghp_legacy"
+        with pytest.raises(InvalidToken):
+            legacy.decrypt(github_token[len("enc::") :].encode())
+        vapid = setting_rows["t.p3d.vapid"]["private_key_enc"]
+        assert decrypt_secret(vapid) == "vapid_private"
+
+        # 3. Undecryptable leftovers are cleared — never JWT-derived.
+        assert setting_rows["t.p3d.bogus"]["token"] == ""
+        assert decrypt_secret(mcp_rows["t-p3d-bridge"]) == "bridge-token"
+        assert mcp_rows["t-p3d-bridge-bogus"] is None
+    finally:
+
+        async def cleanup():
+            from sqlalchemy import delete
+
+            engine = create_async_engine(settings.DATABASE_URL)
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        delete(providers).where(
+                            providers.c.name.in_(names["providers"])
+                        )
+                    )
+                    await conn.execute(
+                        delete(app_settings).where(
+                            app_settings.c.key.in_(names["settings"])
+                        )
+                    )
+                    await conn.execute(
+                        delete(mcp_servers).where(mcp_servers.c.name.in_(names["mcp"]))
+                    )
+            finally:
+                await engine.dispose()
+
+        asyncio.run(cleanup())

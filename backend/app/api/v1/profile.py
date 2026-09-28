@@ -4,10 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import AINotConfiguredError, DomainError
 from app.schemas.profile import ProfileSectionUpdate
-from app.services.deps import get_current_user
+from app.services.deps import get_current_user, get_profile_id
 from app.services.profile_service import ProfileService
 
-router = APIRouter(prefix="/profile", tags=["profile"])
+# §15 profile-scoped: the middleware-bound profile is the request's
+# scope (`get_profile_id` re-checks it; ownership was validated there).
+router = APIRouter(
+    prefix="/profile", tags=["profile"], dependencies=[Depends(get_profile_id)]
+)
 
 
 async def _profile_out(db, profile) -> dict:

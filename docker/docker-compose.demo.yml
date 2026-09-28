@@ -1,0 +1,189 @@
+# Career Assistant — DEMO flavor: isolated, egress-blocked stack with
+# synthetic-only data (identity-auth §13 / deployment.md). NEVER production.
+#
+# The real app on a demo instance: PostgreSQL 16 database `neuro_career_demo`
+# (naming law: `neuro_<product>_demo`), the SPA badged "Demo — synthetic
+# data" (the banner reads the public /api/v1/instance/config), the
+# credential-free `demo` principal enabled, registration disabled. Demo data
+# is seeded ONLY by the one-shot `demo-seed` service running
+# `scripts/seed-demo.py` — the app never auto-seeds — and the seeder refuses
+# any target that is not a demo database on a `demo_mode=true` instance.
+#
+# Security model (deployment.md demo rules):
+#   • own compose project (`name:` below) + own networks — never joins the
+#     production/standalone stack;
+#   • `demo-net` is `internal: true` — containers reach each other but
+#     nothing can egress to the internet (AI/web-import stay dark);
+#   • only the gateway publishes a host port, on the non-internal `edge`
+#     network (Docker drops port bindings on internal networks), bound to
+#     127.0.0.1 by default — put a tunnel or reverse proxy in front;
+#   • registration disabled (`CAREER_REGISTRATION_ENABLED=false`); the
+#     gateway only starts after `demo-seed` has completed successfully;
+#   • `APP_ENV=demo` — production entrypoints abort on demo config
+#     (app/core/boot.py, identity-auth §13), so a production deployment can
+#     never run this flavor's config.
+#
+#   POSTGRES_PASSWORD=... docker compose -f docker/docker-compose.demo.yml up -d --build
+#   # optional reset-on-restart (pristine synthetic workspace on every up):
+#   POSTGRES_PASSWORD=... docker compose -f docker/docker-compose.demo.yml --profile reset up -d
+#   # full wipe (demo data is disposable):
+#   docker compose -f docker/docker-compose.demo.yml --profile reset down -v
+
+name: career-assistant-demo
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${LOG_MAX_SIZE:-10m}"
+    max-file: "${LOG_MAX_FILE:-3}"
+
+services:
+  db:
+    # pgvector provisioned; the embeddings migrations (0021) need it.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: neuro_career_demo
+      POSTGRES_USER: neuro_career
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for the demo stack (docker/.env or the shell)}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neuro_career -d neuro_career_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    networks:
+      - demo-net
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      # Family auth-kit is a path dep (../auth-kit) — see docker/Dockerfile.
+      additional_contexts:
+        auth-kit: ../../auth-kit
+    image: ${CAREER_IMAGE:-career-assistant:local}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Demo flavor markers (identity-auth §13): never production — the
+      # production boot guard aborts on CAREER_DEMO_MODE=true.
+      APP_ENV: demo
+      CAREER_DEMO_MODE: "true"
+      CAREER_REGISTRATION_ENABLED: "false"
+      # ADR-0022: the demo database is neuro_<product>_demo — never a
+      # production database.
+      DATABASE_URL: postgresql+asyncpg://neuro_career:${POSTGRES_PASSWORD}@db:5432/neuro_career_demo
+      # auth_keys.json (identity-auth §8) + desktop checkpoints persist here.
+      DATA_DIR: /data
+      UPLOAD_DIR: /data/uploads
+      SPA_DIST: /app/frontend/dist
+      # Same-origin SPA + API → CORS stays empty.
+      CORS_ORIGINS: ""
+      # Rightmost hop is the bundled gateway (§7 per-IP limits).
+      CAREER_TRUSTED_PROXY_COUNT: "1"
+    # No host ports: only the gateway is reachable (via `edge`).
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3); sys.exit(0 if r.status < 500 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *default-logging
+    networks:
+      - demo-net
+
+  demo-seed:
+    # One-shot synthetic seeding (belt-and-suspenders: the app does NOT
+    # auto-seed). scripts/seed-demo.py is bind-mounted because the image
+    # ships only the backend — the script's guard rails accept exactly this
+    # target: database `neuro_career_demo` on a demo_mode=true instance
+    # (the app initialized it from CAREER_DEMO_MODE=true at boot), or
+    # `--init-demo` on an empty demo database.
+    image: ${CAREER_IMAGE:-career-assistant:local}
+    restart: "no"
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://neuro_career:${POSTGRES_PASSWORD}@db:5432/neuro_career_demo
+      DATA_DIR: /data
+    volumes:
+      - ../scripts/seed-demo.py:/app/scripts/seed-demo.py:ro
+    entrypoint: ["python", "/app/scripts/seed-demo.py"]
+    command: ["--init-demo"]
+    logging: *default-logging
+    networks:
+      - demo-net
+
+  demo-reset:
+    # Optional reset-on-restart (identity-auth §13): with `--profile reset`
+    # this one-shot purges previously seeded demo rows (and the demo
+    # principal's) and reseeds the pristine synthetic workspace on every
+    # `up` — visitor changes never accumulate on a public demo. Runs after
+    # demo-seed (never concurrently — two seeders would race migrations).
+    image: ${CAREER_IMAGE:-career-assistant:local}
+    profiles: ["reset"]
+    restart: "no"
+    depends_on:
+      app:
+        condition: service_healthy
+      demo-seed:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+asyncpg://neuro_career:${POSTGRES_PASSWORD}@db:5432/neuro_career_demo
+      DATA_DIR: /data
+    volumes:
+      - ../scripts/seed-demo.py:/app/scripts/seed-demo.py:ro
+    entrypoint: ["python", "/app/scripts/seed-demo.py"]
+    command: ["--reset", "--init-demo"]
+    logging: *default-logging
+    networks:
+      - demo-net
+
+  gateway:
+    # Single public entry point (nginx routes /api + SPA like the
+    # standalone flavor). Starts only after demo-seed succeeded, so the
+    # demo is badged and seeded before the first visitor arrives.
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      demo-seed:
+        condition: service_completed_successfully
+    ports:
+      # Gateway bind address: 127.0.0.1 by default (front it with a tunnel
+      # or reverse proxy). Set DEMO_BIND to a private interface if a tunnel
+      # runs on another host. NEVER bind a public interface without a host
+      # firewall in front.
+      - "${DEMO_BIND:-127.0.0.1}:${DEMO_PORT:-8090}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    logging: *default-logging
+    networks:
+      - demo-net
+      - edge
+
+volumes:
+  db_data:
+  data:
+
+networks:
+  demo-net:
+    driver: bridge
+    internal: true # ← no container egress to the internet.
+  # edge is NOT internal — only the gateway is on it, so the host port can
+  # be published (Docker silently drops port bindings on internal networks).
+  # db/app/demo-seed stay on demo-net alone (zero egress); nginx proxies at
+  # L7, so nothing can route out via the gateway.
+  edge:
+    driver: bridge

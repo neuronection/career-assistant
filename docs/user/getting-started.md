@@ -48,7 +48,8 @@ python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
 ./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
 ```
 
-First launch creates a strong `secret.key`, applies migrations and seeds the
+First launch creates a strong per-instance key file (`auth_keys.json`,
+0600), applies migrations and seeds the
 starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). Closing
 the window keeps the app running in the tray after a first-run opt-in prompt
 — see [Desktop app](desktop-app.md).
@@ -60,7 +61,8 @@ git clone https://github.com/neuronection/career-assistant.git
 cd career-assistant
 
 cp docker/.env.production.example docker/.env
-# Edit docker/.env — set JWT_SECRET and POSTGRES_PASSWORD (long random values)
+# Edit docker/.env — set the three CAREER_*_KEY secrets and
+# POSTGRES_PASSWORD (long random values, each key generated separately)
 
 docker compose -f docker/docker-compose.prod.yml up -d --build
 ```
@@ -71,11 +73,15 @@ start. For a single-host stack with bundled nginx (TLS-ready) use
 use `./scripts/run-docker.sh`; existing installs refresh via
 `./scripts/update-docker.sh`.
 
-By default the app runs in **single-user mode**: a single default user
-(instance admin) is created automatically, and you are never asked to log
-in or register. To run a classic multi-user instance instead, set
-`SINGLE_USER_MODE=false` in `docker/.env` and register the first user
-through the app (it automatically becomes the admin).
+The web deployment runs the family `authenticated` instance mode: the
+first boot shows the login screen — register the first user (it
+automatically becomes the admin) and sign in from then on. Self-service
+registration is a per-deployment switch (`CAREER_REGISTRATION_ENABLED`,
+default on): with it off, `POST /auth/register` refuses, the login screen
+hides its register action, and an admin creates accounts instead
+([Settings → Users](settings.md#users-settingsusers)). The desktop
+app (`python -m careerassistant`) runs `open` (Desktop Identity Mode):
+no login at all, it boots straight into your data.
 
 See [Deployment](../dev/deployment.md) for the full configuration reference,
 TLS, upgrades, backups and bare-metal installs.
@@ -120,8 +126,8 @@ offline — the mock can never serve results in production.
 ## Where your data lives
 
 - **Desktop:** under your OS data directory — the SQLite database, uploads,
-  `secret.key` and the checkpointer database. Nothing is sent anywhere
-  except the AI calls you configure.
+  the per-instance key file `auth_keys.json` and the checkpointer database.
+  Nothing is sent anywhere except the AI calls you configure.
 - **Self-hosted:** the Postgres volume (`db_data`) and the uploads volume
   (`uploads_data`). Back them up — see
   [Deployment](../dev/deployment.md#backups).

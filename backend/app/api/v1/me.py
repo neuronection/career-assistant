@@ -3,17 +3,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.errors import DomainError
 from app.models.enums import CareerStage, OnboardingPath
 from app.schemas.background_job import EnqueueResponse
-from app.services.account_service import delete_account, request_export
+from app.services.account_service import request_export
 from app.services.deps import get_current_user
 
 router = APIRouter(prefix="/me", tags=["me"])
-
-
-class DeleteAccountIn(BaseModel):
-    password: str
 
 
 class StageIn(BaseModel):
@@ -268,16 +263,3 @@ async def export_my_data(
     """Queue a personal-data export; download via /background-jobs/{id}/download."""
     job_id = await request_export(db, user)
     return EnqueueResponse(job_id=job_id)
-
-
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_my_account(
-    data: DeleteAccountIn,
-    user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> None:
-    """Permanently delete the caller's account and personal data."""
-    try:
-        await delete_account(db, user, data.password)
-    except DomainError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

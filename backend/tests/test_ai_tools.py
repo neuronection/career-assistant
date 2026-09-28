@@ -262,7 +262,7 @@ async def test_notification_write_flow_through_registry(db, kinds):
     """The write-scope tool really mutes through the registry path."""
     from sqlalchemy import select
 
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
     from app.models.engagement_model import NotificationKind, NotificationKindPref
     from app.models.user_model import User
 

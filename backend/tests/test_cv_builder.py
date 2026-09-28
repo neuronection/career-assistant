@@ -4,6 +4,7 @@ import uuid
 
 from app.schemas.cv_template import TemplateContent
 from app.services.cv_renderer import render_cv
+from tests.conftest import session_headers
 
 
 def _render_with_elevation(elevation: str) -> str:
@@ -64,7 +65,7 @@ async def _second_user(client) -> dict:
         },
     )
     assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 async def _experience(client, headers, **overrides) -> dict:

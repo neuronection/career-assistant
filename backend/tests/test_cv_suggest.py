@@ -4,7 +4,7 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid
+from tests.conftest import _make_posting, _uid, session_headers
 
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.taxonomy_model import Skill
@@ -241,7 +241,7 @@ async def test_isolated_cv_cannot_run_actions(
             "full_name": "Other",
         },
     )
-    headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    headers = session_headers(other)
     response = await client.post(
         f"/api/v1/cv/{cv['id']}/ai/summary", json={}, headers=headers
     )

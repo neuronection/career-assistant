@@ -351,6 +351,10 @@ def run_browser() -> None:
     Prefers the configured API_PORT (so it doubles as a lightweight personal
     server), falling back to a random free port when it is taken.
     """
+    # Attach the shell gate (identity-auth §11) before the app is built:
+    # create_app arms the X-Shell-Token gate only for shell-attached
+    # processes (shell-less desktop dev — run-dev.sh — stays ungated).
+    os.environ["CAREER_SHELL"] = "1"
     app = create_app()
     port = settings.API_PORT
     try:
@@ -359,7 +363,13 @@ def run_browser() -> None:
     except OSError:
         port = find_free_port()
     apply_webkit_compat_env()
-    url = f"http://127.0.0.1:{port}"
+    # Per-boot shell secret (identity-auth §11): the SPA URL carries it as
+    # `?shell=` (also marks the desktop CSP variant) and echoes it as
+    # `X-Shell-Token` on every API request.
+    from app.desktop import shell_token
+
+    shell_query = shell_token.current() or shell_token.issue()
+    url = f"http://127.0.0.1:{port}/?shell={shell_query}"
     threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
@@ -421,6 +431,9 @@ def run(tray_only: bool = False) -> None:
     from app.services.notification_channels import unregister_channel
 
     sanitize_environment()
+    # Attach the shell gate (identity-auth §11) before create_app — see
+    # run_browser().
+    os.environ["CAREER_SHELL"] = "1"
     data_dir = settings.data_dir_path
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -458,7 +471,8 @@ def run(tray_only: bool = False) -> None:
 
     # Marks the shell's document requests so the security headers middleware
     # can serve the desktop CSP variant (pywebview's evaluate_js needs it).
-    shell_query = shell_token.issue()
+    # Same per-boot secret the X-Shell-Token gate already holds (§11).
+    shell_query = shell_token.current() or shell_token.issue()
 
     state = load_window_state(data_dir, webview.screens)
     window = webview.create_window(

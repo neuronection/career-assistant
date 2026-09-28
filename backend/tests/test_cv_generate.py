@@ -18,7 +18,7 @@ from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_generate_service import CvGenerateService
 from app.services.job_worker import JobWorker
 
-from tests.conftest import _uid
+from tests.conftest import _uid, session_headers
 
 # ------------------------------------------------------------ registry wiring
 
@@ -960,7 +960,7 @@ async def test_cv_runs_endpoint_assembles_the_run_ledger(
     assert other.status_code == 201, other.text
     foreign = await client.get(
         f"/api/v1/cv/{cv_id}/runs",
-        headers={"Authorization": f"Bearer {other.json()['access_token']}"},
+        headers=session_headers(other),
     )
     assert foreign.status_code == 404
 

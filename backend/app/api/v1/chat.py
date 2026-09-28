@@ -13,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.agents import quick_assist
 from app.ai.gateway import partial_answer_text
 from app.core.database import get_db
-from app.core.errors import AINotConfiguredError, DomainError
+from app.core.errors import (
+    AINotConfiguredError,
+    DomainError,
+    sanitize_error_detail,
+)
 from app.schemas.chat import (
     AssistIn,
     AssistOut,
@@ -240,6 +244,31 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
         raise DomainError("A reply is already streaming for this chat")
     _ACTIVE_TURNS.add(session.id)
 
+    async def _persist_turn_failure(code: str, detail: str) -> None:
+        """Uniform chat error display: persist the failed turn as an
+        assistant marker message — the transcript keeps rendering it after
+        a refresh; Retry rides the regenerate endpoint."""
+        from app.models.chat_model import ChatMessage
+
+        try:
+            db.add(
+                ChatMessage(
+                    session_id=session.id,
+                    role="assistant",
+                    content="",
+                    metadata_json={
+                        "turn_failed": {
+                            "code": code,
+                            "detail": sanitize_error_detail(detail),
+                        }
+                    },
+                    parent_id=user_message_id,
+                )
+            )
+            await db.commit()
+        except Exception:  # noqa: BLE001 — best-effort persistence
+            await db.rollback()
+
     profile = await get_profile_for_user(db, user.id)
     # CV reference attachments (plan 78): explicit or inherited from the
     # conversation's most recent attached message (AD2b).
@@ -274,11 +303,31 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     }
                 },
             )
-        except DomainError as exc:
+        except AINotConfiguredError as exc:
+            # Uniform chat error display: stable code + the settings
+            # affordance in the SPA (family ADR-0014).
+            detail = sanitize_error_detail(str(exc))
             deps.emit(
                 "flow_failed",
-                {"code": "ai_unavailable", "message": str(exc), "retryable": True},
+                {
+                    "code": "ai_not_configured",
+                    "message": detail,
+                    "retryable": True,
+                },
             )
+            await _persist_turn_failure("ai_not_configured", detail)
+        except DomainError as exc:
+            code = (
+                "ai_not_configured"
+                if "not configured" in str(exc)
+                else "ai_unavailable"
+            )
+            detail = sanitize_error_detail(str(exc))
+            deps.emit(
+                "flow_failed",
+                {"code": code, "message": detail, "retryable": True},
+            )
+            await _persist_turn_failure(code, detail)
         except Exception as exc:  # noqa: BLE001 — stream must end cleanly
             if is_cancellation(exc):
                 # LangGraph wraps node CancelledError — a self-cancelling
@@ -286,14 +335,16 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 deps.aborted = True
             else:
                 logger.exception("chat turn failed (session=%s)", session.id)
+                detail = sanitize_error_detail(f"AI error: {exc}")
                 deps.emit(
                     "flow_failed",
                     {
                         "code": "ai_error",
-                        "message": f"AI error: {exc}",
+                        "message": detail,
                         "retryable": True,
                     },
                 )
+                await _persist_turn_failure("ai_error", detail)
         finally:
             deps.emit(END_SENTINEL, {})
 

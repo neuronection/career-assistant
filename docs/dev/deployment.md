@@ -16,7 +16,8 @@ git clone https://github.com/neuronection/career-assistant.git
 cd career-assistant
 
 cp docker/.env.production.example docker/.env
-# Edit docker/.env — set JWT_SECRET and POSTGRES_PASSWORD (long random values)
+# Edit docker/.env — set the three CAREER_*_KEY secrets and
+# POSTGRES_PASSWORD (long random values; generate each key separately)
 
 docker compose -f docker/docker-compose.prod.yml up -d --build
 ```
@@ -29,11 +30,13 @@ existing installs refresh via `./scripts/update-docker.sh`.
 
 ### First boot walkthrough
 
-1. **No registration needed (single-user mode)** — by default the app never
-   asks to log in or register: a single default user (instance admin) is
-   created automatically on first use. To run a classic multi-user instance
-   instead, set `SINGLE_USER_MODE=false` in `docker/.env` and register the
-   first user through the app (it automatically becomes the admin).
+1. **Register the admin** — the web deployment runs the family
+   `authenticated` instance mode (identity-auth §4): the first boot shows
+   the login screen, register the first user (it automatically becomes
+   the admin). The desktop app (`python -m careerassistant`) runs `open`
+   instead — no login at all (Desktop Identity Mode, implicit local
+   owner). Modes are set once on an empty database (`CAREER_AUTH_MODE`)
+   and are DB-authoritative afterwards.
 2. **Load the starter catalog** (optional, recommended):
    `./scripts/seed.sh` against the compose database (see *Bare metal access*
    below), or leave it empty and generate everything with AI.
@@ -47,9 +50,14 @@ existing installs refresh via `./scripts/update-docker.sh`.
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `JWT_SECRET` | yes | — | Long random string. **Never** reuse the dev default. |
-| `SINGLE_USER_MODE` | no | `true` | `false` restores the JWT login/register flow (multi-user). |
-| `DEFAULT_USER_EMAIL` | no | `default@local.app` | Email of the auto-created default user (single-user mode). |
+| `CAREER_SESSION_KEY` / `CAREER_REFRESH_KEY` / `CAREER_DATA_KEY` | yes | — | The per-purpose key family (identity-auth §8): session-JWT signing / refresh-JWT signing / Fernet for secrets at rest. Three **independent** secrets, all three or none (partial pins fail closed) — generate each with `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`. Never derived from each other. |
+| `CAREER_TRUSTED_PROXY_COUNT` | no | `1` (compose) | Rightmost `X-Forwarded-For` hops trusted for per-IP limits (§7/§16). The compose stacks are proxy-fronted by design; keep `1` behind one proxy, `0` for direct exposure. |
+| `CAREER_AUTH_MODE` | no | `authenticated` | Init-only instance mode (`open` is desktop-only and refused on server). Post-init flips are ignored. |
+| `CAREER_REGISTRATION_ENABLED` | no | `true` | Disable to close the public registration route. |
+| `CAREER_COOKIE_SECURE` | no | `false` | Set `true` behind TLS so session cookies get `Secure`. |
+| `CAREER_AUTH_ACCESS_TTL_MINUTES` / `CAREER_AUTH_REFRESH_TTL_DAYS` / `CAREER_AUTH_REFRESH_ABSOLUTE_DAYS` | no | `60` / `7` / `30` | Session lifetimes (identity-auth §8). |
+| `CAREER_AUTH_LOCKOUT_THRESHOLD` / `CAREER_AUTH_LOCKOUT_MINUTES` | no | `5` / `15` | Login brute-force lockout (§7). |
+| `CAREER_RATELIMIT_AUTH` / `_AUTH_EMAIL` / `_AI` / `_MCP` / `_DEFAULT` | no | `10` / `30` / `30` / `120` / `240` | Per-bucket rate ceilings, requests/minute (`0` disables a bucket). |
 | `POSTGRES_PASSWORD` | yes | — | Password for the bundled Postgres. |
 | `POSTGRES_DB` / `POSTGRES_USER` | no | `career` | Database name/user. |
 | `API_PORT` | no | `8100` | Host port the app publishes on. |
@@ -87,6 +95,13 @@ Or manually: `git pull`, back up first (see Backups), then
 The container runs `alembic upgrade head` on start, so schema migrations
 apply automatically. Pre-1.0 there is **no downgrade path** — pin a version
 tag if you need reproducibility.
+
+When upgrading from a pre-P3d release, set the three `CAREER_*_KEY`
+secrets in `docker/.env` **before** the first start (see the
+configuration reference) and re-enter your AI provider keys once in
+Settings → AI Configuration — migration `0044` wipes stored provider
+keys and re-encrypts-or-clears the remaining sealed values (GitHub token,
+VAPID push keys, MCP bridge tokens) under `CAREER_DATA_KEY`.
 
 ## Backups
 
@@ -148,17 +163,21 @@ cd backend
 python -m venv venv && ./venv/bin/pip install -r requirements.txt
 export APP_ENV=production
 export DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/career
-export JWT_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+export CAREER_SESSION_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export CAREER_REFRESH_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export CAREER_DATA_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 ./venv/bin/alembic upgrade head
 ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100
 ```
 
 The app auto-detects `../frontend/dist` and serves it — no separate web
 server needed. Run under systemd (`Restart=on-failure`,
-`StateDirectory=career-assistant`) and front it with nginx/Caddy for TLS.
+`StateDirectory=career-assistant`) and front it with nginx/Caddy for TLS
+(set `CAREER_TRUSTED_PROXY_COUNT=1` and `CAREER_COOKIE_SECURE=true` there).
 
-Boot guards: production refuses to start with a weak `JWT_SECRET` or
-`DEBUG=true` — this is intentional.
+Boot guards: production refuses to start with a weak, partial or missing
+key family (`CAREER_SESSION_KEY` / `CAREER_REFRESH_KEY` /
+`CAREER_DATA_KEY`) or `DEBUG=true` — this is intentional.
 
 ## Troubleshooting
 
@@ -167,6 +186,6 @@ Boot guards: production refuses to start with a weak `JWT_SECRET` or
 - **`413` on PDF upload** — raise `MAX_UPLOAD_MB` and your proxy body cap.
 - **Container restart loop** — check logs for the boot guard message
   (`docker compose -f docker/docker-compose.prod.yml logs app`); usually a
-  weak `JWT_SECRET`.
+  weak or missing `CAREER_*_KEY` secret.
 - **Health check** — `GET /health` returns JSON liveness info; wire your
   monitor to it.

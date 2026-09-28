@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { streamChatMessage } from "@/api/chatStream";
+import { setActiveProfile } from "@/api/client";
 
 const encoder = new TextEncoder();
 
@@ -18,7 +19,15 @@ function event(name: string, payload: unknown): string {
 }
 
 describe("streamChatMessage", () => {
+  beforeEach(() => {
+    // Bound profile: the streaming request rides X-Profile-Id without
+    // firing the real priming GET.
+    setActiveProfile("profile-1");
+  });
+
   afterEach(() => {
+    setActiveProfile(null);
+    document.cookie = "nx_csrf=; Max-Age=0; path=/";
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -207,5 +216,17 @@ describe("streamChatMessage", () => {
       ),
     );
     await expect(streamChatMessage("s", "hi", {})).rejects.toThrow("no valid output");
+  });
+
+  it("rides the identity headers (CSRF echo, profile) on the POST", async () => {
+    document.cookie = "nx_csrf=csrf-token; path=/";
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse([event("done", { ok: true })]));
+    vi.stubGlobal("fetch", fetchMock);
+    await streamChatMessage("s1", "hi", {});
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["X-CSRF-Token"]).toBe("csrf-token");
+    expect(headers["X-Profile-Id"]).toBe("profile-1");
+    expect(headers["Content-Type"]).toBe("application/json");
   });
 });

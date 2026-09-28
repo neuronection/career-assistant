@@ -7,6 +7,7 @@ from app.models.career_path_model import CareerPath
 from app.models.enums import RelationType
 from app.models.job_model import Job, JobRelation
 from app.services.job_worker import JobWorker
+from tests.conftest import session_headers
 
 
 @pytest.fixture
@@ -28,7 +29,7 @@ async def admin_headers(client, db):
     )
     row.is_admin = True
     await db.commit()
-    return {"Authorization": f"Bearer {first.json()['access_token']}"}
+    return session_headers(first)
 
 
 @pytest.fixture
@@ -50,7 +51,7 @@ async def non_admin_headers(client, db):
     )
     row.is_admin = False
     await db.commit()
-    return {"Authorization": f"Bearer {first.json()['access_token']}"}
+    return session_headers(first)
 
 
 async def test_curated_seed_paths_published(client, auth_headers, seeded_catalog):

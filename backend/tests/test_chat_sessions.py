@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.chat_model import ChatMessage, ChatSession
 from sqlalchemy import select
+from tests.conftest import session_headers
 
 
 async def _create_session(client, headers, title="session admin"):
@@ -28,7 +29,7 @@ async def _register(client, email: str) -> dict:
         },
     )
     assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 async def test_rename_session_updates_title(client, db, auth_headers):

@@ -16,7 +16,7 @@ async def test_profile_analyst_returns_structured_insight(db, seeded_catalog):
 
     i, s = await seed_taxonomy(db)
     from app.models.user_model import Profile, User, UserInterest
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
 
     user = User(email="a@example.com", password_hash=hash_password("password123"))
     db.add(user)
@@ -78,7 +78,7 @@ async def test_job_generator_valid_and_deduped(
 async def test_match_scorer_bounds_and_prereqs(
     db, client, auth_headers, seeded_catalog
 ):
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
     from app.models.user_model import Profile, User, UserInterest
     from app.models.taxonomy_model import InterestTag
     from app.services.job_service import JobService
@@ -141,7 +141,7 @@ async def test_university_parser_extracts_structure(db, client, auth_headers):
 
 
 async def test_ai_generations_audited(db, client, auth_headers, seeded_catalog):
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
     from app.models.user_model import Profile, User
     from app.services.job_service import JobService
 

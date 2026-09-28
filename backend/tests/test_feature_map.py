@@ -72,14 +72,14 @@ def test_v2_evidence_fields_all_prompted():
 async def test_prompt_is_generated_from_the_map_and_audited(
     db, auth_headers, seeded_catalog
 ):
-    from app.core.security import decode_access_token
+    from tests.conftest import decode_session_token
     from sqlalchemy import select
 
     from app.ai.agents.posting_extractor import extract_posting
     from app.models.ai_model import AIGeneration
 
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    user_id = decode_access_token(token)[0]
+    user_id = decode_session_token(token)[0]
     await extract_posting(
         db,
         user_id,

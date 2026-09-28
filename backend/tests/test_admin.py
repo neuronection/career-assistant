@@ -6,26 +6,28 @@ from sqlalchemy import select
 from app.models.taxonomy_model import Skill
 from app.models.user_model import User
 from app.services.job_worker import JobWorker
+from tests.conftest import session_headers
 
 
 @pytest.fixture
-async def _admin_and_user(client, db, multi_user_mode):
+async def _admin_and_user(client, db):
     """First user = admin, second = regular. Returns (admin_headers, user_headers)."""
     first = await client.post(
         "/api/v1/auth/register",
         json={"email": "admin@example.com", "password": "supersecret1"},
     )
     assert first.status_code == 201
-    admin = {"Authorization": f"Bearer {first.json()['access_token']}"}
+    admin = session_headers(first)
     second = await client.post(
         "/api/v1/auth/register",
         json={"email": "user@example.com", "password": "supersecret1"},
     )
     assert second.status_code == 201
-    user = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    user = session_headers(second)
     return admin, user
 
 
+@pytest.mark.contract  # §18.7 — non-admin on an admin surface ⇒ 403
 async def test_taxonomy_create_requires_admin(client, _admin_and_user):
     admin, user = _admin_and_user
     denied = await client.post(
@@ -201,7 +203,7 @@ async def test_moderation_queue_and_bulk_actions(
         "/api/v1/auth/register",
         json={"email": "third@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {third.json()['access_token']}"}
+    other_headers = session_headers(third)
     forbidden = await client.get("/api/v1/admin/jobs", headers=other_headers)
     assert forbidden.status_code == 403
 
@@ -224,6 +226,7 @@ async def test_moderation_queue_and_bulk_actions(
     assert gone.status_code == 404
 
 
+@pytest.mark.contract  # §18.7 — user-management guard rails (self/last admin)
 async def test_user_management_guards(client, _admin_and_user, db):
     admin, user = _admin_and_user
     listing = (await client.get("/api/v1/admin/users", headers=admin)).json()
@@ -244,12 +247,12 @@ async def test_user_management_guards(client, _admin_and_user, db):
     self_demote = await client.patch(
         f"/api/v1/admin/users/{admin_row.id}", json={"is_admin": False}, headers=admin
     )
-    assert self_demote.status_code == 400
+    assert self_demote.status_code == 403, "guard rail: no self-demotion (§12)"
 
     self_deactivate = await client.patch(
         f"/api/v1/admin/users/{admin_row.id}", json={"is_active": False}, headers=admin
     )
-    assert self_deactivate.status_code == 400
+    assert self_deactivate.status_code == 403, "guard rail: no self-deactivation (§12)"
 
     deactivated = await client.patch(
         f"/api/v1/admin/users/{user_row.id}", json={"is_active": False}, headers=admin
@@ -273,7 +276,7 @@ async def test_reset_password_and_force_logout(client, _admin_and_user, db):
         json={"new_password": "brandnewpw1"},
         headers=admin,
     )
-    assert reset.status_code == 200
+    assert reset.status_code == 204
 
     stale = await client.get("/api/v1/auth/me", headers=user)
     assert stale.status_code == 401
@@ -283,12 +286,12 @@ async def test_reset_password_and_force_logout(client, _admin_and_user, db):
         json={"email": "user@example.com", "password": "brandnewpw1"},
     )
     assert relogin.status_code == 200
-    new_headers = {"Authorization": f"Bearer {relogin.json()['access_token']}"}
+    new_headers = session_headers(relogin)
 
     force = await client.post(
         f"/api/v1/admin/users/{user_row.id}/force-logout", headers=admin
     )
-    assert force.status_code == 200
+    assert force.status_code == 204
     killed = await client.get("/api/v1/auth/me", headers=new_headers)
     assert killed.status_code == 401
 

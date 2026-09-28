@@ -8,7 +8,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.core.config import settings
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.models.experience_model import ExperienceItem, ExperienceSkill
 from app.models.user_model import User
@@ -20,9 +19,7 @@ from app.services.profile_proposal_service import (
 
 
 async def _auth_user(db) -> User:
-    rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-    )
+    rows = await db.execute(select(User).where(User.email == "student@example.com"))
     return rows.scalars().one()
 
 
@@ -106,11 +103,9 @@ async def test_cross_user_preview_is_404_and_pre99_rows_404(db, client, auth_hea
         "/api/v1/auth/register", json={"email": email, "password": "supersecret1"}
     )
     other = (await db.execute(select(User).where(User.email == email))).scalars().one()
-    from app.core.security import create_access_token
+    from tests.conftest import mint_session_headers
 
-    other_headers = {
-        "Authorization": f"Bearer {create_access_token(other.id, other.token_version)}"
-    }
+    other_headers = mint_session_headers(email=other.email)
 
     item = await _item(db, user)
     proposal = await _append_proposal(db, user, item)

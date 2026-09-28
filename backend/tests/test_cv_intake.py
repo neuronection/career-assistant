@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.models.experience_model import ExperienceItem, SkillEvidence
 from app.models.profile_entities_model import EducationItem
 from app.models.user_model import UserSkill
+from tests.conftest import session_headers
 
 
 CV_TEXT = (
@@ -279,7 +280,7 @@ async def test_intake_ownership_enforced(client, db, auth_headers):
         "/api/v1/auth/register",
         json={"email": "intake-other@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     response = await client.get(
         f"/api/v1/cv/intake/{doc_id}/drafts", headers=other_headers
     )
@@ -327,7 +328,7 @@ async def test_import_history_reflects_apply_and_isolation(client, db, auth_head
         "/api/v1/auth/register",
         json={"email": "history-other@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     assert (
         await client.get("/api/v1/cv/intake/drafts", headers=other_headers)
     ).json() == []

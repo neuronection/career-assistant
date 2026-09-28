@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Bell,
   CalendarClock,
+  CircleUser,
   Cpu,
   ListTree,
   ScrollText,
@@ -19,6 +20,12 @@ export interface SettingsNavItem {
 
 /** Settings sections — add future general settings here. */
 export const settingsNav: SettingsNavItem[] = [
+  {
+    to: "/settings/account",
+    icon: CircleUser,
+    label: "Account",
+    description: "Sessions, password and account deletion",
+  },
   {
     to: "/settings/ai",
     icon: Cpu,
@@ -48,7 +55,7 @@ export const settingsNav: SettingsNavItem[] = [
     to: "/settings/users",
     icon: Users,
     label: "Users",
-    description: "Accounts, roles and sessions",
+    description: "Roles, access and forced sign-out",
     adminOnly: true,
   },
   {

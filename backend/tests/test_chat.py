@@ -1,3 +1,6 @@
+from tests.conftest import session_headers
+
+
 async def test_chat_session_flow(client, auth_headers, profile_ready, seeded_catalog):
     session = await client.post(
         "/api/v1/chat/sessions", json={"title": "Explore"}, headers=auth_headers
@@ -39,7 +42,7 @@ async def test_chat_isolated_between_users(
         "/api/v1/auth/register",
         json={"email": "chatsnoop@example.com", "password": "password123"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     response = await client.get(
         f"/api/v1/chat/sessions/{session['id']}/messages", headers=other_headers
     )

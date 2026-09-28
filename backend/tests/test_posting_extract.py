@@ -24,10 +24,10 @@ from tests.conftest import _make_posting, _raw_posting
 
 
 def _user_id(auth_headers) -> str:
-    from app.core.security import decode_access_token
+    from tests.conftest import decode_session_token
 
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    return str(decode_access_token(token)[0])
+    return str(decode_session_token(token)[0])
 
 
 async def _queued_extract_jobs(db) -> list[BackgroundJob]:
@@ -521,7 +521,7 @@ async def test_admin_needs_review_listing_and_reextract(
     assert reextract.json()["extracted"] is True
 
 
-async def test_search_endpoints_require_auth(client, search_fixtures, multi_user_mode):
+async def test_search_endpoints_require_auth(client, search_fixtures):
     response = await client.get(
         "/api/v1/postings/search", params={"skills": "programming"}
     )

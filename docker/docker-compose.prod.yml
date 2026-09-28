@@ -30,6 +30,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      # Family auth-kit is a path dep (../auth-kit) — see docker/Dockerfile.
+      additional_contexts:
+        auth-kit: ../../auth-kit
     image: ${CAREER_IMAGE:-career-assistant:local}
     restart: unless-stopped
     depends_on:
@@ -38,7 +41,15 @@ services:
     environment:
       APP_ENV: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-career}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-career}
-      JWT_SECRET: ${JWT_SECRET:?Set a long random JWT_SECRET in docker/.env}
+      # Per-purpose key family (identity-auth §8) — generate each with:
+      #   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+      CAREER_SESSION_KEY: ${CAREER_SESSION_KEY:?Set CAREER_SESSION_KEY in docker/.env}
+      CAREER_REFRESH_KEY: ${CAREER_REFRESH_KEY:?Set CAREER_REFRESH_KEY in docker/.env}
+      CAREER_DATA_KEY: ${CAREER_DATA_KEY:?Set CAREER_DATA_KEY in docker/.env}
+      # Both flavors are proxy-fronted by design (bundled nginx, or the
+      # reverse proxy the app port is bound to) — trust one forwarded hop
+      # so per-IP limits key on real clients.
+      CAREER_TRUSTED_PROXY_COUNT: ${CAREER_TRUSTED_PROXY_COUNT:-1}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
       # Same-origin SPA + API → CORS stays empty; add origins only for split
       # deployments (e.g. "https://app.example.com").

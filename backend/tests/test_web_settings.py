@@ -5,6 +5,7 @@ import pytest
 
 from app.core.encryption import decrypt_secret
 from app.services import webfetch
+from tests.conftest import session_headers
 
 
 class _AlwaysErrorClient:
@@ -36,14 +37,14 @@ async def _put(client, headers, payload):
 
 
 @pytest.mark.asyncio
-async def test_requires_admin(client, multi_user_mode):
+async def test_requires_admin(client):
     async def _headers(email: str) -> dict:
         register = await client.post(
             "/api/v1/auth/register",
             json={"email": email, "password": "password123"},
         )
         assert register.status_code == 201
-        return {"Authorization": f"Bearer {register.json()['access_token']}"}
+        return session_headers(register)
 
     admin = await _headers("chief1@example.com")
     member = await _headers("member1@example.com")

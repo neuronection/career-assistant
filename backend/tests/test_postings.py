@@ -19,7 +19,7 @@ from app.connectors.registry import (
     reset_registry,
 )
 from app.connectors.testing import ConnectorContractTests
-from app.core.security import decode_access_token
+from tests.conftest import decode_session_token
 
 from tests.conftest import SyntheticConnector
 from app.models.posting_model import JobPosting
@@ -33,7 +33,7 @@ from app.services.postings_service import (
 
 def _user_id(auth_headers) -> str:
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    return str(decode_access_token(token)[0])
+    return str(decode_session_token(token)[0])
 
 
 async def _admin(client, auth_headers, db):

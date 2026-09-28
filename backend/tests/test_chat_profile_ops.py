@@ -20,11 +20,7 @@ from tests.test_chat_streaming import _parse_sse
 
 
 async def _auth_user(db) -> User:
-    from app.core.config import settings
-
-    rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-    )
+    rows = await db.execute(select(User).where(User.email == "student@example.com"))
     return rows.scalars().one()
 
 

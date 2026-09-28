@@ -327,4 +327,5 @@ structured profile.
 - **Full AI audit trail** — every AI call (task, model, tokens, output,
   latency) is recorded in `ai_generations`.
 - **Fail-safe production mode** — `APP_ENV=production` is the default; boot
-  guards refuse a weak `JWT_SECRET` or `DEBUG=true`.
+  guards refuse a weak or missing key family (`CAREER_SESSION_KEY` /
+  `CAREER_REFRESH_KEY` / `CAREER_DATA_KEY`) or `DEBUG=true`.

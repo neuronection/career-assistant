@@ -11,6 +11,7 @@ from app.models.cv_model import CvDocument, CvVersion
 from app.models.enums import CvVersionCreator
 from app.services.cv_source_service import content_sha256
 from app.services.job_worker import JobWorker, enqueue
+from tests.conftest import session_headers
 
 
 async def _drain(db):
@@ -234,7 +235,7 @@ async def _second_user(client) -> dict:
         "/api/v1/auth/register",
         json={"email": "other@example.com", "password": "supersecret1"},
     )
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 async def test_cv_crud_and_autosave(client, db, auth_headers):

@@ -1,5 +1,7 @@
 """Security hardening: rate limits, lockout, token revocation, headers."""
 
+from dataclasses import replace
+
 import pytest
 from httpx import AsyncClient
 
@@ -7,6 +9,7 @@ from app.core.config import settings
 from app.core.ratelimit import SlidingWindowRateLimiter, client_identity
 from app.models.user_model import User
 from sqlalchemy import select
+from tests.conftest import auth_kit, session_headers
 
 
 @pytest.fixture(autouse=True)
@@ -49,12 +52,14 @@ def _scope(headers=None, client=("9.9.9.9", 1234)):
     return {"client": client, "headers": raw}
 
 
-def test_client_identity_uses_rightmost_forwarded_hop():
+def test_client_identity_uses_rightmost_forwarded_hop(monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
     scope = _scope({"X-Forwarded-For": "1.1.1.1, 2.2.2.2, 203.0.113.9"})
     assert client_identity(scope) == "203.0.113.9"
 
 
-def test_client_identity_ignores_spoofable_leading_hops():
+def test_client_identity_ignores_spoofable_leading_hops(monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
     scope = _scope({"X-Forwarded-For": "1.1.1.1"}, client=("203.0.113.9", 5))
     assert client_identity(scope) == "1.1.1.1"
     scope = _scope({"X-Forwarded-For": "1.1.1.1, 203.0.113.9"}, client=None)
@@ -64,6 +69,23 @@ def test_client_identity_ignores_spoofable_leading_hops():
 def test_client_identity_falls_back_to_socket_address():
     assert client_identity(_scope()) == "9.9.9.9"
     assert client_identity({"headers": [], "client": None}) == "unknown"
+
+
+def test_client_identity_default_trusts_no_forwarded_hops():
+    """§7/§16: with `CAREER_TRUSTED_PROXY_COUNT=0` (default) a
+    client-supplied X-Forwarded-For is never believed — per-IP limits
+    key on the socket, so an attacker cannot rotate identities by
+    spoofing the header."""
+    scope = _scope({"X-Forwarded-For": "1.1.1.1"}, client=("203.0.113.9", 5))
+    assert client_identity(scope) == "203.0.113.9"
+
+
+def test_client_identity_trusts_exactly_n_hops(monkeypatch):
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 2)
+    scope = _scope(
+        {"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 203.0.113.9"}, client=("9.9.9.9", 5)
+    )
+    assert client_identity(scope) == "1.1.1.1", "rightmost 2 hops trusted"
 
 
 async def test_login_rate_limited_per_ip(client, monkeypatch):
@@ -84,6 +106,9 @@ async def test_login_rate_limited_per_ip(client, monkeypatch):
 
 async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
     monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+    kit = auth_kit()
+    kit.ip_limiter.per_minute = 10**6  # the kit's auth limiter is out of scope here
+    kit.email_limiter.per_minute = 10**6
     for _ in range(30):
         response = await client.post(
             "/api/v1/auth/login",
@@ -92,19 +117,24 @@ async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
         assert response.status_code == 401
 
 
-async def test_lockout_after_threshold_then_expiry(
-    client, db, monkeypatch, multi_user_mode
-):
+async def test_lockout_after_threshold_then_expiry(client, db):
+    from datetime import datetime, timezone
+
+    kit = auth_kit()
+    kit.config = replace(kit.config, lockout_threshold=3, lockout_minutes=15)
     await _register(client, "lockout@example.com")
     email = "lockout@example.com"
-    monkeypatch.setattr(settings, "LOCKOUT_THRESHOLD", 3)
-    monkeypatch.setattr(settings, "LOCKOUT_MINUTES", 15)
 
-    for _ in range(3):
+    for _ in range(2):
         response = await client.post(
             "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
         )
         assert response.status_code == 401
+    assert (
+        await client.post(
+            "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
+        )
+    ).status_code == 423
 
     locked = await client.post(
         "/api/v1/auth/login",
@@ -113,8 +143,8 @@ async def test_lockout_after_threshold_then_expiry(
     assert locked.status_code == 423
 
     user = (await db.execute(select(User).where(User.email == email))).scalars().first()
-    user.locked_until = None
-    await db.commit()
+    # Lock window elapsed (§7) — simulate the clock passing.
+    kit.users.set_login_failures(user.id, 2, datetime.now(timezone.utc))
 
     ok = await client.post(
         "/api/v1/auth/login", json={"email": email, "password": "supersecret1"}
@@ -122,7 +152,7 @@ async def test_lockout_after_threshold_then_expiry(
     assert ok.status_code == 200
 
 
-async def test_successful_login_resets_failure_counter(client, db, multi_user_mode):
+async def test_successful_login_resets_failure_counter(client, db):
     await _register(client, "reset@example.com")
     email = "reset@example.com"
     for _ in range(2):
@@ -138,16 +168,20 @@ async def test_successful_login_resets_failure_counter(client, db, multi_user_mo
     assert user.locked_until is None
 
 
-async def test_revoke_sessions_invalidates_old_token(client, db, multi_user_mode):
+async def test_revoke_sessions_invalidates_old_token(client, db):
     registered = await _register(client, "revoke@example.com")
     email = "revoke@example.com"
-    headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+    headers = session_headers(registered)
     user = (await db.execute(select(User).where(User.email == email))).scalars().first()
     old_version = user.token_version
 
-    revoked = await client.post("/api/v1/auth/revoke-sessions", headers=headers)
+    # §12 logout-all: revoke every family + ver bump — access dies at once.
+    revoked = await client.post("/api/v1/auth/logout-all", headers=headers)
     assert revoked.status_code == 200
-    assert revoked.json()["token_version"] == old_version + 1
+
+    db.expire_all()
+    user = (await db.execute(select(User).where(User.email == email))).scalars().first()
+    assert user.token_version == old_version + 1
 
     stale = await client.get("/api/v1/auth/me", headers=headers)
     assert stale.status_code == 401

@@ -254,6 +254,9 @@ class ChatService:
             {"role": m.role, "content": m.content}
             for m in path
             if m.role in ("user", "assistant")
+            # Failed-turn markers are display-only — never feed the error
+            # placeholder into the model context (uniform chat error display).
+            and not ((m.metadata_json or {}).get("turn_failed"))
         ]
 
         message = ChatMessage(

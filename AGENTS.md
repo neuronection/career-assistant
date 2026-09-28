@@ -66,8 +66,9 @@ health-assistant. Core rules:
 
 ## Build & test
 ```bash
-docker compose -f docker/docker-compose.dev-db.yml up -d   # once
-./scripts/run-dev.sh                                       # backend :8100 + frontend :3100
+./scripts/run-dev.sh                                       # desktop dev: SQLite profile, backend :8100 + frontend :3100 (no Docker)
+./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI (ADR-0023)
+docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
 ./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
 cd backend && ./venv/bin/pytest tests -q -n auto           # equivalent direct invocation
 cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests

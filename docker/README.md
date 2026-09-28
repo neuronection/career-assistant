@@ -33,7 +33,9 @@ docker compose -f docker/docker-compose.standalone.yml up -d --build
 ```
 
 - App + Postgres + nginx; the app image serves API and SPA same-origin.
-- Optional scheduled backups (dump + uploads to `./backups`):
+- Optional scheduled database backups (pg_dump to `./backups`; the
+  uploads volume is covered by the manual tar step in the restore
+  drill — see docs/dev/deployment.md):
   `--profile backup`.
 - Deploy pre-built images instead of building:
   `CAREER_IMAGE=ghcr.io/<owner>/<repo>:<tag> docker compose ... up -d`

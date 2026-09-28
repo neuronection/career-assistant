@@ -58,10 +58,10 @@ def test_fit_version_bumped_for_signal_change():
 
 async def test_generator_emits_v2_vocabulary(db, auth_headers, seeded_catalog):
     from app.ai.agents.job_generator import generate_jobs
-    from app.core.security import decode_access_token
+    from tests.conftest import decode_session_token
 
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    user_id = decode_access_token(token)[0]
+    user_id = decode_session_token(token)[0]
     drafts = await generate_jobs(
         db,
         user_id,

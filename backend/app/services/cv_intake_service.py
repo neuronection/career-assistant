@@ -591,9 +591,10 @@ class CvIntakeService:
         """The profile's current basics, for the review screen's
         keep-or-replace comparison (fresh server state, not a stale
         store copy); `full_name` mirrors the account name."""
-        rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
-        profile = rows.scalars().first()
-        data = dict(profile.basics or {}) if profile else {}
+        from app.services.deps import get_profile_for_user
+
+        profile = await get_profile_for_user(self.db, user_id)
+        data = dict(profile.basics or {})
         user = (
             await self.db.execute(
                 select(User.id, User.full_name).where(User.id == user_id)
@@ -632,12 +633,9 @@ class CvIntakeService:
         in `basics_conflicts`. Same-value fields are no-ops. Links merge
         URL-deduped (never overwrite).
         """
-        rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
-        profile = rows.scalars().first()
-        if profile is None:
-            profile = Profile(user_id=user_id, basics={})
-            self.db.add(profile)
-            await self.db.flush()
+        from app.services.deps import get_profile_for_user
+
+        profile = await get_profile_for_user(self.db, user_id)
         data = dict(profile.basics or {})
         user = (
             (await self.db.execute(select(User).where(User.id == user_id)))
@@ -916,12 +914,9 @@ class CvIntakeService:
         extract: CvExtract,
         document_id: uuid.UUID,
     ) -> None:
-        rows = await self.db.execute(select(Profile).where(Profile.user_id == user_id))
-        profile = rows.scalars().first()
-        if profile is None:
-            profile = Profile(user_id=user_id, basics={})
-            self.db.add(profile)
-            await self.db.flush()
+        from app.services.deps import get_profile_for_user
+
+        profile = await get_profile_for_user(self.db, user_id)
         academics = dict(profile.academics or {})
         languages = list(academics.get("languages") or [])
         existing = {lang.get("code") for lang in languages}

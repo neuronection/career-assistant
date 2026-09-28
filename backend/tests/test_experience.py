@@ -21,6 +21,7 @@ from app.services.experience_derivation import (
     years_of_experience,
 )
 from app.services.fit.dimensions import compute_fit
+from tests.conftest import session_headers
 
 
 class _FakeItem:
@@ -553,7 +554,7 @@ async def test_experience_isolation(client, auth_headers, seeded_catalog, db):
         "/api/v1/auth/register",
         json={"email": "other40@example.com", "password": "supersecret1"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     assert (
         await client.get(f"/api/v1/me/experience/{item_id}", headers=other_headers)
     ).status_code in (404, 405)

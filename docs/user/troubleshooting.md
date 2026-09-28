@@ -27,8 +27,10 @@ Check the logs for the boot-guard message:
 docker compose -f docker/docker-compose.prod.yml logs app
 ```
 
-The usual cause is a weak `JWT_SECRET` (production refuses to start with one).
-See [Privacy and security](privacy-and-security.md#fail-safe-production-mode).
+The usual cause is a weak or missing key family (`CAREER_SESSION_KEY` /
+`CAREER_REFRESH_KEY` / `CAREER_DATA_KEY` — production refuses to start
+without three strong ones). See
+[Privacy and security](privacy-and-security.md#fail-safe-production-mode).
 
 ## Is the service healthy?
 

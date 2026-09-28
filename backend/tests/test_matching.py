@@ -1,4 +1,5 @@
 from app.services.job_worker import JobWorker
+from tests.conftest import session_headers
 
 
 async def test_candidates_rank_by_fit(
@@ -224,7 +225,7 @@ async def test_rankings_isolated_per_user(
         "/api/v1/auth/register",
         json={"email": "rankother@example.com", "password": "password123"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     response = await client.get(
         "/api/v1/rankings?ai_score_min=0", headers=other_headers
     )
@@ -347,7 +348,6 @@ async def test_upsert_insight_survives_raced_insert(
 
     from sqlalchemy import select
 
-    from app.core.config import settings as app_settings
     from app.models.job_model import Job
     from app.models.matching_model import MatchInsight
     from app.models.user_model import User
@@ -363,11 +363,7 @@ async def test_upsert_insight_survives_raced_insert(
         prerequisites=[],
     )
     user = (
-        (
-            await db.execute(
-                select(User).where(User.email == app_settings.DEFAULT_USER_EMAIL)
-            )
-        )
+        (await db.execute(select(User).where(User.email == "student@example.com")))
         .scalars()
         .one()
     )

@@ -28,11 +28,11 @@ PHOTO_MAX_BYTES = 2 * 1024 * 1024
 
 
 async def _profile(db: AsyncSession, user_id: uuid.UUID) -> Profile:
-    rows = await db.execute(select(Profile).where(Profile.user_id == user_id))
-    profile = rows.scalars().first()
-    if profile is None:
-        raise NotFoundError("Profile not found")
-    return profile
+    # §15 bound profile (the middleware validated ownership); Default
+    # fallback keeps the photo surface working on exempt paths.
+    from app.services.deps import get_profile_for_user
+
+    return await get_profile_for_user(db, user_id)
 
 
 @router.get("")

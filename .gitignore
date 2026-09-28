@@ -30,6 +30,7 @@ secrets.json
 backend/uploads/
 backend/tests/_uploads/
 backend/tests/_xdist/
+backend/tests/_data/
 backend/celerybeat-schedule*
 logging/
 logs/

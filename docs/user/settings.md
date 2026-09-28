@@ -3,6 +3,20 @@
 Settings live under `/settings`, grouped in a two-pane shell with a section
 rail. This page explains each page and its purpose.
 
+## Account (`/settings/account`)
+
+Account self-service — every signed-in user, on any instance mode:
+
+- **Signed-in devices** — every login opens one session per device
+  (shown by its device label). Sign out anything you don't recognize;
+  the device you are using is marked, and signing it out returns you to
+  the login screen.
+- **Change password** — current password plus a new one (10+ chars).
+  You stay signed in; every other device is signed out.
+- **Delete account** — confirmed with your password. Everything you own
+  (profiles, applications, documents) is deleted with it. This cannot
+  be undone.
+
 ## AI Configuration (`/settings/ai`)
 
 The one place AI is configured. There are deliberately **no AI environment
@@ -32,10 +46,15 @@ appear as `proposed` rows for review.
 
 ## Users (`/settings/users`)
 
-Manage users. By default the app runs in **single-user mode** — a single
-default user (instance admin) is created automatically and no login is
-required. With `SINGLE_USER_MODE=false`, a classic multi-user instance
-registers the first user as admin. Admin-only.
+Manage users (admin-only): the account list with activity counts,
+activate/deactivate, promote/demote, password reset (the new password is
+shared out of band) and forced sign-out. Guard rails hold: you cannot
+change your own role or status, and the last admin cannot be demoted or
+disabled. The web deployment registers its first user as the instance
+admin; the desktop app runs single-owner (DIM) with no user management
+needed. Whether self-service registration is open is a deployment
+switch — see
+[Privacy and security](privacy-and-security.md#authentication).
 
 ## Scheduler (`/settings/scheduler`)
 

@@ -21,7 +21,7 @@ from app.models.enums import AITaskType, BackgroundJobStatus, BackgroundJobType
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_generate_service import CvGenerateService
 
-from tests.conftest import _uid
+from tests.conftest import _uid, session_headers
 from tests.test_cv_generate import _experience
 
 
@@ -835,8 +835,7 @@ async def _foreign_user_headers(client) -> dict:
         },
     )
     assert response.status_code == 201, response.text
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return session_headers(response)
 
 
 async def test_runs_endpoint_splits_resumed_runs(

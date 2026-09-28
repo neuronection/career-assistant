@@ -15,10 +15,10 @@ from app.services.postings_service import upsert_posting
 
 
 def _user_id(auth_headers) -> str:
-    from app.core.security import decode_access_token
+    from tests.conftest import decode_session_token
 
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    return str(decode_access_token(token)[0])
+    return str(decode_session_token(token)[0])
 
 
 def test_trigram_similarity_is_dialect_free():

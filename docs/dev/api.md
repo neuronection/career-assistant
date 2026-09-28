@@ -11,16 +11,18 @@ endpoints. The OpenAPI schema is committed as a contract and gated in CI.
 
 ## Authentication
 
-Bearer JWT (`Authorization: Bearer <token>`) validated when presented. In the
-default **single-user mode** a default admin is used automatically, so a
-fresh install needs no login; with `SINGLE_USER_MODE=false` the
-`/auth` register/login flow applies. See [security.md](security.md).
+Family auth-kit sessions (identity-auth §12): cookie + CSRF for the SPA,
+`Authorization: Bearer <session token>` for CLI/MCP-style user clients.
+Server deployments run `authenticated` (login/register; the first
+registered user is the admin); desktop entrypoints run `open` (DIM — the
+shell exchanges a session at boot). Every unauthenticated API request
+answers `401`. See [security.md](security.md).
 
 ## Routers by area
 
 | Tag / prefix | Module | Area |
 |---|---|---|
-| `auth` | `auth.py` | Register, login, token |
+| `auth` / `me` / `admin` (users, instance) | `nx_auth` (auth-kit) | Register, login, refresh, sessions, user management |
 | `me` | `me.py`, `me_cv_data.py`, `me_photo.py` | Current user, CV data, photo |
 | `profile` | `profile.py` | Structured profile sections |
 | `profile-proposals` | `profile_proposals.py` | HITL proposal cards (approve/reject/revert/preview) |

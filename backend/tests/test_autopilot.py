@@ -12,12 +12,13 @@ from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, Autopilo
 from app.models.enums import BackgroundJobType, ScheduleKind
 from app.services.autopilot_service import AutopilotService
 from app.services.scheduler.runner import KIND_TASKS
+from tests.conftest import session_headers
 
 
 def _uid(auth_headers) -> UUID:
-    from app.core.security import decode_access_token
+    from tests.conftest import decode_session_token
 
-    return decode_access_token(auth_headers["Authorization"].split(" ", 1)[1])[0]
+    return decode_session_token(auth_headers["Authorization"].split(" ", 1)[1])[0]
 
 
 async def _goal(client, auth_headers, **overrides) -> dict:
@@ -34,9 +35,9 @@ async def _goal(client, auth_headers, **overrides) -> dict:
 
 
 def _service(db, auth_headers=None) -> tuple[AutopilotService, str]:
-    from app.core.security import decode_access_token
+    from tests.conftest import decode_session_token
 
-    user_id = decode_access_token(auth_headers["Authorization"].split(" ", 1)[1])[0]
+    user_id = decode_session_token(auth_headers["Authorization"].split(" ", 1)[1])[0]
     return AutopilotService(db, checkpointer=InMemorySaver()), user_id
 
 
@@ -475,7 +476,7 @@ async def test_cross_user_isolation(client, auth_headers, db, search_fixtures):
         json={"email": "other@example.com", "password": "supersecret1"},
     )
     assert other.status_code == 201
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
 
     listing = await client.get("/api/v1/autopilot/goals", headers=other_headers)
     assert listing.json() == []
@@ -573,4 +574,4 @@ async def test_migration_head_is_0039():
 
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["0041"]
+    assert script.get_heads() == ["0044"]

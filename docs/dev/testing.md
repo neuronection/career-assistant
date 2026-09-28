@@ -30,15 +30,22 @@ Key points:
 - **Mock AI is on** (`MOCK_AI=1`), so AI-dependent tests are deterministic and
   offline. The gateway self-registers mock fixtures when a mock provider
   resolves.
-- **Rate limiting is off** and bcrypt rounds are reduced for speed.
+- **Rate limiting is off** (`RATE_LIMIT_ENABLED=false`; the auth-kit's own
+  auth limits are reset per test). Passwords hash at the family bcrypt
+  floor (12 rounds — the kit enforces it).
+- **Auth sessions are real kit sessions**: `tests/conftest.py` mints
+  cookie + CSRF + bearer headers (`auth_headers`, `register_user`,
+  `session_headers`) through the installed kit; identity rows live in the
+  kit's committed store and are wiped per test (`clean_identity`), while
+  domain data rides the per-test transaction rollback (`clean_db`).
 
 ### Parallel databases (pytest-xdist)
 
 Parallel runs are the default. Each worker gets its **own** database —
 `career_test_gw0`, `career_test_gw1`, … — created and migrated automatically
 by `tests/xdist_routing.py` **before** the app's engines exist. This removes
-cross-worker contention (single-user tests all insert the same default user)
-and makes the real-Alembic migration tests safe to distribute.
+cross-worker contention and makes the real-Alembic migration tests safe to
+distribute.
 
 - Never hand-run migrations for an `-n` run; the routing bootstrap does it.
 - **SQLite workers** (the desktop profile) write isolated files under

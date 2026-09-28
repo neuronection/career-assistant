@@ -34,6 +34,15 @@ def matches(value: str | None) -> bool:
     return hmac.compare_digest(value, _token)
 
 
+def current() -> str | None:
+    """This boot's shell token (None before `issue()`).
+
+    The one secret serves both desktop gates (identity-auth §11): the
+    `X-Shell-Token` request gate and the `?shell=` CSP marker — callers
+    share it through this getter instead of rotating it."""
+    return _token
+
+
 def reset() -> None:
     """Forget the token (shell shutdown)."""
     global _token

@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.job_model import Job, JobSkill
 from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import User, UserInterest, UserSkill
-from app.core.security import hash_password
+from nx_auth.passwords import hash_password
 
 
 async def _user(db, email="skills@example.com") -> User:

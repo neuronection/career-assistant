@@ -3,7 +3,7 @@
 from uuid import UUID
 
 
-from app.core.security import decode_access_token
+from tests.conftest import decode_session_token
 from app.models.enums import CareerStage
 from app.services.stages_service import (
     derive_career_stage,
@@ -22,7 +22,7 @@ def _basics(**overrides) -> dict:
 
 def _user_id(auth_headers) -> UUID:
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    user_id, _version = decode_access_token(token)
+    user_id, _version = decode_session_token(token)
     return user_id
 
 

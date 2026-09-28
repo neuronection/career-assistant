@@ -2,6 +2,7 @@
 
 from app.models.enums import CareerStage
 from app.services.stages_service import feature_flags, required_sections
+from tests.conftest import session_headers
 
 
 # ------------------------------------------------------- required mapping
@@ -164,6 +165,6 @@ async def test_no_path_leak_between_users(client, auth_headers):
         json={"email": "other@example.com", "password": "supersecret1"},
     )
     assert second.status_code == 201
-    other_headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    other_headers = session_headers(second)
     other = (await client.get("/api/v1/me/bootstrap", headers=other_headers)).json()
     assert other["onboarding_path"] is None

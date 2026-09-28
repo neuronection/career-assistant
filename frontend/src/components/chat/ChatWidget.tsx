@@ -380,6 +380,7 @@ function MessageList({
   density: HitlDensity;
 }) {
   const chat = useCareerChatContext();
+  const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
 
@@ -395,6 +396,50 @@ function MessageList({
         entry.title,
       ]),
     );
+    // Persisted turn-failure marker (uniform chat error display): the
+    // failed assistant turn renders as the error card from HISTORY —
+    // surviving page refreshes — with regenerate + the settings deep-link.
+    const turnFailed =
+      raw?.role === "assistant"
+        ? ((raw.metadata_json as
+            | { turn_failed?: { code: string; detail: string } }
+            | null
+            | undefined)?.turn_failed ?? null)
+        : null;
+    if (turnFailed !== null) {
+      return (
+        <ChatMessage
+          key={message.id}
+          role="assistant"
+          status="error"
+          content={null}
+          error={{
+            code: turnFailed.code,
+            message: turnFailed.detail,
+            retryable: parentUser !== undefined,
+          }}
+          actions={{
+            onRetry:
+              parentUser !== undefined
+                ? () =>
+                    void chat.regenerate(
+                      message.parentId ?? "",
+                      parentUser.content,
+                    )
+                : undefined,
+            errorExtra: (
+              <Link
+                to="/settings/ai"
+                className="inline-flex items-center rounded-[var(--as-radius-sm)] border border-current px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
+              >
+                {t("chat.openAiSettings")}
+              </Link>
+            ),
+          }}
+          labels={{ retry: t("chat.retryLabel") }}
+        />
+      );
+    }
     return (
       <ChatMessage
         key={message.id}
@@ -493,7 +538,19 @@ function MessageList({
               error={chat.stream.error ?? undefined}
               actions={
                 chat.stream.error?.retryable
-                  ? { onRetry: () => void chat.retry() }
+                  ? {
+                      onRetry: () => void chat.retry(),
+                      errorExtra:
+                        chat.stream.error !== null &&
+                        chat.stream.error.message.includes("not configured") ? (
+                          <Link
+                            to="/settings/ai"
+                            className="inline-flex items-center rounded-[var(--as-radius-sm)] border border-current px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"
+                          >
+                            {t("chat.openAiSettings")}
+                          </Link>
+                        ) : undefined,
+                    }
                   : undefined
               }
               content={

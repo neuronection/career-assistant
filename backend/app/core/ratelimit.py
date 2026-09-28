@@ -50,7 +50,7 @@ class SlidingWindowRateLimiter:
     def _limits(self, bucket: str) -> tuple[int, int]:
         table = {
             "auth": (settings.AUTH_RATE_LIMIT, 60),
-            "auth_email": (settings.AUTH_RATE_LIMIT, 60),
+            "auth_email": (settings.AUTH_EMAIL_RATE_LIMIT, 60),
             "ai": (settings.AI_RATE_LIMIT, 60),
             "mcp": (settings.MCP_RATE_LIMIT, 60),
             "default": (settings.DEFAULT_RATE_LIMIT, 60),
@@ -70,18 +70,22 @@ limiter = SlidingWindowRateLimiter()
 
 
 def client_identity(scope) -> str:
-    """Best-effort client key: rightmost proxy-forwarded hop when present.
+    """Client key for per-IP limits — trusted hops only (§7/§16).
 
-    Reverse proxies (Caddy, nginx) append the immediate client IP to
-    X-Forwarded-For, so the last entry is the hop our own proxy observed;
-    earlier entries are client-supplied and would allow identity rotation.
-    Without the header the direct socket address is used.
+    `CAREER_TRUSTED_PROXY_COUNT` (default 0) says how many rightmost
+    `X-Forwarded-For` hops are believed; a client-supplied header is
+    trusted only as far as the proxy chain is explicitly trusted — with
+    0 no forwarded hop is used and the direct socket address keys the
+    bucket (set 1 behind the bundled nginx/Caddy). Same semantics as the
+    auth-kit's `nx_auth.ratelimit.client_ip`.
     """
+    from nx_auth.ratelimit import client_ip
+
     client = scope.get("client")
     headers = scope.get("headers") or []
     parsed = {k.decode().lower(): v.decode() for k, v in headers}
-    forwarded = parsed.get("x-forwarded-for", "")
-    real_ip = forwarded.split(",")[-1].strip()
-    if real_ip:
-        return real_ip
-    return client[0] if client else "unknown"
+    return client_ip(
+        client[0] if client else None,
+        parsed.get("x-forwarded-for", ""),
+        settings.TRUSTED_PROXY_COUNT,
+    )

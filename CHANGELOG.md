@@ -5,6 +5,229 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Product threat model (plan 16 closeout):** `SECURITY.md` now carries
+  the family identity-auth §20 nine-row threat-model table filled
+  against the current code (auth surface incl. rate limits/lockout and
+  the MCP token, init-only instance modes, cookie/CSRF/Bearer session
+  storage, trust boundaries, `(user, profile)` isolation, the §8 key
+  family, the audit sink's coverage, the admin surface with activity
+  counts, and deployment/demo exposure) plus an honest known-gaps
+  section (domain reads/writes not audited, no second factor, in-process
+  rate limiters, the per-boot desktop CSP caveat).
+- **Demo flavor (plan 16 P3e/C8):** `scripts/seed-demo.py` — idempotent,
+  synthetic-only demo workspace that **refuses loudly** unless the target
+  is a `*_demo` database (or an explicit `--demo-dir`) AND the instance
+  is `demo_mode=true` (`--init-demo` provisions an empty demo DB;
+  `--reset` purges and reseeds). `docker-compose.demo.yml`: isolated
+  compose project, internal demo-net (no egress) + edge gateway,
+  `neuro_career_demo` database, registration disabled, one-shot
+  demo-seed service + `--profile reset`. Pre-login
+  `GET /api/v1/instance/config` (`{demo_mode, auth_mode,
+  registration_enabled}`) drives a persistent "Demo — synthetic data"
+  banner. Starter catalogs stay reference data (§13).
+- **§16 config surface, fully routable (plan 16 P3d)** — every family
+  identity knob now resolves through `Settings`, so deployment `.env`-
+  file values reach the installed auth-kit config exactly like process
+  environment ones (OS env wins per key; the kit's `from_env` reads
+  `os.environ` only — the P3c `REGISTRATION_ENABLED` pattern extended to
+  the full matrix): `CAREER_COOKIE_SECURE`,
+  `CAREER_AUTH_ACCESS_TTL_MINUTES` / `CAREER_AUTH_REFRESH_TTL_DAYS` /
+  `CAREER_AUTH_REFRESH_ABSOLUTE_DAYS`, `CAREER_AUTH_LOCKOUT_THRESHOLD` /
+  `CAREER_AUTH_LOCKOUT_MINUTES`, `CAREER_TRUSTED_PROXY_COUNT` and the
+  per-bucket rate ceilings `CAREER_RATELIMIT_AUTH` / `_AUTH_EMAIL` /
+  `_AI` / `_MCP` / `_DEFAULT` (+ `CAREER_RATELIMIT_ENABLED`). The
+  unprefixed rate-limit names (`AUTH_RATE_LIMIT`, `AI_RATE_LIMIT`,
+  `MCP_RATE_LIMIT`, `DEFAULT_RATE_LIMIT`, `RATE_LIMIT_ENABLED`) keep
+  working as aliases; the `CAREER_RATELIMIT_AUTH*` ceilings also feed the
+  auth-kit's per-IP / per-email auth limiters. `CAREER_TRUSTED_PROXY_COUNT`
+  (default `0`) now governs client identity for per-IP limits everywhere —
+  a client-supplied `X-Forwarded-For` is believed only as far as the proxy
+  chain is explicitly trusted (previously the rightmost hop was always
+  taken, which let clients rotate identities by spoofing the header; the
+  compose stacks set `1` by default since both are proxy-fronted).
+  Covered by an env-matrix test that drives the real `_install_identity`
+  from a temp `.env` file.
+
+- **Account surface: admin users UI + account self-service (plan 16 P3c:
+  C6)** — the guideline identity-auth §12 admin/minimum lands on career's
+  settings:
+  - **Shared `AdminUserTable` adopted** (`@neuronection/assistant-ui`),
+    replacing career's local users table — the local implementation is
+    deleted in the same change (the two-app same-commit delete). The
+    admin list carries activity counts and the full action bar —
+    promote/demote, activate/deactivate, inline password reset (≥10
+    chars, shared out of band) and forced sign-out — with the guard-rail
+    403s (self-change, last-admin) surfaced as friendly messages and
+    loading/empty/error states around them.
+  - **Settings → Account** (new, every signed-in user): own sessions per
+    device (`GET /api/v1/me/sessions`) with the current-device marker and
+    per-device sign-out (revoking the current one drops to the login
+    screen, confirmed first), password change (current + new ≥10 — the
+    caller stays signed in, every other session dies) and account
+    deletion behind password confirmation (cascades everything the user
+    owns).
+  - **`CAREER_REGISTRATION_ENABLED` verified end to end** (§12/§16): the
+    flag now reaches the kit config from the deployment `.env` file as
+    well as the process environment (it goes through `Settings`, like
+    `CAREER_AUTH_MODE`) — `false` ⇒ `POST /auth/register` answers 403.
+    The login screen reacts to that 403 by hiding its register action
+    and explaining why; documented per deployment in `docs/user/*` and
+    `.env.example`.
+
+- **Profiles 1:N + `X-Profile-Id` binding (plan 16 P3b: C3)** — career
+  now supports many profiles per user, family-style (identity-auth
+  §5/§6/§12/§15):
+  - **`profiles` goes 1:N** (migration `0043`): the `user_id` UNIQUE
+    index is dropped and the family-normative columns land — `name`,
+    `is_default` (exactly one per user, service-enforced), `last_used_at`
+    (last-used remembered per user) and `color` (product ADD for the
+    shared switcher swatch). Career's product JSON sections stay on the
+    profile row (§6 "product meaning") and are untouched; existing rows
+    upgrade in place backfilled to `Default`. The downgrade is
+    destructive by doctrine (keeps the oldest profile per user).
+  - **`/api/v1/profiles` CRUD** (§12): list own / create / PATCH (rename,
+    set Default, color) / DELETE with hidden-404 on foreign ids (§7).
+    Deleting the last profile re-provisions Default (§6); losing the
+    default promotes the oldest remaining one; profile-scoped rows
+    cascade (the profile photo follows the profile).
+  - **`X-Profile-Id` binding** (§15) — `ProfileBindingMiddleware`:
+    server mode answers **400** when the header is absent and **403**
+    when it is malformed, unknown or foreign (ownership checked against
+    the session user); desktop mode falls back to the last-used profile
+    and remembers explicit choices. Auth, `/me`, `/profiles`, `/admin`,
+    health and docs work without the header (they still bind when a
+    valid one rides along). Domain services resolve the request's bound
+    profile (`get_profile_id` / `get_profile_for_user`).
+  - **Shared `ProfileSwitcher`** (`@neuronection/assistant-ui`) in the
+    app chrome next to the user menu: switch, create, rename, set
+    Default (behind the usual confirm for delete). Every API call now
+    carries `X-Profile-Id`; the last-used profile persists per browser
+    (`ca-profile-id`) and the first domain call bootstraps the active
+    profile (remembered one, else Default). Switching profiles
+    re-mounts the page subtree so everything refetches in the new scope.
+
+- **Family auth-kit adoption (plan 16 P3a: C9+C1+C2+C4+C5)** — the
+  in-tree auth is gone and career now rides
+  `neuronection-auth-kit` (ADR-0013) like study:
+  - **Cookie sessions + double-submit CSRF** (identity-auth §10):
+    `nx_access` / `nx_refresh` / `nx_csrf` cookies at the family-normative
+    names and flags; `X-CSRF-Token` echo required on cookie-authenticated
+    non-GET requests. Bearer session tokens (§9 user clients) stay
+    supported alongside cookies.
+  - **Token contract** (§8): HS256 key-separated `SESSION`/`REFRESH`
+    keys (never derived from each other), 60-minute access tokens with a
+    24 h cap, 7-day rolling / 30-day absolute refresh families with
+    rotation + reuse detection, claims `iss`/`sub`/`token_kind`/`iat`/
+    `exp`/`jti`/`ver`/`auth_mode`. Keys come from `CAREER_SESSION_KEY` /
+    `CAREER_REFRESH_KEY` / `CAREER_DATA_KEY` or a generated
+    `auth_keys.json` in the data dir. The pre-kit 30-day single-key
+    tokens are gone.
+  - **Instance access modes** (§4): `instance_settings` is the DB-
+    authoritative source of `auth_mode` (`open` / `authenticated`) and
+    `demo_mode`, initialized only on an empty DB from `CAREER_AUTH_MODE` /
+    `CAREER_DEMO_MODE` (init-only; post-init flips are ignored with a
+    loud warning). `SINGLE_USER_MODE` and its lazy default user are gone
+    — unauthenticated API requests now **401 (fail-closed)**. Desktop
+    entrypoints default to `open` (Desktop Identity Mode: implicit
+    `owner@local`, silent `/auth/desktop/exchange`, per-boot
+    `X-Shell-Token` request gate, loopback binding); server entrypoints
+    run `authenticated` only (first registered user is the admin).
+  - **§12 surface at its family paths**: `/api/v1/auth/*` (register,
+    login, refresh, logout, logout-all, me), `/api/v1/me/sessions*`,
+    `PATCH /api/v1/me/password`, `DELETE /api/v1/me`,
+    `/api/v1/admin/users*` (guard rails: no self-demotion/deactivation,
+    no last-admin demote) and `PATCH /api/v1/admin/instance` (audited
+    mode transitions). Normative `auth_sessions`, `instance_settings`
+    and `audit_events` tables; `users` gains `oidc_issuer`/`oidc_subject`
+    and a nullable `password_hash` (DIM owner rows are password-less).
+  - **Frontend**: cookie+CSRF axios wiring (CSRF echo + `X-Shell-Token`),
+    session boot flow (cookie → refresh → desktop exchange), a minimal
+    login/register screen behind `ProtectedRoute`, and sign-out in the
+    user menu.
+
+### Changed
+- **Shared auth forms adopted (plan 16 Phase 5 closeout):**
+  `LoginScreen` now renders the shared
+  `LoginForm`/`RegisterForm` (`@neuronection/assistant-ui`
+  `login-form`/`register-form`, plan 16 §5.10/U1) — the card shell,
+  taglines, mode switch, auth-store glue and the registration-disabled
+  (P3c) handling stay career-local (the register link slot simply
+  isn't passed when the 403 says registration is off); the field
+  markup, HTML5 validation, password visibility toggles and the new
+  confirm-password mismatch gate moved into the library
+  (same-commit delete of the local form markup). Registering now asks
+  to confirm the password; login gains a min-length HTML5 gate
+  matching the registration policy.
+- **Secret decoupling: the DATA_KEY family (plan 16 P3d: C7)** — secrets
+  at rest are no longer encrypted under a key derived from `JWT_SECRET`:
+  - **`CAREER_DATA_KEY` is the Fernet key** (identity-auth §8): an
+    independent per-instance secret from the auth-kit KeyRing (`app/core/
+    keys.py`, one resolution shared by token signing and encryption),
+    never derived from any other value, never used to sign tokens.
+    `app/core/encryption.py` refuses unusable key material loudly instead
+    of guessing.
+  - **Migration `0044` (one-shot drain).** Decision table — nothing may
+    remain encrypted under the retired JWT-derived Fernet:
+
+    | Store | Column | Action |
+    |---|---|---|
+    | `ai_providers` | `api_key_encrypted` | **wiped** (sealed *and* legacy plaintext) |
+    | `app_settings` | JSON `value` (web GitHub token, VAPID private key, …) | re-encrypted under `CAREER_DATA_KEY` where the legacy source still decrypts, else cleared |
+    | `ai_mcp_servers` | `token` | same re-encrypt-or-clear |
+
+    **Operators: re-enter stored AI provider keys once** (Settings → AI
+    Configuration — `***` still means "keep current"). The GitHub token
+    and MCP bridge tokens are preserved when the old key material is
+    available during the upgrade (the migration reads the retired secret
+    from the process env or the desktop `secret.key`, once, never again);
+    otherwise re-enter them in Settings → Web Tools / MCP Bridges. A
+    cleared VAPID keypair regenerates automatically — browser-push users
+    re-subscribe once.
+  - **`JWT_SECRET` is retired entirely** — no runtime caller remains. The
+    boot guard switches to the §8 posture: production refuses weak,
+    partial or missing `CAREER_SESSION_KEY` / `CAREER_REFRESH_KEY` /
+    `CAREER_DATA_KEY` (servers pin all three via env/`.env`; desktop keeps
+    the generated 0600 `auth_keys.json`), and a `CAREER_DATA_KEY` that is
+    not 32-byte urlsafe-base64 Fernet material fails boot. Generate the
+    keys with `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`
+    (a Fernet key is also fine); the desktop bootstrap no longer mints a
+    `secret.key`. **Renamed**: `JWT_SECRET` ⇒ the `CAREER_*_KEY` family;
+    unprefixed `LOCKOUT_THRESHOLD` / `LOCKOUT_MINUTES` /
+    `PASSWORD_MIN_LENGTH` (never read by the app) are gone from
+    `.env.example` in favour of `CAREER_AUTH_LOCKOUT_*` (the password
+    floor is the family constant 10).
+  - **Cleared VAPID secrets regenerate in place** — a `notifications.vapid`
+    row whose private key is gone no longer collides on its unique key at
+    boot (the row is updated instead of re-inserted).
+- **Migration 0042 `identity_core` is destructive by doctrine** (plan-16
+  alignment: pre-release databases are dev artifacts — recreate them):
+  `users.password_hash` becomes NULLABLE (downgrade deletes NULL rows),
+  `users` gains the OIDC pair, and the three identity tables are added.
+  `app_settings` is untouched — it is *not* `instance_settings` (it
+  carries Fernet-encrypted product config such as VAPID/AI keys).
+  `JWT_SECRET` survives only as the legacy Fernet source for those keys
+  until P3d (`CAREER_DATA_KEY`); it signs nothing anymore.
+- **Auth API responses** are `PublicUser` + cookies (no more
+  `access_token` bodies); admin password-reset/force-logout answer 204;
+  wrong-password confirmations answer 403 with a generic message.
+- **e2e runs authenticated** — the scratch server boots `authenticated`
+  (fail-closed) and the suite logs in the e2e user through the real
+  auth API.
+
+### Removed
+- `api/v1/auth.py`, `services/auth_service.py`, `core/security.py`,
+  `schemas/auth.py`, the `admin.py` user endpoints and `me.py`'s
+  account-deletion endpoint (replaced by the kit's §12 surface), and the
+  `SINGLE_USER_MODE`/`DEFAULT_USER_EMAIL`/`ACCESS_TOKEN_EXPIRE_MINUTES`/
+  `JWT_ALGORITHM`/`LOCKOUT_*`/`PASSWORD_MIN_LENGTH` settings (lockout and
+  password policy are kit config now — `CAREER_AUTH_LOCKOUT_*`,
+  `CAREER_AUTH_ACCESS_TTL_*`).
+- **Behavior delta (flagged):** career's in-tree guard "the last admin
+  cannot self-delete" shipped away with its auth code — the family
+  reference (`DELETE /api/v1/me`, shared with study) is password-
+  confirmed cascade delete for every user; the §12 guard rails live on
+  `PATCH /admin/users` only. Recorded per the no-shim doctrine.
+
 - **Compact and full item cards** — chat proposal cards now render
   **compact** on the bubble and side-dock chat shapes (diff rows capped at
   three behind a *Show all N fields* expander) and **full** on the `/chat`
@@ -37,6 +260,26 @@ All notable changes to **Career Assistant** are documented here.
   was updated to the new tree.
 
 ### Fixed
+- **Desktop render beacon no longer 403s** — the WebKit-sentinel POST
+  (`/api/v1/shell/rendered`, fired at SPA mount) rode no identity
+  headers: the desktop shell-secret gate refuses every `/api/` request
+  without `X-Shell-Token`, and once a cookie jar exists the double-submit
+  CSRF gate wants the `X-CSRF-Token` echo — so `spa_rendered` never set
+  on reloads and the Linux renderer sentinel false-relaunched a healthy
+  WebKit into software mode. The beacon now shares `apiRequestHeaders()`
+  with the other transports.
+- **Chat send no longer fails with "CSRF token missing or invalid"** —
+  the SSE chat transport (`send` / edit-branch / regenerate) POSTs via
+  raw `fetch` and skipped the identity headers the axios client rides:
+  the backend's double-submit CSRF gate (identity-auth §10) 403s any
+  cookie-bearing POST without the `X-CSRF-Token` echo, so every chat
+  turn died before reaching the route. Streaming requests now share one
+  `apiRequestHeaders()` helper with the axios interceptor (`X-CSRF-Token`,
+  `X-Profile-Id`, `X-Shell-Token`), so the two transports cannot drift.
+  The pre-login stale-cookie clear also no longer writes
+  `__Host-nx_access` without `Secure` (browsers reject the write for an
+  invalid `__Host-` prefix — console noise, and a stale TLS-era cookie
+  survived the clear).
 - **Migration 0041 is now dialect-safe** — the plan-110 pin fold used a
   Postgres-only `CAST(... AS jsonb)` that stored `0` on SQLite (destroying
   `cv_synth_items.payload` / `cv_documents.context` on the desktop profile)

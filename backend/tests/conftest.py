@@ -1,6 +1,9 @@
+import secrets
 from datetime import datetime, timedelta, timezone
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Iterator
+from uuid import UUID
 
+import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
@@ -66,6 +69,9 @@ TABLES = [
     "notification_subscriptions",
     "ai_budgets",
     "app_settings",
+    "auth_sessions",
+    "audit_events",
+    "instance_settings",
     "schedules",
     "learning_resources",
     "growth_plan_steps",
@@ -167,7 +173,57 @@ async def warm_checkpointer():
 
 
 @pytest.fixture(autouse=True)
-async def clean_db() -> AsyncGenerator:
+def restore_kit_config() -> Iterator[None]:
+    """Tests may temporarily replace the frozen AuthConfig (lockout,
+    registration) — the shared app's kit config is restored after each."""
+    kit = app.state.auth
+    original = kit.config
+    yield
+    kit.config = original
+
+
+@pytest.fixture(autouse=True)
+def clean_identity() -> Iterator[None]:
+    """Wipe the identity world around every test (plan 16 P3a).
+
+    The kit's stores write through their own committed transactions (the
+    sync bridge in `app/core.database`), so identity rows do NOT ride the
+    `clean_db` rollback — they are truncated here instead: before the
+    test (so `users.count()` keeps first-user-admin deterministic) and
+    after `clean_db` rolled back (so nothing can reference them). Order:
+    this fixture wraps `clean_db` (it is its dependency) — setup before
+    the outer transaction begins, teardown after it ends.
+    """
+    _clear_identity_rows()
+    yield
+    _clear_identity_rows()
+
+
+def _clear_identity_rows() -> None:
+    from sqlalchemy import delete as sql_delete
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.core.database import AuthSessionLocal
+    from app.models.identity_model import AuditEvent, AuthSession, InstanceSetting
+    from app.models.user_model import User
+
+    kit = app.state.auth
+    kit.ip_limiter._hits.clear()
+    kit.email_limiter._hits.clear()
+    try:
+        with AuthSessionLocal() as session:
+            for model in (AuthSession, AuditEvent, InstanceSetting, User):
+                session.execute(sql_delete(model))
+            session.commit()
+    except SQLAlchemyError:
+        # Best-effort hygiene: migration tests legitimately leave the
+        # schema mid-chain (tables absent) — the next full cleanup wipes
+        # whatever the rolling schema missed.
+        pass
+
+
+@pytest.fixture(autouse=True)
+async def clean_db(clean_identity) -> AsyncGenerator:
     """Wrap the whole test in one transaction and roll it back.
 
     Truncating ~60 tables cost ~1.5s per test (≈13 min per suite run); a
@@ -201,6 +257,21 @@ async def db(clean_db) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+class CleanJarClient(AsyncClient):
+    """Client whose cookie jar is cleared after every response.
+
+    Sessions travel as explicit `Cookie` headers (or response-set jars
+    when a test asks for one) — never hidden jar state: a login response
+    must not silently authenticate the next anonymous request, and a
+    mid-test switch of users must be deterministic. This mirrors the
+    family test-client rule (handoff §5.10)."""
+
+    async def send(self, request: httpx.Request, **kwargs) -> httpx.Response:
+        response = await super().send(request, **kwargs)
+        self.cookies.clear()
+        return response
+
+
 @pytest.fixture
 async def client(clean_db) -> AsyncGenerator[AsyncClient, None]:
     """HTTP client wired to the FastAPI app with the test DB session."""
@@ -210,52 +281,189 @@ async def client(clean_db) -> AsyncGenerator[AsyncClient, None]:
             yield session
 
     app.dependency_overrides[get_db] = _override_get_db
+    # §15 binding reads through the test's transaction too, or profile
+    # rows created by routes stay invisible to the middleware.
+    app.state.profile_sessions = lambda: _test_session(clean_db)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with CleanJarClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+    if hasattr(app.state, "profile_sessions"):
+        delattr(app.state, "profile_sessions")
+
+
+# ---------------------------------------------------------------------------
+# Kit session layer (plan 16 P3a): cookie sessions minted through the real
+# auth-kit keys/verification. `auth_headers` returns the browser transport
+# shape (§10 cookie + CSRF echo) plus a `Bearer` session token (§9 user
+# clients) — enforcement accepts either; tests parse the bearer for ids.
+# ---------------------------------------------------------------------------
+
+
+def auth_kit():
+    """The installed auth-kit (`app.state.auth`) — stores, keys, config."""
+    return app.state.auth
+
+
+def _cookie_access_name() -> str:
+    from nx_auth.cookies import cookie_names
+
+    return cookie_names(auth_kit().config).access
+
+
+def default_profile_id(user_id: str) -> str | None:
+    """The user's Default profile id (identity-auth §6), read through the
+    sync identity bridge — minted rows are committed there."""
+    import uuid as _uuid
+
+    from sqlalchemy import select
+
+    from app.core.database import AuthSessionLocal
+    from app.models.user_model import Profile
+
+    with AuthSessionLocal() as session:
+        row = session.execute(
+            select(Profile.id)
+            .where(Profile.user_id == _uuid.UUID(str(user_id)))
+            .order_by(Profile.is_default.desc(), Profile.created_at, Profile.id)
+            .limit(1)
+        ).first()
+        return str(row[0]) if row is not None else None
+
+
+def mint_session_headers(
+    *,
+    email: str = "student@example.com",
+    password: str | None = None,
+    full_name: str = "Test Student",
+    is_admin: bool = True,
+) -> dict:
+    """Auth headers for a (new or existing) user, without HTTP or bcrypt.
+
+    The session token is a real kit `session` token — the middleware and
+    `nx_auth.deps` verify it exactly like a cookie-carried one. The
+    §15 `X-Profile-Id` header rides along (the user's Default profile):
+    every domain call binds a profile like a real client would.
+    """
+    from nx_auth.tokens import AuthMode, TokenKind, mint_token
+
+    kit = auth_kit()
+    user = kit.users.get_by_email(email) or kit.users.create(
+        email=email,
+        password_hash=_fixture_password_hash()
+        if password is None
+        else _fixture_hash(password),
+        full_name=full_name,
+        is_admin=is_admin,
+    )
+    token = mint_token(
+        kit.ring,
+        kit.config,
+        kind=TokenKind.SESSION,
+        sub=user.id,
+        ver=user.token_version,
+        auth_mode=AuthMode.PASSWORD,
+    )
+    csrf = secrets.token_urlsafe(32)
+    headers = {
+        "Cookie": f"{_cookie_access_name()}={token}; nx_csrf={csrf}",
+        "X-CSRF-Token": csrf,
+        "Authorization": f"Bearer {token}",
+    }
+    profile_id = default_profile_id(user.id)
+    if profile_id is not None:
+        headers["X-Profile-Id"] = profile_id
+    return headers
+
+
+_HASH_CACHE: dict[str, str] = {}
+
+
+def _fixture_hash(password: str) -> str:
+    """One bcrypt per distinct test password, not one per call."""
+    if password not in _HASH_CACHE:
+        from nx_auth.passwords import hash_password
+
+        _HASH_CACHE[password] = hash_password(password)
+    return _HASH_CACHE[password]
+
+
+def _fixture_password_hash() -> str:
+    return _fixture_hash("fixture-password-career")
+
+
+def session_headers(response) -> dict:
+    """Auth headers built from a login/register response's Set-Cookie
+    (identity-auth §10) — the real issued session of that user, refresh
+    cookie included (the `/auth/refresh` endpoint rotates from it)."""
+    access = refresh = csrf = None
+    for line in response.headers.get_list("set-cookie"):
+        name, _, rest = line.partition("=")
+        value = rest.split(";", 1)[0]
+        if name.strip() == _cookie_access_name():
+            access = value
+        elif name.strip() == "nx_refresh":
+            refresh = value
+        elif name.strip() == "nx_csrf":
+            csrf = value
+    assert access, (
+        f"no session cookie in response: {response.headers.get_list('set-cookie')}"
+    )
+    cookie = f"{_cookie_access_name()}={access}"
+    if refresh:
+        cookie += f"; nx_refresh={refresh}"
+    cookie += f"; nx_csrf={csrf}"
+    headers = {
+        "Cookie": cookie,
+        "X-CSRF-Token": csrf or "",
+        "Authorization": f"Bearer {access}",
+    }
+    # §15: bind the fresh account's Default profile like a real client.
+    profile_id = default_profile_id(str(decode_session_token(access)[0]))
+    if profile_id is not None:
+        headers["X-Profile-Id"] = profile_id
+    return headers
+
+
+async def register_user(
+    client: AsyncClient,
+    email: str,
+    password: str = "supersecret1",
+    full_name: str = "T",
+) -> dict:
+    """Register through the real API; returns auth headers for the new user."""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": password, "full_name": full_name},
+    )
+    assert response.status_code == 201, response.text
+    return session_headers(response)
+
+
+def user_id_from_headers(headers: dict) -> str:
+    """The user id behind `auth_headers`-style headers (the bearer token's
+    `sub`) — replaces the retired `core.security.decode_access_token`."""
+    return str(decode_session_token(headers["Authorization"].split(" ", 1)[1])[0])
+
+
+def decode_session_token(token: str) -> tuple[UUID, int]:
+    """(user_id, token_version) from a kit-issued session token — the
+    test-side parser (tokens are minted by the kit; verification is the
+    middleware's job)."""
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(token, options={"verify_signature": False})
+    return UUID(str(claims["sub"])), int(claims.get("ver", 0))
 
 
 @pytest.fixture
-async def auth_headers(client: AsyncClient, db) -> dict:
-    """Bearer auth headers for API calls.
+async def auth_headers(client: AsyncClient) -> dict:
+    """Auth headers for the fixture user (admin, like the old default user).
 
-    Single-user mode: warm the default user via /auth/me, then mint a token
-    for it (tests decode the user id from the token). Multi-user mode:
-    register student@example.com through the regular register endpoint.
+    Minted through the kit stores (committed identity world — see
+    `clean_identity`); every request carrying them is a session request.
     """
-    from sqlalchemy import select
-
-    from app.core.config import settings
-    from app.core.security import create_access_token
-    from app.models.user_model import User
-
-    if settings.SINGLE_USER_MODE:
-        response = await client.get("/api/v1/auth/me")
-        assert response.status_code == 200, response.text
-        user = (
-            (
-                await db.execute(
-                    select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-                )
-            )
-            .scalars()
-            .first()
-        )
-        assert user is not None
-        token = create_access_token(user.id, user.token_version)
-        return {"Authorization": f"Bearer {token}"}
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "student@example.com",
-            "password": "supersecret1",
-            "full_name": "Test Student",
-        },
-    )
-    assert response.status_code == 201, response.text
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return mint_session_headers()
 
 
 @pytest.fixture
@@ -352,9 +560,7 @@ async def profile_ready(client: AsyncClient, auth_headers: dict, db) -> dict:
 
 
 def _uid(auth_headers) -> str:
-    from app.core.security import decode_access_token
-
-    return str(decode_access_token(auth_headers["Authorization"].split(" ", 1)[1])[0])
+    return user_id_from_headers(auth_headers)
 
 
 class SyntheticConnector(PostingConnector):
@@ -487,33 +693,16 @@ async def search_fixtures(db, client, auth_headers, seeded_catalog, source, kind
 
 
 @pytest.fixture
-async def client_admin_headers(client, db):
-    """An admin user (is_admin forced — the first-user rule may already be taken)."""
-    from sqlalchemy import select
-
-    from app.models.user_model import User
-
-    first = await client.post(
-        "/api/v1/auth/register",
-        json={"email": "admin@example.com", "password": "supersecret1"},
-    )
-    assert first.status_code == 201
-    row = (
-        (await db.execute(select(User).where(User.email == "admin@example.com")))
-        .scalars()
-        .first()
-    )
-    row.is_admin = True
-    await db.commit()
-    return {"Authorization": f"Bearer {first.json()['access_token']}"}
-
-
-@pytest.fixture
-def multi_user_mode(monkeypatch):
-    """Disable single-user mode: strict JWT auth like the future family auth."""
-    from app.core.config import settings
-
-    monkeypatch.setattr(settings, "SINGLE_USER_MODE", False)
+async def client_admin_headers(client) -> dict:
+    """An admin user's session (promoted through the kit store — the
+    first-user rule may already be taken by `auth_headers`)."""
+    headers = await register_user(client, "admin@example.com", "supersecret1")
+    kit = auth_kit()
+    user = kit.users.get_by_email("admin@example.com")
+    assert user is not None
+    if not user.is_admin:
+        kit.users.set_admin(user.id, True)
+    return headers
 
 
 def _chat_agent_script(user_text: str, tool_names: list[str]) -> dict:

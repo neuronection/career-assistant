@@ -1,5 +1,6 @@
 import type { ChatFlowEvent } from "@/lib/chatFlow";
 import type { ChatTemplatePreview, ProfileProposalCardData } from "@/types";
+import { apiRequestHeaders } from "@/api/client";
 
 export interface ChatCvAttachmentInput {
   kind: "cv";
@@ -42,7 +43,10 @@ function parseBlocks(buffer: string): SseBlock[] {
 
 /** POST a chat turn and consume its SSE stream (fetch-based; no
  * EventSource because SSE-over-POST isn't supported there). Shared by
- * send / edit-branch / regenerate. */
+ * send / edit-branch / regenerate. Rides the same identity headers as
+ * the axios client (§10 CSRF echo, §11 shell gate, §15 profile) — the
+ * backend's double-submit CSRF gate 403s any cookie-bearing POST
+ * without the `X-CSRF-Token` echo. */
 export async function streamChatRequest(
   path: string,
   body: unknown,
@@ -53,6 +57,7 @@ export async function streamChatRequest(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await apiRequestHeaders(path, "POST")),
     },
     body: JSON.stringify(body),
     signal,

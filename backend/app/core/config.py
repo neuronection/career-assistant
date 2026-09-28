@@ -4,11 +4,26 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+from enum import StrEnum
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
 
 APP_NAME: str = "Career Assistant"
+
+
+class IdentityMode(StrEnum):
+    """Entry half of the instance-mode matrix (identity-auth §4).
+
+    `SERVER` is the web/docker entrypoint; `DESKTOP` is declared by the
+    `python -m careerassistant` shell (via bootstrap_environment) and by
+    shell-less desktop dev (run-dev.sh, ADR-0023).
+    """
+
+    SERVER = "server"
+    DESKTOP = "desktop"
 
 
 def _resolve_env_file() -> Optional[str]:
@@ -50,17 +65,107 @@ class Settings(BaseSettings):
     )
     REDIS_URL: str = "redis://127.0.0.1:6380/0"
 
-    JWT_SECRET: str = "dev-only-change-me"
-    # Cost factor for password hashing (tests lower it via .env.test).
-    BCRYPT_ROUNDS: int = 12
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
+    # --- Per-instance keys (identity-auth §8; plan 16 P3d) -------------
+    # Three independent per-purpose secrets: SESSION_KEY signs session
+    # JWTs, REFRESH_KEY signs refresh JWTs, DATA_KEY (Fernet material)
+    # encrypts secrets at rest and never signs. Nothing is derived from
+    # anything else — the legacy JWT-derived Fernet is retired. Pin all
+    # three or none (partial pins fail closed); when unpinned the
+    # auth-kit KeyRing persists a generated 0600 auth_keys.json in the
+    # data dir (desktop self-hosting; production servers pin via env).
+    # Resolution here (not raw os.environ) so values in the deployment
+    # .env file work too — OS environment still wins.
+    SESSION_KEY: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("CAREER_SESSION_KEY")
+    )
+    REFRESH_KEY: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("CAREER_REFRESH_KEY")
+    )
+    DATA_KEY: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("CAREER_DATA_KEY")
+    )
 
-    # Transitory single-user mode: unauthenticated requests resolve to a
-    # lazily-created default user instead of requiring a login. Tokens
-    # (e.g. the MCP server token) are still validated when presented.
-    SINGLE_USER_MODE: bool = True
-    DEFAULT_USER_EMAIL: str = "default@local.app"
+    # --- Identity & auth (identity-auth §4/§16; auth-kit) -------------
+    # Entrypoint (§4): derived from the launch mode — `python -m
+    # careerassistant` (desktop shell) sets CAREER_IDENTITY_MODE=desktop
+    # via app.local.bootstrap_environment; docker/web never do ⇒ server.
+    IDENTITY_MODE: IdentityMode = Field(
+        default=IdentityMode.SERVER,
+        validation_alias=AliasChoices("CAREER_IDENTITY_MODE", "IDENTITY_MODE"),
+    )
+    # Init-only (§4): seeds instance_settings.auth_mode on an EMPTY DB;
+    # afterwards the DB is authoritative and this value is ignored with a
+    # loud warning. Empty ⇒ open (desktop) / authenticated (server).
+    AUTH_MODE: str = Field(
+        default="",
+        validation_alias=AliasChoices("CAREER_AUTH_MODE", "AUTH_MODE"),
+    )
+    # Init-only (§13; the demo principal ships with P3e): seeds
+    # instance_settings.demo_mode. Production entrypoints abort on true.
+    DEMO_MODE: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("CAREER_DEMO_MODE", "DEMO_MODE"),
+    )
+    # Self-service registration gate (§12 `REGISTRATION_ENABLED`): when
+    # false the kit's `POST /auth/register` refuses with 403 and the login
+    # screen drops its register action. Unlike the init-only modes above
+    # this is read at every boot; routed through Settings so env vars and
+    # the .env file agree (OS environment wins), like AUTH_MODE/DEMO_MODE.
+    REGISTRATION_ENABLED: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "CAREER_REGISTRATION_ENABLED", "REGISTRATION_ENABLED"
+        ),
+    )
+    # --- §16 auth knobs routed into the auth-kit config ----------------
+    # All of these reach `AuthConfig.from_env(...)` as overrides in
+    # `_install_identity`, so deployment `.env`-file values take effect
+    # exactly like process-environment ones (OS env wins per key). The
+    # defaults mirror the kit's family defaults; the kit's own bounds
+    # (24 h access cap, rolling ≤ absolute refresh) still apply.
+    COOKIE_SECURE: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("CAREER_COOKIE_SECURE", "COOKIE_SECURE"),
+    )
+    AUTH_ACCESS_TTL_MINUTES: int = Field(
+        default=60,
+        validation_alias=AliasChoices(
+            "CAREER_AUTH_ACCESS_TTL_MINUTES", "AUTH_ACCESS_TTL_MINUTES"
+        ),
+    )
+    AUTH_REFRESH_TTL_DAYS: int = Field(
+        default=7,
+        validation_alias=AliasChoices(
+            "CAREER_AUTH_REFRESH_TTL_DAYS", "AUTH_REFRESH_TTL_DAYS"
+        ),
+    )
+    AUTH_REFRESH_ABSOLUTE_DAYS: int = Field(
+        default=30,
+        validation_alias=AliasChoices(
+            "CAREER_AUTH_REFRESH_ABSOLUTE_DAYS", "AUTH_REFRESH_ABSOLUTE_DAYS"
+        ),
+    )
+    AUTH_LOCKOUT_THRESHOLD: int = Field(
+        default=5,
+        validation_alias=AliasChoices(
+            "CAREER_AUTH_LOCKOUT_THRESHOLD", "AUTH_LOCKOUT_THRESHOLD"
+        ),
+    )
+    AUTH_LOCKOUT_MINUTES: int = Field(
+        default=15,
+        validation_alias=AliasChoices(
+            "CAREER_AUTH_LOCKOUT_MINUTES", "AUTH_LOCKOUT_MINUTES"
+        ),
+    )
+    # Rightmost N `X-Forwarded-For` hops trusted for client identity
+    # (§7 per-IP limits). 0 = direct socket only (headers are client-
+    # supplied and spoofable); set 1 behind the bundled nginx/Caddy.
+    TRUSTED_PROXY_COUNT: int = Field(
+        default=0,
+        validation_alias=AliasChoices(
+            "CAREER_TRUSTED_PROXY_COUNT", "TRUSTED_PROXY_COUNT"
+        ),
+    )
 
     # AI providers/models/assignments are configured exclusively through the
     # UI (Settings → AI Configuration) and stored in the database. There are
@@ -104,19 +209,40 @@ class Settings(BaseSettings):
     NOTIFICATION_CHANNELS_ALLOWLIST: list[str] = []
 
     # Rate limiting (in-process sliding window; see app/core/ratelimit.py).
-    # Units: requests per minute. 0 disables a bucket.
-    RATE_LIMIT_ENABLED: bool = True
-    AUTH_RATE_LIMIT: int = 10
-    AI_RATE_LIMIT: int = 30
-    MCP_RATE_LIMIT: int = 120
-    DEFAULT_RATE_LIMIT: int = 240
+    # Units: requests per minute. 0 disables a bucket. §16 names are
+    # `CAREER_RATELIMIT_*` (per-bucket ceilings: auth / auth_email / ai /
+    # mcp / default); the unprefixed names keep working as aliases.
+    # `AUTH_RATE_LIMIT` also feeds the auth-kit's per-IP auth limiter and
+    # `AUTH_EMAIL_RATE_LIMIT` its per-email one.
+    RATE_LIMIT_ENABLED: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("CAREER_RATELIMIT_ENABLED", "RATE_LIMIT_ENABLED"),
+    )
+    AUTH_RATE_LIMIT: int = Field(
+        default=10,
+        validation_alias=AliasChoices("CAREER_RATELIMIT_AUTH", "AUTH_RATE_LIMIT"),
+    )
+    AUTH_EMAIL_RATE_LIMIT: int = Field(
+        default=30,
+        validation_alias=AliasChoices(
+            "CAREER_RATELIMIT_AUTH_EMAIL", "AUTH_EMAIL_RATE_LIMIT"
+        ),
+    )
+    AI_RATE_LIMIT: int = Field(
+        default=30,
+        validation_alias=AliasChoices("CAREER_RATELIMIT_AI", "AI_RATE_LIMIT"),
+    )
+    MCP_RATE_LIMIT: int = Field(
+        default=120,
+        validation_alias=AliasChoices("CAREER_RATELIMIT_MCP", "MCP_RATE_LIMIT"),
+    )
+    DEFAULT_RATE_LIMIT: int = Field(
+        default=240,
+        validation_alias=AliasChoices("CAREER_RATELIMIT_DEFAULT", "DEFAULT_RATE_LIMIT"),
+    )
 
-    # Login brute-force lockout.
-    LOCKOUT_THRESHOLD: int = 5
-    LOCKOUT_MINUTES: int = 15
-
-    # Password policy floor enforced at register/change.
-    PASSWORD_MIN_LENGTH: int = 10
+    # Password policy floor lives in the auth-kit config (family default
+    # 10); lockout and auth TTLs route through Settings above (§16).
 
     # Directory of the built SPA (must contain index.html). Empty → auto-detect
     # (frozen bundle path, then ../frontend/dist relative to this file). The
@@ -156,6 +282,19 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """CORS origins as a list."""
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def identity_mode(self) -> IdentityMode:
+        """Entrypoint half of the instance-mode matrix (identity-auth §4).
+
+        `DESKTOP` only when the desktop entrypoint declared it; anything
+        unknown fails closed to `SERVER` (the stricter half).
+        """
+        return (
+            IdentityMode.DESKTOP
+            if self.IDENTITY_MODE == IdentityMode.DESKTOP
+            else IdentityMode.SERVER
+        )
 
     @property
     def is_dev(self) -> bool:

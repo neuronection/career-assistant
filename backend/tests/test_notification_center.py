@@ -19,6 +19,7 @@ from app.services.notification_channels import (
     unregister_channel,
 )
 from app.services.notification_service import NotificationService, thread_key
+from tests.conftest import session_headers
 
 
 async def _make_user(db, email: str):
@@ -66,13 +67,13 @@ async def admin_and_user(client):
         json={"email": "nc-admin@example.com", "password": "supersecret1"},
     )
     assert first.status_code == 201
-    admin = {"Authorization": f"Bearer {first.json()['access_token']}"}
+    admin = session_headers(first)
     second = await client.post(
         "/api/v1/auth/register",
         json={"email": "nc-user@example.com", "password": "supersecret1"},
     )
     assert second.status_code == 201
-    user = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    user = session_headers(second)
     return admin, user
 
 
@@ -338,6 +339,59 @@ async def test_vapid_key_roundtrip(client, auth_headers, db):
     assert second.json()["public_key"] == key1
 
 
+async def test_vapid_cleared_private_key_regenerates_in_place(monkeypatch):
+    """A VAPID row without a usable private key (the P3d ciphertext drain
+    clears undecryptable secrets) must regenerate in place — never
+    collide on the unique settings key."""
+    from sqlalchemy import select
+
+    from app.core.database import AsyncSessionLocal
+    from app.core.encryption import decrypt_secret
+    from app.models.settings_model import AppSetting
+    from app.services import webpush_service
+
+    async def _row():
+        async with AsyncSessionLocal() as session:
+            return (
+                (
+                    await session.execute(
+                        select(AppSetting).where(
+                            AppSetting.key == webpush_service.VAPID_SETTING_KEY
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+
+    row = await _row()
+    assert row is not None, "the session warm-up provisioned the keys"
+    assert row.value.get("private_key_enc")
+
+    async with AsyncSessionLocal() as session:
+        stale = (
+            (
+                await session.execute(
+                    select(AppSetting).where(
+                        AppSetting.key == webpush_service.VAPID_SETTING_KEY
+                    )
+                )
+            )
+            .scalars()
+            .one()
+        )
+        stale.value = {**stale.value, "private_key_enc": ""}
+        await session.commit()
+
+    monkeypatch.setattr(webpush_service, "_keys_cache", None)
+    keys = await webpush_service.get_or_create_vapid_keys()
+    assert keys["private_key"]
+    row = await _row()
+    assert (
+        decrypt_secret((row.value or {}).get("private_key_enc")) == keys["private_key"]
+    )
+
+
 async def test_browser_push_dead_endpoint_cleanup(db, clean_db, kinds, monkeypatch):
     from pywebpush import WebPushException
 
@@ -413,7 +467,7 @@ async def test_notification_hub_subscribe_publish(db):
     assert notification_stream.subscriber_count(user_id) == 0
 
 
-async def test_stream_endpoint_requires_auth(client, multi_user_mode):
+async def test_stream_endpoint_requires_auth(client):
     response = await client.get("/api/v1/notifications/stream")
     assert response.status_code in (401, 403)
 

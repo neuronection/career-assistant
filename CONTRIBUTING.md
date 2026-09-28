@@ -5,14 +5,18 @@ covers the minimum you need to build, test and submit changes.
 
 ## Development setup
 
-Prerequisites: Docker, Python 3.12+, Node 18+.
+Prerequisites: Docker (for `--web` dev and pytest), Python 3.12+, Node 18+.
 
 ```bash
 cp .env.example .env                                       # localhost defaults
-docker compose -f docker/docker-compose.dev-db.yml up -d   # Postgres :5433 + Redis :6380
-./scripts/run-dev.sh                                       # creates backend/venv, backend :8100 + frontend :3100
-./scripts/seed.sh                                          # idempotent starter catalog
+./scripts/run-dev.sh                                       # desktop dev: SQLite profile, backend :8100 + frontend :3100
+./scripts/run-dev.sh --web                                 # server dev: Postgres :5433 + login UI (starts the dev-db)
+./scripts/seed.sh                                          # idempotent starter catalog (web mode / Postgres)
 ```
+
+Desktop dev (the default, ADR-0023) needs no Docker: `run-dev.sh`
+bootstraps the local SQLite profile via `python -m careerassistant seed`
+(migrations + idempotent catalog) before starting the honcho group.
 
 The first `run-dev.sh` run installs all backend dependencies into
 `backend/venv`; frontend dependencies install with `npm ci` inside

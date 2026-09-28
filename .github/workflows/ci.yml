@@ -29,7 +29,9 @@ jobs:
     env:
       APP_ENV: test
       DATABASE_URL: postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_test
-      JWT_SECRET: test-secret-not-for-production-0123456789abcdef0123456789
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,6 +49,8 @@ jobs:
         run: alembic upgrade head
       - name: Run tests (coverage floor, xdist-parallel)
         run: pytest tests/ -n auto --dist loadfile --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=76
+      - name: Contract drift gate (identity-auth §18)
+        run: pytest -m contract
       - name: OpenAPI contract diff
         run: python ../scripts/check-openapi.py --check
       - name: Type check (mypy)
@@ -64,7 +68,9 @@ jobs:
     env:
       APP_ENV: test
       DATABASE_URL: sqlite+aiosqlite:///./career_test.db
-      JWT_SECRET: test-secret-not-for-production-0123456789abcdef0123456789
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -210,7 +216,7 @@ jobs:
             postgres:16-alpine >/dev/null
           docker run -d --name app --network smoke -p 8100:8100 \
             -e DATABASE_URL=postgresql+asyncpg://career:smoke@pg:5432/career \
-            -e JWT_SECRET=smoke-secret-not-for-production-0123456789abcdef012345 \
+            -e CAREER_SESSION_KEY=smoke-session-key-0123456789abcdefghijklmnop             -e CAREER_REFRESH_KEY=smoke-refresh-key-0123456789abcdefghijklmnop             -e CAREER_DATA_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY \
             career-assistant:ci >/dev/null
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8100/health; then exit 0; fi
@@ -240,7 +246,9 @@ jobs:
     env:
       APP_ENV: test
       DATABASE_URL: postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_e2e
-      JWT_SECRET: test-secret-not-for-production-0123456789abcdef0123456789
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

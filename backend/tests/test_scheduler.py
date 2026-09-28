@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from app.core.security import decode_access_token
+from tests.conftest import decode_session_token
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobStatus, ScheduleKind
 from app.models.matching_model import MatchInsight
@@ -22,7 +22,7 @@ from app.services.job_worker import JobWorker
 
 def _uid(auth_headers) -> uuid_mod.UUID:
     token = auth_headers["Authorization"].split(" ", 1)[1]
-    return decode_access_token(token)[0]
+    return decode_session_token(token)[0]
 
 
 def _now() -> datetime:

@@ -9,10 +9,11 @@ from app.core.encryption import (
 )
 from app.ai.providers.resolution import resolve_task_model
 from app.ai.providers.service import AIProviderService
-from app.core.security import hash_password
+from nx_auth.passwords import hash_password
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.enums import AITaskType
 from app.models.user_model import User
+from tests.conftest import session_headers
 
 
 async def _mk_user(db, email: str, is_admin: bool = False) -> User:
@@ -69,7 +70,7 @@ async def test_encryption_round_trip():
     assert decrypt_secret(None) is None
 
 
-async def test_first_registered_user_becomes_admin(client, db, multi_user_mode):
+async def test_first_registered_user_becomes_admin(client, db):
     first = await client.post(
         "/api/v1/auth/register",
         json={"email": "first@example.com", "password": "password123"},
@@ -134,22 +135,22 @@ async def test_personal_provider_is_private(client, auth_headers):
         "/api/v1/auth/register",
         json={"email": "snoop@example.com", "password": "password123"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     listed = (await client.get("/api/v1/ai/providers", headers=other_headers)).json()
     assert not any(p["name"] == "Private" for p in listed)
 
 
-async def test_system_provider_requires_admin(client, multi_user_mode):
+async def test_system_provider_requires_admin(client):
     admin = await client.post(
         "/api/v1/auth/register",
         json={"email": "first@example.com", "password": "password123"},
     )
-    admin_headers = {"Authorization": f"Bearer {admin.json()['access_token']}"}
+    admin_headers = session_headers(admin)
     member = await client.post(
         "/api/v1/auth/register",
         json={"email": "member@example.com", "password": "password123"},
     )
-    member_headers = {"Authorization": f"Bearer {member.json()['access_token']}"}
+    member_headers = session_headers(member)
     forbidden = await client.post(
         "/api/v1/ai/providers",
         json={"name": "Global", "provider_type": "openai", "scope": "system"},
@@ -165,7 +166,7 @@ async def test_system_provider_requires_admin(client, multi_user_mode):
 
 
 async def test_admin_manages_system_provider(client, auth_headers):
-    me = await client.get("/api/v1/auth/me")
+    me = await client.get("/api/v1/auth/me", headers=auth_headers)
     assert me.json()["is_admin"] is True
 
     created = await client.post(
@@ -177,12 +178,14 @@ async def test_admin_manages_system_provider(client, auth_headers):
             "api_key": "sk-org",
             "scope": "system",
         },
+        headers=auth_headers,
     )
     assert created.status_code == 201
     provider_id = created.json()["id"]
     model = await client.post(
         f"/api/v1/ai/providers/{provider_id}/models",
         json={"name": "GPT-4o mini", "model_name": "gpt-4o-mini"},
+        headers=auth_headers,
     )
     assert model.status_code == 201
     model_id = model.json()["id"]
@@ -190,10 +193,13 @@ async def test_admin_manages_system_provider(client, auth_headers):
     assignment = await client.put(
         "/api/v1/ai/assignments/match_score",
         json={"scope": "system", "model_id": model_id},
+        headers=auth_headers,
     )
     assert assignment.status_code == 200, assignment.text
 
-    summary = (await client.get("/api/v1/ai/config/summary")).json()
+    summary = (
+        await client.get("/api/v1/ai/config/summary", headers=auth_headers)
+    ).json()
     match_task = next(t for t in summary["tasks"] if t["task_type"] == "match_score")
     assert match_task["model_name"] == "gpt-4o-mini"
     assert match_task["source"] == "system:match_score"
@@ -488,7 +494,7 @@ async def test_member_cannot_edit_system_model(client, auth_headers):
         "/api/v1/auth/register",
         json={"email": "editor@example.com", "password": "password123"},
     )
-    member_headers = {"Authorization": f"Bearer {member.json()['access_token']}"}
+    member_headers = session_headers(member)
     forbidden = await client.put(
         f"/api/v1/ai/models/{model.json()['id']}",
         json={"name": "hijacked"},

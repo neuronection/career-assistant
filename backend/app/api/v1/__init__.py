@@ -6,7 +6,6 @@ from app.api.v1 import (
     autopilot,
     assessments,
     ai_admin,
-    auth,
     background_jobs,
     chat,
     cv_intake,
@@ -17,6 +16,7 @@ from app.api.v1 import (
     engagement,
     experience,
     growth,
+    instance,
     interview,
     jobs,
     matching,
@@ -31,13 +31,14 @@ from app.api.v1 import (
     profile_proposals,
     scheduler,
     profile,
+    profiles,
     skills,
     taxonomy,
     universities,
 )
 
 api_router = APIRouter(prefix="/api/v1")
-api_router.include_router(auth.router)
+api_router.include_router(instance.router)
 api_router.include_router(autopilot.router)
 api_router.include_router(me.router)
 api_router.include_router(me_cv_data.router)
@@ -45,6 +46,7 @@ api_router.include_router(me_photo.router)
 api_router.include_router(metrics.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(profile.router)
+api_router.include_router(profiles.router)
 api_router.include_router(taxonomy.router)
 api_router.include_router(assessments.router)
 api_router.include_router(skills.router)

@@ -12,6 +12,7 @@ from app.core.errors import DomainError
 from app.models.ai_model import AIBudget, AIGeneration
 from app.models.enums import AITaskType
 from pydantic import BaseModel
+from tests.conftest import session_headers
 
 
 class _Out(BaseModel):
@@ -30,7 +31,7 @@ class _FakeChatModel:
 
 async def _assign_real_model(db, email: str, scope: str = "user"):
     from app.core.encryption import encrypt_secret
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
     from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
     from app.models.user_model import User
 
@@ -228,7 +229,7 @@ async def test_budgets_and_rollups_are_admin_only(client, auth_headers):
         "/api/v1/auth/register",
         json={"email": "member-budget@example.com", "password": "password123"},
     )
-    member = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    member = session_headers(other)
     assert (await client.get("/api/v1/ai/budgets", headers=member)).status_code == 403
     assert (
         await client.get("/api/v1/ai/usage/rollups", headers=member)

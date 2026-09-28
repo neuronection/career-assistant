@@ -22,6 +22,7 @@ from app.seeds.cv_templates import seed_cv_template_bank
 from app.services.cv_builder_service import CvBuilderService
 from app.services.cv_pdf_service import PDFEngineUnavailable
 from app.services.cv_service import CvService
+from tests.conftest import session_headers
 
 
 async def _raise_engine_unavailable(*_args, **_kwargs):
@@ -949,7 +950,7 @@ async def _second_user(client) -> dict:
         },
     )
     assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 # ------------------------------------------------------- ops endpoint (71.1)

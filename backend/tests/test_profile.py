@@ -1,3 +1,6 @@
+from tests.conftest import session_headers
+
+
 async def test_profile_defaults_after_register(client, auth_headers):
     response = await client.get("/api/v1/profile", headers=auth_headers)
     assert response.status_code == 200
@@ -66,7 +69,7 @@ async def test_isolated_profiles(client, auth_headers):
         "/api/v1/auth/register",
         json={"email": "other@example.com", "password": "password123"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     await client.put(
         "/api/v1/profile",
         json={"hobbies": [{"label": "run", "weight": 5}]},

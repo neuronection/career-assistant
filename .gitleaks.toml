@@ -1,0 +1,20 @@
+# gitleaks config — extends the default ruleset. The only suppressions are
+# the COMMITTED TEST FIXTURE keys (identity-auth §8): they are pinned in
+# backend/.env.test + ci.yml so xdist workers and migrations encrypt
+# deterministically, they seal only the throwaway career_test database, and
+# the production boot guard refuses them (app/core/boot.py WEAK_SECRETS).
+title = "career-assistant gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "committed test-fixture keys — production boot guard refuses them"
+  regexTarget = "line"
+  regexes = [
+    '''CAREER_SESSION_KEY=test-session-key-0123456789abcdefghijklmnopqrstuv''',
+    '''CAREER_REFRESH_KEY=test-refresh-key-0123456789abcdefghijklmnopqrstuv''',
+    '''CAREER_DATA_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY''',
+    '''CAREER_SESSION_KEY=smoke-session-key-0123456789abcdefghijklmnop''',
+    '''CAREER_REFRESH_KEY=smoke-refresh-key-0123456789abcdefghijklmnop''',
+  ]

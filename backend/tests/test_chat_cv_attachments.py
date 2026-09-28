@@ -7,7 +7,6 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
@@ -16,12 +15,11 @@ from app.services.cv_service import CvService
 from app.schemas.chat import ChatAttachmentIn
 
 from tests.test_chat_streaming import _parse_sse
+from tests.conftest import session_headers
 
 
 async def _auth_user(db) -> User:
-    rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-    )
+    rows = await db.execute(select(User).where(User.email == "student@example.com"))
     return rows.scalars().one()
 
 
@@ -71,17 +69,15 @@ async def test_cross_user_attachment_422(client, db, auth_headers):
     session = await _session(client, auth_headers)
 
     email = f"x-{uuid.uuid4().hex[:8]}@example.com"
-    other = (
-        await client.post(
-            "/api/v1/auth/register",
-            json={"email": email, "password": "supersecret1"},
-        )
-    ).json()
+    other = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "supersecret1"},
+    )
 
     response = await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
         json={"content": "hi", "attachments": [{"kind": "cv", "cv_id": str(cv.id)}]},
-        headers={"Authorization": f"Bearer {other['access_token']}"},
+        headers=session_headers(other),
     )
     assert response.status_code == 422
 

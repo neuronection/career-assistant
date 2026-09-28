@@ -30,7 +30,7 @@ flowchart LR
         FE[React SPA]
     end
     subgraph Server["One process: API + SPA (same origin)"]
-        API["FastAPI REST · single-user mode by default<br/>(JWT validated when presented; family auth later)"]
+        API["FastAPI REST · family auth sessions<br/>(cookie + CSRF; desktop DIM or login)"]
         BG[Background tasks<br/>PDF parsing · AI generation]
         REG[Registries<br/>connectors · scheduler triggers<br/>chat tools · skill packs]
         MCP[MCP server<br/>/mcp · read-scope tools]
@@ -484,7 +484,8 @@ results in production regardless.
 | Desktop | SQLite (aiosqlite) | pywebview window + tray | PyInstaller → deb / AppImage / Windows exe |
 
 Desktop data lives under the OS data dir; first launch creates a strong
-`secret.key`, migrates and (optionally) seeds. Closing the window keeps the
+per-instance key family (`auth_keys.json`, identity-auth §8), migrates and
+(optionally) seeds. Closing the window keeps the
 app in the tray — scheduled work continues in-process.
 
 ## Dev loop & deployment

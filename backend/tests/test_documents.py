@@ -8,6 +8,7 @@ from app.models.experience_model import SkillEvidence
 from app.models.taxonomy_model import Skill
 from app.models.user_model import User
 from app.services.job_worker import JobWorker
+from tests.conftest import session_headers
 
 
 async def _drain(db):
@@ -169,7 +170,7 @@ async def test_documents_are_private(client, auth_headers):
         "/api/v1/auth/register",
         json={"email": "other2@example.com", "password": "password123"},
     )
-    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    other_headers = session_headers(other)
     response = await client.get(
         f"/api/v1/documents/{upload.json()['document']['id']}", headers=other_headers
     )

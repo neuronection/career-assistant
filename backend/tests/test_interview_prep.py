@@ -6,7 +6,7 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid
+from tests.conftest import _make_posting, _uid, session_headers
 
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.ai_model import AIGeneration
@@ -196,7 +196,7 @@ async def _register(client, email: str) -> dict:
         },
     )
     assert response.status_code == 201, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return session_headers(response)
 
 
 async def test_cross_user_access_is_not_found(

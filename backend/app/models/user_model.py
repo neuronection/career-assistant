@@ -26,12 +26,19 @@ from app.models.base import (
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """A registered student."""
+    """A registered user — family-normative `users` (identity-auth §5)."""
 
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint(
+            "oidc_issuer", "oidc_subject", name="uq_users_oidc_issuer_subject"
+        ),
+    )
 
     email: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(nullable=False)
+    # NULLABLE (§5): NULL ⇒ password login refused for that row (DIM owner
+    # until a password is set); otherwise bcrypt ≥12 rounds (nx_auth).
+    password_hash: Mapped[Optional[str]] = mapped_column(nullable=True)
     full_name: Mapped[str] = mapped_column(nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
@@ -43,24 +50,46 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     locked_until: Mapped[Optional[datetime]] = mapped_column(
         TZDateTime(), nullable=True
     )
-    # Bumped to invalidate every outstanding JWT ("sign out everywhere").
+    # Bumped to invalidate every outstanding token ("sign out everywhere").
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # OIDC link (§14, present from day one); unique as a pair above.
+    oidc_issuer: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    oidc_subject: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    profile: Mapped["Profile"] = relationship(
-        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    profiles: Mapped[list["Profile"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
 
 class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Structured student profile; every section is pydantic-validated StructuredJSON."""
+    """A coached person's structured profile (identity-auth §5/§6).
+
+    Family-normative 1:N columns (`user_id` FK, `name`, `is_default`,
+    `preferences`, timestamps) plus career's product shape: every section
+    is pydantic-validated StructuredJSON on the profile row (§6
+    "product meaning"). Exactly one `is_default` per user is
+    service-enforced (`app.services.profiles_service`).
+    """
 
     __tablename__ = "profiles"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
         nullable=False,
         index=True,
+    )
+    name: Mapped[str] = mapped_column(
+        String(120), nullable=False, default="Default", server_default="Default"
+    )
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    # Optional profile accent (study's shared ProfileSwitcher swatch).
+    color: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    # Last-used tracking (§6: the last-used profile is remembered per
+    # user) — the desktop binding fallback sorts on it.
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(
+        TZDateTime(), nullable=True
     )
     basics: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     academics: Mapped[dict] = mapped_column(
@@ -88,7 +117,7 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="profile")
+    user: Mapped["User"] = relationship(back_populates="profiles")
 
 
 class UserInterest(UUIDPrimaryKeyMixin, TimestampMixin, Base):

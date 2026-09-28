@@ -55,7 +55,7 @@ class _FakeStreamModel:
 
 
 async def _assign_real_model(db, provider_type="openai_compatible", **overrides):
-    from app.core.security import hash_password
+    from nx_auth.passwords import hash_password
     from app.core.encryption import encrypt_secret
     from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
     from app.models.user_model import User

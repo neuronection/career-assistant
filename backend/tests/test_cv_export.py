@@ -5,6 +5,7 @@ import json
 import pytest
 from docx import Document as open_docx
 from io import BytesIO
+from tests.conftest import session_headers
 
 
 def test_custom_text_docx_runs_bullets_and_ats_stripping():
@@ -215,7 +216,7 @@ async def test_lint_flags_missing_contact_and_passes_filled(
         },
     )
     assert anonymous.status_code == 201, anonymous.text
-    bare_headers = {"Authorization": f"Bearer {anonymous.json()['access_token']}"}
+    bare_headers = session_headers(anonymous)
     response = await client.put(
         "/api/v1/profile",
         json={

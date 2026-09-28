@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.config import settings
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
@@ -20,9 +19,7 @@ from app.services.skills_service import SkillService
 
 
 async def _auth_user(db) -> User:
-    rows = await db.execute(
-        select(User).where(User.email == settings.DEFAULT_USER_EMAIL)
-    )
+    rows = await db.execute(select(User).where(User.email == "student@example.com"))
     return rows.scalars().one()
 
 
@@ -504,11 +501,9 @@ async def test_api_hides_cross_user(client, db, auth_headers):
     )
     rows = await db.execute(select(User).where(User.id == other.id))
     other = rows.scalars().one()
-    from app.core.security import create_access_token
+    from tests.conftest import mint_session_headers
 
-    other_headers = {
-        "Authorization": f"Bearer {create_access_token(other.id, other.token_version)}"
-    }
+    other_headers = mint_session_headers(email=other.email)
     foreign = await client.post(
         f"/api/v1/me/profile-proposals/{proposal.id}/approve",
         headers=other_headers,

@@ -214,7 +214,6 @@ API_PORT=$backend_port
 CORS_ORIGINS=http://localhost:$frontend_port,http://127.0.0.1:$frontend_port
 DATABASE_URL=$db_url
 REDIS_URL=redis://127.0.0.1:$redis_port/0
-JWT_SECRET=dev-only-change-me-$name-0123456789abcdef
 UPLOAD_DIR=uploads
 RATE_LIMIT_ENABLED=true
 EOF

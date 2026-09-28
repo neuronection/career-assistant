@@ -413,6 +413,10 @@ async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeyp
     from app.desktop.notifier import DesktopChannel
     from app.services import notification_channels
 
+    # Built-ins register lazily (import-time cycle avoidance) — trigger
+    # that first so the registry order is deterministic regardless of
+    # which tests ran earlier in this process (xdist `load` scheduling).
+    notification_channels.registered_channels()
     notification_channels.register_channel(DesktopChannel(_FakeBridge()))
     try:
         monkeypatch.setattr(settings, "DESKTOP_MODE", True)
