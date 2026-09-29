@@ -1,45 +1,61 @@
 """Language-display support for CV blocks: human names, CEFR mapping and
 language-proficiency certification enrichment.
 
-All three are curated data (`code → name`, `level → CEFR`, exam-keyword →
-language) resolved deterministically; templates pick presentation via
-block props, never via rendering logic.
+The name map loads from the family language catalog (ADR-0024,
+`app/data/catalogs/languages.json` — the same data the shared
+assistant-ui package ships); levels, exam vocabulary and the matching
+functions are curated here and resolved deterministically; templates
+pick presentation via block props, never via rendering logic.
 """
 
+import json
 import re
+from pathlib import Path
 
-LANGUAGE_NAMES: dict[str, str] = {
-    "el": "Greek",
-    "en": "English",
-    "de": "German",
-    "fr": "French",
-    "es": "Spanish",
-    "it": "Italian",
-    "pt": "Portuguese",
-    "nl": "Dutch",
-    "sv": "Swedish",
-    "pl": "Polish",
-    "tr": "Turkish",
-    "ru": "Russian",
-    "ar": "Arabic",
-    "zh": "Chinese",
-    "ja": "Japanese",
-    "ko": "Korean",
-    "hi": "Hindi",
-    "ur": "Urdu",
-    "fa": "Persian",
-    "ro": "Romanian",
-    "hu": "Hungarian",
-    "cs": "Czech",
-    "sk": "Slovak",
-    "uk": "Ukrainian",
-    "he": "Hebrew",
-    "bn": "Bengali",
-    "id": "Indonesian",
-    "ms": "Malay",
-    "th": "Thai",
-    "vi": "Vietnamese",
-}
+_CATALOG_PATH = (
+    Path(__file__).resolve().parents[1] / "data" / "catalogs" / "languages.json"
+)
+
+with _CATALOG_PATH.open(encoding="utf-8") as _catalog_file:
+    LANGUAGE_NAMES: dict[str, str] = {
+        str(entry["code"]): str(entry["name"])
+        for entry in json.load(_catalog_file)["languages"]
+    }
+
+# The profile language offer (Greek first, matching the frontend's
+# pickLanguages slice) — a subset of the catalog codes by contract.
+OFFERED_LANGUAGE_CODES: list[str] = [
+    "el",
+    "en",
+    "de",
+    "fr",
+    "es",
+    "it",
+    "pt",
+    "nl",
+    "sv",
+    "pl",
+    "tr",
+    "ru",
+    "ar",
+    "ja",
+    "ko",
+    "zh",
+    "hi",
+    "ur",
+    "fa",
+    "ro",
+    "hu",
+    "cs",
+    "sk",
+    "uk",
+    "he",
+    "bn",
+    "id",
+    "ms",
+    "th",
+    "vi",
+]
 
 # Level vocabulary (profile UI: basic | intermediate | advanced | native)
 # → representative CEFR band.

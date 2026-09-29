@@ -12,6 +12,7 @@ import {
 import type { CvSynthBullet, CvSynthItem, CvSynthPayload } from "@/types/cv";
 import type { CvContextSourceOut } from "@/types/cv";
 import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
+import { CV_TRANSLATE_LANGUAGES } from "@/lib/cvLanguages";
 
 const MAX_REFS = 5;
 
@@ -562,9 +563,9 @@ export function VariantEditor({
                     data-testid="synth-editor-gen-target-language"
                     className="w-24 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
                   >
-                    {["en", "de", "fr", "es", "it", "el"].map((code) => (
-                      <option key={code} value={code}>
-                        {code.toUpperCase()}
+                    {CV_TRANSLATE_LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.nativeName}
                       </option>
                     ))}
                   </select>
@@ -907,9 +908,9 @@ export function VariantEditor({
                 data-testid="synth-editor-language-input"
                 className={`${FIELD_CLASS} cursor-pointer`}
               >
-                {["en", "de", "fr", "es", "it", "el"].map((code) => (
-                  <option key={code} value={code}>
-                    {code.toUpperCase()}
+                {CV_TRANSLATE_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.nativeName}
                   </option>
                 ))}
               </select>

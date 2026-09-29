@@ -37,6 +37,7 @@ import type {
   EducationLevel,
   GradeBand,
 } from "@/types/education";
+import { languageDisplayName } from "@neuronection/assistant-ui/languages";
 import {
   COMMON_SUBJECTS,
   EDUCATION_LEVEL_ORDER,
@@ -582,7 +583,7 @@ export function CertificationEditor({
   saving: boolean;
   isNew: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const errors = validateCertification(form);
   const patch = (partial: Partial<CertificationEditorForm>) => {
     onDismissErrors();
@@ -648,7 +649,10 @@ export function CertificationEditor({
           onChange={(v) => patch({ language_code: v })}
           options={[
             { value: "", label: t("education.languageProofNone") },
-            ...LANGUAGE_CODE_OPTIONS,
+            ...LANGUAGE_CODE_OPTIONS.map((o) => ({
+              value: o.code,
+              label: languageDisplayName(o.code, i18n.resolvedLanguage ?? "en"),
+            })),
           ]}
           testId="certification-language"
         />
@@ -924,7 +928,7 @@ function AddDepartmentModal({
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const save = async () => {
     setBusy(true);
@@ -1005,7 +1009,10 @@ function AddDepartmentModal({
               onChange={setLanguage}
               options={[
                 { value: "", label: t("education.languageUnspecified") },
-                ...LANGUAGE_CODE_OPTIONS,
+                ...LANGUAGE_CODE_OPTIONS.map((o) => ({
+                  value: o.code,
+                  label: languageDisplayName(o.code, i18n.resolvedLanguage ?? "en"),
+                })),
               ]}
               testId="department-language"
             />

@@ -53,6 +53,9 @@ datas = [
     (FRONTEND_DIST, "frontend/dist"),
     (os.path.join(ROOT, "backend", "alembic"), "alembic"),
     (os.path.join(ROOT, "backend", "alembic.ini"), "."),
+    # Family language catalog (ADR-0024) — cv_languages.py json-loads it at
+    # import time, so the frozen bundle must carry it at app/data/catalogs.
+    (os.path.join(ROOT, "backend", "app", "data"), "app/data"),
 ]
 datas += collect_data_files("webview")
 

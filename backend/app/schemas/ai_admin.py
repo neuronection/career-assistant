@@ -47,7 +47,7 @@ class ProviderCreate(BaseModel):
     api_key: Optional[str] = Field(default=None, max_length=400)
     scope: str = "user"
     is_local: Optional[bool] = None
-    country: Optional[str] = Field(default=None, max_length=80)
+    country: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
 class ProviderUpdate(BaseModel):
@@ -57,7 +57,7 @@ class ProviderUpdate(BaseModel):
     api_key: Optional[str] = Field(default=None, max_length=400)
     is_active: Optional[bool] = None
     is_local: Optional[bool] = None
-    country: Optional[str] = Field(default=None, max_length=80)
+    country: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
 class ModelOut(BaseModel):

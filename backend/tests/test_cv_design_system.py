@@ -918,6 +918,16 @@ def test_proficiency_matching_prefers_first_issued_language_certificate():
     )
 
 
+def test_offered_language_codes_are_catalog_subset():
+    """ADR-0024: the profile offer (Greek first) must resolve inside the
+    family language catalog the name map loads from."""
+    from app.services.cv_languages import LANGUAGE_NAMES, OFFERED_LANGUAGE_CODES
+
+    assert OFFERED_LANGUAGE_CODES[0] == "el"
+    assert len(OFFERED_LANGUAGE_CODES) == 30
+    assert set(OFFERED_LANGUAGE_CODES) <= set(LANGUAGE_NAMES)
+
+
 def test_certifications_block_dedupes_proficiency_items():
     from app.services.cv_blocks import SAMPLE_SNAPSHOT
 

@@ -33,6 +33,7 @@ import type { CvDesignTokens, CvTemplateSummary } from "@/types/cvTemplate";
 import type { CvAssistantCritique } from "@/types/cvAssistant";
 import { CritiqueCard } from "@/components/cv/CritiqueCard";
 import { apiDetail } from "@/api/client";
+import { CV_LANGUAGES } from "@/lib/cvLanguages";
 
 export type InspectorTab = "context" | "design" | "sections";
 
@@ -40,12 +41,6 @@ const TABS: { id: InspectorTab; label: string; icon: typeof Layers }[] = [
   { id: "sections", label: "Sections", icon: LayoutList },
   { id: "context", label: "Context", icon: Layers },
   { id: "design", label: "Design", icon: Palette },
-];
-
-const CV_LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "de", label: "Deutsch" },
-  { value: "el", label: "Ελληνικά" },
 ];
 
 interface InspectorPanelProps {
@@ -328,7 +323,10 @@ function DesignTab({
             label={t("cvBuilder.language", { defaultValue: "Language" })}
             value={language}
             onChange={onLanguage}
-            options={CV_LANGUAGES}
+            options={CV_LANGUAGES.map((l) => ({
+              value: l.code,
+              label: l.nativeName,
+            }))}
             testId="cv-language-select"
           />
         </section>

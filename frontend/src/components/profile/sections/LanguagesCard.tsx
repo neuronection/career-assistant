@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { Link } from "react-router-dom";
 import { Award, X } from "lucide-react";
+import { languageDisplayName } from "@neuronection/assistant-ui/languages";
 import {
   ComboboxField,
   FormRow,
@@ -37,7 +38,9 @@ export const LanguagesCard = forwardRef<SectionCardHandle, LanguagesCardProps>(
     { initial, onSave, mode = "autosave", variant = "page", complete = null },
     ref
   ) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const languageName = (code: string) =>
+      languageDisplayName(code, i18n.resolvedLanguage ?? "en");
     const { draft, setDraft, state, error } = useSectionCard(ref, {
       initial,
       onSave,
@@ -76,8 +79,8 @@ export const LanguagesCard = forwardRef<SectionCardHandle, LanguagesCardProps>(
                     label={t("profileSection.language")}
                     value={lang.code}
                     options={LANGUAGE_CODE_OPTIONS.map((o) => ({
-                      value: o.value,
-                      label: t(o.labelKey, { defaultValue: o.label }),
+                      value: o.code,
+                      label: languageName(o.code),
                     }))}
                     allowCreate
                     createLabel={(term) =>
@@ -115,15 +118,10 @@ export const LanguagesCard = forwardRef<SectionCardHandle, LanguagesCardProps>(
                     to={`/profile/education?entity=certifications&new=1&language=${encodeURIComponent(lang.code)}`}
                     className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-[var(--as-border)] px-2 py-1 text-xs text-[var(--as-muted-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
                     aria-label={t("profileSection.addCertificateFor", {
-                      language: t(
-                        `language.${lang.code}`,
-                        { defaultValue: lang.code }
-                      ),
+                      language: languageName(lang.code),
                     })}
                     title={t("profileSection.addCertificateFor", {
-                      language: t(`language.${lang.code}`, {
-                        defaultValue: lang.code,
-                      }),
+                      language: languageName(lang.code),
                     })}
                     data-testid={`language-certificate-${i}`}
                   >
