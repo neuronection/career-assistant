@@ -741,6 +741,49 @@ async def test_provider_local_and_country_metadata(client, auth_headers):
     assert row["country"] == "NL"
 
 
+async def test_provider_country_must_be_iso_alpha2(client, auth_headers):
+    """ADR-0024: provider country is an ISO 3166-1 alpha-2 code — no
+    free-text or lowercase values pass create or update."""
+    created = await client.post(
+        "/api/v1/ai/providers",
+        json={
+            "name": "Strict Ollama",
+            "api_base": "http://localhost:11434/v1",
+            "country": "Greece",
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 422, created.text
+    lowered = await client.post(
+        "/api/v1/ai/providers",
+        json={
+            "name": "Strict Ollama",
+            "api_base": "http://localhost:11434/v1",
+            "country": "de",
+        },
+        headers=auth_headers,
+    )
+    assert lowered.status_code == 422, lowered.text
+
+    ok = await client.post(
+        "/api/v1/ai/providers",
+        json={
+            "name": "Strict Ollama",
+            "api_base": "http://localhost:11434/v1",
+            "country": "GR",
+        },
+        headers=auth_headers,
+    )
+    assert ok.status_code == 201, ok.text
+    provider_id = ok.json()["id"]
+    updated = await client.put(
+        f"/api/v1/ai/providers/{provider_id}",
+        json={"country": "GRC"},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 422, updated.text
+
+
 async def test_fetch_external_models_google_catalog(client, auth_headers, monkeypatch):
     """Native google providers discover via the google-genai SDK — only
     generateContent-capable models are offered, ids drop the models/

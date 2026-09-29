@@ -22,6 +22,7 @@ import { JobFlowStatus } from "@/components/JobFlowStatus";
 import { RunTelemetryStrip } from "@/components/cv/RunsPanel";
 import { PolishPreviewIframe } from "@/components/cv/PolishTrace";
 import { traceFromPolishTrace } from "@/lib/cvBuildTrace";
+import { CV_LANGUAGES } from "@/lib/cvLanguages";
 import { FlowTraceCard } from "@/components/ui";
 import {
   ChipTogglesRow,
@@ -50,12 +51,6 @@ const GENERATABLE: CvGenerateSectionKind[] = [
   "languages",
   "achievements",
   "interests",
-];
-
-const LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "de", label: "Deutsch" },
-  { value: "el", label: "Ελληνικά" },
 ];
 
 /** The generate-with-AI flow: preferences form → background
@@ -398,7 +393,10 @@ export function GenerateCvFlow({
         label={t("cvGenerate.language")}
         value={language}
         onChange={setLanguage}
-        options={LANGUAGES}
+        options={CV_LANGUAGES.map((l) => ({
+          value: l.code,
+          label: l.nativeName,
+        }))}
         testId="cv-generate-language"
       />
 

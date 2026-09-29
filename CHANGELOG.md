@@ -4,6 +4,30 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Shared language/country catalogs adopted (family ADR-0024):** the
+  profile language offer (`LANGUAGE_CODE_OPTIONS`) is now derived from
+  the `@neuronection/assistant-ui/languages` catalog via `pickLanguages`
+  (same Greek-first 30-language offer, catalog entry shape), and every
+  language label renders through `languageDisplayName` (localized via
+  the active locale) instead of i18next keys — the 30 per-language
+  `profile.options.*` name keys are deleted from `en.json`, the dead
+  `language.<code>` template-literal path in the languages card is gone,
+  and the certification language-proof and department language selects
+  in the education workspace now localize too instead of showing
+  hardcoded English. CV surfaces share one module (`lib/cvLanguages.ts`):
+  the CV language selects (inspector, generate flow) label with catalog
+  `nativeName`, replacing three local arrays, and the CV synth
+  translate-target/voice-language selects (previously raw uppercase
+  codes) label with `nativeName` — value semantics and defaults are
+  unchanged. The backend CV language-name map loads from a repo-local
+  copy of the family catalog (`app/data/catalogs/languages.json`,
+  bundled by the desktop spec) and exports the Greek-first
+  `OFFERED_LANGUAGE_CODES` offer; provider `country` create/update
+  fields now validate as ISO 3166-1 alpha-2 (`^[A-Z]{2}$`, ADR-0024 —
+  no free text), with the OpenAPI contract regenerated.
+  `@neuronection/assistant-ui` moves from an exact pin to `^0.48.0`.
+
 ### Added
 - **Product threat model (plan 16 closeout):** `SECURITY.md` now carries
   the family identity-auth §20 nine-row threat-model table filled

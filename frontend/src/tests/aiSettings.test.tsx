@@ -385,7 +385,8 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
       "aria-pressed",
       "true"
     );
-    fireEvent.change(within(dialog).getByLabelText("Country"), { target: { value: "DE" } });
+    fireEvent.click(within(dialog).getByRole("combobox", { name: "Country" }));
+    fireEvent.click(await screen.findByRole("option", { name: /Germany/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save provider" }));
     await waitFor(() => expect(mocked.createProvider).toHaveBeenCalledTimes(1));
     expect(mocked.createProvider).toHaveBeenCalledWith(

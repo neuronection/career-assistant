@@ -11226,7 +11226,7 @@
           "country": {
             "anyOf": [
               {
-                "maxLength": 80,
+                "pattern": "^[A-Z]{2}$",
                 "type": "string"
               },
               {
@@ -11399,7 +11399,7 @@
           "country": {
             "anyOf": [
               {
-                "maxLength": 80,
+                "pattern": "^[A-Z]{2}$",
                 "type": "string"
               },
               {
