@@ -8,7 +8,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { useIsShortViewport } from "@/hooks/useMediaQuery";
 import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
-import { useChatStore } from "@/stores/chatStore";
+import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileSwitcherMenu } from "@/components/ProfileSwitcherMenu";
 import { SidebarFooter } from "@/components/SidebarFooter";
@@ -36,6 +36,7 @@ export function Layout() {
   const isExperienceRoute = useMatch("/profile/experience") !== null;
   const isEducationRoute = useMatch("/profile/education") !== null;
   const chatMode = useChatStore((state) => state.chatMode);
+  const chatModeChosen = useChatStore((state) => state.chatModeChosen);
   const profileEpoch = useProfilesStore((state) => state.epoch);
   const devModeEnabled = useDevModeStore((state) => state.enabled);
   const fullBleed =
@@ -181,7 +182,7 @@ export function Layout() {
         </main>
       </div>
 
-      {chatMode === "docked" && <ChatDock />}
+      {effectiveChatMode({ chatMode, chatModeChosen }, location.pathname) === "docked" && <ChatDock />}
 
       <ChatWidget />
       <CompareTray />

@@ -359,10 +359,47 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
     return []
 
 
+# ---------------------------------------------------------------------------
+# Demo scripts (family demo-tour standard) — deterministic answers keyed by
+# prompt intent, like Health Assistant's embedded automated responses for
+# specific input. Grounded in the seed-demo persona (Wren Ashgrove: retail
+# ops → aspiring data analyst); free to carry the structured fields the chat
+# renders as chips/cards, not just prose. Checked before the tool-driven
+# branches; edit-proposal prompts intentionally stay on the real ops path
+# (cards must reference real entities).
+# ---------------------------------------------------------------------------
+
+
+def _demo_role_fit(_message: str) -> dict:
+    return {
+        "answer": (
+            "Three catalog roles fit your profile especially well:\n\n"
+            "| Role | Why it fits you |\n"
+            "| --- | --- |\n"
+            "| **Data Scientist** | Your 12k-listings cleanup and the automated ridership report are exactly the data-wrangling + reporting evidence this role wants. |\n"
+            "| **Financial Analyst** | Cutting nightly stock-count time shows the process-analysis instinct this role is built on. |\n"
+            "| **Software Developer** | The report automation is real scripting work — a strong junior-developer evidence base. |\n\n"
+            "Open a role to see the fit breakdown, skill gaps and university "
+            "paths — or ask me to draft CV bullets for the strongest match."
+        ),
+        "referenced_job_codes": ["data-scientist", "financial-analyst", "software-developer"],
+        "referenced_posting_refs": [],
+    }
+
+
+DEMO_SCRIPTS = (
+    (("which roles", "roles fit", "fit me", "fit my profile", "catalog jobs fit"), _demo_role_fit),
+)
+
+
 def mock_chat_reply(schema: type, user_prompt: str) -> dict:
     ctx = parse_context(user_prompt)
     tools = ctx.get("tool_results", {})
     message = ctx.get("message", "")
+
+    for keywords, builder in DEMO_SCRIPTS:
+        if any(keyword in message.lower() for keyword in keywords):
+            return builder(message)
 
     cv_references = ctx.get("cv_references") or []
     if cv_references:

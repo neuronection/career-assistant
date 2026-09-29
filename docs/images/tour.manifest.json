@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "templateVersion": "1.2.2",
+  "project": "Career Assistant",
+  "generatedBy": "scripts/ui-capture (Neuronection family template)",
+  "gallery": {
+    "desktop": "docs/SCREENSHOTS.md",
+    "mobile": null
+  },
+  "gif": "docs/images/visual-tour.gif",
+  "scenes": [
+    {
+      "name": "login",
+      "group": "Authentication",
+      "caption": "Sign-in screen — cookie-session auth with CSRF double-submit.",
+      "narration": "Sign in — your career workspace remembers everything you feed it.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "login-desktop.png"
+      }
+    },
+    {
+      "name": "dashboard",
+      "group": "Overview",
+      "caption": "Dashboard — career state at a glance with the docked chat.",
+      "narration": "The dashboard shows your top matches, fresh postings and applications — with the assistant always one click away.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "dashboard-desktop.png"
+      }
+    },
+    {
+      "name": "catalog",
+      "group": "Career exploration",
+      "caption": "Job family catalog — the taxonomy tree with AI generation.",
+      "narration": "The catalog maps the world of jobs into families and skills — extendable with AI.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "catalog-desktop.png"
+      }
+    },
+    {
+      "name": "rankings",
+      "group": "Career exploration",
+      "caption": "Matched rankings — fit scores with the compare tray.",
+      "narration": "Rankings score every role against your profile — compare the shortlist side by side.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "rankings-desktop.png"
+      }
+    },
+    {
+      "name": "job-detail",
+      "group": "Career exploration",
+      "caption": "Job insights — fit score, AI explanations, skill gaps and university paths for Data Scientist.",
+      "narration": "Open a role and the insights panel explains the fit — strengths, gaps, prerequisites and the paths that close them.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "job-detail-desktop.png"
+      }
+    },
+    {
+      "name": "universities",
+      "group": "Career exploration",
+      "caption": "Universities and pathways — funding, deadlines and degree-to-job routes.",
+      "narration": "And when a role needs study first — universities, deadlines and funding, mapped to the job.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "universities-desktop.png"
+      }
+    },
+    {
+      "name": "profile-experience",
+      "group": "Your profile",
+      "caption": "Experience timeline — quantified achievements from the seeded demo persona.",
+      "narration": "Your profile holds structured experience — quantified achievements the matching engine can actually read.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "profile-experience-desktop.png"
+      }
+    },
+    {
+      "name": "cv-studio",
+      "group": "Working life",
+      "caption": "CV Studio — three routes to a CV, versions and exports, with rendered page thumbnails.",
+      "narration": "CV Studio builds your CV three ways — from your profile, from an import, or with AI variants.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "cv-studio-desktop.png"
+      }
+    },
+    {
+      "name": "cv-builder",
+      "group": "Working life",
+      "caption": "CV builder — live preview of a modern sidebar CV (profile, skills and languages in the sidepanel) with version history.",
+      "narration": "The builder shows the live page as you edit — modern sidebar template, version history, one-click export.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "cv-builder-desktop.png"
+      }
+    },
+    {
+      "name": "chat",
+      "group": "AI assistant",
+      "caption": "Assistant chat — role-fit answer with job reference chips (mock AI on the demo instance).",
+      "narration": "Ask which roles fit you — the answer is grounded in your profile and links straight to the roles.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "chat-desktop.png"
+      }
+    },
+    {
+      "name": "chat-proposals",
+      "group": "AI assistant",
+      "caption": "HITL proposals — the assistant drafts profile edits as review cards with before/after previews.",
+      "narration": "Ask for an edit and nothing happens silently — the change arrives as a review card you approve or reject.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "chat-proposals-desktop.png"
+      }
+    },
+    {
+      "name": "onboarding",
+      "group": "Overview",
+      "caption": "Onboarding wizard — guided or express start paths.",
+      "narration": "Onboarding gets you to a useful profile in minutes — guided, or express if you already have a CV.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "onboarding-desktop.png"
+      }
+    },
+    {
+      "name": "settings-account",
+      "group": "Settings",
+      "caption": "Settings — account pane of the settings shell.",
+      "narration": "And everything stays yours — settings, export and account controls included.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "settings-account-desktop.png"
+      }
+    }
+  ]
+}

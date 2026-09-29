@@ -15,6 +15,14 @@
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
 
+<br>
+
+<a href="docs/SCREENSHOTS.md">
+  <img src="docs/images/visual-tour.gif" width="800" alt="Career Assistant visual tour">
+</a>
+
+<br>
+
   <p>
     <small>Part of</small><br>
     <picture>

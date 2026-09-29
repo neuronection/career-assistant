@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/dictation";
 import { fetchChatTree, type ChatTree } from "@/api/universities";
 import { transcribeAudio, classifyDictationError } from "@/api/ai";
-import { useChatStore } from "@/stores/chatStore";
+import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { ChatViewSwitcher } from "@/components/chat/ChatViewSwitcher";
 import { activeCvId } from "@/components/chat/cvChatLink";
 import {
@@ -766,6 +766,7 @@ function ChatSurface({
 export function ChatWidget() {
   const location = useLocation();
   const chatMode = useChatStore((state) => state.chatMode);
+  const chatModeChosen = useChatStore((state) => state.chatModeChosen);
 
   useEffect(() => {
     if (location.pathname !== "/chat") {
@@ -782,7 +783,10 @@ export function ChatWidget() {
     }
   }, [chatMode]);
 
-  if (location.pathname === "/chat" || chatMode !== "bubble") {
+  if (
+    location.pathname === "/chat" ||
+    effectiveChatMode({ chatMode, chatModeChosen }, location.pathname) !== "bubble"
+  ) {
     return null;
   }
 

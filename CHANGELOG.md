@@ -4,7 +4,38 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Demo tour content (use-case demos):** the mock AI gained a demo
+  script table (role-fit answers with job reference chips) alongside the
+  existing HITL ops path; the seeded CVs render with the modern teal
+  sidebar template, with profile/skills/languages/interests placed in the
+  sidepanel and the dated lists in the main column; the tour grew to 18
+  scenes including job insights, the CV builder, a posting detail, the
+  HITL proposal-card chat demo.
+- **Demo tour capture pipeline (family demo-tour standard):** reproducible
+  screenshot gallery + `visual-tour.gif` generated from a seeded demo
+  instance via `./scripts/capture_ui.sh` (`scripts/ui-capture/`, family
+  template v1.2.0). Cookie-session auth against the demo personas, mock-AI
+  chat scene, `tour.manifest.json` emitted for the website; boot recipe in
+  `docs/dev/visual-tour.md`.
+
+### Fixed
+- **CV card thumbnails could never load:** `preview.png` required the
+  `X-Profile-Id` header, which plain `<img>` tags cannot send — the CV
+  Studio cards always degraded to the empty placeholder. Header-less
+  rendered images (`…/preview.png`, user-ownership checked in the
+  handler) are now exempt from the profile bind.
+
 ### Changed
+- **Beta pages removed from the demo tour (for now):** Autopilot, Postings
+  (and posting detail), Interviews and Growth are hidden behind dev mode
+  while in beta — their tour scenes are kept commented out in
+  `scripts/ui-capture/scenes.mjs` and re-enable when the pages ship.
+- **CV Studio opens without the sidepanel chatbot by default:** the docked
+  chat is no longer forced open on `/cv` routes; the floating launcher
+  stands in until the user explicitly picks a surface (view switcher, dock
+  close, or an "Ask AI" gesture). Surface resets no longer forge a
+  persisted preference.
 - **Shared language/country catalogs adopted (family ADR-0024):** the
   profile language offer (`LANGUAGE_CODE_OPTIONS`) is now derived from
   the `@neuronection/assistant-ui/languages` catalog via `pickLanguages`

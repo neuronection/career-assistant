@@ -34,6 +34,7 @@ Read this page for the map, then jump into the page you need. The
 | [architecture.md](architecture.md) | Modes, runtime topology, registries, AI flows, the structured pipeline |
 | [development.md](development.md) | Bootstrap, commands, conventions, git worktrees, verification gates |
 | [testing.md](testing.md) | pytest + vitest, parallel xdist databases, fixtures, what to mock |
+| [visual-tour.md](visual-tour.md) | Regenerating the README GIF, screenshot gallery and tour manifest from the demo instance |
 | [data-model.md](data-model.md) | Tables by area, taxonomy joins, typed JSONB, dialect rules |
 | [api.md](api.md) | The versioned REST surface, auth, errors, pagination, streaming, OpenAPI |
 | [ai-layer.md](ai-layer.md) | Gateway-only invocation, tasks, agents, graphs, tools, packs, embeddings, MCP |

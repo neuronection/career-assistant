@@ -1,0 +1,63 @@
+{
+  "project": {
+    "name": "Career Assistant",
+    "intro": "Welcome to the visual tour of Career Assistant. These reproducible screenshots showcase the main pages and use cases of the application, generated against a deterministic seeded demo workspace (synthetic personas, mock AI).",
+    "frontendDir": "frontend"
+  },
+  "app": {
+    "base": "http://localhost:3100",
+    "api": "http://localhost:8100/api/v1",
+    "apiPath": "/api/v1",
+    "healthUrls": ["{base}", "{apiRoot}/health"],
+    "env": {
+      "basePort": "FRONTEND_PORT",
+      "apiPort": "API_PORT",
+      "email": "CA_DEMO_EMAIL",
+      "password": "CA_DEMO_PASSWORD"
+    }
+  },
+  "auth": {
+    "type": "cookie-session",
+    "endpoint": "/auth/login",
+    "sessionCheck": "/auth/me",
+    "demoEmail": "wren.ashgrove@demo.career.local",
+    "demoPassword": "DemoCareer!2026"
+  },
+  "session": {
+    "windowFlag": "__CA_SCREENSHOT_CAPTURE__",
+    "apiHeaders": { "X-Profile-Id": "{profileId}" },
+    "apiEntries": [
+      { "key": "ca-profile-id", "path": "/profiles", "match": { "is_default": true }, "pick": "id" }
+    ]
+  },
+  "pathTokens": {
+    "profileId": { "path": "/profiles", "match": { "is_default": true }, "pick": "id" },
+    "cvId": { "path": "/cv", "match": { "title": "Wren Ashgrove — CV" }, "pick": "id" }
+  },
+  "capture": {
+    "outDir": "docs/images",
+    "gallery": "docs/SCREENSHOTS.md",
+    "fixedNow": "2026-09-15T10:00:00Z",
+    "settleMs": 800,
+    "headless": true,
+    "viewports": {
+      "desktop": { "width": 1440, "height": 1200, "deviceScaleFactor": 1 },
+      "mobile": { "width": 390, "height": 844, "deviceScaleFactor": 2 }
+    }
+  },
+  "gallery": {
+    "title": "Career Assistant — Visual Tour",
+    "mobileTitle": "Career Assistant — Visual Tour (Mobile)",
+    "regenCommand": "./scripts/capture_ui.sh"
+  },
+  "gif": {
+    "output": "docs/images/visual-tour.gif",
+    "order": ["login", "dashboard", "catalog", "rankings", "job-detail", "universities", "profile-experience", "cv-studio", "cv-builder", "chat", "chat-proposals"],
+    "width": 800,
+    "frameSeconds": 2,
+    "holdLast": 3
+  },
+  "seed": {
+    "command": "bash scripts/ui-capture/seed-demo.sh"
+  }
+}

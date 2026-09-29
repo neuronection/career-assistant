@@ -139,6 +139,11 @@ PROFILE_BIND_EXEMPT_PREFIXES = (
 def _profile_bind_exempt(path: str) -> bool:
     """Prefix match on path-segment boundaries — `/api/v1/me` must never
     swallow `/api/v1/metrics`."""
+    # URL-addressable rendered images (`<img>`/`<link>` cannot send the
+    # profile header): preview.png thumbnails are user-scoped GETs whose
+    # handlers do their own ownership checks, so they skip the bind.
+    if path.endswith("/preview.png"):
+        return True
     for prefix in PROFILE_BIND_EXEMPT_PREFIXES:
         if path == prefix or path.startswith(prefix + "/"):
             return True

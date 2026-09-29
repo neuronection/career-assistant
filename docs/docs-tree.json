@@ -37,6 +37,12 @@
               "file": "user/features.md",
               "title": "Feature catalog",
               "description": "Everything Career Assistant ships, as built — catalog, matching, postings, Autopilot, CV Studio, chat, scheduler and more."
+            },
+            {
+              "id": "visual-tour",
+              "file": "SCREENSHOTS.md",
+              "title": "Visual tour",
+              "description": "Screenshots of Career Assistant — dashboard, catalog, rankings, postings, Autopilot, CV Studio and chat, generated from a seeded demo workspace."
             }
           ]
         },
@@ -212,6 +218,12 @@
               "file": "dev/testing.md",
               "title": "Testing",
               "description": "pytest and vitest setup, parallel xdist databases, fixtures, the SQLite desktop job and what to mock."
+            },
+            {
+              "id": "visual-tour",
+              "file": "dev/visual-tour.md",
+              "title": "Demo tour captures",
+              "description": "Regenerating the README GIF, screenshot gallery and tour manifest from a seeded demo instance."
             }
           ]
         },

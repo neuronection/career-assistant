@@ -17,9 +17,31 @@ function loadPersistedChatMode(): ChatMode {
   return localStorage.getItem(CHAT_MODE_KEY) === "bubble" ? "bubble" : "docked";
 }
 
+/** True only when the user actually picked a surface (the switcher, the
+ *  dock's close, an "Ask AI" gesture) — never for the implicit default. */
+function chatModeWasChosen(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  const raw = localStorage.getItem(CHAT_MODE_KEY);
+  return raw === "bubble" || raw === "docked";
+}
+
 function persistChatMode(mode: ChatMode) {
   if (typeof localStorage === "undefined") return;
   localStorage.setItem(CHAT_MODE_KEY, mode);
+}
+
+/** Effective surface for a route. CV Studio pages are workspaces first:
+ *  without an explicit user choice the sidepanel chatbot stays closed
+ *  there and the floating launcher stands in — a chosen mode (switcher,
+ *  dock close, "Ask AI") always wins. */
+export function effectiveChatMode(
+  state: { chatMode: ChatMode; chatModeChosen: boolean },
+  pathname: string,
+): ChatMode {
+  if (state.chatMode === "docked" && !state.chatModeChosen && pathname.startsWith("/cv")) {
+    return "bubble";
+  }
+  return state.chatMode;
 }
 
 interface ChatState {
@@ -30,6 +52,9 @@ interface ChatState {
    * side column ( review — one chatbot, three shapes: bubble,
    *  docked, page). The page stays route-based (/chat). */
   chatMode: ChatMode;
+  /** Whether the user explicitly chose the surface. Unchosen keeps the
+   *  workspace defaults (CV Studio opens without the sidepanel chatbot). */
+  chatModeChosen: boolean;
   /** Whether the bubble panel is expanded — transient, never persisted.
    *  Store-owned so the /chat page can close the floating window and
    *  take over its active conversation (one open surface at a time). */
@@ -76,6 +101,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeSessionId: null,
   messages: [],
   chatMode: loadPersistedChatMode(),
+  chatModeChosen: chatModeWasChosen(),
   bubbleOpen: false,
   pinnedAsks: {},
   pendingCvAttach: null,
@@ -189,7 +215,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setChatMode: (mode) => {
     persistChatMode(mode);
-    set({ chatMode: mode });
+    set({ chatMode: mode, chatModeChosen: true });
   },
 
   setBubbleOpen: (open) => {
@@ -205,13 +231,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   reset: () => {
-    persistChatMode("docked");
+    // Keep the persisted surface preference: reset clears data, not UI
+    // choices — and never FORGES a choice (that flipped unchosen defaults
+    // to "explicitly docked" after every logout).
     set({
       sessions: [],
       activeSessionId: null,
       messages: [],
       pinnedAsks: {},
-      chatMode: "docked",
+      chatMode: loadPersistedChatMode(),
+      chatModeChosen: chatModeWasChosen(),
       bubbleOpen: false,
       pendingCvAttach: null,
       attachments: [],
