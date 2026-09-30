@@ -109,7 +109,7 @@ if [[ "$WEB" = true ]]; then
   # is deterministic regardless of what .env pins. Keeps the historical
   # LAN binding (device testing); the identity is server + authenticated.
   export CAREER_IDENTITY_MODE=server
-  : "${DATABASE_URL:=postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career}"
+  : "${DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career}"
   export DATABASE_URL
   export CA_DEV_HOST="${CA_DEV_HOST:-0.0.0.0}" CA_VITE_HOST="${CA_VITE_HOST:-0.0.0.0}"
   dc_info "web mode     → identity: server, database: postgres @127.0.0.1:$DB_PORT, bind: $CA_DEV_HOST"

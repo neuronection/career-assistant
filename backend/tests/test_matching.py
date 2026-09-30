@@ -397,3 +397,60 @@ async def test_upsert_insight_survives_raced_insert(
     refreshed = await service._upsert_insight(user.id, job, result)
     assert refreshed.ai_score == 7.0
     assert str(refreshed.id)
+
+
+async def test_upsert_fit_survives_raced_insert(
+    db, auth_headers, profile_ready, seeded_catalog
+):
+    """`FitService.upsert_fit` is the path every workspace-load surface takes
+    through `backfilled_insights` (dashboard rankings, feed, candidates): the
+    read misses while the row already exists, the conflict-safe insert lets
+    the DB referee `uq_match_user_job`, and the service adopts the winner
+    instead of 500ing the request. This is the `backfilled_insights` twin of
+    `test_upsert_insight_survives_raced_insert` — the fit backfill used a
+    plain read-then-insert while `_insert_if_absent` did not."""
+    from sqlalchemy import select
+
+    from app.models.job_model import Job
+    from app.models.matching_model import MatchInsight
+    from app.models.user_model import User
+    from app.services.fit.dimensions import FitResult
+    from app.services.fit.service import FitService
+    from app.services.job_service import JOB_LOAD_OPTIONS
+
+    user = (
+        (await db.execute(select(User).where(User.email == "student@example.com")))
+        .scalars()
+        .one()
+    )
+    job = (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS))).scalars().first()
+
+    # The DB-side winner the racing insert collides with.
+    winner = MatchInsight(user_id=user.id, job_id=job.id)
+    db.add(winner)
+    await db.flush()
+
+    service = FitService(db)
+
+    # The race: the read runs BEFORE the other task's insert commits, so it
+    # misses while the row is already there. The recovery re-read adopts it.
+    read_calls = {"n": 0}
+    real_get = service._get_insight
+
+    async def raced_get(user_id, job_id):
+        if read_calls["n"] == 0:
+            read_calls["n"] += 1
+            return None
+        return await real_get(user_id, job_id)
+
+    service._get_insight = raced_get
+
+    fit = await service.upsert_fit(
+        user.id,
+        job,
+        FitResult(score=6.5, breakdown={"skills": {"score": 6.0}}, gates=[]),
+        commit=False,
+    )
+    assert fit.id == winner.id
+    assert float(fit.fit_score) == 6.5
+    assert read_calls["n"] == 1

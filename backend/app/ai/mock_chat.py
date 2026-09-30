@@ -382,13 +382,20 @@ def _demo_role_fit(_message: str) -> dict:
             "Open a role to see the fit breakdown, skill gaps and university "
             "paths — or ask me to draft CV bullets for the strongest match."
         ),
-        "referenced_job_codes": ["data-scientist", "financial-analyst", "software-developer"],
+        "referenced_job_codes": [
+            "data-scientist",
+            "financial-analyst",
+            "software-developer",
+        ],
         "referenced_posting_refs": [],
     }
 
 
 DEMO_SCRIPTS = (
-    (("which roles", "roles fit", "fit me", "fit my profile", "catalog jobs fit"), _demo_role_fit),
+    (
+        ("which roles", "roles fit", "fit me", "fit my profile", "catalog jobs fit"),
+        _demo_role_fit,
+    ),
 )
 
 

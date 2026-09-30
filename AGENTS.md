@@ -77,17 +77,17 @@ cd frontend && npm run build && npm run test -- --run
 
 Parallel tests (pytest-xdist): `PYTEST_XDIST_WORKERS=N` overrides the
 worker count, `PYTEST_XDIST=0` opts out. Each xdist worker gets its OWN
-database — `career_test_gw0`… (created + migrated automatically by
+database — `neuronection_career_test_gw0`… (created + migrated automatically by
 `tests/xdist_routing.py` before the app engines exist), so never hand-run
 migrations for a `-n` run. SQLite workers write isolated files under
 `backend/tests/_xdist/<worker>/` (gitignored); the CI SQLite (desktop
 profile) job stays serial on one file by design. Serial runs keep plain
-`career_test` and need their one-shot `alembic upgrade head` as before.
+`neuronection_career_test` and need their one-shot `alembic upgrade head` as before.
 
 Migrations: alembic revision ids are plain sequential (`0001`…; file
 names add a slug). `env.py` reads `settings.DATABASE_URL`, so applying
 to the test DB needs an explicit override:
-`DATABASE_URL="postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_test" ./venv/bin/alembic upgrade head`
+`DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" ./venv/bin/alembic upgrade head`
 (an `upgrade head` on an already-migrated DB is a silent no-op — after
 regenerating a baseline, drop+recreate instead).
 

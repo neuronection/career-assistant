@@ -59,7 +59,7 @@ existing installs refresh via `./scripts/update-docker.sh`.
 | `CAREER_AUTH_LOCKOUT_THRESHOLD` / `CAREER_AUTH_LOCKOUT_MINUTES` | no | `5` / `15` | Login brute-force lockout (§7). |
 | `CAREER_RATELIMIT_AUTH` / `_AUTH_EMAIL` / `_AI` / `_MCP` / `_DEFAULT` | no | `10` / `30` / `30` / `120` / `240` | Per-bucket rate ceilings, requests/minute (`0` disables a bucket). |
 | `POSTGRES_PASSWORD` | yes | — | Password for the bundled Postgres. |
-| `POSTGRES_DB` / `POSTGRES_USER` | no | `career` | Database name/user. |
+| `POSTGRES_DB` / `POSTGRES_USER` | no | `neuronection_career` / `neuronection_career_owner` | Database name/user (ADR-0022 naming). |
 | `API_PORT` | no | `8100` | Host port the app publishes on. |
 | `MAX_UPLOAD_MB` | no | `25` | University PDF upload cap. |
 | `CORS_ORIGINS` | no | *(empty)* | Only needed if you serve the SPA from a different origin than the API. |
@@ -96,6 +96,12 @@ The container runs `alembic upgrade head` on start, so schema migrations
 apply automatically. Pre-1.0 there is **no downgrade path** — pin a version
 tag if you need reproducibility.
 
+`./scripts/update-docker.sh` also runs the one-time ADR-0022 datastore
+rename (`career_*` / `neuro_career_*` → `neuronection_*`) before the stack
+boots — no manual step for an existing install; see
+[docker/README.md](../../docker/README.md) → "Renaming …" for the guards
+and the manual recipes.
+
 When upgrading from a pre-P3d release, set the three `CAREER_*_KEY`
 secrets in `docker/.env` **before** the first start (see the
 configuration reference) and re-enter your AI provider keys once in
@@ -111,7 +117,7 @@ Two things hold state: the Postgres volume (`db_data`) and the uploads volume
 ```bash
 # Database (logical dump)
 docker compose -f docker/docker-compose.prod.yml exec db \
-  pg_dump -U career -Fc career > backup-$(date +%F).dump
+  pg_dump -U neuronection_career_owner -Fc neuronection_career > backup-$(date +%F).dump
 
 # Uploaded documents (PDFs)
 docker run --rm -v career-assistant_uploads_data:/data -v "$PWD":/out alpine \
@@ -119,7 +125,7 @@ docker run --rm -v career-assistant_uploads_data:/data -v "$PWD":/out alpine \
 
 # Restore
 docker compose -f docker/docker-compose.prod.yml exec -T db \
-  pg_restore -U career -d career --clean < backup-YYYY-MM-DD.dump
+  pg_restore -U neuronection_career_owner -d neuronection_career --clean < backup-YYYY-MM-DD.dump
 ```
 
 Schedule both (cron) and keep copies off-machine. (A built-in backup/export
@@ -162,7 +168,7 @@ cd frontend && npm ci && npm run build && cd ..
 cd backend
 python -m venv venv && ./venv/bin/pip install -r requirements.txt
 export APP_ENV=production
-export DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/career
+export DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/neuronection_career
 export CAREER_SESSION_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export CAREER_REFRESH_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export CAREER_DATA_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"

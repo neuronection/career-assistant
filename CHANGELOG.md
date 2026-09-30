@@ -20,6 +20,20 @@ All notable changes to **Career Assistant** are documented here.
   `docs/dev/visual-tour.md`.
 
 ### Fixed
+- **Concurrent workspace-load surfaces no longer 500 on
+  `uq_match_user_job`:** `FitService.upsert_fit` — the `backfilled_insights`
+  path behind the dashboard rankings, feed and match candidates — still
+  used a plain read-then-insert even though
+  `MatchingService._insert_if_absent` had adopted
+  `INSERT … ON CONFLICT DO NOTHING` for the same table. On a first load
+  with no insights yet (fresh install, re-seed), several requests fired in
+  the same second each computed the same user×job: the first to commit won
+  and the rest died with `UniqueViolationError` → 500. The fit backfill now
+  shares that conflict-safe helper (`fit.service.insert_insight_if_absent`),
+  which also replaces the identical read-then-insert in
+  `EngagementService._lazy_insight` (feed impressions racing the backfill).
+  The DB referees the conflict and the loser adopts the winner's row;
+  regression tests pin the raced read on both paths.
 - **CV card thumbnails could never load:** `preview.png` required the
   `X-Profile-Id` header, which plain `<img>` tags cannot send — the CV
   Studio cards always degraded to the empty placeholder. Header-less
@@ -27,6 +41,42 @@ All notable changes to **Career Assistant** are documented here.
   handler) are now exempt from the profile bind.
 
 ### Changed
+- **Family datastore naming amended (ADR-0022 revision): `career` →
+  `neuronection_career`.** The family prefix was spelled out
+  (`neuro_` → `neuronection_`), and career's pre-ADR `POSTGRES_DB=career`
+  drift folds into that same pattern: database `neuronection_career`
+  (+ `neuronection_career_test[_gwN]`, `neuronection_career_e2e`,
+  `neuronection_career_demo`) with bootstrap role
+  `neuronection_career_owner` — career keeps its single-role layout (that
+  role runs migrations *and* serves runtime DML; there is no separate
+  least-privilege `_app` role yet). Family law (ADR-0022 clause 5 +
+  `guidelines/deployment.md`) was amended first; career adopts it here —
+  compose defaults, healthchecks and `DATABASE_URL` role embeds,
+  `init-test-db.sh`, backup/restore/reset scripts, dev + e2e helpers, the
+  CI postgres services and the smoke/e2e jobs (also dragged out of the
+  ancient `career_test` / `career` era), `.env.example`,
+  `backend/.env.test`, `config.py`, the seeder's demo-guard messages,
+  SECURITY and docs. **Existing installs migrate automatically**:
+  `run-docker.sh` / `update-docker.sh` run `migrate_legacy_db_names()`
+  (`scripts/lib-docker.sh`) before the stack boots — guarded one-time
+  `ALTER DATABASE` / `ALTER ROLE` (PostgreSQL cannot rename the session's
+  own user, so the owner role is renamed through a throwaway
+  `ca_db_migrator` superuser) — and it is a complete no-op on fresh or
+  already-renamed stacks. Dev databases reset via
+  `./scripts/reset-test-db.sh` or `down -v`; the demo database is renamed
+  by hand or re-seeded (recipes in `docker/README.md` → "Renaming
+  `career_*` / `neuro_career_*` → `neuronection_*`").
+- **Compose stacks pin the family project name (`name:`) — deterministic
+  volume/network prefixes:** `docker-compose.dev-db.yml` now declares
+  `name: career-assistant-dev` instead of the drifted `career`, so dev
+  volumes and networks live under `career-assistant-dev_*` exactly like
+  health's and study's dev stacks (prod/standalone/demo already pinned
+  `career-assistant` / `career-assistant-demo`). `COMPOSE_PROJECT_NAME`
+  (set by `scripts/worktree.sh`) still overrides the pinned name, so
+  concurrent worktree checkouts stay fully isolated. Existing dev volumes
+  adopt through the one-shot copy in `docker/README.md` → "Compose project
+  name & volumes" (Docker has no `volume rename`); this checkout's were
+  migrated in place.
 - **Beta pages removed from the demo tour (for now):** Autopilot, Postings
   (and posting detail), Interviews and Growth are hidden behind dev mode
   while in beta — their tour scenes are kept commented out in

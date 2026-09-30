@@ -5,7 +5,7 @@ which happens BEFORE ``tests.conftest`` (and therefore before the app's
 engines are created) — env-var routes reach ``app.core.config.settings``
 on first import.
 
-Why: concurrently running workers against the one ``career_test`` database
+Why: concurrently running workers against the one ``neuronection_career_test`` database
 only reached ~2x throughput on 16 cores. Every SINGLE_USER_MODE test
 lazily inserts the same default user inside its open transaction, and
 Postgres serializes whole tests behind the lock waits on that unique key.

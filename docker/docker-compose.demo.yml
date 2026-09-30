@@ -1,8 +1,8 @@
 # Career Assistant — DEMO flavor: isolated, egress-blocked stack with
 # synthetic-only data (identity-auth §13 / deployment.md). NEVER production.
 #
-# The real app on a demo instance: PostgreSQL 16 database `neuro_career_demo`
-# (naming law: `neuro_<product>_demo`), the SPA badged "Demo — synthetic
+# The real app on a demo instance: PostgreSQL 16 database `neuronection_career_demo`
+# (naming law: `neuronection_<product>_demo`), the SPA badged "Demo — synthetic
 # data" (the banner reads the public /api/v1/instance/config), the
 # credential-free `demo` principal enabled, registration disabled. Demo data
 # is seeded ONLY by the one-shot `demo-seed` service running
@@ -43,13 +43,13 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: neuro_career_demo
-      POSTGRES_USER: neuro_career
+      POSTGRES_DB: neuronection_career_demo
+      POSTGRES_USER: neuronection_career_owner
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for the demo stack (docker/.env or the shell)}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U neuro_career -d neuro_career_demo"]
+      test: ["CMD-SHELL", "pg_isready -U neuronection_career_owner -d neuronection_career_demo"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -77,9 +77,9 @@ services:
       APP_ENV: demo
       CAREER_DEMO_MODE: "true"
       CAREER_REGISTRATION_ENABLED: "false"
-      # ADR-0022: the demo database is neuro_<product>_demo — never a
+      # ADR-0022: the demo database is neuronection_<product>_demo — never a
       # production database.
-      DATABASE_URL: postgresql+asyncpg://neuro_career:${POSTGRES_PASSWORD}@db:5432/neuro_career_demo
+      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
       # auth_keys.json (identity-auth §8) + desktop checkpoints persist here.
       DATA_DIR: /data
       UPLOAD_DIR: /data/uploads
@@ -105,7 +105,7 @@ services:
     # One-shot synthetic seeding (belt-and-suspenders: the app does NOT
     # auto-seed). scripts/seed-demo.py is bind-mounted because the image
     # ships only the backend — the script's guard rails accept exactly this
-    # target: database `neuro_career_demo` on a demo_mode=true instance
+    # target: database `neuronection_career_demo` on a demo_mode=true instance
     # (the app initialized it from CAREER_DEMO_MODE=true at boot), or
     # `--init-demo` on an empty demo database.
     image: ${CAREER_IMAGE:-career-assistant:local}
@@ -114,7 +114,7 @@ services:
       app:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://neuro_career:${POSTGRES_PASSWORD}@db:5432/neuro_career_demo
+      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
       DATA_DIR: /data
     volumes:
       - ../scripts/seed-demo.py:/app/scripts/seed-demo.py:ro
@@ -139,7 +139,7 @@ services:
       demo-seed:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql+asyncpg://neuro_career:${POSTGRES_PASSWORD}@db:5432/neuro_career_demo
+      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
       DATA_DIR: /data
     volumes:
       - ../scripts/seed-demo.py:/app/scripts/seed-demo.py:ro

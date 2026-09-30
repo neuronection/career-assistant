@@ -16,19 +16,19 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: career_test
-          POSTGRES_USER: career
+          POSTGRES_DB: neuronection_career_test
+          POSTGRES_USER: neuronection_career_owner
           POSTGRES_PASSWORD: career_dev_pw
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U career -d career_test"
+          --health-cmd "pg_isready -U neuronection_career_owner -d neuronection_career_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
       APP_ENV: test
-      DATABASE_URL: postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_test
+      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
@@ -67,7 +67,7 @@ jobs:
         working-directory: backend
     env:
       APP_ENV: test
-      DATABASE_URL: sqlite+aiosqlite:///./career_test.db
+      DATABASE_URL: sqlite+aiosqlite:///./neuronection_career_test.db
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
@@ -212,10 +212,10 @@ jobs:
         run: |
           docker network create smoke >/dev/null
           docker run -d --name pg --network smoke \
-            -e POSTGRES_DB=career -e POSTGRES_USER=career -e POSTGRES_PASSWORD=smoke \
+            -e POSTGRES_DB=neuronection_career -e POSTGRES_USER=neuronection_career_owner -e POSTGRES_PASSWORD=smoke \
             postgres:16-alpine >/dev/null
           docker run -d --name app --network smoke -p 8100:8100 \
-            -e DATABASE_URL=postgresql+asyncpg://career:smoke@pg:5432/career \
+            -e DATABASE_URL=postgresql+asyncpg://neuronection_career_owner:smoke@pg:5432/neuronection_career \
             -e CAREER_SESSION_KEY=smoke-session-key-0123456789abcdefghijklmnop             -e CAREER_REFRESH_KEY=smoke-refresh-key-0123456789abcdefghijklmnop             -e CAREER_DATA_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY \
             career-assistant:ci >/dev/null
           for i in $(seq 1 30); do
@@ -233,19 +233,19 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: career_e2e
-          POSTGRES_USER: career
+          POSTGRES_DB: neuronection_career_e2e
+          POSTGRES_USER: neuronection_career_owner
           POSTGRES_PASSWORD: career_dev_pw
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U career -d career_e2e"
+          --health-cmd "pg_isready -U neuronection_career_owner -d neuronection_career_e2e"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
       APP_ENV: test
-      DATABASE_URL: postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_e2e
+      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_e2e
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY

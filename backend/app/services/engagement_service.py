@@ -24,6 +24,7 @@ from app.models.engagement_model import (
 from app.models.enums import NotificationRuleKind, SearchScope
 from app.models.job_model import Job, JobFamily
 from app.models.matching_model import MatchInsight
+from app.services.fit.service import insert_insight_if_absent
 from app.services.job_service import JobService
 from app.services.notification_service import NotificationService
 
@@ -284,17 +285,22 @@ class EngagementService:
         _, unseen = await self.feed_items(profile, backfill=False)
         return unseen
 
-    async def _lazy_insight(self, user_id: UUID, job_id: UUID) -> MatchInsight:
+    async def _select_insight(self, user_id: UUID, job_id: UUID) -> MatchInsight | None:
         rows = await self.db.execute(
             select(MatchInsight).where(
                 MatchInsight.user_id == user_id, MatchInsight.job_id == job_id
             )
         )
-        insight = rows.scalars().first()
+        return rows.scalars().first()
+
+    async def _lazy_insight(self, user_id: UUID, job_id: UUID) -> MatchInsight:
+        insight = await self._select_insight(user_id, job_id)
         if insight is None:
-            insight = MatchInsight(user_id=user_id, job_id=job_id)
-            self.db.add(insight)
-            await self.db.flush()
+            # Race-safe (`uq_match_user_job` referees): a feed impression can
+            # land while the load-time fit backfill creates the same row, so
+            # the loser adopts the DB-side winner instead of 500ing.
+            await insert_insight_if_absent(self.db, user_id, job_id)
+            insight = await self._select_insight(user_id, job_id)
         return insight
 
     async def mark_seen(self, user_id: UUID, job_ids: list[UUID]) -> int:

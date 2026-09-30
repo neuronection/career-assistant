@@ -24,13 +24,16 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-career}
-      POSTGRES_USER: ${POSTGRES_USER:-career}
+      # ADR-0022 (amended): the bootstrap role is `neuronection_career_owner`
+      # — career keeps its single-role layout (this role runs migrations AND
+      # serves runtime DML); there is no separate least-privilege `_app` role.
+      POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
+      POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-career} -d ${POSTGRES_DB:-career}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-neuronection_career_owner} -d ${POSTGRES_DB:-neuronection_career}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -54,7 +57,7 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-career}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-career}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-neuronection_career}
       # Per-purpose key family (identity-auth §8) — generate each with:
       #   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
       CAREER_SESSION_KEY: ${CAREER_SESSION_KEY:?Set CAREER_SESSION_KEY in docker/.env}
@@ -92,8 +95,8 @@ services:
         condition: service_healthy
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-career}
-      POSTGRES_USER: ${POSTGRES_USER:-career}
+      POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
+      POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
     volumes:

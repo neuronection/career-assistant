@@ -73,7 +73,7 @@ same commit as your change.
 ## Repository layout
 
 ```
-backend/    FastAPI app (app/), alembic/, tests/ (pytest, uses career_test DB)
+backend/    FastAPI app (app/), alembic/, tests/ (pytest, uses neuronection_career_test DB)
 frontend/   React 18 + Vite + TypeScript SPA (src/)
 docker/     compose taxonomy: dev-db, prod, standalone (nginx); Dockerfile; nginx confs
 packaging/  PyInstaller spec + deb/AppImage build scripts (Windows exe via CI)

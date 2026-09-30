@@ -17,8 +17,8 @@ if [[ -f "$ROOT/docker/.env" ]]; then
   set +a
 fi
 
-POSTGRES_DB="${POSTGRES_DB:-career}"
-POSTGRES_USER="${POSTGRES_USER:-career}"
+POSTGRES_DB="${POSTGRES_DB:-neuronection_career}"
+POSTGRES_USER="${POSTGRES_USER:-neuronection_career_owner}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD (env or docker/.env)}"
 COMPOSE="docker compose -f $ROOT/docker/docker-compose.prod.yml"
 

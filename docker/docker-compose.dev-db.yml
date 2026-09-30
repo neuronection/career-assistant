@@ -1,4 +1,10 @@
-name: career
+# Explicit project name (family standard, same as health/study dev-db): the
+# `career-assistant-dev_*` volume/network prefix no longer depends on the
+# directory `docker compose` is invoked from, and stays distinct from the
+# all-in-one `career-assistant` stacks. COMPOSE_PROJECT_NAME (scripts/
+# worktree.sh) still overrides it per worktree — see docker/README.md →
+# "Compose project name & volumes" for adopting the legacy `career_*` volumes.
+name: career-assistant-dev
 
 # Container names and ports are env-overridable so concurrent git-worktree
 # sessions can each run their own isolated project (scripts/worktree.sh sets
@@ -10,17 +16,23 @@ services:
     container_name: ${POSTGRES_CONTAINER:-career-postgres}
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-career}
-      POSTGRES_USER: ${POSTGRES_USER:-career}
+      # ADR-0022 (amended 2026-09-30): database `neuronection_career`,
+      # bootstrap role `neuronection_career_owner`, companion test database
+      # `neuronection_career_test`. An existing volume keeps the legacy
+      # `career*` names after first boot — rename them in place with
+      # `migrate_legacy_db_names`, or wipe the stack (`down -v`, dev DBs
+      # are disposable); see docker/README.md → "Renaming …".
+      POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
+      POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-career_dev_pw}
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_TEST_DB:-career_test}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_TEST_DB:-neuronection_career_test}
     volumes:
       - career_postgres_data:/var/lib/postgresql/data
       - ./init-test-db.sh:/docker-entrypoint-initdb.d/01-init-test-db.sh:ro
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-career} -d ${POSTGRES_DB:-career}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-neuronection_career_owner} -d ${POSTGRES_DB:-neuronection_career}"]
       interval: 10s
       timeout: 5s
       retries: 5

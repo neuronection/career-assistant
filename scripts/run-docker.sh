@@ -32,6 +32,10 @@ check_cwd
 check_docker
 require_env
 
+# One-time ADR-0022 DB/role rename (career_* → neuronection_*), before the
+# stack boots against the new names. No-op on fresh installs.
+migrate_legacy_db_names
+
 echo -e "${GREEN}Building and launching the Career Assistant stack...${NC}"
 run_compose up --build -d
 

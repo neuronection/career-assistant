@@ -61,7 +61,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3100,http://127.0.0.1:3100"
 
     DATABASE_URL: str = (
-        "postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career"
+        "postgresql+asyncpg://neuronection_career_owner:career_dev_pw"
+        "@127.0.0.1:5433/neuronection_career"
     )
     REDIS_URL: str = "redis://127.0.0.1:6380/0"
 

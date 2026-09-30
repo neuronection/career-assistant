@@ -52,6 +52,11 @@ echo -e "${GREEN}Refreshing images and restarting the stack...${NC}"
 if [ -n "${CAREER_IMAGE:-}" ]; then
     run_compose pull
 fi
+
+# One-time ADR-0022 DB/role rename (career_* → neuronection_*), before the
+# stack boots against the new names. No-op on fresh installs.
+migrate_legacy_db_names
+
 run_compose up --build -d
 
 if [ "$NO_WAIT" -eq 0 ]; then

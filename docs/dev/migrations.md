@@ -82,7 +82,7 @@ test database needs an explicit URL override because `env.py` reads
 
 ```bash
 cd backend
-DATABASE_URL="postgresql+asyncpg://career:career_dev_pw@127.0.0.1:5433/career_test" \
+DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" \
   ./venv/bin/alembic upgrade head
 ```
 
@@ -90,9 +90,9 @@ An `upgrade head` on an already-migrated database is a silent no-op — after
 regenerating a baseline, **drop and recreate** instead.
 
 - **Parallel test runs:** never hand-run migrations. Each xdist worker gets
-  its own database (`career_test_gw0`…) created and migrated automatically by
+  its own database (`neuronection_career_test_gw0`…) created and migrated automatically by
   `tests/xdist_routing.py` before the app engines exist.
-- **Serial runs** use `career_test` and need the one-shot `alembic upgrade
+- **Serial runs** use `neuronection_career_test` and need the one-shot `alembic upgrade
   head` above.
 - The container runs `alembic upgrade head` on start (see
   [deployment.md](deployment.md)).

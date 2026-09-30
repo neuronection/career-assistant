@@ -121,7 +121,7 @@ def named_counts(counts: dict[str, int]) -> dict[str, int]:
 
 def test_seeder_refuses_non_demo_targets(tmp_path: Path) -> None:
     postgres = run_seeder(
-        "--database-url", "postgresql+psycopg://u:p@localhost:5432/neuro_career"
+        "--database-url", "postgresql+psycopg://u:p@localhost:5432/neuronection_career"
     )
     assert postgres.returncode != 0
     assert postgres.returncode == 2

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Reset the career_test database.
+# Reset the neuronection_career_test database.
 #
 # The full backend suite fails with confusing ghost errors when the
-# shared career_test DB holds committed rows from an earlier run
-# (e.g. `relation "users" does not exist` on an empty DB, or seed/state
+# shared neuronection_career_test DB holds committed rows from an earlier
+# run (e.g. `relation "users" does not exist` on an empty DB, or seed/state
 # mismatches). This script is the documented recovery: terminate
 # connections, drop + recreate, re-apply migrations.
 #
@@ -13,10 +13,10 @@
 set -euo pipefail
 
 CONTAINER="${CAREER_PG_CONTAINER:-career-postgres}"
-PG_USER="${CAREER_PG_USER:-career}"
+PG_USER="${CAREER_PG_USER:-neuronection_career_owner}"
 PG_PASSWORD="${CAREER_PG_PASSWORD:-career_dev_pw}"
 PORT="${CAREER_PG_PORT:-5433}"
-DB="career_test"
+DB="neuronection_career_test"
 MIGRATE=0
 [[ "${1:-}" == "--migrate" ]] && MIGRATE=1
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

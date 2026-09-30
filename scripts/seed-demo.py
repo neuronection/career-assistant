@@ -3,11 +3,11 @@
 
 Demo data (synthetic user content) may only be seeded by this explicit
 script, only on a `demo_mode=true` instance, only into the demo database
-(`neuro_career_demo`) / an isolated demo data dir (identity-auth §13,
+(`neuronection_career_demo`) / an isolated demo data dir (identity-auth §13,
 deployment.md). **The seeder refuses anything else** — loudly, non-zero:
 
 * target guard: a PostgreSQL target must be a database named `*_demo`
-  (deployment.md: `neuro_career_demo`); a SQLite target must sit inside an
+  (deployment.md: `neuronection_career_demo`); a SQLite target must sit inside an
   explicitly named `--demo-dir` (the isolated demo data dir). Anything
   else is refused before the database is touched.
 * schema guard: a target without the schema needs `--init-demo` — the
@@ -27,7 +27,7 @@ never removed by `--reset`.
 Usage (interpreter with the app's dependencies, e.g. `backend/venv/bin/python`):
 
     # PostgreSQL demo database (the docker demo flavor):
-    DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuro_career_demo \\
+    DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuronection_career_demo \\
         python scripts/seed-demo.py
 
     # Isolated demo data dir (SQLite), first run on an empty database:
@@ -1092,7 +1092,7 @@ def ensure_demo_target(url: str, demo_dir: Path | None) -> Target:
         if not name.endswith("_demo"):
             raise Refusal(
                 f"target database {name!r} is not a demo database — expected a "
-                "name ending '_demo' (deployment.md: neuro_career_demo); refusing "
+                "name ending '_demo' (deployment.md: neuronection_career_demo); refusing "
                 "(identity-auth §13)."
             )
         return Target(url=url, demo_dir=demo_dir)

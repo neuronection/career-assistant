@@ -25,7 +25,7 @@
 #
 # Inside a worktree, the ordinary scripts are worktree-aware:
 #   ./scripts/run-dev.sh      # serves :<backend-port> / :<frontend-port>
-#   ./scripts/run-tests.sh    # pytest against the worktree's career_test
+#   ./scripts/run-tests.sh    # pytest against the worktree's neuronection_career_test
 #   ./scripts/reset-test-db.sh
 #   ./scripts/run-e2e.sh
 set -euo pipefail
@@ -188,8 +188,8 @@ cmd_create() {
   git worktree add "$dir" -b "$branch" ${from:+"$from"} \
     || wt_die "git worktree add failed"
 
-  local db_url="postgresql+asyncpg://career:career_dev_pw@127.0.0.1:${db_port}/career"
-  local db_url_test="postgresql+asyncpg://career:career_dev_pw@127.0.0.1:${db_port}/career_test"
+  local db_url="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:${db_port}/neuronection_career"
+  local db_url_test="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:${db_port}/neuronection_career_test"
 
   dc_step "writing per-worktree env files"
   cat > "$dir/.env.wt.local" <<EOF
@@ -220,7 +220,7 @@ EOF
 
   wt_copy_local_config "$dir"
   wt_bootstrap "$dir"
-  POSTGRES_PORT="$db_port" POSTGRES_TEST_DB=career_test \
+  POSTGRES_PORT="$db_port" POSTGRES_TEST_DB=neuronection_career_test \
     POSTGRES_CONTAINER="$project-postgres" REDIS_CONTAINER="$project-redis" \
     COMPOSE_PROJECT_NAME="$project" wt_start_db "$dir"
   DATABASE_URL_TEST="$db_url_test" wt_migrate_test_db "$dir"
@@ -229,7 +229,7 @@ EOF
   wt_summary "$(wt_env_file "$dir")"
   dc_info "Start it:"
   dc_info "  cd $dir && ./scripts/run-dev.sh"
-  dc_info "Run tests inside it (isolated career_test on :$db_port):"
+  dc_info "Run tests inside it (isolated neuronection_career_test on :$db_port):"
   dc_info "  cd $dir && ./scripts/run-tests.sh"
   dc_info "Open a separate agent session:"
   dc_info "  cd $dir && opencode"

@@ -176,6 +176,41 @@ async def test_seen_batching_creates_lazy_insight_rows(
     assert all(r.fit_score is None for r in rows)
 
 
+async def test_lazy_insight_survives_raced_insert(
+    client, auth_headers, profile_ready, seeded_catalog, db
+):
+    """A feed impression can land while the load-time fit backfill creates
+    the same insight row: the conflict-safe insert lets `uq_match_user_job`
+    referee and `_lazy_insight` adopts the DB-side winner instead of 500ing
+    (the impression-side twin of the `upsert_fit` backfill race)."""
+    job_ids, _ = await _job_ids(client, auth_headers)
+    user_id = _user_id(client, auth_headers)
+    job_id = UUID(job_ids[0])
+
+    # The DB-side winner the racing insert collides with.
+    winner = MatchInsight(user_id=user_id, job_id=job_id)
+    db.add(winner)
+    await db.flush()
+
+    service = EngagementService(db)
+
+    # The race: the read runs BEFORE the other task's insert commits.
+    read_calls = {"n": 0}
+    real_select = service._select_insight
+
+    async def raced_select(uid, jid):
+        if read_calls["n"] == 0:
+            read_calls["n"] += 1
+            return None
+        return await real_select(uid, jid)
+
+    service._select_insight = raced_select
+
+    insight = await service._lazy_insight(user_id, job_id)
+    assert insight.id == winner.id
+    assert read_calls["n"] == 1
+
+
 async def test_feed_unseen_first_and_badges(
     client, auth_headers, profile_ready, seeded_catalog
 ):

@@ -13,7 +13,7 @@ other.
 │   ├── app/            # FastAPI: api/, services/, models, ai/, connectors/
 │   ├── alembic/        # migrations (dialect-aware)
 │   ├── careerassistant/  # desktop entrypoint (python -m careerassistant)
-│   ├── tests/          # pytest (async; career_test DB)
+│   ├── tests/          # pytest (async; neuronection_career_test DB)
 │   └── venv/           # dev virtualenv (PEP 668: never system Python)
 ├── frontend/           # React 18 + Vite + TS + Tailwind + Zustand SPA
 ├── docker/             # compose taxonomy + Dockerfile + nginx confs

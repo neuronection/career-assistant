@@ -13,7 +13,7 @@ from app.models.job_model import Job
 from app.models.matching_model import MatchInsight
 from app.models.user_model import Profile
 from app.services.fit.dimensions import FIT_VERSION, compute_fit
-from app.services.fit.service import FitService
+from app.services.fit.service import FitService, insert_insight_if_absent
 from app.services.job_service import JOB_LOAD_OPTIONS, JobService
 from app.services.profile_service import ProfileService
 
@@ -206,23 +206,9 @@ class MatchingService:
         constraint is the referee — every workspace-load surface
         (dashboard candidates, feed, rankings) upserts the same job at
         load time, so a plain read-then-insert 500s one request per
-        page instead. Idempotent on Postgres and SQLite."""
-        from sqlalchemy.dialects import postgresql, sqlite
-
-        dialect = self.db.get_bind().dialect
-        if dialect.name == "sqlite":
-            stmt = (
-                sqlite.insert(MatchInsight)
-                .values(user_id=user_id, job_id=job_id)
-                .on_conflict_do_nothing(index_elements=["user_id", "job_id"])
-            )
-        else:
-            stmt = (
-                postgresql.insert(MatchInsight)
-                .values(user_id=user_id, job_id=job_id)
-                .on_conflict_do_nothing(constraint="uq_match_user_job")
-            )
-        await self.db.execute(stmt)
+        page instead. Idempotent on Postgres and SQLite; shared with the
+        fit backfill (`fit.service.insert_insight_if_absent`)."""
+        await insert_insight_if_absent(self.db, user_id, job_id)
 
     async def _upsert_insight(self, user_id: UUID, job: Job, result) -> MatchInsight:
         """Insert or refresh AI fields on the insight row.

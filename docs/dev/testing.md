@@ -15,7 +15,7 @@ cd backend && ./venv/bin/pytest tests -q -n auto     # parallel (default)
 
 ```
 APP_ENV=test
-DATABASE_URL=...career_test
+DATABASE_URL=...neuronection_career_test
 RATE_LIMIT_ENABLED=false
 SCHEDULER_ENABLED=false
 BCRYPT_ROUNDS=4
@@ -42,7 +42,7 @@ Key points:
 ### Parallel databases (pytest-xdist)
 
 Parallel runs are the default. Each worker gets its **own** database —
-`career_test_gw0`, `career_test_gw1`, … — created and migrated automatically
+`neuronection_career_test_gw0`, `neuronection_career_test_gw1`, … — created and migrated automatically
 by `tests/xdist_routing.py` **before** the app's engines exist. This removes
 cross-worker contention and makes the real-Alembic migration tests safe to
 distribute.
@@ -52,7 +52,7 @@ distribute.
   `backend/tests/_xdist/<worker>/` (gitignored). The CI SQLite job stays
   **serial** on one file by design.
 - `PYTEST_XDIST_WORKERS=N` overrides the worker count; `PYTEST_XDIST=0` opts
-  out and uses the plain `career_test` database (which needs its one-shot
+  out and uses the plain `neuronection_career_test` database (which needs its one-shot
   `alembic upgrade head`).
 
 ```bash

@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.matching_model import MatchInsight
@@ -19,6 +20,35 @@ from app.services.job_service import JobService
 from app.services.profile_entities_service import effective_education_level
 
 WORK_STYLE_SLIDERS = ("teamwork", "environment", "structure", "pace", "leadership")
+
+
+async def insert_insight_if_absent(
+    db: AsyncSession, user_id: UUID, job_id: UUID
+) -> None:
+    """Insert the bare user×job insight row, letting the DB referee races.
+
+    Every workspace-load surface (dashboard candidates, feed, rankings,
+    impressions) creates the same user×job insight at load time, so a
+    plain read-then-insert 500s one request per page: the DB-side unique
+    constraint `uq_match_user_job` picks the winner and the loser
+    re-reads it. Idempotent on Postgres and SQLite.
+    """
+    from sqlalchemy.dialects import postgresql, sqlite
+
+    dialect = db.get_bind().dialect
+    if dialect.name == "sqlite":
+        stmt = (
+            sqlite.insert(MatchInsight)
+            .values(user_id=user_id, job_id=job_id)
+            .on_conflict_do_nothing(index_elements=["user_id", "job_id"])
+        )
+    else:
+        stmt = (
+            postgresql.insert(MatchInsight)
+            .values(user_id=user_id, job_id=job_id)
+            .on_conflict_do_nothing(constraint="uq_match_user_job")
+        )
+    await db.execute(stmt)
 
 
 def _number_or_none(value) -> float | None:
@@ -210,19 +240,32 @@ class FitService:
             weights=await self.scoring_weights(profile),
         )
 
+    async def _get_insight(self, user_id: UUID, job_id: UUID) -> MatchInsight | None:
+        rows = await self.db.execute(
+            select(MatchInsight).where(
+                MatchInsight.user_id == user_id, MatchInsight.job_id == job_id
+            )
+        )
+        return rows.scalars().first()
+
     async def upsert_fit(
         self, user_id: UUID, job, result: FitResult, *, commit: bool = True
     ) -> MatchInsight:
-        """Store fit fields on the user×job insight (fit-only upsert)."""
-        rows = await self.db.execute(
-            select(MatchInsight).where(
-                MatchInsight.user_id == user_id, MatchInsight.job_id == job.id
-            )
-        )
-        insight = rows.scalars().first()
+        """Store fit fields on the user×job insight (fit-only upsert).
+
+        The insert is conflict-safe (`insert_insight_if_absent`): a plain
+        read-then-insert 500s one request per page when the dashboard's
+        concurrent load surfaces backfill the same user×job — the DB
+        constraint referees and the loser adopts the winner's row.
+        """
+        insight = await self._get_insight(user_id, job.id)
         if insight is None:
-            insight = MatchInsight(user_id=user_id, job_id=job.id)
-            self.db.add(insight)
+            await insert_insight_if_absent(self.db, user_id, job.id)
+            insight = await self._get_insight(user_id, job.id)
+            if insight is None:
+                raise IntegrityError(
+                    "insight vanished between insert and read", None, None
+                )
         insight.fit_score = result.score
         insight.fit_breakdown = {
             "dimensions": result.breakdown,
