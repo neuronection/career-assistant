@@ -8,13 +8,19 @@ title = "career-assistant gitleaks"
 [extend]
 useDefault = true
 
-[allowlist]
+# Secret-targeted (not line-targeted): the fixtures appear as `KEY=value`
+# (.env.test) AND `KEY: value` (ci.yml), and the base64 DATA key additionally
+# fires gitleaks' base64 decoder as a second finding on the DECODED value —
+# a line regex can never reach that one. Allowlisting the values themselves
+# covers every form; any other value under the same keys stays flagged.
+[[allowlists]]
   description = "committed test-fixture keys — production boot guard refuses them"
-  regexTarget = "line"
   regexes = [
-    '''CAREER_SESSION_KEY=test-session-key-0123456789abcdefghijklmnopqrstuv''',
-    '''CAREER_REFRESH_KEY=test-refresh-key-0123456789abcdefghijklmnopqrstuv''',
-    '''CAREER_DATA_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY''',
-    '''CAREER_SESSION_KEY=smoke-session-key-0123456789abcdefghijklmnop''',
-    '''CAREER_REFRESH_KEY=smoke-refresh-key-0123456789abcdefghijklmnop''',
+    '''test-session-key-0123456789abcdefghijklmnopqrstuv''',
+    '''test-refresh-key-0123456789abcdefghijklmnopqrstuv''',
+    '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY''',
+    '''0123456789abcdef0123456789abcdef''',
+    '''smoke-session-key-0123456789abcdefghijklmnop''',
+    '''smoke-refresh-key-0123456789abcdefghijklmnop''',
+    '''legacy-jwt-secret-0123456789abcdef''',
   ]
