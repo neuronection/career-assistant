@@ -11,6 +11,7 @@ SRC="$ROOT/scripts/lib/dev-common.sh"
 TARGETS=(
   "$ROOT/../study-assistant/scripts/lib"
   "$ROOT/../health-assistant/core/scripts/lib"
+  "$ROOT/../desktop-assistant/scripts/lib"
 )
 
 for dir in "${TARGETS[@]}"; do
