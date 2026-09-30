@@ -19,6 +19,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
+
       - name: Verify tag matches app version
         run: |
           VERSION="$(python3 -c "import re;print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('backend/app/__init__.py').read()).group(1))")"
@@ -72,7 +89,11 @@ jobs:
         working-directory: backend
         run: |
           python -m venv venv
-          ./venv/bin/pip install -r requirements.txt aiosqlite pywebview "pygobject>=3.50,<3.51" pyinstaller
+          # Bridge (see the requirements.txt header): the kit pin installs
+          # from the clone above; Phase 0.8 (PyPI) drops the filter.
+          python -c "open('reqs.filtered.txt','w').writelines(l for l in open('requirements.txt') if not l.startswith('neuronection-auth-kit @'))"
+          ./venv/bin/pip install -r reqs.filtered.txt aiosqlite pywebview "pygobject>=3.50,<3.51" pyinstaller
+          ./venv/bin/pip install --no-deps ../../auth-kit
 
       - name: Download appimagetool
         run: |
@@ -146,6 +167,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
+
       - name: Verify tag matches app version
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -173,7 +211,11 @@ jobs:
         working-directory: backend
         run: |
           python -m venv venv
-          ./venv/Scripts/pip install -r requirements.txt -r requirements-pdf.txt aiosqlite pywebview pyinstaller
+          # Bridge (see the requirements.txt header): the kit pin installs
+          # from the clone above; Phase 0.8 (PyPI) drops the filter.
+          python -c "open('reqs.filtered.txt','w').writelines(l for l in open('requirements.txt') if not l.startswith('neuronection-auth-kit @'))"
+          ./venv/Scripts/pip install -r reqs.filtered.txt -r requirements-pdf.txt aiosqlite pywebview pyinstaller
+          ./venv/Scripts/pip install --no-deps ../../auth-kit
 
       - name: Build PyInstaller onefile exe
         env:
@@ -246,6 +288,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -263,6 +321,7 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
+          build-contexts: auth-kit=../auth-kit
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
