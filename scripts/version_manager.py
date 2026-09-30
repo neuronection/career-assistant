@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 r"""Neuronection family version manager — canonical, config-driven.
 
-One implementation for all Neuronection repos. All repo-specific facts
-live in ``version_manager.toml`` at the repo root (each repo ships its
-own):
+One implementation for all family repos. All repo-specific facts live in
+``version_manager.toml`` at the repo root (family config example is
+distributed internally with the standards):
 
     [project]
     name = "App Name"
@@ -254,10 +254,10 @@ def git_release(cfg: dict, version: str, push: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Neuronection family version manager (family-unified)",
-        epilog="Config: version_manager.toml (shared Neuronection script — edit the config, not the script)",
+        epilog="Config: version_manager.toml (family-unified script — edit the config, not the script)",
     )
     parser.add_argument("--version", action="version",
-                        version=f"version_manager {TEMPLATE_VERSION} (Neuronection)")
+                        version=f"version_manager {TEMPLATE_VERSION} (family template)")
     git_parser = argparse.ArgumentParser(add_help=False)
     git_parser.add_argument("--git", "-g", action="store_true", help="commit the bump and create the tag")
     git_parser.add_argument("--push", "-p", action="store_true", help="push commit + tag to every remote (implies --git)")

@@ -546,7 +546,7 @@ def load_prompt(cfg: Config, name: str, kind: str) -> str:
             return path.read_text(encoding="utf-8")
         sys.exit(
             f"Error: {kind} prompt not found at {path}.\n"
-            f"The prompts/ tree ships with the repo (default: scripts/translations/prompts/)."
+            f"Copy the family prompts/ tree from dev/templates/scripts/translations/."
         )
     sys.exit(f"Error: [prompts].dir not set in translations.toml — required for --{kind}")
 
@@ -1209,7 +1209,7 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version",
-                        version=f"check_translations {TEMPLATE_VERSION} (Neuronection)")
+                        version=f"check_translations {TEMPLATE_VERSION} (family template)")
     parser.add_argument("--self-test", action="store_true",
                         help="run offline self-tests of the parsing/guard helpers and exit")
     parser.add_argument("--init-env", action="store_true",
