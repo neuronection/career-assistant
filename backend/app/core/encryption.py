@@ -1,22 +1,33 @@
-"""Secrets encryption at rest (Fernet) — the DATA_KEY family.
+"""Secrets encryption at rest — the DATA_KEY family.
 
-Identity-auth §8 (plan 16 P3d/C7): the cipher key is the auth-kit
-KeyRing `data_key` (``CAREER_DATA_KEY``) — an independent per-instance
-secret that encrypts at rest and never signs tokens. **No key is
-derived from any other value**; the legacy JWT-derived Fernet is
-retired and its ciphertext drained by migration ``0044``.
+The cipher is shared family code: ``nx_auth.atrest.SecretCipher``
+(rotation ring, ``_kid`` fingerprints, context binding — see the kit's
+``docs/atrest.md``). This module is the thin career adapter: it resolves
+the key from the auth-kit ``KeyRing`` ``data_key`` (``CAREER_DATA_KEY``)
+— an independent per-instance secret that encrypts at rest and never
+signs tokens; **no key is derived from any other value** (the legacy
+JWT-derived Fernet is retired and its ciphertext drained by migration
+``0044``) — and keeps career's storage shapes:
 
-Encrypted values carry an ``enc::`` prefix so legacy plaintext rows
-remain readable, and ``***`` is the marker clients send to preserve an
-existing key on update.
+* ``enc::``-prefixed strings for single-column secrets;
+* tolerant reads of legacy plaintext rows (pre-encryption values return
+  verbatim);
+* undecryptable ciphertext yields ``None`` — never a guess;
+* ``***`` is the marker clients send to preserve an existing key on
+  update.
+
+Rotation (``CAREER_DATA_KEY_PREVIOUS``, comma-separated): prior keys
+decrypt only, new writes always seal under ``CAREER_DATA_KEY``. Runbook:
+docs/dev/security.md "Rotating the at-rest key".
 """
 
 import base64
 from functools import lru_cache
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
+from nx_auth.atrest import SecretCipher
 
-from app.core.keys import keyring
+from app.core.keys import data_key_previous, keyring
 
 ENCRYPTED_PREFIX = "enc::"
 MASK_MARKER = "***"
@@ -33,13 +44,14 @@ class DataKeyError(RuntimeError):
 
 
 def fernet_from_data_key(data_key: str) -> Fernet:
-    """Fernet view of the KeyRing DATA_KEY (identity-auth §8).
+    """Fernet view of the KeyRing DATA_KEY (key-material validation + view).
 
     The DATA_KEY *is* the Fernet key. The auth-kit generates/persists it
     in unpadded urlsafe-base64 form (43 chars for 32 key bytes);
     normalizing the base64 padding yields the standard Fernet encoding
     of the very same 32 key bytes — no key material is derived from
-    anything else.
+    anything else. (Used by the boot guard; runtime sealing goes through
+    the rotation-aware cipher below.)
     """
     padded = data_key + "=" * (-len(data_key) % 4)
     try:
@@ -56,13 +68,17 @@ def fernet_from_data_key(data_key: str) -> Fernet:
 
 
 @lru_cache(maxsize=1)
-def _fernet() -> Fernet:
-    return fernet_from_data_key(keyring().data_key)
+def _cipher() -> SecretCipher:
+    """Rotation-aware cipher over the KeyRing DATA_KEY (+ prior keys)."""
+    try:
+        return SecretCipher(keyring().data_key, previous=data_key_previous())
+    except (ValueError, RuntimeError) as exc:
+        raise DataKeyError(f"DATA_KEY unusable: {exc}. {DATA_KEY_HINT}") from exc
 
 
 def reset_data_cipher() -> None:
     """Drop the cached cipher (tests swap key material between cases)."""
-    _fernet.cache_clear()
+    _cipher.cache_clear()
 
 
 def is_encrypted(value: str | None) -> bool:
@@ -71,18 +87,22 @@ def is_encrypted(value: str | None) -> bool:
 
 
 def encrypt_secret(plaintext: str | None) -> str | None:
-    """Encrypt a secret for storage; None/empty passes through."""
+    """Encrypt a secret for storage; None/empty passes through.
+
+    Already-encrypted input passes through unchanged (double-sealing an
+    ``enc::`` value would make it undecryptable).
+    """
     if not plaintext:
         return None
-    return ENCRYPTED_PREFIX + _fernet().encrypt(plaintext.encode("utf-8")).decode(
-        "utf-8"
-    )
+    if is_encrypted(plaintext):
+        return plaintext
+    return ENCRYPTED_PREFIX + _cipher().encrypt_raw(plaintext)
 
 
 def decrypt_secret(value: str | None) -> str | None:
     """Decrypt a stored secret; legacy plaintext values are returned verbatim.
 
-    Ciphertext that does not verify under the DATA_KEY (including any
+    Ciphertext that does not verify under the key ring (including any
     pre-P3d JWT-derived leftover) yields None — never a guess.
     """
     if not value:
@@ -90,12 +110,8 @@ def decrypt_secret(value: str | None) -> str | None:
     if not is_encrypted(value):
         return value
     try:
-        return (
-            _fernet()
-            .decrypt(value[len(ENCRYPTED_PREFIX) :].encode("utf-8"))
-            .decode("utf-8")
-        )
-    except InvalidToken:
+        return _cipher().decrypt_raw(value[len(ENCRYPTED_PREFIX) :])
+    except ValueError:
         return None
 
 

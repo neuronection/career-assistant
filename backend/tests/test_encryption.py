@@ -147,3 +147,39 @@ def test_foreign_data_keys_do_not_decrypt(pinned_ring):
         fernet_from_data_key(other).decrypt(token)
     with pytest.raises(InvalidToken):
         _legacy_fernet("another-old-secret-0123456789abcdef").decrypt(token)
+
+
+# ------------------------------------------------------------- rotation ring
+
+
+def test_previous_key_decrypts_only_primary_seals(pinned_ring, monkeypatch):
+    """`CAREER_DATA_KEY_PREVIOUS` (comma-separated) makes rotation
+    non-disruptive: rows sealed before the swap keep reading while every
+    new write seals under the primary. Runbook: docs/dev/security.md."""
+    old_token = (base64.urlsafe_b64encode(b"old-" * 8).decode())[:-1]
+    sealed_old = (
+        "enc::" + fernet_from_data_key(old_token).encrypt(b"before-rotation").decode()
+    )
+    monkeypatch.setattr(settings, "DATA_KEY_PREVIOUS", old_token)
+    reset_data_cipher()
+    assert decrypt_secret(sealed_old) == "before-rotation"
+    sealed_new = encrypt_secret("after-rotation")
+    assert decrypt_secret(sealed_new) == "after-rotation"
+    # the old key never reads new ciphertext (and never seals anything)
+    with pytest.raises(InvalidToken):
+        fernet_from_data_key(old_token).decrypt(sealed_new[len("enc::") :].encode())
+
+
+def test_previous_key_parsing_drops_blanks(monkeypatch, pinned_ring):
+    monkeypatch.setattr(settings, "DATA_KEY_PREVIOUS", None)
+    assert keys.data_key_previous() == []
+    monkeypatch.setattr(settings, "DATA_KEY_PREVIOUS", f" , {DATA_TOKEN} , ")
+    assert keys.data_key_previous() == [DATA_TOKEN]
+
+
+def test_encrypt_passes_enc_input_through(pinned_ring):
+    """Double-sealing an enc:: value would make it undecryptable — the
+    adapter refuses to do it."""
+    sealed = encrypt_secret("sk-live-abc")
+    assert encrypt_secret(sealed) == sealed
+    assert decrypt_secret(sealed) == "sk-live-abc"

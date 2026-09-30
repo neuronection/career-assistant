@@ -66,7 +66,7 @@ def validate_boot_config() -> list[str]:
         return []
 
     from app.core.encryption import DataKeyError, fernet_from_data_key
-    from app.core.keys import KEY_ENV_VARS, pinned_keys
+    from app.core.keys import KEY_ENV_VARS, data_key_previous, pinned_keys
 
     fatal: list[str] = []
     warnings: list[str] = []
@@ -94,6 +94,11 @@ def validate_boot_config() -> list[str]:
             fernet_from_data_key(pinned[2])
         except DataKeyError as exc:
             fatal.append(str(exc))
+    for index, prior in enumerate(data_key_previous(), start=1):
+        try:
+            fernet_from_data_key(prior)
+        except DataKeyError as exc:
+            fatal.append(f"CAREER_DATA_KEY_PREVIOUS entry {index}: {exc}")
     if len(provided) == 3 and len(set(pinned)) != 3:
         fatal.append(
             "CAREER_SESSION_KEY/CAREER_REFRESH_KEY/CAREER_DATA_KEY must be "

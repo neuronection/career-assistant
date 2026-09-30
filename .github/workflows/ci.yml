@@ -34,13 +34,34 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: |
+          # Bridge (see the requirements.txt header): the kit pin installs
+          # from the tokened clone above; Phase 0.8 (PyPI) drops the filter.
+          grep -v '^neuronection-auth-kit @' requirements.txt > /tmp/reqs.txt
+          pip install -r /tmp/reqs.txt -r requirements-dev.txt
+          pip install --no-deps ../../auth-kit
       - name: Lint (ruff)
         run: |
           ruff check app tests careerassistant
@@ -73,6 +94,22 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -81,6 +118,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt aiosqlite
+          pip install --no-deps ../../auth-kit
       - name: Lint (ruff)
         run: |
           ruff check app tests careerassistant
@@ -122,6 +160,22 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -150,6 +204,7 @@ jobs:
         run: |
           python -m venv venv
           ./venv/bin/pip install -r requirements.txt aiosqlite pywebview "pygobject>=3.50,<3.51" pyinstaller
+          ./venv/bin/pip install --no-deps ../../auth-kit
       - name: Build bundle
         run: ./packaging/build-linux.sh bundle
       - name: Smoke test frozen bundle (headless web mode)
@@ -193,12 +248,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
       - uses: docker/setup-buildx-action@v3
       - name: Build production image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
+          build-contexts: auth-kit=../auth-kit
           push: false
           load: true
           tags: career-assistant:ci
@@ -251,6 +323,22 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
+      - name: Provide family auth-kit (path dep)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        env:
+          AUTH_KIT_TOKEN: ${{ secrets.AUTH_KIT_TOKEN }}
+        run: |
+          if [ -d ../auth-kit ]; then exit 0; fi
+          if [ -n "$AUTH_KIT_TOKEN" ]; then
+            url="https://x-access-token:${AUTH_KIT_TOKEN}@github.com/neuronection/auth-kit.git"
+          else
+            url="https://github.com/neuronection/auth-kit.git"
+          fi
+          git clone --depth 1 "$url" ../auth-kit || {
+            echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
+            exit 1
+          }
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -265,6 +353,7 @@ jobs:
         working-directory: backend
         run: |
           pip install -r requirements.txt -r requirements-dev.txt aiosqlite
+          pip install --no-deps ../../auth-kit
           playwright install --with-deps chromium
       - name: Install frontend deps
         working-directory: frontend

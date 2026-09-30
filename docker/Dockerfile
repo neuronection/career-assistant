@@ -24,7 +24,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY backend/requirements.txt ./
-RUN pip install -r requirements.txt
+# Bridge (see the requirements.txt header): the kit pin is declared there
+# but installed from the named `auth-kit` build context below, keeping
+# image builds credentialless. Phase 0.8 (PyPI) drops this filter.
+RUN grep -v '^neuronection-auth-kit @' requirements.txt > /tmp/reqs.txt \
+    && pip install -r /tmp/reqs.txt
 # Family auth-kit (ADR-0013 / identity-auth §5) — named build context
 # `auth-kit`, copied to /auth-kit and installed on top of the pinned
 # requirements (its dependencies are already there).

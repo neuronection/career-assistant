@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added
+- **Non-disruptive at-rest key rotation:** `CAREER_DATA_KEY_PREVIOUS`
+  (comma-separated, decryption-only) lets the Fernet `CAREER_DATA_KEY` be
+  swapped without losing a single stored secret; new writes always seal
+  under the primary. Boot guard validates the prior keys too; runbook +
+  decrypt-probe census in `docs/dev/security.md`. Plus
+  `scripts/encrypt_existing_secrets.py` — idempotent one-shot backfill
+  that seals pre-encryption-era plaintext rows (AI provider keys, MCP
+  bridge tokens, web-tool GitHub token, VAPID private key).
 - **Demo tour content (use-case demos):** the mock AI gained a demo
   script table (role-fit answers with job reference chips) alongside the
   existing HITL ops path; the seeded CVs render with the modern teal
@@ -41,6 +49,16 @@ All notable changes to **Career Assistant** are documented here.
   handler) are now exempt from the profile bind.
 
 ### Changed
+- **At-rest cipher is now shared family code (`nx_auth.atrest`):**
+  `app/core/encryption.py` is a thin adapter over the auth-kit cipher
+  (rotation ring, `_kid` fingerprints, context binding — kit
+  `docs/atrest.md`). Career's storage shapes are unchanged byte-for-byte
+  (`enc::` strings, tolerant legacy reads, `***` mask, undecryptable →
+  `None`), verified by the existing `tests/test_encryption.py`
+  contract; the kit dependency is pinned by git SHA in
+  `requirements.txt` (PyPI pin follows with the public release).
+  `encrypt_secret` additionally refuses to double-seal an already
+  encrypted value.
 - **Family datastore naming amended (ADR-0022 revision): `career` →
   `neuronection_career`.** The family prefix was spelled out
   (`neuro_` → `neuronection_`), and career's pre-ADR `POSTGRES_DB=career`

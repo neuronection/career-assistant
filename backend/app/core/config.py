@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     DATA_KEY: Optional[str] = Field(
         default=None, validation_alias=AliasChoices("CAREER_DATA_KEY")
     )
+    # Prior DATA_KEY values (comma-separated, decryption-only) for
+    # non-disruptive at-rest key rotation — see docs/dev/security.md
+    # "Rotating the at-rest key". New writes always seal under DATA_KEY.
+    DATA_KEY_PREVIOUS: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("CAREER_DATA_KEY_PREVIOUS")
+    )
 
     # --- Identity & auth (identity-auth §4/§16; auth-kit) -------------
     # Entrypoint (§4): derived from the launch mode — `python -m

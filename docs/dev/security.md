@@ -16,13 +16,14 @@ disclosure process, see [SECURITY.md](https://github.com/neuronection/career-ass
   `app/core/keys.py`; unpinned, the auth-kit KeyRing generates a 0600
   `auth_keys.json` in the data dir (desktop self-hosting; production
   servers pin all three — a partial pin fails closed).
-- **Secrets at rest** (`app/core/encryption.py`): AI provider keys
-  (`ai_providers.api_key_encrypted`), the web-tool GitHub token, the VAPID
+- **Secrets at rest** (`app/core/encryption.py`, cipher shared family code
+  — `nx_auth.atrest`, see its `docs/atrest.md` threat model): AI provider
+  keys (`ai_providers.api_key_encrypted`), the web-tool GitHub token, the VAPID
   push private key and MCP bridge tokens are Fernet-encrypted under
   `CAREER_DATA_KEY` (`enc::` prefix). The admin API never returns them —
   responses carry a `***` mask (`mask_secret`), and updates treat `***` as
   "keep existing". Legacy plaintext rows remain readable; ciphertext that
-  does not verify under `CAREER_DATA_KEY` reads as `None`.
+  does not verify under the key ring reads as `None` (never a guess).
 - **The JWT-derived Fernet is retired** (plan 16 P3d/C7): migration
   `0044` wipes stored AI provider keys (re-enter them in Settings → AI
   Configuration) and re-encrypts-or-clears every other sealed value so no
@@ -35,6 +36,31 @@ disclosure process, see [SECURITY.md](https://github.com/neuronection/career-ass
 - Never commit secrets. Dev-only defaults in `.env.example`,
   `backend/.env.test` and `docker/docker-compose.dev-db.yml` are weak on
   purpose and rejected by the production boot guards.
+
+### Rotating the at-rest key
+
+Non-disruptive, in order (dropping a prior key early is **permanent
+ciphertext loss** — nothing recovers it):
+
+1. Generate the new key: `python3 -c "from cryptography.fernet import
+   Fernet; print(Fernet.generate_key().decode())"`.
+2. Set `CAREER_DATA_KEY_PREVIOUS` to the **old** value (comma-separated
+   for multiple priors) and move the new value into `CAREER_DATA_KEY`.
+   New writes now seal under the new key; everything old keeps reading.
+3. Backfill: `python3 scripts/encrypt_existing_secrets.py` re-seals the
+   known secret columns (idempotent). There are no `_kid` tags in the
+   bare `enc::` strings — the census is a **decrypt probe per secret
+   surface** (AI provider config page, web-tool token, push settings,
+   MCP bridge) proving everything reads after the swap.
+4. Only after the probes pass: drop `CAREER_DATA_KEY_PREVIOUS`, restart,
+   probe once more.
+
+Pre-encryption-era plaintext rows: run
+`scripts/encrypt_existing_secrets.py` (safe to re-run; skips sealed
+values) and then flip `decrypt_secret` call sites strict at the next
+hardening pass — tolerant reads are a migration affordance, not a steady
+state (a database writer could swap a stored secret for chosen
+plaintext).
 
 ## Authentication
 

@@ -40,6 +40,16 @@ def pinned_keys() -> tuple[str | None, str | None, str | None]:
     return (settings.SESSION_KEY, settings.REFRESH_KEY, settings.DATA_KEY)
 
 
+def data_key_previous() -> list[str]:
+    """Prior DATA_KEY values for decryption-only rotation (`CAREER_DATA_KEY_PREVIOUS`, comma-separated).
+
+    Empty entries are dropped. New writes always seal under the primary
+    `DATA_KEY`; the rotation runbook lives in docs/dev/security.md.
+    """
+    raw = settings.DATA_KEY_PREVIOUS or ""
+    return [k.strip() for k in raw.split(",") if k.strip()]
+
+
 @lru_cache(maxsize=1)
 def keyring() -> KeyRing:
     """The instance KeyRing (cached — one ring per process).
