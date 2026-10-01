@@ -31,7 +31,6 @@ backend/uploads/
 backend/tests/_uploads/
 backend/tests/_xdist/
 backend/tests/_data/
-backend/celerybeat-schedule*
 logging/
 logs/
 *.log
@@ -64,6 +63,11 @@ test-results/
 /dist/
 packaging/_build/
 packaging/_deb/
+backend/dist/
+backend/checkpoints.db*
+packaging/_smoke-*/
+smoke.log
+package-lock.json
 packaging/_appimage/
 packaging/_smoke-*/
 packaging/*.deb
