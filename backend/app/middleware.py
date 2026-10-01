@@ -94,7 +94,11 @@ class RateLimitMiddleware:
 
         identity = client_identity(scope)
         bucket = (
-            "auth" if path.endswith(("/auth/login", "/auth/register")) else "default"
+            "auth"
+            if path.endswith(
+                ("/auth/login", "/auth/register", "/admin/instance", "/me/password")
+            )
+            else "default"
         )
         retry_after = limiter.check(bucket, identity)
         if retry_after is not None:
