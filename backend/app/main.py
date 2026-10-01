@@ -52,14 +52,8 @@ def _find_spa_dist() -> Path | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Validate boot config (production fails fast), then serve."""
+    """Configure logging, then serve (boot guards run in create_app)."""
     configure_logging()
-    try:
-        for warning in validate_boot_config():
-            logger.warning("Boot config warning: %s", warning)
-    except Exception as exc:
-        logger.critical("Refusing to boot: %s", exc)
-        raise
     from app.services.job_worker import drain_queue, start_workers
 
     # Warm VAPID keys before any dispatch can run: generating them lazily
@@ -153,6 +147,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # verified `nx_principal` is in scope state when we read it (study's
     # ordering).
     application.add_middleware(ProfileBindingMiddleware)
+
+    # Production boot guards (ADR-0028): fail fast BEFORE the keyring is
+    # built, so weak/partial pins die with BootConfigError's guidance
+    # instead of a raw KeyRing ValueError at construction.
+    try:
+        for warning in validate_boot_config():
+            logger.warning("Boot config warning: %s", warning)
+    except Exception as exc:
+        logger.critical("Refusing to boot: %s", exc)
+        raise
 
     install_identity(application, settings)
 
