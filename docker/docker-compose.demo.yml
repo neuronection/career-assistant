@@ -62,7 +62,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-      # Family auth-kit is a path dep (../auth-kit) — see docker/Dockerfile.
+      # Family auth-kit at the revision pinned in backend/requirements.txt —
+      # see docker/Dockerfile. Resolved relative to this compose file.
       additional_contexts:
         auth-kit: ../../auth-kit
     image: ${CAREER_IMAGE:-career-assistant:local}

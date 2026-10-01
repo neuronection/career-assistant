@@ -34,7 +34,7 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -46,10 +46,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -94,7 +100,7 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -106,10 +112,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -160,7 +172,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -172,10 +184,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -249,7 +267,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -261,10 +279,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
       - uses: docker/setup-buildx-action@v3
       - name: Build production image
         uses: docker/build-push-action@v6
@@ -331,7 +355,7 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
     steps:
       - uses: actions/checkout@v4
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -343,10 +367,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
       - uses: actions/setup-node@v4
         with:
           node-version: 24

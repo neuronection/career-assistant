@@ -28,6 +28,14 @@ All notable changes to **Career Assistant** are documented here.
   `docs/dev/visual-tour.md`.
 
 ### Fixed
+- **Image/CI auth-kit supply is pin-faithful:** the "Provide family
+  auth-kit" steps (`ci.yml` ×5, `release.yml` ×3) cloned the kit's
+  default branch (`--depth 1`), so the image and CI test installs
+  consumed whatever HEAD contained — silently drifting from the git-SHA
+  pin in `backend/requirements.txt`. Every step now extracts the pinned
+  revision from that line and checks it out (`git checkout --detach`)
+  before the jobs consume the `auth-kit` build context; a missing pin
+  fails the step loudly. Dockerfile/compose comments updated to match.
 - **CI: the desktop/SQLite, packaging, Docker and E2E jobs.** The SQLite
   profile's test isolation is now deletion-based (the identity stores
   commit through a separate sync-engine connection, so the old

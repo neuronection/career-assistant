@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -31,10 +31,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
 
       - name: Verify tag matches app version
         run: |
@@ -168,7 +174,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -180,10 +186,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
 
       - name: Verify tag matches app version
         if: startsWith(github.ref, 'refs/tags/')
@@ -289,7 +301,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Provide family auth-kit (path dep)
+      - name: Provide family auth-kit (pinned revision)
         working-directory: ${{ github.workspace }}
         shell: bash
         env:
@@ -301,10 +313,16 @@ jobs:
           else
             url="https://github.com/neuronection/auth-kit.git"
           fi
-          git clone --depth 1 "$url" ../auth-kit || {
+          rev="$(sed -n 's|^neuronection-auth-kit @ git+https://github.com/neuronection/auth-kit@\([0-9a-f]*\)$|\1|p' backend/requirements.txt)"
+          if [ -z "$rev" ]; then
+            echo "::error::could not read the neuronection-auth-kit pin from backend/requirements.txt"
+            exit 1
+          fi
+          git clone "$url" ../auth-kit || {
             echo "::error::neuronection/auth-kit not fetchable — make the repo public or add a read-only AUTH_KIT_TOKEN secret (fine-grained PAT, Contents: read on neuronection/auth-kit)"
             exit 1
           }
+          git -C ../auth-kit checkout --detach "$rev"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:

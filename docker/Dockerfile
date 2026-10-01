@@ -4,8 +4,10 @@
 # Build via compose (docker-compose.standalone.yml / .prod.yml /
 # .demo.yml — each supplies the `auth-kit` named context) or:
 #   docker build --build-context auth-kit=../auth-kit -f docker/Dockerfile .
-# The `auth-kit` context supplies the family auth-kit (ADR-0013), which
-# the dev venv pins as an editable path dependency (../auth-kit).
+# The `auth-kit` context supplies the family auth-kit (ADR-0013) at the
+# git-SHA revision pinned in backend/requirements.txt — CI/release check
+# that revision out before building; for local builds keep ../auth-kit at
+# the pinned revision (image contents must match the pin).
 
 FROM node:20-alpine AS frontend-build
 WORKDIR /build
@@ -30,8 +32,8 @@ COPY backend/requirements.txt ./
 RUN grep -v '^neuronection-auth-kit @' requirements.txt > /tmp/reqs.txt \
     && pip install -r /tmp/reqs.txt
 # Family auth-kit (ADR-0013 / identity-auth §5) — named build context
-# `auth-kit`, copied to /auth-kit and installed on top of the pinned
-# requirements (its dependencies are already there).
+# `auth-kit` at the pinned revision, copied to /auth-kit and installed on
+# top of the pinned requirements (its dependencies are already there).
 COPY --from=auth-kit pyproject.toml README.md /auth-kit/
 COPY --from=auth-kit src /auth-kit/src
 RUN pip install --no-deps /auth-kit
