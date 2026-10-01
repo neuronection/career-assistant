@@ -4,7 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.16.0] - 2026-10-01
+
 ### Added
+- **Family identity retrofit (plan 16):** career now runs on the shared
+  `nx_auth` auth-kit instead of in-tree auth — fail-closed instance
+  modes, the desktop DIM exchange, cookie sessions with double-submit
+  CSRF, and normative session tokens. Profiles are 1:N per user
+  (`is_default`, `X-Profile-Id` ownership binding) with the shared
+  ProfileSwitcher; account self-service, the shared `AdminUserTable` and
+  `REGISTRATION_ENABLED` replace the local Users page; the SPA adopts the
+  family `LoginForm`/`RegisterForm`/`AuthGate`/`UserMenu` (stale
+  family-cookie cleanup on login), and the guarded demo seeder ships a
+  badged demo flavor. Bumps `@neuronection/assistant-ui` to 0.48.0.
 - **Non-disruptive at-rest key rotation:** `CAREER_DATA_KEY_PREVIOUS`
   (comma-separated, decryption-only) lets the Fernet `CAREER_DATA_KEY` be
   swapped without losing a single stored secret; new writes always seal
