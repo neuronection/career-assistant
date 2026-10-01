@@ -17,6 +17,15 @@ All notable changes to **Career Assistant** are documented here.
   markers, packaging shape, contract gates.
 
 ### Fixed
+- **Dev-loop fallout from the uv migration (plan 20 Phase 5):** the web
+  dev path migrated through bare `alembic` and the dev group through
+  bare `honcho` — both only ever resolvable via the deleted
+  `backend/venv` PATH export — so `./scripts/run-dev.sh --web` died at
+  migrations; both now resolve through `uv run` like the other scripts.
+  The dev-db compose also interpolates `${POSTGRES_*}` from
+  `docker/.env` (the **production** stack's env file) and initialized a
+  fresh dev volume with the prod password; `run-dev.sh`/`worktree.sh`
+  now pin `--env-file .env` for the dev-db compose.
 - Boot guards now run in `create_app` **before** keyring construction —
   weak/partial pins die with `BootConfigError` guidance instead of a raw
   `KeyRing` ValueError (found by the standalone stack boot smoke);

@@ -37,7 +37,8 @@
 #   ./scripts/run-dev.sh backend          # extra args pass through to honcho
 #   ./scripts/run-dev.sh -h | --help      # print this help and exit
 #
-# Everything runs inside backend/venv — never the system Python (PEP 668).
+# Everything runs through uv (root workspace .venv) — never the system
+# Python (PEP 668).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -45,7 +46,6 @@ cd "$SCRIPT_DIR/.."
 # shellcheck source=scripts/lib/dev-common.sh
 source scripts/lib/dev-common.sh
 
-VENV_DIR=backend/venv
 BACKEND_PORT=8100
 FRONTEND_PORT=3100
 DB_PORT=5433
@@ -145,7 +145,13 @@ dc_start_dev_db() {
     return 0
   fi
   dc_step "starting dev DB (postgres :$DB_PORT, redis :6380)"
-  docker compose -f "$DEV_DB_COMPOSE" up -d
+  # --env-file: compose interpolates ${POSTGRES_*} from the *project*
+  # directory's .env — i.e. docker/.env, the production stack's env file
+  # (docs/deploy.md) — and would initialize a fresh dev volume with the
+  # prod password while run-dev.sh connects with the root .env's. Pin the
+  # interpolation to the dev env file; shell exports (worktree.sh) still
+  # win over it.
+  docker compose --env-file .env -f "$DEV_DB_COMPOSE" up -d
   for _ in $(seq 1 30); do
     if docker ps --filter "name=career-postgres" --filter "health=healthy" --format '{{.Names}}' | grep -q career-postgres; then
       dc_ok "Dev DB is healthy."
@@ -162,7 +168,7 @@ dc_migrate() {
     return 0
   fi
   dc_step "applying backend migrations"
-  (cd backend && PYTHONPATH="$(pwd)" alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
+  (cd backend && PYTHONPATH="$(pwd)" uv run alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
 }
 
 dc_bootstrap_desktop() {
@@ -197,12 +203,12 @@ dc_reset_web() {
   dc_kill_port "$BACKEND_PORT"
   dc_kill_port "$FRONTEND_PORT"
   if [[ ${RESET_ARGS[*]} != *--yes* ]]; then
-    dc_warn "This will DELETE the dev database volume (career_postgres_data) and all local dev data."
+    dc_warn "This will DELETE the dev database volume (career-assistant-dev_career_postgres_data) and all local dev data."
     read -r -p "Type 'reset' to continue: " reply
     [[ "$reply" == "reset" ]] || dc_die "aborted"
   fi
   dc_step "stopping dev DB containers and removing volumes"
-  docker compose -f "$DEV_DB_COMPOSE" down -v
+  docker compose --env-file .env -f "$DEV_DB_COMPOSE" down -v
 }
 
 dc_reset_desktop() {

@@ -125,7 +125,10 @@ wt_start_db() {
     cd "$root"
     export COMPOSE_PROJECT_NAME POSTGRES_PORT POSTGRES_TEST_DB \
       POSTGRES_CONTAINER REDIS_CONTAINER
-    docker compose -f docker/docker-compose.dev-db.yml up -d
+    # --env-file: pin ${POSTGRES_*} interpolation to the worktree's .env —
+    # without it compose reads docker/.env (the production stack's env
+    # file) and initializes the volume with the wrong password.
+    docker compose --env-file .env -f docker/docker-compose.dev-db.yml up -d
   ) || wt_die "worktree dev DB failed to start"
   local i
   for i in $(seq 1 30); do
@@ -263,7 +266,7 @@ cmd_remove() {
     cd "$dir"
     export COMPOSE_PROJECT_NAME="$project" \
       POSTGRES_CONTAINER="$project-postgres" REDIS_CONTAINER="$project-redis"
-    docker compose -f docker/docker-compose.dev-db.yml down -v
+    docker compose --env-file .env -f docker/docker-compose.dev-db.yml down -v
   ) || dc_warn "compose down failed; continuing"
   dc_step "removing worktree"
   git worktree remove --force "$dir" || git worktree remove "$dir"
