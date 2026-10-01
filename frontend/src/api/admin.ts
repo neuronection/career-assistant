@@ -135,6 +135,19 @@ export async function forceLogout(id: string): Promise<void> {
 // sessions, password change and account deletion. Wrong-password 403s
 // are mapped by the callers (the Account settings page).
 
+export type InstanceAuthMode = "open" | "authenticated";
+
+/** `PATCH /api/v1/admin/instance` (identity-auth §4.5): the audited
+ * `auth_mode` transition — admin + password; `open → authenticated` sets
+ * the owner credentials in the same call, `authenticated → open` is
+ * refused while other accounts exist. */
+export async function updateInstanceMode(
+  authMode: InstanceAuthMode,
+  password: string,
+): Promise<void> {
+  await api.patch("/admin/instance", { auth_mode: authMode, password });
+}
+
 export async function listMySessions(): Promise<UserSession[]> {
   const { data } = await api.get<UserSession[]>("/me/sessions");
   return data;

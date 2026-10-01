@@ -4,14 +4,20 @@ import { useTranslation } from "react-i18next";
 import {
   fetchUsers,
   forceLogout,
+  updateInstanceMode,
   patchUser,
   resetUserPassword,
   type AdminUser,
 } from "@/api/admin";
+import { getInstanceConfig } from "@/api/instance";
 import {
   AdminUserTable,
   type AdminUserTableLabels,
 } from "@/components/ui/admin-user-table";
+import {
+  InstanceModeControl,
+  type InstanceModeControlLabels,
+} from "@/components/ui/instance-mode-control";
 import { useAuthStore } from "@/stores/authStore";
 
 /** Admin user management (identity-auth §12): the shared
@@ -27,6 +33,8 @@ export function Users() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<unknown>(null);
+  const [authMode, setAuthMode] = useState<string>("authenticated");
+  const [instanceError, setInstanceError] = useState<unknown>(null);
 
   const load = useCallback(async () => {
     try {
@@ -36,6 +44,12 @@ export function Users() {
       setListError(error);
     } finally {
       setLoading(false);
+    }
+    try {
+      setAuthMode((await getInstanceConfig()).auth_mode);
+      setInstanceError(null);
+    } catch (error) {
+      setInstanceError(error);
     }
   }, []);
 
@@ -75,8 +89,47 @@ export function Users() {
     errorLastAdmin: t("users.errorLastAdmin"),
   };
 
+  const instanceLabels: InstanceModeControlLabels = {
+    title: t("instance.title"),
+    modeOpen: t("instance.modeOpen"),
+    modeAuthenticated: t("instance.modeAuthenticated"),
+    modeOpenHint: t("instance.modeOpenHint"),
+    modeAuthenticatedHint: t("instance.modeAuthenticatedHint"),
+    enableLogin: t("instance.enableLogin"),
+    enableLoginNote: (minLength: number) => t("instance.enableLoginNote", { minLength }),
+    disableLogin: t("instance.disableLogin"),
+    disableLoginNote: t("instance.disableLoginNote"),
+    password: t("instance.password"),
+    confirmPassword: t("instance.confirmPassword"),
+    passwordMismatch: t("instance.passwordMismatch"),
+    passwordTooShort: (minLength: number) => t("instance.passwordTooShort", { minLength }),
+    submitEnable: t("instance.submitEnable"),
+    submitDisable: t("instance.submitDisable"),
+    confirmAck: t("instance.confirmAck"),
+    blockedServer: t("instance.blockedServer"),
+    blockedUsers: (count: number) => t("instance.blockedUsers", { count }),
+    auditNote: t("instance.auditNote"),
+    errorGeneric: t("instance.errorGeneric"),
+    errorForbidden: t("instance.errorForbidden"),
+  };
+
   return (
-    <div data-testid="settings-users">
+    <div data-testid="settings-users" className="space-y-6">
+      <InstanceModeControl
+        mode={authMode === "open" ? "open" : "authenticated"}
+        otherUserCount={Math.max(0, users.length - 1)}
+        loading={loading}
+        error={instanceError === null ? null : t("instance.errorGeneric")}
+        onSetAuthenticated={async (password: string) => {
+          await updateInstanceMode("authenticated", password);
+          await load();
+        }}
+        onSetOpen={async (password: string) => {
+          await updateInstanceMode("open", password);
+          await load();
+        }}
+        labels={instanceLabels}
+      />
       <AdminUserTable
         users={users}
         currentUserId={me?.id ?? ""}
