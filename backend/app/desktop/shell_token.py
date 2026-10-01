@@ -13,7 +13,8 @@ process lifetime and is regenerated on every boot.
 """
 
 import hmac
-import secrets
+
+from nx_auth.shell import generate_shell_secret
 
 QUERY_PARAM = "shell"
 
@@ -21,9 +22,14 @@ _token: str | None = None
 
 
 def issue() -> str:
-    """Generate (or regenerate) this boot's shell token."""
+    """Generate (or regenerate) this boot's shell token.
+
+    Generation is the kit's (`nx_auth.shell.generate_shell_secret`,
+    ADR-0028 — one §11 mechanism family-wide); this module keeps the
+    per-process holder and the CSP-marker matching.
+    """
     global _token
-    _token = secrets.token_urlsafe(16)
+    _token = generate_shell_secret()
     return _token
 
 
