@@ -28,6 +28,17 @@ All notable changes to **Career Assistant** are documented here.
   `docs/dev/visual-tour.md`.
 
 ### Fixed
+- **CI: the desktop/SQLite, packaging, Docker and E2E jobs.** The SQLite
+  profile's test isolation is now deletion-based (the identity stores
+  commit through a separate sync-engine connection, so the old
+  suite-long outer transaction held SQLite's write lock — "database is
+  locked" — and pinned a WAL snapshot — stale reads); migration-test raw
+  inserts supply explicit timestamps and string UUIDs instead of relying
+  on Postgres-only server defaults; the Docker smoke generates fresh key
+  material (the boot guard refuses committed test fixtures); the
+  packaging smoke accepts the §11 shell-gate 403 as a JSON error (not an
+  SPA fallback); and the E2E harness resolves the Default profile and
+  sends `X-Profile-Id` on every raw API call.
 - **Concurrent workspace-load surfaces no longer 500 on
   `uq_match_user_job`:** `FitService.upsert_fit` — the `backfilled_insights`
   path behind the dashboard rankings, feed and match candidates — still

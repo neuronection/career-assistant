@@ -32,6 +32,7 @@ async def _ensure_fold_user(session, email: str) -> str:
     map below that revision — migrations under test run on older shapes.
     """
     import uuid as _uuid
+    from datetime import datetime, timezone
 
     from sqlalchemy import text
 
@@ -39,13 +40,23 @@ async def _ensure_fold_user(session, email: str) -> str:
     if row is not None:
         return str(row[0])
     user_id = _uuid.uuid4()
+    now = datetime.now(timezone.utc)
+    # created_at/updated_at are explicit: the baseline DDL's server
+    # default is Postgres-only `now()`, which SQLite cannot evaluate at
+    # INSERT time.
     await session.execute(
         text(
             "INSERT INTO users (id, email, password_hash, full_name, is_active, "
-            "is_admin, failed_login_attempts, token_version) VALUES "
-            "(:id, :email, :hash, '', true, false, 0, 1)"
+            "is_admin, failed_login_attempts, token_version, created_at, "
+            "updated_at) VALUES "
+            "(:id, :email, :hash, '', true, false, 0, 1, :now, :now)"
         ),
-        {"id": user_id, "email": email, "hash": "$2b$12$foldmigrationplaceholder"},
+        {
+            "id": str(user_id),
+            "email": email,
+            "hash": "$2b$12$foldmigrationplaceholder",
+            "now": now,
+        },
     )
     return str(user_id)
 
@@ -159,6 +170,7 @@ def test_0043_profiles_one_to_many_legacy_backfill():
 
     async def seed_legacy() -> list:
         import uuid
+        from datetime import datetime, timezone
 
         from sqlalchemy import text
         from sqlalchemy.ext.asyncio import create_async_engine
@@ -166,27 +178,40 @@ def test_0043_profiles_one_to_many_legacy_backfill():
         from app.core.config import settings
 
         user_ids = [uuid.uuid4() for _ in range(2)]
+        now = datetime.now(timezone.utc)
         engine = create_async_engine(settings.DATABASE_URL)
         try:
             async with engine.begin() as conn:
                 for index, user_id in enumerate(user_ids):
+                    # Timestamps are explicit: the server defaults are
+                    # Postgres-only `now()`, unevaluable on SQLite.
                     await conn.execute(
                         text(
                             "INSERT INTO users (id, email, password_hash, "
                             "full_name, is_active, is_admin, failed_login_attempts, "
-                            "token_version) VALUES (:id, :email, "
-                            "'$2b$12$foldmigrationplaceholder', '', true, false, 0, 1)"
+                            "token_version, created_at, updated_at) VALUES (:id, "
+                            ":email, '$2b$12$foldmigrationplaceholder', '', true, "
+                            "false, 0, 1, :now, :now)"
                         ),
-                        {"id": user_id, "email": f"legacy{index}@example.com"},
+                        {
+                            "id": str(user_id),
+                            "email": f"legacy{index}@example.com",
+                            "now": now,
+                        },
                     )
                     await conn.execute(
                         text(
                             "INSERT INTO profiles (id, user_id, basics, academics, "
                             "hobbies, likes, dislikes, aspirations, work_preferences, "
-                            "preferences, constraints) VALUES (:id, :user_id, "
-                            "'{}', '{}', '[]', '[]', '[]', '[]', '{}', '{}', '{}')"
+                            "preferences, constraints, created_at, updated_at) VALUES "
+                            "(:id, :user_id, '{}', '{}', '[]', '[]', '[]', '[]', "
+                            "'{}', '{}', '{}', :now, :now)"
                         ),
-                        {"id": uuid.uuid4(), "user_id": user_id},
+                        {
+                            "id": str(uuid.uuid4()),
+                            "user_id": str(user_id),
+                            "now": now,
+                        },
                     )
         finally:
             await engine.dispose()
@@ -198,12 +223,14 @@ def test_0043_profiles_one_to_many_legacy_backfill():
 
     async def probe() -> tuple[list[tuple], int]:
         import uuid
+        from datetime import datetime, timezone
 
         from sqlalchemy import text
         from sqlalchemy.ext.asyncio import create_async_engine
 
         from app.core.config import settings
 
+        now = datetime.now(timezone.utc)
         engine = create_async_engine(settings.DATABASE_URL)
         try:
             async with engine.begin() as conn:
@@ -214,7 +241,7 @@ def test_0043_profiles_one_to_many_legacy_backfill():
                                 "SELECT name, is_default FROM profiles "
                                 "WHERE user_id = :uid ORDER BY created_at"
                             ),
-                            {"uid": user_ids[0]},
+                            {"uid": str(user_ids[0])},
                         )
                     ).all()
                 )
@@ -222,15 +249,20 @@ def test_0043_profiles_one_to_many_legacy_backfill():
                     text(
                         "INSERT INTO profiles (id, user_id, basics, academics, "
                         "hobbies, likes, dislikes, aspirations, work_preferences, "
-                        "preferences, constraints) VALUES (:id, :user_id, "
-                        "'{}', '{}', '[]', '[]', '[]', '[]', '{}', '{}', '{}')"
+                        "preferences, constraints, created_at, updated_at) VALUES "
+                        "(:id, :user_id, '{}', '{}', '[]', '[]', '[]', '[]', "
+                        "'{}', '{}', '{}', :now, :now)"
                     ),
-                    {"id": uuid.uuid4(), "user_id": user_ids[0]},
+                    {
+                        "id": str(uuid.uuid4()),
+                        "user_id": str(user_ids[0]),
+                        "now": now,
+                    },
                 )
                 count = (
                     await conn.execute(
                         text("SELECT count(*) FROM profiles WHERE user_id = :uid"),
-                        {"uid": user_ids[0]},
+                        {"uid": str(user_ids[0])},
                     )
                 ).scalar()
         finally:

@@ -11,14 +11,14 @@ import re
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from conftest import API, BASE_URL
+from conftest import API, BASE_URL, api_headers
 
 
 def _make_cv(page, title: str) -> str:
     created = page.request.post(
         f"{API}/cv",
         data=json.dumps({"title": title}),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert created.ok, created.text()
     cv_id = created.json()["id"]
@@ -38,7 +38,7 @@ def _make_cv(page, title: str) -> str:
                 }
             }
         ),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert patched.ok, patched.text()
     return cv_id
@@ -107,7 +107,9 @@ def test_studio_ask_ai_references_cv_in_normal_chat(page) -> None:
     chips.first.wait_for(state="visible", timeout=20_000)
 
     # The session stayed normal — no builder binding (AD1).
-    sessions = page.request.get(f"{API}/chat/sessions").json()
+    sessions = page.request.get(
+        f"{API}/chat/sessions", headers=api_headers()
+    ).json()
     active = next(s for s in sessions if s["id"])
     assert active["context"] is None
 
@@ -137,9 +139,13 @@ def test_edit_intent_hands_off_to_builder_in_same_session(page) -> None:
     )
 
     # One session, still normal; the turn ran the builder surface.
-    sessions = page.request.get(f"{API}/chat/sessions").json()
+    sessions = page.request.get(
+        f"{API}/chat/sessions", headers=api_headers()
+    ).json()
     active = next(s for s in sessions if s["id"])
     assert active["context"] is None
-    listed = page.request.get(f"{API}/chat/sessions/{active['id']}/messages").json()
+    listed = page.request.get(
+        f"{API}/chat/sessions/{active['id']}/messages", headers=api_headers()
+    ).json()
     assistant = [m for m in listed if m["role"] == "assistant"][-1]
     assert assistant["metadata_json"]["surface"] == "cv_builder"

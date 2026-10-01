@@ -6,7 +6,7 @@ provider."""
 import json
 import re
 
-from conftest import API, BASE_URL
+from conftest import API, BASE_URL, api_headers
 
 
 def test_chat_proposes_and_approval_applies(page) -> None:
@@ -46,7 +46,7 @@ def test_destructive_card_requires_confirm(page) -> None:
         data=json.dumps(
             {"title": "Keep me", "kind": "project", "open_ended": True}
         ),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert response.ok, response.text()
 
@@ -72,7 +72,7 @@ def test_destructive_card_requires_confirm(page) -> None:
     cards.get_by_role("button", name="Reject").click()
     page.get_by_text("Rejected").wait_for(state="visible", timeout=20_000)
 
-    listing = page.request.get(f"{API}/me/experience").json()
+    listing = page.request.get(f"{API}/me/experience", headers=api_headers()).json()
     assert any(item["title"] == "Keep me" for item in listing["items"])
 
 
@@ -94,7 +94,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
                 "description": "Kept the pipelines healthy.",
             }
         ),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert response.ok, response.text()
     item = response.json()
@@ -119,7 +119,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
     cards.get_by_role("button", name="Approve").click()
     page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
 
-    listing = page.request.get(f"{API}/me/experience").json()
+    listing = page.request.get(f"{API}/me/experience", headers=api_headers()).json()
     applied = next(row for row in listing["items"] if row["id"] == item["id"])
     
     assert "Kept the pipelines healthy." in applied["description"]
@@ -154,7 +154,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
     revert.click()
     page.get_by_text("Reverted").wait_for(state="visible", timeout=20_000)
 
-    listing = page.request.get(f"{API}/me/experience").json()
+    listing = page.request.get(f"{API}/me/experience", headers=api_headers()).json()
     reverted = next(row for row in listing["items"] if row["id"] == item["id"])
     assert reverted["description"] == "Kept the pipelines healthy."
     assert "Optimized the nightly batch queries." not in reverted["description"]
@@ -189,7 +189,7 @@ def test_variant_card_resolved_labels_and_drafts(page) -> None:
                 "open_ended": True,
             }
         ),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert response.ok, response.text()
 
@@ -248,7 +248,7 @@ def test_education_finish_golden(page) -> None:
                 "in_progress": True,
             }
         ),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert response.ok, response.text()
     entry = response.json()
@@ -271,7 +271,7 @@ def test_education_finish_golden(page) -> None:
     card.get_by_role("button", name="Approve").click()
     page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
 
-    listing = page.request.get(f"{API}/me/education").json()
+    listing = page.request.get(f"{API}/me/education", headers=api_headers()).json()
     applied = next(row for row in listing if row["id"] == entry["id"])
     assert applied["in_progress"] is False
     assert applied["end"] == "2026-07-31"
@@ -284,7 +284,7 @@ def test_education_finish_golden(page) -> None:
     revert.click()
     page.get_by_text("Reverted").wait_for(state="visible", timeout=20_000)
 
-    listing = page.request.get(f"{API}/me/education").json()
+    listing = page.request.get(f"{API}/me/education", headers=api_headers()).json()
     reverted = next(row for row in listing if row["id"] == entry["id"])
     assert reverted["in_progress"] is True
     assert reverted["end"] is None

@@ -19,7 +19,7 @@ from app.connectors.registry import register_connector, reset_registry
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 
 from app.core.config import settings
-from app.core.database import get_db, sqlite_pragmas
+from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
 from app.main import app
 
 TEST_DB_URL = settings.DATABASE_URL
@@ -31,23 +31,13 @@ if IS_SQLITE:
     # second engine connects, or the first exclusive-lock attempt races.
     event.listens_for(_engine.sync_engine, "connect")(sqlite_pragmas)
 
-    def _sqlite_driver_autocommit_off(dbapi_connection, _record=None):
-        """Disable aiosqlite's implicit BEGIN/COMMIT handling.
-
-        The driver's legacy mode commits the whole transaction when the
-        outermost savepoint is released, so the ``clean_db`` rollback
-        would silently leak every app-level commit. With
-        ``isolation_level=None`` the driver never begins or ends
-        transactions itself and SQLAlchemy emits the BEGIN explicitly.
-        """
-
-        dbapi_connection.isolation_level = None
-
-    def _sqlite_emit_begin(connection):
-        connection.exec_driver_sql("BEGIN")
-
-    event.listens_for(_engine.sync_engine, "connect")(_sqlite_driver_autocommit_off)
-    event.listens_for(_engine.sync_engine, "begin")(_sqlite_emit_begin)
+    # SQLite profile only: test-side sessions run this engine in
+    # AUTOCOMMIT (each statement is its own transaction). The identity
+    # stores commit through a *separate* sync-engine connection, so a
+    # session that holds one transaction across reads would pin the WAL
+    # snapshot and miss those commits (stale assertions), and the
+    # ``clean_db`` isolation below is by deletion, not rollback.
+    _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
     "cv_versions",
@@ -222,21 +212,78 @@ def _clear_identity_rows() -> None:
         pass
 
 
+async def _provision_vapid_keys() -> None:
+    """Ensure the VAPID `app_settings` row exists for the next test.
+
+    Deletion isolation wipes the row the session warm-up wrote; the
+    in-process key cache must not outlive it (emit would silently skip
+    persisting a fresh pair), so clear the cache and let the service
+    provision again — its own session, short and committed.
+    """
+    from app.services import webpush_service
+
+    webpush_service._keys_cache = None
+    try:
+        await webpush_service.get_or_create_vapid_keys()
+    except Exception:  # noqa: BLE001 — browser push stays fail-soft
+        pass
+
+
+async def _truncate_all(conn) -> None:
+    """Delete every table's rows, children first (``TABLES`` is FK-ordered).
+
+    The fast path is one transaction; migration tests legitimately leave
+    the schema mid-chain (tables absent), so a failure falls back to
+    best-effort per-table deletes.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.exc import SQLAlchemyError
+
+    try:
+        for table in TABLES:
+            await conn.execute(text(f"DELETE FROM {table}"))
+        await conn.commit()
+    except SQLAlchemyError:
+        await conn.rollback()
+        for table in TABLES:
+            try:
+                await conn.execute(text(f"DELETE FROM {table}"))
+                await conn.commit()
+            except SQLAlchemyError:
+                await conn.rollback()
+
+
 @pytest.fixture(autouse=True)
 async def clean_db(clean_identity) -> AsyncGenerator:
-    """Wrap the whole test in one transaction and roll it back.
+    """Isolate each test's database state.
 
-    Truncating ~60 tables cost ~1.5s per test (≈13 min per suite run); a
-    rollback costs milliseconds. The `db` and `client` fixtures bind their
+    Postgres (and any non-SQLite profile): wrap the whole test in one
+    transaction and roll it back. The `db` and `client` fixtures bind their
     sessions to this connection with
     ``join_transaction_mode="create_savepoint"`` — app-level commits become
-    savepoint releases and the final rollback discards everything, so the
-    isolation guarantee is unchanged.
-    """
-    async with _engine.connect() as conn:
-        from app.core.ratelimit import limiter
+    savepoint releases and the final rollback discards everything.
 
-        limiter.reset()
+    SQLite (desktop profile): deletion-based isolation instead. The
+    identity stores (``app/auth/stores.py``) commit real transactions
+    through their own sync-engine connection, so a suite-long outer
+    transaction is unusable here: it would hold SQLite's single write lock
+    (bridge INSERTs die with "database is locked") and pin a WAL read
+    snapshot (bridge commits invisible → stale assertions). Truncate
+    before the test and run sessions in short (autocommit) transactions.
+    """
+    from app.core.ratelimit import limiter
+
+    limiter.reset()
+    if IS_SQLITE:
+        async with _engine.connect() as conn:
+            await _truncate_all(conn)
+        await _provision_vapid_keys()
+        # A short-transaction connection for the tests that bind their own
+        # sessions to the fixture (desktop tray, browser-push channel).
+        async with _autocommit_engine.connect() as ac:
+            yield ac
+        return
+    async with _engine.connect() as conn:
         transaction = await conn.begin()
         yield conn
         if transaction.is_active:
@@ -250,9 +297,23 @@ def _test_session(conn) -> AsyncSession:
     )
 
 
+def _sqlite_session() -> AsyncSession:
+    """A short-transaction (AUTOCOMMIT) session for the SQLite profile.
+
+    Every statement is its own transaction, so a read always sees the
+    latest committed state — including the identity bridge's commits on
+    its own connection.
+    """
+    return AsyncSession(bind=_autocommit_engine, expire_on_commit=False)
+
+
 @pytest.fixture
 async def db(clean_db) -> AsyncGenerator[AsyncSession, None]:
-    """A session bound to the test database (rolled back with the test)."""
+    """A session bound to the test database (cleaned up with the test)."""
+    if IS_SQLITE:
+        async with _sqlite_session() as session:
+            yield session
+        return
     async with _test_session(clean_db) as session:
         yield session
 
@@ -276,14 +337,25 @@ class CleanJarClient(AsyncClient):
 async def client(clean_db) -> AsyncGenerator[AsyncClient, None]:
     """HTTP client wired to the FastAPI app with the test DB session."""
 
-    async def _override_get_db():
-        async with _test_session(clean_db) as session:
-            yield session
+    if IS_SQLITE:
+        # Deletion-based isolation: requests run real, short transactions
+        # on the app engine (request atomicity intact); the middleware's
+        # §15 binding falls back to `AsyncSessionLocal`, also committed.
+        async def _override_get_db():
+            async with AsyncSessionLocal() as session:
+                yield session
+
+    else:
+
+        async def _override_get_db():
+            async with _test_session(clean_db) as session:
+                yield session
 
     app.dependency_overrides[get_db] = _override_get_db
-    # §15 binding reads through the test's transaction too, or profile
-    # rows created by routes stay invisible to the middleware.
-    app.state.profile_sessions = lambda: _test_session(clean_db)
+    if not IS_SQLITE:
+        # §15 binding must read through the test's transaction too, or
+        # profile rows created by routes stay invisible to the middleware.
+        app.state.profile_sessions = lambda: _test_session(clean_db)
     transport = ASGITransport(app=app)
     async with CleanJarClient(transport=transport, base_url="http://test") as ac:
         yield ac

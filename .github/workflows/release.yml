@@ -115,12 +115,13 @@ jobs:
           done
           curl -fsS http://127.0.0.1:8199/health | grep '"status": *"ok"'
           curl -fsS http://127.0.0.1:8199/ | grep -q "<div id=\"root\">"
-          # Unknown /api/v1 routes must be JSON 404s, not SPA fallbacks.
-          # No curl -f here: the 404 is the expected outcome.
+          # Unknown /api/v1 routes must return a JSON error, never the SPA
+          # shell. `web` mode arms the §11 shell-token gate, so an
+          # unauthenticated curl is refused (403) before routing could 404.
           resp="$(curl -sS -o notfound.json -w '%{http_code} %{content_type}' \
             http://127.0.0.1:8199/api/v1/definitely-not-a-route)"
-          [[ "$resp" == "404 application/json"* ]]
-          grep -q "Not Found" notfound.json
+          [[ "$resp" =~ ^(403|404)\ application/json ]]
+          grep -q '"detail"' notfound.json
 
       - name: Smoke test desktop launch under xvfb (stripped deb stage)
         run: |

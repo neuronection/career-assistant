@@ -5,7 +5,7 @@ override in the plan-106 canonical shape."""
 import json
 import re
 
-from conftest import API, BASE_URL
+from conftest import API, BASE_URL, api_headers
 
 
 def _make_experience_with_bullet(page) -> None:
@@ -21,7 +21,7 @@ def _make_experience_with_bullet(page) -> None:
                 "achievements": [{"text": "Original profile bullet"}],
             }
         ),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert created.ok, created.text()
 
@@ -30,7 +30,7 @@ def _make_cv(page, title: str) -> str:
     created = page.request.post(
         f"{API}/cv",
         data=json.dumps({"title": title}),
-        headers={"Content-Type": "application/json"},
+        headers=api_headers({"Content-Type": "application/json"}),
     )
     assert created.ok, created.text()
     return created.json()["id"]
@@ -87,7 +87,7 @@ def test_chat_rewrites_attached_cv_bullets(page) -> None:
     cards.get_by_role("button", name="Approve").click()
     page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
 
-    fetched = page.request.get(f"{API}/cv/{cv_id}")
+    fetched = page.request.get(f"{API}/cv/{cv_id}", headers=api_headers())
     assert fetched.ok, fetched.text()
     # Plan 110: one pin slot per item — the approved rewrite lands as an
     # achievements-only synth variant starred on the plain
@@ -97,7 +97,7 @@ def test_chat_rewrites_attached_cv_bullets(page) -> None:
     keys = [k for k in pins if k.startswith("experience:")]
     assert keys, "the approved bullets variant pin landed on the CV"
     variant_id = pins[keys[0]]
-    variant = page.request.get(f"{API}/cv/synth/{variant_id}")
+    variant = page.request.get(f"{API}/cv/synth/{variant_id}", headers=api_headers())
     assert variant.ok, variant.text()
     achievements = variant.json()["payload"]["achievements"]
     assert achievements == [{"text": "tailored for this CV"}], (

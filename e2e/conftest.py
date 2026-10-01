@@ -102,11 +102,40 @@ def e2e_session_cookies() -> list[dict]:
     return cookies
 
 
+#: The e2e user's Default profile id (identity-auth §6/§15) — resolved
+#: once from `GET /profiles`; every raw API call must scope to it.
+_E2E_PROFILE_ID: str | None = None
+
+
+def api_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Headers for raw `page.request` calls: CSRF echo + profile scope.
+
+    `X-Profile-Id` is mandatory on non-exempt `/api/` paths in
+    authenticated (server) mode — the SPA sends it, so every direct API
+    call in a spec must too.
+    """
+    headers = {"X-CSRF-Token": E2E_CSRF}
+    if _E2E_PROFILE_ID:
+        headers["X-Profile-Id"] = _E2E_PROFILE_ID
+    if extra:
+        headers.update(extra)
+    return headers
+
+
 @pytest.fixture(autouse=True)
 def authed_context(context, e2e_session_cookies):
     """Every spec's browser context carries the e2e session + CSRF echo."""
+    global _E2E_PROFILE_ID
     context.add_cookies(e2e_session_cookies)
     context.set_extra_http_headers({"X-CSRF-Token": E2E_CSRF})
+    if _E2E_PROFILE_ID is None:
+        response = context.request.get(f"{API}/profiles")
+        if response.ok:
+            profiles = response.json()
+            fallback = profiles[0] if profiles else None
+            default = next((p for p in profiles if p.get("is_default")), fallback)
+            if default:
+                _E2E_PROFILE_ID = str(default["id"])
     return context
 
 
@@ -115,13 +144,13 @@ def reset_workspace(page: Page) -> None:
     sessions, experience entries, pending HITL cards) so each spec
     starts pristine."""
     for path, key in _COLLECTIONS:
-        response = page.request.get(f"{API}{path}")
+        response = page.request.get(f"{API}{path}", headers=api_headers())
         if not response.ok:
             continue
         payload = response.json()
         rows = payload[key] if key else payload
         for row in rows:
-            page.request.delete(f"{API}{path}/{row['id']}", headers={"X-CSRF-Token": E2E_CSRF})
+            page.request.delete(f"{API}{path}/{row['id']}", headers=api_headers())
 
 
 @pytest.fixture(autouse=True)

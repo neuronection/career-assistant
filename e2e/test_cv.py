@@ -4,7 +4,7 @@ The renderer's one-path rule means the preview iframe IS the
 export/print path — no server PDF dependency asserted here.
 """
 
-from conftest import BASE_URL, API
+from conftest import API, BASE_URL, api_headers
 from playwright.sync_api import expect
 
 
@@ -60,6 +60,7 @@ def test_generate_splits_experience_family(page) -> None:
                 "description": description,
                 "status": "active",
             },
+            headers=api_headers(),
         )
         assert made.ok, made.text()
 

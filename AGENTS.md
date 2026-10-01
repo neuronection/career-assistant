@@ -83,6 +83,13 @@ migrations for a `-n` run. SQLite workers write isolated files under
 `backend/tests/_xdist/<worker>/` (gitignored); the CI SQLite (desktop
 profile) job stays serial on one file by design. Serial runs keep plain
 `neuronection_career_test` and need their one-shot `alembic upgrade head` as before.
+Test isolation is dialect-split: Postgres wraps each test in one outer
+transaction and rolls it back, while SQLite truncates between tests and
+runs test/request sessions in short (autocommit) transactions. The
+identity stores (`app/auth/stores.py`) commit through their own
+sync-engine connection, so a suite-long transaction on SQLite would hold
+the single write lock (bridge writes die with "database is locked") and
+pin a WAL read snapshot (bridge commits invisible → stale assertions).
 
 Migrations: alembic revision ids are plain sequential (`0001`…; file
 names add a slug). `env.py` reads `settings.DATABASE_URL`, so applying
