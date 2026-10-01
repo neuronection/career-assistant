@@ -690,7 +690,7 @@ class CvTemplateService:
         miss without the print engine raises PDFEngineUnavailable."""
         template = await self.get_readable(template_id, user_id)
         content_hash = canonical_hash(template.content or {})
-        cache_dir = Path(settings.data_dir_path) / "previews" / str(template_id)
+        cache_dir = Path(settings.data_dir) / "previews" / str(template_id)
         cache_path = cache_dir / f"{content_hash}-p1.png"
         if cache_path.exists():
             return cache_path.read_bytes(), content_hash

@@ -77,10 +77,10 @@ def route_worker_database() -> None:
 
     The worker id comes from ``PYTEST_XDIST_WORKER`` (set by pytest-xdist
     before the conftest is imported), so serial runs and the xdist
-    controller are no-ops and keep the original ``DATABASE_URL``.
+    controller are no-ops and keep the original ``CAREER_DATABASE_URL``.
     """
     worker = os.environ.get("PYTEST_XDIST_WORKER")
-    base = os.environ.get("DATABASE_URL")
+    base = os.environ.get("CAREER_DATABASE_URL")
     if not worker or not base:
         return
     if "app.core.config" in sys.modules:
@@ -96,7 +96,7 @@ def route_worker_database() -> None:
             return
         worker_root = _BACKEND_ROOT / _XDIST_ROOT / worker
         worker_root.mkdir(parents=True, exist_ok=True)
-        os.environ["DATABASE_URL"] = f"{scheme}:///{worker_root / Path(file_part).name}"
+        os.environ["CAREER_DATABASE_URL"] = f"{scheme}:///{worker_root / Path(file_part).name}"
     else:
         parts = urlsplit(base)
         last = parts.path.rpartition("/")[2]
@@ -113,5 +113,5 @@ def route_worker_database() -> None:
             )
         )
         _create_postgres_database(worker_url)
-        os.environ["DATABASE_URL"] = worker_url
+        os.environ["CAREER_DATABASE_URL"] = worker_url
     _migrate_worker_db()

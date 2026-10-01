@@ -113,7 +113,7 @@ jobs:
 
       - name: Smoke test frozen bundle (headless web mode)
         run: |
-          DATA_DIR="$PWD/packaging/_smoke" CAREER_SKIP_SEED=1 API_PORT=8199 \
+          CAREER_DATA_DIR="$PWD/packaging/_smoke" CAREER_SKIP_SEED=1 CAREER_API_PORT=8199 \
             timeout 30 backend/dist/careerassistant/careerassistant web > smoke.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8199/health; then break; fi
@@ -132,7 +132,7 @@ jobs:
       - name: Smoke test desktop launch under xvfb (stripped deb stage)
         run: |
           set +e
-          DATA_DIR="$PWD/packaging/_smoke-desktop" CAREER_SKIP_SEED=1 \
+          CAREER_DATA_DIR="$PWD/packaging/_smoke-desktop" CAREER_SKIP_SEED=1 \
             WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 \
             timeout 30 xvfb-run -a \
             packaging/_deb/usr/lib/careerassistant/careerassistant \
@@ -254,11 +254,11 @@ jobs:
 
       - name: Smoke test frozen bundle (headless web mode)
         env:
-          DATA_DIR: ${{ runner.temp }}\ca-data
+          CAREER_DATA_DIR: ${{ runner.temp }}\ca-data
         shell: pwsh
         run: |
           $env:CAREER_SKIP_SEED = "1"
-          $env:API_PORT = "8199"
+          $env:CAREER_API_PORT = "8199"
           $p = Start-Process -FilePath "backend/dist/CareerAssistant.exe" -ArgumentList "web" -PassThru -NoNewWindow
           $ok = $false
           foreach ($i in 1..90) {

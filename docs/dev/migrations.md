@@ -13,7 +13,7 @@ app-specific delta.
 - `backend/alembic/` — `env.py` and `versions/`.
 - Revision ids are **plain sequential**: `0001_…`, `0002_…`, up to the current
   head. File names add a slug (`0041_one_slot_synth_pins.py`).
-- `env.py` reads `settings.DATABASE_URL`; `target_metadata` is
+- `env.py` reads `settings.CAREER_DATABASE_URL`; `target_metadata` is
   `app.models.Base.metadata`, with a metadata `naming_convention` (use the
   **short** constraint name with `op.drop_constraint` /
   `op.create_check_constraint` — the convention renders the prefix; passing the
@@ -78,11 +78,11 @@ case) and is covered by four fold states on both dialects.
 
 Dev/test Postgres is on port 5433 (`docker/docker-compose.dev-db.yml`). The
 test database needs an explicit URL override because `env.py` reads
-`settings.DATABASE_URL`:
+`settings.CAREER_DATABASE_URL`:
 
 ```bash
 cd backend
-DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" \
+CAREER_DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" \
   ./venv/bin/alembic upgrade head
 ```
 

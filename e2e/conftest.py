@@ -2,7 +2,7 @@
 
 The suite runs against a REAL server booted by `scripts/run-e2e.sh`:
 built SPA mounted by FastAPI, scratch database, mock AI provider
-auto-provisioned under APP_ENV=test. The server runs the `authenticated`
+auto-provisioned under CAREER_APP_ENV=test. The server runs the `authenticated`
 instance mode (identity-auth §4 — fail-closed; server entrypoints never
 run `open`), so every spec runs as the logged-in e2e user: a
 session-scoped bootstrap registers/logs in once over the real auth API

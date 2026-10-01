@@ -3,7 +3,7 @@
 # real server → run e2e/ specs → teardown.
 #
 # Env:
-#   DATABASE_URL       target scratch DB (default: neuronection_career_e2e on
+#   CAREER_DATABASE_URL       target scratch DB (default: neuronection_career_e2e on
 #                      the dev Postgres :5433; created when the dev container
 #                      runs)
 #   SKIP_FRONTEND_BUILD=1  reuse frontend/dist as-is
@@ -11,22 +11,22 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${E2E_PORT:-8111}"
-export DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_e2e}"
+export CAREER_DATABASE_URL="${CAREER_DATABASE_URL:-postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_e2e}"
 export E2E_BASE_URL="http://127.0.0.1:${PORT}"
-export APP_ENV=test
-export SCHEDULER_ENABLED=false
+export CAREER_APP_ENV=test
+export CAREER_SCHEDULER_ENABLED=false
 # The mock provider is opt-in since plan 99.1 (mock rows are invisible to
 # AI resolution without the knob) — the scratch DB starts unconfigured,
 # so the mock carrier must be bootstrapped explicitly for the smoke suite.
-export MOCK_AI=1
+export CAREER_MOCK_AI=1
 # The e2e server loads `.env` (not `.env.test`), so the unit suite's
-# RATE_LIMIT_ENABLED=false never applies and back-to-back registrations
+# CAREER_RATELIMIT_ENABLED=false never applies and back-to-back registrations
 # can 429. Disable it here to keep the smoke suite deterministic.
-# The gateway's AI limiter reads AI_RATE_LIMIT directly (default 30/min
+# The gateway's AI limiter reads CAREER_RATELIMIT_AI directly (default 30/min
 # — the suite makes far more mock calls than that, the LAST test files
 # hit the cap and the turn 429s with "retry in 23s").
-export RATE_LIMIT_ENABLED=false
-export AI_RATE_LIMIT=0
+export CAREER_RATELIMIT_ENABLED=false
+export CAREER_RATELIMIT_AI=0
 
 cd "$ROOT"
 
@@ -49,8 +49,8 @@ if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   (cd frontend && npm run build)
 fi
 
-if [[ "$DATABASE_URL" == *"neuronection_career_e2e" ]] && docker ps --format '{{.Names}}' | grep -qx career-postgres; then
-  # Recreate the scratch DB — a stale seeded provider (pre MOCK_AI gate)
+if [[ "$CAREER_DATABASE_URL" == *"neuronection_career_e2e" ]] && docker ps --format '{{.Names}}' | grep -qx career-postgres; then
+  # Recreate the scratch DB — a stale seeded provider (pre CAREER_MOCK_AI gate)
   # pre-empts the bootstrap resolution and leaves the mock fixtures
   # unregistered (the smoke suite ran with generic answers, plan 99.1).
   docker exec career-postgres psql -U neuronection_career_owner -d postgres -c \

@@ -81,7 +81,7 @@ filters. Other list endpoints use standard offset/limit or return full sets.
 
 ## Middleware
 
-`app/main.py` adds CORS (from `CORS_ORIGINS`), rate limiting
+`app/main.py` adds CORS (from `CAREER_CORS_ORIGINS`), rate limiting
 (`RateLimitMiddleware`, buckets `auth`/`ai`/`mcp`/`default`) and security
 headers (`SecurityHeadersMiddleware`).
 

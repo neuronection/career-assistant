@@ -286,7 +286,7 @@ There is no side door around it.
   `app/ai/mcp_server.py` exposes the registry's **read-scope tools
   only** over Streamable HTTP at `/mcp` (FastMCP; token persisted in
   the data dir, live admin rotation `POST /ai/mcp/token`; per-host
-  rate limiting via `MCP_RATE_LIMIT`). The client bridge
+  rate limiting via `CAREER_RATELIMIT_MCP`). The client bridge
   (`app/services/mcp_bridge_service.py` + `ai_mcp_servers`) keeps
   registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py` (alignment R2). Bridge invocations are audited
@@ -335,7 +335,7 @@ loop ride the standard chat turn with a `context.surface` branch;
 their durable state lives in app tables (`cv_documents` working content /
 `interview_sessions` plan + rubric), and resumability comes from the chat
 transcript itself. Checkpoint retention: the desktop prunes its SQLite
-`checkpoints.db` at boot (`CHECKPOINT_TTL_DAYS`); the server prunes
+`checkpoints.db` at boot (`CAREER_CHECKPOINT_TTL_DAYS`); the server prunes
 Postgres on the daily `system_checkpoint_prune` schedule
 (`checkpoint_prune` job).
 
@@ -470,7 +470,7 @@ AI providers/models/task assignments live exclusively in the database
 (Settings → AI Configuration). There are deliberately no `AI_*` env vars.
 Production starts unconfigured (AI endpoints answer `503` until an admin
 adds a provider). The built-in mock provider is strictly opt-in: with the
-`MOCK_AI=1` infra knob (dev/test only — `./scripts/run-dev.sh --mock-ai`,
+`CAREER_MOCK_AI=1` infra knob (dev/test only — `./scripts/run-dev.sh --mock-ai`,
 `.env.test` sets it) a system mock provider is auto-provisioned so the app
 works without keys; with the knob off, mock rows are invisible to task
 resolution and dev AI stays unconfigured (503). The gateway refuses mock

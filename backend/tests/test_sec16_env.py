@@ -24,21 +24,7 @@ _KNOB_ENV = (
     "CAREER_RATELIMIT_MCP",
     "CAREER_RATELIMIT_DEFAULT",
     "CAREER_RATELIMIT_ENABLED",
-    "COOKIE_SECURE",
-    "AUTH_ACCESS_TTL_MINUTES",
-    "AUTH_REFRESH_TTL_DAYS",
-    "AUTH_REFRESH_ABSOLUTE_DAYS",
-    "AUTH_LOCKOUT_THRESHOLD",
-    "AUTH_LOCKOUT_MINUTES",
-    "TRUSTED_PROXY_COUNT",
-    "AUTH_RATE_LIMIT",
-    "AUTH_EMAIL_RATE_LIMIT",
-    "AI_RATE_LIMIT",
-    "MCP_RATE_LIMIT",
-    "DEFAULT_RATE_LIMIT",
-    "RATE_LIMIT_ENABLED",
     "CAREER_REGISTRATION_ENABLED",
-    "REGISTRATION_ENABLED",
 )
 
 
@@ -74,10 +60,9 @@ async def test_sec16_matrix_reaches_kit_config_from_dotenv(monkeypatch, tmp_path
         )
         + "\n",
     )
-    monkeypatch.setattr(install_module, "settings", fresh)
-
+    
     app = FastAPI()
-    install_module.install_identity(app)
+    install_module.install_identity(app, fresh)
     config = app.state.auth.config
 
     assert config.cookie_secure is True
@@ -98,13 +83,13 @@ async def test_sec16_env_beats_dotenv_file(monkeypatch, tmp_path):
     fresh = _settings_from_env_text(
         monkeypatch, tmp_path, "CAREER_AUTH_LOCKOUT_THRESHOLD=3\n"
     )
-    assert fresh.AUTH_LOCKOUT_THRESHOLD == 3, "file value resolves"
+    assert fresh.auth_lockout_threshold == 3, "file value resolves"
 
     from app.core.config import Settings
 
     monkeypatch.setenv("CAREER_AUTH_LOCKOUT_THRESHOLD", "9")
     os_wins = Settings(_env_file=str(tmp_path / ".env"))
-    assert os_wins.AUTH_LOCKOUT_THRESHOLD == 9, "environment beats the file"
+    assert os_wins.auth_lockout_threshold == 9, "environment beats the file"
 
 
 async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
@@ -127,14 +112,14 @@ async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
         )
         + "\n",
     )
-    monkeypatch.setattr(global_settings, "AUTH_RATE_LIMIT", fresh.AUTH_RATE_LIMIT)
+    monkeypatch.setattr(global_settings, "ratelimit_auth", fresh.ratelimit_auth)
     monkeypatch.setattr(
-        global_settings, "AUTH_EMAIL_RATE_LIMIT", fresh.AUTH_EMAIL_RATE_LIMIT
+        global_settings, "ratelimit_auth_email", fresh.ratelimit_auth_email
     )
-    monkeypatch.setattr(global_settings, "AI_RATE_LIMIT", fresh.AI_RATE_LIMIT)
-    monkeypatch.setattr(global_settings, "MCP_RATE_LIMIT", fresh.MCP_RATE_LIMIT)
-    monkeypatch.setattr(global_settings, "DEFAULT_RATE_LIMIT", fresh.DEFAULT_RATE_LIMIT)
-    monkeypatch.setattr(global_settings, "RATE_LIMIT_ENABLED", fresh.RATE_LIMIT_ENABLED)
+    monkeypatch.setattr(global_settings, "ratelimit_ai", fresh.ratelimit_ai)
+    monkeypatch.setattr(global_settings, "ratelimit_mcp", fresh.ratelimit_mcp)
+    monkeypatch.setattr(global_settings, "ratelimit_default", fresh.ratelimit_default)
+    monkeypatch.setattr(global_settings, "ratelimit_enabled", fresh.ratelimit_enabled)
 
     limiter = SlidingWindowRateLimiter()
     assert limiter._limits("auth") == (7, 60)
@@ -142,28 +127,11 @@ async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
     assert limiter._limits("ai") == (13, 60)
     assert limiter._limits("mcp") == (17, 60)
     assert limiter._limits("default") == (19, 60)
-    assert fresh.RATE_LIMIT_ENABLED is False
-    # §16 names resolve the same values as the legacy unprefixed ones.
-    assert fresh.AUTH_RATE_LIMIT == 7
-    assert fresh.AI_RATE_LIMIT == 13
+    assert fresh.ratelimit_enabled is False
+    # §16 names resolve through the kit knob map.
+    assert fresh.ratelimit_auth == 7
+    assert fresh.ratelimit_ai == 13
 
-
-def test_sec16_legacy_unprefixed_ratelimit_names_still_work(monkeypatch):
-    from app.core.config import Settings
-
-    monkeypatch.setenv("AUTH_RATE_LIMIT", "5")
-    monkeypatch.setenv("DEFAULT_RATE_LIMIT", "6")
-    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
-    for var in (
-        "CAREER_RATELIMIT_AUTH",
-        "CAREER_RATELIMIT_DEFAULT",
-        "CAREER_RATELIMIT_ENABLED",
-    ):
-        monkeypatch.delenv(var, raising=False)
-    resolved = Settings(_env_file=None)
-    assert resolved.AUTH_RATE_LIMIT == 5
-    assert resolved.DEFAULT_RATE_LIMIT == 6
-    assert resolved.RATE_LIMIT_ENABLED is False
 
 
 async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(
@@ -176,13 +144,12 @@ async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(
     fresh = _settings_from_env_text(
         monkeypatch, tmp_path, "CAREER_TRUSTED_PROXY_COUNT=1\n"
     )
-    monkeypatch.setattr(install_module, "settings", fresh)
     monkeypatch.setattr(
-        global_settings, "TRUSTED_PROXY_COUNT", fresh.TRUSTED_PROXY_COUNT
+        global_settings, "trusted_proxy_count", fresh.trusted_proxy_count
     )
 
     app = FastAPI()
-    install_module.install_identity(app)
+    install_module.install_identity(app, fresh)
     assert app.state.auth.config.trusted_proxy_count == 1
 
     scope = {
@@ -205,10 +172,9 @@ async def test_sec16_matrix_reaches_kit_config_from_os_environ(monkeypatch):
     from app.core.config import Settings
 
     fresh = Settings(_env_file=None)
-    monkeypatch.setattr(install_module, "settings", fresh)
-
+    
     app = FastAPI()
-    install_module.install_identity(app)
+    install_module.install_identity(app, fresh)
     config = app.state.auth.config
     assert config.cookie_secure is True
     assert config.access_ttl_minutes == 25

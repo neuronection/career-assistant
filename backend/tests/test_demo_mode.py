@@ -271,7 +271,7 @@ async def test_instance_config_reports_demo_mode(
 ) -> None:
     from app.main import create_app
 
-    monkeypatch.setattr(settings, "DEMO_MODE", True)
+    monkeypatch.setattr(settings, "demo_mode", True)
     application = create_app()
     async with CleanJarClient(
         transport=ASGITransport(app=application), base_url="http://test"
@@ -301,7 +301,7 @@ async def test_demo_principal_only_on_demo_instances(
 
     from app.main import create_app
 
-    monkeypatch.setattr(settings, "DEMO_MODE", True)
+    monkeypatch.setattr(settings, "demo_mode", True)
     application = create_app()
     async with CleanJarClient(
         transport=ASGITransport(app=application), base_url="http://test"

@@ -101,7 +101,7 @@ AI features are unconfigured on a fresh install. Open
 
 Until a provider is configured, AI endpoints answer `503`. In development
 you can instead start the backend with the built-in mock provider
-(`./scripts/run-dev.sh --mock-ai` or `MOCK_AI=1`) so everything works
+(`./scripts/run-dev.sh --mock-ai` or `CAREER_MOCK_AI=1`) so everything works
 offline — the mock can never serve results in production.
 
 ## Your first session

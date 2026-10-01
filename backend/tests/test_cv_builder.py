@@ -618,7 +618,7 @@ async def test_preview_png_cached_and_capability_gated(
     from app.services import cv_pdf_service
     from app.services.cv_pdf_service import PDFEngineUnavailable, PageMeasure
 
-    monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
     await _experience(client, auth_headers)
     cv = await _make_cv(client, auth_headers)
 
@@ -636,7 +636,7 @@ async def test_preview_png_cached_and_capability_gated(
     )
 
     url = f"/api/v1/cv/{cv['id']}/preview.png"
-    cache_dir = Path(settings.data_dir_path) / "previews" / "cv" / cv["id"]
+    cache_dir = Path(settings.data_dir) / "previews" / "cv" / cv["id"]
 
     first = await client.get(url, headers=auth_headers)
     assert first.status_code == 200, first.text

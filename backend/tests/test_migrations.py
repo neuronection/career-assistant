@@ -21,7 +21,7 @@ def _restore_head_after_migration_test():
 def _configured() -> Config:
     from app.core.config import settings
 
-    os.environ["DATABASE_URL"] = settings.DATABASE_URL
+    os.environ["CAREER_DATABASE_URL"] = settings.database_url
     return Config("alembic.ini")
 
 
@@ -74,7 +74,7 @@ def _table_present(table: str = "cv_synth_items") -> bool:
 
         from app.core.config import settings
 
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 return bool(
@@ -95,7 +95,7 @@ def _column_present(table: str, column: str) -> bool:
     from app.core.config import settings
 
     async def run():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 columns = await conn.run_sync(
@@ -179,7 +179,7 @@ def test_0043_profiles_one_to_many_legacy_backfill():
 
         user_ids = [uuid.uuid4() for _ in range(2)]
         now = datetime.now(timezone.utc)
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.begin() as conn:
                 for index, user_id in enumerate(user_ids):
@@ -231,7 +231,7 @@ def test_0043_profiles_one_to_many_legacy_backfill():
         from app.core.config import settings
 
         now = datetime.now(timezone.utc)
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.begin() as conn:
                 rows = list(
@@ -286,7 +286,7 @@ def _scope_constraint_allows_bullets() -> bool:
 
         from app.core.config import settings
 
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 if engine.dialect.name == "postgresql":
@@ -337,7 +337,7 @@ def _schedules_checks() -> dict[str, str]:
 
         from app.core.config import settings
 
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 checks = await conn.run_sync(
@@ -462,7 +462,7 @@ def _start_nullable() -> bool:
     from app.core.config import settings
 
     async def probe():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 columns = await conn.run_sync(
@@ -500,8 +500,8 @@ def test_fresh_sqlite_migrates_to_head(monkeypatch):
     os.close(fd)
     Path(path).unlink()
     db_url = f"sqlite+aiosqlite:///{path}"
-    monkeypatch.setenv("DATABASE_URL", db_url)
-    monkeypatch.setattr("app.core.config.settings.DATABASE_URL", db_url, raising=False)
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr("app.core.config.settings.database_url", db_url, raising=False)
     try:
         command.upgrade(_configured(), "head")
     finally:
@@ -518,7 +518,7 @@ def _proposal_kinds_check() -> str:
 
         from app.core.config import settings
 
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 checks = await conn.run_sync(
@@ -576,7 +576,7 @@ def _proposal_status_checks() -> dict[str, str]:
 
         from app.core.config import settings
 
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.connect() as conn:
                 checks = await conn.run_sync(
@@ -629,7 +629,7 @@ def test_0041_one_slot_pin_fold():
     command.upgrade(config, "0040")
 
     async def seed():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
@@ -693,7 +693,7 @@ def test_0041_one_slot_pin_fold():
     command.upgrade(config, "0041")
 
     async def verify():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
@@ -752,7 +752,7 @@ async def _cleanup_fold_data(seeded: dict) -> None:
     from app.models.cv_synth_model import CvSynthItem
     from app.models.user_model import User
 
-    engine = create_async_engine(settings.DATABASE_URL)
+    engine = create_async_engine(settings.database_url)
     maker = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with maker() as session:
@@ -791,7 +791,7 @@ def test_0041_fold_states_and_cross_cv_guard():
     command.upgrade(config, "0040")
 
     async def seed():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
@@ -874,7 +874,7 @@ def test_0041_fold_states_and_cross_cv_guard():
     command.upgrade(config, "0041")
 
     async def verify():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
@@ -951,7 +951,7 @@ def test_0041_fold_states_and_cross_cv_guard():
     async def cleanup():
         from sqlalchemy import delete
 
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
@@ -1053,7 +1053,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
     }
 
     async def seed():
-        engine = create_async_engine(settings.DATABASE_URL)
+        engine = create_async_engine(settings.database_url)
         try:
             async with engine.begin() as conn:
                 for name, key in zip(
@@ -1144,7 +1144,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
         command.upgrade(config, "head")
 
         async def probe():
-            engine = create_async_engine(settings.DATABASE_URL)
+            engine = create_async_engine(settings.database_url)
             try:
                 async with engine.connect() as conn:
                     provider_rows = (
@@ -1204,7 +1204,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
         async def cleanup():
             from sqlalchemy import delete
 
-            engine = create_async_engine(settings.DATABASE_URL)
+            engine = create_async_engine(settings.database_url)
             try:
                 async with engine.begin() as conn:
                     await conn.execute(

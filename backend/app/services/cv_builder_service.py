@@ -380,7 +380,7 @@ class CvBuilderService:
 
         html, payload, _resolution, _metrics = await self.render_state(cv)
         render_hash = canonical_hash(payload)
-        cache_dir = Path(settings.data_dir_path) / "previews" / "cv" / str(cv.id)
+        cache_dir = Path(settings.data_dir) / "previews" / "cv" / str(cv.id)
         cache_path = cache_dir / f"{render_hash}-p1.png"
         if cache_path.exists():
             return cache_path.read_bytes(), render_hash

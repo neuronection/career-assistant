@@ -531,7 +531,7 @@ async def test_checkpointer_picks_sqlite_for_desktop(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         settings,
-        "DATABASE_URL",
+        "database_url",
         f"sqlite+aiosqlite:///{tmp_path / 'career-assistant.db'}",
     )
     monkeypatch.setattr(cp, "_stack", None)
@@ -576,7 +576,7 @@ async def test_postgres_prune_removes_stale_threads(db):
 
     from app.core.config import settings
 
-    if not settings.DATABASE_URL.startswith("postgresql"):
+    if not settings.database_url.startswith("postgresql"):
         _pytest.skip(
             "Postgres retention beat — the langgraph tables are "
             "created by the server's saver setup, not migrations"

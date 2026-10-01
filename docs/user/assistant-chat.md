@@ -74,7 +74,7 @@ Configuration** — stored in the database, encrypted at rest, with no AI
 environment variables at all.
 
 For offline development, the built-in **mock provider** is opt-in via
-`MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`); production refuses to serve
+`CAREER_MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`); production refuses to serve
 mock results regardless.
 
 ## Related

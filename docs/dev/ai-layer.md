@@ -25,7 +25,7 @@ Providers, models and per-task assignments live exclusively in the database
 environment variables**. Production starts unconfigured — AI endpoints answer
 `503` until an admin adds a provider.
 
-The built-in **mock provider** is opt-in via the `MOCK_AI=1` infra knob
+The built-in **mock provider** is opt-in via the `CAREER_MOCK_AI=1` infra knob
 (dev/test only). When it resolves, the gateway self-registers deterministic
 fixtures (`ensure_mock_registry` in `gateway.py`; builders in
 `mock_chat.py`). With the knob off, mock rows are invisible to task
@@ -68,7 +68,7 @@ The checkpointer is app-lifespan-owned (`app/ai/checkpointer.py`:
 `AsyncPostgresSaver` web / `AsyncSqliteSaver` desktop) and `thread_id` is the
 run id, so an interrupted run resumes from its last completed node via
 `ainvoke(None, config)`. Retention: desktop prunes SQLite at boot
-(`CHECKPOINT_TTL_DAYS`); the server prunes Postgres on the daily
+(`CAREER_CHECKPOINT_TTL_DAYS`); the server prunes Postgres on the daily
 `system_checkpoint_prune` schedule.
 
 **Rule: don't graph-ify single-call tasks.** Flows whose every turn is one
@@ -117,7 +117,7 @@ run-linked audit rows. Budgets live in `app/ai/budgets.py` / `ai_budgets`.
 - **Server:** `app/ai/mcp_server.py` exposes the registry's **read-scope tools
   only** over Streamable HTTP at `/mcp` (FastMCP). The token is persisted in
   the data dir, with live admin rotation (`POST /ai/mcp/token`) and per-host
-  rate limiting (`MCP_RATE_LIMIT`).
+  rate limiting (`CAREER_RATELIMIT_MCP`).
 - **Client bridge:** `app/services/mcp_bridge_service.py` + `ai_mcp_servers`
   handle registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py`. Bridge invocations are audited and budgeted as

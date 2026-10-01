@@ -402,7 +402,7 @@ async def test_preferences_reject_bad_quiet_hours(client, auth_headers):
 async def test_bootstrap_declares_web_channels(client, auth_headers):
     from app.core.config import settings
 
-    assert settings.DESKTOP_MODE is False
+    assert settings.desktop_mode is False
     response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["notification_channels"] == ["in_app", "browser"]
@@ -419,7 +419,7 @@ async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeyp
     notification_channels.registered_channels()
     notification_channels.register_channel(DesktopChannel(_FakeBridge()))
     try:
-        monkeypatch.setattr(settings, "DESKTOP_MODE", True)
+        monkeypatch.setattr(settings, "desktop_mode", True)
         assert set(notification_channels.available_channels()) == {
             "in_app",
             "browser",
@@ -667,9 +667,9 @@ def test_main_app_tray_flag(monkeypatch):
         called.clear()
         assert entry.main(["app"]) == 0
         assert called["tray_only"] is False
-        assert os.environ.get("DESKTOP_MODE") == "1"
+        assert os.environ.get("CAREER_DESKTOP_MODE") == "1"
     finally:
-        os.environ.pop("DESKTOP_MODE", None)
+        os.environ.pop("CAREER_DESKTOP_MODE", None)
 
 
 def test_main_rejects_unknown_mode():

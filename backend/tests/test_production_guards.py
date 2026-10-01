@@ -9,13 +9,13 @@ from app.core.errors import ValidationError
 
 
 def _production(monkeypatch):
-    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "app_env", "production")
 
 
 def _pin_keys(monkeypatch, session: str | None, refresh: str | None, data: str | None):
-    monkeypatch.setattr(settings, "SESSION_KEY", session)
-    monkeypatch.setattr(settings, "REFRESH_KEY", refresh)
-    monkeypatch.setattr(settings, "DATA_KEY", data)
+    monkeypatch.setattr(settings, "session_key", session)
+    monkeypatch.setattr(settings, "refresh_key", refresh)
+    monkeypatch.setattr(settings, "data_key", data)
 
 
 _STRONG = {
@@ -39,7 +39,7 @@ def test_boot_guard_rejects_weak_pinned_keys(monkeypatch):
         values = [_STRONG["session"], _STRONG["refresh"], _STRONG["data"]]
         values[index] = "dev-only-change-me"
         _pin_keys(monkeypatch, *values)
-        monkeypatch.setattr(settings, "DEBUG", False)
+        monkeypatch.setattr(settings, "debug", False)
         with pytest.raises(BootConfigError, match=name):
             validate_boot_config()
 
@@ -47,7 +47,7 @@ def test_boot_guard_rejects_weak_pinned_keys(monkeypatch):
 def test_boot_guard_rejects_short_pinned_keys(monkeypatch):
     _production(monkeypatch)
     _pin_keys(monkeypatch, "short", _STRONG["refresh"], _STRONG["data"])
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     with pytest.raises(BootConfigError, match="CAREER_SESSION_KEY"):
         validate_boot_config()
 
@@ -56,7 +56,7 @@ def test_boot_guard_rejects_committed_test_fixture_keys(monkeypatch):
     """The .env.test / ci.yml fixture keys are public (committed) — a
     production boot pinned to them must be refused (identity-auth §8)."""
     _production(monkeypatch)
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     for value in (
         "test-session-key-0123456789abcdefghijklmnopqrstuv",
         "test-refresh-key-0123456789abcdefghijklmnopqrstuv",
@@ -70,7 +70,7 @@ def test_boot_guard_rejects_committed_test_fixture_keys(monkeypatch):
 def test_boot_guard_rejects_partial_key_pin(monkeypatch):
     _production(monkeypatch)
     _pin_keys(monkeypatch, _STRONG["session"], None, _STRONG["data"])
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     with pytest.raises(BootConfigError, match="CAREER_REFRESH_KEY is missing"):
         validate_boot_config()
 
@@ -79,7 +79,7 @@ def test_boot_guard_rejects_unusable_data_key(monkeypatch):
     """DATA_KEY must be 32-byte urlsafe-base64 Fernet material (§8)."""
     _production(monkeypatch)
     _pin_keys(monkeypatch, _STRONG["session"], _STRONG["refresh"], "z" * 48)
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     with pytest.raises(BootConfigError, match="must be usable Fernet"):
         validate_boot_config()
 
@@ -87,7 +87,7 @@ def test_boot_guard_rejects_unusable_data_key(monkeypatch):
 def test_boot_guard_rejects_duplicate_keys(monkeypatch):
     _production(monkeypatch)
     _pin_keys(monkeypatch, _STRONG["session"], _STRONG["session"], _STRONG["data"])
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     with pytest.raises(BootConfigError, match="distinct"):
         validate_boot_config()
 
@@ -96,9 +96,9 @@ def test_boot_guard_refuses_missing_keys_on_production_server(monkeypatch):
     """§8 server posture: env/DB-config keys or nothing — a server never
     silently generates its key material."""
     _production(monkeypatch)
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "server")
+    monkeypatch.setattr(settings, "identity_mode", "server")
     _pin_keys(monkeypatch, None, None, None)
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     with pytest.raises(BootConfigError, match="missing"):
         validate_boot_config()
 
@@ -107,9 +107,9 @@ def test_boot_guard_allows_generated_keys_on_desktop(monkeypatch):
     """§8 desktop posture: keyring-or-0600-file — the generated
     auth_keys.json is the documented desktop key source."""
     _production(monkeypatch)
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "desktop")
+    monkeypatch.setattr(settings, "identity_mode", "desktop")
     _pin_keys(monkeypatch, None, None, None)
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     warnings = validate_boot_config()
     assert any("auth_keys.json" in warning for warning in warnings)
 
@@ -117,16 +117,16 @@ def test_boot_guard_allows_generated_keys_on_desktop(monkeypatch):
 def test_boot_guard_rejects_debug_in_production(monkeypatch):
     _production(monkeypatch)
     _pin_keys(monkeypatch, _STRONG["session"], _STRONG["refresh"], _STRONG["data"])
-    monkeypatch.setattr(settings, "DEBUG", True)
+    monkeypatch.setattr(settings, "debug", True)
     with pytest.raises(BootConfigError, match="DEBUG"):
         validate_boot_config()
 
 
 def test_boot_guard_valid_production_config(monkeypatch):
     _production(monkeypatch)
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "server")
+    monkeypatch.setattr(settings, "identity_mode", "server")
     _pin_keys(monkeypatch, _STRONG["session"], _STRONG["refresh"], _STRONG["data"])
-    monkeypatch.setattr(settings, "DEBUG", False)
+    monkeypatch.setattr(settings, "debug", False)
     assert validate_boot_config() == []
 
 
@@ -137,14 +137,14 @@ async def test_production_without_providers_resolves_to_none(db, monkeypatch):
 
 async def test_dev_without_mock_optin_resolves_to_none(db, monkeypatch):
     """MOCK_AI is off by default: dev AI stays unconfigured (503 path)."""
-    monkeypatch.setattr(settings, "MOCK_AI", False)
+    monkeypatch.setattr(settings, "mock_ai", False)
     assert settings.is_dev
     assert await resolve_task_model(db, "match_score") is None
 
 
 async def test_dev_mock_optin_bootstraps_mock_provider(db, monkeypatch, seeded_catalog):
     """MOCK_AI=1 restores the offline dev experience (run-dev.sh --mock-ai)."""
-    monkeypatch.setattr(settings, "MOCK_AI", True)
+    monkeypatch.setattr(settings, "mock_ai", True)
     assert settings.is_dev
     resolved = await resolve_task_model(db, "match_score")
     assert resolved is not None
@@ -155,9 +155,9 @@ async def test_dev_mock_optin_bootstraps_mock_provider(db, monkeypatch, seeded_c
 
 async def test_dev_mock_optin_hides_seeded_mock_rows(db, monkeypatch):
     """With MOCK_AI off, already-seeded mock rows are invisible to resolution."""
-    monkeypatch.setattr(settings, "MOCK_AI", True)
+    monkeypatch.setattr(settings, "mock_ai", True)
     assert await resolve_task_model(db, "match_score") is not None
-    monkeypatch.setattr(settings, "MOCK_AI", False)
+    monkeypatch.setattr(settings, "mock_ai", False)
     assert await resolve_task_model(db, "match_score") is None
 
 

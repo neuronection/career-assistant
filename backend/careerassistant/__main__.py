@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         # is imported.
         import os
 
-        os.environ["DESKTOP_MODE"] = "1"
+        os.environ["CAREER_DESKTOP_MODE"] = "1"
 
     if mode == "restore":
         if len(args) != 2:

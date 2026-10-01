@@ -22,7 +22,7 @@ class DocumentService:
 
     def _upload_path(self, document_id: uuid.UUID, filename: str) -> Path:
         """Storage path for an uploaded file."""
-        directory = Path(settings.UPLOAD_DIR)
+        directory = Path(settings.upload_dir)
         directory.mkdir(parents=True, exist_ok=True)
         suffix = Path(filename).suffix or ".bin"
         return directory / f"{document_id}{suffix}"
@@ -33,15 +33,15 @@ class DocumentService:
         if not document.filename:
             return None
         suffix = Path(document.filename).suffix or ".bin"
-        return Path(settings.UPLOAD_DIR) / f"{document.id}{suffix}"
+        return Path(settings.upload_dir) / f"{document.id}{suffix}"
 
     async def create_upload(
         self, user_id: uuid.UUID, filename: str, mime: str, content: bytes
     ) -> Document:
         """Persist the file and create the document row."""
-        max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+        max_bytes = settings.max_upload_mb * 1024 * 1024
         if len(content) > max_bytes:
-            raise ValidationError(f"File exceeds {settings.MAX_UPLOAD_MB}MB limit")
+            raise ValidationError(f"File exceeds {settings.max_upload_mb}MB limit")
         document = Document(
             user_id=user_id,
             filename=filename,
@@ -61,7 +61,7 @@ class DocumentService:
     def extract_text(document: Document) -> tuple[str, int]:
         """Extract raw text from the stored file (pdf via pypdf, else utf-8)."""
         path = (
-            Path(settings.UPLOAD_DIR)
+            Path(settings.upload_dir)
             / f"{document.id}{Path(document.filename).suffix or '.bin'}"
         )
         if not path.exists():

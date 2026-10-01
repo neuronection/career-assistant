@@ -15,7 +15,7 @@ from sqlalchemy import select, text
 
 from app.core.config import settings
 
-IS_SQLITE = settings.DATABASE_URL.startswith("sqlite")
+IS_SQLITE = settings.database_url.startswith("sqlite")
 
 # ------------------------------------------------------------- canonical hash
 

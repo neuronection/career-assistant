@@ -10,13 +10,13 @@ Add a provider in **Settings → AI Configuration** — see
 [Getting started](getting-started.md#connect-an-ai-provider).
 
 In development you can instead start the backend with the built-in mock
-provider (`./scripts/run-dev.sh --mock-ai` or `MOCK_AI=1`). The mock can never
+provider (`./scripts/run-dev.sh --mock-ai` or `CAREER_MOCK_AI=1`). The mock can never
 serve results in production.
 
 ## Upload returns `413`
 
-The PDF exceeds the upload cap. Raise `MAX_UPLOAD_MB` **and** your reverse
-proxy's body cap (nginx ships a 64 MB cap — keep it ≥ `MAX_UPLOAD_MB`). See
+The PDF exceeds the upload cap. Raise `CAREER_MAX_UPLOAD_MB` **and** your reverse
+proxy's body cap (nginx ships a 64 MB cap — keep it ≥ `CAREER_MAX_UPLOAD_MB`). See
 [Deployment](../dev/deployment.md).
 
 ## The container restarts in a loop

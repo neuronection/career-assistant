@@ -31,7 +31,7 @@ them.
    touch a provider SDK outside `app/ai/chat_models.py`.
 5. **Assignment UI** — the task appears in Settings → AI Configuration; make
    sure the model capabilities line up.
-6. **Tests** — use the mock provider (`MOCK_AI=1`); assert the validated shape
+6. **Tests** — use the mock provider (`CAREER_MOCK_AI=1`); assert the validated shape
    and the audit row.
 7. **Gates** — `scripts/check-ai-alignment.sh`; docs in
    [ai-layer.md](ai-layer.md).

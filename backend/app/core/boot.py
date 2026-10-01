@@ -9,7 +9,7 @@ this module was the donor and keeps only the wiring):
   hook;
 - `configure_logging` (career's root logging setup).
 
-Only enforces when ``APP_ENV=production``; development/test boot freely
+Only enforces when ``CAREER_APP_ENV=production``; development/test boot freely
 (fail-soft-in-dev / abort-in-prod, mirroring Health-Assistant's policy).
 The legacy JWT-derived Fernet is retired — migration ``0044`` drains its
 ciphertext.
@@ -46,7 +46,7 @@ def configure_logging() -> None:
     if _configured:
         return
     logging.basicConfig(
-        level=logging.DEBUG if settings.DEBUG else logging.INFO,
+        level=logging.debug if settings.debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     _configured = True
@@ -59,18 +59,17 @@ def validate_boot_config() -> list[str]:
     Returns a list of non-fatal warnings (for the lifespan to log).
     Runs real checks only in production; dev/test always returns [].
     """
-    from app.core.keys import data_key_previous, pinned_keys
+    from app.core.keys import data_key_previous
 
-    session_key, refresh_key, data_key = pinned_keys()
     return _kit_validate(
         production=settings.is_production,
         identity_mode=settings.identity_mode,
-        session_key=session_key,
-        refresh_key=refresh_key,
-        data_key=data_key,
+        session_key=settings.session_key,
+        refresh_key=settings.refresh_key,
+        data_key=settings.data_key,
         data_key_previous=data_key_previous(),
         key_env_prefix="CAREER",
-        debug=settings.DEBUG,
-        demo_mode=settings.DEMO_MODE,
+        debug=settings.debug,
+        demo_mode=settings.demo_mode,
         weak_secrets=WEAK_SECRETS,
     )

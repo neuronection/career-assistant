@@ -27,7 +27,7 @@ never removed by `--reset`.
 Usage (interpreter with the app's dependencies, e.g. `backend/venv/bin/python`):
 
     # PostgreSQL demo database (the docker demo flavor):
-    DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuronection_career_demo \\
+    CAREER_DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuronection_career_demo \\
         python scripts/seed-demo.py
 
     # Isolated demo data dir (SQLite), first run on an empty database:
@@ -39,7 +39,7 @@ Usage (interpreter with the app's dependencies, e.g. `backend/venv/bin/python`):
 Flags: `--database-url` (explicit target URL — wins over everything),
 `--demo-dir` (the isolated demo data dir: with no `--database-url` it
 selects the SQLite target `career.sqlite3` inside it), `--init-demo`,
-`--reset`. Without either, `DATABASE_URL` / the Settings value is the
+`--reset`. Without either, `CAREER_DATABASE_URL` / the Settings value is the
 target — which the guards then judge. The run is idempotent: re-running
 changes no counts.
 
@@ -1768,7 +1768,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--database-url",
-        help="target URL (else DATABASE_URL / Settings; explicit URL wins)",
+        help="target URL (else CAREER_DATABASE_URL / Settings; explicit URL wins)",
     )
     parser.add_argument(
         "--demo-dir",
@@ -1790,7 +1790,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def resolve_target(args: argparse.Namespace) -> Target:
     # Explicit --database-url wins; else an explicit --demo-dir selects the
-    # isolated SQLite target inside it (the ambient DATABASE_URL must never
+    # isolated SQLite target inside it (the ambient CAREER_DATABASE_URL must never
     # hijack a declared demo workspace); else the ambient/Settings URL —
     # which the target guard then judges.
     explicit = args.database_url
@@ -1800,11 +1800,11 @@ def resolve_target(args: argparse.Namespace) -> Target:
     elif explicit is not None:
         url = explicit
     else:
-        url = os.environ.get("DATABASE_URL") or None
+        url = os.environ.get("CAREER_DATABASE_URL") or None
         if url is None:
             from app.core.config import Settings
 
-            url = Settings().DATABASE_URL
+            url = Settings().database_url
     return ensure_demo_target(url, demo_dir)
 
 
@@ -1829,10 +1829,10 @@ def _sync_url(url: str) -> str:
 def aim_app_at(url: str) -> str:
     """Point the app's own config at the target (env first — OS env wins)."""
     async_url = _async_url(url)
-    os.environ["DATABASE_URL"] = async_url
+    os.environ["CAREER_DATABASE_URL"] = async_url
     from app.core.config import settings
 
-    settings.DATABASE_URL = async_url
+    settings.database_url = async_url
     return async_url
 
 

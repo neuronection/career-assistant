@@ -544,7 +544,7 @@ async def _run_checkpoint_prune(db: AsyncSession, job: BackgroundJob, **_kw) -> 
     from app.ai.checkpointer import prune_postgres_checkpoints
     from app.core.config import settings
 
-    pruned = await prune_postgres_checkpoints(db, settings.CHECKPOINT_TTL_DAYS)
+    pruned = await prune_postgres_checkpoints(db, settings.checkpoint_ttl_days)
     await db.commit()
     return {"pruned": pruned}
 

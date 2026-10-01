@@ -34,7 +34,7 @@ class MCPTokenStore:
         self._path = Path(directory) if directory else None
 
     def _file(self) -> Path:
-        base = self._path if self._path is not None else settings.data_dir_path
+        base = self._path if self._path is not None else settings.data_dir
         base.mkdir(parents=True, exist_ok=True)
         return base / "mcp_token.json"
 

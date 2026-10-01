@@ -40,7 +40,7 @@ def _jsonable(value):
 
 
 def export_dir() -> Path:
-    path = Path(settings.UPLOAD_DIR) / "exports"
+    path = Path(settings.upload_dir) / "exports"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -122,7 +122,7 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "app_version": settings.VERSION,
+        "app_version": settings.version,
         "user_id": str(user.id),
         "email": user.email,
         "includes": [

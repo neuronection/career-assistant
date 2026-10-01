@@ -30,7 +30,7 @@
 #                                         # bootstrap, web skips alembic
 #                                         # (web seed still runs)
 #   ./scripts/run-dev.sh --mock-ai        # opt in to the built-in mock AI
-#                                         # provider (MOCK_AI=1) so AI features
+#                                         # provider (CAREER_MOCK_AI=1) so AI features
 #                                         # work offline; default is off (AI
 #                                         # endpoints 503 until a real provider
 #                                         # is configured in Settings)
@@ -78,8 +78,8 @@ while [[ "$#" -gt 0 ]]; do
     --no-migrate) NO_MIGRATE=true ;;
     --web) WEB=true ;;
     --mock-ai)
-      export MOCK_AI=1
-      dc_warn "mock AI provider enabled (MOCK_AI=1) — scores/rationales are synthetic"
+      export CAREER_MOCK_AI=1
+      dc_warn "mock AI provider enabled (CAREER_MOCK_AI=1) — scores/rationales are synthetic"
       ;;
     -h|--help) dc_help "$SCRIPT_PATH" ;;
     *) break ;;
@@ -109,8 +109,8 @@ if [[ "$WEB" = true ]]; then
   # is deterministic regardless of what .env pins. Keeps the historical
   # LAN binding (device testing); the identity is server + authenticated.
   export CAREER_IDENTITY_MODE=server
-  : "${DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career}"
-  export DATABASE_URL
+  : "${CAREER_DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career}"
+  export CAREER_DATABASE_URL
   export CA_DEV_HOST="${CA_DEV_HOST:-0.0.0.0}" CA_VITE_HOST="${CA_VITE_HOST:-0.0.0.0}"
   dc_info "web mode     → identity: server, database: postgres @127.0.0.1:$DB_PORT, bind: $CA_DEV_HOST"
 else
@@ -123,20 +123,20 @@ else
   # The shell-less desktop API is UNGATED (no X-Shell-Token gate without
   # a shell) and runs open-auth DIM — so it must bind loopback only, like
   # the shipped desktop app's server does.
-  DATA_DIR="$(cd backend && PYTHONPATH="$(pwd)" python -c 'from app.local import default_data_dir; print(default_data_dir())')"
-  export DATA_DIR
+  CAREER_DATA_DIR="$(cd backend && PYTHONPATH="$(pwd)" python -c 'from app.local import default_data_dir; print(default_data_dir())')"
+  export CAREER_DATA_DIR
   export CAREER_IDENTITY_MODE=desktop
-  export DATABASE_URL="sqlite+aiosqlite:///$DATA_DIR/career-assistant.db"
-  export UPLOAD_DIR="$DATA_DIR/uploads"
+  export CAREER_DATABASE_URL="sqlite+aiosqlite:///$CAREER_DATA_DIR/career-assistant.db"
+  export CAREER_UPLOAD_DIR="$CAREER_DATA_DIR/uploads"
   export CA_DEV_HOST="${CA_DEV_HOST:-127.0.0.1}" CA_VITE_HOST="${CA_VITE_HOST:-localhost}"
-  dc_info "desktop mode → identity: desktop, database: $DATABASE_URL, bind: $CA_DEV_HOST"
+  dc_info "desktop mode → identity: desktop, database: $CAREER_DATABASE_URL, bind: $CA_DEV_HOST"
   #
   # honcho re-applies the repo .env OVER our exports in the child env
-  # (`e.update(p.env)`) — its DATABASE_URL/POSTGRES_*/REDIS_URL are the
+  # (`e.update(p.env)`) — its CAREER_DATABASE_URL/POSTGRES_*/CAREER_REDIS_URL are the
   # WEB dev values and would silently point the desktop server at
   # Postgres. Filter them out into a dedicated env file for honcho (-e).
   DEV_ENV_FILE=".env.dev-desktop.local"
-  grep -vE '^(DATABASE_URL|POSTGRES_[A-Z_]+|REDIS_URL)=' .env \
+  grep -vE '^(CAREER_DATABASE_URL|POSTGRES_[A-Z_]+|CAREER_REDIS_URL)=' .env \
     > "$DEV_ENV_FILE" || true
   dc_info "env file    → $DEV_ENV_FILE (web-only keys filtered out)"
 fi
@@ -211,15 +211,15 @@ dc_reset_desktop() {
   dc_kill_port "$FRONTEND_PORT"
   if [[ ${RESET_ARGS[*]} != *--yes* ]]; then
     dc_warn "This will DELETE the local desktop SQLite profile and all its data:"
-    dc_warn "  $DATA_DIR (career-assistant.db + uploads; backups are kept)"
+    dc_warn "  $CAREER_DATA_DIR (career-assistant.db + uploads; backups are kept)"
     read -r -p "Type 'reset' to continue: " reply
     [[ "$reply" == "reset" ]] || dc_die "aborted"
   fi
   dc_step "removing the local desktop SQLite profile"
-  rm -f "$DATA_DIR/career-assistant.db" \
-        "$DATA_DIR/career-assistant.db-wal" \
-        "$DATA_DIR/career-assistant.db-shm"
-  rm -rf "$DATA_DIR/uploads"
+  rm -f "$CAREER_DATA_DIR/career-assistant.db" \
+        "$CAREER_DATA_DIR/career-assistant.db-wal" \
+        "$CAREER_DATA_DIR/career-assistant.db-shm"
+  rm -rf "$CAREER_DATA_DIR/uploads"
 }
 
 if [[ "$RESET" -eq 1 ]]; then
@@ -248,7 +248,7 @@ if [[ "$WEB" = true ]]; then
   dc_exec_honcho Procfile.dev "$@"
 else
   # -e: honcho must load the FILTERED env file, not the repo .env whose
-  # web-only DATABASE_URL/POSTGRES_*/REDIS_URL would override the desktop
+  # web-only CAREER_DATABASE_URL/POSTGRES_*/CAREER_REDIS_URL would override the desktop
   # exports above (honcho applies env-file values over the inherited env).
   dc_exec_honcho Procfile.dev -e "$DEV_ENV_FILE" "$@"
 fi

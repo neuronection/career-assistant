@@ -92,9 +92,9 @@ the single write lock (bridge writes die with "database is locked") and
 pin a WAL read snapshot (bridge commits invisible → stale assertions).
 
 Migrations: alembic revision ids are plain sequential (`0001`…; file
-names add a slug). `env.py` reads `settings.DATABASE_URL`, so applying
+names add a slug). `env.py` reads `settings.CAREER_DATABASE_URL`, so applying
 to the test DB needs an explicit override:
-`DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" ./venv/bin/alembic upgrade head`
+`CAREER_DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" ./venv/bin/alembic upgrade head`
 (an `upgrade head` on an already-migrated DB is a silent no-op — after
 regenerating a baseline, drop+recreate instead).
 
@@ -106,10 +106,10 @@ regenerating a baseline, drop+recreate instead).
 - AI calls always go through `app.ai.gateway.ainvoke_structured` (audited in
   `ai_generations`). AI config is DB-only via Settings → AI Configuration —
   never add AI_* env vars. The mock provider is dev/test-only and opt-in via
-  `MOCK_AI=1` (an infra knob, not AI config; `./scripts/run-dev.sh --mock-ai`,
+  `CAREER_MOCK_AI=1` (an infra knob, not AI config; `./scripts/run-dev.sh --mock-ai`,
   `.env.test` sets it for pytest, `./scripts/run-e2e.sh` sets it for the
-  smoke suite, which also needs `AI_RATE_LIMIT=0` — the gateway's per-user
-  AI limiter is keyed on that value, not `RATE_LIMIT_ENABLED`) — off by
+  smoke suite, which also needs `CAREER_RATELIMIT_AI=0` — the gateway's per-user
+  AI limiter is keyed on that value, not `CAREER_RATELIMIT_ENABLED`) — off by
   default, mock rows are invisible to resolution without it; production
   starts unconfigured (503 until an admin configures a provider) and
   blocks the mock regardless. Whenever a mock provider resolves, the
@@ -123,7 +123,7 @@ regenerating a baseline, drop+recreate instead).
   only enqueues jobs; notifications always emit through
   `NotificationService.emit` (single funnel; replaces storage,
   keeps the funnel).
-- `SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
+- `CAREER_SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
   tests; drive `SchedulerService(db).tick()` directly.
 - PDF engine (plan 76): `requirements-pdf.txt` + `playwright install
   chromium --only-shell`. The printed PDF is the page-count truth

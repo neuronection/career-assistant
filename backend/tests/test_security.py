@@ -31,7 +31,7 @@ async def _register(
 
 
 def test_sliding_window_allows_then_blocks(monkeypatch):
-    monkeypatch.setattr(settings, "AUTH_RATE_LIMIT", 3)
+    monkeypatch.setattr(settings, "ratelimit_auth", 3)
     limiter = SlidingWindowRateLimiter()
     for _ in range(3):
         assert limiter.check("auth", "1.2.3.4") is None
@@ -41,7 +41,7 @@ def test_sliding_window_allows_then_blocks(monkeypatch):
 
 
 def test_sliding_window_zero_limit_disables_bucket(monkeypatch):
-    monkeypatch.setattr(settings, "AUTH_RATE_LIMIT", 0)
+    monkeypatch.setattr(settings, "ratelimit_auth", 0)
     limiter = SlidingWindowRateLimiter()
     for _ in range(10):
         assert limiter.check("auth", "1.2.3.4") is None
@@ -53,13 +53,13 @@ def _scope(headers=None, client=("9.9.9.9", 1234)):
 
 
 def test_client_identity_uses_rightmost_forwarded_hop(monkeypatch):
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
     scope = _scope({"X-Forwarded-For": "1.1.1.1, 2.2.2.2, 203.0.113.9"})
     assert client_identity(scope) == "203.0.113.9"
 
 
 def test_client_identity_ignores_spoofable_leading_hops(monkeypatch):
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
     scope = _scope({"X-Forwarded-For": "1.1.1.1"}, client=("203.0.113.9", 5))
     assert client_identity(scope) == "1.1.1.1"
     scope = _scope({"X-Forwarded-For": "1.1.1.1, 203.0.113.9"}, client=None)
@@ -81,7 +81,7 @@ def test_client_identity_default_trusts_no_forwarded_hops():
 
 
 def test_client_identity_trusts_exactly_n_hops(monkeypatch):
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 2)
+    monkeypatch.setattr(settings, "trusted_proxy_count", 2)
     scope = _scope(
         {"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 203.0.113.9"}, client=("9.9.9.9", 5)
     )
@@ -89,8 +89,8 @@ def test_client_identity_trusts_exactly_n_hops(monkeypatch):
 
 
 async def test_login_rate_limited_per_ip(client, monkeypatch):
-    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
-    monkeypatch.setattr(settings, "AUTH_RATE_LIMIT", 3)
+    monkeypatch.setattr(settings, "ratelimit_enabled", True)
+    monkeypatch.setattr(settings, "ratelimit_auth", 3)
     for _ in range(3):
         await client.post(
             "/api/v1/auth/login",
@@ -105,7 +105,7 @@ async def test_login_rate_limited_per_ip(client, monkeypatch):
 
 
 async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
-    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+    monkeypatch.setattr(settings, "ratelimit_enabled", False)
     kit = auth_kit()
     kit.ip_limiter.per_minute = 10**6  # the kit's auth limiter is out of scope here
     kit.email_limiter.per_minute = 10**6
@@ -239,7 +239,7 @@ async def test_password_minimum_length_enforced(client):
 
 
 async def test_ai_rate_limit_per_user(monkeypatch):
-    monkeypatch.setattr(settings, "AI_RATE_LIMIT", 2)
+    monkeypatch.setattr(settings, "ratelimit_ai", 2)
     from app.ai import gateway
     from app.core import ratelimit
     from app.core.errors import DomainError

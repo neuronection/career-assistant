@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
 from app.main import app
 
-TEST_DB_URL = settings.DATABASE_URL
+TEST_DB_URL = settings.database_url
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
 
 _engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True)

@@ -49,11 +49,11 @@ class SlidingWindowRateLimiter:
 
     def _limits(self, bucket: str) -> tuple[int, int]:
         table = {
-            "auth": (settings.AUTH_RATE_LIMIT, 60),
-            "auth_email": (settings.AUTH_EMAIL_RATE_LIMIT, 60),
-            "ai": (settings.AI_RATE_LIMIT, 60),
-            "mcp": (settings.MCP_RATE_LIMIT, 60),
-            "default": (settings.DEFAULT_RATE_LIMIT, 60),
+            "auth": (settings.ratelimit_auth, 60),
+            "auth_email": (settings.ratelimit_auth_email, 60),
+            "ai": (settings.ratelimit_ai, 60),
+            "mcp": (settings.ratelimit_mcp, 60),
+            "default": (settings.ratelimit_default, 60),
         }
         return table.get(bucket, table["default"])
 
@@ -87,5 +87,5 @@ def client_identity(scope) -> str:
     return client_ip(
         client[0] if client else None,
         parsed.get("x-forwarded-for", ""),
-        settings.TRUSTED_PROXY_COUNT,
+        settings.trusted_proxy_count,
     )

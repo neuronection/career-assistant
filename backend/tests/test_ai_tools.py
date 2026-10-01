@@ -321,6 +321,6 @@ def test_plugin_allowlist_gates_entry_points(monkeypatch):
 
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "TOOL_PLUGINS_ALLOWLIST", ["echo"])
+    monkeypatch.setattr(settings, "tool_plugins_allowlist", ["echo"])
     reset_registry()
     assert any(t["key"] == "echo" for t in list_tools())

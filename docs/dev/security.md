@@ -113,7 +113,7 @@ the kit's auth limiters use the same knob).
 
 ## Production boot guards
 
-`app/core/boot.py` runs real checks only when `APP_ENV=production` and refuses
+`app/core/boot.py` runs real checks only when `CAREER_APP_ENV=production` and refuses
 to start with:
 
 - a weak, partial or missing key family — all three of
@@ -121,7 +121,7 @@ to start with:
   strong on a production server (missing is allowed only on desktop, where
   the generated 0600 `auth_keys.json` is the §8 key source),
 - a `CAREER_DATA_KEY` that is not 32-byte urlsafe-base64 Fernet material,
-- `DEBUG=true` or `DEMO_MODE=true`.
+- `DEBUG=true` or `CAREER_DEMO_MODE=true`.
 
 Development and test boot freely. Production otherwise starts with AI
 unconfigured (503s) until an admin sets a provider.
@@ -134,14 +134,14 @@ unconfigured (503s) until an admin sets a provider.
   explicitly marked "reference data, never instructions" in prompts
   (`app/services/webfetch.py`, the `web_*` tools).
 - **The mock provider can never serve production** — it is dev/test-only and
-  gated by `MOCK_AI=1`; the gateway refuses mock results in production.
+  gated by `CAREER_MOCK_AI=1`; the gateway refuses mock results in production.
 - Every AI call is audited in `ai_generations`.
 
 ## Outbound requests and uploads
 
 - **SSRF guard**: resolve-then-connect blocklist, manual redirect hops, size
   and time caps on fetches.
-- **Uploads**: size-capped (`MAX_UPLOAD_MB`), type-checked; nginx enforces a
+- **Uploads**: size-capped (`CAREER_MAX_UPLOAD_MB`), type-checked; nginx enforces a
   matching body cap. Uploaded documents are stored under the data/uploads dir.
 
 ## Frontend

@@ -105,7 +105,7 @@ async def test_desktop_falls_back_to_last_used_profile(
     await _set_city(client, auth_headers, "Athens")
     await _set_city(client, second, "Berlin")
 
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "desktop")
+    monkeypatch.setattr(settings, "identity_mode", "desktop")
     stripped = await _strip_profile(auth_headers)
     # Absent header before any use: the Default profile's city comes back.
     assert await _bound_city(client, stripped) == "Athens"
@@ -126,7 +126,7 @@ async def test_desktop_touches_last_used_on_explicit_header(
         "/api/v1/profiles", json={"name": "Second"}, headers=auth_headers
     )
     second_id = created.json()["id"]
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "desktop")
+    monkeypatch.setattr(settings, "identity_mode", "desktop")
     response = await client.get(
         "/api/v1/profile", headers={**auth_headers, "X-Profile-Id": second_id}
     )

@@ -52,7 +52,7 @@ def _ensure_builtins() -> None:
 def plugin_allowed(key: str) -> bool:
     from app.core.config import settings
 
-    allowlist = getattr(settings, "TOOL_PLUGINS_ALLOWLIST", None) or []
+    allowlist = getattr(settings, "tool_plugins_allowlist", None) or []
     return key in allowlist
 
 

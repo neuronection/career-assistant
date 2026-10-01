@@ -268,7 +268,7 @@ structured profile.
   generation, parsing, chat…) are managed in **Settings → AI Configuration**
   — stored in the database, encrypted at rest, with no AI environment
   variables at all.
-- **Dev-only mock provider** — opt-in via `MOCK_AI=1` (or
+- **Dev-only mock provider** — opt-in via `CAREER_MOCK_AI=1` (or
   `./scripts/run-dev.sh --mock-ai`): the deterministic mock makes everything
   work offline; without it dev AI endpoints answer 503 until a provider is
   configured, and production refuses to serve mock results (503, audited)
@@ -326,6 +326,6 @@ structured profile.
   masked in every response.
 - **Full AI audit trail** — every AI call (task, model, tokens, output,
   latency) is recorded in `ai_generations`.
-- **Fail-safe production mode** — `APP_ENV=production` is the default; boot
+- **Fail-safe production mode** — `CAREER_APP_ENV=production` is the default; boot
   guards refuse a weak or missing key family (`CAREER_SESSION_KEY` /
   `CAREER_REFRESH_KEY` / `CAREER_DATA_KEY`) or `DEBUG=true`.

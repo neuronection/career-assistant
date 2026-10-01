@@ -14,23 +14,23 @@ cd backend && ./venv/bin/pytest tests -q -n auto     # parallel (default)
 `.env.test` (loaded by the test config) pins the test environment:
 
 ```
-APP_ENV=test
-DATABASE_URL=...neuronection_career_test
-RATE_LIMIT_ENABLED=false
-SCHEDULER_ENABLED=false
+CAREER_APP_ENV=test
+CAREER_DATABASE_URL=...neuronection_career_test
+CAREER_RATELIMIT_ENABLED=false
+CAREER_SCHEDULER_ENABLED=false
 BCRYPT_ROUNDS=4
-AI_RATE_LIMIT=0
-MOCK_AI=1
+CAREER_RATELIMIT_AI=0
+CAREER_MOCK_AI=1
 ```
 
 Key points:
 
-- **The scheduler loop never runs in tests.** `SCHEDULER_ENABLED=false`; drive
+- **The scheduler loop never runs in tests.** `CAREER_SCHEDULER_ENABLED=false`; drive
   it directly with `SchedulerService(db).tick()`.
-- **Mock AI is on** (`MOCK_AI=1`), so AI-dependent tests are deterministic and
+- **Mock AI is on** (`CAREER_MOCK_AI=1`), so AI-dependent tests are deterministic and
   offline. The gateway self-registers mock fixtures when a mock provider
   resolves.
-- **Rate limiting is off** (`RATE_LIMIT_ENABLED=false`; the auth-kit's own
+- **Rate limiting is off** (`CAREER_RATELIMIT_ENABLED=false`; the auth-kit's own
   auth limits are reset per test). Passwords hash at the family bcrypt
   floor (12 rounds — the kit enforces it).
 - **Auth sessions are real kit sessions**: `tests/conftest.py` mints
@@ -93,9 +93,9 @@ cd frontend && npm run build           # tsc + vite build (typecheck)
 
 ## E2E smoke
 
-`./scripts/run-e2e.sh` runs the smoke suite. It sets `MOCK_AI=1` and
-`AI_RATE_LIMIT=0` (the gateway's per-user AI limiter is keyed on that value,
-not `RATE_LIMIT_ENABLED`).
+`./scripts/run-e2e.sh` runs the smoke suite. It sets `CAREER_MOCK_AI=1` and
+`CAREER_RATELIMIT_AI=0` (the gateway's per-user AI limiter is keyed on that value,
+not `CAREER_RATELIMIT_ENABLED`).
 
 ## What to run before a PR
 

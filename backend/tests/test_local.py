@@ -27,9 +27,9 @@ class FakeScreen:
 def clean_env(monkeypatch):
     """Isolate the environment keys the local bootstrap touches."""
     for key in (
-        "DATA_DIR",
-        "DATABASE_URL",
-        "UPLOAD_DIR",
+        "CAREER_DATA_DIR",
+        "CAREER_DATABASE_URL",
+        "CAREER_UPLOAD_DIR",
         "CAREER_ENV_FILE",
         "APPDATA",
         "XDG_DATA_HOME",
@@ -39,7 +39,7 @@ def clean_env(monkeypatch):
 
 
 def test_default_data_dir_honors_explicit_override(clean_env, monkeypatch, tmp_path):
-    monkeypatch.setenv("DATA_DIR", str(tmp_path / "custom"))
+    monkeypatch.setenv("CAREER_DATA_DIR", str(tmp_path / "custom"))
     assert default_data_dir() == tmp_path / "custom"
 
 
@@ -50,9 +50,9 @@ def test_default_data_dir_platform_default(clean_env, monkeypatch):
 
 def test_bootstrap_environment_sets_sqlite_defaults(clean_env, tmp_path):
     env = bootstrap_environment(tmp_path, environ={})
-    assert env["DATA_DIR"] == str(tmp_path)
-    assert env["DATABASE_URL"].startswith(f"sqlite+aiosqlite:///{tmp_path}")
-    assert env["UPLOAD_DIR"] == str(tmp_path / "uploads")
+    assert env["CAREER_DATA_DIR"] == str(tmp_path)
+    assert env["CAREER_DATABASE_URL"].startswith(f"sqlite+aiosqlite:///{tmp_path}")
+    assert env["CAREER_UPLOAD_DIR"] == str(tmp_path / "uploads")
     assert (tmp_path / "uploads").is_dir()
     assert (tmp_path / "logs").is_dir()
     assert env["CAREER_ENV_FILE"] == str(tmp_path / "env")
@@ -70,10 +70,10 @@ def test_bootstrap_environment_seeds_no_key_material(clean_env, tmp_path):
 
 def test_bootstrap_environment_never_overrides_real_env(clean_env, tmp_path):
     env = {
-        "DATABASE_URL": "postgresql+asyncpg://keep@me/db",
+        "CAREER_DATABASE_URL": "postgresql+asyncpg://keep@me/db",
     }
     bootstrap_environment(tmp_path, environ=env)
-    assert env["DATABASE_URL"] == "postgresql+asyncpg://keep@me/db"
+    assert env["CAREER_DATABASE_URL"] == "postgresql+asyncpg://keep@me/db"
 
 
 def test_find_free_port_is_bindable():
@@ -145,4 +145,4 @@ def test_version_single_source():
 
     from app.core.config import settings
 
-    assert settings.VERSION == app.__version__
+    assert settings.version == app.__version__

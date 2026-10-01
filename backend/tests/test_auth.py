@@ -117,13 +117,12 @@ async def test_registration_env_var_reaches_the_register_route(monkeypatch):
     from app.core.config import Settings
 
     monkeypatch.setenv("CAREER_REGISTRATION_ENABLED", "false")
-    monkeypatch.setattr(install_module, "settings", Settings())
 
-    fresh = FastAPI()
-    install_module.install_identity(fresh)
-    assert fresh.state.auth.config.registration_enabled is False
+    app = FastAPI()
+    install_module.install_identity(app, Settings())
+    assert app.state.auth.config.registration_enabled is False
 
-    transport = httpx.ASGITransport(app=fresh)
+    transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as anon:
         response = await anon.post(
             "/api/v1/auth/register",
@@ -144,11 +143,10 @@ async def test_registration_flag_reads_the_dotenv_file_too(monkeypatch, tmp_path
     env_file = tmp_path / ".env"
     env_file.write_text("CAREER_REGISTRATION_ENABLED=false\n")
     monkeypatch.delenv("CAREER_REGISTRATION_ENABLED", raising=False)
-    monkeypatch.setattr(install_module, "settings", Settings(_env_file=str(env_file)))
 
-    fresh = FastAPI()
-    install_module.install_identity(fresh)
-    assert fresh.state.auth.config.registration_enabled is False
+    app = FastAPI()
+    install_module.install_identity(app, Settings(_env_file=str(env_file)))
+    assert app.state.auth.config.registration_enabled is False
 
 
 # ------------------------------------------------------------------- login

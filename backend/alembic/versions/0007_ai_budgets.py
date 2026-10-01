@@ -9,7 +9,6 @@ from typing import Sequence, Union
 import app.models.base
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision: str = '0007'
 down_revision: Union[str, None] = '0006'

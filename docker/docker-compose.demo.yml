@@ -19,7 +19,7 @@
 #     127.0.0.1 by default — put a tunnel or reverse proxy in front;
 #   • registration disabled (`CAREER_REGISTRATION_ENABLED=false`); the
 #     gateway only starts after `demo-seed` has completed successfully;
-#   • `APP_ENV=demo` — production entrypoints abort on demo config
+#   • `CAREER_APP_ENV=demo` — production entrypoints abort on demo config
 #     (app/core/boot.py, identity-auth §13), so a production deployment can
 #     never run this flavor's config.
 #
@@ -75,18 +75,18 @@ services:
     environment:
       # Demo flavor markers (identity-auth §13): never production — the
       # production boot guard aborts on CAREER_DEMO_MODE=true.
-      APP_ENV: demo
+      CAREER_APP_ENV: demo
       CAREER_DEMO_MODE: "true"
       CAREER_REGISTRATION_ENABLED: "false"
       # ADR-0022: the demo database is neuronection_<product>_demo — never a
       # production database.
-      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
       # auth_keys.json (identity-auth §8) + desktop checkpoints persist here.
-      DATA_DIR: /data
-      UPLOAD_DIR: /data/uploads
-      SPA_DIST: /app/frontend/dist
+      CAREER_DATA_DIR: /data
+      CAREER_UPLOAD_DIR: /data/uploads
+      CAREER_SPA_DIST: /app/frontend/dist
       # Same-origin SPA + API → CORS stays empty.
-      CORS_ORIGINS: ""
+      CAREER_CORS_ORIGINS: ""
       # Rightmost hop is the bundled gateway (§7 per-IP limits).
       CAREER_TRUSTED_PROXY_COUNT: "1"
     # No host ports: only the gateway is reachable (via `edge`).
@@ -115,8 +115,8 @@ services:
       app:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
-      DATA_DIR: /data
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
+      CAREER_DATA_DIR: /data
     volumes:
       - ../scripts/seed-demo.py:/app/scripts/seed-demo.py:ro
     entrypoint: ["python", "/app/scripts/seed-demo.py"]
@@ -140,8 +140,8 @@ services:
       demo-seed:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
-      DATA_DIR: /data
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:${POSTGRES_PASSWORD}@db:5432/neuronection_career_demo
+      CAREER_DATA_DIR: /data
     volumes:
       - ../scripts/seed-demo.py:/app/scripts/seed-demo.py:ro
     entrypoint: ["python", "/app/scripts/seed-demo.py"]

@@ -439,7 +439,7 @@ async def ainvoke_structured(
     """
     from app.ai.providers.resolution import resolve_task_model
 
-    if user_id is not None and settings.AI_RATE_LIMIT > 0:
+    if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
         from app.core.ratelimit import limiter
 
@@ -641,7 +641,7 @@ async def ainvoke_agent(
     """
     from app.ai.providers.resolution import resolve_task_model
 
-    if user_id is not None and settings.AI_RATE_LIMIT > 0:
+    if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
         from app.core.ratelimit import limiter
 
@@ -849,7 +849,7 @@ class StructuredStream:
     ):
         from app.ai.providers.resolution import resolve_task_model
 
-        if user_id is not None and settings.AI_RATE_LIMIT > 0:
+        if user_id is not None and settings.ratelimit_ai > 0:
             from app.core.errors import DomainError
             from app.core.ratelimit import limiter
 
@@ -1066,7 +1066,7 @@ async def embed_texts(
     """
     from app.ai.providers.resolution import resolve_task_model
 
-    if user_id is not None and settings.AI_RATE_LIMIT > 0:
+    if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
         from app.core.ratelimit import limiter
 
@@ -1162,7 +1162,7 @@ async def transcribe_audio(
     from app.ai.providers.resolution import resolve_task_model
     from app.ai.transcribe import transcribe_with
 
-    if user_id is not None and settings.AI_RATE_LIMIT > 0:
+    if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
         from app.core.ratelimit import limiter
 

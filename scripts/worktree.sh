@@ -10,7 +10,7 @@
 # Layout per worktree (created next to the primary checkout):
 #   ../career-assistant-<name>/
 #     .env.wt.local      # port/DB overrides for scripts (gitignored)
-#     .env               # app config: own DATABASE_URL/ports (gitignored)
+#     .env               # app config: own CAREER_DATABASE_URL/ports (gitignored)
 #     backend/venv       # own venv
 #     frontend/node_modules
 #     docker compose project `career-<name>`: postgres :<db-port>,
@@ -145,7 +145,7 @@ wt_migrate_test_db() {
   (
     cd "$root/backend"
     export PATH="$root/backend/venv/bin:$PATH"
-    DATABASE_URL="$DATABASE_URL_TEST" PYTHONPATH="$(pwd)" alembic upgrade head
+    CAREER_DATABASE_URL="$DATABASE_URL_TEST" PYTHONPATH="$(pwd)" alembic upgrade head
   ) || wt_die "migration of worktree test DB failed"
   wt_ok "Worktree test DB is migrated."
 }
@@ -202,20 +202,20 @@ BACKEND_PORT=$backend_port
 FRONTEND_PORT=$frontend_port
 POSTGRES_PORT=$db_port
 REDIS_PORT=$redis_port
-DATABASE_URL=$db_url
+CAREER_DATABASE_URL=$db_url
 DATABASE_URL_TEST=$db_url_test
 EOF
   cat > "$dir/.env" <<EOF
 APP_NAME=Career Assistant
-APP_ENV=development
+CAREER_APP_ENV=development
 DEBUG=true
-API_HOST=0.0.0.0
-API_PORT=$backend_port
-CORS_ORIGINS=http://localhost:$frontend_port,http://127.0.0.1:$frontend_port
-DATABASE_URL=$db_url
-REDIS_URL=redis://127.0.0.1:$redis_port/0
-UPLOAD_DIR=uploads
-RATE_LIMIT_ENABLED=true
+CAREER_API_HOST=0.0.0.0
+CAREER_API_PORT=$backend_port
+CAREER_CORS_ORIGINS=http://localhost:$frontend_port,http://127.0.0.1:$frontend_port
+CAREER_DATABASE_URL=$db_url
+CAREER_REDIS_URL=redis://127.0.0.1:$redis_port/0
+CAREER_UPLOAD_DIR=uploads
+CAREER_RATELIMIT_ENABLED=true
 EOF
 
   wt_copy_local_config "$dir"

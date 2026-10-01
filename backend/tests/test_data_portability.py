@@ -164,7 +164,7 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     )
     (data_dir / "secret.key").write_text("s3cret")
 
-    monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
     archive = backups.create_backup(data_dir)
     assert archive.is_file()
@@ -223,7 +223,7 @@ def test_corrupt_db_is_quarantined_and_repaired(tmp_path, monkeypatch):
     connection.execute("INSERT INTO t VALUES ('keep')")
     connection.commit()
     connection.close()
-    monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
     archive = backups.create_backup(data_dir)
 
@@ -248,7 +248,7 @@ def test_restore_rejects_corrupt_archive_and_leaves_live_db(tmp_path, monkeypatc
     connection.execute("CREATE TABLE t (x TEXT)")
     connection.commit()
     connection.close()
-    monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
     archive = data_dir / "backup-bad.zip"
     with zipfile.ZipFile(archive, "w") as bundle:

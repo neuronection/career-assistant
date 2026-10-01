@@ -40,9 +40,9 @@ def _reset_caches():
 
 @pytest.fixture
 def pinned_ring(monkeypatch):
-    monkeypatch.setattr(settings, "SESSION_KEY", "s" + "0123456789abcdef" * 3)
-    monkeypatch.setattr(settings, "REFRESH_KEY", "r" + "0123456789abcdef" * 3)
-    monkeypatch.setattr(settings, "DATA_KEY", DATA_TOKEN)
+    monkeypatch.setattr(settings, "session_key", "s" + "0123456789abcdef" * 3)
+    monkeypatch.setattr(settings, "refresh_key", "r" + "0123456789abcdef" * 3)
+    monkeypatch.setattr(settings, "data_key", DATA_TOKEN)
     return keys.keyring()
 
 
@@ -93,11 +93,11 @@ def test_data_key_rejects_non_key_material(pinned_ring):
 
 
 def test_keyring_pinned_and_file_resolution(monkeypatch, tmp_path):
-    monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(settings, "SESSION_KEY", None)
-    monkeypatch.setattr(settings, "REFRESH_KEY", None)
-    monkeypatch.setattr(settings, "DATA_KEY", None)
-    for var in keys.KEY_ENV_VARS:
+    monkeypatch.setattr(settings, "config_dir", tmp_path)
+    monkeypatch.setattr(settings, "session_key", None)
+    monkeypatch.setattr(settings, "refresh_key", None)
+    monkeypatch.setattr(settings, "data_key", None)
+    for var in ("CAREER_SESSION_KEY", "CAREER_REFRESH_KEY", "CAREER_DATA_KEY"):
         monkeypatch.delenv(var, raising=False)
     keys.reset_keyring_cache()
     ring = keys.keyring()
@@ -107,11 +107,11 @@ def test_keyring_pinned_and_file_resolution(monkeypatch, tmp_path):
 
 
 def test_keyring_partial_pin_fails_closed(monkeypatch, pinned_ring):
-    monkeypatch.setattr(settings, "SESSION_KEY", "s" + "0123456789abcdef" * 3)
-    monkeypatch.setattr(settings, "REFRESH_KEY", None)
-    monkeypatch.setattr(settings, "DATA_KEY", DATA_TOKEN)
+    monkeypatch.setattr(settings, "session_key", "s" + "0123456789abcdef" * 3)
+    monkeypatch.setattr(settings, "refresh_key", None)
+    monkeypatch.setattr(settings, "data_key", DATA_TOKEN)
     keys.reset_keyring_cache()
-    with pytest.raises(keys.PartialKeyRingError, match="CAREER_REFRESH_KEY"):
+    with pytest.raises(ValueError, match="CAREER_REFRESH_KEY"):
         keys.keyring()
 
 
@@ -160,7 +160,7 @@ def test_previous_key_decrypts_only_primary_seals(pinned_ring, monkeypatch):
     sealed_old = (
         "enc::" + fernet_from_data_key(old_token).encrypt(b"before-rotation").decode()
     )
-    monkeypatch.setattr(settings, "DATA_KEY_PREVIOUS", old_token)
+    monkeypatch.setattr(settings, "data_key_previous", old_token)
     reset_data_cipher()
     assert decrypt_secret(sealed_old) == "before-rotation"
     sealed_new = encrypt_secret("after-rotation")
@@ -171,9 +171,9 @@ def test_previous_key_decrypts_only_primary_seals(pinned_ring, monkeypatch):
 
 
 def test_previous_key_parsing_drops_blanks(monkeypatch, pinned_ring):
-    monkeypatch.setattr(settings, "DATA_KEY_PREVIOUS", None)
+    monkeypatch.setattr(settings, "data_key_previous", None)
     assert keys.data_key_previous() == []
-    monkeypatch.setattr(settings, "DATA_KEY_PREVIOUS", f" , {DATA_TOKEN} , ")
+    monkeypatch.setattr(settings, "data_key_previous", f" , {DATA_TOKEN} , ")
     assert keys.data_key_previous() == [DATA_TOKEN]
 
 

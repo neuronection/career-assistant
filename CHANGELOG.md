@@ -5,6 +5,37 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed
+- **Plan 20 Phase 4 — uniform family skeleton:**
+  - **Config (D2):** `Settings` is snake_case with `env_prefix="CAREER_"`
+    and **no unprefixed aliases** — every setting is `CAREER_*` only
+    (`DATABASE_URL` → `CAREER_DATABASE_URL`, `RATE_LIMIT_ENABLED` →
+    `CAREER_RATELIMIT_ENABLED`, `AUTH_RATE_LIMIT` → `CAREER_RATELIMIT_AUTH`,
+    …). The §16 knob fields now mirror the kit's env suffixes verbatim
+    (the install alias map is gone). `.env` resolution is explicit
+    `CAREER_ENV_FILE` → source-anchored walk-up, **disabled outside
+    dev/test** (audit C-5: no baked-in `.env` downgrades a production
+    boot).
+  - **Dirs split (family standard):** `data_dir` + `config_dir` —
+    `auth_keys.json` and per-instance state move to the config dir;
+    key resolution is `KeyRing.load_for("CAREER", config_dir, pinned=…)`
+    (the local resolution copy in `app/core/keys.py` is gone).
+  - **One app per process:** `app.main.app` is the single construction —
+    `python -m careerassistant {app,web}` reuses it (the shell gate is
+    armed before `app.main` imports), ending the double build that
+    logged a spurious "gate DISARMED" warning. `create_app(settings=None)`
+    takes the family DI seam.
+  - **`main.py` split (D5, 238 lines):** middleware (security headers +
+    web/desktop CSP, rate limiting, profile binding, SPA fallback) →
+    `app/middleware.py`.
+- `scripts/seed-demo.py`, the docker compose/entrypoint surfaces, dev
+  scripts, CI workflows and docs follow the prefixed-only names.
+
+### Fixed
+- `app/local.py:default_data_dir` must stay self-contained: delegating
+  to `app.core.config` constructs the `Settings` singleton before the
+  desktop env defaults are set (caught by the entrypoint smoke).
+
+### Changed
 - **Identity glue unified on the auth-kit (plan 20 Phase 3, ADR-0028):**
   the local `app/auth/instance.py` copy of the §4 init rules and the
   boot-guard logic in `app/core/boot.py` are gone (same-commit delete) —

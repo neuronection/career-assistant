@@ -27,8 +27,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      APP_ENV: test
-      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
@@ -93,8 +93,8 @@ jobs:
       run:
         working-directory: backend
     env:
-      APP_ENV: test
-      DATABASE_URL: sqlite+aiosqlite:///./neuronection_career_test.db
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: sqlite+aiosqlite:///./neuronection_career_test.db
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
@@ -228,7 +228,7 @@ jobs:
       - name: Smoke test frozen bundle (headless web mode)
         run: |
           trap 'echo "=== smoke.log ==="; cat smoke.log; echo "=== bundle SPA dist ==="; ls -la backend/dist/careerassistant/_internal/frontend/dist/ || true' EXIT
-          DATA_DIR="$PWD/packaging/_smoke" CAREER_SKIP_SEED=1 API_PORT=8199 \
+          CAREER_DATA_DIR="$PWD/packaging/_smoke" CAREER_SKIP_SEED=1 CAREER_API_PORT=8199 \
             timeout 30 backend/dist/careerassistant/careerassistant web > smoke.log 2>&1 &
           ok=""
           for i in $(seq 1 30); do
@@ -248,7 +248,7 @@ jobs:
       - name: Smoke test desktop launch under xvfb (frozen bundle)
         run: |
           set +e
-          DATA_DIR="$PWD/packaging/_smoke-desktop" CAREER_SKIP_SEED=1 \
+          CAREER_DATA_DIR="$PWD/packaging/_smoke-desktop" CAREER_SKIP_SEED=1 \
             WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 \
             timeout 30 xvfb-run -a \
             backend/dist/careerassistant/careerassistant \
@@ -317,7 +317,7 @@ jobs:
           REFRESH_KEY="$(openssl rand -hex 32)"
           DATA_KEY="$(openssl rand -base64 32 | tr '+/' '-_')"
           docker run -d --name app --network smoke -p 8100:8100 \
-            -e DATABASE_URL=postgresql+asyncpg://neuronection_career_owner:smoke@pg:5432/neuronection_career \
+            -e CAREER_DATABASE_URL=postgresql+asyncpg://neuronection_career_owner:smoke@pg:5432/neuronection_career \
             -e CAREER_SESSION_KEY="$SESSION_KEY" \
             -e CAREER_REFRESH_KEY="$REFRESH_KEY" \
             -e CAREER_DATA_KEY="$DATA_KEY" \
@@ -348,8 +348,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      APP_ENV: test
-      DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_e2e
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_e2e
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY

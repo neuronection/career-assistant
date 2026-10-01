@@ -41,13 +41,13 @@ _plugins_loaded = False
 def allowlist_enabled() -> bool:
     from app.core.config import settings
 
-    return bool(getattr(settings, "CONNECTOR_PLUGINS_ALLOWLIST", None))
+    return bool(getattr(settings, "connector_plugins_allowlist", None))
 
 
 def plugin_allowed(key: str) -> bool:
     from app.core.config import settings
 
-    allowlist = getattr(settings, "CONNECTOR_PLUGINS_ALLOWLIST", None) or []
+    allowlist = getattr(settings, "connector_plugins_allowlist", None) or []
     return key in allowlist
 
 

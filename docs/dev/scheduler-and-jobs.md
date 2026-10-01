@@ -22,7 +22,7 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
 | `data_export` | Exports |
 
-Jobs run as FastAPI background tasks (`JOBS_WORKERS`); Redis ships in the
+Jobs run as FastAPI background tasks (`CAREER_JOBS_WORKERS`); Redis ships in the
 compose file for a later worker split — there is no Celery in v1.
 
 ## The scheduler
@@ -64,7 +64,7 @@ params)` — always timezone-aware and UTC-normalized.
 run is late — for example after the desktop sleeps. Exponential backoff marks
 a stuck schedule.
 
-**Tests never run the live loop** (`SCHEDULER_ENABLED=false`); call `tick()`
+**Tests never run the live loop** (`CAREER_SCHEDULER_ENABLED=false`); call `tick()`
 directly. See [testing.md](testing.md).
 
 ## The notification funnel

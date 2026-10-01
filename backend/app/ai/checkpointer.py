@@ -29,7 +29,7 @@ _checkpointer: Optional[BaseCheckpointSaver] = None
 
 def _psycopg_uri() -> str:
     """The SQLAlchemy asyncpg URL rewritten for psycopg (checkpointer)."""
-    url = settings.DATABASE_URL
+    url = settings.database_url
     if url.startswith("postgresql+asyncpg://"):
         return url.replace("postgresql+asyncpg://", "postgresql://", 1)
     return url
@@ -44,7 +44,7 @@ def _sqlite_path() -> str:
     locked" bursts while polish/autopilot runs are live). Fileless
     (``:memory:``) profiles stay in-memory.
     """
-    url = settings.DATABASE_URL
+    url = settings.database_url
     if "///" in url:
         path = url.split("///", 1)[-1]
     else:
@@ -63,7 +63,7 @@ async def get_checkpointer() -> BaseCheckpointSaver:
     # Any: the two langgraph saver hierarchies (sqlite/postgres) share no
     # statically-visible async base with `setup` — the SDK boundary is dynamic.
     saver: Any
-    if settings.DATABASE_URL.startswith("sqlite"):
+    if settings.database_url.startswith("sqlite"):
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
         saver = await stack.enter_async_context(
@@ -179,7 +179,7 @@ def prune_desktop_checkpoints() -> int:
     if path == ":memory:":
         return 0
     try:
-        return prune_checkpoints(Path(path), ttl_days=settings.CHECKPOINT_TTL_DAYS)
+        return prune_checkpoints(Path(path), ttl_days=settings.checkpoint_ttl_days)
     except Exception:  # noqa: BLE001 — retention never blocks boot
         logger.warning("Checkpoint prune failed", exc_info=True)
         return 0
@@ -194,7 +194,7 @@ async def prune_postgres_checkpoints(db: AsyncSession, ttl_days: int) -> int:
     """
     from sqlalchemy import text
 
-    if not settings.DATABASE_URL.startswith("postgresql"):
+    if not settings.database_url.startswith("postgresql"):
         return 0
     prefix = _stale_prefix(int(time.time() * 1000), ttl_days)
     stale = (

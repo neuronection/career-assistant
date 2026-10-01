@@ -30,27 +30,19 @@ from fastapi import FastAPI
 from nx_auth import AuthConfig
 from nx_auth import install as install_auth_kit
 from nx_auth.config import knob_overrides
-from nx_auth.instance import IdentityMode, initialize_instance
+from nx_auth.instance import initialize_instance
 
-from app.core.config import settings
+from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
-# Kit §16 env suffix → career `Settings` field. Only the two rate-limit
-# knobs differ in name today; Phase 4 (prefixed-only + snake_case fields)
-# makes every field mirror its suffix and this map dies.
-_KNOB_FIELD_ALIASES = {
-    "RATELIMIT_AUTH": "AUTH_RATE_LIMIT",
-    "RATELIMIT_AUTH_EMAIL": "AUTH_EMAIL_RATE_LIMIT",
-}
+
+def _settings_knob(settings: Settings, name: str) -> object | None:
+    """§16 knob map getter (ADR-0028): env name → Settings field."""
+    return getattr(settings, name.removeprefix("CAREER_").lower(), None)
 
 
-def _settings_knob(name: str) -> object | None:
-    suffix = name.removeprefix("CAREER_")
-    return getattr(settings, _KNOB_FIELD_ALIASES.get(suffix, suffix), None)
-
-
-def install_identity(application: FastAPI) -> None:
+def install_identity(application: FastAPI, settings: Settings) -> None:
     """Mount the family auth-kit (identity-auth §4/§5/§8/§10/§11)."""
     from app.auth.stores import (
         CareerAuditSink,
@@ -66,8 +58,8 @@ def install_identity(application: FastAPI) -> None:
     effective_auth_mode = initialize_instance(
         instance_store,
         identity_mode=settings.identity_mode,
-        auth_mode_env=settings.AUTH_MODE,
-        demo_mode_env=settings.DEMO_MODE,
+        auth_mode_env=settings.auth_mode,
+        demo_mode_env=settings.demo_mode,
         product="CAREER",
     )
 
@@ -77,10 +69,10 @@ def install_identity(application: FastAPI) -> None:
     # carry it as `?shell=` — arming the gate there would 403 every auth
     # request from the dev SPA ("invalid shell token").
     shell_attached = (
-        settings.identity_mode is IdentityMode.DESKTOP
+        str(settings.identity_mode) == "desktop"
         and os.environ.get("CAREER_SHELL") == "1"
     )
-    if settings.identity_mode is IdentityMode.DESKTOP and not shell_attached:
+    if str(settings.identity_mode) == "desktop" and not shell_attached:
         # Fail loud, not silent: this is the shell-less dev shape (ADR-0023)
         # — ungated + open-auth DIM. Safe on loopback only; a non-loopback
         # bind here exposes an owner-level API to the network.
@@ -109,7 +101,7 @@ def install_identity(application: FastAPI) -> None:
         shell_secret = issue()
 
     kit_identity: Literal["server", "desktop"] = (
-        "desktop" if settings.identity_mode is IdentityMode.DESKTOP else "server"
+        "desktop" if str(settings.identity_mode) == "desktop" else "server"
     )
     config = AuthConfig.from_env(
         "CAREER",
@@ -119,7 +111,7 @@ def install_identity(application: FastAPI) -> None:
         # §16 knobs resolved through Settings (ADR-0028): the `.env` file
         # and the process environment both reach the kit config (OS env
         # wins per key) — the kit's own `os.environ` read is the fallback.
-        **knob_overrides("CAREER", _settings_knob),
+        **knob_overrides("CAREER", lambda name: _settings_knob(settings, name)),
     )
     config = replace(
         config,

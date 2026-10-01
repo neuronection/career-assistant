@@ -523,7 +523,7 @@ async def start_scheduler() -> Optional[object]:
 
     from app.core.config import settings
 
-    if not settings.SCHEDULER_ENABLED:
+    if not settings.scheduler_enabled:
         return None
 
     async def _loop():
@@ -537,6 +537,6 @@ async def start_scheduler() -> Optional[object]:
                     await service.tick()
             except Exception as exc:  # noqa: BLE001 — the loop must survive
                 logger.warning("Scheduler tick failed: %s", exc)
-            await asyncio.sleep(settings.SCHEDULER_INTERVAL_SECONDS)
+            await asyncio.sleep(settings.scheduler_interval_seconds)
 
     return asyncio.create_task(_loop())

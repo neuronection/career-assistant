@@ -159,11 +159,11 @@ def desktop_factory(monkeypatch):
     from app.desktop import shell_token
     from app.main import create_app
 
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "desktop")
+    monkeypatch.setattr(settings, "identity_mode", "desktop")
     monkeypatch.setenv("CAREER_SHELL", "1")
 
     def make(auth_mode_env: str = "") -> tuple:
-        monkeypatch.setattr(settings, "AUTH_MODE", auth_mode_env)
+        monkeypatch.setattr(settings, "auth_mode", auth_mode_env)
         application = create_app()
         secret = shell_token.current()
         assert secret
@@ -282,8 +282,8 @@ async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch):
     from app.main import create_app
 
     monkeypatch.delenv("CAREER_SHELL", raising=False)
-    monkeypatch.setattr(settings, "IDENTITY_MODE", "desktop")
-    monkeypatch.setattr(settings, "AUTH_MODE", "")
+    monkeypatch.setattr(settings, "identity_mode", "desktop")
+    monkeypatch.setattr(settings, "auth_mode", "")
     shell_token.reset()
     try:
         application = create_app()

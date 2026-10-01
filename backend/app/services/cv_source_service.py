@@ -36,12 +36,12 @@ def content_sha256(data: bytes) -> str:
 def source_file_path(document: Document) -> Path:
     """Stored path of the original upload (byte-exact, never rewritten)."""
     suffix = Path(document.filename).suffix or ".bin"
-    return Path(settings.UPLOAD_DIR) / f"{document.id}{suffix}"
+    return Path(settings.upload_dir) / f"{document.id}{suffix}"
 
 
 def derived_dir(document_id: uuid.UUID) -> Path:
     """Directory of derived page images for one source document."""
-    return Path(settings.UPLOAD_DIR) / "derived" / str(document_id)
+    return Path(settings.upload_dir) / "derived" / str(document_id)
 
 
 def page_image_path(document_id: uuid.UUID, index: int) -> Path:
@@ -123,7 +123,7 @@ def rasterize_missing_pages(
 
 def tesseract_available() -> bool:
     return (
-        bool(settings.OCR_TESSERACT_ENABLED) and shutil.which("tesseract") is not None
+        bool(settings.ocr_tesseract_enabled) and shutil.which("tesseract") is not None
     )
 
 

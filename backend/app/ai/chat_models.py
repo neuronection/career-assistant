@@ -114,14 +114,14 @@ def _google_model(
             api_key=api_key,
             http_options=google_types.HttpOptions(
                 base_url=base_url,
-                timeout=int(settings.AI_TIMEOUT),
+                timeout=int(settings.ai_timeout),
                 retry_options=google_types.HttpRetryOptions(attempts=1),
                 httpx_client=httpx.Client(
                     transport=cast(httpx.BaseTransport, transport),
-                    timeout=settings.AI_TIMEOUT,
+                    timeout=settings.ai_timeout,
                 ),
                 httpx_async_client=httpx.AsyncClient(
-                    transport=transport, timeout=settings.AI_TIMEOUT
+                    transport=transport, timeout=settings.ai_timeout
                 ),
             ),
         )
@@ -192,7 +192,7 @@ def build_chat_model(
         "model": resolved.model_name,
         "api_key": resolved.api_key or _KEYLESS_API_KEY,
         "base_url": resolved.base_url,
-        "timeout": settings.AI_TIMEOUT,
+        "timeout": settings.ai_timeout,
         # None (unset) omits temperature from the payload — modern OpenAI
         # reasoning models reject any non-default value.
         "temperature": resolved.temperature,
@@ -215,7 +215,7 @@ def build_chat_model(
         kwargs["reasoning_effort"] = resolved.reasoning_effort
     if transport is not None:
         kwargs["http_async_client"] = httpx.AsyncClient(
-            transport=transport, timeout=settings.AI_TIMEOUT
+            transport=transport, timeout=settings.ai_timeout
         )
     cls = ChatOpenAI if openai_wire else CompatibleChatOpenAI
     return cls(**kwargs)
@@ -244,13 +244,13 @@ def build_embedding_model(
         "model": resolved.model_name,
         "api_key": resolved.api_key or _KEYLESS_API_KEY,
         "base_url": resolved.base_url,
-        "timeout": settings.AI_TIMEOUT,
+        "timeout": settings.ai_timeout,
         "max_retries": 0,
         # Ollama-class endpoints don't serve the tiktoken offline checks.
         "check_embedding_ctx_length": False,
     }
     if transport is not None:
         kwargs["http_async_client"] = httpx.AsyncClient(
-            transport=transport, timeout=settings.AI_TIMEOUT
+            transport=transport, timeout=settings.ai_timeout
         )
     return OpenAIEmbeddings(**kwargs)

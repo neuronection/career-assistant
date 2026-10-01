@@ -40,7 +40,7 @@ def backups_dir(data_dir: Path) -> Path:
 
 def _db_path(data_dir: Path) -> Path:
     """The SQLite file this instance uses (parsed from DATABASE_URL)."""
-    url = settings.DATABASE_URL
+    url = settings.database_url
     prefix = "sqlite+aiosqlite:///"
     if not url.startswith(prefix):
         raise RuntimeError("Local backups require the SQLite database profile")
@@ -92,7 +92,7 @@ def create_backup(data_dir: Path) -> Path:
             json.dumps(
                 {
                     "created_at": created.isoformat(),
-                    "app_version": settings.VERSION,
+                    "app_version": settings.version,
                     "contents": contents,
                 },
                 indent=2,

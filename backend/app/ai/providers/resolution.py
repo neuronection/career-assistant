@@ -47,7 +47,7 @@ class ResolvedModel:
 
 def _mock_excluded() -> list:
     """Visibility filter: mock providers only exist when MOCK_AI is on."""
-    if settings.MOCK_AI:
+    if settings.mock_ai:
         return []
     return [AIProvider.provider_type != "mock"]
 
@@ -133,11 +133,11 @@ async def ensure_dev_bootstrap(db: AsyncSession) -> None:
 
     Opt-in is the infra knob only — production still hard-blocks the
     mock in the gateway. The same seeding serves the E2E server
-    (``APP_ENV=test`` without a configured provider) so the scratch DB
+    (``CAREER_APP_ENV=test`` without a configured provider) so the scratch DB
     keeps a Carrier; the mock fixtures register via the import side
     effect below (plan 98/99).
     """
-    if settings.is_production or not settings.MOCK_AI:
+    if settings.is_production or not settings.mock_ai:
         return
     # Import side effect: register the deterministic CHAT reply mock so
     # mock-mode turns (dev UI runs, E2E) produce grounded structured

@@ -60,9 +60,9 @@ existing installs refresh via `./scripts/update-docker.sh`.
 | `CAREER_RATELIMIT_AUTH` / `_AUTH_EMAIL` / `_AI` / `_MCP` / `_DEFAULT` | no | `10` / `30` / `30` / `120` / `240` | Per-bucket rate ceilings, requests/minute (`0` disables a bucket). |
 | `POSTGRES_PASSWORD` | yes | — | Password for the bundled Postgres. |
 | `POSTGRES_DB` / `POSTGRES_USER` | no | `neuronection_career` / `neuronection_career_owner` | Database name/user (ADR-0022 naming). |
-| `API_PORT` | no | `8100` | Host port the app publishes on. |
-| `MAX_UPLOAD_MB` | no | `25` | University PDF upload cap. |
-| `CORS_ORIGINS` | no | *(empty)* | Only needed if you serve the SPA from a different origin than the API. |
+| `CAREER_API_PORT` | no | `8100` | Host port the app publishes on. |
+| `CAREER_MAX_UPLOAD_MB` | no | `25` | University PDF upload cap. |
+| `CAREER_CORS_ORIGINS` | no | *(empty)* | Only needed if you serve the SPA from a different origin than the API. |
 | `CAREER_IMAGE` | no | `career-assistant:local` | Deploy a pre-built registry image (e.g. `ghcr.io/neuronection/career-assistant:vX.Y.Z`) instead of building. |
 | `HTTP_PORT` | standalone | `80` | Host port the bundled nginx publishes on (standalone flavor). |
 
@@ -80,7 +80,7 @@ certs at `docker/certs/{fullchain,privkey}.pem` (certbot webroot renewals
 answer on port 80), uncomment the TLS volumes and the `443:443` mapping in
 the compose file, and swap the mounted conf to `nginx-TLS.conf`. nginx
 streams SSE without buffering and enforces a 64 MB body cap (keep it ≥
-`MAX_UPLOAD_MB`).
+`CAREER_MAX_UPLOAD_MB`).
 
 ## Upgrades
 
@@ -134,7 +134,7 @@ UI is planned.)
 ## Reverse proxy (bring your own)
 
 Any proxy works as long as it does not buffer responses (future SSE
-endpoints) and allows request bodies ≥ `MAX_UPLOAD_MB`.
+endpoints) and allows request bodies ≥ `CAREER_MAX_UPLOAD_MB`.
 
 **nginx**
 
@@ -167,8 +167,8 @@ cd frontend && npm ci && npm run build && cd ..
 # Backend
 cd backend
 python -m venv venv && ./venv/bin/pip install -r requirements.txt
-export APP_ENV=production
-export DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/neuronection_career
+export CAREER_APP_ENV=production
+export CAREER_DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/neuronection_career
 export CAREER_SESSION_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export CAREER_REFRESH_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export CAREER_DATA_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -189,7 +189,7 @@ key family (`CAREER_SESSION_KEY` / `CAREER_REFRESH_KEY` /
 
 - **`503` on AI features** — no provider configured; see First boot
   walkthrough step 3.
-- **`413` on PDF upload** — raise `MAX_UPLOAD_MB` and your proxy body cap.
+- **`413` on PDF upload** — raise `CAREER_MAX_UPLOAD_MB` and your proxy body cap.
 - **Container restart loop** — check logs for the boot guard message
   (`docker compose -f docker/docker-compose.prod.yml logs app`); usually a
   weak or missing `CAREER_*_KEY` secret.

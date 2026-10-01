@@ -218,7 +218,7 @@ async def test_document_delete_removes_files(client, db, auth_headers):
 def source_file_path_by_id(document_id: str) -> Path:
     from app.core.config import settings
 
-    return Path(settings.UPLOAD_DIR) / f"{document_id}.txt"
+    return Path(settings.upload_dir) / f"{document_id}.txt"
 
 
 async def test_document_delete_requires_ownership(client, db, auth_headers):

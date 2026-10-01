@@ -80,9 +80,9 @@ database. Merges are fast-forward only, so rebase/merge `main` before
 
 ## AI and scheduler in dev
 
-- **Mock AI** is opt-in (`MOCK_AI=1`, or `./scripts/run-dev.sh --mock-ai`).
+- **Mock AI** is opt-in (`CAREER_MOCK_AI=1`, or `./scripts/run-dev.sh --mock-ai`).
   With it off, dev AI stays unconfigured and AI endpoints answer `503`.
-- **`.env.test` sets `SCHEDULER_ENABLED=false`** — the live loop never runs in
+- **`.env.test` sets `CAREER_SCHEDULER_ENABLED=false`** — the live loop never runs in
   tests. Drive it directly with `SchedulerService(db).tick()`.
 - The gateway self-registers deterministic mock fixtures whenever a mock
   provider resolves (`ensure_mock_registry` in `app/ai/gateway.py`).

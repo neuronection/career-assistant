@@ -21,7 +21,12 @@ from typing import Any, Optional, TypedDict
 import uvicorn
 
 from app.core.config import settings
-from app.main import create_app
+# §11 gate: a shell attaches — arm it BEFORE `app.main` is imported so
+# the process's single application build (plan 20 Phase 4) carries the
+# gate; both flows below reuse that module-level app.
+os.environ.setdefault("CAREER_SHELL", "1")
+
+from app.main import app as shared_app
 
 logger = logging.getLogger(__name__)
 
@@ -354,9 +359,8 @@ def run_browser() -> None:
     # Attach the shell gate (identity-auth §11) before the app is built:
     # create_app arms the X-Shell-Token gate only for shell-attached
     # processes (shell-less desktop dev — run-dev.sh — stays ungated).
-    os.environ["CAREER_SHELL"] = "1"
-    app = create_app()
-    port = settings.API_PORT
+    app = shared_app
+    port = settings.api_port
     try:
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", port))
@@ -431,10 +435,7 @@ def run(tray_only: bool = False) -> None:
     from app.services.notification_channels import unregister_channel
 
     sanitize_environment()
-    # Attach the shell gate (identity-auth §11) before create_app — see
-    # run_browser().
-    os.environ["CAREER_SHELL"] = "1"
-    data_dir = settings.data_dir_path
+    data_dir = settings.data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
 
     bridge = DesktopBridge()
@@ -451,7 +452,7 @@ def run(tray_only: bool = False) -> None:
     _settings_holder["settings"] = desktop_settings
     _settings_holder["data_dir"] = data_dir
 
-    app = create_app()
+    app = shared_app
     port = find_free_port()
     apply_webkit_compat_env(marker=data_dir / "webkit_soft_fallback")
     server = uvicorn.Server(
@@ -476,7 +477,7 @@ def run(tray_only: bool = False) -> None:
 
     state = load_window_state(data_dir, webview.screens)
     window = webview.create_window(
-        settings.APP_NAME,
+        settings.app_name,
         f"http://127.0.0.1:{port}/?shell={shell_query}",
         width=state["width"],
         height=state["height"],
@@ -536,7 +537,7 @@ def run(tray_only: bool = False) -> None:
     # cancelled silently by every pywebview backend unless enabled here.
     webview.settings["ALLOW_DOWNLOADS"] = True
 
-    webview.start(private_mode=False, debug=settings.DEBUG)
+    webview.start(private_mode=False, debug=settings.debug)
 
     # Window gone (quit or real close): same shutdown order as —
     # stop uvicorn last (lifespan cancels the scheduler, drains the queue).

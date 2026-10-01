@@ -25,7 +25,7 @@ def spa_dist(tmp_path: Path) -> Path:
 @pytest.fixture
 def no_local_dist(monkeypatch):
     """Neutralize repo/frozen dist detection so tests are deterministic."""
-    monkeypatch.setattr(settings, "SPA_DIST", "")
+    monkeypatch.setattr(settings, "spa_dist", "")
     monkeypatch.setattr(sys, "_MEIPASS", None, raising=False)
     yield
 
@@ -40,14 +40,14 @@ async def _client(app) -> AsyncClient:
 
 
 def test_find_spa_dist_honors_explicit_setting(spa_dist, monkeypatch):
-    monkeypatch.setattr(settings, "SPA_DIST", str(spa_dist))
+    monkeypatch.setattr(settings, "spa_dist", str(spa_dist))
     assert _find_spa_dist() == spa_dist
 
 
 def test_find_spa_dist_ignores_dir_without_index(tmp_path: Path, monkeypatch):
     empty = tmp_path / "empty"
     empty.mkdir()
-    monkeypatch.setattr(settings, "SPA_DIST", str(empty))
+    monkeypatch.setattr(settings, "spa_dist", str(empty))
     found = _find_spa_dist()
     assert found is None or found != empty
 

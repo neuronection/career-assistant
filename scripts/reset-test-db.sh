@@ -29,7 +29,7 @@ docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres \
 
 if [[ "$MIGRATE" -eq 1 ]]; then
   echo ">>> applying migrations to ${DB}"
-  (cd "$ROOT/backend" && DATABASE_URL="postgresql+asyncpg://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${PORT}/${DB}" \
+  (cd "$ROOT/backend" && CAREER_DATABASE_URL="postgresql+asyncpg://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${PORT}/${DB}" \
     ./venv/bin/alembic upgrade head)
 fi
 

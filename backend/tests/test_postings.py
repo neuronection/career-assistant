@@ -152,10 +152,10 @@ async def test_plugin_allowlist_gates_registration(
     from app.core.config import settings
     from app.core.errors import ValidationError
 
-    monkeypatch.setattr(settings, "CONNECTOR_PLUGINS_ALLOWLIST", [])
+    monkeypatch.setattr(settings, "connector_plugins_allowlist", [])
     with pytest.raises(ValidationError):
         register_connector(SyntheticConnector(), allow=False)
-    monkeypatch.setattr(settings, "CONNECTOR_PLUGINS_ALLOWLIST", ["synthetic"])
+    monkeypatch.setattr(settings, "connector_plugins_allowlist", ["synthetic"])
     try:
         register_connector(SyntheticConnector(), allow=False)
         assert "synthetic" in [c["key"] for c in list_connectors()]
