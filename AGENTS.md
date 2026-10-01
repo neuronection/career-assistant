@@ -71,7 +71,7 @@ health-assistant. Core rules:
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
 ./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
 cd backend && uv run pytest tests -q -n auto           # equivalent direct invocation
-cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
+cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run
 ```
 
@@ -94,7 +94,7 @@ pin a WAL read snapshot (bridge commits invisible → stale assertions).
 Migrations: alembic revision ids are plain sequential (`0001`…; file
 names add a slug). `env.py` reads `settings.CAREER_DATABASE_URL`, so applying
 to the test DB needs an explicit override:
-`CAREER_DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" ./venv/bin/alembic upgrade head`
+`CAREER_DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" uv run alembic upgrade head`
 (an `upgrade head` on an already-migrated DB is a silent no-op — after
 regenerating a baseline, drop+recreate instead).
 

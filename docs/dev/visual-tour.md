@@ -27,7 +27,7 @@ bash scripts/ui-capture/seed-demo.sh
 #    endpoint mid-run, as in the e2e harness; the demo instance is local)
 cd backend && CAREER_DATABASE_URL="sqlite+aiosqlite:///$PWD/../dev/demo-data/career.sqlite3" \
   CAREER_IDENTITY_MODE=server CAREER_DEMO_MODE=true CAREER_MOCK_AI=1 CAREER_RATELIMIT_ENABLED=false \
-  ./venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100
+  uv run uvicorn app.main:app --host 127.0.0.1 --port 8100
 
 # 3. frontend on :3100 (vite proxies /api to :8100)
 cd frontend && npm run dev

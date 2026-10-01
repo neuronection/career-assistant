@@ -31,7 +31,7 @@ data dir, migrations, and (unless `CAREER_SKIP_SEED=1`) seeding.
 
 ```bash
 (cd frontend && npm ci && npm run build)          # the spec requires frontend/dist
-backend/venv/bin/pyinstaller --clean --noconfirm packaging/career-assistant.spec
+uv run pyinstaller --clean --noconfirm packaging/career-assistant.spec
 
 packaging/build-linux.sh [bundle|deb|appimage|all] [version]
 ```

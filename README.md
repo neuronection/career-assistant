@@ -151,7 +151,7 @@ Run it as a local desktop application (pywebview window, SQLite database, everyt
 
 ```bash
 cd backend
-python -m venv venv && ./venv/bin/uv sync --extra desktop
+uv sync --extra desktop
 uv run python -m careerassistant              # window + tray (default mode)
 uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
 uv run python -m careerassistant web          # loopback server + system browser

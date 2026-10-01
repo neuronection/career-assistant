@@ -32,7 +32,7 @@ Useful flags:
 | Task | Command |
 |---|---|
 | Backend tests | `./scripts/run-tests.sh` (or `cd backend && uv run pytest tests -q -n auto`) |
-| Backend lint | `cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests` |
+| Backend lint | `cd backend && uv run ruff check . && uv run ruff format --check .` |
 | Frontend build | `cd frontend && npm run build` |
 | Frontend tests | `cd frontend && npm run test -- --run` |
 | Frontend lint | `cd frontend && npm run lint` |

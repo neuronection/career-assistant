@@ -4,6 +4,27 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (plan 20 Phases 5–7)
+- **uv + pyproject packaging family-wide:** workspace root + uv.lock +
+  backend pyproject (hatchling, dev group, extras `pdf`/`desktop`/
+  `sqlite`); `requirements*.txt`, `pytest.ini`, `mypy.ini` deleted;
+  Docker builds with `uv sync --frozen` (the named auth-kit build
+  context and credentials bridge are gone — the kit repo is public);
+  CI/scripts on `uv run`. Family ruff rule set applied (format +
+  autofixes over 325 files) with documented noqa debt.
+- **Family convergence gate** (`check-family-convergence.sh`, vendored +
+  CI): tool-config parity, prefixed-only env, migrations home, legacy
+  markers, packaging shape, contract gates.
+
+### Fixed
+- Boot guards now run in `create_app` **before** keyring construction —
+  weak/partial pins die with `BootConfigError` guidance instead of a raw
+  `KeyRing` ValueError (found by the standalone stack boot smoke);
+  `greenlet` is a declared runtime dependency (`sqlalchemy[asyncio]`);
+  the compose healthcheck uses python (slim images carry no curl);
+  example `.env` keys are generate-instructions, not placeholders.
+
+
 ### Changed
 - **Plan 20 Phase 4 — uniform family skeleton:**
   - **Config (D2):** `Settings` is snake_case with `env_prefix="CAREER_"`

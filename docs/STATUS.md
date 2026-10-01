@@ -47,6 +47,14 @@ schema surfaces may still change.
 | Desktop app (pywebview window + tray, background scheduler) | done | Single-instance lock; auto-start opt-in |
 | Desktop packaging (deb / AppImage / Windows exe) | done | Tag-driven releases; `careerassistant enginecheck` probe |
 | MCP server (`/mcp`, read-scope tools) + client bridge | done | Token rotation; per-host rate limiting; audited + budgeted |
+**Plan 20 Phases 5–7 (2026-10-02):** uv + pyproject packaging family-wide
+(extras `pdf`/`desktop`/`sqlite`; Docker `uv sync --frozen` — the
+credentials bridge is gone), family ruff rule set applied, no-legacy
+artifact sweep, and the family convergence gate (C1–C6) vendored +
+CI-gated (contract count pinned at 55). Boot smokes fixed: greenlet as a
+declared dependency, boot guards before keyring construction, python
+healthcheck. Standalone stack verified end-to-end. Suites: 1520.
+
 | Identity & auth (family `auth-kit`, ADR-0013/0028) | done | Cookie sessions + double-submit CSRF, key-separated token contract, DB-authoritative init-only instance modes (fail-closed), desktop DIM + shell-secret gate; user management is the kit's §12 surface with the shared `AdminUserTable` (Settings → Users) and account self-service (Settings → Account: sessions, password change, deletion). Plan 20 Phases 3–4: the §4 init + boot guards + §16 knob routing are the shared kit glue (`app/auth/install.py`, `nx_auth.boot`); S14 §4.5 transition cases; prefixed-only `CAREER_*` config with the data/config dir split, `main.py` split (238 ln), one app construction per process |
 | AI gateway (single structured-output path, DB-only config) | done | Audited in `ai_generations`; mock provider dev/test-only |
 | Skill packs (versioned instruction data) | done | Tone/structure only; validators untouched |

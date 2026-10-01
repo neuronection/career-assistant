@@ -83,7 +83,7 @@ test database needs an explicit URL override because `env.py` reads
 ```bash
 cd backend
 CAREER_DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" \
-  ./venv/bin/alembic upgrade head
+  uv run alembic upgrade head
 ```
 
 An `upgrade head` on an already-migrated database is a silent no-op — after

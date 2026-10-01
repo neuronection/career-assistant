@@ -166,14 +166,14 @@ cd frontend && npm ci && npm run build && cd ..
 
 # Backend
 cd backend
-python -m venv venv && ./venv/bin/uv sync
+uv sync
 export CAREER_APP_ENV=production
 export CAREER_DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/neuronection_career
 export CAREER_SESSION_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export CAREER_REFRESH_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export CAREER_DATA_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-./venv/bin/alembic upgrade head
-./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100
+uv run alembic upgrade head
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8100
 ```
 
 The app auto-detects `../frontend/dist` and serves it — no separate web

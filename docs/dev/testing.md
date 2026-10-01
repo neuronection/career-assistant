@@ -103,7 +103,7 @@ All of these must pass:
 
 ```bash
 cd backend && uv run pytest tests -q -n auto
-cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
+cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run
 cd frontend && npm run lint
 ./scripts/check-changelog.sh
