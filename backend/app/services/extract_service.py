@@ -11,7 +11,6 @@ Confidence below the threshold means a field is suppressed and the
 posting flagged `needs_review` — never guessed silently."""
 
 import logging
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -21,9 +20,9 @@ from app.core.errors import ValidationError
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import (
     BackgroundJobStatus,
+    BackgroundJobType,
     PostingEvidence,
 )
-from app.models.enums import BackgroundJobType
 from app.models.posting_model import JobPosting, PostingSkill
 from app.models.taxonomy_model import Skill
 
@@ -121,7 +120,7 @@ async def plan_extractions(
         try:
             if await queue_posting_extract(db, posting, demand=demand):
                 queued += 1
-        except Exception:  # noqa: BLE001 — one bad posting can't block sync
+        except Exception:
             logger.warning("Extract enqueue failed", exc_info=True)
     return queued
 
@@ -130,8 +129,8 @@ async def plan_extractions(
 
 
 def _sane_salary(
-    low: Optional[float], high: Optional[float]
-) -> tuple[Optional[float], Optional[float]]:
+    low: float | None, high: float | None
+) -> tuple[float | None, float | None]:
     if low is not None and high is not None and low > high:
         return None, None
     return low, high
@@ -147,9 +146,7 @@ async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPo
         extract = PostingExtract.model_validate(extract)
 
     conf = extract.field_confidence or {}
-    suppressed = [
-        f for f in FIELD_NAMES if float(conf.get(f, 1.0)) < CONFIDENCE_THRESHOLD
-    ]
+    suppressed = [f for f in FIELD_NAMES if float(conf.get(f, 1.0)) < CONFIDENCE_THRESHOLD]
     data = extract.model_dump(mode="json")
     for field in suppressed:
         data[field] = None
@@ -205,9 +202,7 @@ async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPo
     return posting
 
 
-async def _apply_extract_skills(
-    db: AsyncSession, posting: JobPosting, skills: list[dict]
-) -> None:
+async def _apply_extract_skills(db: AsyncSession, posting: JobPosting, skills: list[dict]) -> None:
     """Fill `posting_skills.required_level`/`priority` for resolved skills
     (update fast-pass rows in place — never delete them); unresolved raw
     labels become proposals (never dropped, never label-matched).
@@ -294,9 +289,7 @@ async def run_extract_job(db: AsyncSession, payload: dict) -> dict:
     posting_id = payload.get("posting_id")
     if not posting_id:
         raise ValidationError("posting_extract requires posting_id")
-    rows = await db.execute(
-        select(JobPosting).where(JobPosting.id == UUID(str(posting_id)))
-    )
+    rows = await db.execute(select(JobPosting).where(JobPosting.id == UUID(str(posting_id))))
     posting = rows.scalars().first()
     if posting is None:
         return {"skipped": "posting gone"}

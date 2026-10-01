@@ -48,9 +48,7 @@ async def _item(db, user, **overrides) -> ExperienceItem:
     return await ExperienceService(db).create_item(user.id, payload)
 
 
-async def _append_proposal(
-    db, user, item, text: str = "Optimized the nightly queries."
-):
+async def _append_proposal(db, user, item, text: str = "Optimized the nightly queries."):
     created, dropped = await ProfileProposalService(db).create_from_ops(
         user.id,
         [
@@ -84,9 +82,7 @@ async def test_update_snapshots_draft_bullets_and_summary_rows(db, auth_headers)
     assert after["skills"] == before["skills"]
 
     rows = {r["field"]: r for r in proposal.diff_json}
-    assert rows["edit"]["after"] == (
-        "appends to description: 'Optimized the nightly queries.'"
-    )
+    assert rows["edit"]["after"] == ("appends to description: 'Optimized the nightly queries.'")
     assert "Kept the warehouse systems online." in rows["description"]["before"]
     assert "Kept the warehouse systems online." in rows["description"]["after"]
 
@@ -99,9 +95,7 @@ async def test_update_snapshots_draft_bullets_and_summary_rows(db, auth_headers)
 async def test_cross_user_preview_is_404_and_pre99_rows_404(db, client, auth_headers):
     user = await _auth_user(db)
     email = f"pv-{uuid.uuid4().hex[:8]}@example.com"
-    await client.post(
-        "/api/v1/auth/register", json={"email": email, "password": "supersecret1"}
-    )
+    await client.post("/api/v1/auth/register", json={"email": email, "password": "supersecret1"})
     other = (await db.execute(select(User).where(User.email == email))).scalars().one()
     from tests.conftest import mint_session_headers
 
@@ -122,9 +116,7 @@ async def test_cross_user_preview_is_404_and_pre99_rows_404(db, client, auth_hea
         entity_id=item.id,
     )
     plain.payload_json = {
-        k: v
-        for k, v in plain.payload_json.items()
-        if k not in ("base_snapshot", "after_snapshot")
+        k: v for k, v in plain.payload_json.items() if k not in ("base_snapshot", "after_snapshot")
     }
     flag_modified(plain, "payload_json")
     await db.commit()
@@ -170,10 +162,7 @@ async def test_snapshot_values_survive_2000_char_description(db, auth_headers):
     proposal = await _append_proposal(db, user, item, text="Dashboard rebuilt.")
     before = proposal.payload_json["base_snapshot"]
     assert before["description"] == long
-    assert (
-        proposal.payload_json["after_snapshot"]["description"]
-        == long + "\nDashboard rebuilt."
-    )
+    assert proposal.payload_json["after_snapshot"]["description"] == long + "\nDashboard rebuilt."
 
 
 async def test_preview_404_for_non_snapshot_kinds(db, auth_headers):
@@ -214,7 +203,7 @@ async def test_preview_404_for_non_snapshot_kinds(db, auth_headers):
 async def test_create_card_preview_after_only_and_revert(db, auth_headers):
     user = await _auth_user(db)
     service = ProfileProposalService(db)
-    created, dropped = await service.create_from_ops(
+    created, _dropped = await service.create_from_ops(
         user.id,
         [
             {
@@ -242,17 +231,13 @@ async def test_create_card_preview_after_only_and_revert(db, auth_headers):
     _, applied, _ = await service.approve(user.id, proposal.id)
     await db.refresh(proposal)
     assert proposal.entity_id == uuid.UUID(applied["id"])
-    rows = await db.execute(
-        select(ExperienceItem).where(ExperienceItem.id == proposal.entity_id)
-    )
+    rows = await db.execute(select(ExperienceItem).where(ExperienceItem.id == proposal.entity_id))
     assert rows.scalars().first() is not None
 
     reverted = await service.revert(user.id, proposal.id)
     await db.refresh(proposal)
     assert reverted.status == "reverted"
-    rows = await db.execute(
-        select(ExperienceItem).where(ExperienceItem.id == proposal.entity_id)
-    )
+    rows = await db.execute(select(ExperienceItem).where(ExperienceItem.id == proposal.entity_id))
     assert rows.scalars().first() is None
 
     again = await service.revert(user.id, proposal.id)
@@ -261,9 +246,7 @@ async def test_create_card_preview_after_only_and_revert(db, auth_headers):
         await service.reject(user.id, proposal.id)
 
 
-async def test_delete_preview_before_only_and_revert_recreates_children(
-    db, auth_headers
-):
+async def test_delete_preview_before_only_and_revert_recreates_children(db, auth_headers):
     user = await _auth_user(db)
     item = await _item(db, user)
     service = ProfileProposalService(db)
@@ -282,9 +265,7 @@ async def test_delete_preview_before_only_and_revert_recreates_children(
     assert preview["after"] is None
     assert preview["before"]["description"] == "Kept the warehouse systems online."
     assert [s["skill_key"] for s in preview["before"]["skills"]] == ["python"]
-    assert [a["text"] for a in preview["before"]["achievements"]] == [
-        "Owned monitoring"
-    ]
+    assert [a["text"] for a in preview["before"]["achievements"]] == ["Owned monitoring"]
 
     await service.approve(user.id, proposal.id)
     rows = await db.execute(select(ExperienceItem).where(ExperienceItem.id == item.id))
@@ -298,9 +279,7 @@ async def test_delete_preview_before_only_and_revert_recreates_children(
             await db.execute(
                 select(ExperienceItem)
                 .options(
-                    selectinload(ExperienceItem.skills).selectinload(
-                        ExperienceSkill.skill
-                    ),
+                    selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill),
                     selectinload(ExperienceItem.achievements),
                 )
                 .where(ExperienceItem.user_id == user.id)
@@ -369,9 +348,7 @@ async def _load(db, item_id):
             await db.execute(
                 select(ExperienceItem)
                 .options(
-                    selectinload(ExperienceItem.skills).selectinload(
-                        ExperienceSkill.skill
-                    ),
+                    selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill),
                     selectinload(ExperienceItem.achievements),
                 )
                 .where(ExperienceItem.id == item_id)
@@ -481,9 +458,7 @@ async def test_api_revert_roundtrip(client, db, auth_headers):
     user = await _auth_user(db)
     item = await _item(db, user)
     proposal = await _append_proposal(db, user, item)
-    await client.post(
-        f"/api/v1/me/profile-proposals/{proposal.id}/approve", headers=auth_headers
-    )
+    await client.post(f"/api/v1/me/profile-proposals/{proposal.id}/approve", headers=auth_headers)
     reverted = await client.post(
         f"/api/v1/me/profile-proposals/{proposal.id}/revert", headers=auth_headers
     )
@@ -515,9 +490,7 @@ async def test_cv_synth_preview_before_only_sources(db, auth_headers):
     assert entries[0]["source_key"] == "experience"
     assert entries[0]["label"] == "Support Engineer"
     assert entries[0]["snapshot"]["title"] == "Support Engineer"
-    assert entries[0]["snapshot"]["description"] == (
-        "Kept the warehouse systems online."
-    )
+    assert entries[0]["snapshot"]["description"] == ("Kept the warehouse systems online.")
     edits = preview["edits"]
     assert edits["kind"] == "cv_synth"
     assert edits["action"] == "summarize"

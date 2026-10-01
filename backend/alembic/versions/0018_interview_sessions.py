@@ -2,9 +2,10 @@
 plan, per-question rubric scores and the debrief aggregate; the practice
 transcript itself lives in chat_sessions."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0018"
 down_revision = "0017"
@@ -66,10 +67,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_interview_sessions_user_id", table_name="interview_sessions"
-    )
-    op.drop_index(
-        "ix_interview_sessions_user_status", table_name="interview_sessions"
-    )
+    op.drop_index("ix_interview_sessions_user_id", table_name="interview_sessions")
+    op.drop_index("ix_interview_sessions_user_status", table_name="interview_sessions")
     op.drop_table("interview_sessions")

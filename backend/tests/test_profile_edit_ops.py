@@ -4,17 +4,17 @@ retirement of full-replace update semantics."""
 import uuid
 
 import pytest
-
 from sqlalchemy import select
 
 from app.models.enums import AITaskType
 from app.models.experience_model import (
     ExperienceItem,
+)
+from app.models.experience_model import (
     ExperienceSkill as ExperienceSkillLink,
 )
 from app.services.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
-
 from tests.test_profile_edit_grounding import _auth_user, _rich_item
 
 
@@ -65,9 +65,7 @@ async def test_replace_anchor_must_be_unique(service, db, auth_headers):
         "kind": "experience_item",
         "action": "update",
         "entity_id": str(item.id),
-        "text_edits": [
-            {"field": "description", "op": "replace", "find": "and", "text": "X"}
-        ],
+        "text_edits": [{"field": "description", "op": "replace", "find": "and", "text": "X"}],
     }
     created, dropped = await service.create_from_ops(
         user.id, [op], grounding={f"read:experience_item:{item.id}"}
@@ -140,9 +138,7 @@ async def test_payload_text_edit_collision_conflicts(service, db, auth_headers):
                 "action": "update",
                 "entity_id": str(item.id),
                 "payload": {"description": "full rewrite"},
-                "text_edits": [
-                    {"field": "description", "op": "append", "text": "more"}
-                ],
+                "text_edits": [{"field": "description", "op": "append", "text": "more"}],
             }
         ],
         grounding={f"read:experience_item:{item.id}"},
@@ -154,9 +150,7 @@ async def test_payload_text_edit_collision_conflicts(service, db, auth_headers):
 async def test_collection_add_remove_skills_by_id_and_key(service, db, auth_headers):
     user = await _auth_user(db)
     item = await _rich_item(db, user)
-    read = await ProfileProposalService(db).read_entity_content(
-        "experience_item", user.id, item.id
-    )
+    read = await ProfileProposalService(db).read_entity_content("experience_item", user.id, item.id)
     electron_id = read["content"]["skills"][0]["id"]
 
     created, dropped = await service.create_from_ops(
@@ -246,9 +240,7 @@ async def test_collection_duplicate_skill_add_conflicts(service, db, auth_header
 async def test_achievement_and_link_edits(service, db, auth_headers):
     user = await _auth_user(db)
     item = await _rich_item(db, user)
-    read = await ProfileProposalService(db).read_entity_content(
-        "experience_item", user.id, item.id
-    )
+    read = await ProfileProposalService(db).read_entity_content("experience_item", user.id, item.id)
     achievement_id = read["content"]["achievements"][0]["id"]
 
     created, dropped = await service.create_from_ops(
@@ -289,15 +281,11 @@ async def test_achievement_and_link_edits(service, db, auth_headers):
     )
     assert dropped == []
     stored = created[0].payload_json
-    assert [row["text"] for row in stored["achievements"]] == [
-        "Automated the nightly batch"
-    ]
+    assert [row["text"] for row in stored["achievements"]] == ["Automated the nightly batch"]
     assert [row["url"] for row in stored["links"]] == ["https://github.com/example/ops"]
 
 
-async def test_text_edits_require_update_and_supported_fields(
-    service, db, auth_headers
-):
+async def test_text_edits_require_update_and_supported_fields(service, db, auth_headers):
     user = await _auth_user(db)
     item = await _rich_item(db, user)
     grounding = {f"read:experience_item:{item.id}"}
@@ -342,17 +330,13 @@ async def test_duplicate_target_second_op_drops(service, db, auth_headers):
                 "kind": "experience_item",
                 "action": "update",
                 "entity_id": str(item.id),
-                "text_edits": [
-                    {"field": "description", "op": "append", "text": "One."}
-                ],
+                "text_edits": [{"field": "description", "op": "append", "text": "One."}],
             },
             {
                 "kind": "experience_item",
                 "action": "update",
                 "entity_id": str(item.id),
-                "text_edits": [
-                    {"field": "description", "op": "append", "text": "Two."}
-                ],
+                "text_edits": [{"field": "description", "op": "append", "text": "Two."}],
             },
         ],
         grounding=grounding,
@@ -378,9 +362,7 @@ async def test_dropped_first_op_does_not_poison_the_second(service, db, auth_hea
                 "kind": "experience_item",
                 "action": "update",
                 "entity_id": str(item.id),
-                "text_edits": [
-                    {"field": "description", "op": "append", "text": "Valid."}
-                ],
+                "text_edits": [{"field": "description", "op": "append", "text": "Valid."}],
             },
         ],
         grounding={f"read:experience_item:{item.id}"},
@@ -390,9 +372,7 @@ async def test_dropped_first_op_does_not_poison_the_second(service, db, auth_hea
     assert created[0].payload_json["description"].endswith("Valid.")
 
 
-async def test_approved_anchored_op_applies_through_the_form_service(
-    service, db, auth_headers
-):
+async def test_approved_anchored_op_applies_through_the_form_service(service, db, auth_headers):
     user = await _auth_user(db)
     item = await _rich_item(db, user)
     await db.refresh(item)
@@ -423,7 +403,7 @@ async def test_approved_anchored_op_applies_through_the_form_service(
         grounding={f"read:experience_item:{item.id}"},
     )
     assert dropped == []
-    proposal, applied, already = await service.approve(user.id, created[0].id)
+    _proposal, _applied, already = await service.approve(user.id, created[0].id)
     assert already is False
     await db.refresh(item)
     assert item.description == (f"{description_before}\nTuned the nightly batch job.")
@@ -434,9 +414,7 @@ async def test_approved_anchored_op_applies_through_the_form_service(
             await db.execute(
                 select(ExperienceItem)
                 .options(
-                    selectinload(ExperienceItem.skills).selectinload(
-                        ExperienceSkillLink.skill
-                    )
+                    selectinload(ExperienceItem.skills).selectinload(ExperienceSkillLink.skill)
                 )
                 .where(ExperienceItem.id == item.id)
             )
@@ -491,9 +469,7 @@ async def test_turn_with_text_edit_appends_and_preserves(client, db, auth_header
         }
 
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "append"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "append"}, headers=auth_headers)
     ).json()
     gateway_module.register_mock_fixture(AITaskType.CHAT, append_ops)
     try:
@@ -537,7 +513,7 @@ async def test_turn_with_text_edit_appends_and_preserves(client, db, auth_header
         .scalars()
         .one()
     )
-    stored = stored  # noqa: F841 — kept for readability
+    stored = stored
     assert stored.payload_json["_edit_ops"]["text_edits"][0]["op"] == "append"
 
 
@@ -600,9 +576,7 @@ async def test_repair_heals_anchor_mismatch(client, db, auth_headers):
         }
 
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "repair"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "repair"}, headers=auth_headers)
     ).json()
     gateway_module.register_mock_fixture(AITaskType.CHAT_OPS, draft_with_bug)
     try:
@@ -619,9 +593,7 @@ async def test_repair_heals_anchor_mismatch(client, db, auth_headers):
     audits = (
         (
             await db.execute(
-                select(AIGeneration).where(
-                    AIGeneration.task_type == AITaskType.CHAT_OPS.value
-                )
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.CHAT_OPS.value)
             )
         )
         .scalars()
@@ -644,9 +616,7 @@ async def test_non_edit_turn_skips_pipeline(client, db, auth_headers):
     rows = (
         (
             await db.execute(
-                select(AIGeneration).where(
-                    AIGeneration.task_type == AITaskType.CHAT_OPS.value
-                )
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.CHAT_OPS.value)
             )
         )
         .scalars()

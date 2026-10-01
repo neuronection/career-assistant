@@ -103,9 +103,7 @@ def test_load_window_state_corrupt_file_returns_defaults(tmp_path):
 
 def test_clamp_window_state_pulls_window_onscreen():
     screens = [FakeScreen(width=1920, height=1080)]
-    clamped = clamp_window_state(
-        {"width": 1280, "height": 800, "x": 5000, "y": 5000}, screens
-    )
+    clamped = clamp_window_state({"width": 1280, "height": 800, "x": 5000, "y": 5000}, screens)
     assert clamped["x"] <= 1920
     assert clamped["y"] <= 1080
 
@@ -130,7 +128,7 @@ def test_sanitize_environment_restores_vscode_snap_originals():
     env = {"GDK_BACKEND": "snap-polluted", "GDK_BACKEND_VSCODE_SNAP_ORIG": "x11"}
     sanitize_environment(env)
     assert env["GDK_BACKEND"] == "x11"
-    assert "GDK_BACKEND_VSCODE_SNAP_ORIG" not in env or True
+    assert True
 
 
 def test_sanitize_environment_drops_snap_paths():
@@ -142,7 +140,6 @@ def test_sanitize_environment_drops_snap_paths():
 
 def test_version_single_source():
     import app
-
     from app.core.config import settings
 
     assert settings.version == app.__version__

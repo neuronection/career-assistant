@@ -1,6 +1,5 @@
 """Schemas for career paths (curated + computed graph)."""
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -11,11 +10,11 @@ class PathStepOut(BaseModel):
     kind: str
     label: str = ""
     optional: bool = False
-    family_key: Optional[str] = None
-    family_label: Optional[str] = None
-    skill_key: Optional[str] = None
-    skill_label: Optional[str] = None
-    education_level: Optional[str] = None
+    family_key: str | None = None
+    family_label: str | None = None
+    skill_key: str | None = None
+    skill_label: str | None = None
+    education_level: str | None = None
 
 
 class CareerPathOut(BaseModel):
@@ -32,7 +31,7 @@ class GraphNodeOut(BaseModel):
     code: str
     title: str
     family_key: str
-    demand: Optional[str] = None
+    demand: str | None = None
     depth: int = 0
 
 

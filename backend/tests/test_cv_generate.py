@@ -17,7 +17,6 @@ from app.models.cv_model import CvDocument, CvVersion
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_generate_service import CvGenerateService
 from app.services.job_worker import JobWorker
-
 from tests.conftest import _uid, session_headers
 
 # ------------------------------------------------------------ registry wiring
@@ -50,9 +49,7 @@ def test_mock_fixture_covers_both_calls():
         ' [{"item_id": "summary", "label": "Objective"}], "experience":'
         ' [{"item_id": "exp-1", "label": "Intern"}]}}'
     )
-    structure = CvDraftStructure.model_validate(
-        _mock_cv_draft(CvDraftStructure, plan_prompt)
-    )
+    structure = CvDraftStructure.model_validate(_mock_cv_draft(CvDraftStructure, plan_prompt))
     assert [section.kind for section in structure.sections] == [
         "summary",
         "experience",
@@ -63,9 +60,7 @@ def test_mock_fixture_covers_both_calls():
         '[{"item_id": "exp-1", "label": "Intern"}]}}',
         '[{"item_id": "exp-1", "label": "Intern"}]}, "about_requested": true}',
     )
-    about = CvDraftStructure.model_validate(
-        _mock_cv_draft(CvDraftStructure, about_prompt)
-    )
+    about = CvDraftStructure.model_validate(_mock_cv_draft(CvDraftStructure, about_prompt))
     assert about.sections[-1].kind == "about"
     assert about.title
 
@@ -345,9 +340,7 @@ async def test_generate_end_to_end_mock_provider(
     await _experience(client, auth_headers)
     request = CvGenerateRequest(language="en", length="standard")
     run_id = uuid.uuid4()
-    result = await _service(db).generate(
-        UUID(_uid(auth_headers)), request, run_id=run_id
-    )
+    result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=run_id)
     await db.commit()
     assert result["status"] == "completed", result
     assert result["fallback_sections"] == []
@@ -393,11 +386,7 @@ async def test_generate_end_to_end_mock_provider(
     assert trace["outcome"]["status"] in ("completed", "cap")
     assert trace["iterations"], "at least the initial review is traced"
     audited = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "cv_draft")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "cv_draft")))
         .scalars()
         .all()
     )
@@ -456,15 +445,11 @@ async def test_section_failure_falls_back_to_profile_content(
     assert not any(ref.startswith("experience:") for ref in overrides), (
         "no fabricated description overrides"
     )
-    item_blocks = [
-        block for block in cv.working_content["blocks"] if block["kind"] == "items"
-    ]
+    item_blocks = [block for block in cv.working_content["blocks"] if block["kind"] == "items"]
     assert item_blocks, "the experience section still renders from context"
 
 
-async def test_cancelled_run_creates_no_cv(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_cancelled_run_creates_no_cv(client, auth_headers, profile_ready, seeded_catalog, db):
     async def cancelled() -> bool:
         return True
 
@@ -478,28 +463,20 @@ async def test_cancelled_run_creates_no_cv(
     await db.commit()
     assert result["status"] == "cancelled"
     cvs = (
-        (
-            await db.execute(
-                select(CvDocument).where(CvDocument.user_id == UUID(_uid(auth_headers)))
-            )
-        )
+        (await db.execute(select(CvDocument).where(CvDocument.user_id == UUID(_uid(auth_headers)))))
         .scalars()
         .all()
     )
     assert cvs == []
 
 
-async def test_sparse_selection_aborts(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_sparse_selection_aborts(client, auth_headers, profile_ready, seeded_catalog, db):
     """A selection that resolves nothing ends the run before planning."""
     request = CvGenerateRequest(
         sections=["experience"],
         context={"mode": "none", "include": [], "exclude": []},
     )
-    result = await _service(db).generate(
-        UUID(_uid(auth_headers)), request, run_id=uuid.uuid4()
-    )
+    result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())
     await db.commit()
     assert result["status"] == "sparse"
     assert "No profile content" in result["error"]
@@ -552,9 +529,7 @@ async def test_pasted_posting_text_names_the_cv(
             "Night-shift ICU: ventilator management, sepsis protocols."
         )
     )
-    result = await _service(db).generate(
-        UUID(_uid(auth_headers)), request, run_id=uuid.uuid4()
-    )
+    result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())
     await db.commit()
     assert result["status"] == "completed", result
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
@@ -580,9 +555,9 @@ async def test_plan_skill_subset_reaches_the_block(
         },
         headers=auth_headers,
     )
-    sources = (
-        await client.get("/api/v1/cv/context/sources", headers=auth_headers)
-    ).json()["sources"]
+    sources = (await client.get("/api/v1/cv/context/sources", headers=auth_headers)).json()[
+        "sources"
+    ]
     skills_items = next(s for s in sources if s["key"] == "skills")["items"]
     assert len(skills_items) >= 2
     subset = [str(skills_items[0]["item_id"])]
@@ -606,9 +581,7 @@ async def test_plan_skill_subset_reaches_the_block(
     await db.commit()
     assert result["status"] == "completed", result
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
-    skills_block = next(
-        b for b in cv.working_content["blocks"] if b["kind"] == "skills"
-    )
+    skills_block = next(b for b in cv.working_content["blocks"] if b["kind"] == "skills")
     assert sorted(skills_block["props"]["selected"]) == subset
     assert skills_block["props"]["show_levels"] is False
     assert skills_block["props"]["max_items"] == len(subset)
@@ -675,9 +648,7 @@ async def test_template_pick_ai_resolves_in_the_run(
     await seed_cv_template_bank(db)
     await _experience(client, auth_headers)
     request = CvGenerateRequest(template_pick="ai")
-    result = await _service(db).generate(
-        UUID(_uid(auth_headers)), request, run_id=uuid.uuid4()
-    )
+    result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())
     await db.commit()
     assert result["status"] == "completed", result
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
@@ -691,9 +662,7 @@ async def test_template_pick_ai_without_templates_falls_back(
     """No readable candidates → studio default, run still completes."""
     await _experience(client, auth_headers)
     request = CvGenerateRequest(template_pick="ai")
-    result = await _service(db).generate(
-        UUID(_uid(auth_headers)), request, run_id=uuid.uuid4()
-    )
+    result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())
     await db.commit()
     assert result["status"] == "completed", result
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
@@ -719,9 +688,7 @@ async def test_explicit_template_id_skips_the_ai_pick(
     advisor.rank_templates = spy
     try:
         request = CvGenerateRequest(template_pick="none")
-        result = await _service(db).generate(
-            UUID(_uid(auth_headers)), request, run_id=uuid.uuid4()
-        )
+        result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())
         await db.commit()
     finally:
         advisor.rank_templates = original
@@ -729,9 +696,7 @@ async def test_explicit_template_id_skips_the_ai_pick(
     assert calls == 0
 
 
-async def test_run_resumes_from_checkpoint(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_run_resumes_from_checkpoint(client, auth_headers, profile_ready, seeded_catalog, db):
     """A checkpoint sitting after `plan` continues (not restarts) on
     resume: the draft loop runs against the persisted plan."""
     from app.ai.graphs.cv_draft import GraphDeps, build_cv_draft_graph, initial_state
@@ -815,15 +780,11 @@ async def test_api_generate_flow_202_to_builder(
     lint = await client.get(f"/api/v1/cv/{cv_id}/lint", headers=auth_headers)
     assert lint.status_code == 200
 
-    other = await client.get(
-        f"/api/v1/cv/generate/{uuid.uuid4()}", headers=auth_headers
-    )
+    other = await client.get(f"/api/v1/cv/generate/{uuid.uuid4()}", headers=auth_headers)
     assert other.status_code == 404
 
 
-async def test_api_generate_requires_profile_content(
-    client, auth_headers, seeded_catalog
-):
+async def test_api_generate_requires_profile_content(client, auth_headers, seeded_catalog):
     """Sparse-profile guard: 422, never an empty generation."""
     response = await client.post("/api/v1/cv/generate", json={}, headers=auth_headers)
     assert response.status_code == 422, response.text
@@ -882,9 +843,7 @@ async def test_api_generate_unconfigured_503(
     ],
 )
 async def test_api_generate_rejects_bad_preferences(client, auth_headers, payload):
-    response = await client.post(
-        "/api/v1/cv/generate", json=payload, headers=auth_headers
-    )
+    response = await client.post("/api/v1/cv/generate", json=payload, headers=auth_headers)
     assert response.status_code == 422
 
 
@@ -929,9 +888,7 @@ async def test_cv_runs_endpoint_assembles_the_run_ledger(
     assert "cv_draft" in tasks and "cv_build_review" in tasks
     assert all(call["stage"] for call in calls)
     assert run["aggregate"]["calls"] == len(calls)
-    assert run["aggregate"]["tokens_in"] == sum(
-        call["tokens_in"] or 0 for call in calls
-    )
+    assert run["aggregate"]["tokens_in"] == sum(call["tokens_in"] or 0 for call in calls)
     assert isinstance(run["warnings"], list)
     assert isinstance(run["fallback_sections"], list)
     assert isinstance(run["plan_fallback"], bool)
@@ -970,8 +927,9 @@ async def test_enrich_agent_fetches_a_linked_github_repo_for_the_writer(
 ):
     """The enrich agent fetches an item's GitHub link ON DEMAND and the
     README rides into the writer as linked-source material."""
-    import app.ai.graphs.cv_draft as graph_module
     from langchain_core.messages import AIMessage
+
+    import app.ai.graphs.cv_draft as graph_module
 
     await _experience(
         client,
@@ -980,9 +938,9 @@ async def test_enrich_agent_fetches_a_linked_github_repo_for_the_writer(
     )
 
     async def _fake_agent(db, task, *, system, messages, tools, user_id=None, run=None):
-        assert any(
-            spec.get("function", {}).get("name") == "github_repo" for spec in tools
-        ), "the enrich round binds the web tools"
+        assert any(spec.get("function", {}).get("name") == "github_repo" for spec in tools), (
+            "the enrich round binds the web tools"
+        )
         if any(getattr(m, "tool_calls", None) for m in messages):
             return AIMessage(content="done")
         return AIMessage(
@@ -1011,9 +969,7 @@ async def test_enrich_agent_fetches_a_linked_github_repo_for_the_writer(
             "available": True,
             "url": "https://github.com/me/pipelines",
             "full_name": "me/pipelines",
-            "readme_text": (
-                "Resumable job pipelines with retries and backpressure controls."
-            ),
+            "readme_text": ("Resumable job pipelines with retries and backpressure controls."),
         }
 
     monkeypatch.setattr("app.ai.tools.registry.run_tool", _fake_run_tool)

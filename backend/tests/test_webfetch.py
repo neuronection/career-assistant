@@ -16,9 +16,7 @@ from app.services.webfetch import (
 
 
 class FakeResponse:
-    def __init__(
-        self, status_code=200, content=b"", json_data=None, headers=None, encoding=None
-    ):
+    def __init__(self, status_code=200, content=b"", json_data=None, headers=None, encoding=None):
         self.status_code = status_code
         self._content = content
         self._json_data = json_data
@@ -111,9 +109,7 @@ def _no_dns(monkeypatch):
     ],
 )
 async def test_guard_blocks_reserved_addresses(monkeypatch, ip):
-    monkeypatch.setattr(
-        webfetch, "_resolve_host", lambda host: _resolve({host: [ip]}, host)
-    )
+    monkeypatch.setattr(webfetch, "_resolve_host", lambda host: _resolve({host: [ip]}, host))
     with pytest.raises(WebFetchBlocked):
         await assert_public_url("placeholder.example")
 
@@ -160,9 +156,7 @@ def test_text_from_html_malformed_is_safe():
 
 @pytest.mark.asyncio
 async def test_fetch_text_caps_and_truncates(monkeypatch):
-    page = FakeResponse(
-        content=HTML.encode(), headers={"content-type": "text/html; charset=utf-8"}
-    )
+    page = FakeResponse(content=HTML.encode(), headers={"content-type": "text/html; charset=utf-8"})
     _route(monkeypatch, "placeholder.example", page)
     result = await fetch_text("https://placeholder.example/page", max_text=8)
     assert result.status == 200
@@ -176,9 +170,7 @@ async def test_fetch_text_plain_content_type(monkeypatch):
     _route(
         monkeypatch,
         "placeholder.example",
-        FakeResponse(
-            content=b"plain body text", headers={"content-type": "text/plain"}
-        ),
+        FakeResponse(content=b"plain body text", headers={"content-type": "text/plain"}),
     )
     result = await fetch_text("https://placeholder.example/file.txt")
     assert result.text == "plain body text"

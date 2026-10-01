@@ -82,15 +82,11 @@ def db_counts(database: Path) -> dict[str, int]:
             "posting_interactions",
             "skills",
         ):
-            counts[table] = connection.execute(
-                f"SELECT COUNT(*) FROM {table}"
-            ).fetchone()[0]
+            counts[table] = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         demo_flag = connection.execute(
             "SELECT value FROM instance_settings WHERE key = 'demo_mode'"
         ).fetchone()
-        counts["demo_mode"] = (
-            1 if demo_flag is not None and demo_flag[0] == "true" else 0
-        )
+        counts["demo_mode"] = 1 if demo_flag is not None and demo_flag[0] == "true" else 0
         return counts
     finally:
         connection.close()
@@ -166,9 +162,7 @@ def test_seeder_refuses_non_demo_instance(tmp_path: Path) -> None:
     database = demo_db(demo_dir)
     connection = sqlite3.connect(database)
     try:
-        connection.execute(
-            "UPDATE instance_settings SET value = 'false' WHERE key = 'demo_mode'"
-        )
+        connection.execute("UPDATE instance_settings SET value = 'false' WHERE key = 'demo_mode'")
         connection.commit()
     finally:
         connection.close()
@@ -328,7 +322,5 @@ async def test_demo_token_rejected_on_non_demo_instance(client) -> None:
         auth_mode=AuthMode.DEMO,
     )
     access_name = cookie_names(kit.config).access
-    response = await client.get(
-        "/api/v1/auth/me", headers={"Cookie": f"{access_name}={token}"}
-    )
+    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"{access_name}={token}"})
     assert response.status_code == 401

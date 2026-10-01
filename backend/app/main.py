@@ -1,20 +1,20 @@
 import asyncio
-from contextlib import asynccontextmanager
 import logging
-from pathlib import Path
 import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1 import api_router
-from app.core.boot import configure_logging, validate_boot_config
 from app.auth.install import install_identity
+from app.core.boot import configure_logging, validate_boot_config
 from app.core.config import Settings, settings
 from app.core.errors import (
-    AINotConfiguredError,
     AccountLockedError,
+    AINotConfiguredError,
     ConflictError,
     DomainError,
     NotFoundError,
@@ -57,16 +57,16 @@ async def lifespan(app: FastAPI):
     try:
         for warning in validate_boot_config():
             logger.warning("Boot config warning: %s", warning)
-    except Exception as exc:  # noqa: BLE001 — boot must refuse loudly
+    except Exception as exc:
         logger.critical("Refusing to boot: %s", exc)
         raise
     from app.services.job_worker import drain_queue, start_workers
-    from app.services.scheduler.runner import start_scheduler
 
     # Warm VAPID keys before any dispatch can run: generating them lazily
     # inside a notification emit would write on a second connection while
     # the caller's transaction holds the SQLite write lock.
     from app.services.notification_channels import get_channel
+    from app.services.scheduler.runner import start_scheduler
 
     channel = get_channel("browser")
     if channel is not None and channel.available():
@@ -74,10 +74,8 @@ async def lifespan(app: FastAPI):
 
         try:
             await get_or_create_vapid_keys()
-        except Exception:  # noqa: BLE001 — push degrades fail-soft, boot must not hinge
-            logger.warning(
-                "VAPID key warm-up failed; browser push degraded", exc_info=True
-            )
+        except Exception:
+            logger.warning("VAPID key warm-up failed; browser push degraded", exc_info=True)
 
     # Warm the LangGraph checkpointer BEFORE any worker or request can run:
     # its first-run migration issues CREATE INDEX CONCURRENTLY, which waits
@@ -87,10 +85,8 @@ async def lifespan(app: FastAPI):
 
     try:
         await get_checkpointer()
-    except Exception:  # noqa: BLE001 — degrade fail-soft, boot must not hinge
-        logger.warning(
-            "Checkpointer warm-up failed; graph flows degraded", exc_info=True
-        )
+    except Exception:
+        logger.warning("Checkpointer warm-up failed; graph flows degraded", exc_info=True)
     # Retention beat (plan 98): desktop checkpoints grow unboundedly —
     # prune stale threads at boot (server-mode Postgres: Phase-4 trigger).
     pruned = prune_desktop_checkpoints()
@@ -109,10 +105,8 @@ async def lifespan(app: FastAPI):
             scheduler_task.cancel()
             await asyncio.gather(scheduler_task, return_exceptions=True)
         try:
-            await asyncio.wait_for(
-                drain_queue(), timeout=max(settings.jobs_drain_seconds, 1)
-            )
-        except (asyncio.TimeoutError, Exception):  # noqa: BLE001 — best effort
+            await asyncio.wait_for(drain_queue(), timeout=max(settings.jobs_drain_seconds, 1))
+        except (TimeoutError, Exception):
             logger.warning("Queue drain incomplete at shutdown", exc_info=True)
         for task in workers:
             task.cancel()
@@ -121,7 +115,7 @@ async def lifespan(app: FastAPI):
             from app.services.cv_pdf_service import shutdown_engine
 
             await shutdown_engine()
-        except Exception:  # noqa: BLE001 — best effort cleanup
+        except Exception:
             logger.warning("PDF engine shutdown failed", exc_info=True)
 
 
@@ -225,9 +219,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     spa_dist = _find_spa_dist()
     if spa_dist is not None:
-        application.mount(
-            "/", SpaStaticFiles(directory=spa_dist, html=True), name="spa"
-        )
+        application.mount("/", SpaStaticFiles(directory=spa_dist, html=True), name="spa")
         logger.info("Serving SPA from %s", spa_dist)
     else:
         logger.info("No SPA build found — serving API only")

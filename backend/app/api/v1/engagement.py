@@ -157,9 +157,7 @@ async def hide_job(
 
 
 @router.get("/notifications/rules", response_model=RulesOut)
-async def get_rules(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> RulesOut:
+async def get_rules(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> RulesOut:
     """The caller's alert rules; defaults shown when never edited."""
     rules = await EngagementService(db).get_rules(user.id)
     return RulesOut(items=[RuleOut.model_validate(rule) for rule in rules])

@@ -24,7 +24,7 @@ catalog, career paths, assessment bank, CV templates) live in
 synthetic experience rows can link to real skill ids. Catalog rows are
 never removed by `--reset`.
 
-Usage (interpreter with the app's dependencies, e.g. `backend/venv/bin/python`):
+Usage (interpreter with the app's dependencies, e.g. `uv run --directory backend python`):
 
     # PostgreSQL demo database (the docker demo flavor):
     CAREER_DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuronection_career_demo \\

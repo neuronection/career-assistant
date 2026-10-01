@@ -6,7 +6,6 @@ later phases. Sensitive values are Fernet-encrypted via
 ``app.core.encryption`` before they land in `value`.
 """
 
-from typing import Optional
 
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -21,4 +20,4 @@ class AppSetting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     key: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     value: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
-    description: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)

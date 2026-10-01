@@ -22,10 +22,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -52,22 +52,16 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "job_sources"
     __table_args__ = (
-        CheckConstraint(
-            "length(connector_key) BETWEEN 1 AND 80", name="connector_key_present"
-        ),
+        CheckConstraint("length(connector_key) BETWEEN 1 AND 80", name="connector_key_present"),
     )
 
-    key: Mapped[str] = mapped_column(
-        String(80), unique=True, index=True, nullable=False
-    )
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     connector_key: Mapped[str] = mapped_column(String(80), nullable=False)
     config: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    last_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Connector sync state: etag / last_modified / cursor / watermark.
-    sync_state: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    sync_state: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
@@ -77,9 +71,7 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "job_postings"
     __table_args__ = (
-        UniqueConstraint(
-            "source_id", "external_id", name="uq_postings_source_external"
-        ),
+        UniqueConstraint("source_id", "external_id", name="uq_postings_source_external"),
         CheckConstraint(
             "status IN ('new', 'mapped', 'expired', 'hidden')",
             name="status_allowed",
@@ -109,54 +101,50 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     # Raw org label (audit); the normalized entity is `org_id`.
     org: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     location: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # hot fields as columns (postings is the high-volume table).
-    seniority: Mapped[Optional[str]] = mapped_column(
-        String(20), nullable=True, index=True
-    )
-    employment_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    contract_type: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
-    onsite_policy: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    work_hours: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
-    hours_per_week_min: Mapped[Optional[float]] = mapped_column(nullable=True)
-    hours_per_week_max: Mapped[Optional[float]] = mapped_column(nullable=True)
-    travel_class: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
-    education_level: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
-    salary_currency: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
-    salary_min: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
-    salary_max: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
-    salary_period: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    posted_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    seniority: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    employment_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    contract_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    onsite_policy: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    work_hours: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    hours_per_week_min: Mapped[float | None] = mapped_column(nullable=True)
+    hours_per_week_max: Mapped[float | None] = mapped_column(nullable=True)
+    travel_class: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    education_level: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    salary_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    salary_min: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    salary_max: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    salary_period: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Canonical-JSON sha256 of the normalized content — re-sync dedup.
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     raw: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Deep-extraction result: validated PostingExtract dump with
     # low-confidence fields suppressed; empty until the queued pass runs.
-    extract: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    extract: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Prompt/model version that produced `extract` — NULL = never extracted;
     # a lower value than the current EXTRACT_VERSION flags re-extraction
     # .
-    extract_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    extract_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # A field fell below the confidence threshold — moderation attention.
     needs_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Only unmapped extras land here (39's declarative feature map consumes).
-    posting_facts: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    posting_facts: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")
 
     # Mapping result: skill-ID intersection (or AI/manual) onto the catalog.
-    catalog_job_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    catalog_job_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True
     )
-    catalog_job: Mapped[Optional["Job"]] = relationship()  # noqa: F821
-    mapping_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    mapping_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    catalog_job: Mapped[Optional["Job"]] = relationship()
+    mapping_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    mapping_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     mapping_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
@@ -168,9 +156,7 @@ class PostingSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "posting_skills"
     __table_args__ = (
-        UniqueConstraint(
-            "posting_id", "skill_id", name="uq_posting_skills_posting_skill"
-        ),
+        UniqueConstraint("posting_id", "skill_id", name="uq_posting_skills_posting_skill"),
         CheckConstraint(
             "required_level IS NULL OR (required_level >= 1 AND required_level <= 10)",
             name="required_level_range",
@@ -184,12 +170,10 @@ class PostingSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     skill_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("skills.id", ondelete="CASCADE"), nullable=False
     )
-    evidence: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="explicit"
-    )
+    evidence: Mapped[str] = mapped_column(String(20), nullable=False, default="explicit")
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
-    required_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    priority: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    required_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -198,9 +182,7 @@ class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "posting_interactions"
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "posting_id", name="uq_posting_interactions_user_posting"
-        ),
+        UniqueConstraint("user_id", "posting_id", name="uq_posting_interactions_user_posting"),
         Index("ix_posting_interactions_posting_id", "posting_id"),
     )
 
@@ -210,14 +192,12 @@ class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     posting_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False
     )
-    seen_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    saved_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    hidden_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    applied_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    applied_via_url: Mapped[str] = mapped_column(
-        String(1000), nullable=False, default=""
-    )
-    stage: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    seen_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    saved_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    hidden_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    applied_via_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
+    stage: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
@@ -239,9 +219,7 @@ class PostingFit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False
     )
     score: Mapped[float] = mapped_column(Numeric(4, 2), nullable=False)
-    breakdown: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    breakdown: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Canonical-JSON sha256 of every input (skills, weights, profile
     # basics, extract_version, posted_at) — mismatch ⇒ stale ⇒ recompute.
     inputs_hash: Mapped[str] = mapped_column(String(64), nullable=False)

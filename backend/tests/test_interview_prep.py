@@ -6,14 +6,13 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid, session_headers
-
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.models.job_model import Job, JobSkill
 from app.models.taxonomy_model import Skill
 from app.models.user_model import UserSkill
+from tests.conftest import _make_posting, _uid, session_headers
 
 
 async def _seeded_skill(db) -> Skill:
@@ -137,9 +136,7 @@ async def test_create_requires_a_role_source(client, auth_headers, profile_ready
     assert missing.status_code == 404
 
 
-async def test_plan_patch_rules(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
-):
+async def test_plan_patch_rules(client, auth_headers, profile_ready, seeded_catalog, db, source):
     skill_row = await _seeded_skill(db)
     posting = await _extracted_posting(db, source, skill_row)
     created = (
@@ -218,9 +215,7 @@ async def test_cross_user_access_is_not_found(
     assert response.status_code == 404
 
 
-async def test_history_lists_own_sessions(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_history_lists_own_sessions(client, auth_headers, profile_ready, seeded_catalog, db):
     job = (await db.execute(select(Job).limit(1))).scalars().first()
     await client.post(
         "/api/v1/interview/sessions",
@@ -397,9 +392,7 @@ async def test_debrief_aggregate_resources_and_retry(
         if item["kind"] == "technical" and item.get("skill_key")
     )
     plan_skill = (
-        (await db.execute(select(Skill).where(Skill.key == plan_skill_key)))
-        .scalars()
-        .one()
+        (await db.execute(select(Skill).where(Skill.key == plan_skill_key))).scalars().one()
     )
     db.add(
         LearningResource(
@@ -418,7 +411,7 @@ async def test_debrief_aggregate_resources_and_retry(
         )
     ).json()
 
-    for question in started["plan"]:
+    for _question in started["plan"]:
         reply = await client.post(
             f"/api/v1/chat/sessions/{started['chat_session_id']}/messages",
             json={"content": "An answer with a concrete example."},
@@ -440,9 +433,7 @@ async def test_debrief_aggregate_resources_and_retry(
             headers=auth_headers,
         )
     ).json()["rubric_scores"]
-    expected_structure = round(
-        sum(float(r["structure"]) for r in scores) / len(scores), 2
-    )
+    expected_structure = round(sum(float(r["structure"]) for r in scores) / len(scores), 2)
     assert debrief["aggregate"]["structure"] == expected_structure
     assert debrief["aggregate"]["answered"] == len(scores)
 
@@ -503,9 +494,7 @@ async def test_debrief_aggregate_resources_and_retry(
     assert source["status"] == "completed"
 
 
-async def test_debrief_requires_completion(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_debrief_requires_completion(client, auth_headers, profile_ready, seeded_catalog, db):
     session = await _make_session(client, auth_headers, db)
     response = await client.post(
         f"/api/v1/interview/sessions/{session['id']}/debrief",

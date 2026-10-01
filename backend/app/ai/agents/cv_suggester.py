@@ -172,8 +172,7 @@ def _mock_suggestion(schema: type, user_prompt: str) -> dict:
             {
                 "field": "summary",
                 "text": (
-                    f"Hands-on {first_label} and {second_label}{aim}; "
-                    "delivers measurable outcomes."
+                    f"Hands-on {first_label} and {second_label}{aim}; delivers measurable outcomes."
                 ),
                 "rationale": "Grounded in the two strongest allowlisted items.",
                 "evidence_refs": [ref_of(first), ref_of(second)],

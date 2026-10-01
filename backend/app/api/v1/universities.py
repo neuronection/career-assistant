@@ -100,9 +100,7 @@ async def get_university(
                         "baseline_score": float(a.baseline_score)
                         if a.baseline_score is not None
                         else None,
-                        "top_score": float(a.top_score)
-                        if a.top_score is not None
-                        else None,
+                        "top_score": float(a.top_score) if a.top_score is not None else None,
                         "quota": a.quota,
                         "units": a.units,
                         "source": a.source,
@@ -140,9 +138,7 @@ async def get_university(
     }
 
 
-@router.post(
-    "/{university_id}/departments", response_model=DepartmentOut, status_code=201
-)
+@router.post("/{university_id}/departments", response_model=DepartmentOut, status_code=201)
 async def add_department(
     university_id: UUID,
     data: DepartmentCreate,
@@ -195,9 +191,7 @@ async def add_admission(
     return AdmissionOut(
         id=a.id,
         year=a.year,
-        baseline_score=float(a.baseline_score)
-        if a.baseline_score is not None
-        else None,
+        baseline_score=float(a.baseline_score) if a.baseline_score is not None else None,
         top_score=float(a.top_score) if a.top_score is not None else None,
         quota=a.quota,
         units=a.units,

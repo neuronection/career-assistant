@@ -4,17 +4,16 @@ Both verbs are tenant-scoped through `_owned_session` (the established
 career convention: foreign sessions yield 403, missing ones 404).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import select
 
 from app.models.chat_model import ChatMessage, ChatSession
-from sqlalchemy import select
 from tests.conftest import session_headers
 
 
 async def _create_session(client, headers, title="session admin"):
-    response = await client.post(
-        "/api/v1/chat/sessions", json={"title": title}, headers=headers
-    )
+    response = await client.post("/api/v1/chat/sessions", json={"title": title}, headers=headers)
     assert response.status_code == 201
     return response.json()
 
@@ -66,9 +65,7 @@ async def test_delete_session_cascades_messages(client, db, auth_headers):
     db.add(ChatMessage(session_id=session["id"], role="user", content="hello there"))
     await db.commit()
 
-    response = await client.delete(
-        f"/api/v1/chat/sessions/{session['id']}", headers=auth_headers
-    )
+    response = await client.delete(f"/api/v1/chat/sessions/{session['id']}", headers=auth_headers)
     assert response.status_code == 204
 
     sessions = (await db.execute(select(ChatSession))).scalars().all()
@@ -105,11 +102,7 @@ async def test_list_reports_last_activity_and_orders_by_it(client, db, auth_head
     newer = await _create_session(client, auth_headers, title="newer thread")
     assert older["created_at"] <= newer["created_at"]
 
-    db.add(
-        ChatMessage(
-            session_id=older["id"], role="user", content="keep this thread alive"
-        )
-    )
+    db.add(ChatMessage(session_id=older["id"], role="user", content="keep this thread alive"))
     # Empty sessions (never chatted) are invisible in the list (plan 93),
     # so the "newer" thread needs a message to be listed at all. Its
     # message is explicitly an hour old: the test asserts the older
@@ -119,7 +112,7 @@ async def test_list_reports_last_activity_and_orders_by_it(client, db, auth_head
             session_id=newer["id"],
             role="user",
             content="newer thread alive",
-            created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            created_at=datetime.now(UTC) - timedelta(hours=1),
         )
     )
     await db.commit()
@@ -128,15 +121,11 @@ async def test_list_reports_last_activity_and_orders_by_it(client, db, auth_head
     assert response.status_code == 200
     rows = response.json()
     by_id = {row["id"]: row for row in rows}
-    assert (
-        by_id[older["id"]]["last_activity_at"] >= by_id[newer["id"]]["last_activity_at"]
-    )
+    assert by_id[older["id"]]["last_activity_at"] >= by_id[newer["id"]]["last_activity_at"]
     assert rows[0]["id"] == older["id"]
 
 
-async def test_create_and_rename_responses_carry_last_activity(
-    client, db, auth_headers
-):
+async def test_create_and_rename_responses_carry_last_activity(client, db, auth_headers):
     created = await _create_session(client, auth_headers)
     assert created["last_activity_at"] >= created["created_at"]
 

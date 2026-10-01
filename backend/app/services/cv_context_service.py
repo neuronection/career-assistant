@@ -12,10 +12,10 @@ cannot leak into a CV.
 
 import re
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -29,8 +29,8 @@ from app.models.profile_entities_model import (
     EducationItem,
     ProfileAchievement,
 )
-from app.models.user_model import Profile, User, UserInterest, UserSkill
 from app.models.university_model import Department
+from app.models.user_model import Profile, User, UserInterest, UserSkill
 from app.schemas.cv import CvContextSelection, CvCoverageMatrix, CvCoverageRef
 from app.services.cv_languages import cefr_of, language_name
 
@@ -81,24 +81,16 @@ async def _resolve_basics(
     if user is None:
         return []
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     basics = dict(profile.basics or {}) if profile else {}
-    effective_photo_id = photo_document_id or (
-        profile.photo_document_id if profile else None
-    )
+    effective_photo_id = photo_document_id or (profile.photo_document_id if profile else None)
     photo_uri = ""
     if effective_photo_id:
         from app.api.v1.me_photo import photo_data_uri
 
         document = (
-            (
-                await db.execute(
-                    select(Document).where(Document.id == profile.photo_document_id)
-                )
-            )
+            (await db.execute(select(Document).where(Document.id == profile.photo_document_id)))
             .scalars()
             .first()
         )
@@ -136,21 +128,15 @@ async def _resolve_basics(
 
 async def _resolve_summary(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     if profile is None:
         return []
     text = "; ".join(
-        str(a.get("label") or "").strip()
-        for a in profile.aspirations or []
-        if a.get("label")
+        str(a.get("label") or "").strip() for a in profile.aspirations or [] if a.get("label")
     )
     notes = "; ".join(
-        str(a.get("notes") or "").strip()
-        for a in profile.aspirations or []
-        if a.get("notes")
+        str(a.get("notes") or "").strip() for a in profile.aspirations or [] if a.get("notes")
     )
     summary = " — ".join(part for part in (text, notes) if part)
     if not summary:
@@ -169,9 +155,7 @@ async def _resolve_summary(db: AsyncSession, user_id: uuid.UUID) -> list[CvConte
 WORK_EXPERIENCE_KINDS = ("job", "internship", "freelance")
 
 
-async def _resolve_experience(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_experience(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     """Paid work only: jobs, internships, freelance (plan-70 source split)."""
     rows = await db.execute(
         select(ExperienceItem)
@@ -192,9 +176,7 @@ async def _resolve_experience(
     return [_experience_item_of(row) for row in rows.scalars().all()]
 
 
-async def _resolve_projects(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_projects(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     """Projects as their own CV section source (kind=project)."""
     rows = await db.execute(
         select(ExperienceItem)
@@ -215,9 +197,7 @@ async def _resolve_projects(
     return [_experience_item_of(row) for row in rows.scalars().all()]
 
 
-async def _resolve_volunteer(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_volunteer(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     """Volunteering as its own CV section source (kind=volunteer)."""
     rows = await db.execute(
         select(ExperienceItem)
@@ -250,12 +230,8 @@ def _experience_item_of(row: ExperienceItem) -> CvContextItem:
             "start": _ym(row.start),
             "end": "" if row.open_ended else _ym(row.end),
             "description": row.description,
-            "skills": [
-                link.skill.label for link in row.skills if link.skill is not None
-            ],
-            "achievements": [
-                {"text": achievement.text} for achievement in row.achievements
-            ],
+            "skills": [link.skill.label for link in row.skills if link.skill is not None],
+            "achievements": [{"text": achievement.text} for achievement in row.achievements],
             "links": [
                 {
                     "label": link.get("label") or "",
@@ -269,16 +245,12 @@ def _experience_item_of(row: ExperienceItem) -> CvContextItem:
     )
 
 
-async def _resolve_education(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_education(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     rows = await db.execute(
         select(EducationItem, Department.name)
         .outerjoin(Department, EducationItem.department_id == Department.id)
         .where(EducationItem.user_id == user_id, EducationItem.status == "active")
-        .order_by(
-            EducationItem.start.desc().nullslast(), EducationItem.created_at.desc()
-        )
+        .order_by(EducationItem.start.desc().nullslast(), EducationItem.created_at.desc())
     )
     items: list[CvContextItem] = []
     for row, department_name in rows.all():
@@ -304,9 +276,7 @@ async def _resolve_education(
     return items
 
 
-async def _resolve_certifications(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_certifications(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     rows = await db.execute(
         select(Certification)
         .where(Certification.user_id == user_id, Certification.status == "active")
@@ -331,9 +301,7 @@ async def _resolve_certifications(
     ]
 
 
-async def _resolve_achievements(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_achievements(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     rows = await db.execute(
         select(ProfileAchievement)
         .where(
@@ -386,13 +354,9 @@ async def _resolve_skills(db: AsyncSession, user_id: uuid.UUID) -> list[CvContex
     ]
 
 
-async def _resolve_languages(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_languages(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     if profile is None:
         return []
@@ -420,9 +384,7 @@ async def _resolve_languages(
     return items
 
 
-async def _resolve_interests(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[CvContextItem]:
+async def _resolve_interests(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
     rows = await db.execute(
         select(UserInterest)
         .where(UserInterest.user_id == user_id)
@@ -561,9 +523,7 @@ class CvResolution:
         return grouped
 
 
-async def resolve_sources(
-    db: AsyncSession, user_id: uuid.UUID
-) -> dict[str, list[CvContextItem]]:
+async def resolve_sources(db: AsyncSession, user_id: uuid.UUID) -> dict[str, list[CvContextItem]]:
     """Resolve every registered source for the caller."""
     return {
         key: list(await definition.resolver(db, user_id))
@@ -595,11 +555,7 @@ def select_items(
         elif selection.mode == "none":
             chosen = [item for item in items if item.item_id in inc]
         else:
-            chosen = [
-                item
-                for item in items
-                if item.item_id in inc and item.item_id not in exc
-            ]
+            chosen = [item for item in items if item.item_id in inc and item.item_id not in exc]
         if chosen:
             selected[key] = chosen
     return selected
@@ -634,7 +590,7 @@ async def resolve(
         snapshot=snapshot,
         snapshot_index=snapshot_index,
         items=items,
-        resolved_at=datetime.now(timezone.utc),
+        resolved_at=datetime.now(UTC),
     )
 
 
@@ -658,9 +614,7 @@ def build_coverage_matrix(
     matrix_missing: list[CvCoverageRef] = []
     for source_key, items in snapshot_items.items():
         for item in items:
-            ref = CvCoverageRef(
-                source_key=source_key, item_id=item.item_id, label=item.label
-            )
+            ref = CvCoverageRef(source_key=source_key, item_id=item.item_id, label=item.label)
             if item.item_id in included:
                 matrix_included.append(ref)
             elif item.item_id in reasons:
@@ -703,19 +657,15 @@ def _strip_subject_echo(row: dict, text: str) -> str:
     separator; text without a leading restatement passes through, and a
     restatement that IS the whole text is kept.
     """
-    subject = str(
-        row.get("title") or row.get("program") or row.get("label") or ""
-    ).strip()
-    issuer = str(
-        row.get("org") or row.get("institution") or row.get("issuer") or ""
-    ).strip()
+    subject = str(row.get("title") or row.get("program") or row.get("label") or "").strip()
+    issuer = str(row.get("org") or row.get("institution") or row.get("issuer") or "").strip()
     if not text:
         return text
     lead = _echo_lead_pattern(subject, issuer)
     if lead is None:
         return text
     stripped = re.sub(
-        rf"^\s*{lead}[*_\s]*\s*[—–-]+\s*",
+        rf"^\s*{lead}[*_\s]*\s*[-—]+\s*",
         "",
         text,
         count=1,
@@ -728,21 +678,15 @@ def _strip_subject_echo(row: dict, text: str) -> str:
 def _heading_echo_lead_only(row: dict, text: str) -> bool:
     """True when text is nothing BUT a heading restatement (drops a
     bullet that carries no substance)."""
-    subject = str(
-        row.get("title") or row.get("program") or row.get("label") or ""
-    ).strip()
-    issuer = str(
-        row.get("org") or row.get("institution") or row.get("issuer") or ""
-    ).strip()
+    subject = str(row.get("title") or row.get("program") or row.get("label") or "").strip()
+    issuer = str(row.get("org") or row.get("institution") or row.get("issuer") or "").strip()
     lead = _echo_lead_pattern(subject, issuer)
     if lead is None:
         return not text.strip()
-    return bool(re.fullmatch(lead + r"[—–\-:,. \s]*", text, flags=re.IGNORECASE))
+    return bool(re.fullmatch(lead + r"[-—\-:,. \s]*", text, flags=re.IGNORECASE))
 
 
-def apply_overrides(
-    snapshot: dict, snapshot_index: dict[str, list[str]], overrides: dict
-) -> dict:
+def apply_overrides(snapshot: dict, snapshot_index: dict[str, list[str]], overrides: dict) -> dict:
     """Merge editor field patches keyed `"{source_key}:{item_id}"`.
 
     Positions in `snapshot_index` map 1:1 onto snapshot rows, so a patch
@@ -752,8 +696,7 @@ def apply_overrides(
     if not overrides:
         return snapshot
     patched = {
-        key: (dict(rows) if key in SCALAR_KEYS else list(rows))
-        for key, rows in snapshot.items()
+        key: (dict(rows) if key in SCALAR_KEYS else list(rows)) for key, rows in snapshot.items()
     }
     for ref, raw_patches in overrides.items():
         # Two-layer model: achievements come from the root item or a
@@ -792,8 +735,7 @@ def apply_overrides(
                     # had nothing to diverge from).
                     before_text = str(rows[position].get("description") or "").strip()
                     capture_stale = (
-                        bool(before_text)
-                        and str(patches["description"]).strip() != before_text
+                        bool(before_text) and str(patches["description"]).strip() != before_text
                     )
                 if patches.get("description"):
                     patches["description"] = _strip_subject_echo(

@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import NotFoundError
+from app.models.career_path_model import CareerPath, CareerPathStep
 from app.models.enums import CareerStage as PathStage
 from app.models.enums import PathStatus, RelationType
 from app.models.job_model import Job, JobRelation
-from app.models.career_path_model import CareerPath, CareerPathStep
 from app.schemas.paths import (
     CareerPathOut,
     GraphEdgeOut,
@@ -40,9 +40,7 @@ class PathService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def for_job(
-        self, job_id: UUID, *, include_drafts: bool = False
-    ) -> list[CareerPath]:
+    async def for_job(self, job_id: UUID, *, include_drafts: bool = False) -> list[CareerPath]:
         query = (
             select(CareerPath)
             .options(
@@ -124,9 +122,7 @@ class PathService:
                 current = nodes[job_id]["job"]
                 rows = await self.db.execute(
                     select(JobRelation)
-                    .options(
-                        selectinload(JobRelation.from_job).selectinload(Job.family)
-                    )
+                    .options(selectinload(JobRelation.from_job).selectinload(Job.family))
                     .where(
                         JobRelation.to_job_id == job_id,
                         incoming,
@@ -160,9 +156,7 @@ class PathService:
                     code=node["job"].code,
                     title=node["job"].title,
                     family_key=node["job"].family.key if node["job"].family else "",
-                    demand=(node["job"].attributes or {})
-                    .get("demand", {})
-                    .get("outlook"),
+                    demand=(node["job"].attributes or {}).get("demand", {}).get("outlook"),
                     depth=node["depth"],
                 )
                 for node in nodes.values()

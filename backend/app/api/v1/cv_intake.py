@@ -59,9 +59,7 @@ async def parse_cv_document(
         DocumentStatus.READY.value,
         DocumentStatus.PROCESSING.value,
     ):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Document text extraction not ready"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Document text extraction not ready")
     job = await enqueue(
         db,
         BackgroundJobType.CV_PARSE.value,

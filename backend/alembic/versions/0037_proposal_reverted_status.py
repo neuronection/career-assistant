@@ -8,13 +8,8 @@ down_revision = "0036"
 branch_labels = None
 depends_on = None
 
-OLD_STATUS = (
-    "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired')"
-)
-NEW_STATUS = (
-    "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired', "
-    "'reverted')"
-)
+OLD_STATUS = "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired')"
+NEW_STATUS = "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired', 'reverted')"
 
 
 def upgrade() -> None:

@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Seeded CV template bank: starter layouts.
 
 Bank rows carry author_key='bank', source='bank' and are read-only for

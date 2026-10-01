@@ -30,11 +30,7 @@ async def seed_taxonomy(db) -> tuple[int, int]:
             db.add(InterestTag(**tag))
             i_added += 1
     for tag in SKILL_TAGS:
-        exists = (
-            (await db.execute(select(Skill).where(Skill.key == tag["key"])))
-            .scalars()
-            .first()
-        )
+        exists = (await db.execute(select(Skill).where(Skill.key == tag["key"]))).scalars().first()
         if exists is None:
             db.add(Skill(**tag))
             s_added += 1
@@ -77,18 +73,12 @@ async def seed_catalog(db) -> tuple[int, int]:
 
     jobs_added = 0
     for spec in JOBS:
-        exists = (
-            (await db.execute(select(Job).where(Job.code == spec["code"])))
-            .scalars()
-            .first()
-        )
+        exists = (await db.execute(select(Job).where(Job.code == spec["code"]))).scalars().first()
         if exists:
             continue
         family = family_ids.get(spec["family"])
         if family is None:
-            logger.warning(
-                "Job %s references unknown family %s", spec["code"], spec["family"]
-            )
+            logger.warning("Job %s references unknown family %s", spec["code"], spec["family"])
             continue
         job = Job(
             code=spec["code"],
@@ -99,9 +89,7 @@ async def seed_catalog(db) -> tuple[int, int]:
             source="seed",
             attributes={
                 "subjects": spec["subjects"],
-                "experience_typical_years": list(
-                    EXPERIENCE_YEARS.get(spec["code"], (0, 3))
-                ),
+                "experience_typical_years": list(EXPERIENCE_YEARS.get(spec["code"], (0, 3))),
                 "work_style": spec["work_style"],
                 "education": spec["education"],
                 "physical": spec["physical"],
@@ -123,11 +111,7 @@ async def seed_catalog(db) -> tuple[int, int]:
             if tag is not None:
                 db.add(JobTag(job_id=job.id, interest_tag_id=tag.id, source="seed"))
         for key in spec["skills"]:
-            skill = (
-                (await db.execute(select(Skill).where(Skill.key == key)))
-                .scalars()
-                .first()
-            )
+            skill = (await db.execute(select(Skill).where(Skill.key == key))).scalars().first()
             if skill is not None:
                 db.add(
                     JobSkill(
@@ -143,10 +127,7 @@ async def seed_catalog(db) -> tuple[int, int]:
         jobs_added += 1
     await db.commit()
 
-    code_to_id = {
-        code: job_id
-        for code, job_id in (await db.execute(select(Job.code, Job.id))).all()
-    }
+    code_to_id = dict((await db.execute(select(Job.code, Job.id))).all())
     relations_added = 0
     for rel in RELATIONS:
         from_id = code_to_id.get(rel["from"])
@@ -221,9 +202,7 @@ async def seed_paths(db) -> int:
         await db.flush()
         for position, step in enumerate(spec["steps"]):
             skill = skills.get(step["skill_key"]) if step.get("skill_key") else None
-            family = (
-                families.get(step["family_key"]) if step.get("family_key") else None
-            )
+            family = families.get(step["family_key"]) if step.get("family_key") else None
             db.add(
                 CareerPathStep(
                     path_id=path.id,
@@ -395,11 +374,7 @@ async def seed_notification_kinds(db) -> int:
     added = 0
     for spec in NOTIFICATION_KINDS:
         exists = (
-            (
-                await db.execute(
-                    select(NotificationKind).where(NotificationKind.key == spec["key"])
-                )
-            )
+            (await db.execute(select(NotificationKind).where(NotificationKind.key == spec["key"])))
             .scalars()
             .first()
         )

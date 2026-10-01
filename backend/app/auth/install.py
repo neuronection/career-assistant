@@ -69,8 +69,7 @@ def install_identity(application: FastAPI, settings: Settings) -> None:
     # carry it as `?shell=` — arming the gate there would 403 every auth
     # request from the dev SPA ("invalid shell token").
     shell_attached = (
-        str(settings.identity_mode) == "desktop"
-        and os.environ.get("CAREER_SHELL") == "1"
+        str(settings.identity_mode) == "desktop" and os.environ.get("CAREER_SHELL") == "1"
     )
     if str(settings.identity_mode) == "desktop" and not shell_attached:
         # Fail loud, not silent: this is the shell-less dev shape (ADR-0023)

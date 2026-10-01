@@ -1,12 +1,13 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """AI posting extractor (Phase 31): one structured call per posting that
 squeezes the raw text into auditable data — skills with required level
-1–10 + priority + mandatory evidence quote, seniority, salary,
+1-10 + priority + mandatory evidence quote, seniority, salary,
 responsibilities with time splits. Every field is optional-with-confidence
 (`field_confidence`); the caller suppresses low-confidence fields instead
 of storing guesses. Unresolvable skills come back as `unresolved` rows
 with the raw label — never dropped, never label-matched."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,8 +21,8 @@ class ExtractSkill(BaseModel):
     """One skill requirement. `skill_key` resolvable against the provided
     taxonomy; otherwise `unresolved` with `raw_label`."""
 
-    skill_key: Optional[str] = None
-    raw_label: Optional[str] = None
+    skill_key: str | None = None
+    raw_label: str | None = None
     unresolved: bool = False
     required_level: int = Field(ge=1, le=10)
     priority: Literal["must_have", "nice_to_have", "bonus"]
@@ -38,25 +39,25 @@ class ExtractSkill(BaseModel):
 
 class ExtractResponsibility(BaseModel):
     text: str = Field(min_length=3, max_length=400)
-    time_pct: Optional[int] = Field(default=None, ge=0, le=100)
+    time_pct: int | None = Field(default=None, ge=0, le=100)
     optional: bool = False
 
 
 class ExtractSalary(BaseModel):
-    min: Optional[float] = Field(default=None, ge=0)
-    max: Optional[float] = Field(default=None, ge=0)
-    currency: Optional[str] = Field(default=None, min_length=3, max_length=3)
-    period: Optional[Literal["hour", "day", "week", "month", "year"]] = None
+    min: float | None = Field(default=None, ge=0)
+    max: float | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    period: Literal["hour", "day", "week", "month", "year"] | None = None
 
 
 class ExtractLocation(BaseModel):
-    city: Optional[str] = Field(default=None, max_length=120)
-    country: Optional[str] = Field(default=None, max_length=120)
+    city: str | None = Field(default=None, max_length=120)
+    country: str | None = Field(default=None, max_length=120)
 
 
 class ExtractEducation(BaseModel):
-    level: Optional[str] = Field(default=None, max_length=40)
-    field: Optional[str] = Field(default=None, max_length=120)
+    level: str | None = Field(default=None, max_length=40)
+    field: str | None = Field(default=None, max_length=120)
 
 
 class ExtractContract(BaseModel):
@@ -79,8 +80,8 @@ class ExtractHours(BaseModel):
     """Work-hours pattern with optional stated weekly range."""
 
     pattern: Literal["full_time", "part_time"]
-    hours_per_week_min: Optional[int] = Field(default=None, ge=1, le=80)
-    hours_per_week_max: Optional[int] = Field(default=None, ge=1, le=80)
+    hours_per_week_min: int | None = Field(default=None, ge=1, le=80)
+    hours_per_week_max: int | None = Field(default=None, ge=1, le=80)
     evidence_quote: str = Field(min_length=3, max_length=400)
     confidence: float = Field(ge=0.0, le=1.0)
 
@@ -97,7 +98,7 @@ class ExtractTravel(BaseModel):
     """Travel demand; days_per_month only when stated."""
 
     level: Literal["none", "occasional", "frequent"]
-    days_per_month: Optional[int] = Field(default=None, ge=0, le=31)
+    days_per_month: int | None = Field(default=None, ge=0, le=31)
     evidence_quote: str = Field(min_length=3, max_length=400)
     confidence: float = Field(ge=0.0, le=1.0)
 
@@ -106,7 +107,7 @@ class ExtractOnsite(BaseModel):
     """Onsite refinement of remote_policy."""
 
     policy: Literal["onsite", "hybrid", "remote"]
-    office_days_per_week: Optional[int] = Field(default=None, ge=0, le=7)
+    office_days_per_week: int | None = Field(default=None, ge=0, le=7)
     evidence_quote: str = Field(min_length=3, max_length=400)
     confidence: float = Field(ge=0.0, le=1.0)
 
@@ -156,29 +157,23 @@ class ExtractBenefit(BaseModel):
 class PostingExtract(BaseModel):
     """Schema contract for AITaskType.POSTING_EXTRACT."""
 
-    title_norm: Optional[str] = Field(default=None, max_length=300)
-    seniority: Optional[
-        Literal["intern", "junior", "mid", "senior", "lead", "principal"]
-    ] = None
-    employment_type: Optional[
-        Literal["full_time", "part_time", "contract", "temporary", "internship"]
-    ] = None
-    remote_policy: Optional[Literal["onsite", "hybrid", "remote"]] = None
-    location: Optional[ExtractLocation] = None
-    salary: Optional[ExtractSalary] = None
-    education: Optional[ExtractEducation] = None
+    title_norm: str | None = Field(default=None, max_length=300)
+    seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
+    employment_type: Literal["full_time", "part_time", "contract", "temporary", "internship"] | None = None
+    remote_policy: Literal["onsite", "hybrid", "remote"] | None = None
+    location: ExtractLocation | None = None
+    salary: ExtractSalary | None = None
+    education: ExtractEducation | None = None
     languages: list[str] = Field(default_factory=list, max_length=12)
     benefits: list[ExtractBenefit] = Field(default_factory=list, max_length=20)
-    responsibilities: list[ExtractResponsibility] = Field(
-        default_factory=list, max_length=20
-    )
+    responsibilities: list[ExtractResponsibility] = Field(default_factory=list, max_length=20)
     skills: list[ExtractSkill] = Field(default_factory=list, max_length=40)
     # ---- v2: optional-with-confidence + evidence, never guessed
-    contract_type: Optional[ExtractContract] = None
-    work_hours: Optional[ExtractHours] = None
+    contract_type: ExtractContract | None = None
+    work_hours: ExtractHours | None = None
     schedule_cues: list[ExtractScheduleCue] = Field(default_factory=list, max_length=6)
-    travel_required: Optional[ExtractTravel] = None
-    onsite_policy: Optional[ExtractOnsite] = None
+    travel_required: ExtractTravel | None = None
+    onsite_policy: ExtractOnsite | None = None
     values_cues: list[str] = Field(default_factory=list, max_length=8)
     # Per-top-level-field confidence 0..1 — the caller drops fields below
     # its threshold and flags the posting for review instead of guessing.
@@ -225,11 +220,7 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
     skills: list[dict] = []
     for pos, key in enumerate([k for k in taxonomy if k.lower() in lowered]):
         priority = (
-            "must_have"
-            if len(skills) < 2
-            else "nice_to_have"
-            if len(skills) < 4
-            else "bonus"
+            "must_have" if len(skills) < 2 else "nice_to_have" if len(skills) < 4 else "bonus"
         )
         skills.append(
             {
@@ -245,20 +236,17 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
         label = str(raw_label)
         if label.lower() in lowered and not any(
             label.lower() == str(s.get("skill_key", "")).lower() for s in skills
-        ):
-            if not any(
-                str(s.get("raw_label", "")).lower() == label.lower() for s in skills
-            ):
-                skills.append(
-                    {
-                        "raw_label": label,
-                        "unresolved": True,
-                        "required_level": 3,
-                        "priority": "nice_to_have",
-                        "evidence_quote": _quote_around(text, label),
-                        "confidence": 0.8,
-                    }
-                )
+        ) and not any(str(s.get("raw_label", "")).lower() == label.lower() for s in skills):
+            skills.append(
+                {
+                    "raw_label": label,
+                    "unresolved": True,
+                    "required_level": 3,
+                    "priority": "nice_to_have",
+                    "evidence_quote": _quote_around(text, label),
+                    "confidence": 0.8,
+                }
+            )
     return {
         "title_norm": (ctx.get("title") or None),
         "skills": skills[:40],
@@ -299,11 +287,7 @@ def _mock_benefits(lowered: str) -> list[dict]:
         ("meals", "meals"),
         ("transport", "transport"),
     ]
-    return [
-        {"kind": kind, "raw": cue, "confidence": 0.8}
-        for cue, kind in cues
-        if cue in lowered
-    ]
+    return [{"kind": kind, "raw": cue, "confidence": 0.8} for cue, kind in cues if cue in lowered]
 
 
 def _mock_contract(lowered: str) -> dict | None:
@@ -327,9 +311,7 @@ def _mock_contract(lowered: str) -> dict | None:
 
 def _mock_hours(lowered: str) -> dict | None:
     pattern = (
-        "part_time"
-        if "part-time" in lowered
-        else ("full_time" if "full-time" in lowered else None)
+        "part_time" if "part-time" in lowered else ("full_time" if "full-time" in lowered else None)
     )
     if pattern is None:
         return None

@@ -9,7 +9,6 @@ provider synthesizes deterministic vectors for tests/dev).
 
 import hashlib
 import uuid
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +32,7 @@ def cosine(a: list[float], b: list[float]) -> float:
     """Pure-Python cosine — no numpy dependency (desktop parity)."""
     if not a or not b or len(a) != len(b):
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = sum(x * x for x in a) ** 0.5
     nb = sum(x * x for x in b) ** 0.5
     if na == 0 or nb == 0:
@@ -75,7 +74,7 @@ class EmbeddingService:
         entity_id: uuid.UUID,
         text: str,
         *,
-        vector: Optional[list[float]] = None,
+        vector: list[float] | None = None,
     ) -> tuple[AIEmbedding, bool]:
         """Store (or refresh) one embedding; returns (row, embedded?).
 
@@ -139,7 +138,7 @@ class EmbeddingService:
         self,
         query: str,
         *,
-        kind: Optional[str] = KIND_POSTING,
+        kind: str | None = KIND_POSTING,
         limit: int = 20,
     ) -> list[dict]:
         """Cosine ranking over the stored vectors (semantic SIGNAL only —
@@ -175,8 +174,6 @@ class EmbeddingService:
         )
         buckets: dict[tuple[str, int], dict] = {}
         for kind, dim, _hash in rows.all():
-            bucket = buckets.setdefault(
-                (kind, dim), {"entity_kind": kind, "dim": dim, "count": 0}
-            )
+            bucket = buckets.setdefault((kind, dim), {"entity_kind": kind, "dim": dim, "count": 0})
             bucket["count"] += 1
         return sorted(buckets.values(), key=lambda b: b["entity_kind"])

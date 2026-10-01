@@ -12,7 +12,8 @@ loses its key and survives only as a labeled prompt.
 
 import time
 import uuid
-from typing import AsyncIterator, Optional, cast
+from collections.abc import AsyncIterator
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,7 +63,7 @@ async def _user_levels(db: AsyncSession, user_id: uuid.UUID) -> dict[str, int]:
         .join(UserSkill, UserSkill.skill_id == Skill.id)
         .where(UserSkill.user_id == user_id)
     )
-    return {key: level for key, level in rows.all()}
+    return dict(rows.all())
 
 
 async def _experience_digest(db: AsyncSession, user_id: uuid.UUID) -> list[dict]:
@@ -185,7 +186,7 @@ def build_plan_prompt(pack: dict, kind: str) -> str:
         {
             "task": "interview_plan",
             "kind": kind,
-            "quota": {name: count for name, count in quota},
+            "quota": dict(quota),
             "role": pack.get("role", ""),
             "org": pack.get("org", ""),
             "skills": pack.get("skills", []),
@@ -220,11 +221,7 @@ async def generate_interview_plan(
         build_plan_prompt(pack, kind),
         user_id,
     )
-    keys = [
-        item.skill_key
-        for item in plan.items
-        if item.kind == "technical" and item.skill_key
-    ]
+    keys = [item.skill_key for item in plan.items if item.kind == "technical" and item.skill_key]
     resolved = await _resolve_keys(db, keys)
     items = []
     for index, item in enumerate(plan.items[:MAX_PLAN_ITEMS], start=1):
@@ -238,9 +235,7 @@ async def generate_interview_plan(
     return InterviewPlan(items=items, rationale=plan.rationale[:2000])
 
 
-async def _resolve_keys(
-    db: AsyncSession, keys: list[str]
-) -> dict[str, tuple[str, bool]]:
+async def _resolve_keys(db: AsyncSession, keys: list[str]) -> dict[str, tuple[str, bool]]:
     """key → (label, exists). Unknown keys lose the key but keep the
     label — taxonomy discipline without hard-failing a draft."""
     unique = list(dict.fromkeys(keys))
@@ -320,8 +315,7 @@ def _mock_interview_plan(schema: type, user_prompt: str) -> dict:
 
     return {
         "items": items[:12],
-        "rationale": "Grounded in the extracted requirements and the "
-        "candidate's evidence.",
+        "rationale": "Grounded in the extracted requirements and the candidate's evidence.",
     }
 
 
@@ -395,7 +389,7 @@ def build_turn_prompt(ctx: dict) -> str:
 
 
 def render_next_question(
-    next_question: Optional[dict],
+    next_question: dict | None,
     position: int,
     total: int,
 ) -> str:
@@ -509,9 +503,7 @@ async def interview_turn_events(
         "status": interview.status,
         "answered": len(interview.rubric_scores or []),
         "total": total,
-        "next_question_id": (
-            str(next_question.get("id")) if next_question is not None else None
-        ),
+        "next_question_id": (str(next_question.get("id")) if next_question is not None else None),
         "done": is_done,
     }
     yield (

@@ -7,9 +7,10 @@ Also the surgical pin endpoint (`PUT /cv/{id}/context/pin`)."""
 import uuid
 from datetime import date
 
+from sqlalchemy import select
+
 from app.models.cv_model import CvVersion
 from app.models.experience_model import ExperienceItem
-from sqlalchemy import select
 
 
 async def _make_item(
@@ -77,9 +78,7 @@ async def _variant(client, auth_headers, item, *, variant_key: str, text: str) -
 async def test_pin_beats_the_automatic_winner_in_overlay(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    await _variant(
-        client, auth_headers, item, variant_key="default", text="Engine default text"
-    )
+    await _variant(client, auth_headers, item, variant_key="default", text="Engine default text")
     pinned = await _variant(
         client, auth_headers, item, variant_key="alt", text="Pinned tailored text"
     )
@@ -122,9 +121,7 @@ async def test_pin_beats_the_automatic_winner_in_overlay(client, db, auth_header
 async def test_pin_gates_on_language_and_falls_back(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    await _variant(
-        client, auth_headers, item, variant_key="default", text="Winner text"
-    )
+    await _variant(client, auth_headers, item, variant_key="default", text="Winner text")
     foreign = await client.post(
         "/api/v1/cv/synth",
         json={
@@ -179,12 +176,8 @@ async def test_highlights_snapshot_respects_pins(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
     other = await _make_item(db, uid, title="Frontend Intern", start=date(2025, 1, 1))
-    await _variant(
-        client, auth_headers, item, variant_key="default", text="Engine default text"
-    )
-    pinned = await _variant(
-        client, auth_headers, item, variant_key="alt", text="Pinned highlight"
-    )
+    await _variant(client, auth_headers, item, variant_key="default", text="Engine default text")
+    pinned = await _variant(client, auth_headers, item, variant_key="alt", text="Pinned highlight")
     awaited = await _variant(
         client,
         auth_headers,
@@ -238,18 +231,14 @@ async def test_highlights_snapshot_respects_pins(client, db, auth_headers):
 async def test_unknown_pin_id_never_cross_lists_the_winner(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    await _variant(
-        client, auth_headers, item, variant_key="default", text="Winner text"
-    )
+    await _variant(client, auth_headers, item, variant_key="default", text="Winner text")
     cv = await _cv(client, auth_headers)
     await _set_context(
         client,
         auth_headers,
         cv,
         synth_mode="off",
-        synth_pins={
-            "experience:" + str(item.id): "ffffffff-0000-0000-0000-000000000001"
-        },
+        synth_pins={"experience:" + str(item.id): "ffffffff-0000-0000-0000-000000000001"},
     )
     await client.patch(
         f"/api/v1/cv/{cv['id']}",
@@ -273,9 +262,7 @@ async def test_unknown_pin_id_never_cross_lists_the_winner(client, db, auth_head
 async def test_pin_applies_even_with_prefer_off(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    pinned = await _variant(
-        client, auth_headers, item, variant_key="alt", text="Starred text"
-    )
+    pinned = await _variant(client, auth_headers, item, variant_key="alt", text="Starred text")
     cv = await _cv(client, auth_headers)
     await _set_context(
         client,
@@ -361,15 +348,11 @@ async def test_pin_applies_for_project_items(client, db, auth_headers):
     )
     assert preview.status_code == 200, preview.text
     html = preview.json()["html"]
-    assert "Synthesized project description" in html, (
-        "the pinned project variant must render"
-    )
+    assert "Synthesized project description" in html, "the pinned project variant must render"
     assert "Original project description" not in html
 
 
-async def test_pin_applies_for_activated_ai_project_variant(
-    client, db, auth_headers, monkeypatch
-):
+async def test_pin_applies_for_activated_ai_project_variant(client, db, auth_headers, monkeypatch):
     """Plan 83 follow-up: the exact user flow — AI-generate a project
     variant, Activate it, star it — must swap the rendered text."""
     from app.services.cv_template_service import CvTemplateService
@@ -465,12 +448,8 @@ async def test_pin_endpoint_stars_and_preserves_other_slots(client, db, auth_hea
     uid = _uid_of(auth_headers)
     item_a = await _make_item(db, uid, title="Backend Intern")
     item_b = await _make_item(db, uid, title="Frontend Intern", start=date(2025, 1, 1))
-    var_a = await _variant(
-        client, auth_headers, item_a, variant_key="default", text="A"
-    )
-    var_b = await _variant(
-        client, auth_headers, item_b, variant_key="default", text="B"
-    )
+    var_a = await _variant(client, auth_headers, item_a, variant_key="default", text="A")
+    var_b = await _variant(client, auth_headers, item_b, variant_key="default", text="B")
     cv = await _cv(client, auth_headers)
 
     first = await _pin(
@@ -544,18 +523,14 @@ async def test_pin_endpoint_promotes_a_draft(client, db, auth_headers):
     pins = response.json()["context"]["synth_pins"]
     assert pins[f"experience:{item.id}"] == str(draft["id"])
 
-    row = (
-        await client.get(f"/api/v1/cv/synth/{draft['id']}", headers=auth_headers)
-    ).json()
+    row = (await client.get(f"/api/v1/cv/synth/{draft['id']}", headers=auth_headers)).json()
     assert row["status"] == "active", "pinning a draft promotes it"
 
 
 async def test_pin_endpoint_rejects_archived_and_foreign_rows(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    archived = await _variant(
-        client, auth_headers, item, variant_key="default", text="x"
-    )
+    archived = await _variant(client, auth_headers, item, variant_key="default", text="x")
     bulk = await client.post(
         "/api/v1/cv/synth/bulk",
         json={"ids": [archived["id"]], "action": "archive"},
@@ -634,9 +609,7 @@ async def test_single_delete_strips_pins(client, db, auth_headers):
     dangling pin must never survive a delete (bulk already did)."""
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    variant = await _variant(
-        client, auth_headers, item, variant_key="default", text="x"
-    )
+    variant = await _variant(client, auth_headers, item, variant_key="default", text="x")
     cv = await _cv(client, auth_headers)
     pinned = await _pin(
         client,
@@ -649,9 +622,7 @@ async def test_single_delete_strips_pins(client, db, auth_headers):
     assert pinned.status_code == 200, pinned.text
     assert pinned.json()["context"]["synth_pins"]
 
-    deleted = await client.delete(
-        f"/api/v1/cv/synth/{variant['id']}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/cv/synth/{variant['id']}", headers=auth_headers)
     assert deleted.status_code in (200, 204), deleted.text
 
     refreshed = await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)
@@ -665,9 +636,7 @@ async def test_resolution_responses_carry_synth_applied(client, db, auth_headers
     cross-check: present on both the context GET and the preview."""
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    variant = await _variant(
-        client, auth_headers, item, variant_key="alt", text="Starred truth"
-    )
+    variant = await _variant(client, auth_headers, item, variant_key="alt", text="Starred truth")
     cv = await _cv(client, auth_headers)
     await _pin(
         client,
@@ -684,9 +653,7 @@ async def test_resolution_responses_carry_synth_applied(client, db, auth_headers
     applied = context.json()["synth_applied"]
     assert applied.get(ref_key) == str(variant["id"])
 
-    preview = await client.post(
-        f"/api/v1/cv/{cv['id']}/preview", json={}, headers=auth_headers
-    )
+    preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", json={}, headers=auth_headers)
     assert preview.status_code == 200, preview.text
     applied = preview.json()["resolution"]["synth_applied"]
     assert applied.get(ref_key) == str(variant["id"])

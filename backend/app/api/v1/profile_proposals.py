@@ -1,6 +1,7 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """HITL profile proposals API (plan 77): list + idempotent resolve."""
 
-from typing import Literal, Optional
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -46,9 +47,7 @@ def _out(proposal) -> ProfileProposalOut:
 
 @router.get("/me/profile-proposals")
 async def list_profile_proposals(
-    status: Optional[
-        Literal["pending", "approved", "rejected", "conflict", "expired", "reverted"]
-    ] = None,
+    status: Literal["pending", "approved", "rejected", "conflict", "expired", "reverted"] | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
@@ -67,7 +66,7 @@ async def list_profile_proposals(
 )
 async def approve_profile_proposal(
     proposal_id: UUID,
-    body: Optional[CvChoiceApproveIn] = None,
+    body: CvChoiceApproveIn | None = None,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ) -> ProfileProposalResolveOut:

@@ -2,9 +2,8 @@
 vector hit cannot resurrect a hard-filtered posting), lexical
 degradation when embeddings are unavailable."""
 
-from tests.conftest import _make_posting
-
 from app.services.hybrid_search import fused_order, hybrid_candidate_order, rrf_merge
+from tests.conftest import _make_posting
 
 
 def test_rrf_merge_math():

@@ -6,10 +6,11 @@ Holland letter; the mapping is deliberately explicit and total over the
 seeded categories so affinity vectors stay stable across re-seeds.
 """
 
+from sqlalchemy import select
+
+from app.models.enums import MetricGroup
 from app.models.metric_model import MetricDimension
 from app.models.taxonomy_model import InterestTag
-from app.models.enums import MetricGroup
-from sqlalchemy import select
 
 RIASEC_LETTERS = (
     "realistic",
@@ -69,8 +70,7 @@ DIMENSIONS: list[dict] = [
             "label": label,
             "group": MetricGroup.WORKSTYLE.value,
             "description": (
-                "Work-style preference (1–5 sliders write through as "
-                "self_report evidence)."
+                "Work-style preference (1-5 sliders write through as self_report evidence)."
             ),
             "sources": ["profile.work_preferences"],
             "consumers": ["fit.interests"],
@@ -120,11 +120,7 @@ async def seed_metric_dimensions(db) -> int:
     added = 0
     for spec in DIMENSIONS:
         exists = (
-            (
-                await db.execute(
-                    select(MetricDimension).where(MetricDimension.key == spec["key"])
-                )
-            )
+            (await db.execute(select(MetricDimension).where(MetricDimension.key == spec["key"])))
             .scalars()
             .first()
         )
@@ -141,9 +137,7 @@ async def unmapped_categories(db) -> list[str]:
         select(InterestTag.category).where(InterestTag.deprecated.is_(False)).distinct()
     )
     return sorted(
-        category
-        for (category,) in rows.all()
-        if category and riasec_of_category(category) is None
+        category for (category,) in rows.all() if category and riasec_of_category(category) is None
     )
 
 
@@ -197,8 +191,7 @@ async def seed_metric_templates(db) -> int:
         (
             "riasec-interest-battery",
             "RIASEC interest battery",
-            "Six self-ratings that map your interests onto the registry's "
-            "RIASEC dimensions.",
+            "Six self-ratings that map your interests onto the registry's RIASEC dimensions.",
             [
                 (
                     f"interest.{letter}",
@@ -211,10 +204,7 @@ async def seed_metric_templates(db) -> int:
             "work-values-battery",
             "Work values battery",
             "Eight self-ratings over the registry's work-value dimensions.",
-            [
-                (f"values.{key}", prompt)
-                for key, prompt in VALUE_QUESTION_PROMPTS.items()
-            ],
+            [(f"values.{key}", prompt) for key, prompt in VALUE_QUESTION_PROMPTS.items()],
         ),
     ]
     added = 0

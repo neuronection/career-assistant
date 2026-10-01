@@ -66,9 +66,7 @@ async def test_report_states_before_and_after_config(client, client_admin_header
     assert empty["searxng_probe"]["status"] == "unconfigured"
     assert empty["github_token_set"] is False
 
-    unreachable = (
-        await _put(client, headers, {"searxng_url": "https://nope.invalid/sx"})
-    ).json()
+    unreachable = (await _put(client, headers, {"searxng_url": "https://nope.invalid/sx"})).json()
     assert unreachable["searxng_probe"]["status"] == "unreachable"
 
     cleared = (await _put(client, headers, {"searxng_url": ""})).json()
@@ -88,11 +86,7 @@ async def test_token_is_encrypted_and_cleared(client, db, client_admin_headers):
     assert "gh_pat_value" not in str(sealed)
 
     row = (
-        (
-            await db.execute(
-                select(AppSetting).where(AppSetting.key == "web.github_token")
-            )
-        )
+        (await db.execute(select(AppSetting).where(AppSetting.key == "web.github_token")))
         .scalars()
         .first()
     )

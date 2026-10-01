@@ -10,9 +10,7 @@ async def test_profile_defaults_after_register(client, auth_headers):
     assert body["completeness"]["percent"] == 0
 
 
-async def test_profile_section_update_and_completeness(
-    client, auth_headers, profile_ready
-):
+async def test_profile_section_update_and_completeness(client, auth_headers, profile_ready):
     response = await client.get("/api/v1/profile", headers=auth_headers)
     body = response.json()
     assert len(body["interests"]) == 3
@@ -20,9 +18,7 @@ async def test_profile_section_update_and_completeness(
     assert body["completeness"]["percent"] == 100
 
 
-async def test_profile_partial_update_keeps_other_sections(
-    client, auth_headers, profile_ready
-):
+async def test_profile_partial_update_keeps_other_sections(client, auth_headers, profile_ready):
     response = await client.put(
         "/api/v1/profile",
         json={"hobbies": [{"key": "chess", "label": "Chess", "weight": 3}]},
@@ -52,9 +48,7 @@ async def test_profile_rejects_bad_enum(client, auth_headers):
     assert response.status_code == 422
 
 
-async def test_profile_ai_analyze_mock(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_profile_ai_analyze_mock(client, auth_headers, profile_ready, seeded_catalog):
     response = await client.post("/api/v1/profile/ai-analyze", headers=auth_headers)
     assert response.status_code == 200, response.text
     summary = response.json()["ai_summary"]
@@ -84,22 +78,14 @@ async def test_isolated_profiles(client, auth_headers):
 async def test_profile_link_rejects_non_http_scheme(client, auth_headers):
     response = await client.put(
         "/api/v1/profile",
-        json={
-            "basics": {
-                "links": [{"kind": "other", "url": "javascript:alert(1)", "label": "x"}]
-            }
-        },
+        json={"basics": {"links": [{"kind": "other", "url": "javascript:alert(1)", "label": "x"}]}},
         headers=auth_headers,
     )
     assert response.status_code == 422
     ok = await client.put(
         "/api/v1/profile",
         json={
-            "basics": {
-                "links": [
-                    {"kind": "github", "url": "https://github.com/jane", "label": ""}
-                ]
-            }
+            "basics": {"links": [{"kind": "github", "url": "https://github.com/jane", "label": ""}]}
         },
         headers=auth_headers,
     )
@@ -110,9 +96,7 @@ async def test_profile_link_rejects_non_http_scheme(client, auth_headers):
     ]
 
 
-async def test_basics_full_name_updates_the_account_name(
-    client, auth_headers, profile_ready, db
-):
+async def test_basics_full_name_updates_the_account_name(client, auth_headers, profile_ready, db):
     """Editing the name in basic profile info mirrors it onto
     `users.full_name` — the CV header name source."""
     from app.models.user_model import User

@@ -6,8 +6,11 @@ conversations look unchanged: messages chain parent → active_child in
 (created_at, id) order and sessions point at their first message.
 """
 
-from alembic import op
+import itertools
+
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0014"
 down_revision = "0013"
@@ -46,22 +49,16 @@ def upgrade() -> None:
             .order_by(messages.c.created_at, messages.c.id)
         ).fetchall()
         ids = [row[0] for row in rows]
-        for parent_id, child_id in zip(ids, ids[1:]):
+        for parent_id, child_id in itertools.pairwise(ids):
             conn.execute(
-                messages.update()
-                .where(messages.c.id == parent_id)
-                .values(active_child_id=child_id)
+                messages.update().where(messages.c.id == parent_id).values(active_child_id=child_id)
             )
             conn.execute(
-                messages.update()
-                .where(messages.c.id == child_id)
-                .values(parent_id=parent_id)
+                messages.update().where(messages.c.id == child_id).values(parent_id=parent_id)
             )
         if ids:
             conn.execute(
-                sessions.update()
-                .where(sessions.c.id == session_id)
-                .values(active_root_id=ids[0])
+                sessions.update().where(sessions.c.id == session_id).values(active_root_id=ids[0])
             )
 
 

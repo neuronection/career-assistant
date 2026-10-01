@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.budgets import usage_rollups as usage_rollups_view
+from app.ai.providers.presets import PRESET_ORDER, PRESETS
 from app.ai.providers.resolution import known_task_types, resolve_task_model
-from app.ai.providers.presets import PRESETS, PRESET_ORDER
 from app.ai.providers.service import AIProviderService
 from app.ai.tools import list_tools
 from app.core.config import settings
@@ -74,9 +74,7 @@ async def config_summary(
                 tier=resolved.tier if resolved else None,
             )
         )
-    return ConfigSummary(
-        tasks=tasks, can_manage_global=user.is_admin, mock_allowed=settings.is_dev
-    )
+    return ConfigSummary(tasks=tasks, can_manage_global=user.is_admin, mock_allowed=settings.is_dev)
 
 
 @router.get("/tasks")
@@ -179,9 +177,7 @@ async def list_models(
     return [ModelOut.model_validate(m) for m in rows]
 
 
-@router.post(
-    "/providers/{provider_id}/models", response_model=ModelOut, status_code=201
-)
+@router.post("/providers/{provider_id}/models", response_model=ModelOut, status_code=201)
 async def add_model(
     provider_id: UUID,
     data: ModelCreate,
@@ -293,9 +289,7 @@ async def list_assignments(
 ) -> list[AssignmentOut]:
     """Stored assignments at a scope ('user' or 'system'; system = admin view)."""
     if scope == "system" and not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can view global assignments"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can view global assignments")
     rows = await AIProviderService(db).list_assignments(user, scope)
     return [AssignmentOut.model_validate(a) for a in rows]
 
@@ -358,22 +352,14 @@ async def tools(
 async def _web_setting(db: AsyncSession, key: str) -> dict:
     from app.models.settings_model import AppSetting
 
-    row = (
-        (await db.execute(select(AppSetting).where(AppSetting.key == key)))
-        .scalars()
-        .first()
-    )
+    row = (await db.execute(select(AppSetting).where(AppSetting.key == key))).scalars().first()
     return row.value if row is not None else {}
 
 
 async def _put_web_setting(db: AsyncSession, key: str, value: dict) -> None:
     from app.models.settings_model import AppSetting
 
-    row = (
-        (await db.execute(select(AppSetting).where(AppSetting.key == key)))
-        .scalars()
-        .first()
-    )
+    row = (await db.execute(select(AppSetting).where(AppSetting.key == key))).scalars().first()
     if row is None:
         db.add(AppSetting(key=key, value=value))
     else:
@@ -393,9 +379,7 @@ async def web_settings(
     return WebSettingsOut(
         searxng_url=url,
         searxng_probe=await probe_searxng(url),
-        github_token_set=bool(
-            (await _web_setting(db, "web.github_token")).get("token")
-        ),
+        github_token_set=bool((await _web_setting(db, "web.github_token")).get("token")),
     )
 
 
@@ -426,9 +410,7 @@ async def update_web_settings(
     return WebSettingsOut(
         searxng_url=url,
         searxng_probe=await probe_searxng(url),
-        github_token_set=bool(
-            (await _web_setting(db, "web.github_token")).get("token")
-        ),
+        github_token_set=bool((await _web_setting(db, "web.github_token")).get("token")),
     )
 
 
@@ -444,9 +426,7 @@ async def recompute_embeddings(
     provider config (DB-only) and the audit funnel."""
     from app.services.embedding_service import EmbeddingService
 
-    result = await EmbeddingService(db).recompute_postings(
-        limit=max(1, min(limit, 200))
-    )
+    result = await EmbeddingService(db).recompute_postings(limit=max(1, min(limit, 200)))
     return result
 
 
@@ -508,9 +488,7 @@ async def list_mcp_servers(
             "enabled": row.enabled,
             "discovered_tools": row.discovered_tools or [],
             "enabled_tools": row.enabled_tools or [],
-            "last_synced_at": (
-                row.last_synced_at.isoformat() if row.last_synced_at else None
-            ),
+            "last_synced_at": (row.last_synced_at.isoformat() if row.last_synced_at else None),
         }
         for row in rows
     ]
@@ -550,9 +528,7 @@ async def refresh_mcp_server(
         "id": str(row.id),
         "discovered_tools": row.discovered_tools or [],
         "enabled_tools": row.enabled_tools or [],
-        "last_synced_at": (
-            row.last_synced_at.isoformat() if row.last_synced_at else None
-        ),
+        "last_synced_at": (row.last_synced_at.isoformat() if row.last_synced_at else None),
     }
 
 
@@ -601,9 +577,7 @@ async def test_connection(
     db: AsyncSession = Depends(get_db),
 ) -> TestResult:
     """Send a tiny completion to verify provider credentials."""
-    result = await AIProviderService(db).run_test(
-        user, provider_id=provider_id, model_id=model_id
-    )
+    result = await AIProviderService(db).run_test(user, provider_id=provider_id, model_id=model_id)
     if result["ok"]:
         return TestResult(ok=True, reply=result.get("reply", ""))
     return TestResult(ok=False, error=result.get("error", "unknown error"))
@@ -615,9 +589,7 @@ async def list_budgets(
 ) -> list[BudgetOut]:
     """Active + inactive token budgets (admin-only)."""
     if not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets")
     rows = await db.execute(select(AIBudget).order_by(AIBudget.name))
     return [BudgetOut.model_validate(b) for b in rows.scalars().all()]
 
@@ -630,16 +602,12 @@ async def create_budget(
 ) -> BudgetOut:
     """Add a token budget with a hard stop (admin-only)."""
     if not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets")
     if data.task_type is not None and data.task_type not in {
         t["value"] for t in known_task_types()
     }:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown task type")
-    exists = await db.execute(
-        select(AIBudget).where(AIBudget.name == data.name).limit(1)
-    )
+    exists = await db.execute(select(AIBudget).where(AIBudget.name == data.name).limit(1))
     if exists.scalars().first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Budget name already exists")
     budget = AIBudget(
@@ -663,9 +631,7 @@ async def delete_budget(
 ) -> None:
     """Remove a budget (admin-only)."""
     if not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets")
     rows = await db.execute(select(AIBudget).where(AIBudget.id == budget_id))
     budget = rows.scalars().first()
     if budget is None:

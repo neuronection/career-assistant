@@ -5,12 +5,13 @@ ping over the handshake and exits — the running instance raises its
 window. A stale lock (dead PID, unbindable socket) is recovered on boot.
 """
 
+import contextlib
 import json
 import os
 import socket
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 LOCK_FILE = "app.lock"
 SOCKET_FILE = "app.sock"
@@ -23,8 +24,8 @@ class SingleInstance:
     def __init__(self, data_dir: Path, on_focus_request: Callable[[], None]):
         self.data_dir = data_dir
         self.on_focus_request = on_focus_request
-        self._socket: Optional[socket.socket] = None
-        self._thread: Optional[threading.Thread] = None
+        self._socket: socket.socket | None = None
+        self._thread: threading.Thread | None = None
         self._stopping = threading.Event()
 
     @property
@@ -54,9 +55,7 @@ class SingleInstance:
             json.dumps({"pid": os.getpid(), "socket": str(self.socket_path)}),
             encoding="utf-8",
         )
-        self._thread = threading.Thread(
-            target=self._listen, name="single-instance", daemon=True
-        )
+        self._thread = threading.Thread(target=self._listen, name="single-instance", daemon=True)
         self._thread.start()
         return True
 
@@ -64,18 +63,14 @@ class SingleInstance:
         """Drop the socket + lockfile (graceful quit)."""
         self._stopping.set()
         if self._socket is not None:
-            try:
+            with contextlib.suppress(OSError):
                 self._socket.close()
-            except OSError:
-                pass
             self._socket = None
         if self._thread is not None:
             self._thread.join(timeout=2)
         for path in (self.socket_path, self.lock_path):
-            try:
+            with contextlib.suppress(OSError):
                 path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     def _another_instance_alive(self) -> bool:
         """Handshake probe: a connectable socket means the first is live."""
@@ -101,17 +96,15 @@ class SingleInstance:
             # Live PID but no responsive socket — treat as stale anyway;
             # the socket bind below is the real arbiter.
             pass
-        try:
+        with contextlib.suppress(OSError):
             self.socket_path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
     def _listen(self) -> None:
         assert self._socket is not None
         while not self._stopping.is_set():
             try:
                 conn, _ = self._socket.accept()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break

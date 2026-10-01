@@ -35,9 +35,7 @@ from app.schemas.profile_entities import (
 
 _LEVEL_RANK = {level.value: rank for level, rank in EducationLevelOrder.ORDER.items()}
 
-_EDUCATION_CLEARABLE = frozenset(
-    {"university_id", "department_id", "grade_band", "start", "end"}
-)
+_EDUCATION_CLEARABLE = frozenset({"university_id", "department_id", "grade_band", "start", "end"})
 
 _CERTIFICATION_CLEARABLE = frozenset({"issued", "expires", "language_code"})
 
@@ -66,9 +64,7 @@ async def effective_education_level(
     return max(known, key=_LEVEL_RANK.__getitem__)
 
 
-def _apply_patch(
-    obj, patch: BaseModel, clearable: frozenset[str] = frozenset()
-) -> None:
+def _apply_patch(obj, patch: BaseModel, clearable: frozenset[str] = frozenset()) -> None:
     """Apply a patch; explicit ``null`` clears only the given fields."""
     data = patch.model_dump(exclude_unset=True)
     for field, value in data.items():
@@ -107,17 +103,15 @@ class ProfileEntitiesService:
             if university_id is None:
                 university_id = department.university_id
             elif department.university_id != university_id:
-                raise ValidationError(
-                    "Department does not belong to the selected university"
-                )
-        if university_id is not None:
-            if await self.db.get(University, university_id) is None:
-                raise NotFoundError("University not found")
+                raise ValidationError("Department does not belong to the selected university")
+        if (
+            university_id is not None
+            and await self.db.get(University, university_id) is None
+        ):
+            raise NotFoundError("University not found")
         return university_id
 
-    async def create_education(
-        self, user_id: uuid.UUID, payload: EducationItemIn
-    ) -> EducationItem:
+    async def create_education(self, user_id: uuid.UUID, payload: EducationItemIn) -> EducationItem:
         university_id = await self._validate_catalog_refs(
             payload.university_id, payload.department_id
         )
@@ -185,9 +179,7 @@ class ProfileEntitiesService:
         await self.db.refresh(item)
         return item
 
-    async def delete_certification(
-        self, item_id: uuid.UUID, user_id: uuid.UUID
-    ) -> None:
+    async def delete_certification(self, item_id: uuid.UUID, user_id: uuid.UUID) -> None:
         await self.db.delete(await self._owned(Certification, item_id, user_id))
         await self.db.commit()
 
@@ -289,9 +281,7 @@ class ProfileEntitiesService:
 
         user_skills_count = (
             await self.db.execute(
-                select(func.count())
-                .select_from(UserSkill)
-                .where(UserSkill.user_id == user_id)
+                select(func.count()).select_from(UserSkill).where(UserSkill.user_id == user_id)
             )
         ).scalar_one()
         skills_missing = (
@@ -308,9 +298,7 @@ class ProfileEntitiesService:
             )
         )
 
-        languages_count = len(
-            ((basics.academics if basics else None) or {}).get("languages") or []
-        )
+        languages_count = len(((basics.academics if basics else None) or {}).get("languages") or [])
         sections.append(
             ReadinessSection(
                 key="languages",
@@ -360,9 +348,7 @@ class ProfileEntitiesService:
                 weight=5,
                 score=5 if achievements_count else 0,
                 complete=bool(achievements_count),
-                missing=[]
-                if achievements_count
-                else ["at least one award or publication"],
+                missing=[] if achievements_count else ["at least one award or publication"],
             )
         )
 

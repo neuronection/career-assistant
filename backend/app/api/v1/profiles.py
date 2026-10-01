@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.services.deps import get_current_user
 from app.services import profiles_service
+from app.services.deps import get_current_user
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 

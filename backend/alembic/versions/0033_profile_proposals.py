@@ -7,8 +7,9 @@ the table starts empty.
 """
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0033"
 down_revision = "0032"
@@ -68,9 +69,7 @@ def upgrade() -> None:
             "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired')",
             name="status_allowed",
         ),
-        sa.CheckConstraint(
-            "action IN ('create', 'update', 'delete')", name="action_allowed"
-        ),
+        sa.CheckConstraint("action IN ('create', 'update', 'delete')", name="action_allowed"),
         sa.CheckConstraint(
             "kind IN ('experience_item', 'education_item', 'certification', "
             "'profile_achievement', 'user_skill', 'profile_section')",
@@ -92,7 +91,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_profile_proposals_entity", table_name="profile_proposals")
-    op.drop_index(
-        "ix_profile_proposals_user_status", table_name="profile_proposals"
-    )
+    op.drop_index("ix_profile_proposals_user_status", table_name="profile_proposals")
     op.drop_table("profile_proposals")

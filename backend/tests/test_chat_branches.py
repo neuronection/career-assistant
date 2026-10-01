@@ -1,14 +1,14 @@
 """Chat branching:
 edit-and-resend, regenerate, select (level-flip) and the tree projection."""
 
-from .test_chat import *  # noqa: F401,F403 — reuse client/auth/profile/catalog fixtures
+import contextlib
+
+from .test_chat import *  # noqa: F403 — reuse client/auth/profile/catalog fixtures
 
 
 async def _seed_turns(client, auth_headers, contents: list[str]) -> dict:
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "branch"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "branch"}, headers=auth_headers)
     ).json()
     for content in contents:
         reply = await client.post(
@@ -25,9 +25,7 @@ async def test_visible_messages_carry_variant_decorations(
 ):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     assert len(rows) == 2
     for row in rows:
@@ -37,14 +35,10 @@ async def test_visible_messages_carry_variant_decorations(
     assert rows[1]["parent_id"] == rows[0]["id"]
 
 
-async def test_edit_branches_and_resends(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_edit_branches_and_resends(client, auth_headers, profile_ready, seeded_catalog):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     original = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
 
     edited = await client.post(
@@ -55,9 +49,7 @@ async def test_edit_branches_and_resends(
     assert edited.status_code == 200, edited.text
 
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     assert len(rows) == 2
     assert "healthcare" in rows[0]["content"]
@@ -71,9 +63,7 @@ async def test_regenerate_creates_an_assistant_variant(
 ):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     first = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
 
     regenerated = await client.post(
@@ -82,9 +72,7 @@ async def test_regenerate_creates_an_assistant_variant(
     assert regenerated.status_code == 200, regenerated.text
 
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     assert len(rows) == 2
     assert rows[1]["id"] != first[1]["id"]
@@ -98,19 +86,13 @@ async def test_select_flips_one_pointer_and_rewalks(
 ):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     user_id, assistant_v1 = rows[0]["id"], rows[1]["id"]
 
-    await client.post(
-        f"/api/v1/chat/messages/{user_id}/regenerate", headers=auth_headers
-    )
+    await client.post(f"/api/v1/chat/messages/{user_id}/regenerate", headers=auth_headers)
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     assistant_v2 = rows[1]["id"]
 
@@ -131,18 +113,12 @@ async def test_tree_projection_exposes_hidden_branches(
 ):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
-    await client.post(
-        f"/api/v1/chat/messages/{rows[0]['id']}/regenerate", headers=auth_headers
-    )
+    await client.post(f"/api/v1/chat/messages/{rows[0]['id']}/regenerate", headers=auth_headers)
 
     tree = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/tree", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/tree", headers=auth_headers)
     ).json()
     assert tree["active_root_id"] == rows[0]["id"]
     by_id = {node["id"]: node for node in tree["nodes"]}
@@ -158,14 +134,10 @@ async def test_tree_projection_exposes_hidden_branches(
     assert len(hidden) == 1
 
 
-async def test_edit_rejects_assistant_messages(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_edit_rejects_assistant_messages(client, auth_headers, profile_ready, seeded_catalog):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     response = await client.post(
         f"/api/v1/chat/messages/{rows[1]['id']}/edit",
@@ -175,14 +147,10 @@ async def test_edit_rejects_assistant_messages(
     assert response.status_code == 400
 
 
-async def test_edit_streams_family_events(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_edit_streams_family_events(client, auth_headers, profile_ready, seeded_catalog):
     session = await _seed_turns(client, auth_headers, ["I like software and games"])
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     response = await client.post(
         f"/api/v1/chat/messages/{rows[0]['id']}/edit?stream=true",
@@ -209,7 +177,7 @@ async def test_aborted_turn_persists_partial_prefix(
         model = None
         tokens_in = None
         tokens_out = None
-        _raw = ['{"answer": "Here are some matches for software']
+        _raw = ['{"answer": "Here are some matches for software']  # noqa: RUF012 -- test fixture data
 
         async def chunks(self, *args, **kwargs):
             yield {"raw": None}
@@ -222,19 +190,15 @@ async def test_aborted_turn_persists_partial_prefix(
 
     monkeypatch.setattr(chat_turn_graph, "StructuredStream", lambda: CancellingStream())
 
-    try:
+    with contextlib.suppress(Exception):
         await client.post(
             f"/api/v1/chat/sessions/{session['id']}/messages?stream=true",
             json={"content": "again please"},
             headers=auth_headers,
         )
-    except Exception:  # noqa: BLE001 — the aborted stream may surface anywhere
-        pass
 
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     partials = [
         row

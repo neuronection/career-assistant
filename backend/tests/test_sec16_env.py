@@ -60,7 +60,7 @@ async def test_sec16_matrix_reaches_kit_config_from_dotenv(monkeypatch, tmp_path
         )
         + "\n",
     )
-    
+
     app = FastAPI()
     install_module.install_identity(app, fresh)
     config = app.state.auth.config
@@ -80,9 +80,7 @@ async def test_sec16_matrix_reaches_kit_config_from_dotenv(monkeypatch, tmp_path
 
 async def test_sec16_env_beats_dotenv_file(monkeypatch, tmp_path):
     """OS environment wins over the .env file (per key)."""
-    fresh = _settings_from_env_text(
-        monkeypatch, tmp_path, "CAREER_AUTH_LOCKOUT_THRESHOLD=3\n"
-    )
+    fresh = _settings_from_env_text(monkeypatch, tmp_path, "CAREER_AUTH_LOCKOUT_THRESHOLD=3\n")
     assert fresh.auth_lockout_threshold == 3, "file value resolves"
 
     from app.core.config import Settings
@@ -113,9 +111,7 @@ async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
         + "\n",
     )
     monkeypatch.setattr(global_settings, "ratelimit_auth", fresh.ratelimit_auth)
-    monkeypatch.setattr(
-        global_settings, "ratelimit_auth_email", fresh.ratelimit_auth_email
-    )
+    monkeypatch.setattr(global_settings, "ratelimit_auth_email", fresh.ratelimit_auth_email)
     monkeypatch.setattr(global_settings, "ratelimit_ai", fresh.ratelimit_ai)
     monkeypatch.setattr(global_settings, "ratelimit_mcp", fresh.ratelimit_mcp)
     monkeypatch.setattr(global_settings, "ratelimit_default", fresh.ratelimit_default)
@@ -133,20 +129,13 @@ async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
     assert fresh.ratelimit_ai == 13
 
 
-
-async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(
-    monkeypatch, tmp_path
-):
+async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(monkeypatch, tmp_path):
     import app.auth.install as install_module
     from app.core.config import settings as global_settings
     from app.core.ratelimit import client_identity
 
-    fresh = _settings_from_env_text(
-        monkeypatch, tmp_path, "CAREER_TRUSTED_PROXY_COUNT=1\n"
-    )
-    monkeypatch.setattr(
-        global_settings, "trusted_proxy_count", fresh.trusted_proxy_count
-    )
+    fresh = _settings_from_env_text(monkeypatch, tmp_path, "CAREER_TRUSTED_PROXY_COUNT=1\n")
+    monkeypatch.setattr(global_settings, "trusted_proxy_count", fresh.trusted_proxy_count)
 
     app = FastAPI()
     install_module.install_identity(app, fresh)
@@ -172,7 +161,7 @@ async def test_sec16_matrix_reaches_kit_config_from_os_environ(monkeypatch):
     from app.core.config import Settings
 
     fresh = Settings(_env_file=None)
-    
+
     app = FastAPI()
     install_module.install_identity(app, fresh)
     config = app.state.auth.config

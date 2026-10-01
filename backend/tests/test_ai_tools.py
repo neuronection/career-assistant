@@ -78,11 +78,7 @@ def test_builtin_registry_declarations():
         "propose_profile_edits",
     }
     assert all(t["builtin"] for t in listed.values())
-    non_cv = {
-        k: t
-        for k, t in listed.items()
-        if not k.startswith("cv_") and t["kind"] == "tool"
-    }
+    non_cv = {k: t for k, t in listed.items() if not k.startswith("cv_") and t["kind"] == "tool"}
     assert all(
         t["scope"] == "read"
         for k, t in non_cv.items()
@@ -116,9 +112,7 @@ def test_builtin_registry_declarations():
     capability = listed["propose_profile_edits"]
     assert capability["kind"] == "capability"
     assert capability["hitl"] is True
-    assert all(
-        t["kind"] == "tool" for k, t in listed.items() if k != "propose_profile_edits"
-    )
+    assert all(t["kind"] == "tool" for k, t in listed.items() if k != "propose_profile_edits")
     for key, entry in listed.items():
         schema = entry["input_schema"]
         assert schema.get("type") == "object", key
@@ -155,9 +149,7 @@ async def test_tools_endpoint_capabilities_opt_in(client, auth_headers):
     assert cap["hitl"] is True
 
 
-async def test_tools_endpoint_bindable_filter_matches_the_chat_bind_set(
-    client, auth_headers
-):
+async def test_tools_endpoint_bindable_filter_matches_the_chat_bind_set(client, auth_headers):
     """The chat's "tools the assistant can use" dialog must list what the
     LLM actually binds — the chat allowlist + HITL capability rows — not
     the whole copilot registry (block/override editors never bind)."""
@@ -252,17 +244,15 @@ async def test_compare_jobs_tool_validates_and_reports_unknown(db):
         await run_tool(db, "compare_jobs", None, {"refs": ["a", "b"]})
     with pytest.raises(DomainError, match="Invalid input for tool compare_jobs"):
         await run_tool(db, "compare_jobs", "user-1", {"refs": ["only-one"]})
-    result = await run_tool(
-        db, "compare_jobs", "user-1", {"refs": ["ghost-job", "also-ghost"]}
-    )
+    result = await run_tool(db, "compare_jobs", "user-1", {"refs": ["ghost-job", "also-ghost"]})
     assert "error" in result
 
 
 async def test_notification_write_flow_through_registry(db, kinds):
     """The write-scope tool really mutes through the registry path."""
+    from nx_auth.passwords import hash_password
     from sqlalchemy import select
 
-    from nx_auth.passwords import hash_password
     from app.models.engagement_model import NotificationKind, NotificationKindPref
     from app.models.user_model import User
 

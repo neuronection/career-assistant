@@ -9,7 +9,6 @@ evidence, ordering stays deterministic (posting_fit sort).
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -23,10 +22,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -50,15 +49,13 @@ class AutopilotGoal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Structured constraint set: must_terms, never_terms, family_keys,
     # remote, salary_min, seniority, exclude_seen/applied — the agent
     # reads it, feedback mutates it (shown back to the user explicitly).
-    constraints: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    constraints: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # trigger dict {"type":..., "params": {...}}; NULL = manual.
-    cadence: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    cadence: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Optional run-level cap layered over ai_budgets: {"max_tokens": N}.
     budget: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
-    last_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
 
 
 class AutopilotRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -71,8 +68,7 @@ class AutopilotRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "autopilot_runs"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('running', 'completed', 'budget_aborted', "
-            "'cancelled', 'failed')",
+            "status IN ('running', 'completed', 'budget_aborted', 'cancelled', 'failed')",
             name="status_allowed",
         ),
         Index("ix_autopilot_runs_goal_started", "goal_id", "started_at"),
@@ -84,12 +80,10 @@ class AutopilotRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         index=True,
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
-    started_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    finished_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     tokens_used: Mapped[int] = mapped_column(nullable=False, default=0)
-    searches_executed: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    searches_executed: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     goal = relationship("AutopilotGoal", viewonly=True)
@@ -125,9 +119,7 @@ class AutopilotFinding(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     why: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # Evidence quotes + fit breakdown dims backing `why` (honesty guards).
     evidence: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
-    dismissed_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
-    feedback: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    dismissed_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    feedback: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
-    posting = relationship("JobPosting", viewonly=True)  # noqa: F821
+    posting = relationship("JobPosting", viewonly=True)

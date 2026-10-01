@@ -3,6 +3,7 @@ false). A hidden row is not rendered anywhere and apply_derivation
 never resurrects it; re-adding the skill creates a fresh row."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0031"

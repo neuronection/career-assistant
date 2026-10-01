@@ -5,7 +5,6 @@ auth-kit's §12 surface now — see `nx_auth.user_admin` (plan 16 P3a)."""
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -15,17 +14,15 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.errors import DomainError, ValidationError
-from app.models.enums import BackgroundJobType
 from app.models.ai_model import AIGeneration
+from app.models.enums import BackgroundJobType
 from app.models.user_model import User
 from app.schemas.job import JobOut
 from app.services.deps import get_current_user, require_admin
 from app.services.job_service import JobService
 from app.services.taxonomy_service import TaxonomyService
 
-router = APIRouter(
-    prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)]
-)
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 class BulkJobActionIn(BaseModel):
@@ -41,9 +38,7 @@ async def moderation_queue(
     db: AsyncSession = Depends(get_db),
 ) -> list[JobOut]:
     """All users' catalog drafts (default), newest last, for moderation."""
-    jobs, _ = await JobService(db).list_jobs(
-        status=job_status, source=source, page_size=limit
-    )
+    jobs, _ = await JobService(db).list_jobs(status=job_status, source=source, page_size=limit)
     return [JobOut.from_model(j) for j in jobs]
 
 
@@ -79,10 +74,10 @@ class AIGenerationOut(BaseModel):
     provider: str
     model: str
     prompt: str
-    output: Optional[dict]
-    tokens_in: Optional[int]
-    tokens_out: Optional[int]
-    latency_ms: Optional[float]
+    output: dict | None
+    tokens_in: int | None
+    tokens_out: int | None
+    latency_ms: float | None
     status: str
     error: str
     created_at: datetime
@@ -117,9 +112,7 @@ async def audit_generations(
     rows = (
         (
             await db.execute(
-                base.order_by(AIGeneration.created_at.desc())
-                .offset(offset)
-                .limit(limit)
+                base.order_by(AIGeneration.created_at.desc()).offset(offset).limit(limit)
             )
         )
         .scalars()
@@ -172,9 +165,7 @@ async def merge_skill(
     try:
         skill = await TaxonomyService(db).merge(skill_id, uuid.UUID(str(target_id)))
     except ValueError as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "target_id must be a UUID"
-        ) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "target_id must be a UUID") from exc
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
@@ -284,9 +275,7 @@ async def admin_organizations(
 
 
 @router.post("/organizations/{org_id}/promote", response_model=dict)
-async def promote_organization(
-    org_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def promote_organization(org_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """proposed → active (the only promotion path, like skills)."""
     from app.services.organization_service import OrganizationService
 
@@ -307,9 +296,7 @@ async def add_organization_alias(
     from app.services.organization_service import OrganizationService
 
     try:
-        org = await OrganizationService(db).add_alias(
-            org_id, str(payload.get("alias") or "")
-        )
+        org = await OrganizationService(db).add_alias(org_id, str(payload.get("alias") or ""))
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return {"id": str(org.id), "aliases": org.aliases or []}
@@ -362,9 +349,7 @@ async def enrichment_queue(db: AsyncSession = Depends(get_db)) -> list[dict]:
 
 
 @router.post("/jobs/{job_id}/enrichment/apply", response_model=dict)
-async def apply_enrichment(
-    job_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def apply_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Merge the proposal's v2 fields into the curated attributes."""
     from app.core.errors import NotFoundError
     from app.models.job_model import Job
@@ -382,9 +367,7 @@ async def apply_enrichment(
 
 
 @router.post("/jobs/{job_id}/enrichment/reject", response_model=dict)
-async def reject_enrichment(
-    job_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def reject_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Discard the proposal without touching curated attributes."""
     from app.core.errors import NotFoundError
     from app.models.job_model import Job
@@ -407,9 +390,7 @@ async def posting_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
     from app.models.posting_model import JobSource
 
     rows = (
-        (await db.execute(select(JobSource).order_by(JobSource.created_at.desc())))
-        .scalars()
-        .all()
+        (await db.execute(select(JobSource).order_by(JobSource.created_at.desc()))).scalars().all()
     )
     return [
         {
@@ -427,9 +408,7 @@ async def posting_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
 
 
 @router.post("/postings/sources", status_code=201)
-async def create_posting_source(
-    payload: dict, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     """Enable a source: connector key + config validated against the engine."""
     from app.connectors.registry import get_connector
     from app.models.posting_model import JobSource
@@ -467,9 +446,7 @@ async def update_posting_source(
     from app.models.posting_model import JobSource
 
     source = (
-        (await db.execute(select(JobSource).where(JobSource.id == source_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
     )
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
@@ -512,9 +489,7 @@ async def manual_map_posting(
     from app.models.posting_model import JobPosting
 
     posting = (
-        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
@@ -576,17 +551,13 @@ async def admin_list_postings(
 
 
 @router.post("/postings/{posting_id}/extract")
-async def reextract_posting(
-    posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Re-run the deep extraction for one posting now (admin)."""
     from app.models.posting_model import JobPosting
     from app.services.extract_service import extract_posting_now
 
     posting = (
-        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")

@@ -7,15 +7,14 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.ai.mock_chat import mock_chat_reply as _mock_chat_reply
 from app.ai import gateway as gateway_module
-from app.models.enums import AITaskType
+from app.ai.mock_chat import mock_chat_reply as _mock_chat_reply
 from app.models.chat_model import ChatSession
+from app.models.enums import AITaskType
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User
 from app.services.experience_service import ExperienceService
-
 from tests.test_chat_streaming import _parse_sse
 
 
@@ -26,9 +25,7 @@ async def _auth_user(db) -> User:
 
 async def _session(client, headers) -> dict:
     return (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "profile-ops"}, headers=headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "profile-ops"}, headers=headers)
     ).json()
 
 
@@ -61,9 +58,7 @@ async def test_generic_edit_words_still_ground_the_digest(client, db, auth_heade
     assert "my_profile_digest" in names
 
 
-async def test_cache_primes_and_followup_without_keywords(
-    client, db, auth_headers, monkeypatch
-):
+async def test_cache_primes_and_followup_without_keywords(client, db, auth_headers, monkeypatch):
     """Plan 81 core flow: turn 1 (keyword) primes the session cache; turn 2
     names NO entity keyword at all yet still grounds proposals, reusing
     the cached digest ids."""
@@ -102,17 +97,13 @@ async def test_cache_primes_and_followup_without_keywords(
     gateway_module.register_mock_fixture(AITaskType.CHAT, edit_ops)
     try:
         # Turn 1: keyword message ("project") — primes the cache.
-        fresh_events = await _send(
-            client, session["id"], auth_headers, "tell me about my projects"
-        )
+        fresh_events = await _send(client, session["id"], auth_headers, "tell me about my projects")
         fresh_names = [p["name"] for n, p in fresh_events if n == "tool_call"]
         assert "my_experience" in fresh_names
 
         # Turn 2: zero keyword matches — cache reuse grounds the op, and
         # the read-before-edit gate is satisfied by a full read.
-        events = await _send(
-            client, session["id"], auth_headers, "delete my first row now"
-        )
+        events = await _send(client, session["id"], auth_headers, "delete my first row now")
     finally:
         gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
 
@@ -125,11 +116,7 @@ async def test_cache_primes_and_followup_without_keywords(
     assert "items_count_1" in json.dumps(events, default=str)
 
     rows = (
-        (
-            await db.execute(
-                select(ChatSession).where(ChatSession.id == uuid.UUID(session["id"]))
-            )
-        )
+        (await db.execute(select(ChatSession).where(ChatSession.id == uuid.UUID(session["id"]))))
         .scalars()
         .one()
     )
@@ -139,9 +126,7 @@ async def test_cache_primes_and_followup_without_keywords(
     assert f"read:experience_item:{item.id}" in cached
 
 
-async def test_approved_card_staleness_refreshes_cache(
-    client, db, auth_headers, monkeypatch
-):
+async def test_approved_card_staleness_refreshes_cache(client, db, auth_headers, monkeypatch):
     """Approving a card changes the data → the next turn's signature
     mismatch forces a fresh digest; the model sees the NEW item."""
 
@@ -175,9 +160,7 @@ async def test_approved_card_staleness_refreshes_cache(
 
     gateway_module.register_mock_fixture(AITaskType.CHAT, count_ops)
     try:
-        events = await _send(
-            client, session["id"], auth_headers, "delete the project: state1"
-        )
+        events = await _send(client, session["id"], auth_headers, "delete the project: state1")
         card = next(p for n, p in events if n == "proposal")
     finally:
         gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
@@ -260,11 +243,7 @@ async def test_turn_emits_proposal_events_and_persists(
     assert meta["proposals_dropped"] is None
 
     rows = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
@@ -275,9 +254,7 @@ async def test_turn_emits_proposal_events_and_persists(
     assert proposal.chat_message_id is not None
 
     messages = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     stored = messages[-1]["metadata_json"]["proposals"]
     assert stored[0]["id"] == card["id"]
@@ -317,11 +294,7 @@ async def test_approve_after_chat_turn_applies(client, db, auth_headers):
     )
     assert approved.status_code == 200, approved.text
     items = (
-        (
-            await db.execute(
-                select(ExperienceItem).where(ExperienceItem.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ExperienceItem).where(ExperienceItem.user_id == user.id)))
         .scalars()
         .all()
     )
@@ -336,11 +309,7 @@ async def test_question_turn_creates_no_proposals(client, db, auth_headers):
     )
     assert not [p for n, p in events if n == "proposal"]
     rows = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
@@ -373,9 +342,7 @@ async def test_ops_cap_drops_overflow_with_note(client, db, auth_headers, monkey
 
     gateway_module.register_mock_fixture(AITaskType.CHAT, many_ops)
     try:
-        events = await _send(
-            client, session["id"], auth_headers, "add experience items now"
-        )
+        events = await _send(client, session["id"], auth_headers, "add experience items now")
     finally:
         gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
 
@@ -384,26 +351,18 @@ async def test_ops_cap_drops_overflow_with_note(client, db, auth_headers, monkey
     meta = next(p for n, p in events if n == "meta")
     assert meta["proposals_dropped"] == 2
     rows = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
     assert len(rows) == 5
     messages = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     assert messages[-1]["metadata_json"]["proposals_dropped"] == 2
 
 
-async def test_model_secondary_ops_period_normalized(
-    client, db, auth_headers, monkeypatch
-):
+async def test_model_secondary_ops_period_normalized(client, db, auth_headers, monkeypatch):
     """Real providers often emit create ops without dates — the service
     normalizes them to open_ended instead of dropping every card (the
     prompt teaches the rule; this is the trust-boundary backstop)."""
@@ -437,20 +396,14 @@ async def test_model_secondary_ops_period_normalized(
     meta = next(p for n, p in events if n == "meta")
     assert meta["proposals_dropped"] is None
     rows = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
     assert len(rows) == 4
 
 
-async def test_loose_skill_shapes_still_grade_a_card(
-    client, db, auth_headers, monkeypatch
-):
+async def test_loose_skill_shapes_still_grade_a_card(client, db, auth_headers, monkeypatch):
     """Real providers emit skills as label strings / name dicts (the
     logged failure behind 'the data didn't validate') — normalization
     must produce a card, and a create needs no dates either."""
@@ -499,9 +452,7 @@ async def test_loose_skill_shapes_still_grade_a_card(
 
     gateway_module.register_mock_fixture(AITaskType.CHAT, loose_ops)
     try:
-        events = await _send(
-            client, session["id"], auth_headers, "add and refresh my projects"
-        )
+        events = await _send(client, session["id"], auth_headers, "add and refresh my projects")
     finally:
         gateway_module.register_mock_fixture(AITaskType.CHAT, _mock_chat_reply)
 
@@ -552,17 +503,13 @@ async def test_session_delete_keeps_pending_proposals(client, db, auth_headers):
     )
     card = next(p for n, p in events if n == "proposal")
 
-    deleted = await client.delete(
-        f"/api/v1/chat/sessions/{session['id']}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/chat/sessions/{session['id']}", headers=auth_headers)
     assert deleted.status_code == 204
 
     proposal = (
         (
             await db.execute(
-                select(ProfileProposal).where(
-                    ProfileProposal.id == uuid.UUID(card["id"])
-                )
+                select(ProfileProposal).where(ProfileProposal.id == uuid.UUID(card["id"]))
             )
         )
         .scalars()
@@ -572,9 +519,7 @@ async def test_session_delete_keeps_pending_proposals(client, db, auth_headers):
     assert proposal.chat_session_id is None
     assert proposal.chat_message_id is None
 
-    listing = await client.get(
-        "/api/v1/me/profile-proposals?status=pending", headers=auth_headers
-    )
+    listing = await client.get("/api/v1/me/profile-proposals?status=pending", headers=auth_headers)
     assert card["id"] in [p["id"] for p in listing.json()["proposals"]]
 
 
@@ -591,9 +536,7 @@ async def test_mock_update_end_date_flow(client, db, auth_headers):
         },
     )
     session = await _session(client, auth_headers)
-    events = await _send(
-        client, session["id"], auth_headers, "I finished my internship last month"
-    )
+    events = await _send(client, session["id"], auth_headers, "I finished my internship last month")
     card = next(p for n, p in events if n == "proposal")
     assert card["kind"] == "experience_item"
     assert card["action"] == "update"
@@ -636,14 +579,11 @@ def test_profile_op_schema_caps():
         }
     )
     assert len(reply.profile_ops) == 8
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         ChatReply.model_validate(
             {
                 "answer": "ok",
-                "profile_ops": [
-                    {"kind": "user_skill", "action": "create", "payload": {}}
-                ]
-                * 9,
+                "profile_ops": [{"kind": "user_skill", "action": "create", "payload": {}}] * 9,
             }
         )
     op = ProfileOp.model_validate(
@@ -666,9 +606,7 @@ async def test_chat_cv_synth_op_flows_to_library(client, db, auth_headers):
         user.id, {"title": "Neuronection", "kind": "project", "open_ended": True}
     )
     session = await _session(client, auth_headers)
-    events = await _send(
-        client, session["id"], auth_headers, "generate variants for my projects"
-    )
+    events = await _send(client, session["id"], auth_headers, "generate variants for my projects")
     cards = [p for n, p in events if n == "proposal"]
     assert len(cards) == 1
     assert cards[0]["kind"] == "cv_synth"

@@ -68,9 +68,7 @@ async def suggest_templates(
         posting = (
             (
                 await db.execute(
-                    sa_select(JobPosting).where(
-                        JobPosting.id == payload.target_posting_id
-                    )
+                    sa_select(JobPosting).where(JobPosting.id == payload.target_posting_id)
                 )
             )
             .scalars()
@@ -82,7 +80,7 @@ async def suggest_templates(
             language=payload.language,
             posting=posting,
         )
-    except Exception as exc:  # noqa: BLE001 - AI failures surface as 503/400
+    except Exception as exc:
         from app.core.errors import AINotConfiguredError
 
         if isinstance(exc, AINotConfiguredError):
@@ -96,7 +94,7 @@ def _validate_content(payload: dict) -> TemplateContent:
         return TemplateContent.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 - pydantic surfaces as 400
+    except Exception as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
@@ -176,7 +174,7 @@ async def draft_ai_template(
             density=payload.density,
             page_budget=payload.page_budget,
         )
-    except Exception as exc:  # noqa: BLE001 - AI failures surface as 503/400
+    except Exception as exc:
         from app.core.errors import AINotConfiguredError
 
         if isinstance(exc, AINotConfiguredError):
@@ -261,9 +259,7 @@ async def template_diff(
     """Deterministic token/block diff against another version (default:
     the previous one)."""
     try:
-        return await CvTemplateService(db).diff_versions(
-            template_id, user.id, against_id=against
-        )
+        return await CvTemplateService(db).diff_versions(template_id, user.id, against_id=against)
     except ValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
@@ -420,7 +416,7 @@ async def visual_review(
         )
     except ValidationError:
         raise
-    except Exception as exc:  # noqa: BLE001 - AI unconfigured degrades to lint
+    except Exception as exc:
         from app.core.errors import AINotConfiguredError
 
         if isinstance(exc, AINotConfiguredError):
@@ -431,9 +427,7 @@ async def visual_review(
         "lint": lint,
         "issues": critique.issues if critique else [],
         "safe_token_fixes": critique.safe_token_fixes if critique else {},
-        "summary": critique.summary
-        if critique
-        else "Lint-only review (no vision provider).",
+        "summary": critique.summary if critique else "Lint-only review (no vision provider).",
     }
 
 

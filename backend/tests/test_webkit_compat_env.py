@@ -67,14 +67,13 @@ def test_compat_env_persisted_marker_forces_software(
     assert env["WEBKIT_DISABLE_DMABUF_RENDERER"] == "1"
 
 
-def test_compat_env_probe_pass_writes_no_marker(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
+def test_compat_env_probe_pass_writes_no_marker(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.setattr(shell, "_egl_probe", lambda: True)
     marker = tmp_path / "webkit_soft_fallback"
-    apply_webkit_compat_env({}, marker=marker)
+    env: dict[str, str] = {}
+    apply_webkit_compat_env(env, marker=marker)
     assert not marker.exists()
-    assert "LIBGL_ALWAYS_SOFTWARE" not in {}
+    assert "LIBGL_ALWAYS_SOFTWARE" not in env
 
 
 def test_compat_env_software_write_persists_marker(
@@ -106,9 +105,7 @@ def test_relaunch_argv_dev_replaces_mode_keeps_flags(
 ) -> None:
     monkeypatch.delattr(sys, "frozen", raising=False)
     monkeypatch.setattr(sys, "executable", "/usr/bin/python3")
-    monkeypatch.setattr(
-        sys, "argv", ["backend/careerassistant/__main__.py", "web", "--flag"]
-    )
+    monkeypatch.setattr(sys, "argv", ["backend/careerassistant/__main__.py", "web", "--flag"])
     assert _relaunch_argv("app") == [
         "/usr/bin/python3",
         "-m",
@@ -173,9 +170,7 @@ def test_watch_renderer_no_relaunch_loop_after_success() -> None:
     def relaunch() -> None:
         marker.relaunched = True
 
-    thread = threading.Thread(
-        target=_watch_renderer, args=(app, threading.Event(), 0.5, relaunch)
-    )
+    thread = threading.Thread(target=_watch_renderer, args=(app, threading.Event(), 0.5, relaunch))
     thread.start()
     import time
 

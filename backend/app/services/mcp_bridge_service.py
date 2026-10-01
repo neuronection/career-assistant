@@ -7,8 +7,7 @@ refresh may discover NEW tools but never widens access on its own.
 """
 
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,7 +45,7 @@ class MCPBridgeService:
         url: str = "",
         command: str = "",
         token: str = "",
-        created_by: Optional[uuid.UUID] = None,
+        created_by: uuid.UUID | None = None,
     ) -> AIMCPServer:
         if transport not in ("http", "stdio"):
             raise DomainError("transport must be http or stdio")
@@ -54,9 +53,7 @@ class MCPBridgeService:
             raise DomainError("http servers need a url")
         if transport == "stdio" and not command:
             raise DomainError("stdio servers need a command")
-        existing = await self.db.execute(
-            select(AIMCPServer).where(AIMCPServer.name == name)
-        )
+        existing = await self.db.execute(select(AIMCPServer).where(AIMCPServer.name == name))
         if existing.scalars().first() is not None:
             raise DomainError(f"MCP server '{name}' already registered")
         row = AIMCPServer(
@@ -111,18 +108,14 @@ class MCPBridgeService:
         try:
             async with client as session:
                 listed = await session.list_tools()
-                tools = [
-                    {"name": t.name, "description": t.description or ""} for t in listed
-                ]
-        except Exception as exc:  # noqa: BLE001 — surface as domain error
+                tools = [{"name": t.name, "description": t.description or ""} for t in listed]
+        except Exception as exc:
             raise DomainError(f"MCP refresh failed: {exc}") from exc
         # Keep allowlist entries that still exist; new tools start disabled.
         discovered_names = {t["name"] for t in tools}
         row.discovered_tools = tools
-        row.enabled_tools = [
-            name for name in (row.enabled_tools or []) if name in discovered_names
-        ]
-        row.last_synced_at = datetime.now(timezone.utc)
+        row.enabled_tools = [name for name in (row.enabled_tools or []) if name in discovered_names]
+        row.last_synced_at = datetime.now(UTC)
         await self.db.commit()
         await self.db.refresh(row)
         return row
@@ -140,7 +133,7 @@ class MCPBridgeService:
         tool_name: str,
         arguments: dict,
         *,
-        user_id: Optional[uuid.UUID] = None,
+        user_id: uuid.UUID | None = None,
     ) -> dict:
         """Execute one enabled, namespaced tool — audited + budgeted."""
         from app.ai.gateway import _record
@@ -151,7 +144,7 @@ class MCPBridgeService:
         if tool_name not in (row.enabled_tools or []):
             raise DomainError(f"Tool '{tool_name}' is not enabled on this server")
         client, _ = self._client_for(row)
-        started = datetime.now(timezone.utc)
+        started = datetime.now(UTC)
         try:
             async with client as session:
                 result = await session.call_tool(tool_name, arguments or {})
@@ -164,7 +157,7 @@ class MCPBridgeService:
                 "is_error": bool(getattr(result, "is_error", False)),
             }
             status = "error" if getattr(result, "is_error", False) else "ok"
-        except Exception as exc:  # noqa: BLE001 — audited, then raised
+        except Exception as exc:
             await _record(
                 self.db,
                 user_id,
@@ -174,7 +167,7 @@ class MCPBridgeService:
                 None,
                 None,
                 None,
-                (datetime.now(timezone.utc) - started).total_seconds() * 1000,
+                (datetime.now(UTC) - started).total_seconds() * 1000,
                 "error",
                 f"{type(exc).__name__}: {exc}",
             )
@@ -190,7 +183,7 @@ class MCPBridgeService:
             payload,
             None,
             None,
-            (datetime.now(timezone.utc) - started).total_seconds() * 1000,
+            (datetime.now(UTC) - started).total_seconds() * 1000,
             status,
             model_name=row.name,
             provider_type="mcp",

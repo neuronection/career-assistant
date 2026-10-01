@@ -9,9 +9,8 @@ beats generic → variant order).
 import uuid
 from datetime import date
 
-from tests.conftest import _make_posting, _uid, session_headers
-
 from app.models.experience_model import ExperienceItem
+from tests.conftest import _make_posting, _uid, session_headers
 
 
 async def _make_item(db, uid: str, title: str = "Backend Intern") -> ExperienceItem:
@@ -72,9 +71,7 @@ def _service(db):
 async def _owned_cv(client, db, auth_headers, cv_id: str):
     from app.services.cv_service import CvService
 
-    return await CvService(db).get_owned(
-        uuid.UUID(cv_id), uuid.UUID(_uid(auth_headers))
-    )
+    return await CvService(db).get_owned(uuid.UUID(cv_id), uuid.UUID(_uid(auth_headers)))
 
 
 def _text(match: dict) -> str:
@@ -220,9 +217,7 @@ async def test_reactivate_active_is_noop(client, db, auth_headers):
 async def test_variant_keys_are_separate_slots(client, db, auth_headers):
     item = await _make_item(db, _uid(auth_headers))
     await _seed_variant(client, auth_headers, item, text="default")
-    await _seed_variant(
-        client, auth_headers, item, text="concise", variant_key="concise"
-    )
+    await _seed_variant(client, auth_headers, item, text="concise", variant_key="concise")
     rows = (await client.get("/api/v1/cv/synth", headers=auth_headers)).json()
     active = [r for r in rows if r["status"] == "active"]
     assert len(active) == 2, "different variant_key slots coexist"
@@ -232,13 +227,9 @@ async def test_variant_keys_are_separate_slots(client, db, auth_headers):
 async def test_list_filters(client, db, auth_headers):
     item = await _make_item(db, _uid(auth_headers))
     await _seed_variant(client, auth_headers, item, text="en")
-    await _seed_variant(
-        client, auth_headers, item, text="de", variant_key="concise", language="de"
-    )
+    await _seed_variant(client, auth_headers, item, text="de", variant_key="concise", language="de")
     en_only = (
-        await client.get(
-            "/api/v1/cv/synth", params={"language": "en"}, headers=auth_headers
-        )
+        await client.get("/api/v1/cv/synth", params={"language": "en"}, headers=auth_headers)
     ).json()
     assert len(en_only) == 1 and en_only[0]["voice"]["language"] == "en"
     experience_only = (
@@ -250,9 +241,7 @@ async def test_list_filters(client, db, auth_headers):
     ).json()
     assert len(experience_only) == 2
     stale_only = (
-        await client.get(
-            "/api/v1/cv/synth", params={"stale": "true"}, headers=auth_headers
-        )
+        await client.get("/api/v1/cv/synth", params={"stale": "true"}, headers=auth_headers)
     ).json()
     assert stale_only == []
 
@@ -319,9 +308,7 @@ async def test_match_posting_scoped_beats_generic(client, db, auth_headers, sour
         json={"target_posting_id": str(posting.id)},
         headers=auth_headers,
     )
-    await _seed_variant(
-        client, auth_headers, item, text="scoped", posting_id=str(posting.id)
-    )
+    await _seed_variant(client, auth_headers, item, text="scoped", posting_id=str(posting.id))
     doc = await _owned_cv(client, db, auth_headers, cv["id"])
     match = await _service(db).match_for_cv(doc, refs=_refs(item))
     assert _text(match) == "scoped", "posting-scoped beats generic"
@@ -343,9 +330,7 @@ async def test_match_wrong_posting_never_applies(client, db, auth_headers, sourc
         json={"target_posting_id": str(posting2.id)},
         headers=auth_headers,
     )
-    await _seed_variant(
-        client, auth_headers, item, text="scoped", posting_id=str(posting.id)
-    )
+    await _seed_variant(client, auth_headers, item, text="scoped", posting_id=str(posting.id))
     doc = await _owned_cv(client, db, auth_headers, cv["id"])
     match = await _service(db).match_for_cv(doc, refs=_refs(item))
     assert match == {}, "a scoped row never applies to another CV's posting"
@@ -368,9 +353,7 @@ async def test_match_language_filter(client, db, auth_headers):
 
 async def test_match_default_variant_wins(client, db, auth_headers):
     item = await _make_item(db, _uid(auth_headers))
-    await _seed_variant(
-        client, auth_headers, item, text="concise", variant_key="concise"
-    )
+    await _seed_variant(client, auth_headers, item, text="concise", variant_key="concise")
     await _seed_variant(client, auth_headers, item, text="default")
     cv = (
         await client.post(

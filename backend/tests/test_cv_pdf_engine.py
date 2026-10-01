@@ -252,10 +252,10 @@ def test_page_overflow_message_carries_the_real_budget():
 
 
 def test_render_metrics_expose_max_pages():
+    from app.schemas.cv_template import TemplateContent
     from app.services.cv_blocks import SAMPLE_SNAPSHOT
     from app.services.cv_builder_service import FALLBACK_CONTENT
     from app.services.cv_renderer import render_cv
-    from app.schemas.cv_template import TemplateContent
 
     content = TemplateContent.model_validate(FALLBACK_CONTENT)
     result = render_cv(content, SAMPLE_SNAPSHOT, max_pages=2)

@@ -7,7 +7,7 @@ hash captured at generation for staleness detection.
 """
 
 import uuid
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -40,14 +40,14 @@ class CvSynthPayload(BaseModel):
     variant and can never be a user signal; presence semantics stay
     unchanged otherwise."""
 
-    description: Optional[str] = Field(default=None, max_length=4000)
-    summary: Optional[str] = Field(default=None, max_length=2000)
+    description: str | None = Field(default=None, max_length=4000)
+    summary: str | None = Field(default=None, max_length=2000)
     achievements: list[CvSynthBullet] = Field(default_factory=list, max_length=12)
     omit_bullets: bool = Field(default=False)
 
     @field_validator("description", "summary")
     @classmethod
-    def _rich(cls, value: Optional[str], info) -> Optional[str]:
+    def _rich(cls, value: str | None, info) -> str | None:
         if value is None:
             return None
         bound = 4000 if info.field_name == "description" else 2000
@@ -62,11 +62,11 @@ class CvSynthVoice(BaseModel):
     """Recorded generation request (drives matching + regenerate)."""
 
     language: str = Field(default="en", min_length=2, max_length=10)
-    tone: Optional[str] = None
-    length: Optional[str] = None
-    action: Optional[str] = None
-    instruction: Optional[str] = Field(default=None, max_length=600)
-    translate_of: Optional[uuid.UUID] = None
+    tone: str | None = None
+    length: str | None = None
+    action: str | None = None
+    instruction: str | None = Field(default=None, max_length=600)
+    translate_of: uuid.UUID | None = None
 
 
 class CvSynthItemCreate(BaseModel):
@@ -76,16 +76,16 @@ class CvSynthItemCreate(BaseModel):
     scope: CvSynthScope = "item"
     payload: CvSynthPayload
     variant_key: str = Field(default="default", min_length=1, max_length=60)
-    target_posting_id: Optional[uuid.UUID] = None
+    target_posting_id: uuid.UUID | None = None
     voice: CvSynthVoice = Field(default_factory=CvSynthVoice)
 
 
 class CvSynthItemUpdate(BaseModel):
     """User actions on a variant (draft→active, text edits)."""
 
-    payload: Optional[CvSynthPayload] = None
-    status: Optional[CvSynthStateStatus] = None
-    variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    payload: CvSynthPayload | None = None
+    status: CvSynthStateStatus | None = None
+    variant_key: str | None = Field(default=None, min_length=1, max_length=60)
 
 
 class CvSynthItemGenerate(BaseModel):
@@ -94,21 +94,21 @@ class CvSynthItemGenerate(BaseModel):
     refs: list[CvContextRef] = Field(min_length=1, max_length=40)
     action: CvSynthAction = "summarize"
     scope: CvSynthScope = "item"
-    posting_id: Optional[uuid.UUID] = None
+    posting_id: uuid.UUID | None = None
     language: str = Field(default="en", min_length=2, max_length=10)
-    target_language: Optional[str] = Field(default=None, min_length=2, max_length=10)
-    tone: Optional[str] = None
-    length: Optional[str] = None
-    instruction: Optional[str] = Field(
+    target_language: str | None = Field(default=None, min_length=2, max_length=10)
+    tone: str | None = None
+    length: str | None = None
+    instruction: str | None = Field(
         default=None,
         max_length=600,
         description="Free-text steering for the AI (plan 103); never "
         "overrides the grounding contract. Short steering only — recreate "
         "or rework an existing variant via regenerate_of, not by retyping.",
     )
-    variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
-    translate_of: Optional[uuid.UUID] = None
-    regenerate_of: Optional[uuid.UUID] = None
+    variant_key: str | None = Field(default=None, min_length=1, max_length=60)
+    translate_of: uuid.UUID | None = None
+    regenerate_of: uuid.UUID | None = None
 
 
 class CvSynthDraft(BaseModel):
@@ -130,7 +130,7 @@ class CvSynthBatch(BaseModel):
 class CvSynthGenerateOut(BaseModel):
     """Sync drafts, or 202 with the queue job id (bulk runs)."""
 
-    job_id: Optional[uuid.UUID] = None
+    job_id: uuid.UUID | None = None
     items: list["CvSynthItemOut"] = Field(default_factory=list)
 
 
@@ -140,7 +140,7 @@ class CvSynthItemOut(BaseModel):
     id: uuid.UUID
     scope: str
     variant_key: str
-    target_posting_id: Optional[uuid.UUID] = None
+    target_posting_id: uuid.UUID | None = None
     source_refs: list[CvContextRef]
     source_state: list[dict] = Field(default_factory=list)
     payload: CvSynthPayload
@@ -150,8 +150,8 @@ class CvSynthItemOut(BaseModel):
     verified: bool
     stale: bool = False
     orphaned: bool = False
-    last_used_at: Optional[str] = None
-    created_at: Optional[str] = None
+    last_used_at: str | None = None
+    created_at: str | None = None
 
 
 class CvSynthBulkIn(BaseModel):
@@ -174,10 +174,10 @@ class CvSynthPreviewIn(BaseModel):
     `refs` (≤40) when the caller knows the item ids; otherwise the
     caller's context selection is resolved server-side."""
 
-    target_posting_id: Optional[uuid.UUID] = None
+    target_posting_id: uuid.UUID | None = None
     language: str = Field(default="en", min_length=2, max_length=10)
     refs: list[CvContextRef] = Field(default_factory=list, max_length=40)
-    context: Optional[CvContextSelection] = None
+    context: CvContextSelection | None = None
 
 
 class CvSynthPreviewItemOut(BaseModel):

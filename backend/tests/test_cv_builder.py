@@ -39,9 +39,7 @@ def test_elevation_token_shadows_card_sections_only_when_set():
     none = _render_with_elevation("none")
     assert "box-shadow: 0 1mm 3mm rgba(15, 23, 42, 0.16)" in raised
     assert "box-shadow: 0 0.6mm 1.6mm rgba(15, 23, 42, 0.10)" in soft
-    assert "0.16" not in none and "0.10" not in none, (
-        "elevation none emits no card shadow"
-    )
+    assert "0.16" not in none and "0.10" not in none, "elevation none emits no card shadow"
 
 
 def test_summary_block_renders_override_text():
@@ -138,9 +136,7 @@ async def test_education_department_flows_into_context_and_snapshot(
 
     sources = await client.get("/api/v1/cv/context/sources", headers=auth_headers)
     tree = {s["key"]: s for s in sources.json()["sources"]}
-    assert tree["education"]["items"][0]["detail"] == (
-        "Sample University — School of Computing"
-    )
+    assert tree["education"]["items"][0]["detail"] == ("Sample University — School of Computing")
 
     cv = await _make_cv(client, auth_headers)
     resolved = await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
@@ -206,9 +202,7 @@ async def test_resolution_modes_and_exclusion_primacy(
         headers=auth_headers,
     )
     assert minus_one.status_code == 200, minus_one.text
-    resolved = (
-        await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
-    ).json()
+    resolved = (await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)).json()
     assert resolved["snapshot_index"]["experience"] == [first["id"]]
     assert "projects" not in resolved["snapshot_index"]
 
@@ -222,9 +216,7 @@ async def test_resolution_modes_and_exclusion_primacy(
         headers=auth_headers,
     )
     assert plus_only.status_code == 200
-    resolved = (
-        await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
-    ).json()
+    resolved = (await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)).json()
     assert resolved["snapshot_index"] == {"projects": [second["id"]]}
     assert "basics" not in resolved["snapshot"]
 
@@ -240,9 +232,7 @@ async def test_resolution_modes_and_exclusion_primacy(
         headers=auth_headers,
     )
     assert excluded_but_included.status_code == 200
-    resolved = (
-        await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
-    ).json()
+    resolved = (await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)).json()
     assert resolved["snapshot"] == {}, "exclusions must win over includes"
 
 
@@ -271,15 +261,13 @@ async def test_experience_sources_split_by_kind(
     )
     sources = {
         source["key"]: source
-        for source in (
-            await client.get("/api/v1/cv/context/sources", headers=auth_headers)
-        ).json()["sources"]
+        for source in (await client.get("/api/v1/cv/context/sources", headers=auth_headers)).json()[
+            "sources"
+        ]
     }
     assert [item["item_id"] for item in sources["experience"]["items"]] == [job["id"]]
     assert [item["item_id"] for item in sources["projects"]["items"]] == [project["id"]]
-    assert [item["item_id"] for item in sources["volunteer"]["items"]] == [
-        volunteer["id"]
-    ]
+    assert [item["item_id"] for item in sources["volunteer"]["items"]] == [volunteer["id"]]
     assert sources["experience"]["label"] == "Work Experience"
 
 
@@ -334,9 +322,7 @@ async def test_staleness_diffs_against_baseline(
     cv = await _make_cv(client, auth_headers)
     await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
 
-    status = await client.get(
-        f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers
-    )
+    status = await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)
     assert status.status_code == 200
     body = status.json()
     assert body["has_baseline"] and body["stale"] is False
@@ -347,39 +333,27 @@ async def test_staleness_diffs_against_baseline(
         headers=auth_headers,
     )
     assert updated.status_code == 200, updated.text
-    body = (
-        await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)
-    ).json()
+    body = (await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)).json()
     assert body["stale"] is True
     assert (ref["item_id"] for ref in body["changed"])
 
     await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
-    body = (
-        await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)
-    ).json()
+    body = (await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)).json()
     assert body["stale"] is False
 
-    deleted = await client.delete(
-        f"/api/v1/me/experience/{item['id']}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/me/experience/{item['id']}", headers=auth_headers)
     assert deleted.status_code == 204, deleted.text
-    body = (
-        await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)
-    ).json()
+    body = (await client.get(f"/api/v1/cv/{cv['id']}/context/status", headers=auth_headers)).json()
     assert body["stale"] is True
     assert body["removed"], "a deleted source item must show as removed"
 
 
-async def test_overrides_patch_snapshot(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_overrides_patch_snapshot(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_cv(client, auth_headers)
     patched = await client.patch(
         f"/api/v1/cv/{cv['id']}",
         json={
-            "working_content": {
-                "overrides": {"summary:summary": {"summary": "Custom objective"}}
-            }
+            "working_content": {"overrides": {"summary:summary": {"summary": "Custom objective"}}}
         },
         headers=auth_headers,
     )
@@ -431,13 +405,9 @@ async def test_interests_items_render_labels_not_empty_heads(
     assert empty_head not in html, "no empty item heads"
 
 
-async def test_restore_copy_forward(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_restore_copy_forward(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_cv(client, auth_headers)
-    first = (
-        await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
-    ).json()
+    first = (await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)).json()
     custom_blocks = [
         {"kind": "header"},
         {"kind": "custom_text", "props": {"title": "Note", "text": "Hello"}},
@@ -448,9 +418,7 @@ async def test_restore_copy_forward(
         headers=auth_headers,
     )
     await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
-    restored = await client.post(
-        f"/api/v1/cv/{cv['id']}/versions/1/restore", headers=auth_headers
-    )
+    restored = await client.post(f"/api/v1/cv/{cv['id']}/versions/1/restore", headers=auth_headers)
     assert restored.status_code == 200, restored.text
     working = restored.json()["working_content"]
     assert working["blocks"] == first["version"]["content"]["blocks"]
@@ -467,15 +435,11 @@ async def test_duplicate_copies_state_not_versions(
     body = copy.json()
     assert body["title"] == "Backend Intern CV (copy)"
     assert body["context"] == cv["context"]
-    versions = await client.get(
-        f"/api/v1/cv/{body['id']}/versions", headers=auth_headers
-    )
+    versions = await client.get(f"/api/v1/cv/{body['id']}/versions", headers=auth_headers)
     assert versions.json() == []
 
 
-async def test_builder_isolated_per_user(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_builder_isolated_per_user(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_cv(client, auth_headers)
     other = await _second_user(client)
     preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", headers=other)
@@ -484,9 +448,7 @@ async def test_builder_isolated_per_user(
     assert compile_attempt.status_code == 404
 
 
-async def test_cv_can_use_a_specific_template(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_cv_can_use_a_specific_template(client, auth_headers, profile_ready, seeded_catalog):
     created = await client.post(
         "/api/v1/cv/templates",
         json={
@@ -557,18 +519,14 @@ async def test_templates_actually_change_rendered_output(
     red = await _template("Red Layout", "#b91c1c")
     cv = await _make_cv(client, auth_headers, template_id=teal["id"])
 
-    teal_preview = await client.post(
-        f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers
-    )
+    teal_preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers)
     assert "#0f766e" in teal_preview.json()["html"]
 
     switched = await client.patch(
         f"/api/v1/cv/{cv['id']}", json={"template_id": red["id"]}, headers=auth_headers
     )
     assert switched.status_code == 200
-    red_preview = await client.post(
-        f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers
-    )
+    red_preview = await client.post(f"/api/v1/cv/{cv['id']}/preview", headers=auth_headers)
     body = red_preview.json()
     assert "#b91c1c" in body["html"]
     assert "#0f766e" not in body["html"]
@@ -586,23 +544,17 @@ async def test_version_preview_renders_immutable_snapshot(
     compiled = await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
     assert compiled.status_code == 201
 
-    preview = await client.get(
-        f"/api/v1/cv/{cv['id']}/versions/1/preview", headers=auth_headers
-    )
+    preview = await client.get(f"/api/v1/cv/{cv['id']}/versions/1/preview", headers=auth_headers)
     assert preview.status_code == 200, preview.text
     assert "Snapshot role" in preview.text
 
     # mutate the profile; the old snapshot must render unchanged
     await _experience(client, auth_headers, title="Newer role")
-    again = await client.get(
-        f"/api/v1/cv/{cv['id']}/versions/1/preview", headers=auth_headers
-    )
+    again = await client.get(f"/api/v1/cv/{cv['id']}/versions/1/preview", headers=auth_headers)
     assert "Snapshot role" in again.text
     assert "Newer role" not in again.text
 
-    missing = await client.get(
-        f"/api/v1/cv/{cv['id']}/versions/99/preview", headers=auth_headers
-    )
+    missing = await client.get(f"/api/v1/cv/{cv['id']}/versions/99/preview", headers=auth_headers)
     assert missing.status_code == 404
 
 
@@ -616,7 +568,7 @@ async def test_preview_png_cached_and_capability_gated(
 
     from app.core.config import settings
     from app.services import cv_pdf_service
-    from app.services.cv_pdf_service import PDFEngineUnavailable, PageMeasure
+    from app.services.cv_pdf_service import PageMeasure, PDFEngineUnavailable
 
     monkeypatch.setattr(settings, "data_dir", str(tmp_path))
     await _experience(client, auth_headers)
@@ -667,16 +619,12 @@ async def test_preview_png_cached_and_capability_gated(
 
     monkeypatch.setattr(cv_pdf_service, "measure_pages", engine_missing)
     other_cv = await _make_cv(client, auth_headers, title="Second CV")
-    capability = await client.get(
-        f"/api/v1/cv/{other_cv['id']}/preview.png", headers=auth_headers
-    )
+    capability = await client.get(f"/api/v1/cv/{other_cv['id']}/preview.png", headers=auth_headers)
     assert capability.status_code == 503
     assert "print engine" in capability.json()["detail"]
 
 
-async def test_preview_png_hides_foreign_cvs(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_preview_png_hides_foreign_cvs(client, auth_headers, profile_ready, seeded_catalog):
     """The PNG route is owner-scoped exactly like the HTML preview (404)."""
     cv = await _make_cv(client, auth_headers)
     other = await _second_user(client)

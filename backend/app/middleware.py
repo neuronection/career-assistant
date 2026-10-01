@@ -54,9 +54,7 @@ class SecurityHeadersMiddleware:
         from app.desktop.shell_token import QUERY_PARAM, matches
 
         desktop_request = matches(
-            parse_qs(scope.get("query_string", b"").decode("latin-1")).get(
-                QUERY_PARAM, [None]
-            )[0]
+            parse_qs(scope.get("query_string", b"").decode("latin-1")).get(QUERY_PARAM, [None])[0]
         )
         csp = DESKTOP_CSP if desktop_request else WEB_CSP
         headers = (
@@ -95,9 +93,7 @@ class RateLimitMiddleware:
         identity = client_identity(scope)
         bucket = (
             "auth"
-            if path.endswith(
-                ("/auth/login", "/auth/register", "/admin/instance", "/me/password")
-            )
+            if path.endswith(("/auth/login", "/auth/register", "/admin/instance", "/me/password"))
             else "default"
         )
         retry_after = limiter.check(bucket, identity)
@@ -195,9 +191,7 @@ class ProfileBindingMiddleware:
         raw = headers.get("x-profile-id")
         exempt = _profile_bind_exempt(path)
         profile_id = None
-        factory = getattr(scope["app"].state, "profile_sessions", None) or (
-            self.session_factory
-        )
+        factory = getattr(scope["app"].state, "profile_sessions", None) or (self.session_factory)
         if factory is None:
             from app.core.database import AsyncSessionLocal
 
@@ -231,11 +225,7 @@ class ProfileBindingMiddleware:
                 if profile is None:
                     profile = await get_or_create_default(session, user_id)
                 profile_id = str(profile.id)
-            if (
-                profile_id is not None
-                and str(settings.identity_mode) == "desktop"
-                and raw
-            ):
+            if profile_id is not None and str(settings.identity_mode) == "desktop" and raw:
                 from app.services.profiles_service import touch_last_used
 
                 await touch_last_used(session, profile_id)
@@ -247,6 +237,7 @@ class ProfileBindingMiddleware:
         finally:
             reset_active_profile(profile_token)
             reset_active_user(user_token)
+
 
 class SpaStaticFiles(StaticFiles):
     """StaticFiles that serves index.html for client-side SPA routes.
@@ -265,5 +256,3 @@ class SpaStaticFiles(StaticFiles):
         if response.status_code == 404 and "." not in path.rsplit("/", 1)[-1]:
             response = await super().get_response("index.html", scope)
         return response
-
-

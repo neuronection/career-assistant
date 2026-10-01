@@ -2,9 +2,10 @@
 system_market_history schedule slot whose market_history_capture job
 persists one snapshot per family/job scope per day."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0023"
 down_revision = "0022"
@@ -24,7 +25,7 @@ OLD_KINDS = (
     "user_checkin",
     "user_autopilot",
 )
-NEW_KINDS = OLD_KINDS + ("system_market_history",)
+NEW_KINDS = (*OLD_KINDS, "system_market_history")
 
 OLD_TASKS = (
     "posting_sync",
@@ -35,7 +36,7 @@ OLD_TASKS = (
     "autopilot_run",
     "followup_sweep",
 )
-NEW_TASKS = OLD_TASKS + ("market_history_capture",)
+NEW_TASKS = (*OLD_TASKS, "market_history_capture")
 
 
 def _constraint_sql(kinds: tuple[str, ...]) -> str:
@@ -75,9 +76,7 @@ def upgrade() -> None:
             name="uq_market_snapshots_scope_day",
         ),
     )
-    op.create_index(
-        "ix_market_snapshots_job", "market_snapshots", ["job_id"]
-    )
+    op.create_index("ix_market_snapshots_job", "market_snapshots", ["job_id"])
     with op.batch_alter_table("schedules") as batch:
         batch.drop_constraint("kind_allowed", type_="check")
         batch.create_check_constraint("kind_allowed", _constraint_sql(NEW_KINDS))

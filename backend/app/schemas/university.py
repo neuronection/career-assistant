@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -10,9 +9,9 @@ from app.models.enums import DegreeLevel, DocumentKind, DocumentStatus, Universi
 class AdmissionOut(BaseModel):
     id: UUID
     year: int
-    baseline_score: Optional[float] = None
-    top_score: Optional[float] = None
-    quota: Optional[int] = None
+    baseline_score: float | None = None
+    top_score: float | None = None
+    quota: int | None = None
     units: str
     source: str
     confidence: float
@@ -26,7 +25,7 @@ class DepartmentCreate(BaseModel):
     degree: DegreeLevel = DegreeLevel.BACHELOR
     duration_years: int = Field(default=4, ge=1, le=10)
     language: str = Field(default="", max_length=30)
-    application_deadline: Optional[date] = None
+    application_deadline: date | None = None
     description: str = Field(default="", max_length=2000)
 
 
@@ -38,7 +37,7 @@ class DepartmentOut(BaseModel):
     degree: DegreeLevel
     duration_years: int
     language: str
-    application_deadline: Optional[date] = None
+    application_deadline: date | None = None
     description: str
     admissions: list[AdmissionOut] = Field(default_factory=list)
     job_links: list["JobDepartmentLinkOut"] = Field(default_factory=list)
@@ -77,8 +76,8 @@ class JobDepartmentLinkOut(BaseModel):
     rationale: str
     required_subjects: list[str] = Field(default_factory=list)
     typical_position: str
-    salary_band: Optional[dict] = None
-    employment_rate_pct: Optional[float] = None
+    salary_band: dict | None = None
+    employment_rate_pct: float | None = None
     source: str
 
     model_config = {"from_attributes": True}
@@ -91,14 +90,14 @@ class JobDepartmentLinkCreate(BaseModel):
     rationale: str = ""
     required_subjects: list[str] = Field(default_factory=list, max_length=12)
     typical_position: str = Field(default="", max_length=200)
-    employment_rate_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    employment_rate_pct: float | None = Field(default=None, ge=0, le=100)
 
 
 class AdmissionCreate(BaseModel):
     year: int = Field(ge=1990, le=2100)
-    baseline_score: Optional[float] = Field(default=None, ge=0, le=1000)
-    top_score: Optional[float] = Field(default=None, ge=0, le=1000)
-    quota: Optional[int] = Field(default=None, ge=0)
+    baseline_score: float | None = Field(default=None, ge=0, le=1000)
+    top_score: float | None = Field(default=None, ge=0, le=1000)
+    quota: int | None = Field(default=None, ge=0)
     units: str = Field(default="points", max_length=40)
 
 
@@ -111,7 +110,7 @@ class DocumentOut(BaseModel):
     page_count: int
     status: DocumentStatus
     error: str
-    extraction: Optional[dict] = None
-    created_at: Optional[datetime] = None
+    extraction: dict | None = None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}

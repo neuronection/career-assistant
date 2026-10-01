@@ -1,6 +1,7 @@
 """Assessment pipeline runner: create, answer, advance, reconcile, results."""
 
 import uuid
+from datetime import UTC
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -38,26 +39,16 @@ class AssessmentService:
             raise ValidationError(f"Unknown assessment kind: {kind}")
         context = context or {}
         if kind == AssessmentKind.CUSTOM.value:
-            order = [
-                p
-                for p in (context.get("phase_order") or CUSTOM_ORDER)
-                if p in CUSTOM_ORDER
-            ]
+            order = [p for p in (context.get("phase_order") or CUSTOM_ORDER) if p in CUSTOM_ORDER]
             if not order:
                 order = list(CUSTOM_ORDER)
             context.setdefault("source_run_id", None)
         elif kind == AssessmentKind.TEMPLATE.value:
             #: template phases are engine slots 5+ (one per content
             # phase); the materializer reads context.template_content.
-            order = [
-                p
-                for p in (context.get("phase_order") or [])
-                if isinstance(p, int) and p >= 5
-            ]
+            order = [p for p in (context.get("phase_order") or []) if isinstance(p, int) and p >= 5]
             if not order:
-                raise ValidationError(
-                    "A template run needs a phase_order of engine slots 5+"
-                )
+                raise ValidationError("A template run needs a phase_order of engine slots 5+")
             if not context.get("template_content"):
                 raise ValidationError("A template run needs template_content")
         else:
@@ -172,9 +163,7 @@ class AssessmentService:
             if question is None:
                 raise ValidationError(f"Unknown question: {question_id}")
             if question.phase != run.current_phase:
-                raise ValidationError(
-                    f"Question {question_id} is not in the current phase"
-                )
+                raise ValidationError(f"Question {question_id} is not in the current phase")
             raw = item.get("answer")
             if raw is None or raw == {}:
                 await self._record_skip(run, question)
@@ -209,9 +198,7 @@ class AssessmentService:
         await self.db.commit()
         return {"saved": saved}
 
-    async def _record_skip(
-        self, run: AssessmentRun, question: AssessmentQuestion
-    ) -> None:
+    async def _record_skip(self, run: AssessmentRun, question: AssessmentQuestion) -> None:
         """A skip removes any prior answer — skips contribute nothing."""
         await self.db.execute(
             delete(AssessmentAnswer).where(
@@ -273,9 +260,9 @@ class AssessmentService:
                         merged["skill_levels"][skill_key] = level
                 elif key == "dimension_levels":
                     for dim_key, level in value.items():
-                        merged["dimension_levels"][dim_key] = merged[
-                            "dimension_levels"
-                        ].get(dim_key, 0.0) + float(level)
+                        merged["dimension_levels"][dim_key] = merged["dimension_levels"].get(
+                            dim_key, 0.0
+                        ) + float(level)
                 elif key == "interest_keys":
                     merged["interest_keys"].extend(value)
                 elif key == "selection":
@@ -347,18 +334,14 @@ class AssessmentService:
             keys = list(skill_levels.keys())
             skill_rows = {
                 s.key: s
-                for s in (
-                    await self.db.execute(select(Skill).where(Skill.key.in_(keys)))
-                )
+                for s in (await self.db.execute(select(Skill).where(Skill.key.in_(keys))))
                 .scalars()
                 .all()
             }
             existing_rows = {
                 row.skill_id: row
                 for row in (
-                    await self.db.execute(
-                        select(UserSkill).where(UserSkill.user_id == run.user_id)
-                    )
+                    await self.db.execute(select(UserSkill).where(UserSkill.user_id == run.user_id))
                 )
                 .scalars()
                 .all()
@@ -367,7 +350,7 @@ class AssessmentService:
                 skill = skill_rows.get(key)
                 if skill is None:
                     continue
-                level = int(round(float(level)))
+                level = round(float(level))
                 existing = existing_rows.get(skill.id)
                 if existing is not None and not existing.derive_enabled:
                     continue
@@ -396,8 +379,9 @@ class AssessmentService:
                     )
                     applied_skills += 1
                 if evidence_linked:
+                    from datetime import datetime
+
                     from app.models.experience_model import SkillEvidence
-                    from datetime import datetime, timezone as tz
 
                     self.db.add(
                         SkillEvidence(
@@ -407,7 +391,7 @@ class AssessmentService:
                             note="template run",
                             level_value=float(level),
                             confidence=0.8,
-                            claimed_at=datetime.now(tz.utc),
+                            claimed_at=datetime.now(UTC),
                         )
                     )
 
@@ -417,8 +401,7 @@ class AssessmentService:
             rows = await ProfileService(self.db).interest_rows(run.user_id)
             existing_keys = {row.tag.key for row in rows}
             payload = [
-                {"tag_key": row.tag.key, "weight": row.weight, "source": row.source}
-                for row in rows
+                {"tag_key": row.tag.key, "weight": row.weight, "source": row.source} for row in rows
             ]
             for key in interest_keys:
                 if key not in existing_keys:
@@ -490,8 +473,7 @@ class AssessmentService:
                 .limit(10)
             )
             shortlist = [
-                {"job_id": str(job_id), "fit_score": float(score)}
-                for job_id, score in rows.all()
+                {"job_id": str(job_id), "fit_score": float(score)} for job_id, score in rows.all()
             ]
         return {
             "run_id": str(run.id),

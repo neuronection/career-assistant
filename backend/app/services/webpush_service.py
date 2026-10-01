@@ -12,14 +12,13 @@ registers and the rest of the stack works unchanged.
 import asyncio
 import base64
 import logging
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
-from app.models.enums import DeliveryStatus
 from app.models.engagement_model import NotificationSubscription
+from app.models.enums import DeliveryStatus
 from app.models.settings_model import AppSetting
 from app.services.notification_channels import BaseChannel, DeliveryContext
 
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 VAPID_SETTING_KEY = "notifications.vapid"
 
 try:  # pragma: no cover — trivial import guard
-    from pywebpush import webpush, WebPushException
+    from pywebpush import WebPushException, webpush
 
     HAS_WEBPUSH = True
 except ImportError:  # pragma: no cover
@@ -56,7 +55,7 @@ def generate_vapid_keys() -> dict:
     }
 
 
-_keys_cache: Optional[dict] = None
+_keys_cache: dict | None = None
 
 
 async def get_or_create_vapid_keys() -> dict:
@@ -68,11 +67,7 @@ async def get_or_create_vapid_keys() -> dict:
 
     async with AsyncSessionLocal() as db:
         row = (
-            (
-                await db.execute(
-                    select(AppSetting).where(AppSetting.key == VAPID_SETTING_KEY)
-                )
-            )
+            (await db.execute(select(AppSetting).where(AppSetting.key == VAPID_SETTING_KEY)))
             .scalars()
             .first()
         )
@@ -116,11 +111,7 @@ async def replace_vapid_keys(public_key: str, private_key: str, subject: str) ->
 
     async with AsyncSessionLocal() as db:
         row = (
-            (
-                await db.execute(
-                    select(AppSetting).where(AppSetting.key == VAPID_SETTING_KEY)
-                )
-            )
+            (await db.execute(select(AppSetting).where(AppSetting.key == VAPID_SETTING_KEY)))
             .scalars()
             .first()
         )
@@ -147,7 +138,7 @@ class BrowserPushChannel(BaseChannel):
 
     key = "browser"
 
-    def __init__(self, keys: Optional[dict] = None):
+    def __init__(self, keys: dict | None = None):
         self._keys = keys
 
     def available(self) -> bool:
@@ -156,7 +147,7 @@ class BrowserPushChannel(BaseChannel):
     def _keys_config(self) -> dict:
         return self._keys or {}
 
-    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
         # Cache or injected keys only — generating here would open a second
         # connection mid-dispatch, deadlocking SQLite behind the caller's
         # write transaction. Boot (lifespan) warms the cache instead.
@@ -178,16 +169,14 @@ class BrowserPushChannel(BaseChannel):
                     },
                     data=_payload(ctx),
                     vapid_private_key=keys["private_key"],
-                    vapid_claims={
-                        "sub": keys.get("subject") or "mailto:admin@localhost"
-                    },
+                    vapid_claims={"sub": keys.get("subject") or "mailto:admin@localhost"},
                 )
             except WebPushException as exc:
                 if exc.response is not None and exc.response.status_code in (404, 410):
                     dead.append(sub)
                 else:
                     errors.append(str(exc)[:300])
-            except Exception as exc:  # noqa: BLE001 — transport never breaks emit
+            except Exception as exc:
                 errors.append(str(exc)[:300])
         if dead:
             await self._deactivate([sub.id for sub in dead])

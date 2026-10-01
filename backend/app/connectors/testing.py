@@ -34,9 +34,7 @@ class ConnectorContractTests:
         state = getattr(self, "initial_state", {})
         import asyncio
 
-        return asyncio.run(
-            self.connector.fetch(self.config, state, transport=transport_200)
-        )
+        return asyncio.run(self.connector.fetch(self.config, state, transport=transport_200))
 
     def test_config_round_trip(self):
         validated = self.connector.validate_config(self.config)
@@ -52,9 +50,7 @@ class ConnectorContractTests:
     def test_external_ids_stable_across_runs(self, transport_200, first_result):
         import asyncio
 
-        again = asyncio.run(
-            self.connector.fetch(self.config, {}, transport=transport_200)
-        )
+        again = asyncio.run(self.connector.fetch(self.config, {}, transport=transport_200))
         assert [p.external_id for p in again.postings] == [
             p.external_id for p in first_result.postings
         ]
@@ -70,9 +66,7 @@ class ConnectorContractTests:
         state = getattr(self, "initial_state", {})
 
         async def _run():
-            first = await self.connector.fetch(
-                self.config, state, transport=transport_200
-            )
+            first = await self.connector.fetch(self.config, state, transport=transport_200)
             if not first.next_state.get("etag"):
                 return True, first
             second = await self.connector.fetch(
@@ -96,9 +90,7 @@ class ConnectorContractTests:
 
         import asyncio
 
-        asyncio.run(
-            self.connector.fetch(self.config, {"etag": '"abc"'}, transport=_spy)
-        )
+        asyncio.run(self.connector.fetch(self.config, {"etag": '"abc"'}, transport=_spy))
         # Connectors that don't use the transport (pure fixtures) skip this.
         if seen:
             assert seen.get("If-None-Match") == '"abc"'

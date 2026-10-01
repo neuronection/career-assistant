@@ -1,15 +1,18 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """CV-data profile entity schemas: education, certifications,
 achievements, plus the deterministic cv-readiness report."""
 
 import re
 import uuid
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import EducationLevel
 from app.services.rich_text import validate_rich_text
+
+_Date = date  # annotation alias: the `date` field name shadows the type in pydantic's resolution namespace
 
 GRADE_BANDS = ("low", "below_average", "average", "good", "excellent", "unknown")
 
@@ -19,17 +22,15 @@ class EducationItemIn(BaseModel):
     org_name: str = Field(default="", max_length=200)
     program: str = Field(default="", max_length=200)
     level: EducationLevel = EducationLevel.HIGH_SCHOOL
-    start: Optional[date] = None
-    end: Optional[date] = None
+    start: date | None = None
+    end: date | None = None
     in_progress: bool = False
-    grade_band: Optional[
-        Literal["low", "below_average", "average", "good", "excellent", "unknown"]
-    ] = None
+    grade_band: Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None = None
     focus_subjects: list[str] = Field(default_factory=list, max_length=12)
     description: str = Field(default="", max_length=4000)
     status: Literal["draft", "active"] = "active"
-    university_id: Optional[uuid.UUID] = None
-    department_id: Optional[uuid.UUID] = None
+    university_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
 
     @field_validator("description")
     @classmethod
@@ -38,25 +39,23 @@ class EducationItemIn(BaseModel):
 
 
 class EducationItemPatch(BaseModel):
-    institution: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    org_name: Optional[str] = Field(default=None, max_length=200)
-    program: Optional[str] = Field(default=None, max_length=200)
-    level: Optional[EducationLevel] = None
-    start: Optional[date] = None
-    end: Optional[date] = None
-    in_progress: Optional[bool] = None
-    grade_band: Optional[
-        Literal["low", "below_average", "average", "good", "excellent", "unknown"]
-    ] = None
-    focus_subjects: Optional[list[str]] = Field(default=None, max_length=12)
-    description: Optional[str] = Field(default=None, max_length=4000)
-    status: Optional[Literal["draft", "active"]] = None
-    university_id: Optional[uuid.UUID] = None
-    department_id: Optional[uuid.UUID] = None
+    institution: str | None = Field(default=None, min_length=1, max_length=200)
+    org_name: str | None = Field(default=None, max_length=200)
+    program: str | None = Field(default=None, max_length=200)
+    level: EducationLevel | None = None
+    start: date | None = None
+    end: date | None = None
+    in_progress: bool | None = None
+    grade_band: Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None = None
+    focus_subjects: list[str] | None = Field(default=None, max_length=12)
+    description: str | None = Field(default=None, max_length=4000)
+    status: Literal["draft", "active"] | None = None
+    university_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
 
     @field_validator("description")
     @classmethod
-    def _rich(cls, value: Optional[str]) -> Optional[str]:
+    def _rich(cls, value: str | None) -> str | None:
         return None if value is None else validate_rich_text(value, 4000)
 
 
@@ -66,16 +65,16 @@ class EducationItemOut(BaseModel):
     org_name: str
     program: str
     level: str
-    start: Optional[date] = None
-    end: Optional[date] = None
+    start: date | None = None
+    end: date | None = None
     in_progress: bool
-    grade_band: Optional[str] = None
+    grade_band: str | None = None
     focus_subjects: list
     description: str
     source: str
     status: str
-    university_id: Optional[uuid.UUID] = None
-    department_id: Optional[uuid.UUID] = None
+    university_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -85,42 +84,42 @@ class EducationItemOut(BaseModel):
 class CertificationIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     issuer: str = Field(default="", max_length=200)
-    issued: Optional[date] = None
-    expires: Optional[date] = None
+    issued: date | None = None
+    expires: date | None = None
     credential_id: str = Field(default="", max_length=120)
     link: str = Field(default="", max_length=500)
-    language_code: Optional[str] = Field(default=None, max_length=10)
+    language_code: str | None = Field(default=None, max_length=10)
     status: Literal["draft", "active"] = "active"
 
     @field_validator("language_code")
     @classmethod
-    def _language_code_shape(cls, value: Optional[str]) -> Optional[str]:
+    def _language_code_shape(cls, value: str | None) -> str | None:
         if value is None:
             return None
         cleaned = value.strip().lower()
         if not re.fullmatch(r"[a-z]{2,3}", cleaned):
-            raise ValueError("language_code must be a 2–3 letter language code")
+            raise ValueError("language_code must be a 2-3 letter language code")
         return cleaned
 
 
 class CertificationPatch(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    issuer: Optional[str] = Field(default=None, max_length=200)
-    issued: Optional[date] = None
-    expires: Optional[date] = None
-    credential_id: Optional[str] = Field(default=None, max_length=120)
-    link: Optional[str] = Field(default=None, max_length=500)
-    language_code: Optional[str] = Field(default=None, max_length=10)
-    status: Optional[Literal["draft", "active"]] = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    issuer: str | None = Field(default=None, max_length=200)
+    issued: date | None = None
+    expires: date | None = None
+    credential_id: str | None = Field(default=None, max_length=120)
+    link: str | None = Field(default=None, max_length=500)
+    language_code: str | None = Field(default=None, max_length=10)
+    status: Literal["draft", "active"] | None = None
 
     @field_validator("language_code")
     @classmethod
-    def _language_code_shape(cls, value: Optional[str]) -> Optional[str]:
+    def _language_code_shape(cls, value: str | None) -> str | None:
         if value is None:
             return None
         cleaned = value.strip().lower()
         if not re.fullmatch(r"[a-z]{2,3}", cleaned):
-            raise ValueError("language_code must be a 2–3 letter language code")
+            raise ValueError("language_code must be a 2-3 letter language code")
         return cleaned
 
 
@@ -128,11 +127,11 @@ class CertificationOut(BaseModel):
     id: uuid.UUID
     name: str
     issuer: str
-    issued: Optional[date] = None
-    expires: Optional[date] = None
+    issued: date | None = None
+    expires: date | None = None
     credential_id: str
     link: str
-    language_code: Optional[str] = None
+    language_code: str | None = None
     source: str
     status: str
     created_at: datetime
@@ -145,20 +144,20 @@ class ProfileAchievementIn(BaseModel):
     kind: Literal["award", "honor", "publication", "extracurricular"] = "award"
     title: str = Field(min_length=1, max_length=200)
     issuer: str = Field(default="", max_length=200)
-    date: Optional[date] = None
+    date: "_Date | None" = None
     detail: str = Field(default="", max_length=4000)
     link: str = Field(default="", max_length=500)
     status: Literal["draft", "active"] = "active"
 
 
 class ProfileAchievementPatch(BaseModel):
-    kind: Optional[Literal["award", "honor", "publication", "extracurricular"]] = None
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    issuer: Optional[str] = Field(default=None, max_length=200)
-    date: Optional[date] = None
-    detail: Optional[str] = Field(default=None, max_length=4000)
-    link: Optional[str] = Field(default=None, max_length=500)
-    status: Optional[Literal["draft", "active"]] = None
+    kind: Literal["award", "honor", "publication", "extracurricular"] | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    issuer: str | None = Field(default=None, max_length=200)
+    date: "_Date | None" = None
+    detail: str | None = Field(default=None, max_length=4000)
+    link: str | None = Field(default=None, max_length=500)
+    status: Literal["draft", "active"] | None = None
 
 
 class ProfileAchievementOut(BaseModel):
@@ -166,7 +165,7 @@ class ProfileAchievementOut(BaseModel):
     kind: str
     title: str
     issuer: str
-    date: Optional[date] = None
+    date: "_Date | None" = None
     detail: str
     link: str
     source: str

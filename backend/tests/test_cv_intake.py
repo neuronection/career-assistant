@@ -13,7 +13,6 @@ from app.models.profile_entities_model import EducationItem
 from app.models.user_model import UserSkill
 from tests.conftest import session_headers
 
-
 CV_TEXT = (
     "NAME: Jane Doe\n"
     "HEADLINE: Aspiring data engineer\n"
@@ -47,9 +46,7 @@ async def _drain(db):
 async def _upload_and_parse(client, db, headers, text=CV_TEXT) -> str:
     upload = await client.post(
         "/api/v1/documents?kind=cv",
-        files={
-            "file": ("cv.txt", __import__("io").BytesIO(text.encode()), "text/plain")
-        },
+        files={"file": ("cv.txt", __import__("io").BytesIO(text.encode()), "text/plain")},
         headers=headers,
     )
     assert upload.status_code == 202, upload.text
@@ -61,9 +58,7 @@ async def _upload_and_parse(client, db, headers, text=CV_TEXT) -> str:
 
 async def test_auto_parse_creates_review_draft(client, db, auth_headers):
     doc_id = await _upload_and_parse(client, db, auth_headers)
-    drafts = await client.get(
-        f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers
-    )
+    drafts = await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
     assert drafts.status_code == 200, drafts.text
     body = drafts.json()
     assert body["status"] == "pending"
@@ -200,9 +195,7 @@ async def test_basics_conflicts_keep_unless_overwritten(client, db, auth_headers
         json={"selections": {"basics": True}},
         headers=auth_headers,
     )
-    conflicts = {
-        entry["field"]: entry for entry in kept.json()["report"]["basics_conflicts"]
-    }
+    conflicts = {entry["field"]: entry for entry in kept.json()["report"]["basics_conflicts"]}
     assert set(conflicts) == {"email", "phone"}
     assert conflicts["email"]["existing"] == "jane@example.com"
     assert conflicts["email"]["incoming"] == "jane.doe@other.com"
@@ -216,9 +209,7 @@ async def test_basics_conflicts_keep_unless_overwritten(client, db, auth_headers
         json={"selections": {"basics": True}, "basics_overwrite": ["email"]},
         headers=auth_headers,
     )
-    conflicts = {
-        entry["field"] for entry in replaced.json()["report"]["basics_conflicts"]
-    }
+    conflicts = {entry["field"] for entry in replaced.json()["report"]["basics_conflicts"]}
     assert conflicts == {"phone"}
     db.expire_all()
     profile = (await db.execute(select(Profile))).scalars().one()
@@ -233,9 +224,7 @@ async def test_drafts_response_carries_existing_basics(client, db, auth_headers)
         json={"selections": {"basics": True}},
         headers=auth_headers,
     )
-    body = (
-        await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
-    ).json()
+    body = (await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)).json()
     basics = body["existing_basics"]
     assert basics["email"] == "jane@example.com"
     assert basics["city"] == "Athens"
@@ -262,9 +251,7 @@ async def test_location_falls_back_to_city_when_city_missing(client, db, auth_he
 
 async def test_discard_blocks_apply(client, db, auth_headers):
     doc_id = await _upload_and_parse(client, db, auth_headers)
-    discarded = await client.post(
-        f"/api/v1/cv/intake/{doc_id}/discard", headers=auth_headers
-    )
+    discarded = await client.post(f"/api/v1/cv/intake/{doc_id}/discard", headers=auth_headers)
     assert discarded.status_code == 204
     blocked = await client.post(
         f"/api/v1/cv/intake/{doc_id}/apply",
@@ -281,9 +268,7 @@ async def test_intake_ownership_enforced(client, db, auth_headers):
         json={"email": "intake-other@example.com", "password": "supersecret1"},
     )
     other_headers = session_headers(other)
-    response = await client.get(
-        f"/api/v1/cv/intake/{doc_id}/drafts", headers=other_headers
-    )
+    response = await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=other_headers)
     assert response.status_code == 404
 
 
@@ -329,16 +314,12 @@ async def test_import_history_reflects_apply_and_isolation(client, db, auth_head
         json={"email": "history-other@example.com", "password": "supersecret1"},
     )
     other_headers = session_headers(other)
-    assert (
-        await client.get("/api/v1/cv/intake/drafts", headers=other_headers)
-    ).json() == []
+    assert (await client.get("/api/v1/cv/intake/drafts", headers=other_headers)).json() == []
 
 
 async def test_document_kind_filter(client, db, auth_headers):
     await _upload_and_parse(client, db, auth_headers)
-    cvs = await client.get(
-        "/api/v1/documents?kind=cv", params={"kind": "cv"}, headers=auth_headers
-    )
+    cvs = await client.get("/api/v1/documents?kind=cv", params={"kind": "cv"}, headers=auth_headers)
     assert cvs.status_code == 200
     rows = cvs.json()
     assert len(rows) == 1
@@ -364,11 +345,7 @@ async def test_education_dates_gap_fill_and_level_inference(client, db, auth_hea
         headers=auth_headers,
     )
     assert applied.status_code == 200, applied.text
-    rows = (
-        (await db.execute(select(EducationItem).order_by(EducationItem.start)))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(EducationItem).order_by(EducationItem.start))).scalars().all()
     assert len(rows) == 3
     vocational, university, bachelor = rows
     assert vocational.level == "vocational"
@@ -495,11 +472,7 @@ async def test_apply_records_landed_provenance(client, db, auth_headers):
     )
     assert applied.status_code == 200, applied.text
     rows = (
-        (
-            await db.execute(
-                select(CvIntakeApplied).order_by(CvIntakeApplied.entity_type)
-            )
-        )
+        (await db.execute(select(CvIntakeApplied).order_by(CvIntakeApplied.entity_type)))
         .scalars()
         .all()
     )
@@ -523,9 +496,7 @@ async def test_apply_records_landed_provenance(client, db, auth_headers):
 async def test_applied_draft_GET_reports_landed_counts(client, db, auth_headers):
     doc_id = await _upload_and_parse(client, db, auth_headers)
 
-    pending = (
-        await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
-    ).json()
+    pending = (await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)).json()
     assert pending["applied"] == []
 
     re_apply = await client.post(
@@ -535,9 +506,7 @@ async def test_applied_draft_GET_reports_landed_counts(client, db, auth_headers)
     )
     assert re_apply.status_code == 200, re_apply.text
 
-    body = (
-        await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)
-    ).json()
+    body = (await client.get(f"/api/v1/cv/intake/{doc_id}/drafts", headers=auth_headers)).json()
     counts = {entry["entity_type"]: entry["count"] for entry in body["applied"]}
     assert body["status"] == "applied"
     assert counts == {
@@ -555,15 +524,9 @@ async def test_apply_dedupes_provenance_rows(client, db, auth_headers):
 
     doc_id = await _upload_and_parse(client, db, auth_headers)
     payload = {"selections": {"experience": True, "skills": True}}
-    await client.post(
-        f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers
-    )
-    await client.post(
-        f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers
-    )
-    total = (
-        await db.execute(select(func.count()).select_from(CvIntakeApplied))
-    ).scalar_one()
+    await client.post(f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers)
+    await client.post(f"/api/v1/cv/intake/{doc_id}/apply", json=payload, headers=auth_headers)
+    total = (await db.execute(select(func.count()).select_from(CvIntakeApplied))).scalar_one()
     assert total == 3, "2 skills + 1 experience item, no provenance duplicates"
 
 
@@ -573,8 +536,7 @@ async def test_apply_active_by_default_and_drafts_spec(client, db, auth_headers)
         client,
         db,
         auth_headers,
-        text=CV_TEXT
-        + "EDUCATION: MSc Data at University of Sample (2026-09 - present)\n",
+        text=CV_TEXT + "EDUCATION: MSc Data at University of Sample (2026-09 - present)\n",
     )
 
     await client.post(
@@ -585,20 +547,14 @@ async def test_apply_active_by_default_and_drafts_spec(client, db, auth_headers)
         },
         headers=auth_headers,
     )
-    items = (
-        (await db.execute(select(EducationItem).order_by(EducationItem.start)))
-        .scalars()
-        .all()
-    )
+    items = (await db.execute(select(EducationItem).order_by(EducationItem.start))).scalars().all()
     assert [item.status for item in items] == ["draft", "active"]
 
     other = await _upload_and_parse(
         client,
         db,
         auth_headers,
-        text=(
-            "NAME: Jane Doe\nEDUCATION: PhD Chemistry at Other U (2020-09 - 2024-06)\n"
-        ),
+        text=("NAME: Jane Doe\nEDUCATION: PhD Chemistry at Other U (2020-09 - 2024-06)\n"),
     )
     await client.post(
         f"/api/v1/cv/intake/{other}/apply",
@@ -606,11 +562,7 @@ async def test_apply_active_by_default_and_drafts_spec(client, db, auth_headers)
         headers=auth_headers,
     )
     other_items = (
-        (
-            await db.execute(
-                select(EducationItem).where(EducationItem.institution == "Other U")
-            )
-        )
+        (await db.execute(select(EducationItem).where(EducationItem.institution == "Other U")))
         .scalars()
         .all()
     )
@@ -647,7 +599,6 @@ async def test_basics_full_name_applies_to_account(client, db, auth_headers):
     import uuid as uuid_mod
 
     from app.models.user_model import User
-
     from tests.conftest import _uid
 
     doc_id = await _upload_and_parse(client, db, auth_headers)
@@ -656,9 +607,7 @@ async def test_basics_full_name_applies_to_account(client, db, auth_headers):
         json={"selections": {"basics": True}},
         headers=auth_headers,
     )
-    conflicts = {
-        entry["field"] for entry in applied.json()["report"]["basics_conflicts"]
-    }
+    conflicts = {entry["field"] for entry in applied.json()["report"]["basics_conflicts"]}
     assert conflicts == {"full_name"}, "the registration name is the conflict base"
     user = await db.get(User, uuid_mod.UUID(_uid(auth_headers)))
     before = user.full_name

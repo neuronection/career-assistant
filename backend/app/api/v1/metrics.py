@@ -126,9 +126,7 @@ async def skill_transferability(
     `share` = fraction of job families (with published jobs) whose jobs
     ask for the skill — "your SQL transfers to 12 of 20 families".
     """
-    return await MetricService(db).transferability_rows(
-        skill_key=skill_key, limit=limit
-    )
+    return await MetricService(db).transferability_rows(skill_key=skill_key, limit=limit)
 
 
 @router.post("/transferability/recompute", response_model=dict)

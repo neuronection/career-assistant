@@ -26,8 +26,7 @@ def test_every_feature_key_is_a_posting_extract_field():
     assert not unknown, f"map rows without schema fields: {sorted(unknown)}"
     unmapped_schema_fields = fields - set(FEATURE_MAP) - {"field_confidence"}
     assert not unmapped_schema_fields, (
-        "schema fields without a map row drift from the prompt: "
-        f"{sorted(unmapped_schema_fields)}"
+        f"schema fields without a map row drift from the prompt: {sorted(unmapped_schema_fields)}"
     )
 
 
@@ -69,14 +68,12 @@ def test_v2_evidence_fields_all_prompted():
         )
 
 
-async def test_prompt_is_generated_from_the_map_and_audited(
-    db, auth_headers, seeded_catalog
-):
-    from tests.conftest import decode_session_token
+async def test_prompt_is_generated_from_the_map_and_audited(db, auth_headers, seeded_catalog):
     from sqlalchemy import select
 
     from app.ai.agents.posting_extractor import extract_posting
     from app.models.ai_model import AIGeneration
+    from tests.conftest import decode_session_token
 
     token = auth_headers["Authorization"].split(" ", 1)[1]
     user_id = decode_session_token(token)[0]
@@ -106,13 +103,10 @@ async def test_prompt_is_generated_from_the_map_and_audited(
     assert "- travel_required:" in row.prompt
 
 
-async def test_values_cues_stored_inert(
-    db, client, auth_headers, seeded_catalog, source
-):
-    from tests.conftest import _make_posting
-
+async def test_values_cues_stored_inert(db, client, auth_headers, seeded_catalog, source):
     from app.ai.agents.posting_extractor import PostingExtract
     from app.services.extract_service import apply_extract
+    from tests.conftest import _make_posting
 
     posting = await _make_posting(db, source)
     extract = PostingExtract(
@@ -131,9 +125,7 @@ async def test_values_cues_stored_inert(
 
 
 async def test_admin_can_read_the_map(client, auth_headers, seeded_catalog):
-    response = await client.get(
-        "/api/v1/admin/postings/feature-map", headers=auth_headers
-    )
+    response = await client.get("/api/v1/admin/postings/feature-map", headers=auth_headers)
     assert response.status_code == 200, response.text
     body = response.json()
     assert set(body["consumers"]) == set(CONSUMERS)

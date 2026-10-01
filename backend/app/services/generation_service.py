@@ -5,7 +5,7 @@ requests) or inside a background job (queue handler) without duplication.
 """
 
 import uuid
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -153,8 +153,7 @@ async def run_generation(
     return {
         "drafts": [JobOut.from_model(j) for j in created_jobs],
         "relations": [
-            {"from_code": f, "to_code": t, "relation_type": rt}
-            for f, t, rt in created_relations
+            {"from_code": f, "to_code": t, "relation_type": rt} for f, t, rt in created_relations
         ],
         "note": draft_set.rationale_note,
     }

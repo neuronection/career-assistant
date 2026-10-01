@@ -5,17 +5,18 @@ Revises: 0002
 Create Date: 2026-09-02 23:30:00.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-import app.models.base
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+import app.models.base
+from alembic import op
+
 revision: str = "0003"
-down_revision: Union[str, None] = "0002"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0002"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -60,9 +61,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_cv_templates")),
-        sa.UniqueConstraint(
-            "author_key", "key", "version", name="uq_cv_templates_version"
-        ),
+        sa.UniqueConstraint("author_key", "key", "version", name="uq_cv_templates_version"),
         sa.CheckConstraint(
             "source IN ('bank', 'ai', 'user', 'imported', 'duplicated')",
             name="source_allowed",
@@ -70,9 +69,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "visibility IN ('private', 'unlisted', 'public')", name="visibility_allowed"
         ),
-        sa.CheckConstraint(
-            "status IN ('draft', 'published', 'retired')", name="status_allowed"
-        ),
+        sa.CheckConstraint("status IN ('draft', 'published', 'retired')", name="status_allowed"),
         sa.CheckConstraint("version >= 1", name="version_positive"),
         sa.CheckConstraint("page_size IN ('a4', 'letter')", name="page_size_allowed"),
     )
@@ -96,9 +93,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     with op.batch_alter_table("cv_documents") as batch:
-        batch.drop_constraint(
-            op.f("fk_cv_documents_template_id_cv_templates"), type_="foreignkey"
-        )
+        batch.drop_constraint(op.f("fk_cv_documents_template_id_cv_templates"), type_="foreignkey")
         batch.drop_column("template_id")
     op.drop_index(op.f("ix_cv_templates_key"), table_name="cv_templates")
     op.drop_index(op.f("ix_cv_templates_author_user_id"), table_name="cv_templates")

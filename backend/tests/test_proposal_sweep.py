@@ -1,11 +1,10 @@
 """Proposal TTL sweep (plan 77.5): the scheduler enqueues the
 proposal_sweep job and the worker expires stale pending cards."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from tests.conftest import decode_session_token
 from app.models.enums import ScheduleKind
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.schedule_model import Schedule
@@ -14,6 +13,7 @@ from app.services.experience_service import ExperienceService
 from app.services.job_worker import JobWorker
 from app.services.profile_proposal_service import ProfileProposalService
 from app.services.scheduler.runner import SchedulerService
+from tests.conftest import decode_session_token
 
 
 def _uid(auth_headers) -> str:
@@ -43,7 +43,7 @@ async def _pending_proposal(db, user, *, stale: bool) -> ProfileProposal:
         entity_id=item.id,
     )
     if stale:
-        proposal.created_at = datetime.now(timezone.utc) - timedelta(days=20)
+        proposal.created_at = datetime.now(UTC) - timedelta(days=20)
         db.add(proposal)
         await db.commit()
     return proposal
@@ -69,7 +69,7 @@ async def test_sweep_schedule_provisioned_and_expires_stale(client, auth_headers
         .first()
     )
     assert schedule is not None
-    schedule.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    schedule.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
     await db.commit()
 
     assert await service.tick() == 1
@@ -85,9 +85,7 @@ async def test_sweep_schedule_provisioned_and_expires_stale(client, auth_headers
     assert stale.resolve_error == "Expired"
     assert fresh.status == "pending"
 
-    listing = await client.get(
-        "/api/v1/me/profile-proposals?status=pending", headers=auth_headers
-    )
+    listing = await client.get("/api/v1/me/profile-proposals?status=pending", headers=auth_headers)
     ids = [p["id"] for p in listing.json()["proposals"]]
     assert str(fresh.id) in ids
     assert str(stale.id) not in ids

@@ -11,6 +11,7 @@ request/unit-of-work style).
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -112,9 +113,7 @@ async def get_or_create_default(db: AsyncSession, user_id: str | UUID) -> Profil
     return profile
 
 
-async def ensure_default_profile(
-    db: AsyncSession, user_id: str | UUID | None = None
-) -> Profile:
+async def ensure_default_profile(db: AsyncSession, user_id: str | UUID | None = None) -> Profile:
     """The request's bound profile (§15, bound by the middleware), else
     the user's auto-provisioned Default profile.
 
@@ -130,9 +129,7 @@ async def ensure_default_profile(
             return profile
     if owner is not None:
         return await get_or_create_default(db, owner)
-    rows = await db.execute(
-        select(Profile).order_by(Profile.created_at, Profile.id).limit(1)
-    )
+    rows = await db.execute(select(Profile).order_by(Profile.created_at, Profile.id).limit(1))
     profile = rows.scalars().first()
     if profile is not None:
         return profile
@@ -189,10 +186,8 @@ async def _delete_photo_document(db: AsyncSession, profile: Profile) -> None:
         return
     file_path = DocumentService.upload_file_path(document)
     if file_path is not None and file_path.is_file():
-        try:
+        with contextlib.suppress(OSError):
             file_path.unlink()
-        except OSError:
-            pass
     await db.delete(document)
 
 
@@ -211,9 +206,7 @@ async def last_used_profile(db: AsyncSession, user_id: str | UUID) -> Profile | 
     rows = await db.execute(
         select(Profile)
         .where(Profile.user_id == _norm(user_id))
-        .order_by(
-            Profile.last_used_at.desc().nulls_last(), Profile.created_at, Profile.id
-        )
+        .order_by(Profile.last_used_at.desc().nulls_last(), Profile.created_at, Profile.id)
         .limit(1)
     )
     return rows.scalars().first()

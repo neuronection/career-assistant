@@ -117,7 +117,7 @@ class TaxonomyService:
             for anchor in data["level_anchors"]:
                 level = int(anchor.get("level", 0))
                 if not 1 <= level <= 10:
-                    raise ValidationError("Anchor levels must be 1–10")
+                    raise ValidationError("Anchor levels must be 1-10")
                 anchors.append(
                     {
                         "level": level,
@@ -159,9 +159,7 @@ class TaxonomyService:
         ).scalar() or 0
         user_refs = (
             await self.db.execute(
-                select(func.count(UserInterest.id)).where(
-                    UserInterest.interest_tag_id == tag.id
-                )
+                select(func.count(UserInterest.id)).where(UserInterest.interest_tag_id == tag.id)
             )
         ).scalar() or 0
         profile_refs = await self._profile_jsonb_refs(tag.key)
@@ -188,15 +186,11 @@ class TaxonomyService:
             )
         ).scalar() or 0
         child_refs = (
-            await self.db.execute(
-                select(func.count(Skill.id)).where(Skill.parent_id == skill.id)
-            )
+            await self.db.execute(select(func.count(Skill.id)).where(Skill.parent_id == skill.id))
         ).scalar() or 0
         step_refs = (
             await self.db.execute(
-                select(func.count(CareerPathStep.id)).where(
-                    CareerPathStep.skill_id == skill.id
-                )
+                select(func.count(CareerPathStep.id)).where(CareerPathStep.skill_id == skill.id)
             )
         ).scalar() or 0
         total = job_refs + user_refs + child_refs + step_refs
@@ -227,9 +221,7 @@ class TaxonomyService:
     async def proposals(self) -> list[Skill]:
         """All proposed skills awaiting promotion (admin queue)."""
         rows = await self.db.execute(
-            select(Skill)
-            .where(Skill.status == "proposed")
-            .order_by(Skill.created_at.desc())
+            select(Skill).where(Skill.status == "proposed").order_by(Skill.created_at.desc())
         )
         return list(rows.scalars().all())
 
@@ -262,11 +254,7 @@ class TaxonomyService:
             raise ValidationError("Merge target must be an active skill")
 
         for link in (
-            (
-                await self.db.execute(
-                    select(JobSkill).where(JobSkill.skill_id == source.id)
-                )
-            )
+            (await self.db.execute(select(JobSkill).where(JobSkill.skill_id == source.id)))
             .scalars()
             .all()
         ):
@@ -283,11 +271,7 @@ class TaxonomyService:
             else:
                 link.skill_id = target.id
         for row in (
-            (
-                await self.db.execute(
-                    select(UserSkill).where(UserSkill.skill_id == source.id)
-                )
-            )
+            (await self.db.execute(select(UserSkill).where(UserSkill.skill_id == source.id)))
             .scalars()
             .all()
         ):

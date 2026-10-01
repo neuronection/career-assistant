@@ -22,7 +22,7 @@ OLD_KINDS = (
     "user_checkin",
     "user_autopilot",
 )
-NEW_KINDS = OLD_KINDS + ("system_proposal_sweep",)
+NEW_KINDS = (*OLD_KINDS, "system_proposal_sweep")
 
 OLD_TASKS = (
     "posting_sync",
@@ -34,7 +34,7 @@ OLD_TASKS = (
     "followup_sweep",
     "market_history_capture",
 )
-NEW_TASKS = OLD_TASKS + ("proposal_sweep",)
+NEW_TASKS = (*OLD_TASKS, "proposal_sweep")
 
 
 def _constraint_sql(kinds: tuple[str, ...]) -> str:

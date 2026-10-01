@@ -30,8 +30,8 @@ from app.schemas.chat import (
 )
 from app.services.chat_digest_cache import context_without_cache
 from app.services.chat_service import ChatService
-from app.services.profile_service import ProfileService
 from app.services.deps import get_current_user, get_profile_for_user
+from app.services.profile_service import ProfileService
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -235,8 +235,8 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
     from app.ai.graphs.chat_turn import (
         END_SENTINEL,
         TurnDeps,
-        build_chat_turn_graph,
         _note_node,
+        build_chat_turn_graph,
         is_cancellation,
     )
 
@@ -266,7 +266,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                 )
             )
             await db.commit()
-        except Exception:  # noqa: BLE001 — best-effort persistence
+        except Exception:
             await db.rollback()
 
     profile = await get_profile_for_user(db, user.id)
@@ -297,11 +297,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             graph = build_chat_turn_graph(deps, checkpointer)
             await graph.ainvoke(
                 {},
-                config={
-                    "configurable": {
-                        "thread_id": f"chat:{session.id}:{user_message_id}"
-                    }
-                },
+                config={"configurable": {"thread_id": f"chat:{session.id}:{user_message_id}"}},
             )
         except AINotConfiguredError as exc:
             # Uniform chat error display: stable code + the settings
@@ -317,18 +313,14 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             )
             await _persist_turn_failure("ai_not_configured", detail)
         except DomainError as exc:
-            code = (
-                "ai_not_configured"
-                if "not configured" in str(exc)
-                else "ai_unavailable"
-            )
+            code = "ai_not_configured" if "not configured" in str(exc) else "ai_unavailable"
             detail = sanitize_error_detail(str(exc))
             deps.emit(
                 "flow_failed",
                 {"code": code, "message": detail, "retryable": True},
             )
             await _persist_turn_failure(code, detail)
-        except Exception as exc:  # noqa: BLE001 — stream must end cleanly
+        except Exception as exc:
             if is_cancellation(exc):
                 # LangGraph wraps node CancelledError — a self-cancelling
                 # stream is an ABORT (partial persists), not a failure.
@@ -401,7 +393,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                         "model": deps.stream.model if deps.stream else None,
                     },
                 )
-            except Exception:  # noqa: BLE001 — best-effort persistence
+            except Exception:
                 await db.rollback()
 
         try:
@@ -438,9 +430,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
     )
 
 
-async def _builder_stream_response(
-    cv, session, history, content, user_message_id, user, db
-):
+async def _builder_stream_response(cv, session, history, content, user_message_id, user, db):
     """Stream one builder copilot turn (legacy bound sessions AND the
     plan-78 on-demand handoff share this path)."""
     from app.ai.agents.cv_builder_chat import builder_turn_events
@@ -562,9 +552,7 @@ async def assist(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     except DomainError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
-    return AssistOut(
-        answer=reply.answer, referenced_job_codes=reply.referenced_job_codes
-    )
+    return AssistOut(answer=reply.answer, referenced_job_codes=reply.referenced_job_codes)
 
 
 async def profile_summary_for(db, profile) -> str:

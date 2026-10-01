@@ -1,7 +1,7 @@
 """Plan-64 slice 1: build-review task, state-aware mock fixture, coverage matrix."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import app.ai.agents.cv_build_reviewer  # noqa: F401 — registers the mock fixture
 from app.ai.gateway import ainvoke_structured
@@ -9,7 +9,7 @@ from app.ai.schemas import CvBuildCritique
 from app.models.enums import AITaskType
 from app.services.cv_context_service import CvContextItem, build_coverage_matrix
 
-UPDATED_AT = datetime.now(timezone.utc)
+UPDATED_AT = datetime.now(UTC)
 
 BLOCKS = [
     {"kind": "items", "props": {"title": "Skills", "source_key": "skills"}},
@@ -37,9 +37,7 @@ def _context(**overrides) -> dict:
 
 async def _review(db, context: dict) -> CvBuildCritique:
     prompt = (
-        json.dumps(context, default=str)
-        + "\n\nCONTEXT_JSON: "
-        + json.dumps(context, default=str)
+        json.dumps(context, default=str) + "\n\nCONTEXT_JSON: " + json.dumps(context, default=str)
     )
     return await ainvoke_structured(
         db,
@@ -93,9 +91,7 @@ async def test_page_budget_overrun_raises_fail_and_trim_op(db):
         "max_pages": 1,
     }
     critique = await _review(db, _context(lint=lint))
-    issue = next(
-        i for i in critique.issues if i.level == "fail" and i.area == "page_budget"
-    )
+    issue = next(i for i in critique.issues if i.level == "fail" and i.area == "page_budget")
     op = issue.suggested_ops[0]
     assert op.operation.op == "update_design", "densify first, never widen"
     assert op.operation.design["base_size_pt"] >= 7
@@ -135,9 +131,7 @@ async def test_coverage_missing_suggests_include_selection_and_echo(db):
         "dropped": [],
     }
     critique = await _review(db, _context(coverage=coverage))
-    issue = next(
-        i for i in critique.issues if i.area == "coverage" and i.level == "warn"
-    )
+    issue = next(i for i in critique.issues if i.area == "coverage" and i.level == "warn")
     op = issue.suggested_ops[0]
     assert op.operation.op == "set_context"
     assert op.operation.mode == "none"
@@ -188,17 +182,11 @@ async def test_suggested_ops_round_trip_through_the_builder_union(db):
 def test_coverage_matrix_buckets_by_inclusion_and_drops():
     items = {
         "skills": [
-            CvContextItem(
-                item_id="skill-1", label="SQL", payload={}, updated_at=UPDATED_AT
-            ),
-            CvContextItem(
-                item_id="skill-2", label="Python", payload={}, updated_at=UPDATED_AT
-            ),
+            CvContextItem(item_id="skill-1", label="SQL", payload={}, updated_at=UPDATED_AT),
+            CvContextItem(item_id="skill-2", label="Python", payload={}, updated_at=UPDATED_AT),
         ],
         "education": [
-            CvContextItem(
-                item_id="edu-1", label="BSc", payload={}, updated_at=UPDATED_AT
-            ),
+            CvContextItem(item_id="edu-1", label="BSc", payload={}, updated_at=UPDATED_AT),
         ],
     }
     matrix = build_coverage_matrix(
@@ -215,8 +203,8 @@ async def test_review_prompt_carries_variant_and_override_state(db, monkeypatch)
     manual override, plus block props (skills selection, ordering) —
     per-round context discipline, plan 64."""
     from app.ai.agents.context import parse_context
-    from app.ai.gateway import MOCK_FIXTURES
     from app.ai.agents.cv_build_reviewer import review_build as _review_build
+    from app.ai.gateway import MOCK_FIXTURES
 
     seen: dict[str, object] = {}
 

@@ -91,9 +91,7 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
                 if level_match:
                     body = re.sub(r"\s+LEVEL=(\w+)", "", body, flags=re.I)
                 period = re.search(rf"\({_DATE}\s*-\s*({_DATE}|present)\)", body, re.I)
-                body_clean = re.sub(
-                    rf"\({_DATE}\s*-\s*({_DATE}|present)\)", "", body, flags=re.I
-                )
+                body_clean = re.sub(rf"\({_DATE}\s*-\s*({_DATE}|present)\)", "", body, flags=re.I)
                 if " at " in body_clean:
                     program, institution = body_clean.split(" at ", 1)
                 else:
@@ -111,9 +109,7 @@ def _mock_cv_extract(schema: type, user_prompt: str) -> dict:
             elif upper.startswith("EXPERIENCE:"):
                 body = line.split(":", 1)[1]
                 period = re.search(rf"\({_DATE}\s*-\s*({_DATE}|present)\)", body, re.I)
-                body_clean = re.sub(
-                    rf"\({_DATE}\s*-\s*({_DATE}|present)\)", "", body, flags=re.I
-                )
+                body_clean = re.sub(rf"\({_DATE}\s*-\s*({_DATE}|present)\)", "", body, flags=re.I)
                 title_at, _, description = body_clean.partition(";")
                 title, _, org = title_at.partition(" at ")
                 out["experience"].append(
@@ -207,7 +203,7 @@ def _marker_pass_empty(out: dict) -> bool:
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
-_SEPARATOR = re.compile(r"\s+[—–|]\s+|\s+ at \s+|\s+-\s+")
+_SEPARATOR = re.compile(r"\s+[-—|]\s+|\s+ at \s+|\s+-\s+")
 
 
 def _heuristic_line(line: str) -> dict:
@@ -289,9 +285,7 @@ def _heuristic_plain_text_extract(text: str) -> dict | None:
             for part in re.split(r"[,;·/]", line):
                 name = part.strip(" .-•")
                 if 1 <= len(name) <= 40 and not _EMAIL.search(name):
-                    out["skills"].append(
-                        {"name": name, "evidence": _heuristic_line(line)}
-                    )
+                    out["skills"].append({"name": name, "evidence": _heuristic_line(line)})
         elif section == "experience" and len(out["experience"]) < 8:
             parts = _SEPARATOR.split(line, maxsplit=1)
             if len(parts) == 2:
@@ -339,11 +333,7 @@ def _heuristic_plain_text_extract(text: str) -> dict | None:
         elif section == "summary" and len(out["summary"]) < 800:
             out["summary"] = f"{out['summary']} {line}".strip()
     if not (
-        out["basics"]
-        or out["education"]
-        or out["experience"]
-        or out["skills"]
-        or out["summary"]
+        out["basics"] or out["education"] or out["experience"] or out["skills"] or out["summary"]
     ):
         return None
     return out

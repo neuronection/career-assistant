@@ -2,10 +2,10 @@
 
 import json
 
+from sqlalchemy import select
 
 from app.ai.gateway import StructuredStream, partial_answer_text
 from app.models.ai_model import AIGeneration
-from sqlalchemy import select
 
 
 def test_partial_answer_text_extracts_growing_value():
@@ -29,9 +29,7 @@ async def test_stream_events_order_and_persistence(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "stream"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "stream"}, headers=auth_headers)
     ).json()
 
     response = await _post_message(client, session["id"], auth_headers, stream="true")
@@ -52,9 +50,7 @@ async def test_stream_events_order_and_persistence(
     assert meta["referenced_job_codes"] is not None
 
     messages = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     assert [m["role"] for m in messages] == ["user", "assistant"]
     assert messages[1]["content"] == deltas
@@ -80,9 +76,7 @@ async def test_stream_reports_error_when_ai_fails(
 
     monkeypatch.setattr(StructuredStream, "chunks", broken_chunks)
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "err"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "err"}, headers=auth_headers)
     ).json()
     response = await _post_message(client, session["id"], auth_headers, stream="true")
     events = _parse_sse(response.text)

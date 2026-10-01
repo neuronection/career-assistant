@@ -18,13 +18,13 @@ from app.ai.providers.resolution import ResolvedModel
 
 
 def _resolved(provider_type: str, **overrides) -> ResolvedModel:
-    defaults = dict(
-        provider_type=provider_type,
-        base_url="https://api.example.com/v1",
-        api_key="sk-secret-123",
-        model_name="gpt-test",
-        source="system:default",
-    )
+    defaults = {
+        "provider_type": provider_type,
+        "base_url": "https://api.example.com/v1",
+        "api_key": "sk-secret-123",
+        "model_name": "gpt-test",
+        "source": "system:default",
+    }
     defaults.update(overrides)
     return ResolvedModel(**defaults)
 
@@ -103,9 +103,7 @@ def test_build_chat_model_reasoning_effort_only_when_set():
     unset = build_chat_model(_resolved("openai_compatible"))
     assert "reasoning_effort" not in unset._default_params
 
-    compatible = build_chat_model(
-        _resolved("openai_compatible", reasoning_effort="high")
-    )
+    compatible = build_chat_model(_resolved("openai_compatible", reasoning_effort="high"))
     assert compatible.reasoning_effort == "high"
     assert compatible._default_params["reasoning_effort"] == "high"
 
@@ -154,9 +152,7 @@ def test_build_chat_model_google_optional_knobs():
 
 
 def test_build_chat_model_google_unknown_reasoning_effort_omitted():
-    model = build_chat_model(
-        _resolved("google", base_url=GOOGLE_BASE_URL, reasoning_effort="none")
-    )
+    model = build_chat_model(_resolved("google", base_url=GOOGLE_BASE_URL, reasoning_effort="none"))
     assert model.reasoning_effort is None
 
 
@@ -165,21 +161,13 @@ def test_build_chat_model_google_transport_swaps_client():
     (tests never touch the network); the async client derives from the
     same swapped client, so ``ainvoke`` rides the seam too."""
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json={}))
-    model = build_chat_model(
-        _resolved("google", base_url=GOOGLE_BASE_URL), transport=transport
-    )
+    model = build_chat_model(_resolved("google", base_url=GOOGLE_BASE_URL), transport=transport)
     assert isinstance(model.client, GoogleClient)
-    assert isinstance(
-        model.client._api_client._httpx_client._transport, httpx.MockTransport
-    )
-    assert isinstance(
-        model.client._api_client._async_httpx_client._transport, httpx.MockTransport
-    )
+    assert isinstance(model.client._api_client._httpx_client._transport, httpx.MockTransport)
+    assert isinstance(model.client._api_client._async_httpx_client._transport, httpx.MockTransport)
     assert model.async_client is model.client.aio
     without = build_chat_model(_resolved("google", base_url=GOOGLE_BASE_URL))
-    assert isinstance(
-        without.client._api_client._httpx_client._transport, httpx.HTTPTransport
-    )
+    assert isinstance(without.client._api_client._httpx_client._transport, httpx.HTTPTransport)
 
 
 def test_build_embedding_model_rejects_google():

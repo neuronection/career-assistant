@@ -112,8 +112,8 @@ wt_summary() {
 
 wt_bootstrap() {
   local root="$1"
-  dc_step "bootstrapping backend venv"
-  dc_ensure_venv "$root/backend/venv" "$root/backend/requirements.txt"
+  dc_step "bootstrapping backend environment"
+  (cd "$root" && uv sync --extra pdf)
   dc_step "installing frontend dependencies"
   dc_ensure_node_deps "$root/frontend" npm
 }
@@ -144,8 +144,7 @@ wt_migrate_test_db() {
   dc_step "applying migrations to the worktree test DB"
   (
     cd "$root/backend"
-    export PATH="$root/backend/venv/bin:$PATH"
-    CAREER_DATABASE_URL="$DATABASE_URL_TEST" PYTHONPATH="$(pwd)" alembic upgrade head
+    CAREER_DATABASE_URL="$DATABASE_URL_TEST" uv run alembic upgrade head
   ) || wt_die "migration of worktree test DB failed"
   wt_ok "Worktree test DB is migrated."
 }

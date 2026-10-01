@@ -98,10 +98,9 @@ fi
 
 if [[ "$NO_BOOTSTRAP" = false ]]; then
   dc_step "preparing backend environment"
-  dc_ensure_venv "$VENV_DIR" backend/requirements.txt
+  uv sync --extra pdf
   dc_ensure_node_deps frontend npm
 fi
-export PATH="$PWD/$VENV_DIR/bin:$PATH"
 
 if [[ "$WEB" = true ]]; then
   # Server/web dev — the pre-ADR-0023 behavior, unchanged. Explicit env
@@ -123,7 +122,7 @@ else
   # The shell-less desktop API is UNGATED (no X-Shell-Token gate without
   # a shell) and runs open-auth DIM — so it must bind loopback only, like
   # the shipped desktop app's server does.
-  CAREER_DATA_DIR="$(cd backend && PYTHONPATH="$(pwd)" python -c 'from app.local import default_data_dir; print(default_data_dir())')"
+  CAREER_DATA_DIR="$(cd backend && uv run python -c 'from app.local import default_data_dir; print(default_data_dir())')"
   export CAREER_DATA_DIR
   export CAREER_IDENTITY_MODE=desktop
   export CAREER_DATABASE_URL="sqlite+aiosqlite:///$CAREER_DATA_DIR/career-assistant.db"
@@ -174,7 +173,7 @@ dc_bootstrap_desktop() {
     return 0
   fi
   dc_step "applying desktop migrations + starter catalog (SQLite profile)"
-  (cd backend && PYTHONPATH="$(pwd)" python -m careerassistant seed) \
+  (cd backend && uv run python -m careerassistant seed) \
     || dc_die "desktop bootstrap failed — see output above"
 }
 
@@ -183,14 +182,14 @@ dc_ensure_pdf_engine() {
   # count (polish gate, lint, export) needs playwright + the Chromium
   # headless shell. Offline-tolerant: degrade with a warning, never block.
   dc_step "ensuring the PDF engine (playwright + chromium headless shell)"
-  if ! "$VENV_DIR/bin/python" -c "import playwright" >/dev/null 2>&1; then
-    "$VENV_DIR/bin/pip" install -q -r backend/requirements-pdf.txt \
+  if ! (cd backend && uv run python -c "import playwright") >/dev/null 2>&1; then
+    uv sync --extra pdf \
       || { dc_warn "playwright install failed — PDF export/page counts degrade to estimates"; return 0; }
   fi
   if ls "$HOME/.cache/ms-playwright"/chromium_headless_shell-* >/dev/null 2>&1; then
     return 0
   fi
-  "$VENV_DIR/bin/playwright" install chromium --only-shell \
+  (cd backend && uv run playwright install chromium --only-shell) \
     || dc_warn "chromium download failed — PDF export/page counts degrade to estimates (offline?)"
 }
 

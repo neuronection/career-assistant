@@ -8,7 +8,6 @@ multi-replica deployment the counters would need to move to shared storage
 
 import time
 from collections import defaultdict, deque
-from typing import Optional
 
 from app.core.config import settings
 
@@ -23,7 +22,7 @@ class SlidingWindowRateLimiter:
         """Drop all counters (tests isolate their rate-limit spend)."""
         self._events.clear()
 
-    def check(self, bucket: str, identity: str) -> Optional[int]:
+    def check(self, bucket: str, identity: str) -> int | None:
         """Record one event; return retry-after seconds when over the limit.
 
         Also returns the current bucket spec: (limit, window) resolved by
@@ -60,9 +59,7 @@ class SlidingWindowRateLimiter:
     def _prune(self, now: float) -> None:
         # Drop buckets idle for > 1 hour to keep memory bounded.
         stale_before = now - 3600
-        for key in [
-            k for k, q in self._events.items() if not q or q[-1] < stale_before
-        ]:
+        for key in [k for k, q in self._events.items() if not q or q[-1] < stale_before]:
             del self._events[key]
 
 

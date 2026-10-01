@@ -134,9 +134,7 @@ async def debrief_session(
     """Generate the debrief for a completed session (idempotent): the
     rubric aggregate is deterministic math; the narrative is one audited
     `interview_debrief` call; resources link learning content."""
-    return _session_out(
-        await InterviewService(db).generate_debrief(user.id, session_id)
-    )
+    return _session_out(await InterviewService(db).generate_debrief(user.id, session_id))
 
 
 @router.post("/sessions/{session_id}/retry", response_model=InterviewSessionOut)

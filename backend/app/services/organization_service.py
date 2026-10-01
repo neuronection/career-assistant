@@ -10,7 +10,6 @@ re-pointed, aliases folded, loser deprecated — never deleted).
 """
 
 import re
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -55,9 +54,7 @@ MATCH_THRESHOLD = 0.82
 
 
 def _canonical(name: str) -> str:
-    tokens = [
-        token for token in TRIGRAM.findall(name.lower()) if token not in LEGAL_SUFFIXES
-    ]
+    tokens = [token for token in TRIGRAM.findall(name.lower()) if token not in LEGAL_SUFFIXES]
     return " ".join(tokens)
 
 
@@ -90,28 +87,26 @@ class OrganizationService:
 
     def _best_match(
         self, name: str, candidates: list[Organization]
-    ) -> Optional[tuple[Organization, float]]:
+    ) -> tuple[Organization, float] | None:
         """Exact slug → canonical name/alias equality → best trigram ≥
         threshold, all compared on the legal-suffix-stripped form."""
         from app.services.experience_service import slugify_org
 
         key = slugify_org(name)
         canonical = _canonical(name)
-        best: Optional[tuple[Organization, float]] = None
+        best: tuple[Organization, float] | None = None
         for candidate in candidates:
             names = [candidate.name, *(candidate.aliases or [])]
             if candidate.key == key:
                 return candidate, 1.0
             if any(_canonical(alias) == canonical for alias in names):
                 return candidate, 1.0
-            score = max(
-                trigram_similarity(canonical, _canonical(alias)) for alias in names
-            )
+            score = max(trigram_similarity(canonical, _canonical(alias)) for alias in names)
             if score >= MATCH_THRESHOLD and (best is None or score > best[1]):
                 best = (candidate, score)
         return best
 
-    async def resolve(self, name: str) -> Optional[Organization]:
+    async def resolve(self, name: str) -> Organization | None:
         """The org a raw label belongs to (None when nothing matches)."""
         name = (name or "").strip()
         if not name:
@@ -120,7 +115,7 @@ class OrganizationService:
         return match[0] if match else None
 
     async def find_or_propose(
-        self, name: str, *, provenance: Optional[dict] = None
+        self, name: str, *, provenance: dict | None = None
     ) -> tuple[Organization, bool]:
         """Matcher-first find-or-propose (never duplicates on ingest)."""
         name = (name or "").strip()
@@ -130,8 +125,7 @@ class OrganizationService:
         if match is not None:
             org = match[0]
             if (
-                name.strip().lower()
-                not in {alias.strip().lower() for alias in (org.aliases or [])}
+                name.strip().lower() not in {alias.strip().lower() for alias in (org.aliases or [])}
                 and name.strip().lower() != (org.name or "").strip().lower()
             ):
                 org.aliases = [*(org.aliases or []), name.strip()[:200]]
@@ -181,8 +175,8 @@ class OrganizationService:
     async def list_orgs(
         self,
         *,
-        status: Optional[str] = None,
-        q: Optional[str] = None,
+        status: str | None = None,
+        q: str | None = None,
     ) -> list[dict]:
         """Admin listing with live posting counts (top-hiring visibility)."""
         query = select(Organization).order_by(Organization.created_at.desc())
@@ -215,11 +209,7 @@ class OrganizationService:
 
     async def get_org(self, org_id: UUID) -> Organization:
         org = (
-            (
-                await self.db.execute(
-                    select(Organization).where(Organization.id == org_id)
-                )
-            )
+            (await self.db.execute(select(Organization).where(Organization.id == org_id)))
             .scalars()
             .first()
         )
@@ -260,13 +250,12 @@ class OrganizationService:
         target = await self.get_org(target_id)
         if target.status == "deprecated":
             raise ValidationError("Cannot merge into a deprecated organization")
-        rows = await self.db.execute(
-            select(JobPosting).where(JobPosting.org_id == source.id)
-        )
+        rows = await self.db.execute(select(JobPosting).where(JobPosting.org_id == source.id))
         moved = 0
-        for posting in rows.scalars().all():
+        postings = list(rows.scalars().all())
+        for posting in postings:
             posting.org_id = target.id
-            moved += 1
+        moved += len(postings)
         aliases = [*(target.aliases or [])]
         for alias in [source.name, *(source.aliases or [])]:
             if alias and alias.lower() not in {a.lower() for a in aliases}:

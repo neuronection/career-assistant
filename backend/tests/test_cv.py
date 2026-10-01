@@ -45,21 +45,19 @@ def _text_pdf(pages: list[str]) -> bytes:
     kids = b" ".join(b"%d 0 R" % pid for pid in page_ids)
     objects.insert(
         0,
-        b"1 0 obj\n<< /Type /Pages /Kids [%s] /Count %d >>\nendobj\n"
-        % (kids, len(page_ids)),
+        b"1 0 obj\n<< /Type /Pages /Kids [%s] /Count %d >>\nendobj\n" % (kids, len(page_ids)),
     )
     objects.insert(
         1,
         b"2 0 obj\n<< /Type /Catalog /Pages 1 0 R >>\nendobj\n",
     )
     objects.append(
-        b"%d 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
-        % font_id
+        b"%d 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n" % font_id
     )
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n")
     offsets = []
-    for index, obj in enumerate(objects, start=1):
+    for _index, obj in enumerate(objects, start=1):
         offsets.append(out.tell())
         out.write(obj)
     xref_at = out.tell()
@@ -90,12 +88,7 @@ def _tiny_png() -> bytes:
 
     ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
     idat = _zlib.compress(b"\x00\xff\x00\x00")
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", ihdr)
-        + chunk(b"IDAT", idat)
-        + chunk(b"IEND", b"")
-    )
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b"")
 
 
 async def _upload_cv(client, headers, filename, content, mime):
@@ -131,24 +124,18 @@ async def test_cv_upload_preserves_original_bytes(client, db, auth_headers):
     assert "Jane Doe" in doc["extraction"]["full_text"]
     assert doc["extraction"]["content_sha256"] == content_sha256(content)
 
-    original = await client.get(
-        f"/api/v1/documents/{doc_id}/file", headers=auth_headers
-    )
+    original = await client.get(f"/api/v1/documents/{doc_id}/file", headers=auth_headers)
     assert original.status_code == 200
     assert original.content == content, "original bytes must be byte-exact"
 
 
 async def test_cv_pdf_text_layer_per_page(client, db, auth_headers):
     pages = ["Jane Doe CV", "Experience: DevOps intern"]
-    upload = await _upload_cv(
-        client, auth_headers, "cv.pdf", _text_pdf(pages), "application/pdf"
-    )
+    upload = await _upload_cv(client, auth_headers, "cv.pdf", _text_pdf(pages), "application/pdf")
     doc_id = upload.json()["document"]["id"]
     await _drain(db)
 
-    detail = (
-        await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)
-    ).json()
+    detail = (await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)).json()
     assert detail["status"] == "ready"
     assert detail["page_count"] == 2
     extraction = detail["extraction"]
@@ -169,9 +156,7 @@ async def test_cv_scanned_pdf_falls_back_to_mock_vision_ocr(client, db, auth_hea
     doc_id = upload.json()["document"]["id"]
     await _drain(db)
 
-    detail = (
-        await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)
-    ).json()
+    detail = (await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)).json()
     assert detail["status"] == "ready", detail
     extraction = detail["extraction"]
     assert extraction["ocr_used"] is True
@@ -179,9 +164,7 @@ async def test_cv_scanned_pdf_falls_back_to_mock_vision_ocr(client, db, auth_hea
     assert extraction["pages"][0]["text"].startswith("[ocr] page 0")
     assert extraction["engine"]["ocr"] == "vision"
 
-    image = await client.get(
-        f"/api/v1/documents/{doc_id}/pages/0/image", headers=auth_headers
-    )
+    image = await client.get(f"/api/v1/documents/{doc_id}/pages/0/image", headers=auth_headers)
     assert image.status_code == 200
     assert image.headers["content-type"] == "image/png"
 
@@ -191,19 +174,15 @@ async def test_cv_image_upload_uses_ocr_and_serves_page(client, db, auth_headers
     assert upload.status_code == 202, upload.text
     doc_id = upload.json()["document"]["id"]
     await _drain(db)
-    detail = (
-        await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)
-    ).json()
+    detail = (await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)).json()
     assert detail["status"] == "ready"
     assert detail["extraction"]["ocr_used"] is True
-    image = await client.get(
-        f"/api/v1/documents/{doc_id}/pages/0/image", headers=auth_headers
-    )
+    image = await client.get(f"/api/v1/documents/{doc_id}/pages/0/image", headers=auth_headers)
     assert image.status_code == 200
 
 
 async def test_document_delete_removes_files(client, db, auth_headers):
-    content = "to be deleted".encode()
+    content = b"to be deleted"
     upload = await _upload_cv(client, auth_headers, "gone.txt", content, "text/plain")
     doc_id = upload.json()["document"]["id"]
     await _drain(db)
@@ -288,9 +267,7 @@ async def test_cv_versions_are_immutable_snapshots(client, db, auth_headers):
     detail = (await client.get(f"/api/v1/cv/{cv['id']}", headers=auth_headers)).json()
     assert detail["latest_version"] == 2
 
-    empty = await client.post(
-        f"/api/v1/cv/{cv['id']}/versions", json={}, headers=auth_headers
-    )
+    empty = await client.post(f"/api/v1/cv/{cv['id']}/versions", json={}, headers=auth_headers)
     assert empty.status_code == 400
 
 
@@ -336,9 +313,7 @@ async def test_cv_ownership_is_enforced(client, db, auth_headers):
     other = await _second_user(client)
     response = await client.get(f"/api/v1/cv/{cv['id']}", headers=other)
     assert response.status_code == 404
-    patch = await client.patch(
-        f"/api/v1/cv/{cv['id']}", json={"title": "stolen"}, headers=other
-    )
+    patch = await client.patch(f"/api/v1/cv/{cv['id']}", json={"title": "stolen"}, headers=other)
     assert patch.status_code == 404
     delete = await client.delete(f"/api/v1/cv/{cv['id']}", headers=other)
     assert delete.status_code == 404
@@ -346,9 +321,7 @@ async def test_cv_ownership_is_enforced(client, db, auth_headers):
 
 async def test_cv_delete_cascades_versions(client, db, auth_headers):
     cv = await _make_cv(client, auth_headers)
-    await client.post(
-        f"/api/v1/cv/{cv['id']}/versions", json={"blocks": []}, headers=auth_headers
-    )
+    await client.post(f"/api/v1/cv/{cv['id']}/versions", json={"blocks": []}, headers=auth_headers)
     deleted = await client.delete(f"/api/v1/cv/{cv['id']}", headers=auth_headers)
     assert deleted.status_code == 204
     rows = await db.execute(select(CvVersion))

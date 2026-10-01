@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -12,9 +12,9 @@ from app.schemas.posting import (
     AppliedIn,
     ExploreOut,
     PostingDetailOut,
-    PostingsOut,
     PostingOut,
     PostingSearchOut,
+    PostingsOut,
     SaveIn,
     SeenIn,
 )
@@ -58,12 +58,8 @@ def _posting_out(
         employment_type=posting.employment_type,
         onsite_policy=posting.onsite_policy,
         salary_currency=posting.salary_currency,
-        salary_min=float(posting.salary_min)
-        if posting.salary_min is not None
-        else None,
-        salary_max=float(posting.salary_max)
-        if posting.salary_max is not None
-        else None,
+        salary_min=float(posting.salary_min) if posting.salary_min is not None else None,
+        salary_max=float(posting.salary_max) if posting.salary_max is not None else None,
         salary_period=posting.salary_period,
         posted_at=posting.posted_at,
         expires_at=posting.expires_at,
@@ -107,9 +103,7 @@ async def postings(
         saved=saved,
         sort=sort,
     )
-    sources = {
-        s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()
-    }
+    sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     return PostingsOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -129,9 +123,7 @@ async def postings(
 async def postings_search(
     skills: str = Query(min_length=1, max_length=500),
     mode: str = Query(default="all", pattern="^(all|any)$"),
-    priority: str | None = Query(
-        default=None, pattern="^(must_have|nice_to_have|bonus)$"
-    ),
+    priority: str | None = Query(default=None, pattern="^(must_have|nice_to_have|bonus)$"),
     source: UUID | None = Query(default=None),
     remote: bool | None = Query(default=None),
     seniority: str | None = Query(default=None),
@@ -161,9 +153,7 @@ async def postings_search(
         sort=sort,
         match_profile=match_profile,
     )
-    sources = {
-        s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()
-    }
+    sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     return PostingSearchOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -195,7 +185,7 @@ async def postings_explore(
     sort = raw.pop("sort", None) or "fit"
     cursor = raw.pop("cursor", None)
     limit = min(max(int(raw.pop("limit", None) or 20), 1), 100)
-    multi = {key: [v for v in request.query_params.getlist(key)] for key in ("skills",)}
+    multi = {key: list(request.query_params.getlist(key)) for key in ("skills",)}
     for key, values in multi.items():
         if values and "," in values[0]:
             raw[key] = [part.strip() for part in values[0].split(",") if part.strip()]
@@ -220,9 +210,7 @@ async def postings_explore(
     filters = parse_explore_filters(raw)
 
     result = await explore(db, user.id, filters, sort=sort, cursor=cursor, limit=limit)
-    sources = {
-        s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()
-    }
+    sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     return ExploreOut(
         items=[
             _posting_out(
@@ -295,7 +283,7 @@ async def posting_detail(
 
         try:
             connector_title = registry.get_connector(source.connector_key).title
-        except Exception:  # noqa: BLE001 — plugin missing: fall back to key
+        except Exception:
             connector_title = source.connector_key
     match = await get_posting_fit(db, user.id, posting)
     similar = await similar_postings(db, posting)
@@ -331,7 +319,7 @@ async def postings_save(
         user.id,
         data.posting_id,
         field="saved_at",
-        value=datetime.now(timezone.utc) if data.saved else None,
+        value=datetime.now(UTC) if data.saved else None,
     )
     return {
         "posting_id": str(interaction.posting_id),
@@ -349,7 +337,7 @@ async def postings_hide(
         user.id,
         data.posting_id,
         field="hidden_at",
-        value=datetime.now(timezone.utc) if data.saved else None,
+        value=datetime.now(UTC) if data.saved else None,
     )
     return {
         "posting_id": str(interaction.posting_id),
@@ -367,7 +355,7 @@ async def postings_applied(
         user.id,
         data.posting_id,
         field="applied_at",
-        value=datetime.now(timezone.utc),
+        value=datetime.now(UTC),
         extra={
             "applied_via_url": data.applied_via_url,
             "stage": data.stage.value if data.stage else "applied",

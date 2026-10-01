@@ -9,7 +9,6 @@ from sqlalchemy import select
 from app.models.engagement_model import Notification
 from app.models.matching_model import MatchInsight
 from app.seeds.run import seed_notification_kinds
-from app.services.notification_service import NotificationService
 from app.services.engagement_service import (
     EngagementService,
     with_exploration_slot,
@@ -17,6 +16,7 @@ from app.services.engagement_service import (
 from app.services.fit.dimensions import FitResult
 from app.services.fit.service import FitService
 from app.services.job_service import JobService
+from app.services.notification_service import NotificationService
 
 
 @pytest.fixture
@@ -111,17 +111,13 @@ async def test_search_cap_never_prunes_saved(db, auth_headers, client):
         await service.record_search(user_id, "catalog", f"query-{i}", {}, i)
     rows = (await client.get("/api/v1/me/searches", headers=auth_headers)).json()
     oldest = rows[-1]
-    saved = await client.post(
-        f"/api/v1/me/searches/{oldest['id']}/save", headers=auth_headers
-    )
+    saved = await client.post(f"/api/v1/me/searches/{oldest['id']}/save", headers=auth_headers)
     assert saved.status_code == 200
     for i in range(205, 210):
         await service.record_search(user_id, "catalog", f"query-{i}", {}, i)
 
     all_rows = (await client.get("/api/v1/me/searches", headers=auth_headers)).json()
-    saved_rows = (
-        await client.get("/api/v1/me/searches?saved=true", headers=auth_headers)
-    ).json()
+    saved_rows = (await client.get("/api/v1/me/searches?saved=true", headers=auth_headers)).json()
     assert len(all_rows) == 200
     assert len(saved_rows) == 1
     assert saved_rows[0]["id"] == oldest["id"]
@@ -135,9 +131,7 @@ async def test_search_delete(client, auth_headers):
             headers=auth_headers,
         )
     ).json()
-    deleted = await client.delete(
-        f"/api/v1/me/searches/{created['id']}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/me/searches/{created['id']}", headers=auth_headers)
     assert deleted.status_code == 204
     rows = (await client.get("/api/v1/me/searches", headers=auth_headers)).json()
     assert rows == []
@@ -164,11 +158,7 @@ async def test_seen_batching_creates_lazy_insight_rows(
     assert response.status_code == 200, response.text
     assert response.json()["marked"] == len(job_ids)
     rows = (
-        (
-            await db.execute(
-                select(MatchInsight).where(MatchInsight.seen_at.is_not(None))
-            )
-        )
+        (await db.execute(select(MatchInsight).where(MatchInsight.seen_at.is_not(None))))
         .scalars()
         .all()
     )
@@ -211,22 +201,16 @@ async def test_lazy_insight_survives_raced_insert(
     assert read_calls["n"] == 1
 
 
-async def test_feed_unseen_first_and_badges(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_feed_unseen_first_and_badges(client, auth_headers, profile_ready, seeded_catalog):
     feed = (await client.get("/api/v1/feed?page_size=50", headers=auth_headers)).json()
     assert feed["total"] > 0
     assert feed["unseen"] == feed["total"]
-    badges = (
-        await client.get("/api/v1/feed/unseen-count", headers=auth_headers)
-    ).json()
+    badges = (await client.get("/api/v1/feed/unseen-count", headers=auth_headers)).json()
     assert badges["unseen"] == feed["unseen"]
 
     first_job = feed["items"][0]["job"]["id"]
     top_fit = feed["items"][0]["fit_score"]
-    await client.post(
-        "/api/v1/feed/seen", json={"job_ids": [first_job]}, headers=auth_headers
-    )
+    await client.post("/api/v1/feed/seen", json={"job_ids": [first_job]}, headers=auth_headers)
     again = (await client.get("/api/v1/feed?page_size=50", headers=auth_headers)).json()
     assert again["unseen"] == feed["unseen"] - 1
     seen_flags = [i["seen"] for i in again["items"]]
@@ -251,9 +235,7 @@ async def test_feed_hidden_excluded_and_saved_view(
         )
     ).status_code == 200
     assert (
-        await client.post(
-            "/api/v1/feed/save", json={"job_id": saved_job}, headers=auth_headers
-        )
+        await client.post("/api/v1/feed/save", json={"job_id": saved_job}, headers=auth_headers)
     ).status_code == 200
 
     after = (await client.get("/api/v1/feed", headers=auth_headers)).json()
@@ -357,9 +339,7 @@ async def test_interest_tag_kind(client, auth_headers, seeded_catalog, db):
     assert created.json()["kind"] == "industry"
 
     industries = (
-        await client.get(
-            "/api/v1/taxonomy/interests?kind=industry", headers=auth_headers
-        )
+        await client.get("/api/v1/taxonomy/interests?kind=industry", headers=auth_headers)
     ).json()
     assert [t["key"] for t in industries] == ["industry-fintech"]
     topics = (
@@ -372,9 +352,7 @@ async def test_interest_tag_kind(client, auth_headers, seeded_catalog, db):
 
 
 async def test_rule_validation_and_defaults(client, auth_headers, seeded_catalog):
-    rules = (
-        await client.get("/api/v1/notifications/rules", headers=auth_headers)
-    ).json()
+    rules = (await client.get("/api/v1/notifications/rules", headers=auth_headers)).json()
     by_kind = {r["kind"]: r for r in rules["items"]}
     assert by_kind["fit_threshold"]["is_default"] is True
     assert by_kind["fit_threshold"]["params"]["min_fit"] == 7.0
@@ -423,9 +401,7 @@ async def test_fit_threshold_trigger_math(
     fit = FitService(db)
 
     async def emit_at(score):
-        await fit.upsert_fit(
-            user_id, job, FitResult(score=score, breakdown={}, gates=[])
-        )
+        await fit.upsert_fit(user_id, job, FitResult(score=score, breakdown={}, gates=[]))
 
     await emit_at(4.0)
     assert await NotificationService(db).unread_count(user_id) == 0
@@ -473,9 +449,7 @@ async def test_fit_threshold_max_per_day_cap(
         fit = FitService(db)
         for j in jobs:
             job = await JobService(db).get_by_code_or_id(UUID(j["id"]))
-            await fit.upsert_fit(
-                user_id, job, FitResult(score=8.0, breakdown={}, gates=[])
-            )
+            await fit.upsert_fit(user_id, job, FitResult(score=8.0, breakdown={}, gates=[]))
         rows = (await db.execute(select(Notification))).scalars().all()
         assert len(rows) == 3
         from app.models.engagement_model import NotificationDelivery
@@ -514,9 +488,7 @@ async def test_fit_threshold_default_rule_and_mute(
     assert await NotificationService(db).unread_count(user_id) == 2
 
     muted_job = await JobService(db).get_by_code_or_id("game-developer")
-    await fit.upsert_fit(
-        user_id, muted_job, FitResult(score=8.5, breakdown={}, gates=[])
-    )
+    await fit.upsert_fit(user_id, muted_job, FitResult(score=8.5, breakdown={}, gates=[]))
     assert await NotificationService(db).unread_count(user_id) == 2
 
 
@@ -544,15 +516,11 @@ async def test_new_in_family_trigger_on_publish(
     assert created.status_code == 201, created.text
     assert created.json()["status"] == "draft"
 
-    published = await client.post(
-        "/api/v1/jobs/family-alert-role/publish", headers=auth_headers
-    )
+    published = await client.post("/api/v1/jobs/family-alert-role/publish", headers=auth_headers)
     assert published.status_code == 200, published.text
 
     notifications = (
-        await client.get(
-            "/api/v1/notifications?kind=new_in_family", headers=auth_headers
-        )
+        await client.get("/api/v1/notifications?kind=new_in_family", headers=auth_headers)
     ).json()
     assert notifications["unread_count"] == 1
     assert notifications["items"][0]["payload"]["job_code"] == "family-alert-role"
@@ -571,9 +539,7 @@ async def test_new_in_family_trigger_on_publish(
     assert other.status_code == 201
     await client.post("/api/v1/jobs/other-family-role/publish", headers=auth_headers)
     still = (
-        await client.get(
-            "/api/v1/notifications?kind=new_in_family", headers=auth_headers
-        )
+        await client.get("/api/v1/notifications?kind=new_in_family", headers=auth_headers)
     ).json()
     assert still["unread_count"] == 1
 
@@ -599,9 +565,7 @@ async def test_notifications_mark_read_flow(
         "/api/v1/notifications/read", json={"ids": [first["id"]]}, headers=auth_headers
     )
     assert one.json()["marked"] == 1
-    unread = (
-        await client.get("/api/v1/notifications?unread=true", headers=auth_headers)
-    ).json()
+    unread = (await client.get("/api/v1/notifications?unread=true", headers=auth_headers)).json()
     assert unread["unread_count"] == 2
 
     await client.post("/api/v1/notifications/read", json={}, headers=auth_headers)

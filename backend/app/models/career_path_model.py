@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -18,9 +17,7 @@ class CareerPath(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="ai")
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="draft", index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft", index=True)
 
     job = relationship("Job")
     steps: Mapped[list["CareerPathStep"]] = relationship(
@@ -43,13 +40,13 @@ class CareerPathStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
-    family_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    family_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("job_families.id", ondelete="RESTRICT"), nullable=True
     )
-    skill_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("skills.id", ondelete="RESTRICT"), nullable=True
     )
-    education_level: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    education_level: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # Free display detail; the typed refs above are the identity.
     label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     optional: Mapped[bool] = mapped_column(nullable=False, default=False)

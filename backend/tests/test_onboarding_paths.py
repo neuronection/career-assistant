@@ -4,7 +4,6 @@ from app.models.enums import CareerStage
 from app.services.stages_service import feature_flags, required_sections
 from tests.conftest import session_headers
 
-
 # ------------------------------------------------------- required mapping
 
 
@@ -53,9 +52,7 @@ async def test_invalid_path_rejected(client, auth_headers):
 
 
 async def test_clear_path_returns_to_picker(client, auth_headers):
-    await client.put(
-        "/api/v1/me/onboarding-path", json={"path": "browse"}, headers=auth_headers
-    )
+    await client.put("/api/v1/me/onboarding-path", json={"path": "browse"}, headers=auth_headers)
     cleared = await client.put(
         "/api/v1/me/onboarding-path", json={"path": None}, headers=auth_headers
     )
@@ -64,9 +61,7 @@ async def test_clear_path_returns_to_picker(client, auth_headers):
 
 
 async def test_basics_save_preserves_path(client, auth_headers):
-    await client.put(
-        "/api/v1/me/onboarding-path", json={"path": "cv_import"}, headers=auth_headers
-    )
+    await client.put("/api/v1/me/onboarding-path", json={"path": "cv_import"}, headers=auth_headers)
     saved = await client.put(
         "/api/v1/profile",
         json={"basics": {"birth_year": 1995, "education_level": "bachelor"}},
@@ -91,12 +86,8 @@ async def test_explore_scope_progression(client, auth_headers, db):
     await seed_taxonomy(db)
     await seed_metric_dimensions(db)
 
-    await client.put(
-        "/api/v1/me/onboarding-path", json={"path": "explore"}, headers=auth_headers
-    )
-    empty = (await client.get("/api/v1/profile", headers=auth_headers)).json()[
-        "completeness"
-    ]
+    await client.put("/api/v1/me/onboarding-path", json={"path": "explore"}, headers=auth_headers)
+    empty = (await client.get("/api/v1/profile", headers=auth_headers)).json()["completeness"]
     assert empty["required"] == {
         "basics": True,
         "academics": True,
@@ -115,9 +106,7 @@ async def test_explore_scope_progression(client, auth_headers, db):
         json={
             "basics": {"birth_year": 2008, "education_level": "high_school"},
             "academics": {"favorite_subjects": [{"key": "mathematics", "weight": 4}]},
-            "interests": [
-                {"tag_key": "technology-software", "weight": 5, "source": "self"}
-            ],
+            "interests": [{"tag_key": "technology-software", "weight": 5, "source": "self"}],
         },
         headers=auth_headers,
     )
@@ -128,12 +117,8 @@ async def test_explore_scope_progression(client, auth_headers, db):
 
 
 async def test_target_and_browse_scopes(client, auth_headers):
-    await client.put(
-        "/api/v1/me/onboarding-path", json={"path": "target"}, headers=auth_headers
-    )
-    target = (await client.get("/api/v1/profile", headers=auth_headers)).json()[
-        "completeness"
-    ]
+    await client.put("/api/v1/me/onboarding-path", json={"path": "target"}, headers=auth_headers)
+    target = (await client.get("/api/v1/profile", headers=auth_headers)).json()["completeness"]
     assert target["required"] == {
         "basics": True,
         "academics": False,
@@ -146,20 +131,14 @@ async def test_target_and_browse_scopes(client, auth_headers):
     }
     assert target["required_percent"] == 0
 
-    await client.put(
-        "/api/v1/me/onboarding-path", json={"path": "browse"}, headers=auth_headers
-    )
-    browse = (await client.get("/api/v1/profile", headers=auth_headers)).json()[
-        "completeness"
-    ]
+    await client.put("/api/v1/me/onboarding-path", json={"path": "browse"}, headers=auth_headers)
+    browse = (await client.get("/api/v1/profile", headers=auth_headers)).json()["completeness"]
     assert not any(browse["required"].values())
     assert browse["required_percent"] == 100
 
 
 async def test_no_path_leak_between_users(client, auth_headers):
-    await client.put(
-        "/api/v1/me/onboarding-path", json={"path": "explore"}, headers=auth_headers
-    )
+    await client.put("/api/v1/me/onboarding-path", json={"path": "explore"}, headers=auth_headers)
     second = await client.post(
         "/api/v1/auth/register",
         json={"email": "other@example.com", "password": "supersecret1"},

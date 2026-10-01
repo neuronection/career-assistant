@@ -2,17 +2,16 @@ import json
 import re
 import time
 import uuid
-from typing import Optional
 
-from app.models.enums import AITaskType
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.ai.agents.context import context_json
 from app.ai.agents.prompts import QUICK_ASSIST
 from app.ai.gateway import ainvoke_structured
 from app.ai.schemas import ChatReply
-from sqlalchemy import or_, select
-from sqlalchemy.orm import selectinload
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.models.enums import AITaskType
 from app.models.job_model import Job
 from app.models.posting_model import JobSource
 from app.services import chat_tool_memory
@@ -21,9 +20,7 @@ from app.services.chat_digest_cache import context_without_cache
 
 def _job_search_query():
     """Base query with family eagerly loaded."""
-    return (
-        select(Job).options(selectinload(Job.family)).where(Job.status == "published")
-    )
+    return select(Job).options(selectinload(Job.family)).where(Job.status == "published")
 
 
 STOPWORDS = {
@@ -75,6 +72,7 @@ async def search_jobs_tool(db: AsyncSession, query: str, limit: int = 8) -> list
         )
         .limit(limit)
     )
+    matches: list[Job] = list(rows.scalars())
     results = [
         {
             "code": j.code,
@@ -82,7 +80,7 @@ async def search_jobs_tool(db: AsyncSession, query: str, limit: int = 8) -> list
             "family": j.family.key if j.family else "",
             "description": j.short_description[:200],
         }
-        for j in rows.scalars()
+        for j in matches
     ]
     if results:
         return results
@@ -103,7 +101,8 @@ async def search_jobs_tool(db: AsyncSession, query: str, limit: int = 8) -> list
             )
             .limit(limit)
         )
-        for j in rows.scalars():
+        fallback_matches: list[Job] = list(rows.scalars())
+        for j in fallback_matches:
             if j.code not in seen:
                 seen.add(j.code)
                 results.append(
@@ -124,8 +123,8 @@ def _build_user_prompt(
     history: list[dict],
     message: str,
     tool_results: dict,
-    page_context: Optional[dict],
-    cv_references: Optional[list[dict]] = None,
+    page_context: dict | None,
+    cv_references: list[dict] | None = None,
 ) -> str:
     data = {
         "profile_summary": profile_summary,
@@ -232,26 +231,19 @@ def _query_from_message(message: str) -> str:
     dead weight. Category words (jobs/role/posting…) act as stopwords
     too — they name the intent, never the target."""
     words = [token.strip(".,!?;:()[]\"'") for token in message.split()]
-    return " ".join(
-        word for word in words if word.lower() not in QUERY_FILLER and len(word) > 1
-    )
+    return " ".join(word for word in words if word.lower() not in QUERY_FILLER and len(word) > 1)
 
 
-def _detect_explore_filters(
-    message: str, sources: list[dict]
-) -> tuple[dict, Optional[str]]:
+def _detect_explore_filters(message: str, sources: list[dict]) -> tuple[dict, str | None]:
     """Deterministic intent parsing: extract the explore vocabulary the
     prep layer can honestly detect (source names, remote policy,
     seniority, recency windows). Returns (filters, source_error)."""
     lowered = f" {message.lower()} "
     filters: dict = {}
-    source_error: Optional[str] = None
+    source_error: str | None = None
 
     for source in sources:
-        if (
-            source["key"].lower() in lowered
-            or source.get("title", "").lower() in lowered
-        ):
+        if source["key"].lower() in lowered or source.get("title", "").lower() in lowered:
             filters.setdefault("source", []).append(source["key"])
     if " from " in lowered or " on " in lowered or " board " in lowered:
         for token in (
@@ -264,8 +256,7 @@ def _detect_explore_filters(
             if name and len(name[0]) > 2:
                 candidate = name[0]
                 if not any(
-                    candidate in s["key"].lower()
-                    or candidate in s.get("title", "").lower()
+                    candidate in s["key"].lower() or candidate in s.get("title", "").lower()
                     for s in sources
                 ):
                     source_error = candidate
@@ -304,7 +295,7 @@ def _web_result_summary(key: str, result) -> list[str]:
     return [result.get("reason", "unavailable")[:120]]
 
 
-async def _detect_posting_ref(db: AsyncSession, message: str) -> Optional[str]:
+async def _detect_posting_ref(db: AsyncSession, message: str) -> str | None:
     """An 8-char Crockford token that actually resolves to a posting."""
     from app.services.postings_service import resolve_posting
 
@@ -319,7 +310,7 @@ async def _detect_posting_ref(db: AsyncSession, message: str) -> Optional[str]:
 
 
 async def search_postings_tool(
-    db: AsyncSession, user_id, query: str, filters: Optional[dict] = None, n: int = 5
+    db: AsyncSession, user_id, query: str, filters: dict | None = None, n: int = 5
 ) -> dict:
     """Open vacancies matching the explore vocabulary; cards carry the
     short ref, source attribution and the per-posting match score."""
@@ -349,11 +340,9 @@ async def search_postings_tool(
             }
 
         result = await explore(db, user_id, normalized, sort="fit", limit=n)
-    except Exception as exc:  # noqa: BLE001 — the tool reports, never throws
+    except Exception as exc:
         return {"error": str(exc), "results": []}
-    sources = {
-        s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()
-    }
+    sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     cards = []
     for item in result["items"]:
         posting = item["posting"]
@@ -364,18 +353,12 @@ async def search_postings_tool(
                 "org": posting.org,
                 "location": posting.location,
                 "salary": {
-                    "min": float(posting.salary_min)
-                    if posting.salary_min is not None
-                    else None,
-                    "max": float(posting.salary_max)
-                    if posting.salary_max is not None
-                    else None,
+                    "min": float(posting.salary_min) if posting.salary_min is not None else None,
+                    "max": float(posting.salary_max) if posting.salary_max is not None else None,
                     "currency": posting.salary_currency,
                     "period": posting.salary_period,
                 },
-                "posted_at": posting.posted_at.isoformat()
-                if posting.posted_at
-                else None,
+                "posted_at": posting.posted_at.isoformat() if posting.posted_at else None,
                 "fit": item.get("fit"),
                 "source": sources.get(posting.source_id, ""),
             }
@@ -407,7 +390,7 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
 
         try:
             connector_title = registry.get_connector(source.connector_key).title
-        except Exception:  # noqa: BLE001 — plugin missing: fall back to key
+        except Exception:
             connector_title = source.connector_key
     extract = posting.extract or {}
     return {
@@ -416,12 +399,8 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
         "org": posting.org,
         "location": posting.location,
         "salary": {
-            "min": float(posting.salary_min)
-            if posting.salary_min is not None
-            else None,
-            "max": float(posting.salary_max)
-            if posting.salary_max is not None
-            else None,
+            "min": float(posting.salary_min) if posting.salary_min is not None else None,
+            "max": float(posting.salary_max) if posting.salary_max is not None else None,
             "currency": posting.salary_currency,
             "period": posting.salary_period,
         },
@@ -450,9 +429,7 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
         "source": {
             "title": connector_title,
             "connector": source.key if source else "",
-            "synced_at": source.last_run_at.isoformat()
-            if source and source.last_run_at
-            else None,
+            "synced_at": source.last_run_at.isoformat() if source and source.last_run_at else None,
         },
     }
 
@@ -472,9 +449,7 @@ async def similar_postings_tool(db: AsyncSession, ref: str) -> dict:
 # --------------------------------------------- notification tools
 
 
-async def my_notifications_tool(
-    db: AsyncSession, user_id, message: str
-) -> Optional[dict]:
+async def my_notifications_tool(db: AsyncSession, user_id, message: str) -> dict | None:
     """Inbox summary or a "mute this kind" conversational action."""
     from sqlalchemy import select
 
@@ -490,8 +465,7 @@ async def my_notifications_tool(
             (
                 kind
                 for kind in kinds
-                if kind.key.replace("_", " ") in lowered
-                or kind.label.lower() in lowered
+                if kind.key.replace("_", " ") in lowered or kind.label.lower() in lowered
             ),
             None,
         )
@@ -536,9 +510,7 @@ async def my_profile_digest_tool(
         "languages": academics.get("languages", []),
         "counts": {
             "experience": len(await ExperienceService(db).list_items(user_id)),
-            "skills": len(
-                [s for s in await SkillService(db).user_skills(user_id) if not s.hidden]
-            ),
+            "skills": len([s for s in await SkillService(db).user_skills(user_id) if not s.hidden]),
             "education": len(await entities.list_education(user_id)),
             "certifications": len(await entities.list_certifications(user_id)),
             "achievements": len(await entities.list_achievements(user_id)),
@@ -551,9 +523,7 @@ async def my_profile_digest_tool(
     }
 
 
-async def my_experience_tool(
-    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
-) -> dict:
+async def my_experience_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP) -> dict:
     """The user's experience items: ids + key fields (edit grounding)."""
     from app.services.experience_service import ExperienceService
 
@@ -579,9 +549,7 @@ async def my_experience_tool(
     }
 
 
-async def my_skills_tool(
-    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
-) -> dict:
+async def my_skills_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP) -> dict:
     """The user's claimed skills with row ids (edit grounding)."""
     from app.services.skills_service import SkillService
 
@@ -602,9 +570,7 @@ async def my_skills_tool(
     }
 
 
-async def my_education_tool(
-    db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
-) -> dict:
+async def my_education_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP) -> dict:
     """Education + certifications + achievements (edit grounding)."""
     from app.services.profile_entities_service import ProfileEntitiesService
 
@@ -682,9 +648,7 @@ EDIT_INTENT_KEYWORDS = frozenset(
 )
 
 
-async def read_profile_item_tool(
-    db: AsyncSession, user_id, kind: str, entity_id: str
-) -> dict:
+async def read_profile_item_tool(db: AsyncSession, user_id, kind: str, entity_id: str) -> dict:
     """Full content of one profile entity (read-before-edit, plan 99.1)."""
     from app.core.errors import DomainError
     from app.services.profile_proposal_service import ProfileProposalService
@@ -695,9 +659,7 @@ async def read_profile_item_tool(
     except ValueError:
         return {"error": f"invalid entity id: {entity_id!r}"}
     try:
-        return await ProfileProposalService(db).read_entity_content(
-            kind, user_id, entity_uuid
-        )
+        return await ProfileProposalService(db).read_entity_content(kind, user_id, entity_uuid)
     except DomainError as exc:
         return {"error": str(exc)}
 
@@ -709,9 +671,7 @@ async def read_profile_section_tool(db: AsyncSession, user_id, section: str) -> 
 
     assert user_id is not None, "read_profile_section requires a user"
     try:
-        return await ProfileProposalService(db).read_section_content(
-            user_id, str(section)
-        )
+        return await ProfileProposalService(db).read_section_content(user_id, str(section))
     except DomainError as exc:
         return {"error": str(exc)}
 
@@ -889,14 +849,10 @@ async def ground_digests(
             if any(keyword in lowered for keyword in keywords)
         ]
         want_sigs = [
-            name
-            for name in DIGEST_SEQUENCE
-            if name in cached_entries or name in keyword_requested
+            name for name in DIGEST_SEQUENCE if name in cached_entries or name in keyword_requested
         ]
         signatures = (
-            await chat_digest_cache.digest_signatures(db, user_id, want_sigs)
-            if want_sigs
-            else {}
+            await chat_digest_cache.digest_signatures(db, user_id, want_sigs) if want_sigs else {}
         )
         for name, _keywords in digest_plan:
             if name in tool_results:
@@ -944,9 +900,9 @@ async def prepare_chat_prompt(
     profile_summary: str,
     history: list[dict],
     message: str,
-    page_context: Optional[dict] = None,
+    page_context: dict | None = None,
     user_id=None,
-    cv_references: Optional[list[dict]] = None,
+    cv_references: list[dict] | None = None,
     session=None,
     digest_mode: str = "full",
 ) -> tuple[str, dict]:
@@ -987,7 +943,7 @@ async def prepare_chat_prompt(
     tool_results: dict = {}
     metadata_tools: list[dict] = []
     posting_refs: list[str] = []
-    explore_query: Optional[str] = None
+    explore_query: str | None = None
 
     retrieved, meta = await _timed("search_jobs", {"query": message})
     if retrieved:
@@ -1008,10 +964,7 @@ async def prepare_chat_prompt(
         metadata_tools.append(meta)
 
     lowered = f" {message.lower()} "
-    if (
-        any(keyword in lowered for keyword in NOTIFICATION_KEYWORDS)
-        and user_id is not None
-    ):
+    if any(keyword in lowered for keyword in NOTIFICATION_KEYWORDS) and user_id is not None:
         tool_result, meta = await _timed("my_notifications", {"message": message})
         if tool_result is not None:
             tool_results["my_notifications"] = tool_result
@@ -1124,7 +1077,7 @@ async def quick_assist(
     *,
     question: str,
     page: str,
-    job_code: Optional[str],
+    job_code: str | None,
     profile_summary: str,
 ) -> ChatReply:
     """Answer a contextual popup question (Ask AI buttons)."""

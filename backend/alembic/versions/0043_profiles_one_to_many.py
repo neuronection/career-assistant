@@ -20,8 +20,9 @@ Revision ID: 0043
 Revises: 0042
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0043"
 down_revision = "0042"
@@ -37,9 +38,7 @@ def upgrade() -> None:
             sa.Column("name", sa.String(length=120), nullable=False, server_default="Default")
         )
         batch.add_column(
-            sa.Column(
-                "is_default", sa.Boolean(), nullable=False, server_default=sa.false()
-            )
+            sa.Column("is_default", sa.Boolean(), nullable=False, server_default=sa.false())
         )
         batch.add_column(sa.Column("color", sa.String(length=16), nullable=True))
         batch.add_column(sa.Column("last_used_at", _TZ, nullable=True))

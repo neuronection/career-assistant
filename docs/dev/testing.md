@@ -7,7 +7,7 @@ commit.
 ## Backend
 
 ```bash
-cd backend && ./venv/bin/pytest tests -q -n auto     # parallel (default)
+cd backend && uv run pytest tests -q -n auto     # parallel (default)
 ./scripts/run-tests.sh                               # same, via the wrapper
 ```
 
@@ -56,8 +56,8 @@ distribute.
   `alembic upgrade head`).
 
 ```bash
-cd backend && PYTEST_XDIST=0 ./venv/bin/pytest tests -q   # serial
-cd backend && PYTEST_XDIST_WORKERS=4 ./venv/bin/pytest tests -q
+cd backend && PYTEST_XDIST=0 uv run pytest tests -q   # serial
+cd backend && PYTEST_XDIST_WORKERS=4 uv run pytest tests -q
 ```
 
 ### Writing backend tests
@@ -102,7 +102,7 @@ not `CAREER_RATELIMIT_ENABLED`).
 All of these must pass:
 
 ```bash
-cd backend && ./venv/bin/pytest tests -q -n auto
+cd backend && uv run pytest tests -q -n auto
 cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
 cd frontend && npm run build && npm run test -- --run
 cd frontend && npm run lint

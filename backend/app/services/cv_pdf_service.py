@@ -23,11 +23,11 @@ included. The renderer's line estimate is a fallback, never a gate.
 """
 
 import asyncio
+import contextlib
 import io
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import Optional
 
 import pypdfium2 as pdfium
 
@@ -49,7 +49,7 @@ IDLE_SHUTDOWN_SECONDS = 300
 
 # None = the bundled/default Playwright chromium; channels fall back to the
 # system browser (Edge first — every supported Windows desktop has it).
-_CHANNEL_CANDIDATES: tuple[Optional[str], ...] = (None, "msedge", "chrome")
+_CHANNEL_CANDIDATES: tuple[str | None, ...] = (None, "msedge", "chrome")
 
 _UNRESOLVED: object = object()
 _PLAYWRIGHT: object = None
@@ -71,12 +71,12 @@ class PageMeasure:
     real measurement and None when nothing could be measured.
     """
 
-    pages: Optional[int] = None
-    source: Optional[str] = None
+    pages: int | None = None
+    source: str | None = None
     images: list[tuple[str, bytes]] = field(default_factory=list)
 
 
-def _bundled_browsers_path() -> Optional[str]:
+def _bundled_browsers_path() -> str | None:
     """Locate a `ms-playwright` tree shipped next to the frozen app.
 
     An explicit `PLAYWRIGHT_BROWSERS_PATH` always wins (Playwright reads it
@@ -118,13 +118,11 @@ async def _get_playwright() -> object:
         return _PLAYWRIGHT
     stale, stale_loop = _PLAYWRIGHT, _PLAYWRIGHT_LOOP
     if stale is not None and stale_loop is not None and stale_loop.is_closed():
-        try:
+        with contextlib.suppress(Exception):
             await asyncio.wait_for(stale.stop(), timeout=10)
-        except Exception:  # noqa: BLE001 — a closed loop's driver is unreachable
-            pass
     try:
         from playwright.async_api import async_playwright
-    except Exception as exc:  # noqa: BLE001 - optional dependency
+    except Exception as exc:
         raise PDFEngineUnavailable(
             "Server PDF engine not installed — use the print view instead"
         ) from exc
@@ -141,12 +139,8 @@ async def _launch_browser(p) -> object:
     """Launch with the resolved options; None channel first, then system
     browsers. A cached channel is trusted until a launch fails."""
     global _BROWSER_CHANNEL
-    channels = (
-        (_BROWSER_CHANNEL,)
-        if _BROWSER_CHANNEL is not _UNRESOLVED
-        else _CHANNEL_CANDIDATES
-    )
-    last_error: Optional[Exception] = None
+    channels = (_BROWSER_CHANNEL,) if _BROWSER_CHANNEL is not _UNRESOLVED else _CHANNEL_CANDIDATES
+    last_error: Exception | None = None
     for channel in channels:
         kwargs: dict = {"args": ["--disable-dev-shm-usage"]}
         if channel:
@@ -154,12 +148,10 @@ async def _launch_browser(p) -> object:
         try:
             browser = await p.chromium.launch(**kwargs)
             _BROWSER_CHANNEL = channel
-            try:
+            with contextlib.suppress(Exception):
                 browser.on("disconnected", _on_browser_disconnected)
-            except Exception:  # noqa: BLE001 — duck-typed engines may not emit
-                pass
             return browser
-        except Exception as exc:  # noqa: BLE001 — try the next candidate
+        except Exception as exc:
             last_error = exc
     _BROWSER_CHANNEL = _UNRESOLVED
     raise PDFEngineUnavailable(f"No Chromium-class browser launched: {last_error}")
@@ -182,10 +174,8 @@ async def _get_browser(p) -> object:
     _BROWSER = None
     _BROWSER_LOOP = loop
     if stale is not None and stale_loop is not None and stale_loop.is_closed():
-        try:
+        with contextlib.suppress(Exception):
             await asyncio.wait_for(stale.close(), timeout=10)
-        except Exception:  # noqa: BLE001 — a closed loop's browser is unreachable
-            pass
     _BROWSER = await _launch_browser(p)
     return _BROWSER
 
@@ -214,10 +204,8 @@ async def _discard_browser() -> None:
         _BROWSER_CHANNEL = _UNRESOLVED
     if browser is None:
         return
-    try:
+    with contextlib.suppress(Exception):
         await asyncio.wait_for(browser.close(), timeout=10)
-    except Exception:  # noqa: BLE001 — best-effort cleanup, never mask the render error
-        pass
 
 
 def _schedule_idle_close() -> None:
@@ -231,9 +219,7 @@ def _schedule_idle_close() -> None:
         await _discard_browser()
 
     loop = asyncio.get_running_loop()
-    _IDLE_HANDLE = loop.call_later(
-        IDLE_SHUTDOWN_SECONDS, lambda: asyncio.create_task(_close())
-    )
+    _IDLE_HANDLE = loop.call_later(IDLE_SHUTDOWN_SECONDS, lambda: asyncio.create_task(_close()))
 
 
 async def shutdown_engine() -> None:
@@ -251,12 +237,12 @@ async def shutdown_engine() -> None:
         try:
             if browser is not None:
                 await browser.close()
-        except Exception:  # noqa: BLE001 — best-effort cleanup
+        except Exception:
             pass
         try:
             if playwright is not None:
                 await playwright.stop()
-        except Exception:  # noqa: BLE001 — best-effort cleanup
+        except Exception:
             pass
 
 
@@ -269,17 +255,13 @@ async def _render_page(html: str) -> bytes:
         page = await browser.new_page()
         try:
             await page.set_content(html, wait_until="load")
-            try:
+            with contextlib.suppress(Exception):
                 await page.evaluate("document.fonts && document.fonts.ready")
-            except Exception:  # noqa: BLE001 — fonts are best-effort
-                pass
             await page.emulate_media(media="print")
             return await page.pdf(prefer_css_page_size=True, print_background=True)
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 await page.close()
-            except Exception:  # noqa: BLE001 — a dead browser must not mask errors
-                pass
     finally:
         _schedule_idle_close()
 
@@ -290,13 +272,13 @@ async def html_to_pdf(html: str) -> bytes:
     Retried once with a fresh browser — a flaky launch or a dead cached
     browser must not degrade a page-count gate to the renderer estimate.
     """
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
     for attempt in (0, 1):
         try:
             return await _render_page(html)
         except PDFEngineUnavailable:
             raise
-        except Exception as exc:  # noqa: BLE001 — engine failures degrade cleanly
+        except Exception as exc:
             last_error = exc
             await _discard_browser()
             if attempt:
@@ -334,7 +316,7 @@ def count_pdf_pages(pdf: bytes) -> int | None:
     """
     try:
         return len(pdfium.PdfDocument(pdf))
-    except Exception:  # noqa: BLE001 — malformed bytes fall to the regex
+    except Exception:
         return pdf_page_count(pdf)
 
 
@@ -372,13 +354,11 @@ async def measure_pages(
     return PageMeasure(pages, "pdf", images)
 
 
-def thumbnail_image(
-    png: bytes, max_width: int = THUMBNAIL_MAX_WIDTH
-) -> tuple[str, bytes]:
+def thumbnail_image(png: bytes, max_width: int = THUMBNAIL_MAX_WIDTH) -> tuple[str, bytes]:
     """Downscale a rasterized page PNG to listing-card width.
 
     Never upscales: pages already narrower than the cap pass through.
-    Resampling from the 1.5× render keeps small text readable at card
+    Resampling from the 1.5x render keeps small text readable at card
     size; never clamped, never a hard engine dependency (callers pass
     bytes they already hold).
     """
@@ -403,24 +383,18 @@ async def engine_check() -> tuple[bool, str]:
     and an unstopped driver transport complains after that loop closes.
     """
     try:
-        measure = await measure_pages(
-            "<html><body><p>engine check</p></body></html>", max_images=0
-        )
+        measure = await measure_pages("<html><body><p>engine check</p></body></html>", max_images=0)
         if measure.pages != 1:
             return False, f"engine rendered {measure.pages} pages (expected 1)"
-        channel = (
-            "system browser" if _BROWSER_CHANNEL else "bundled playwright chromium"
-        )
+        channel = "system browser" if _BROWSER_CHANNEL else "bundled playwright chromium"
         return True, f"PDF engine healthy ({channel}, 1 page)"
     except PDFEngineUnavailable as exc:
         return False, str(exc)
-    except Exception as exc:  # noqa: BLE001 — any failure is a red check
+    except Exception as exc:
         return False, f"engine check failed: {exc}"
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await shutdown_engine()
-        except Exception:  # noqa: BLE001 — best-effort cleanup
-            pass
 
 
 def run_async(coro):  # pragma: no cover - event-loop glue for sync contexts

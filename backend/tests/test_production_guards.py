@@ -164,9 +164,7 @@ async def test_dev_mock_optin_hides_seeded_mock_rows(db, monkeypatch):
 async def test_production_ai_call_returns_503(
     client, auth_headers, profile_ready, seeded_catalog, monkeypatch
 ):
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
     _production(monkeypatch)
     response = await client.post(
         "/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers
@@ -187,9 +185,7 @@ async def test_ai_service_direct_invocation_raises_when_unconfigured(
         await score_match(db, None, {}, JobService.job_snapshot(job))
 
 
-async def test_cannot_create_mock_provider_in_production(
-    client, auth_headers, monkeypatch
-):
+async def test_cannot_create_mock_provider_in_production(client, auth_headers, monkeypatch):
     _production(monkeypatch)
     response = await client.post(
         "/api/v1/ai/providers",
@@ -200,9 +196,7 @@ async def test_cannot_create_mock_provider_in_production(
     assert "development" in response.json()["detail"]
 
 
-async def test_cannot_switch_provider_to_mock_in_production(
-    client, auth_headers, monkeypatch
-):
+async def test_cannot_switch_provider_to_mock_in_production(client, auth_headers, monkeypatch):
     created = await client.post(
         "/api/v1/ai/providers",
         json={

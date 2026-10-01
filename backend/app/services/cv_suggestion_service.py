@@ -49,9 +49,7 @@ def _evidence_of(resolution) -> tuple[list[dict], set[tuple[str, str]]]:
         for item in resolution.items
     ]
     allowlist = {
-        (entry["source_key"], entry["item_id"])
-        for entry in evidence
-        if entry["source_key"]
+        (entry["source_key"], entry["item_id"]) for entry in evidence if entry["source_key"]
     }
     return evidence, allowlist
 
@@ -115,9 +113,7 @@ class CvSuggestionService:
         resolution = await self.builder.resolution(cv)
         evidence, allowlist = _evidence_of(resolution)
         if not evidence:
-            raise ValidationError(
-                "No context items resolved for this CV — nothing to ground on"
-            )
+            raise ValidationError("No context items resolved for this CV — nothing to ground on")
         effective_language: str | None = None
         if action in ("summary", "translate"):
             effective_language = payload.target_language or cv.language
@@ -199,9 +195,7 @@ class CvSuggestionService:
         )
 
         resolved = await resolve_sources(self.db, cv.user_id)
-        blocks = (cv.working_content or {}).get("blocks") or await self._default_blocks(
-            cv
-        )
+        blocks = (cv.working_content or {}).get("blocks") or await self._default_blocks(cv)
         present = _sections_in_blocks(blocks)
         gaps: list[SectionGap] = []
         for key, definition in CV_CONTEXT_SOURCES.items():
@@ -228,20 +222,14 @@ class CvSuggestionService:
         if posting_id is None:
             raise ValidationError("Set a target posting on the CV or pass posting_id")
         posting = (
-            (
-                await self.db.execute(
-                    select(JobPosting).where(JobPosting.id == posting_id)
-                )
-            )
+            (await self.db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
             .scalars()
             .first()
         )
         if posting is None:
             raise NotFoundError("Posting not found")
         if not posting.extract:
-            raise ValidationError(
-                "The posting has no deep extraction yet — run the extract first"
-            )
+            raise ValidationError("The posting has no deep extraction yet — run the extract first")
         extract = PostingExtract.model_validate(posting.extract)
         rows = await self.db.execute(
             select(UserSkill, Skill)
@@ -259,9 +247,7 @@ class CvSuggestionService:
         if not evidence:
             raise ValidationError("No context items resolved for this CV")
         prompts = await self.template_prompts(cv)
-        must_have = [
-            skill.skill_key for skill in extract.skills if skill.priority == "must_have"
-        ]
+        must_have = [skill.skill_key for skill in extract.skills if skill.priority == "must_have"]
         result = await suggest(
             self.db,
             cv.user_id,

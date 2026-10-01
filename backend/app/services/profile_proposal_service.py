@@ -12,15 +12,17 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, ClassVar
 
-from pydantic import BaseModel, ValidationError as PydanticValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import select, update
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from app.models.chat_model import ChatSession
 from app.models.enums import ProposalAction, ProposalKind, ProposalStatus
 from app.models.experience_model import ExperienceItem, ExperienceSkill
 from app.models.profile_entities_model import (
@@ -29,7 +31,6 @@ from app.models.profile_entities_model import (
     ProfileAchievement,
 )
 from app.models.profile_proposal_model import ProfileProposal
-from app.models.chat_model import ChatSession
 from app.models.user_model import Profile, UserSkill
 from app.schemas.cv import CvContextSelection
 from app.schemas.experience import ExperienceItemIn, ExperienceItemUpdate
@@ -140,7 +141,7 @@ TEXT_FIELDS: dict[str, tuple[str, ...]] = {
 }
 
 
-def read_key_for_op(op: dict, entity_id: Optional[uuid.UUID]) -> Optional[str]:
+def read_key_for_op(op: dict, entity_id: uuid.UUID | None) -> str | None:
     """The grounding key an op must have been read under, or None when
     the op is exempt from the read-before-edit gate."""
     kind = str(op.get("kind") or "")
@@ -155,9 +156,7 @@ def read_key_for_op(op: dict, entity_id: Optional[uuid.UUID]) -> Optional[str]:
     return None
 
 
-async def resolve_cv_synth_payload(
-    db: AsyncSession, user_id: uuid.UUID, payload: dict
-) -> dict:
+async def resolve_cv_synth_payload(db: AsyncSession, user_id: uuid.UUID, payload: dict) -> dict:
     """Plan 101 AD1 ref resolution: human labels for a cv_synth op.
 
     Resolves each ref once against its registered CV context source
@@ -187,7 +186,7 @@ async def resolve_cv_synth_payload(
             if definition is not None:
                 try:
                     rows = await definition.resolver(db, user_id)
-                except Exception as exc:  # noqa: BLE001 - a dead source degrades its row, never the card
+                except Exception as exc:
                     logger.warning(
                         "cv_synth source resolution failed (%s): %s",
                         source_key,
@@ -237,9 +236,7 @@ async def resolve_cv_synth_payload(
     }
 
 
-async def resolve_cv_set_bullets(
-    db: AsyncSession, user_id: uuid.UUID, payload: dict
-) -> dict:
+async def resolve_cv_set_bullets(db: AsyncSession, user_id: uuid.UUID, payload: dict) -> dict:
     """Plan 107: ground a cv_set_bullets op in server truth.
 
     Loads the owned CV, resolves the target row through the context
@@ -263,9 +260,7 @@ async def resolve_cv_set_bullets(
                 row = candidate
                 break
     if row is None:
-        raise ValidationError(
-            "Target item is not on this CV's context — include it first"
-        )
+        raise ValidationError("Target item is not on this CV's context — include it first")
     selection = CvContextSelection.model_validate(cv.context or {})
     # Plan 110 single slot: one pin key per item; when the pinned row
     # carries achievements, those ARE the current bullets.
@@ -314,9 +309,7 @@ def cv_synth_narration_refs(op: dict, resolved: dict | None) -> list[str]:
         label = str(row.get("label") or "")
         source_key = str(row.get("source_key") or "")
         labels.append(
-            label
-            if label == f"Unknown item ({source_key})"
-            else f"{label} ({source_key})"
+            label if label == f"Unknown item ({source_key})" else f"{label} ({source_key})"
         )
     if labels:
         return labels
@@ -347,9 +340,9 @@ class KindSpec:
     """Registry entry: payload schemas + diff field vocabulary per kind."""
 
     label: str
-    model: Optional[type]
-    create_model: Optional[type[BaseModel]]
-    update_model: Optional[type[BaseModel]]
+    model: type | None
+    create_model: type[BaseModel] | None
+    update_model: type[BaseModel] | None
     fields: tuple[tuple[str, str], ...]
 
 
@@ -423,7 +416,7 @@ KIND_SPECS: dict[str, KindSpec] = {
         create_model=UserSkillAddIn,
         update_model=UserSkillPatchIn,
         fields=(
-            ("level", "Level (1–10)"),
+            ("level", "Level (1-10)"),
             ("derive_enabled", "Derivation enabled"),
         ),
     ),
@@ -465,10 +458,7 @@ def _jsonish(value: Any) -> Any:
         return value
     if isinstance(value, datetime):
         return value.isoformat()
-    if isinstance(value, str):
-        text = value
-    else:
-        text = json.dumps(value, default=str, ensure_ascii=False)
+    text = value if isinstance(value, str) else json.dumps(value, default=str, ensure_ascii=False)
     if len(text) > DIFF_VALUE_CAP:
         return text[: DIFF_VALUE_CAP - 1] + "…"
     return text
@@ -636,7 +626,7 @@ def _truncate(text: str, cap: int = 60) -> str:
     return text[: cap - 1] + "…"
 
 
-def _edit_summary_rows(edit_ops: Optional[dict]) -> list[dict]:
+def _edit_summary_rows(edit_ops: dict | None) -> list[dict]:
     """One legible row per edit entry, in order (plan 99 AD6): the card
     shows each change ("replaces '…'", "adds skill: docker (secondary)")
     without unfolding the full before/after."""
@@ -694,9 +684,7 @@ def proposal_title(proposal: ProfileProposal) -> str:
     spec = KIND_SPECS.get(proposal.kind)
     noun = spec.label if spec is not None else proposal.kind
     verb = ACTION_VERBS.get(proposal.action, proposal.action.title())
-    return f"{verb} {noun}" + (
-        f" · {proposal.entity_label}" if proposal.entity_label else ""
-    )
+    return f"{verb} {noun}" + (f" · {proposal.entity_label}" if proposal.entity_label else "")
 
 
 def proposal_event(proposal: ProfileProposal) -> dict:
@@ -713,9 +701,7 @@ def proposal_event(proposal: ProfileProposal) -> dict:
         "diff": proposal.diff_json or [],
         "destructive": proposal.action == ProposalAction.DELETE.value,
         "source": proposal.source,
-        "chat_session_id": (
-            str(proposal.chat_session_id) if proposal.chat_session_id else None
-        ),
+        "chat_session_id": (str(proposal.chat_session_id) if proposal.chat_session_id else None),
         "created_at": proposal.created_at.isoformat(),
     }
     if proposal.kind == ProposalKind.CV_CHOICE.value:
@@ -725,7 +711,7 @@ def proposal_event(proposal: ProfileProposal) -> dict:
     return event
 
 
-def _ts(value: Optional[datetime]) -> Optional[str]:
+def _ts(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
@@ -843,9 +829,7 @@ def _resolve_collection_edits(
         {"_row_id": str(row.id), "text": row.text, "metric": row.metric}
         for row in entity.achievements or []
     ]
-    links: list[dict] = [
-        dict(_as_link_entry(link)) for link in entity.links or [] if link
-    ]
+    links: list[dict] = [dict(_as_link_entry(link)) for link in entity.links or [] if link]
 
     touched: set[str] = set()
 
@@ -872,8 +856,7 @@ def _resolve_collection_edits(
                     )
                 if any(row.get("skill_key") == key for row in skills):
                     raise ValidationError(
-                        f"conflicting_edit: skill {key!r} is already linked "
-                        "to this item"
+                        f"conflicting_edit: skill {key!r} is already linked to this item"
                     )
                 skills.append(
                     {
@@ -886,18 +869,14 @@ def _resolve_collection_edits(
                 entry = _as_achievement_entry(value)
                 if not entry.get("text"):
                     raise ValidationError("anchor_mismatch: achievement add needs text")
-                achievements.append(
-                    {"text": entry["text"], "metric": entry.get("metric")}
-                )
+                achievements.append({"text": entry["text"], "metric": entry.get("metric")})
             else:
                 entry = _as_link_entry(value)
                 url = entry.get("url")
                 if not url:
                     raise ValidationError("anchor_mismatch: link add needs a url")
                 if any(row.get("url") == url for row in links):
-                    raise ValidationError(
-                        f"conflicting_edit: link {url!r} already exists"
-                    )
+                    raise ValidationError(f"conflicting_edit: link {url!r} already exists")
                 links.append(entry)
         else:
             match = edit.match or {}
@@ -925,20 +904,14 @@ def _resolve_collection_edits(
                 _drop(achievements, index, "achievement")
             else:
                 index = next(
-                    (
-                        i
-                        for i, row in enumerate(links)
-                        if row.get("url") == match.get("url")
-                    ),
+                    (i for i, row in enumerate(links) if row.get("url") == match.get("url")),
                     -1,
                 )
                 _drop(links, index, "link")
 
     resolved: dict = {}
     if "skills" in touched:
-        resolved["skills"] = [
-            {k: v for k, v in row.items() if k != "_row_id"} for row in skills
-        ]
+        resolved["skills"] = [{k: v for k, v in row.items() if k != "_row_id"} for row in skills]
     if "achievements" in touched:
         resolved["achievements"] = [
             {k: v for k, v in row.items() if k != "_row_id"} for row in achievements
@@ -968,9 +941,7 @@ def _resolve_edit_ops(
     edit_ops: dict = {}
     if text_edits:
         if kind not in TEXT_FIELDS:
-            raise ValidationError(
-                f"text_edits apply to {sorted(TEXT_FIELDS)} — not {kind!r}"
-            )
+            raise ValidationError(f"text_edits apply to {sorted(TEXT_FIELDS)} — not {kind!r}")
         payload = _resolve_text_edits(kind, entity, payload, text_edits)
         edit_ops["text_edits"] = [
             TextEdit.model_validate(raw).model_dump(mode="json") for raw in text_edits
@@ -980,8 +951,7 @@ def _resolve_edit_ops(
             raise ValidationError("collection_edits apply to experience_item only")
         payload.update(_resolve_collection_edits(entity, payload, collection_edits))
         edit_ops["collection_edits"] = [
-            CollectionEdit.model_validate(raw).model_dump(mode="json")
-            for raw in collection_edits
+            CollectionEdit.model_validate(raw).model_dump(mode="json") for raw in collection_edits
         ]
     return payload, edit_ops
 
@@ -1007,9 +977,7 @@ def _normalize_experience_payload(payload: dict, *, action: str) -> dict:
     if isinstance(payload.get("skills"), list):
         payload["skills"] = [_as_skill_entry(s) for s in payload["skills"]]
     if isinstance(payload.get("achievements"), list):
-        payload["achievements"] = [
-            _as_achievement_entry(a) for a in payload["achievements"]
-        ]
+        payload["achievements"] = [_as_achievement_entry(a) for a in payload["achievements"]]
     if isinstance(payload.get("links"), list):
         payload["links"] = [_as_link_entry(link) for link in payload["links"]]
     return payload
@@ -1044,7 +1012,7 @@ async def notify_proposals(db, user_id, proposals, session_id) -> None:
             source_ref={"chat_session_id": str(session_id)},
             dedup_key=f"profile-proposal:{proposals[0].id}",
         )
-    except Exception:  # noqa: BLE001 — never break the turn
+    except Exception:
         logger.warning("profile-proposal notification failed", exc_info=True)
 
 
@@ -1089,7 +1057,7 @@ async def resolve_ops(
                 ProposalKind.CV_SET_BULLETS.value,
             ):
                 entity_id = None
-            target_key: Optional[tuple[str, str]] = None
+            target_key: tuple[str, str] | None = None
             if entity_id is not None:
                 target_key = (kind, str(entity_id))
             elif kind == ProposalKind.PROFILE_SECTION.value:
@@ -1119,9 +1087,7 @@ async def resolve_ops(
                 op.get("kind", "") == ProposalKind.EXPERIENCE_ITEM.value
                 and op.get("action") == ProposalAction.UPDATE.value
                 and op.get("edit_ops") is None
-                and any(
-                    field in payload for field in ("skills", "achievements", "links")
-                )
+                and any(field in payload for field in ("skills", "achievements", "links"))
             ):
                 raise ValidationError(
                     "conflicting_edit: full-replacement of skills, "
@@ -1130,7 +1096,7 @@ async def resolve_ops(
                 )
             text_edits = list(op.get("text_edits") or [])
             collection_edits = list(op.get("collection_edits") or [])
-            edit_ops: Optional[dict] = op.get("edit_ops")
+            edit_ops: dict | None = op.get("edit_ops")
             if text_edits or collection_edits:
                 if op.get("action") != ProposalAction.UPDATE.value:
                     raise ValidationError(
@@ -1258,12 +1224,12 @@ class ProfileProposalService:
         kind: str,
         action: str,
         payload: dict,
-        entity_id: Optional[uuid.UUID] = None,
+        entity_id: uuid.UUID | None = None,
         source: str = "chat",
-        edit_ops: Optional[dict] = None,
-        chat_session_id: Optional[uuid.UUID] = None,
-        chat_message_id: Optional[uuid.UUID] = None,
-        ai_generation_id: Optional[uuid.UUID] = None,
+        edit_ops: dict | None = None,
+        chat_session_id: uuid.UUID | None = None,
+        chat_message_id: uuid.UUID | None = None,
+        ai_generation_id: uuid.UUID | None = None,
     ) -> ProfileProposal:
         """Validate one op against its REST schema and persist the card.
 
@@ -1306,13 +1272,13 @@ class ProfileProposalService:
 
         entity: Any = None
         label = ""
-        base_updated_at: Optional[datetime] = None
+        base_updated_at: datetime | None = None
         diff: list[dict] = []
         # Plan 99 AD7: KIND_SPECS-shaped before/after snapshots for the
         # grounded entity kinds — the preview endpoint reads them lazily
         # and revert inverse-applies them. Never diff-capped.
-        base_snapshot: Optional[dict] = None
-        after_snapshot: Optional[dict] = None
+        base_snapshot: dict | None = None
+        after_snapshot: dict | None = None
 
         if kind == ProposalKind.PROFILE_SECTION.value:
             patch = ProfileSectionPatchIn.model_validate(payload)
@@ -1332,9 +1298,7 @@ class ProfileProposalService:
             # Plan 101 AD1: resolve every ref to a human label ONCE at
             # card creation; the labels live in payload_json (audit +
             # preview reuse) and drive both the title and the diff rows.
-            stored_payload.update(
-                await resolve_cv_synth_payload(self.db, user_id, stored_payload)
-            )
+            stored_payload.update(await resolve_cv_synth_payload(self.db, user_id, stored_payload))
             label = self._cv_synth_label(stored_payload)
             diff = self._cv_synth_diff(stored_payload)
         elif kind == ProposalKind.CV_SET_BULLETS.value:
@@ -1458,9 +1422,9 @@ class ProfileProposalService:
         ops: list[dict],
         *,
         grounding: set[str],
-        chat_session_id: Optional[uuid.UUID] = None,
-        chat_message_id: Optional[uuid.UUID] = None,
-        ai_generation_id: Optional[uuid.UUID] = None,
+        chat_session_id: uuid.UUID | None = None,
+        chat_message_id: uuid.UUID | None = None,
+        ai_generation_id: uuid.UUID | None = None,
     ) -> tuple[list[ProfileProposal], list[dict]]:
         """Best-effort batch creation: ops fail per-item with a reason.
 
@@ -1523,7 +1487,7 @@ class ProfileProposalService:
     async def list_(
         self,
         user_id: uuid.UUID,
-        status: Optional[str] = None,
+        status: str | None = None,
         limit: int = 50,
     ) -> list[ProfileProposal]:
         query = select(ProfileProposal).where(ProfileProposal.user_id == user_id)
@@ -1621,7 +1585,7 @@ class ProfileProposalService:
 
     #: Entity kinds with KIND_SPECS-shaped snapshots available for the
     #: cv_synth preview; every other source key degrades to a label row.
-    _CV_SYNTH_SNAPSHOT_KINDS = {
+    _CV_SYNTH_SNAPSHOT_KINDS: ClassVar[set[str]] = {
         "experience",
         "projects",
         "volunteer",
@@ -1640,9 +1604,7 @@ class ProfileProposalService:
             "achievements": ProposalKind.PROFILE_ACHIEVEMENT.value,
         }.get(source_key, "")
 
-    async def _cv_synth_sources(
-        self, user_id: uuid.UUID, payload: dict
-    ) -> Optional[list[dict]]:
+    async def _cv_synth_sources(self, user_id: uuid.UUID, payload: dict) -> list[dict] | None:
         """One stacked before-row per referenced source (plan 101 AD2):
         ref identity + the fresh KIND_SPECS snapshot, label-only when
         the source row is gone; the posting joins as its own row."""
@@ -1688,9 +1650,7 @@ class ProfileProposalService:
                 parsed = None
             posting = None
             if parsed is not None:
-                rows = await self.db.execute(
-                    select(JobPosting).where(JobPosting.id == parsed)
-                )
+                rows = await self.db.execute(select(JobPosting).where(JobPosting.id == parsed))
                 posting = rows.scalars().first()
             if posting is not None:
                 sources.append(
@@ -1711,9 +1671,7 @@ class ProfileProposalService:
             return None
         return sources
 
-    async def revert(
-        self, user_id: uuid.UUID, proposal_id: uuid.UUID
-    ) -> ProfileProposal:
+    async def revert(self, user_id: uuid.UUID, proposal_id: uuid.UUID) -> ProfileProposal:
         """Inverse-apply an approved card through the form services
         (plan 99 AD10): update restores ``base_snapshot`` as the patch,
         delete recreates entity + children from the payload snapshot,
@@ -1729,17 +1687,14 @@ class ProfileProposalService:
         if proposal.status == ProposalStatus.REVERTED.value:
             return proposal
         if proposal.status != ProposalStatus.APPROVED.value:
-            raise ValidationError(
-                f"Only approved proposals can be reverted ({proposal.status})"
-            )
+            raise ValidationError(f"Only approved proposals can be reverted ({proposal.status})")
         if proposal.kind not in GROUNDED_KINDS and proposal.kind not in (
             ProposalKind.CV_SET_BULLETS.value,
         ):
             raise ValidationError(f"Revert is not available for {proposal.kind}")
         payload = dict(proposal.payload_json or {})
-        if proposal.action == ProposalAction.CREATE.value:
-            if proposal.entity_id is None:
-                raise NotFoundError("Created before revert existed — no target id")
+        if proposal.action == ProposalAction.CREATE.value and proposal.entity_id is None:
+            raise NotFoundError("Created before revert existed — no target id")
         if (
             proposal.action
             in (
@@ -1748,9 +1703,7 @@ class ProfileProposalService:
             )
             and proposal.resolved_at is not None
         ):
-            entity, updated_at = await self._load_entity(
-                proposal.kind, user_id, proposal.entity_id
-            )
+            _entity, updated_at = await self._load_entity(proposal.kind, user_id, proposal.entity_id)  # noqa: E501 -- long message string; reflow when touched
             if _ts(updated_at) > _ts(proposal.resolved_at + _REVERT_TOLERANCE):
                 raise ConflictError("Changed since it was applied — edit state moved")
 
@@ -1817,8 +1770,8 @@ class ProfileProposalService:
         self,
         user_id: uuid.UUID,
         proposal_id: uuid.UUID,
-        option_keys: Optional[list[str]] = None,
-    ) -> tuple[ProfileProposal, Optional[dict], bool]:
+        option_keys: list[str] | None = None,
+    ) -> tuple[ProfileProposal, dict | None, bool]:
         """Apply a pending proposal; idempotent once approved.
 
         ``cv_choice`` cards (plan 108) fan out: each selected option
@@ -1859,13 +1812,11 @@ class ProfileProposalService:
         )
         if terminal_first:
             proposal.status = ProposalStatus.APPROVED.value
-            proposal.resolved_at = datetime.now(timezone.utc)
+            proposal.resolved_at = datetime.now(UTC)
             await self.db.commit()
         try:
             if proposal.kind == ProposalKind.CV_CHOICE.value:
-                applied = await self._materialize_choice(
-                    proposal, list(option_keys or [])
-                )
+                applied = await self._materialize_choice(proposal, list(option_keys or []))
             else:
                 applied = await self._apply_checked(proposal)
         except ConflictError:
@@ -1873,7 +1824,7 @@ class ProfileProposalService:
         except NotFoundError:
             proposal.status = ProposalStatus.EXPIRED.value
             proposal.resolve_error = "Target no longer exists"
-            proposal.resolved_at = datetime.now(timezone.utc)
+            proposal.resolved_at = datetime.now(UTC)
             await self.db.commit()
             raise
         except DomainError as exc:
@@ -1881,7 +1832,7 @@ class ProfileProposalService:
             await self.db.commit()
             raise
         proposal.status = ProposalStatus.APPROVED.value
-        proposal.resolved_at = datetime.now(timezone.utc)
+        proposal.resolved_at = datetime.now(UTC)
         proposal.resolve_error = ""
         # Create ops link back to the created row only after apply —
         # revert of a create needs the id (plan 99 AD10).
@@ -1899,9 +1850,7 @@ class ProfileProposalService:
         await self.db.commit()
         return proposal, applied, False
 
-    async def _materialize_choice(
-        self, proposal: ProfileProposal, option_keys: list[str]
-    ) -> dict:
+    async def _materialize_choice(self, proposal: ProfileProposal, option_keys: list[str]) -> dict:
         """Fan a cv_choice card out into child proposals (plan 108).
 
         Every selected option re-enters the normal create() pipeline
@@ -1953,17 +1902,14 @@ class ProfileProposalService:
         chose["_resolved_options"] = {
             "keys": [option.key for option in selected],
             "children": [
-                {"key": option.key, "child_id": str(child.id)}
-                for option, child in chosen_pairs
+                {"key": option.key, "child_id": str(child.id)} for option, child in chosen_pairs
             ],
             "dropped": dropped,
         }
         proposal.payload_json = chose
         return {"children": children, "dropped": dropped}
 
-    async def reject(
-        self, user_id: uuid.UUID, proposal_id: uuid.UUID
-    ) -> ProfileProposal:
+    async def reject(self, user_id: uuid.UUID, proposal_id: uuid.UUID) -> ProfileProposal:
         """Idempotent reject; applied proposals cannot be un-applied."""
         proposal = await self.get(user_id, proposal_id)
         if proposal.status == ProposalStatus.REJECTED.value:
@@ -1971,13 +1917,13 @@ class ProfileProposalService:
         if proposal.status != ProposalStatus.PENDING.value:
             raise ValidationError(f"Cannot reject a {proposal.status} proposal")
         proposal.status = ProposalStatus.REJECTED.value
-        proposal.resolved_at = datetime.now(timezone.utc)
+        proposal.resolved_at = datetime.now(UTC)
         await self.db.commit()
         return proposal
 
     async def sweep_expired(self) -> int:
         """Flip stale pending cards to expired (scheduler-driven)."""
-        cutoff = datetime.now(timezone.utc) - PROPOSAL_TTL
+        cutoff = datetime.now(UTC) - PROPOSAL_TTL
         result = await self.db.execute(
             update(ProfileProposal)
             .where(
@@ -1986,7 +1932,7 @@ class ProfileProposalService:
             )
             .values(
                 status=ProposalStatus.EXPIRED.value,
-                resolved_at=datetime.now(timezone.utc),
+                resolved_at=datetime.now(UTC),
                 resolve_error="Expired",
             )
         )
@@ -1995,16 +1941,14 @@ class ProfileProposalService:
 
     # ------------------------------------------------------ apply plumbing
 
-    async def _apply_checked(self, proposal: ProfileProposal) -> Optional[dict]:
+    async def _apply_checked(self, proposal: ProfileProposal) -> dict | None:
         """Conflict-check, then dispatch to the form services."""
         kind = proposal.kind
         payload = dict(proposal.payload_json or {})
         user_id = proposal.user_id
 
         if proposal.base_updated_at is not None:
-            entity, updated_at = await self._load_entity(
-                kind, user_id, proposal.entity_id
-            )
+            entity, updated_at = await self._load_entity(kind, user_id, proposal.entity_id)
             if _ts(updated_at) != _ts(proposal.base_updated_at):
                 if kind == ProposalKind.CV_SET_BULLETS.value:
                     # The CV's timestamp moves on ANY bullets activity
@@ -2020,9 +1964,7 @@ class ProfileProposalService:
                         if isinstance(entry, dict)
                     ]
                     stored_before = [
-                        str(entry.get("text") or "")
-                        if isinstance(entry, dict)
-                        else str(entry)
+                        str(entry.get("text") or "") if isinstance(entry, dict) else str(entry)
                         for entry in payload.get("before") or []
                     ]
                     pin_moved = (resolved["prior_variant_id"] or "") != (
@@ -2036,9 +1978,7 @@ class ProfileProposalService:
                             payload,
                             user_id,
                         )
-                    proposal.diff_json = await self._cv_bullets_conflict_diff(
-                        entity, payload
-                    )
+                    proposal.diff_json = await self._cv_bullets_conflict_diff(entity, payload)
                 elif kind == ProposalKind.PROFILE_SECTION.value:
                     proposal.diff_json = self._section_diff(
                         entity, payload.get("section"), payload.get("value") or {}
@@ -2054,14 +1994,10 @@ class ProfileProposalService:
                         *_edit_summary_rows(payload["_edit_ops"]),
                     ]
                 proposal.status = ProposalStatus.CONFLICT.value
-                proposal.resolved_at = datetime.now(timezone.utc)
+                proposal.resolved_at = datetime.now(UTC)
                 await self.db.commit()
-                raise ConflictError(
-                    "Changed since it was proposed — review the updated diff"
-                )
-        return await self._apply(
-            kind, proposal.action, proposal.entity_id, payload, user_id
-        )
+                raise ConflictError("Changed since it was proposed — review the updated diff")
+        return await self._apply(kind, proposal.action, proposal.entity_id, payload, user_id)
 
     def _patch_fields(self, kind: str, payload: dict) -> dict:
         if kind == ProposalKind.USER_SKILL.value:
@@ -2084,7 +2020,7 @@ class ProfileProposalService:
         ids surface as a resolve_error.
         """
         from app.schemas.cv_synth import CvSynthItemGenerate, CvSynthItemUpdate
-        from app.services.cv_synth_service import CvSynthService, SYNC_LIMIT
+        from app.services.cv_synth_service import SYNC_LIMIT, CvSynthService
 
         service = CvSynthService(self.db)
         request = CvSynthItemGenerate.model_validate(payload)
@@ -2102,16 +2038,12 @@ class ProfileProposalService:
         activated = []
         for row in rows:
             if row.status == "draft":
-                row = await service.update(
-                    row.id, user_id, CvSynthItemUpdate(status="active")
-                )
+                row = await service.update(row.id, user_id, CvSynthItemUpdate(status="active"))
             activated.append(row)
         applied = {
             "queued": False,
             "kind": "cv_synth",
-            "items": [
-                {"id": str(row.id), "variant_key": row.variant_key} for row in activated
-            ],
+            "items": [{"id": str(row.id), "variant_key": row.variant_key} for row in activated],
         }
         cv_id = payload.get("cv_id")
         if activated and cv_id:
@@ -2123,9 +2055,7 @@ class ProfileProposalService:
             except ValueError:
                 cv_id_parsed = None
             if cv_id_parsed is not None:
-                pinned_now = await service.pin_variants_on_cv(
-                    user_id, cv_id_parsed, activated
-                )
+                pinned_now = await service.pin_variants_on_cv(user_id, cv_id_parsed, activated)
                 if pinned_now:
                     applied["pinned_cv_id"] = str(cv_id_parsed)
         return applied
@@ -2134,14 +2064,14 @@ class ProfileProposalService:
         self,
         kind: str,
         action: str,
-        entity_id: Optional[uuid.UUID],
+        entity_id: uuid.UUID | None,
         payload: dict,
         user_id: uuid.UUID,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """One dispatch table: the same calls the REST routers make."""
         from app.services.experience_service import ExperienceService
-        from app.services.profile_service import ProfileService
         from app.services.profile_entities_service import ProfileEntitiesService
+        from app.services.profile_service import ProfileService
         from app.services.skills_service import SkillService
 
         entity: Any = None
@@ -2262,9 +2192,7 @@ class ProfileProposalService:
         from app.services.cv_service import CvService
         from app.services.cv_synth_service import CvSynthService
 
-        cv = await CvService(self.db).get_owned(
-            uuid.UUID(str(payload["cv_id"])), user_id
-        )
+        cv = await CvService(self.db).get_owned(uuid.UUID(str(payload["cv_id"])), user_id)
         source_key = payload["source_key"]
         item_id = payload["item_id"]
         pin_key = f"{source_key}:{item_id}"
@@ -2272,15 +2200,12 @@ class ProfileProposalService:
         service = CvSynthService(self.db)
         if payload.get("restore"):
             selection.synth_pins = {
-                key: value
-                for key, value in (selection.synth_pins or {}).items()
-                if key != pin_key
+                key: value for key, value in (selection.synth_pins or {}).items() if key != pin_key
             }
         else:
             bullets_payload = CvSynthPayload(
                 achievements=[
-                    CvSynthBullet(text=str(bullet))
-                    for bullet in payload.get("bullets") or []
+                    CvSynthBullet(text=str(bullet)) for bullet in payload.get("bullets") or []
                 ]
             )
             pinned_id = (selection.synth_pins or {}).get(pin_key)
@@ -2289,10 +2214,7 @@ class ProfileProposalService:
                 # (description/summary) — achievements are a field patch,
                 # never a whole-payload clobber.
                 merged = dict(
-                    (
-                        await service.get_owned(uuid.UUID(str(pinned_id)), user_id)
-                    ).payload
-                    or {}
+                    (await service.get_owned(uuid.UUID(str(pinned_id)), user_id)).payload or {}
                 )
                 merged["achievements"] = list(bullets_payload.achievements)
                 await service.update(
@@ -2329,14 +2251,10 @@ class ProfileProposalService:
         )
         entries = None
         if pinned_id:
-            variant = await CvSynthService(self.db).get_owned(
-                uuid.UUID(str(pinned_id)), cv.user_id
-            )
+            variant = await CvSynthService(self.db).get_owned(uuid.UUID(str(pinned_id)), cv.user_id)
             entries = (variant.payload or {}).get("achievements")
         before = [
-            str(entry.get("text") or "")
-            for entry in entries or []
-            if isinstance(entry, dict)
+            str(entry.get("text") or "") for entry in entries or [] if isinstance(entry, dict)
         ]
         after = [str(b) for b in payload.get("bullets") or []]
         # The card's diff contract is field/label/before/after rows with
@@ -2359,8 +2277,7 @@ class ProfileProposalService:
 
     def _cv_bullets_label(self, payload: dict) -> str:
         return (
-            f"Bullets of {payload.get('item_label') or 'item'}"
-            f" on {payload.get('cv_title') or 'CV'}"
+            f"Bullets of {payload.get('item_label') or 'item'} on {payload.get('cv_title') or 'CV'}"
         )
 
     def _cv_bullets_diff(self, payload: dict) -> list[dict]:
@@ -2383,8 +2300,8 @@ class ProfileProposalService:
         self,
         kind: str,
         user_id: uuid.UUID,
-        entity_id: Optional[uuid.UUID],
-    ) -> tuple[Any, Optional[datetime]]:
+        entity_id: uuid.UUID | None,
+    ) -> tuple[Any, datetime | None]:
         if kind == ProposalKind.USER_SKILL.value:
             if entity_id is None:
                 raise NotFoundError("Target skill row not found")
@@ -2417,9 +2334,7 @@ class ProfileProposalService:
             raise NotFoundError("Target entity not found")
         return entity, entity.updated_at
 
-    async def _owned_user_skill(
-        self, user_id: uuid.UUID, row_id: uuid.UUID
-    ) -> UserSkill:
+    async def _owned_user_skill(self, user_id: uuid.UUID, row_id: uuid.UUID) -> UserSkill:
         rows = await self.db.execute(
             select(UserSkill)
             .options(selectinload(UserSkill.skill))
@@ -2499,9 +2414,7 @@ class ProfileProposalService:
         return {
             "kind": ProposalKind.PROFILE_SECTION.value,
             "section": section,
-            "updated_at": (
-                profile.updated_at.isoformat() if profile.updated_at else None
-            ),
+            "updated_at": (profile.updated_at.isoformat() if profile.updated_at else None),
             "content": getattr(profile, section, None),
             "note": "Exact current content — full-section replacement needs it.",
         }
@@ -2564,8 +2477,7 @@ class ProfileProposalService:
             ]
         else:
             refs = [
-                f"{ref.get('source_key')}:{ref.get('item_id')}"
-                for ref in payload.get("refs") or []
+                f"{ref.get('source_key')}:{ref.get('item_id')}" for ref in payload.get("refs") or []
             ]
         rows: list[dict] = [
             {"field": "refs", "label": "Items", "before": None, "after": refs[:15]},
@@ -2602,9 +2514,7 @@ class ProfileProposalService:
         labels = dict(spec.fields)
         rows = []
         for field, value in payload.items():
-            if field in {"source", "status"} and (
-                value in (None, "", [], "self_report", "active")
-            ):
+            if field in {"source", "status"} and (value in (None, "", [], "self_report", "active")):
                 continue
             raw_after = value
             after = _payload_value(field, value)
@@ -2630,9 +2540,7 @@ class ProfileProposalService:
             )
         return rows
 
-    def _update_diff(
-        self, spec: KindSpec, entity: Any, patch_fields: dict
-    ) -> list[dict]:
+    def _update_diff(self, spec: KindSpec, entity: Any, patch_fields: dict) -> list[dict]:
         labels = dict(spec.fields)
         rows = []
         for field, after_raw in patch_fields.items():
@@ -2674,9 +2582,7 @@ class ProfileProposalService:
             )
         return rows
 
-    def _section_diff(
-        self, profile: Any, section: Optional[str], value: dict
-    ) -> list[dict]:
+    def _section_diff(self, profile: Any, section: str | None, value: dict) -> list[dict]:
         if not section:
             return []
         label = section.replace("_", " ").title()

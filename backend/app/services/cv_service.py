@@ -64,9 +64,7 @@ class CvService:
     async def get_owned(self, cv_id: uuid.UUID, user_id: uuid.UUID) -> CvDocument:
         """Fetch a CV belonging to the caller."""
         rows = await self.db.execute(
-            select(CvDocument).where(
-                CvDocument.id == cv_id, CvDocument.user_id == user_id
-            )
+            select(CvDocument).where(CvDocument.id == cv_id, CvDocument.user_id == user_id)
         )
         cv = rows.scalars().first()
         if cv is None:
@@ -138,9 +136,7 @@ class CvService:
         await self.db.refresh(version)
         return version
 
-    async def list_versions(
-        self, cv_id: uuid.UUID, user_id: uuid.UUID
-    ) -> list[CvVersion]:
+    async def list_versions(self, cv_id: uuid.UUID, user_id: uuid.UUID) -> list[CvVersion]:
         """All snapshots of a CV, newest first."""
         cv = await self.get_owned(cv_id, user_id)
         rows = await self.db.execute(
@@ -150,9 +146,7 @@ class CvService:
         )
         return list(rows.scalars().all())
 
-    async def _require_owned_photo(
-        self, user_id: uuid.UUID, document_id: uuid.UUID
-    ) -> None:
+    async def _require_owned_photo(self, user_id: uuid.UUID, document_id: uuid.UUID) -> None:
         from sqlalchemy import select
 
         from app.models.document_model import Document
@@ -167,17 +161,13 @@ class CvService:
         if rows.scalars().first() is None:
             raise NotFoundError("Photo not found")
 
-    async def _require_owned_document(
-        self, user_id: uuid.UUID, document_id: uuid.UUID
-    ) -> None:
+    async def _require_owned_document(self, user_id: uuid.UUID, document_id: uuid.UUID) -> None:
         from sqlalchemy import select
 
         from app.models.document_model import Document
 
         rows = await self.db.execute(
-            select(Document.id).where(
-                Document.id == document_id, Document.user_id == user_id
-            )
+            select(Document.id).where(Document.id == document_id, Document.user_id == user_id)
         )
         if rows.scalars().first() is None:
             raise NotFoundError("Document not found")

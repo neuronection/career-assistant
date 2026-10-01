@@ -47,6 +47,6 @@ def test_committed_contract_matches_live_schema():
     live = _check_openapi_module().normalized_schema()
     assert committed == live, (
         "contracts/openapi.json is stale — run "
-        "`backend/venv/bin/python scripts/check-openapi.py --update` "
+        "`uv run --directory backend python ../scripts/check-openapi.py --update` "
         "in the same commit as the endpoint change"
     )

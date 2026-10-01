@@ -3,8 +3,7 @@ snapshots, check-ins. Everything is deterministic over shipped layers
 (21 skills/paths, 22 fit breakdown, 25 stages, 26 postings) — no new
 scoring concepts, no AI in the hot path."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -37,10 +36,10 @@ DEFAULT_CHECKIN_DAYS = 90
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def _percentile(values: list[float], pct: float) -> Optional[float]:
+def _percentile(values: list[float], pct: float) -> float | None:
     if not values:
         return None
     if len(values) < SNAPSHOT_MIN_SAMPLE:
@@ -53,10 +52,8 @@ def _percentile(values: list[float], pct: float) -> Optional[float]:
 # ---------------------------------------------------------------- radar
 
 
-async def near_miss_radar(
-    db: AsyncSession, user_id: UUID, limit: int = 8
-) -> list[dict]:
-    """Jobs in the 5.5–7.5 fit band missing few discrete skills.
+async def near_miss_radar(db: AsyncSession, user_id: UUID, limit: int = 8) -> list[dict]:
+    """Jobs in the 5.5-7.5 fit band missing few discrete skills.
 
     Deficits: core/important job skills where the user is missing or below
     required by ≤ RADAR_MAX_LEVEL_GAP levels; at most RADAR_MAX_CORE_DEFICITS
@@ -134,9 +131,7 @@ async def near_miss_radar(
                 "title": job.title,
                 "family_key": job.family.key if job.family else "",
                 "fit_score": float(insight.fit_score),
-                "deficits": sorted(deficits, key=lambda d: (-d["delta"], d["label"]))[
-                    :4
-                ],
+                "deficits": sorted(deficits, key=lambda d: (-d["delta"], d["label"]))[:4],
                 "headline": (
                     f"{len(deficits)} skill{'s' if len(deficits) != 1 else ''} away"
                     f" from {job.title}: "
@@ -161,11 +156,7 @@ async def create_plan(db: AsyncSession, user_id: UUID, target_job_id: UUID) -> d
     from app.services.job_service import JOB_LOAD_OPTIONS
 
     job = (
-        (
-            await db.execute(
-                select(Job).options(*JOB_LOAD_OPTIONS).where(Job.id == target_job_id)
-            )
-        )
+        (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS).where(Job.id == target_job_id)))
         .scalars()
         .unique()
         .first()
@@ -195,9 +186,7 @@ async def create_plan(db: AsyncSession, user_id: UUID, target_job_id: UUID) -> d
     from app.services.skills_service import SkillService
 
     gap_report = await SkillService(db).gaps(user_id, job)
-    skill_gaps = [
-        gap for gap in gap_report["gaps"] if gap["delta"] is None or gap["delta"] < 0
-    ]
+    skill_gaps = [gap for gap in gap_report["gaps"] if gap["delta"] is None or gap["delta"] < 0]
     path_hints = await SkillService(db)._path_hints(job.id)
 
     position = 0
@@ -232,11 +221,7 @@ async def create_plan(db: AsyncSession, user_id: UUID, target_job_id: UUID) -> d
 
 
 async def plan_out(db: AsyncSession, plan: GrowthPlan) -> dict:
-    job = (
-        (await db.execute(select(Job).where(Job.id == plan.target_job_id)))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.id == plan.target_job_id))).scalars().first()
     steps = (
         (
             await db.execute(
@@ -320,9 +305,9 @@ async def patch_step(
     user_id: UUID,
     step_id: UUID,
     *,
-    status: Optional[str] = None,
-    position: Optional[int] = None,
-    completed_level: Optional[int] = None,
+    status: str | None = None,
+    position: int | None = None,
+    completed_level: int | None = None,
 ) -> dict:
     """Edit one step. Completing a skill step self-reports the level,
     upserts user_skills (23-style conflict awareness) and re-fits (22)."""
@@ -350,7 +335,7 @@ async def patch_step(
         step.position = position
     if completed_level is not None:
         if not 1 <= completed_level <= 10:
-            raise ValidationError("completed_level must be 1–10")
+            raise ValidationError("completed_level must be 1-10")
         step.completed_level = completed_level
 
     refit_jobs = 0
@@ -415,9 +400,7 @@ async def patch_step(
         ).scalar() or 0
         total = (
             await db.execute(
-                select(func.count(GrowthPlanStep.id)).where(
-                    GrowthPlanStep.plan_id == plan.id
-                )
+                select(func.count(GrowthPlanStep.id)).where(GrowthPlanStep.plan_id == plan.id)
             )
         ).scalar() or 0
         if total > 0 and remaining == 0:
@@ -445,8 +428,8 @@ async def patch_step(
 async def market_snapshot(
     db: AsyncSession,
     *,
-    family_key: Optional[str] = None,
-    job_id: Optional[UUID] = None,
+    family_key: str | None = None,
+    job_id: UUID | None = None,
 ) -> dict:
     """Aggregates over postings — analytics only, never a fit input (22)."""
 
@@ -497,11 +480,9 @@ async def market_snapshot(
         from app.models.experience_model import Organization
 
         rows = await db.execute(
-            select(Organization.id, Organization.name).where(
-                Organization.id.in_(org_ids)
-            )
+            select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
         )
-        org_names = {row_id: name for row_id, name in rows.all()}
+        org_names = dict(rows.all())
     for p in postings:
         if p.org_id is not None:
             key = f"org:{p.org_id}"
@@ -531,9 +512,7 @@ async def market_snapshot(
     return {
         "sample_size": sample,
         "thin_sample": thin,
-        "months": [{"month": key, "postings": months[key]} for key in sorted(months)][
-            -12:
-        ],
+        "months": [{"month": key, "postings": months[key]} for key in sorted(months)][-12:],
         "salary_band": None
         if thin
         else {
@@ -587,8 +566,8 @@ async def complete_checkin(
     db: AsyncSession,
     user_id: UUID,
     *,
-    stage: Optional[str] = None,
-    skills: Optional[dict[str, int]] = None,
+    stage: str | None = None,
+    skills: dict[str, int] | None = None,
     skipped: bool = False,
 ) -> dict:
     """5-minute flow: confirm stage, micro self-report with conflict
@@ -610,11 +589,7 @@ async def complete_checkin(
             resolved = await _resolve_skills(db, list(skills.keys()))
             existing = {
                 row.skill_id: row
-                for row in (
-                    await db.execute(
-                        select(UserSkill).where(UserSkill.user_id == user_id)
-                    )
-                )
+                for row in (await db.execute(select(UserSkill).where(UserSkill.user_id == user_id)))
                 .scalars()
                 .all()
             }

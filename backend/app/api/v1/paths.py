@@ -30,9 +30,7 @@ async def job_paths(
     from app.services.stages_service import stage_for_user
 
     stage, _source = await stage_for_user(db, user.id)
-    return await PathService(db).paths_out(
-        job.id, include_drafts=include_drafts, stage=stage
-    )
+    return await PathService(db).paths_out(job.id, include_drafts=include_drafts, stage=stage)
 
 
 @router.get("/jobs/{ref}/paths/graph", response_model=PathGraphOut)

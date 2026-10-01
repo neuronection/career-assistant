@@ -37,14 +37,14 @@ class Phase:
     phase_number: int = 0
 
     async def build_questions(
-        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+        self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         raise NotImplementedError
 
     async def score(
         self,
         db: AsyncSession,
-        run: "AssessmentRun",
+        run: AssessmentRun,
         answers: list[dict],
         derived: dict,
     ) -> dict:
@@ -62,14 +62,14 @@ class ProfileFoundation(Phase):
     phase_number = 1
 
     async def build_questions(
-        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+        self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         return []
 
     async def score(
         self,
         db: AsyncSession,
-        run: "AssessmentRun",
+        run: AssessmentRun,
         answers: list[dict],
         derived: dict,
     ) -> dict:
@@ -88,7 +88,7 @@ class StandardScenarios(Phase):
     phase_number = 2
 
     async def build_questions(
-        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+        self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         from app.services.stages_service import stage_for_user
 
@@ -109,9 +109,7 @@ class StandardScenarios(Phase):
             .all()
         )
         eligible = [
-            q
-            for q in rows
-            if not q.audience_stages or stage.value in (q.audience_stages or [])
+            q for q in rows if not q.audience_stages or stage.value in (q.audience_stages or [])
         ][:MAX_QUESTIONS_PER_PHASE]
         return [_clone_for_run(db, run, q) for q in eligible]
 
@@ -127,7 +125,7 @@ class AIScenarios(Phase):
     phase_number = 3
 
     async def build_questions(
-        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+        self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         from app.ai.agents.assessment_designer import generate_question_set
         from app.services.profile_service import ProfileService
@@ -151,7 +149,7 @@ class AIScenarios(Phase):
                 skill_keys,
                 stage=stage.value,
             )
-        except Exception:  # noqa: BLE001 — degrade, never break the run
+        except Exception:
             return await _bank_fallback(db, run, stage)
 
         items = question_set.model_dump(mode="json").get("questions") or []
@@ -199,7 +197,7 @@ class AIScenarios(Phase):
 
 class TemplateQuestions(Phase):
     """phases — template content materialized as ordinary
-    questions. Engine phase numbers 5+ map to template phase index n−5;
+    questions. Engine phase numbers 5+ map to template phase index n-5;
     scoring rides the shared kind handlers exactly like phase 2."""
 
     def __init__(self, template_index: int):
@@ -214,7 +212,7 @@ class TemplateQuestions(Phase):
         return phases[self.template_index].get("questions") or []
 
     async def build_questions(
-        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+        self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         from app.models.enums import QuestionSource
 
@@ -268,7 +266,7 @@ def resolve_phase(phase_number: int, ctx: dict | None = None) -> Phase:
     raise KeyError(f"unknown phase: {phase_number}")
 
 
-def phase_title_for(run: "AssessmentRun", phase_number: int) -> str:
+def phase_title_for(run: AssessmentRun, phase_number: int) -> str:
     """Title lookup: engine phases by number, template phases by context."""
     if phase_number >= 5:
         titles = (run.context or {}).get("phase_titles") or {}
@@ -282,7 +280,7 @@ class PersonalizedSelection(Phase):
     phase_number = 4
 
     async def build_questions(
-        self, db: AsyncSession, run: "AssessmentRun", ctx: dict
+        self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         from app.services.job_service import JobService
 
@@ -295,9 +293,7 @@ class PersonalizedSelection(Phase):
                 "id": f"job:{job.code}",
                 "label": job.title,
                 "detail": job.short_description,
-                "scores": {
-                    "interest_keys": [link.tag.key for link in job.tag_links][:3]
-                },
+                "scores": {"interest_keys": [link.tag.key for link in job.tag_links][:3]},
             }
             for job in jobs[:12]
         ]
@@ -337,7 +333,7 @@ class PersonalizedSelection(Phase):
     async def score(
         self,
         db: AsyncSession,
-        run: "AssessmentRun",
+        run: AssessmentRun,
         answers: list[dict],
         derived: dict,
     ) -> dict:
@@ -355,7 +351,7 @@ class PersonalizedSelection(Phase):
 
 
 def _clone_for_run(
-    db: AsyncSession, run: "AssessmentRun", question: AssessmentQuestion
+    db: AsyncSession, run: AssessmentRun, question: AssessmentQuestion
 ) -> AssessmentQuestion:
     """Materialize a bank question as a run-scoped copy (answers need a run)."""
     clone = AssessmentQuestion(
@@ -374,7 +370,7 @@ def _clone_for_run(
     return clone
 
 
-async def _bank_fallback(db: AsyncSession, run: "AssessmentRun", stage=None) -> list:
+async def _bank_fallback(db: AsyncSession, run: AssessmentRun, stage=None) -> list:
     from app.models.enums import CareerStage
 
     if isinstance(stage, str):
@@ -396,9 +392,7 @@ async def _bank_fallback(db: AsyncSession, run: "AssessmentRun", stage=None) -> 
     )
     if stage is not None:
         rows = [
-            q
-            for q in rows
-            if not q.audience_stages or stage.value in (q.audience_stages or [])
+            q for q in rows if not q.audience_stages or stage.value in (q.audience_stages or [])
         ]
     clones = []
     for index, question in enumerate(rows[:6]):

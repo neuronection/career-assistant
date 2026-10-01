@@ -1,10 +1,10 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Scheduler runner (Phase 29): claims due schedules, enqueues
 jobs, advances next_run_at. The scheduler decides WHEN; the queue decides
 WHAT/HOW — a tick never runs business logic itself."""
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.models.background_job_model import BackgroundJob
-from app.models.enums import BackgroundJobStatus
 from app.models.enums import (
+    BackgroundJobStatus,
     BackgroundJobType,
     MisfirePolicy,
     ScheduleKind,
@@ -35,9 +35,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_REFIT_SWEEP.value: BackgroundJobType.FIT_REFIT.value,
     ScheduleKind.SYSTEM_CATALOG_ENRICH.value: BackgroundJobType.CATALOG_ENRICH.value,
     ScheduleKind.SYSTEM_FOLLOWUPS.value: BackgroundJobType.FOLLOWUP_SWEEP.value,
-    ScheduleKind.SYSTEM_MARKET_HISTORY.value: (
-        BackgroundJobType.MARKET_HISTORY_CAPTURE.value
-    ),
+    ScheduleKind.SYSTEM_MARKET_HISTORY.value: (BackgroundJobType.MARKET_HISTORY_CAPTURE.value),
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
     ScheduleKind.USER_AUTOPILOT.value: BackgroundJobType.AUTOPILOT_RUN.value,
     ScheduleKind.USER_CHECKIN.value: None,
@@ -45,7 +43,7 @@ KIND_TASKS = {
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def payload_hash(payload: dict) -> str:
@@ -140,9 +138,7 @@ class SchedulerService:
             )
         await self.db.commit()
 
-    async def ensure_user_schedules(
-        self, user_id: UUID, now: Optional[datetime] = None
-    ) -> None:
+    async def ensure_user_schedules(self, user_id: UUID, now: datetime | None = None) -> None:
         """Lazily provision per-user schedules (check-in + weekly digest)."""
         now = now or _utcnow()
         await self.ensure_schedule(
@@ -174,13 +170,13 @@ class SchedulerService:
         self,
         *,
         kind: str,
-        owner_user_id: Optional[UUID],
-        task: Optional[str],
+        owner_user_id: UUID | None,
+        task: str | None,
         trigger: dict,
         payload: dict,
         misfire_policy: str,
         default_interval_minutes: int,
-        now: Optional[datetime] = None,
+        now: datetime | None = None,
     ) -> Schedule:
         """Create-or-return the unique (kind, owner, payload_hash) schedule."""
         now = now or _utcnow()
@@ -214,8 +210,8 @@ class SchedulerService:
     # ---------------------------------------------------------------- CRUD
 
     async def set_saved_search_schedule(
-        self, user_id: UUID, search_id: UUID, trigger: Optional[dict]
-    ) -> Optional[Schedule]:
+        self, user_id: UUID, search_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
         """Attach/remove a schedule to a saved search."""
         from app.models.engagement_model import SearchHistory
 
@@ -259,8 +255,8 @@ class SchedulerService:
         return schedule
 
     async def set_autopilot_schedule(
-        self, user_id: UUID, goal_id: UUID, trigger: Optional[dict]
-    ) -> Optional[Schedule]:
+        self, user_id: UUID, goal_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
         """Attach/remove the cadence schedule of an autopilot goal."""
         from app.models.autopilot_model import AutopilotGoal
 
@@ -305,12 +301,8 @@ class SchedulerService:
         await self.db.refresh(schedule)
         return schedule
 
-    async def list_schedules(
-        self, owner_user_id: Optional[UUID] = None
-    ) -> list[Schedule]:
-        query = select(Schedule).order_by(
-            Schedule.next_run_at.is_not(None), Schedule.next_run_at
-        )
+    async def list_schedules(self, owner_user_id: UUID | None = None) -> list[Schedule]:
+        query = select(Schedule).order_by(Schedule.next_run_at.is_not(None), Schedule.next_run_at)
         if owner_user_id is None:
             query = query.where(Schedule.owner_user_id.is_(None))
         else:
@@ -321,9 +313,7 @@ class SchedulerService:
         schedule = await self._get(schedule_id)
         schedule.enabled = enabled
         if enabled and schedule.next_run_at is None:
-            schedule.next_run_at = trigger_registry.next_after(
-                schedule.trigger, _utcnow()
-            )
+            schedule.next_run_at = trigger_registry.next_after(schedule.trigger, _utcnow())
         await self.db.commit()
         await self.db.refresh(schedule)
         return schedule
@@ -347,7 +337,7 @@ class SchedulerService:
 
     # ---------------------------------------------------------------- tick
 
-    async def tick(self, now: Optional[datetime] = None) -> int:
+    async def tick(self, now: datetime | None = None) -> int:
         """One scheduler pass: claim due schedules and enqueue their tasks.
 
         Claim = conditional UPDATE (dialect-portable, like): the row
@@ -398,14 +388,11 @@ class SchedulerService:
         if schedule.misfire_policy in (
             MisfirePolicy.SKIP.value,
             MisfirePolicy.NEXT_SLOT.value,
-        ):
-            if lateness > max(period * 2, 2 * 3600):
-                schedule.last_status = ScheduleStatus.SKIPPED_MISFIRE.value
-                schedule.next_run_at = trigger_registry.next_after(
-                    schedule.trigger, now
-                )
-                await self.db.commit()
-                return False
+        ) and lateness > max(period * 2, 2 * 3600):
+            schedule.last_status = ScheduleStatus.SKIPPED_MISFIRE.value
+            schedule.next_run_at = trigger_registry.next_after(schedule.trigger, now)
+            await self.db.commit()
+            return False
 
         # Banner-only kinds (user_checkin): due = the banner; no job.
         if schedule.task is None:
@@ -441,9 +428,7 @@ class SchedulerService:
                 BACKOFF_MAX_SECONDS,
                 BACKOFF_BASE_SECONDS * (2 ** min(schedule.consecutive_failures, 10)),
             )
-            if schedule.last_run_at and now - schedule.last_run_at < timedelta(
-                seconds=delay
-            ):
+            if schedule.last_run_at and now - schedule.last_run_at < timedelta(seconds=delay):
                 schedule.last_status = ScheduleStatus.BACKOFF.value
                 schedule.next_run_at = schedule.last_run_at + timedelta(seconds=delay)
                 await self.db.commit()
@@ -461,9 +446,7 @@ class SchedulerService:
     def _estimate_period(schedule: Schedule) -> float:
         try:
             nxt = trigger_registry.next_after(schedule.trigger, _utcnow())
-            base = trigger_registry.next_after(
-                schedule.trigger, _utcnow() - timedelta(minutes=1)
-            )
+            base = trigger_registry.next_after(schedule.trigger, _utcnow() - timedelta(minutes=1))
             return max(60.0, (nxt - base).total_seconds())
         except ValidationError:
             return 3600.0
@@ -517,7 +500,7 @@ class SchedulerService:
             )
 
 
-async def start_scheduler() -> Optional[object]:
+async def start_scheduler() -> object | None:
     """Background loop for the app lifespan (single-process, like)."""
     import asyncio
 
@@ -535,7 +518,7 @@ async def start_scheduler() -> Optional[object]:
                     service = SchedulerService(db)
                     await service.ensure_system_schedules()
                     await service.tick()
-            except Exception as exc:  # noqa: BLE001 — the loop must survive
+            except Exception as exc:
                 logger.warning("Scheduler tick failed: %s", exc)
             await asyncio.sleep(settings.scheduler_interval_seconds)
 

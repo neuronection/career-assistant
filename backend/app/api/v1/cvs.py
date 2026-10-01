@@ -14,6 +14,12 @@ from app.models.enums import (
     BackgroundJobType,
     CvVersionCreator,
 )
+from app.schemas.cover_letter import (
+    CoverLetterActionRequest,
+    CoverLetterBriefOut,
+    CoverLetterCreate,
+    CoverLetterSuggestionOut,
+)
 from app.schemas.cv import (
     CvCompileOut,
     CvContextItemRef,
@@ -44,19 +50,13 @@ from app.schemas.cv_generate import (
     CvRunOut,
 )
 from app.schemas.cv_suggest import CvActionRequest, CvSuggestionOut
-from app.schemas.cover_letter import (
-    CoverLetterActionRequest,
-    CoverLetterBriefOut,
-    CoverLetterCreate,
-    CoverLetterSuggestionOut,
-)
+from app.services.cover_letter_service import CoverLetterService
 from app.services.cv_builder_service import CvBuilderService
 from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
 from app.services.cv_export_service import CvExportService
 from app.services.cv_generate_service import enqueue_generation, enqueue_polish
 from app.services.cv_pdf_service import PDFEngineUnavailable
 from app.services.cv_service import CvService
-from app.services.cover_letter_service import CoverLetterService
 from app.services.cv_suggestion_service import CvSuggestionService
 from app.services.deps import get_current_user
 
@@ -176,9 +176,7 @@ async def generate_status(
 ) -> CvGenerateStatusOut:
     """Progress + result of one generate run (the queue's job record)."""
     rows = await db.execute(
-        select(BackgroundJob).where(
-            BackgroundJob.id == job_id, BackgroundJob.user_id == user.id
-        )
+        select(BackgroundJob).where(BackgroundJob.id == job_id, BackgroundJob.user_id == user.id)
     )
     job = rows.scalars().first()
     if job is None or job.job_type != BackgroundJobType.CV_GENERATE.value:
@@ -210,9 +208,7 @@ async def generate_preview(
     draft does not exist yet (queued/plan/draft stages) answers 200
     with an empty snapshot instead — the progress card polls."""
     rows = await db.execute(
-        select(BackgroundJob).where(
-            BackgroundJob.id == job_id, BackgroundJob.user_id == user.id
-        )
+        select(BackgroundJob).where(BackgroundJob.id == job_id, BackgroundJob.user_id == user.id)
     )
     job = rows.scalars().first()
     if job is None or job.job_type not in (
@@ -475,9 +471,7 @@ async def list_cv_runs(
                 iterations=polish.get("iterations") or [],
                 llm_calls=calls,
                 warnings=[str(w) for w in result.get("warnings") or []],
-                fallback_sections=[
-                    str(x) for x in result.get("fallback_sections") or []
-                ],
+                fallback_sections=[str(x) for x in result.get("fallback_sections") or []],
                 plan_fallback=bool(result.get("plan_fallback")),
                 aggregate=_run_aggregate(calls),
             )
@@ -605,8 +599,7 @@ async def cv_design(
             CvTemplateMeta(
                 id=str(template.id),
                 title=template.title,
-                owned=template.author_user_id == user.id
-                and template.author_key != "bank",
+                owned=template.author_user_id == user.id and template.author_key != "bank",
                 ats_safe=template.ats_safe,
             )
             if template
@@ -677,9 +670,7 @@ async def compile_cv(
         version, html, metrics = await builder.compile(cv)
     except ValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    return CvCompileOut(
-        version=CvVersionOut.model_validate(version), html=html, metrics=metrics
-    )
+    return CvCompileOut(version=CvVersionOut.model_validate(version), html=html, metrics=metrics)
 
 
 @router.get("/{cv_id}/versions/{version}/preview", response_class=HTMLResponse)
@@ -692,9 +683,7 @@ async def preview_version(
     """Render an immutable version snapshot exactly as it was compiled."""
     cv, builder = await _owned_builder(cv_id, user.id, db)
     rows = await db.execute(
-        select(CvVersion).where(
-            CvVersion.cv_document_id == cv.id, CvVersion.version == version
-        )
+        select(CvVersion).where(CvVersion.cv_document_id == cv.id, CvVersion.version == version)
     )
     target = rows.scalars().first()
     if target is None:
@@ -713,9 +702,7 @@ async def restore_version(
     service = CvService(db)
     cv, builder = await _owned_builder(cv_id, user.id, db)
     rows = await db.execute(
-        select(CvVersion).where(
-            CvVersion.cv_document_id == cv.id, CvVersion.version == version
-        )
+        select(CvVersion).where(CvVersion.cv_document_id == cv.id, CvVersion.version == version)
     )
     target = rows.scalars().first()
     if target is None:
@@ -806,9 +793,7 @@ async def export_cv(
     return Response(
         content=artifact.content,
         media_type=artifact.media_type,
-        headers={
-            "Content-Disposition": f'{disposition}; filename="{artifact.filename}"'
-        },
+        headers={"Content-Disposition": f'{disposition}; filename="{artifact.filename}"'},
     )
 
 
@@ -839,9 +824,7 @@ async def ai_cover_letter(
     cv, _builder = await _owned_builder(cv_id, user.id, db)
     try:
         service = CvSuggestionService(db)
-        return await CoverLetterService(db).draft(
-            cv, payload, await service.template_prompts(cv)
-        )
+        return await CoverLetterService(db).draft(cv, payload, await service.template_prompts(cv))
     except ValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 

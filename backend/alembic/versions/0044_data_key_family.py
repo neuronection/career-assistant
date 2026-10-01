@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Plan 16 P3d (C7): DATA_KEY family — retire the JWT-derived Fernet.
 
 The secrets-at-rest cipher moves from the legacy Fernet derived from
@@ -29,9 +30,10 @@ import hashlib
 import os
 from pathlib import Path
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 # Mirrors app.models.base.StructuredJSON (JSONB on PostgreSQL, JSON on
 # SQLite) — inline so this history keeps matching the stored column.
@@ -75,7 +77,7 @@ def _legacy_secret() -> str | None:
         if path.is_file():
             value = path.read_text(encoding="utf-8").strip()
             return value or None
-    except Exception:  # noqa: BLE001 — best-effort historical drain
+    except Exception:
         return None
     return None
 
@@ -110,7 +112,7 @@ def _drain_value(value: str, legacy, data) -> str | None:
     if legacy is not None:
         try:
             plaintext = legacy.decrypt(token).decode("utf-8")
-        except Exception:  # noqa: BLE001 — wrong/absent legacy key ⇒ clear
+        except Exception:
             plaintext = None
     if plaintext is None:
         return None
@@ -142,16 +144,13 @@ def upgrade() -> None:
 
     # 2. The remaining sealed values ride the one-shot drain (see table).
     legacy = _legacy_cipher()
-    sealed_rows = bind.execute(
-        sa.select(_app_settings.c.key, _app_settings.c.value)
-    ).fetchall()
-    needs_drain = any(
-        list(_walk(row.value)) for row in sealed_rows if isinstance(row.value, (dict, list))
-    ) or bind.execute(
-        sa.select(_mcp_servers.c.name).where(
-            _mcp_servers.c.token.like(f"{_ENCRYPTED_PREFIX}%")
-        )
-    ).fetchall()
+    sealed_rows = bind.execute(sa.select(_app_settings.c.key, _app_settings.c.value)).fetchall()
+    needs_drain = (
+        any(list(_walk(row.value)) for row in sealed_rows if isinstance(row.value, (dict, list)))
+        or bind.execute(
+            sa.select(_mcp_servers.c.name).where(_mcp_servers.c.token.like(f"{_ENCRYPTED_PREFIX}%"))
+        ).fetchall()
+    )
     if not needs_drain:
         return
 

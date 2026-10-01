@@ -191,9 +191,7 @@ JOBS: list[dict] = [
         ["data-analysis", "mathematics", "programming"],
         ["mathematics", "statistics"],
         _ws(structure=2, teamwork=3),
-        _edu(
-            EducationLevel.BACHELOR, ["statistics", "computer-science", "mathematics"]
-        ),
+        _edu(EducationLevel.BACHELOR, ["statistics", "computer-science", "mathematics"]),
         {"activity": PhysicalActivity.SEDENTARY, "requirements": []},
         _salary([40000, 60000], [70000, 110000], [110000, 170000]),
         {

@@ -1,11 +1,9 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 
 from app.ai.agents import score_match
 from app.models.enums import DemandOutlook, MatchStatus
@@ -156,9 +154,7 @@ class MatchingService:
         for job in jobs:
             insight = insights.get(job.id)
             fit_score = (
-                float(insight.fit_score)
-                if insight and insight.fit_score is not None
-                else 0.0
+                float(insight.fit_score) if insight and insight.fit_score is not None else 0.0
             )
             if self._is_gated(insight):
                 continue
@@ -196,9 +192,7 @@ class MatchingService:
         return rows.scalars().first()
 
     async def _insights_map(self, user_id: UUID) -> dict[UUID, MatchInsight]:
-        rows = await self.db.execute(
-            select(MatchInsight).where(MatchInsight.user_id == user_id)
-        )
+        rows = await self.db.execute(select(MatchInsight).where(MatchInsight.user_id == user_id))
         return {row.job_id: row for row in rows.scalars().all()}
 
     async def _insert_if_absent(self, user_id: UUID, job_id: UUID) -> None:
@@ -233,15 +227,11 @@ class MatchingService:
         insight.ai_summary = result.summary
         insight.ai_positives = [p.model_dump(mode="json") for p in result.positives]
         insight.ai_negatives = [n.model_dump(mode="json") for n in result.negatives]
-        insight.prerequisites = [
-            p.model_dump(mode="json") for p in result.prerequisites
-        ]
+        insight.prerequisites = [p.model_dump(mode="json") for p in result.prerequisites]
         insight.ai_model = "current"
-        insight.ai_generated_at = datetime.now(timezone.utc)
+        insight.ai_generated_at = datetime.now(UTC)
         if insight.fit_score is None:
-            fit = await FitService(self.db).fit_for(
-                await self._profile_for(user_id), job
-            )
+            fit = await FitService(self.db).fit_for(await self._profile_for(user_id), job)
             insight.fit_score = fit.score
             insight.fit_breakdown = {
                 "dimensions": fit.breakdown,
@@ -262,9 +252,9 @@ class MatchingService:
         user_id: UUID,
         job_id: UUID,
         *,
-        user_score: Optional[int] = None,
-        status: Optional[MatchStatus] = None,
-        notes: Optional[str] = None,
+        user_score: int | None = None,
+        status: MatchStatus | None = None,
+        notes: str | None = None,
     ) -> MatchInsight:
         """Store the user's own score/status for a job."""
         job = await JobService(self.db).require_job(job_id)
@@ -273,9 +263,7 @@ class MatchingService:
             await self._insert_if_absent(user_id, job.id)
             insight = await self._get_insight(user_id, job.id)
             if insight is None:
-                raise IntegrityError(
-                    "insight vanished between insert and read", None, None
-                )
+                raise IntegrityError("insight vanished between insert and read", None, None)
         if user_score is not None:
             insight.user_score = user_score
         if status is not None:
@@ -287,7 +275,7 @@ class MatchingService:
         return insight
 
     async def my_insights(
-        self, user_id: UUID, *, status: Optional[MatchStatus] = None
+        self, user_id: UUID, *, status: MatchStatus | None = None
     ) -> list[MatchInsight]:
         """All insights for a user, optionally filtered by status."""
         query = select(MatchInsight).where(MatchInsight.user_id == user_id)
@@ -307,7 +295,7 @@ class MatchingService:
         environment: str | None = None,
         min_salary: int | None = None,
         ai_score_min: float | None = None,
-        status: Optional[MatchStatus] = None,
+        status: MatchStatus | None = None,
         q: str | None = None,
         sort: str = "fit",
         stretch: bool = False,
@@ -346,14 +334,8 @@ class MatchingService:
                 continue
             if status and (insight is None or insight.status != status.value):
                 continue
-            ai_score = (
-                float(insight.ai_score)
-                if insight and insight.ai_score is not None
-                else None
-            )
-            if ai_score_min is not None and (
-                ai_score is None or ai_score < ai_score_min
-            ):
+            ai_score = float(insight.ai_score) if insight and insight.ai_score is not None else None
+            if ai_score_min is not None and (ai_score is None or ai_score < ai_score_min):
                 continue
             fit_score = float(insight.fit_score)
             ai_effective = ai_score if ai_score is not None else fit_score
@@ -377,15 +359,9 @@ class MatchingService:
         if sort == "fit":
             return lambda item: item["score"]
         if sort == "ai_score":
-            return (
-                lambda item: float(item["insight"].ai_score or 0)
-                if item["insight"]
-                else 0
-            )
+            return lambda item: float(item["insight"].ai_score or 0) if item["insight"] else 0
         if sort == "user_score":
-            return (
-                lambda item: item["insight"].user_score or 0 if item["insight"] else 0
-            )
+            return lambda item: item["insight"].user_score or 0 if item["insight"] else 0
         if sort == "demand":
             # Opt-in plain sort on the demand outlook — never a multiplier.
             return lambda item: DEMAND_NUMERIC.get(

@@ -1,14 +1,15 @@
 """Security hardening: rate limits, lockout, token revocation, headers."""
 
 from dataclasses import replace
+from datetime import UTC
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.ratelimit import SlidingWindowRateLimiter, client_identity
 from app.models.user_model import User
-from sqlalchemy import select
 from tests.conftest import auth_kit, session_headers
 
 
@@ -21,9 +22,7 @@ def _reset_limiter_state():
     ratelimit.limiter._events.clear()
 
 
-async def _register(
-    client: AsyncClient, email="student@example.com", password="supersecret1"
-):
+async def _register(client: AsyncClient, email="student@example.com", password="supersecret1"):
     return await client.post(
         "/api/v1/auth/register",
         json={"email": email, "password": password, "full_name": "T"},
@@ -82,9 +81,7 @@ def test_client_identity_default_trusts_no_forwarded_hops():
 
 def test_client_identity_trusts_exactly_n_hops(monkeypatch):
     monkeypatch.setattr(settings, "trusted_proxy_count", 2)
-    scope = _scope(
-        {"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 203.0.113.9"}, client=("9.9.9.9", 5)
-    )
+    scope = _scope({"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 203.0.113.9"}, client=("9.9.9.9", 5))
     assert client_identity(scope) == "1.1.1.1", "rightmost 2 hops trusted"
 
 
@@ -118,7 +115,7 @@ async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
 
 
 async def test_lockout_after_threshold_then_expiry(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     kit = auth_kit()
     kit.config = replace(kit.config, lockout_threshold=3, lockout_minutes=15)
@@ -131,9 +128,7 @@ async def test_lockout_after_threshold_then_expiry(client, db):
         )
         assert response.status_code == 401
     assert (
-        await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
-        )
+        await client.post("/api/v1/auth/login", json={"email": email, "password": "wrong-pass"})
     ).status_code == 423
 
     locked = await client.post(
@@ -144,11 +139,9 @@ async def test_lockout_after_threshold_then_expiry(client, db):
 
     user = (await db.execute(select(User).where(User.email == email))).scalars().first()
     # Lock window elapsed (§7) — simulate the clock passing.
-    kit.users.set_login_failures(user.id, 2, datetime.now(timezone.utc))
+    kit.users.set_login_failures(user.id, 2, datetime.now(UTC))
 
-    ok = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": "supersecret1"}
-    )
+    ok = await client.post("/api/v1/auth/login", json={"email": email, "password": "supersecret1"})
     assert ok.status_code == 200
 
 
@@ -156,12 +149,8 @@ async def test_successful_login_resets_failure_counter(client, db):
     await _register(client, "reset@example.com")
     email = "reset@example.com"
     for _ in range(2):
-        await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
-        )
-    ok = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": "supersecret1"}
-    )
+        await client.post("/api/v1/auth/login", json={"email": email, "password": "wrong-pass"})
+    ok = await client.post("/api/v1/auth/login", json={"email": email, "password": "supersecret1"})
     assert ok.status_code == 200
     user = (await db.execute(select(User).where(User.email == email))).scalars().first()
     assert user.failed_login_attempts == 0
@@ -250,6 +239,4 @@ async def test_ai_rate_limit_per_user(monkeypatch):
         assert ratelimit.limiter.check("ai", f"user:{uid}") is None
 
     with pytest.raises(DomainError, match="rate limit"):
-        await gateway.ainvoke_structured(
-            None, AITaskType.ASSIST, dict, "sys", "usr", user_id=uid
-        )
+        await gateway.ainvoke_structured(None, AITaskType.ASSIST, dict, "sys", "usr", user_id=uid)

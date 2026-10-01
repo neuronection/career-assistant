@@ -64,7 +64,7 @@ def _load_plugins() -> None:
     for ep in eps:
         try:
             connector = ep.load()()
-        except Exception as exc:  # noqa: BLE001 — one bad plugin never breaks boot
+        except Exception as exc:
             logger.warning("Connector plugin %s failed to load: %s", ep.name, exc)
             continue
         if not isinstance(connector, PostingConnector):

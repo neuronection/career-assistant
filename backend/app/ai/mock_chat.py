@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Deterministic chat mock for MOCK_AI dev/test runs (ADR-0016 plan 98).
 
 Extracted from the production chatbot module: these builders only serve
@@ -77,8 +78,7 @@ def _section_was_read(tools: dict, section: str) -> bool:
     if tools.get("_read_all"):
         return True
     return any(
-        row.get("section") == section
-        for row in _read_observations(tools, "read_profile_section")
+        row.get("section") == section for row in _read_observations(tools, "read_profile_section")
     )
 
 
@@ -120,9 +120,7 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
     education = tools.get("my_education") or {}
     certs = education.get("certifications") or []
     read_items = _read_observations(tools, "read_profile_item")
-    if items and not any(
-        str(row.get("entity_id")) == str(items[0]["id"]) for row in read_items
-    ):
+    if items and not any(str(row.get("entity_id")) == str(items[0]["id"]) for row in read_items):
         return [
             {
                 "name": "read_profile_item",
@@ -133,9 +131,7 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
         not items
         and certs
         and words & {"delete", "remove"}
-        and not any(
-            str(row.get("entity_id")) == str(certs[0]["id"]) for row in read_items
-        )
+        and not any(str(row.get("entity_id")) == str(certs[0]["id"]) for row in read_items)
     ):
         return [
             {
@@ -145,9 +141,8 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
         ]
     if (tools.get("my_profile_digest") or {}) and (
         words & set(_LANGUAGE_CODES) or "language" in words
-    ):
-        if not _section_was_read(tools, "academics"):
-            return [{"name": "read_profile_section", "args": {"section": "academics"}}]
+    ) and not _section_was_read(tools, "academics"):
+        return [{"name": "read_profile_section", "args": {"section": "academics"}}]
     return []
 
 
@@ -197,9 +192,7 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "payload": {
                     "refs": [
                         {
-                            "source_key": source_by_kind.get(
-                                item.get("kind"), "experience"
-                            ),
+                            "source_key": source_by_kind.get(item.get("kind"), "experience"),
                             "item_id": item["id"],
                         }
                         for item in items[:3]
@@ -265,11 +258,7 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "entity_id": items[0]["id"],
             }
         ]
-    if (
-        certs
-        and words & {"delete", "remove"}
-        and _was_read(tools, "certification", certs[0]["id"])
-    ):
+    if certs and words & {"delete", "remove"} and _was_read(tools, "certification", certs[0]["id"]):
         return [
             {
                 "kind": "certification",
@@ -419,8 +408,7 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
         if profile_ops:
             return {
                 "answer": (
-                    "I've drafted a bullet rewrite for "
-                    f"{title} — review the card and approve it."
+                    f"I've drafted a bullet rewrite for {title} — review the card and approve it."
                 ),
                 "profile_ops": profile_ops,
                 "referenced_job_codes": [],
@@ -468,8 +456,7 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
 
     if posting_cards:
         cited = ", ".join(
-            f"{card['ref']} {card['title']} via {card['source']}"
-            for card in posting_cards[:3]
+            f"{card['ref']} {card['title']} via {card['source']}" for card in posting_cards[:3]
         )
         answer = (
             f"Open roles matching “{message[:60]}”: {cited}. "
@@ -529,9 +516,7 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
     # marker) — parse defensively so the CV-bullet grounding works.
     ctx: dict[str, Any] = {}
     try:
-        ctx, _ = json.JSONDecoder().raw_decode(
-            user_text[user_text.index("{") :].lstrip()
-        )
+        ctx, _ = json.JSONDecoder().raw_decode(user_text[user_text.index("{") :].lstrip())
     except (ValueError, json.JSONDecodeError):
         ctx = parse_context(user_text) or {}
     tools = ctx.get("tool_results") or {}

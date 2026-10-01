@@ -11,8 +11,7 @@ is coming without waiting for the sweep.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,10 +29,10 @@ MILESTONE_STAGES = {"interview", "offer"}
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def followup_prefs(preferences: Optional[dict]) -> dict:
+def followup_prefs(preferences: dict | None) -> dict:
     """Normalized per-user follow-up settings (defaults merged in)."""
     raw = (preferences or {}).get("followups") or {}
     enabled = bool(raw.get("enabled", True))
@@ -42,9 +41,7 @@ def followup_prefs(preferences: Optional[dict]) -> dict:
     return {
         "enabled": enabled,
         "first_delay_days": max(1, min(int(first), 60)),
-        "second_delay_days": max(
-            max(1, min(int(first), 60)) + 1, min(int(second), 120)
-        ),
+        "second_delay_days": max(max(1, min(int(first), 60)) + 1, min(int(second), 120)),
     }
 
 
@@ -52,9 +49,7 @@ def _dedup_key(user_id: uuid.UUID, interaction_id: uuid.UUID, step: str) -> str:
     return f"followup:{user_id}:{interaction_id}:{step}"
 
 
-async def _sent_steps(
-    db: AsyncSession, user_id: uuid.UUID, interaction_id: uuid.UUID
-) -> set[str]:
+async def _sent_steps(db: AsyncSession, user_id: uuid.UUID, interaction_id: uuid.UUID) -> set[str]:
     """Steps already emitted for one interaction (row exists = sent —
     dedup expiry only gates re-collapsing, never the history)."""
     prefix = f"followup:{user_id}:{interaction_id}:"
@@ -73,7 +68,7 @@ async def _posting_map(
     return {posting.id: posting for posting in rows.scalars().all()}
 
 
-async def sweep(db: AsyncSession, now: Optional[datetime] = None) -> int:
+async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
     """One follow-up pass over every applied interaction; returns the
     number of notifications emitted."""
     from app.services.profile_service import ProfileService
@@ -108,9 +103,7 @@ async def sweep(db: AsyncSession, now: Optional[datetime] = None) -> int:
         applied_at = interaction.applied_at
         if applied_at is None:
             continue
-        applied_at = (
-            applied_at if applied_at.tzinfo else applied_at.replace(tzinfo=timezone.utc)
-        )
+        applied_at = applied_at if applied_at.tzinfo else applied_at.replace(tzinfo=UTC)
 
         if interaction.stage in MILESTONE_STAGES:
             step = f"stage:{interaction.stage}"
@@ -199,9 +192,7 @@ async def list_followups(db: AsyncSession, user_id: uuid.UUID) -> dict:
         .order_by(PostingInteraction.applied_at.desc())
     )
     interactions = list(rows.scalars().all())
-    postings = await _posting_map(
-        db, [interaction.posting_id for interaction in interactions]
-    )
+    postings = await _posting_map(db, [interaction.posting_id for interaction in interactions])
     now = _utcnow()
     items = []
     for interaction in interactions:
@@ -210,9 +201,7 @@ async def list_followups(db: AsyncSession, user_id: uuid.UUID) -> dict:
         applied_at = interaction.applied_at
         if applied_at is None:
             continue
-        applied_at = (
-            applied_at if applied_at.tzinfo else applied_at.replace(tzinfo=timezone.utc)
-        )
+        applied_at = applied_at if applied_at.tzinfo else applied_at.replace(tzinfo=UTC)
         first_due = applied_at + timedelta(days=prefs["first_delay_days"])
         second_due = applied_at + timedelta(days=prefs["second_delay_days"])
         next_step = None
@@ -234,9 +223,7 @@ async def list_followups(db: AsyncSession, user_id: uuid.UUID) -> dict:
                 "org": posting.org if posting is not None else "",
                 "applied_at": applied_at.isoformat(),
                 "stage": interaction.stage,
-                "sent_steps": sorted(
-                    step for step in sent if not step.startswith("stage:")
-                ),
+                "sent_steps": sorted(step for step in sent if not step.startswith("stage:")),
                 "next_step": next_step,
                 "next_due": next_due.isoformat() if next_due else None,
                 "due_now": bool(next_due is not None and next_due <= now),

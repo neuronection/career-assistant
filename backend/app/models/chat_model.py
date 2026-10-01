@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,12 +15,10 @@ class ChatSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="New chat")
-    context: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    context: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Branch-tree pointer: which root-level
     # message the visible conversation starts from. Service-enforced.
-    active_root_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        nullable=True, index=True
-    )
+    active_root_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
 
     messages: Mapped[list["ChatMessage"]] = relationship(
         back_populates="session",
@@ -40,12 +37,10 @@ class ChatMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata_json: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Branch-tree linkage: parent + which
     # child continues the visible path. Plain UUIDs, service-enforced.
-    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
-    active_child_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        nullable=True, index=True
-    )
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
+    active_child_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
 
     session: Mapped[ChatSession] = relationship(back_populates="messages")

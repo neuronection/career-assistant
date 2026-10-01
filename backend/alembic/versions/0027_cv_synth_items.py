@@ -4,8 +4,9 @@ with typed source refs and source content hashes for staleness
 detection. No data migration — the table starts empty."""
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0027"
 down_revision = "0026"
@@ -46,9 +47,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("scope IN ('item', 'summary')", name="scope_allowed"),
-        sa.CheckConstraint(
-            "status IN ('draft', 'active', 'archived')", name="status_allowed"
-        ),
+        sa.CheckConstraint("status IN ('draft', 'active', 'archived')", name="status_allowed"),
         sa.CheckConstraint("source IN ('ai', 'manual')", name="source_allowed"),
         sa.CheckConstraint("variant_key <> ''", name="variant_key_present"),
     )

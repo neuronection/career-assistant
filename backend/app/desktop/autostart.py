@@ -6,8 +6,8 @@ launch `--tray` so boot lands in tray-only mode.
 import logging
 import os
 import sys
+from collections.abc import MutableMapping
 from pathlib import Path
-from typing import MutableMapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,8 @@ def _exec_command() -> str:
 
 
 def autostart_path(
-    environ: Optional[MutableMapping[str, str]] = None,
-) -> Optional[Path]:
+    environ: MutableMapping[str, str] | None = None,
+) -> Path | None:
     env = os.environ if environ is None else environ
     if sys.platform == "linux":
         config_home = env.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
@@ -33,7 +33,7 @@ def autostart_path(
     return None  # Windows uses the registry, not a file.
 
 
-def is_autostart_enabled(environ: Optional[MutableMapping[str, str]] = None) -> bool:
+def is_autostart_enabled(environ: MutableMapping[str, str] | None = None) -> bool:
     path = autostart_path(environ)
     if path is not None:
         return path.is_file()
@@ -52,9 +52,7 @@ def is_autostart_enabled(environ: Optional[MutableMapping[str, str]] = None) -> 
     return False
 
 
-def set_autostart(
-    enabled: bool, environ: Optional[MutableMapping[str, str]] = None
-) -> bool:
+def set_autostart(enabled: bool, environ: MutableMapping[str, str] | None = None) -> bool:
     """Write or remove the login-start entry; True when the state stuck.
 
     Unsupported platforms degrade honestly (False) — never crash the tray.
@@ -64,7 +62,7 @@ def set_autostart(
     return _disable(environ)
 
 
-def _enable(environ: Optional[MutableMapping[str, str]]) -> bool:
+def _enable(environ: MutableMapping[str, str] | None) -> bool:
     path = autostart_path(environ)
     if path is None:
         if sys.platform != "win32":
@@ -79,9 +77,7 @@ def _enable(environ: Optional[MutableMapping[str, str]]) -> bool:
                 winreg.KEY_SET_VALUE,
             )
             with key:
-                winreg.SetValueEx(
-                    key, "CareerAssistant", 0, winreg.REG_SZ, _exec_command()
-                )
+                winreg.SetValueEx(key, "CareerAssistant", 0, winreg.REG_SZ, _exec_command())
             return True
         except OSError:
             logger.warning("Could not write Windows Run key", exc_info=True)
@@ -99,7 +95,7 @@ def _enable(environ: Optional[MutableMapping[str, str]]) -> bool:
         return False
 
 
-def _disable(environ: Optional[MutableMapping[str, str]]) -> bool:
+def _disable(environ: MutableMapping[str, str] | None) -> bool:
     path = autostart_path(environ)
     if path is None:
         if sys.platform != "win32":

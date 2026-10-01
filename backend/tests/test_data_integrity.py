@@ -6,7 +6,7 @@ silently change a hash contract or drop an index the Explore query
 relies on.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -32,7 +32,7 @@ def test_canonical_hash_is_key_order_invariant():
 def test_canonical_hash_unicode_stability():
     from app.services.engagement_service import canonical_hash
 
-    payload = {"title": "Data Analyst – Datenanalyse παρθένα 🧭", "tags": ["β", "α"]}
+    payload = {"title": "Data Analyst - Datenanalyse παρθένα 🧭", "tags": ["β", "α"]}  # noqa: RUF001 -- intentional multilingual hash input
     first = canonical_hash(payload)
     assert first == canonical_hash(dict(payload))
     assert first == canonical_hash({"tags": payload["tags"], "title": payload["title"]})
@@ -49,10 +49,8 @@ def test_canonical_hash_type_policy():
     assert canonical_hash({"n": None}) != canonical_hash({})
     assert canonical_hash({"n": None}) != canonical_hash({"n": "None"})
     # Non-JSON types fall through `default=str` deterministically.
-    assert canonical_hash({"m": Decimal("50000.50")}) == canonical_hash(
-        {"m": Decimal("50000.50")}
-    )
-    when = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+    assert canonical_hash({"m": Decimal("50000.50")}) == canonical_hash({"m": Decimal("50000.50")})
+    when = datetime(2026, 9, 9, 12, 0, tzinfo=UTC)
     assert canonical_hash({"at": when}) == canonical_hash({"at": when})
     assert canonical_hash({"id": UUID(int=0)}) == canonical_hash({"id": UUID(int=0)})
     # A float Decimal-form and a real float are different shapes.
@@ -111,7 +109,7 @@ async def _seed_postings(db, count: int = 40):
     org = Organization(key=f"synthco-{uuid4().hex[:8]}", name="SynthCo")
     db.add_all([source, org])
     await db.flush()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for index in range(count):
         db.add(
             JobPosting(
@@ -155,7 +153,7 @@ async def test_explore_filters_are_index_backed_on_postgres(db):
             JobPosting.status.in_(["mapped", "new"]),
             JobPosting.salary_min >= Decimal(32000),
             JobPosting.org_id == org_id,
-            JobPosting.expires_at > datetime.now(timezone.utc),
+            JobPosting.expires_at > datetime.now(UTC),
         )
         .order_by(JobPosting.posted_at.desc())
     )
@@ -165,9 +163,7 @@ async def test_explore_filters_are_index_backed_on_postgres(db):
         # leak into (or survive on) a pooled connection, which matters
         # under pytest-xdist where workers share the same Postgres server.
         await db.execute(text("SET LOCAL enable_seqscan = off"))
-        plan = "\n".join(
-            row[0] for row in (await db.execute(text(f"EXPLAIN {sql}"))).fetchall()
-        )
+        plan = "\n".join(row[0] for row in (await db.execute(text(f"EXPLAIN {sql}"))).fetchall())
     finally:
         await db.execute(text("SET LOCAL enable_seqscan = on"))
     # Either posting index keeps the query index-backed; which one the
@@ -187,7 +183,6 @@ async def test_explore_filters_are_index_backed_on_sqlite(db):
     query = select(JobPosting).where(JobPosting.salary_min >= Decimal(32000))
     sql = _compiled(query, sqlite)
     plan = "\n".join(
-        str(row[-1])
-        for row in (await db.execute(text(f"EXPLAIN QUERY PLAN {sql}"))).fetchall()
+        str(row[-1]) for row in (await db.execute(text(f"EXPLAIN QUERY PLAN {sql}"))).fetchall()
     )
     assert "SEARCH job_postings USING INDEX ix_postings_salary_min" in plan, plan

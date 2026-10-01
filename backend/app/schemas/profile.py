@@ -1,7 +1,7 @@
-from datetime import datetime
-from enum import Enum
 import re
-from typing import Literal, Optional
+from datetime import datetime
+from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -43,11 +43,11 @@ class BasicSection(BaseModel):
     `full_name` mirrors the account's display name.
     """
 
-    birth_year: Optional[int] = Field(default=None, ge=1950, le=max_birth_year())
+    birth_year: int | None = Field(default=None, ge=1950, le=max_birth_year())
     education_level: EducationLevel = EducationLevel.HIGH_SCHOOL
-    grade: Optional[str] = Field(default=None, max_length=30)
-    career_stage: Optional[CareerStage] = None
-    onboarding_path: Optional[OnboardingPath] = None
+    grade: str | None = Field(default=None, max_length=30)
+    career_stage: CareerStage | None = None
+    onboarding_path: OnboardingPath | None = None
     country: str = Field(default="", max_length=80)
     city: str = Field(default="", max_length=80)
     timezone: str = Field(default="UTC", max_length=60)
@@ -80,9 +80,7 @@ class LanguageSkill(BaseModel):
 
 
 class AcademicsSection(BaseModel):
-    favorite_subjects: list[FavoriteSubject] = Field(
-        default_factory=list, max_length=20
-    )
+    favorite_subjects: list[FavoriteSubject] = Field(default_factory=list, max_length=20)
     languages: list[LanguageSkill] = Field(default_factory=list, max_length=10)
 
 
@@ -93,13 +91,13 @@ class InterestItem(BaseModel):
 
 
 class HobbyItem(BaseModel):
-    key: Optional[str] = Field(default=None, max_length=80)
+    key: str | None = Field(default=None, max_length=80)
     label: str = Field(min_length=1, max_length=120)
     weight: int = WeightedTag
 
 
 class LikeDislikeItem(BaseModel):
-    tag_key: Optional[str] = Field(default=None, max_length=80)
+    tag_key: str | None = Field(default=None, max_length=80)
     label: str = Field(min_length=1, max_length=200)
     weight: int = WeightedTag
 
@@ -126,7 +124,7 @@ class WorkPreferencesSection(BaseModel):
     creativity_priority: Literal[1, 2, 3, 4, 5] = 3
 
 
-class ShiftTolerance(str, Enum):
+class ShiftTolerance(StrEnum):
     """On-call/shift tolerance levels."""
 
     NONE = "none"
@@ -135,24 +133,22 @@ class ShiftTolerance(str, Enum):
 
 
 class ConstraintsSection(BaseModel):
-    physical_conditions: list[PhysicalCondition] = Field(
-        default_factory=list, max_length=6
-    )
-    max_education_years: Optional[int] = Field(default=None, ge=0, le=12)
+    physical_conditions: list[PhysicalCondition] = Field(default_factory=list, max_length=6)
+    max_education_years: int | None = Field(default=None, ge=0, le=12)
     willing_to_relocate: bool = True
-    hours_available_per_week: Optional[int] = Field(default=None, ge=0, le=100)
+    hours_available_per_week: int | None = Field(default=None, ge=0, le=100)
     # Lifestyle constraints — consumed as gates
     # (stretch tab, never silent exclusion); travel/shift/commute gates
     # fire once the job side carries those signals.
-    salary_min: Optional[int] = Field(default=None, ge=0, le=1_000_000)
+    salary_min: int | None = Field(default=None, ge=0, le=1_000_000)
     salary_negotiable: bool = False
-    travel_days_per_month: Optional[int] = Field(default=None, ge=0, le=30)
-    shift_tolerance: Optional[ShiftTolerance] = None
-    commute_radius_km: Optional[int] = Field(default=None, ge=0, le=500)
+    travel_days_per_month: int | None = Field(default=None, ge=0, le=30)
+    shift_tolerance: ShiftTolerance | None = None
+    commute_radius_km: int | None = Field(default=None, ge=0, le=500)
 
 
 class ScoringWeights(BaseModel):
-    """Per-dimension importance sliders (1–5) for the fit engine (22+38)."""
+    """Per-dimension importance sliders (1-5) for the fit engine (22+38)."""
 
     skills: int = Field(default=3, ge=1, le=5)
     location: int = Field(default=3, ge=1, le=5)
@@ -175,22 +171,22 @@ class ProfileAISummary(BaseModel):
     suggested_interest_keys: list[str] = Field(default_factory=list, max_length=15)
     suggested_skill_keys: list[str] = Field(default_factory=list, max_length=15)
     model: str = ""
-    generated_at: Optional[datetime] = None
+    generated_at: datetime | None = None
 
 
 class ProfileSectionUpdate(BaseModel):
     """Partial profile update — each section is optional."""
 
-    basics: Optional[BasicSection] = None
-    academics: Optional[AcademicsSection] = None
-    interests: Optional[list[InterestItem]] = Field(default=None, max_length=40)
-    hobbies: Optional[list[HobbyItem]] = Field(default=None, max_length=30)
-    likes: Optional[list[LikeDislikeItem]] = Field(default=None, max_length=30)
-    dislikes: Optional[list[LikeDislikeItem]] = Field(default=None, max_length=30)
-    aspirations: Optional[list[AspirationItem]] = Field(default=None, max_length=20)
-    work_preferences: Optional[WorkPreferencesSection] = None
-    preferences: Optional[PreferencesSection] = None
-    constraints: Optional[ConstraintsSection] = None
+    basics: BasicSection | None = None
+    academics: AcademicsSection | None = None
+    interests: list[InterestItem] | None = Field(default=None, max_length=40)
+    hobbies: list[HobbyItem] | None = Field(default=None, max_length=30)
+    likes: list[LikeDislikeItem] | None = Field(default=None, max_length=30)
+    dislikes: list[LikeDislikeItem] | None = Field(default=None, max_length=30)
+    aspirations: list[AspirationItem] | None = Field(default=None, max_length=20)
+    work_preferences: WorkPreferencesSection | None = None
+    preferences: PreferencesSection | None = None
+    constraints: ConstraintsSection | None = None
 
 
 DEFAULT_BASICS: dict = BasicSection().model_dump(mode="json")

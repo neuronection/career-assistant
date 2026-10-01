@@ -18,8 +18,8 @@ echoes outward (``chat_digest_cache.context_without_cache`` strips it).
 """
 
 import time
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 TOOL_MEMORY_KEY = "tool_memory"
 CACHE_CONTEXT_KEY = "chat_tool_memory"
@@ -42,7 +42,7 @@ TRUST_NOTE = (
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def entry_key(tool: str, ident: str) -> str:
@@ -50,7 +50,7 @@ def entry_key(tool: str, ident: str) -> str:
     return f"{tool}:{ident}"[:200]
 
 
-def ident_for(tool: str, args: dict) -> Optional[str]:
+def ident_for(tool: str, args: dict) -> str | None:
     """The natural identity of one tool call (its URL / repo / query)."""
     if not isinstance(args, dict):
         return None
@@ -64,9 +64,7 @@ def memorable(tool: str, result: Any) -> bool:
     """A failed/rate-limited call is status, not memory."""
     if tool not in MEMORY_TOOLS or not isinstance(result, dict):
         return False
-    if result.get("available") is False or result.get("error"):
-        return False
-    return True
+    return not (result.get("available") is False or result.get("error"))
 
 
 def _prune(entries: dict[str, dict]) -> dict[str, dict]:

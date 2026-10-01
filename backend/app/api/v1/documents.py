@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -43,9 +42,7 @@ async def upload_document(
     """
     allowed = CV_ALLOWED_MIME if kind == DocumentKind.CV else ALLOWED_MIME
     if (file.content_type or "") not in allowed:
-        raise HTTPException(
-            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Unsupported file type"
-        )
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Unsupported file type")
     content = await file.read()
     service = DocumentService(db)
     try:
@@ -78,7 +75,7 @@ async def upload_document(
 
 @router.get("", response_model=list[DocumentOut])
 async def list_documents(
-    kind: Optional[str] = None,
+    kind: str | None = None,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[DocumentOut]:

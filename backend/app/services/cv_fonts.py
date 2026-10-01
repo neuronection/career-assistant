@@ -7,7 +7,7 @@ are missing — capability detection, callers fall back to their system
 stack. Used only by the `cv_renderer.FONT_STACKS` emission."""
 
 import base64
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 _FONT_DIR = Path(__file__).resolve().parent / "cv_fonts"
@@ -34,7 +34,7 @@ _FAMILIES: dict[str, tuple[str, str, str]] = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _data_uri(path: Path) -> str:
     payload = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:font/woff2;base64,{payload}"
@@ -52,10 +52,9 @@ def font_face_css(font_stack: str) -> str:
         if not path.exists():
             return ""
         rules.append(
-            "@font-face { font-family: '%s'; font-style: normal; "
-            "font-weight: %s; font-display: swap; "
-            "src: url('%s') format('woff2'); unicode-range: %s; }"
-            % (family, weight, _data_uri(path), _SUBSET_RANGES[subset])
+            f"@font-face {{ font-family: '{family}'; font-style: normal; "
+            f"font-weight: {weight}; font-display: swap; "
+            f"src: url('{_data_uri(path)}') format('woff2'); unicode-range: {_SUBSET_RANGES[subset]}; }}"  # noqa: E501 -- long message string; reflow when touched
         )
     return " ".join(rules)
 

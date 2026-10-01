@@ -45,9 +45,7 @@ def test_strips_echoed_title_and_org_from_description():
 def test_clean_description_passes_through():
     snapshot, index = _experience_snapshot()
     overrides = {
-        "experience:x1": {
-            "description": "Automated release deployments and batch workflows."
-        }
+        "experience:x1": {"description": "Automated release deployments and batch workflows."}
     }
     result = apply_overrides(snapshot, index, overrides)
     assert result["experience"][0]["description"] == (
@@ -98,9 +96,7 @@ def test_summary_override_materializes_without_profile_aspirations():
 def test_summary_override_patches_existing_scalar():
     snapshot = {"summary": {"summary": "Profile text"}}
     index = {"summary": ["summary"]}
-    result = apply_overrides(
-        snapshot, index, {"summary:summary": {"summary": "Edited"}}
-    )
+    result = apply_overrides(snapshot, index, {"summary:summary": {"summary": "Edited"}})
     assert result["summary"] == {"summary": "Edited"}
 
 

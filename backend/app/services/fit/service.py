@@ -1,4 +1,4 @@
-"""Fit layer storage + orchestration: compute for user×job, store on insights."""
+"""Fit layer storage + orchestration: compute for userxjob, store on insights."""
 
 from uuid import UUID
 
@@ -11,9 +11,9 @@ from app.models.metric_model import UserMetricProfile
 from app.models.user_model import Profile, UserInterest, UserSkill
 from app.services.experience_derivation import derive_skill_months
 from app.services.fit.dimensions import (
-    FitResult,
     DEFAULT_WEIGHTS,
     FIT_VERSION,
+    FitResult,
     compute_fit,
 )
 from app.services.job_service import JobService
@@ -22,13 +22,11 @@ from app.services.profile_entities_service import effective_education_level
 WORK_STYLE_SLIDERS = ("teamwork", "environment", "structure", "pace", "leadership")
 
 
-async def insert_insight_if_absent(
-    db: AsyncSession, user_id: UUID, job_id: UUID
-) -> None:
-    """Insert the bare user×job insight row, letting the DB referee races.
+async def insert_insight_if_absent(db: AsyncSession, user_id: UUID, job_id: UUID) -> None:
+    """Insert the bare userxjob insight row, letting the DB referee races.
 
     Every workspace-load surface (dashboard candidates, feed, rankings,
-    impressions) creates the same user×job insight at load time, so a
+    impressions) creates the same userxjob insight at load time, so a
     plain read-then-insert 500s one request per page: the DB-side unique
     constraint `uq_match_user_job` picks the winner and the loser
     re-reads it. Idempotent on Postgres and SQLite.
@@ -142,8 +140,9 @@ class FitService:
 
     async def _experience_months(self, user_id: UUID) -> dict[str, float]:
         """Derived per-skill evidence months."""
-        from app.models.experience_model import ExperienceItem
         from sqlalchemy.orm import selectinload
+
+        from app.models.experience_model import ExperienceItem
 
         rows = await self.db.execute(
             select(ExperienceItem)
@@ -170,9 +169,7 @@ class FitService:
         """Structured job snapshot (links must be loaded — JOB_LOAD_OPTIONS)."""
         attrs = job.attributes or {}
         band = attrs.get("experience_typical_years")
-        location = (
-            attrs.get("location") if isinstance(attrs.get("location"), dict) else {}
-        )
+        location = attrs.get("location") if isinstance(attrs.get("location"), dict) else {}
         salary = attrs.get("salary") if isinstance(attrs.get("salary"), dict) else {}
         entry = salary.get("entry") or None
         entry_max = float(entry[1]) if entry and len(entry) == 2 else None
@@ -196,15 +193,14 @@ class FitService:
             "job_remote": "remote" in (attrs.get("environments") or []),
             "interest_ids": {str(link.interest_tag_id) for link in job.tag_links},
             "work_style": attrs.get("work_style") or {},
-            "physical_requirements": (attrs.get("physical") or {}).get("requirements")
-            or [],
+            "physical_requirements": (attrs.get("physical") or {}).get("requirements") or [],
             "riasec_letters": riasec_letters,
             "salary_entry_max": entry_max,
             "values_signal": job_values_signal(attrs),
         }
 
     async def scoring_weights(self, profile: Profile) -> dict[str, int]:
-        """Effective dimension sliders (1–5).
+        """Effective dimension sliders (1-5).
 
         Stored user weights win; otherwise the career-stage preset applies
         as the *suggested* baseline — never a hidden branch, the
@@ -212,10 +208,7 @@ class FitService:
         """
         stored = (profile.preferences or {}).get("scoring_weights")
         if stored:
-            base = {
-                dim: int(stored.get(dim, DEFAULT_WEIGHTS[dim]))
-                for dim in DEFAULT_WEIGHTS
-            }
+            base = {dim: int(stored.get(dim, DEFAULT_WEIGHTS[dim])) for dim in DEFAULT_WEIGHTS}
         else:
             from app.services.experience_service import ExperienceService
             from app.services.stages_service import effective_stage, stage_preset
@@ -251,11 +244,11 @@ class FitService:
     async def upsert_fit(
         self, user_id: UUID, job, result: FitResult, *, commit: bool = True
     ) -> MatchInsight:
-        """Store fit fields on the user×job insight (fit-only upsert).
+        """Store fit fields on the userxjob insight (fit-only upsert).
 
         The insert is conflict-safe (`insert_insight_if_absent`): a plain
         read-then-insert 500s one request per page when the dashboard's
-        concurrent load surfaces backfill the same user×job — the DB
+        concurrent load surfaces backfill the same userxjob — the DB
         constraint referees and the loser adopts the winner's row.
         """
         insight = await self._get_insight(user_id, job.id)
@@ -263,9 +256,7 @@ class FitService:
             await insert_insight_if_absent(self.db, user_id, job.id)
             insight = await self._get_insight(user_id, job.id)
             if insight is None:
-                raise IntegrityError(
-                    "insight vanished between insert and read", None, None
-                )
+                raise IntegrityError("insight vanished between insert and read", None, None)
         insight.fit_score = result.score
         insight.fit_breakdown = {
             "dimensions": result.breakdown,
@@ -292,9 +283,7 @@ class FitService:
         weights = await self.scoring_weights(profile)
         done = 0
         for job in jobs:
-            result = compute_fit(
-                job=await self.job_context(job), user=user_ctx, weights=weights
-            )
+            result = compute_fit(job=await self.job_context(job), user=user_ctx, weights=weights)
             await self.upsert_fit(user_id, job, result, commit=False)
             done += 1
             if progress and done % 100 == 0:

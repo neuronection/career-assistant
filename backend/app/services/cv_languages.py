@@ -12,14 +12,11 @@ import json
 import re
 from pathlib import Path
 
-_CATALOG_PATH = (
-    Path(__file__).resolve().parents[1] / "data" / "catalogs" / "languages.json"
-)
+_CATALOG_PATH = Path(__file__).resolve().parents[1] / "data" / "catalogs" / "languages.json"
 
 with _CATALOG_PATH.open(encoding="utf-8") as _catalog_file:
     LANGUAGE_NAMES: dict[str, str] = {
-        str(entry["code"]): str(entry["name"])
-        for entry in json.load(_catalog_file)["languages"]
+        str(entry["code"]): str(entry["name"]) for entry in json.load(_catalog_file)["languages"]
     }
 
 # The profile language offer (Greek first, matching the frontend's
@@ -60,8 +57,8 @@ OFFERED_LANGUAGE_CODES: list[str] = [
 # Level vocabulary (profile UI: basic | intermediate | advanced | native)
 # → representative CEFR band.
 LEVEL_CEFR: dict[str, str] = {
-    "basic": "A1–A2",
-    "intermediate": "B1–B2",
+    "basic": "A1-A2",
+    "intermediate": "B1-B2",
     "advanced": "C1",
     "native": "Native",
 }
@@ -207,9 +204,7 @@ def match_language(cert: dict, languages: list[dict]) -> str:
     return ""
 
 
-def proficiency_for(
-    languages: list[dict], certifications: list[dict]
-) -> dict[str, dict]:
+def proficiency_for(languages: list[dict], certifications: list[dict]) -> dict[str, dict]:
     """Latest proficiency certificate per language code.
 
     Certifications arrive resolver-ordered (newest issued first). An

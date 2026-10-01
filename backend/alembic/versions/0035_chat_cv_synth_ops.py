@@ -17,7 +17,7 @@ OLD_KINDS = (
     "user_skill",
     "profile_section",
 )
-NEW_KINDS = OLD_KINDS + ("cv_synth",)
+NEW_KINDS = (*OLD_KINDS, "cv_synth")
 
 
 def _constraint_sql(kinds: tuple[str, ...]) -> str:

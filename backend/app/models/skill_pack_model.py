@@ -33,12 +33,8 @@ class AISkillPack(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "ai_skill_packs"
     __table_args__ = (
-        UniqueConstraint(
-            "author_key", "key", "version", name="uq_ai_skill_packs_version"
-        ),
-        CheckConstraint(
-            "status IN ('draft', 'published', 'retired')", name="status_allowed"
-        ),
+        UniqueConstraint("author_key", "key", "version", name="uq_ai_skill_packs_version"),
+        CheckConstraint("status IN ('draft', 'published', 'retired')", name="status_allowed"),
         CheckConstraint("version >= 1", name="version_positive"),
         Index("ix_ai_skill_packs_task_status", "task", "status"),
     )

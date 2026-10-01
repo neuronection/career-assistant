@@ -8,7 +8,6 @@ land with provenance, and a draft/active status for review flows.
 
 import uuid
 from datetime import date
-from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -45,33 +44,27 @@ class EducationItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     institution: Mapped[str] = mapped_column(String(200), nullable=False)
-    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
     )
     # Raw string kept for audit.
     org_name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     program: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    level: Mapped[str] = mapped_column(
-        String(30), nullable=False, default="high_school"
-    )
-    start: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
-    end: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
+    level: Mapped[str] = mapped_column(String(30), nullable=False, default="high_school")
+    start: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    end: Mapped[date | None] = mapped_column(Date(), nullable=True)
     in_progress: Mapped[bool] = mapped_column(nullable=False, default=False)
-    grade_band: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    focus_subjects: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    grade_band: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    focus_subjects: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="self_report"
-    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     # Optional enrichment into the universities catalog; the
     # free-text institution/program stay the CV-render source of truth.
-    university_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    university_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("universities.id", ondelete="SET NULL"), nullable=True
     )
-    department_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("departments.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -91,17 +84,15 @@ class Certification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     issuer: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
     )
-    issued: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
-    expires: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
+    issued: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    expires: Mapped[date | None] = mapped_column(Date(), nullable=True)
     credential_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     link: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    language_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="self_report"
-    )
+    language_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
 
 
@@ -125,10 +116,8 @@ class ProfileAchievement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="award")
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     issuer: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    date: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
+    date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
     link: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="self_report"
-    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")

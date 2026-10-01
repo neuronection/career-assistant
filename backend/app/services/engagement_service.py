@@ -6,8 +6,7 @@ unified fan-out stack while keeping these rule/trigger semantics.
 
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -42,14 +41,12 @@ DEFAULT_RULE_PARAMS = {
 
 def canonical_hash(payload: dict) -> str:
     """Canonical-JSON sha256 (sorted keys, stable types) — policy."""
-    canonical = json.dumps(
-        payload or {}, sort_keys=True, separators=(",", ":"), default=str
-    )
+    canonical = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _start_of_day() -> datetime:
@@ -80,7 +77,7 @@ def with_exploration_slot(items: list[dict], page_size: int) -> list[dict]:
         return items
     pick["exploration"] = True
     tail = [item for item in items[page_size - 1 :] if item is not pick]
-    return head + [pick] + tail
+    return [*head, pick, *tail]
 
 
 class EngagementService:
@@ -150,8 +147,8 @@ class EngagementService:
         self,
         user_id: UUID,
         *,
-        scope: Optional[SearchScope] = None,
-        saved: Optional[bool] = None,
+        scope: SearchScope | None = None,
+        saved: bool | None = None,
     ) -> list[SearchHistory]:
         query = select(SearchHistory).where(SearchHistory.user_id == user_id)
         if scope is not None:
@@ -211,9 +208,7 @@ class EngagementService:
             insights = await matching.backfilled_insights(profile)
         else:
             insights = await matching._insights_map(profile.user_id)
-        jobs, _ = await JobService(self.db).list_jobs(
-            status="published", page_size=1000
-        )
+        jobs, _ = await JobService(self.db).list_jobs(status="published", page_size=1000)
         items: list[dict] = []
         unseen = 0
         for job in jobs:
@@ -322,9 +317,7 @@ class EngagementService:
         await self.db.refresh(insight)
         return insight
 
-    async def set_hidden(
-        self, user_id: UUID, job_id: UUID, hidden: bool
-    ) -> MatchInsight:
+    async def set_hidden(self, user_id: UUID, job_id: UUID, hidden: bool) -> MatchInsight:
         job = await JobService(self.db).require_job(job_id)
         insight = await self._lazy_insight(user_id, job.id)
         insight.hidden_at = _utcnow() if hidden else None
@@ -404,9 +397,7 @@ class EngagementService:
     async def _validate_family_keys(self, keys: list[str]) -> None:
         if not keys:
             return
-        rows = await self.db.execute(
-            select(JobFamily.key).where(JobFamily.key.in_(keys))
-        )
+        rows = await self.db.execute(select(JobFamily.key).where(JobFamily.key.in_(keys)))
         known = set(rows.scalars().all())
         missing = [key for key in keys if key not in known]
         if missing:
@@ -422,10 +413,8 @@ class EngagementService:
 
         return within_quiet_hours((params or {}).get("quiet_hours"))
 
-    async def _kind_row(self, key: str) -> Optional[NotificationKind]:
-        rows = await self.db.execute(
-            select(NotificationKind).where(NotificationKind.key == key)
-        )
+    async def _kind_row(self, key: str) -> NotificationKind | None:
+        rows = await self.db.execute(select(NotificationKind).where(NotificationKind.key == key))
         return rows.scalars().first()
 
     # ---------------------------------------------------------- preferences
@@ -440,9 +429,7 @@ class EngagementService:
             return False
         return bool(set(job_family.path.split("/")) & family_keys)
 
-    async def on_fit_upsert(
-        self, user_id: UUID, job: Job, insight: MatchInsight
-    ) -> None:
+    async def on_fit_upsert(self, user_id: UUID, job: Job, insight: MatchInsight) -> None:
         """fit_score written ≥ threshold ⇒ emit once per 0.5-step."""
         if insight.fit_score is None:
             return
@@ -526,7 +513,7 @@ class EngagementService:
 
     async def _last_kind_notification(
         self, user_id: UUID, kind_key: str, job_id: str
-    ) -> Optional[Notification]:
+    ) -> Notification | None:
         rows = await self.db.execute(
             select(Notification)
             .join(

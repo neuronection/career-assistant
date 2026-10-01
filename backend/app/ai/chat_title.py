@@ -48,7 +48,7 @@ async def generate_session_title(db, user_id, first_message: str) -> str:
         title = out.title.strip()
         if title:
             return title[:80]
-    except Exception:  # noqa: BLE001 - titles must never break a chat turn
+    except Exception:
         pass
     return fallback_title(first_message)
 

@@ -7,8 +7,8 @@ endpoint (open desktop only) and the per-boot shell-secret request gate.
 
 import pytest
 from httpx import ASGITransport
-
 from nx_auth.instance import initialize_instance
+
 from app.auth.stores import CareerInstanceStore
 from app.core.config import settings
 from app.core.database import AuthSessionLocal
@@ -84,29 +84,21 @@ def test_post_init_env_flips_are_ignored():
         store, identity_mode="desktop", auth_mode_env="open", demo_mode_env=False
     )
     assert again == "authenticated"
-    assert store.get("auth_mode") == "authenticated", (
-        "a launch-time flip cannot disable auth"
-    )
+    assert store.get("auth_mode") == "authenticated", "a launch-time flip cannot disable auth"
 
 
 def test_demo_mode_is_init_only():
     store = _store()
-    initialize_instance(
-        store, identity_mode="server", auth_mode_env="", demo_mode_env=True
-    )
+    initialize_instance(store, identity_mode="server", auth_mode_env="", demo_mode_env=True)
     assert store.get("demo_mode") == "true"
-    initialize_instance(
-        store, identity_mode="server", auth_mode_env="", demo_mode_env=False
-    )
+    initialize_instance(store, identity_mode="server", auth_mode_env="", demo_mode_env=False)
     assert store.get("demo_mode") == "true", "post-init flips are ignored (§13)"
 
 
 # --------------------------------------------------- enforcement is stateful
 
 
-def _mint_token(
-    app, *, kind, auth_mode, sub: str = "some-user", ver: int = 1, ttl=None
-):
+def _mint_token(app, *, kind, auth_mode, sub: str = "some-user", ver: int = 1, ttl=None):
     from nx_auth.tokens import AuthMode, TokenKind, mint_token
 
     kit = app.state.auth
@@ -125,9 +117,7 @@ async def test_local_boot_token_rejected_on_authenticated_instance(client):
     from app.main import app
 
     token = _mint_token(app, kind="session", auth_mode="local-boot", sub="x")
-    response = await client.get(
-        "/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"}
-    )
+    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"})
     assert response.status_code == 401, "local-boot is open-desktop only (§4.3)"
 
 
@@ -135,9 +125,7 @@ async def test_demo_token_rejected_on_non_demo_instance(client):
     from app.main import app
 
     token = _mint_token(app, kind="session", auth_mode="demo", sub="demo-user")
-    response = await client.get(
-        "/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"}
-    )
+    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"})
     assert response.status_code == 401
 
 
@@ -167,9 +155,7 @@ def desktop_factory(monkeypatch):
         application = create_app()
         secret = shell_token.current()
         assert secret
-        client = CleanJarClient(
-            transport=ASGITransport(app=application), base_url="http://test"
-        )
+        client = CleanJarClient(transport=ASGITransport(app=application), base_url="http://test")
         return application, client, secret
 
     yield make
@@ -177,7 +163,7 @@ def desktop_factory(monkeypatch):
 
 
 async def test_desktop_open_exchanges_the_implicit_owner(desktop_factory):
-    application, client, secret = desktop_factory()
+    _application, client, secret = desktop_factory()
 
     # The gate is the per-boot shell secret (§11.1): no/wrong token ⇒ 403.
     assert (await client.get("/api/v1/auth/me")).status_code == 403
@@ -185,9 +171,7 @@ async def test_desktop_open_exchanges_the_implicit_owner(desktop_factory):
         await client.get("/api/v1/auth/me", headers={"X-Shell-Token": "wrong"})
     ).status_code == 403
 
-    exchange = await client.post(
-        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
-    )
+    exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
     assert exchange.status_code == 200, exchange.text
     body = exchange.json()
     assert body["email"] == "owner@local"
@@ -195,24 +179,19 @@ async def test_desktop_open_exchanges_the_implicit_owner(desktop_factory):
     assert body["is_active"] is True
 
     headers = session_headers(exchange)
-    me = await client.get(
-        "/api/v1/auth/me", headers=headers | {"X-Shell-Token": secret}
-    )
+    me = await client.get("/api/v1/auth/me", headers=headers | {"X-Shell-Token": secret})
     assert me.status_code == 200
     assert me.json()["email"] == "owner@local"
 
     # DIM mints a session token only (§11.3) — no refresh family.
     assert all(
-        not line.startswith("nx_refresh=")
-        for line in exchange.headers.get_list("set-cookie")
+        not line.startswith("nx_refresh=") for line in exchange.headers.get_list("set-cookie")
     )
 
 
 async def test_desktop_open_needs_no_login_routes_but_mints_local_boot(desktop_factory):
     application, client, secret = desktop_factory()
-    exchange = await client.post(
-        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
-    )
+    exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
     token = session_headers(exchange)["Authorization"].split(" ", 1)[1]
     from nx_auth.tokens import AuthMode, TokenKind, verify_token
 
@@ -222,12 +201,10 @@ async def test_desktop_open_needs_no_login_routes_but_mints_local_boot(desktop_f
 
 
 async def test_desktop_authenticated_requires_login(desktop_factory):
-    application, client, secret = desktop_factory(auth_mode_env="authenticated")
+    _application, client, secret = desktop_factory(auth_mode_env="authenticated")
 
     # DIM does not apply (§4.3) — the exchange endpoint answers 404 …
-    exchange = await client.post(
-        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
-    )
+    exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
     assert exchange.status_code == 404
 
     # … and login is the boot flow.
@@ -262,7 +239,7 @@ async def test_desktop_authenticated_rejects_local_boot(desktop_factory):
 
 
 async def test_shell_secret_gates_every_api_request(desktop_factory):
-    application, client, secret = desktop_factory()
+    _application, client, _secret = desktop_factory()
     for method, path in (
         ("GET", "/api/v1/auth/me"),
         ("POST", "/api/v1/auth/login"),
@@ -287,9 +264,7 @@ async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch):
     shell_token.reset()
     try:
         application = create_app()
-        client = CleanJarClient(
-            transport=ASGITransport(app=application), base_url="http://test"
-        )
+        client = CleanJarClient(transport=ASGITransport(app=application), base_url="http://test")
         # No token is issued and the API answers without X-Shell-Token.
         assert shell_token.current() is None
         me = await client.get("/api/v1/auth/me")
@@ -301,10 +276,8 @@ async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch):
 async def test_instance_mode_reads_are_per_request(desktop_factory):
     """§4.2 — enforcement derives from live DB state, never a boot
     snapshot: flipping auth_mode invalidates local-boot immediately."""
-    application, client, secret = desktop_factory()
-    exchange = await client.post(
-        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
-    )
+    _application, client, secret = desktop_factory()
+    exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
     headers = session_headers(exchange) | {"X-Shell-Token": secret}
     assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 200
 
@@ -332,10 +305,8 @@ async def test_admin_instance_transition_round_trip(desktop_factory):
     (§4.5 `open → authenticated`), then confirms the password to go back
     open; a wrong password never flips anything. Server entrypoints
     refuse `open` outright (pinned in test_server_never_runs_open)."""
-    application, client, secret = desktop_factory()
-    exchange = await client.post(
-        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
-    )
+    _application, client, secret = desktop_factory()
+    exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
     dim_headers = session_headers(exchange) | {"X-Shell-Token": secret}
     assert _store().get("auth_mode") == "open"
 
@@ -377,10 +348,8 @@ async def test_admin_instance_open_refused_with_other_users(desktop_factory):
     """S14 — multi-user instances cannot go open (§4.5 refusal rail):
     the password-confirmed flip is refused while another user row
     exists, and succeeds once the account is gone."""
-    application, client, secret = desktop_factory()
-    exchange = await client.post(
-        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
-    )
+    _application, client, secret = desktop_factory()
+    exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
     dim_headers = session_headers(exchange) | {"X-Shell-Token": secret}
     assert (
         await client.patch(

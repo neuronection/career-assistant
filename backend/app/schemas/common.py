@@ -1,11 +1,11 @@
-from typing import Generic, Optional, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 T = TypeVar("T")
 
 
-class Page(BaseModel, Generic[T]):
+class Page[T](BaseModel):
     """Simple pagination envelope."""
 
     items: list[T]
@@ -26,6 +26,6 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-def or_empty(value: Optional[dict]) -> dict:
+def or_empty(value: dict | None) -> dict:
     """Coerce None dicts to empty for JSONB defaults."""
     return value or {}

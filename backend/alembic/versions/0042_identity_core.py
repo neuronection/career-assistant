@@ -20,10 +20,11 @@ Revision ID: 0042
 Revises: 0041
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+import sqlalchemy as sa
 
 from alembic import op
-import sqlalchemy as sa
 
 revision = "0042"
 down_revision = "0041"
@@ -34,7 +35,7 @@ _TZ = sa.DateTime(timezone=True)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def upgrade() -> None:
@@ -60,12 +61,13 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_auth_sessions")),
         sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_auth_sessions_user_id_users"), ondelete="CASCADE"
+            ["user_id"],
+            ["users.id"],
+            name=op.f("fk_auth_sessions_user_id_users"),
+            ondelete="CASCADE",
         ),
     )
-    op.create_index(
-        op.f("ix_auth_sessions_user_id"), "auth_sessions", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_auth_sessions_user_id"), "auth_sessions", ["user_id"], unique=False)
 
     # --- instance_settings (§5) --------------------------------------
     op.create_table(
@@ -90,7 +92,9 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_audit_events_action"), "audit_events", ["action"], unique=False)
     op.create_index(op.f("ix_audit_events_tenant_id"), "audit_events", ["tenant_id"], unique=False)
-    op.create_index(op.f("ix_audit_events_created_at"), "audit_events", ["created_at"], unique=False)
+    op.create_index(
+        op.f("ix_audit_events_created_at"), "audit_events", ["created_at"], unique=False
+    )
 
 
 def downgrade() -> None:

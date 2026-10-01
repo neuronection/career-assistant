@@ -92,9 +92,7 @@ def is_image_document(document: Document) -> bool:
     return Path(document.filename).suffix.lower() in IMAGE_SUFFIXES
 
 
-def rasterize_missing_pages(
-    document: Document, pages: list[CvSourcePage]
-) -> dict[int, Path]:
+def rasterize_missing_pages(document: Document, pages: list[CvSourcePage]) -> dict[int, Path]:
     """Render pages without recoverable text to PNG (PDF: pypdfium2,
     image upload: the original bytes itself)."""
     targets = {page.index for page in pages if not page.text}
@@ -122,13 +120,11 @@ def rasterize_missing_pages(
 
 
 def tesseract_available() -> bool:
-    return (
-        bool(settings.ocr_tesseract_enabled) and shutil.which("tesseract") is not None
-    )
+    return bool(settings.ocr_tesseract_enabled) and shutil.which("tesseract") is not None
 
 
 def _tesseract_ocr(image_path: Path) -> str:
-    result = subprocess.run(  # noqa: S603 - fixed binary, no shell
+    result = subprocess.run(
         ["tesseract", str(image_path), "stdout", "--psm", "3"],
         capture_output=True,
         timeout=60,
@@ -257,8 +253,7 @@ async def process_cv_document(
                     if existing is None or not existing.text:
                         merged[page.index] = page
                 ocr_used = any(
-                    page.source != CvPageTextSource.TEXT_LAYER.value
-                    for page in merged.values()
+                    page.source != CvPageTextSource.TEXT_LAYER.value for page in merged.values()
                 )
                 pages = [merged[index] for index in sorted(merged)]
         for page in pages:
@@ -270,8 +265,7 @@ async def process_cv_document(
             pages=pages,
             full_text="\n\n".join(page.text for page in pages if page.text),
             has_text_layer=any(
-                page.source == CvPageTextSource.TEXT_LAYER.value and page.text
-                for page in pages
+                page.source == CvPageTextSource.TEXT_LAYER.value and page.text for page in pages
             ),
             ocr_used=ocr_used,
             content_sha256=content_sha256(raw),
@@ -281,7 +275,7 @@ async def process_cv_document(
         document.extraction = extraction.model_dump(mode="json")
         document.status = DocumentStatus.READY.value
         document.error = ""
-    except Exception as exc:  # noqa: BLE001 - job pipeline must record failure
+    except Exception as exc:
         document.status = DocumentStatus.FAILED.value
         document.error = str(exc)[:500]
     db.add(document)
@@ -290,9 +284,7 @@ async def process_cv_document(
     return document
 
 
-async def _owned_document(
-    db: AsyncSession, document_id: uuid.UUID, user_id: uuid.UUID
-) -> Document:
+async def _owned_document(db: AsyncSession, document_id: uuid.UUID, user_id: uuid.UUID) -> Document:
     from sqlalchemy import select
 
     rows = await db.execute(

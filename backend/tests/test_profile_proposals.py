@@ -3,7 +3,7 @@ conflict/expiry lifecycle, one-apply-path parity, tenant isolation."""
 
 import json
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -111,9 +111,7 @@ async def test_update_proposal_diff_and_idempotent_approve(db, auth_headers):
     assert by_field["open_ended"]["before"] is True
     assert by_field["status"]["after"] == "draft"
 
-    resolved, applied, already = await ProfileProposalService(db).approve(
-        user.id, proposal.id
-    )
+    resolved, applied, already = await ProfileProposalService(db).approve(user.id, proposal.id)
     assert already is False
     assert resolved.status == "approved"
     assert resolved.resolved_at is not None
@@ -125,9 +123,7 @@ async def test_update_proposal_diff_and_idempotent_approve(db, auth_headers):
     assert item.open_ended is False
     assert item.status == "draft"
 
-    again, applied2, already2 = await ProfileProposalService(db).approve(
-        user.id, proposal.id
-    )
+    again, applied2, already2 = await ProfileProposalService(db).approve(user.id, proposal.id)
     assert already2 is True
     assert applied2 is None
     assert again.status == "approved"
@@ -138,9 +134,7 @@ async def test_update_proposal_diff_and_idempotent_approve(db, auth_headers):
 async def test_approve_conflict_when_entity_changed(db, auth_headers):
     user = await _auth_user(db)
     item = await _experience(db, user)
-    proposal = await _propose(
-        db, user, payload={"hours_per_week": 20}, entity_id=item.id
-    )
+    proposal = await _propose(db, user, payload={"hours_per_week": 20}, entity_id=item.id)
 
     item.hours_per_week = 35
     db.add(item)
@@ -159,9 +153,7 @@ async def test_approve_conflict_when_entity_changed(db, auth_headers):
 async def test_target_deleted_marks_expired(db, auth_headers):
     user = await _auth_user(db)
     item = await _experience(db, user)
-    proposal = await _propose(
-        db, user, payload={"description": "late update"}, entity_id=item.id
-    )
+    proposal = await _propose(db, user, payload={"description": "late update"}, entity_id=item.id)
     await ExperienceService(db).delete_item(user.id, item.id)
 
     with pytest.raises(NotFoundError):
@@ -180,9 +172,7 @@ async def test_delete_proposal_stores_snapshot(db, auth_headers):
     assert snapshot["description"] == "Built dashboards"
     assert all(row["after"] is None for row in proposal.diff_json)
 
-    resolved, applied, _ = await ProfileProposalService(db).approve(
-        user.id, proposal.id
-    )
+    resolved, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     assert resolved.status == "approved"
     assert applied is None
     rows = await db.execute(select(ExperienceItem).where(ExperienceItem.id == item.id))
@@ -191,9 +181,7 @@ async def test_delete_proposal_stores_snapshot(db, auth_headers):
 
 async def test_user_skill_add_upserts_without_wipe(db, auth_headers):
     user = await _auth_user(db)
-    await SkillService(db).put_user_skills(
-        user.id, [{"skill_key": "python", "level": 5}]
-    )
+    await SkillService(db).put_user_skills(user.id, [{"skill_key": "python", "level": 5}])
     proposal = await _propose(
         db,
         user,
@@ -207,9 +195,7 @@ async def test_user_skill_add_upserts_without_wipe(db, auth_headers):
 
     _, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     rows = await db.execute(
-        select(UserSkill)
-        .options(selectinload(UserSkill.skill))
-        .where(UserSkill.user_id == user.id)
+        select(UserSkill).options(selectinload(UserSkill.skill)).where(UserSkill.user_id == user.id)
     )
     skills = rows.scalars().all()
     assert {s.skill.key for s in skills} == {"python", "docker"}
@@ -321,9 +307,7 @@ async def test_cross_user_isolation(client, db, auth_headers):
     user = await _auth_user(db)
     other = await _second_user(client, db)
     item = await _experience(db, user)
-    proposal = await _propose(
-        db, user, payload={"hours_per_week": 10}, entity_id=item.id
-    )
+    proposal = await _propose(db, user, payload={"hours_per_week": 10}, entity_id=item.id)
     with pytest.raises(NotFoundError):
         await ProfileProposalService(db).approve(other.id, proposal.id)
     with pytest.raises(NotFoundError):
@@ -427,10 +411,8 @@ async def test_create_from_ops_drops_invalid(db, auth_headers):
 async def test_sweep_expired_flips_stale_pending(db, auth_headers):
     user = await _auth_user(db)
     item = await _experience(db, user)
-    proposal = await _propose(
-        db, user, payload={"hours_per_week": 8}, entity_id=item.id
-    )
-    proposal.created_at = datetime.now(timezone.utc) - timedelta(days=20)
+    proposal = await _propose(db, user, payload={"hours_per_week": 8}, entity_id=item.id)
+    proposal.created_at = datetime.now(UTC) - timedelta(days=20)
     db.add(proposal)
     await db.commit()
 
@@ -444,9 +426,7 @@ async def test_sweep_expired_flips_stale_pending(db, auth_headers):
 async def test_api_list_approve_reject_dismiss(client, db, auth_headers):
     user = await _auth_user(db)
     item = await _experience(db, user)
-    proposal = await _propose(
-        db, user, payload={"hours_per_week": 15}, entity_id=item.id
-    )
+    proposal = await _propose(db, user, payload={"hours_per_week": 15}, entity_id=item.id)
 
     listing = await client.get("/api/v1/me/profile-proposals", headers=auth_headers)
     assert listing.status_code == 200, listing.text
@@ -472,18 +452,14 @@ async def test_api_list_approve_reject_dismiss(client, db, auth_headers):
     assert again.status_code == 200
     assert again.json()["already"] is True
 
-    rejectable = await _propose(
-        db, user, payload={"hours_per_week": 25}, entity_id=item.id
-    )
+    rejectable = await _propose(db, user, payload={"hours_per_week": 25}, entity_id=item.id)
     rejected = await client.post(
         f"/api/v1/me/profile-proposals/{rejectable.id}/reject", headers=auth_headers
     )
     assert rejected.status_code == 200
     assert rejected.json()["proposal"]["status"] == "rejected"
 
-    dismissible = await _propose(
-        db, user, payload={"hours_per_week": 30}, entity_id=item.id
-    )
+    dismissible = await _propose(db, user, payload={"hours_per_week": 30}, entity_id=item.id)
     dismissed = await client.delete(
         f"/api/v1/me/profile-proposals/{dismissible.id}", headers=auth_headers
     )
@@ -496,9 +472,7 @@ async def test_api_hides_cross_user(client, db, auth_headers):
     user = await _auth_user(db)
     other = await _second_user(client, db)
     item = await _experience(db, user)
-    proposal = await _propose(
-        db, user, payload={"hours_per_week": 5}, entity_id=item.id
-    )
+    proposal = await _propose(db, user, payload={"hours_per_week": 5}, entity_id=item.id)
     rows = await db.execute(select(User).where(User.id == other.id))
     other = rows.scalars().one()
     from tests.conftest import mint_session_headers
@@ -554,23 +528,19 @@ async def test_experience_create_with_skill_links_applies(db, auth_headers):
         "python",
         "fastapi",
     ]
-    assert [
-        (row["url"], row["kind"], row["label"]) for row in by_field["links"]["after"]
-    ] == [("https://github.com/example/platform", "web", "")]
+    assert [(row["url"], row["kind"], row["label"]) for row in by_field["links"]["after"]] == [
+        ("https://github.com/example/platform", "web", "")
+    ]
 
     _, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     refreshed = await db.execute(
         select(ExperienceItem)
-        .options(
-            selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill)
-        )
+        .options(selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill))
         .where(ExperienceItem.id == uuid.UUID(applied["id"]))
     )
     item = refreshed.scalars().one()
     assert {link.skill.key for link in item.skills} == {"python", "fastapi"}
-    assert [link["url"] for link in item.links] == [
-        "https://github.com/example/platform"
-    ]
+    assert [link["url"] for link in item.links] == ["https://github.com/example/platform"]
 
 
 async def test_experience_update_replaces_skill_list(db, auth_headers):
@@ -594,9 +564,7 @@ async def test_experience_update_replaces_skill_list(db, auth_headers):
     await ProfileProposalService(db).approve(user.id, proposal.id)
     refreshed = await db.execute(
         select(ExperienceItem)
-        .options(
-            selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill)
-        )
+        .options(selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill))
         .where(ExperienceItem.id == item.id)
     )
     replaced = refreshed.scalars().one()
@@ -657,9 +625,7 @@ async def test_cv_synth_card_inline_drafts(db, auth_headers):
     ]
     assert proposal.payload_json["resolved_refs"] == by_field["refs"]["after"]
 
-    resolved, applied, _ = await ProfileProposalService(db).approve(
-        user.id, proposal.id
-    )
+    resolved, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     assert resolved.status == "approved"
     assert applied["queued"] is False
     assert len(applied["items"]) >= 1
@@ -710,9 +676,7 @@ async def test_cv_synth_card_queues_large_batch(db, auth_headers):
         action="create",
         payload={"refs": refs, "action": "restyle"},
     )
-    resolved, applied, _ = await ProfileProposalService(db).approve(
-        user.id, proposal.id
-    )
+    resolved, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     assert resolved.status == "approved"
     assert applied["queued"] is True
     assert applied["job_id"]
@@ -781,11 +745,7 @@ async def test_cv_synth_card_validates_shape(db, auth_headers):
             user,
             kind="cv_synth",
             action="create",
-            payload={
-                "refs": [
-                    {"source_key": "experience", "item_id": str(i)} for i in range(11)
-                ]
-            },
+            payload={"refs": [{"source_key": "experience", "item_id": str(i)} for i in range(11)]},
         )
 
 
@@ -889,9 +849,7 @@ async def test_cv_synth_card_posting_ref_names_public_ref(db, auth_headers):
     user = await _auth_user(db)
     item = await _experience(db, user)
     posting = await _posting_row(db)
-    if (
-        posting is None
-    ):  # postings fixtures may be empty — assert label-or-graceful only
+    if posting is None:  # postings fixtures may be empty — assert label-or-graceful only
         pytest.skip("no posting rows seeded")
     proposal = await _propose(
         db,
@@ -987,18 +945,12 @@ async def test_cv_synth_accept_pins_on_session_cv_and_renders(db, auth_headers):
     flag_modified(proposal, "payload_json")
     await db.commit()
 
-    resolved, applied, _ = await ProfileProposalService(db).approve(
-        user.id, proposal.id
-    )
+    resolved, applied, _ = await ProfileProposalService(db).approve(user.id, proposal.id)
     assert resolved.status == "approved"
     assert applied["queued"] is False
     assert applied.get("pinned_cv_id") == str(cv.id)
 
-    refetched = (
-        (await db.execute(select(CvDocument).where(CvDocument.id == cv.id)))
-        .scalars()
-        .one()
-    )
+    refetched = (await db.execute(select(CvDocument).where(CvDocument.id == cv.id))).scalars().one()
     pins = refetched.context.get("synth_pins") or {}
     ref_key = f"experience:{item.id}"
     assert pins.get(ref_key) == applied["items"][0]["id"], (
@@ -1016,9 +968,7 @@ def test_template_preview_gate_ignores_text_restyle_words():
     )
 
     assert "restyle" not in PREVIEW_INTENT_WORDS
-    assert not _is_template_preview_intent(
-        "restyle the Health Assistant project description"
-    )
+    assert not _is_template_preview_intent("restyle the Health Assistant project description")
     assert not _is_template_preview_intent(
         "resolved card: Add CV variants · Health Assistant · restyle — approved"
     )

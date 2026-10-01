@@ -14,9 +14,8 @@ import asyncio
 import ipaddress
 import logging
 import time
-from enum import Enum
+from enum import StrEnum
 from html.parser import HTMLParser
-from typing import Optional
 from urllib.parse import ParseResult, urlencode, urlparse
 
 import httpx
@@ -38,7 +37,7 @@ class WebFetchBlocked(Exception):
     """The target is private/reserved or violates the fetch guard."""
 
 
-class SearxngProbeStatus(str, Enum):
+class SearxngProbeStatus(StrEnum):
     OK = "ok"
     UNCONFIGURED = "unconfigured"
     UNREACHABLE = "unreachable"
@@ -58,7 +57,7 @@ class WebFetchResult(BaseModel):
     rendered: bool = False
 
 
-_web_client: Optional[httpx.AsyncClient] = None
+_web_client: httpx.AsyncClient | None = None
 
 
 def _client() -> httpx.AsyncClient:
@@ -147,9 +146,7 @@ async def assert_public_url(hostname: str) -> None:
             raise WebFetchBlocked(f"private or reserved address for {host!r}")
 
 
-async def _guarded_get(
-    url: str, *, headers: Optional[dict] = None
-) -> tuple[httpx.Response, str]:
+async def _guarded_get(url: str, *, headers: dict | None = None) -> tuple[httpx.Response, str]:
     """GET with the SSRF guard re-applied on every redirect hop."""
     current = url
     for _hop in range(MAX_REDIRECTS + 1):
@@ -251,7 +248,7 @@ def text_from_html(html: str) -> tuple[str, str]:
     try:
         extractor.feed(html or "")
         extractor.close()
-    except Exception:  # noqa: BLE001 — malformed HTML still degrades to text
+    except Exception:
         return "", " ".join((html or "").split())[:DEFAULT_TEXT_CAP]
     return " ".join(extractor.title.split()), extractor.text()
 
@@ -264,7 +261,7 @@ def _searxng_base(url: str) -> str:
     return url.rstrip("/")
 
 
-async def probe_searxng(url: Optional[str]) -> dict:
+async def probe_searxng(url: str | None) -> dict:
     """Cached probe statuses; the Search-API host needs `format: json`."""
     if not (url or "").strip():
         return {"status": SearxngProbeStatus.UNCONFIGURED.value}
@@ -302,7 +299,7 @@ def _json_body(resp: httpx.Response):
         return None
 
 
-async def search_web(url: Optional[str], query: str, n: int) -> dict:
+async def search_web(url: str | None, query: str, n: int) -> dict:
     """SearXNG JSON search; structured-unavailable on every failure mode."""
     probe = await probe_searxng(url)
     status = probe.get("status")
@@ -337,7 +334,7 @@ async def search_web(url: Optional[str], query: str, n: int) -> dict:
 
 
 async def fetch_text(
-    url: str, *, max_text: int = DEFAULT_TEXT_CAP, headers: Optional[dict] = None
+    url: str, *, max_text: int = DEFAULT_TEXT_CAP, headers: dict | None = None
 ) -> WebFetchResult:
     """Guarded, capped fetch; HTML bodies are reduced to title + text."""
     resp, final_url = await _guarded_get(url, headers=headers)
@@ -353,9 +350,7 @@ async def fetch_text(
     text = ""
     title = ""
     if "html" in ctype:
-        title, text = text_from_html(
-            raw.decode(resp.encoding or "utf-8", errors="replace")
-        )
+        title, text = text_from_html(raw.decode(resp.encoding or "utf-8", errors="replace"))
     else:
         text = " ".join(raw.decode("utf-8", errors="replace").split())
     if len(text) > max_text:

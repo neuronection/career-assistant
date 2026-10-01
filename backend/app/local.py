@@ -9,8 +9,8 @@ import asyncio
 import logging
 import os
 import sys
+from collections.abc import MutableMapping
 from pathlib import Path
-from typing import MutableMapping
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +53,7 @@ def bootstrap_environment(
         f"sqlite+aiosqlite:///{data_dir / 'career-assistant.db'}",
     )
     env.setdefault("CAREER_UPLOAD_DIR", str(data_dir / "uploads"))
-    env.setdefault(
-        "CAREER_ENV_FILE", str(data_dir / ENV_FILE)
-    )  # optional user overrides file
+    env.setdefault("CAREER_ENV_FILE", str(data_dir / ENV_FILE))  # optional user overrides file
     # Entrypoint half of the instance-mode matrix (identity-auth §4):
     # `python -m careerassistant` is the desktop entrypoint.
     env.setdefault("CAREER_IDENTITY_MODE", "desktop")
@@ -82,8 +80,9 @@ def find_alembic_ini() -> Path:
 
 def run_migrations() -> None:
     """Apply pending migrations programmatically at startup."""
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     ini = find_alembic_ini()
     config = Config(str(ini))

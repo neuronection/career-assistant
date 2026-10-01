@@ -4,11 +4,12 @@
 import uuid
 from datetime import date
 
+from sqlalchemy import select
+
 from app.models.cv_model import CvVersion
 from app.models.experience_model import ExperienceItem
 from app.services.cv_export_service import to_ats_text, to_markdown
 from app.services.cv_renderer import _block_lines
-from sqlalchemy import select
 
 
 async def _make_item(
@@ -77,9 +78,7 @@ async def _preview(client, auth_headers, cv: dict) -> dict:
 
 
 async def _synth_block_preview(client, auth_headers, cv: dict, props: dict) -> dict:
-    await _set_blocks(
-        client, auth_headers, cv, [{"kind": "synth_items", "props": props}]
-    )
+    await _set_blocks(client, auth_headers, cv, [{"kind": "synth_items", "props": props}])
     return await _preview(client, auth_headers, cv)
 
 
@@ -89,9 +88,7 @@ async def _create_variant(
     response = await client.post(
         "/api/v1/cv/synth",
         json={
-            "refs": [
-                {"source_key": "experience", "item_id": str(item.id)} for item in items
-            ],
+            "refs": [{"source_key": "experience", "item_id": str(item.id)} for item in items],
             "payload": {
                 "description": f"Tailored text for {items[0].title}",
                 "achievements": [{"text": "Shipped the QA harness"}],
@@ -142,9 +139,7 @@ async def test_synth_snapshot_gates_on_language(client, db, auth_headers):
 async def test_synth_snapshot_dedupes_multi_ref_variant(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
-    project = await _make_item(
-        db, uid, title="Campus App", start=date(2023, 2, 1), kind="project"
-    )
+    project = await _make_item(db, uid, title="Campus App", start=date(2023, 2, 1), kind="project")
     variant = await _create_variant(client, auth_headers, [item, project])
     cv = await _cv(client, auth_headers)
     snapshot = await _synth_snapshot_of(client, auth_headers, db, cv)
@@ -158,9 +153,7 @@ async def test_synth_items_block_renders_entries_and_chips(client, db, auth_head
     item = await _make_item(db, uid)
     await _create_variant(client, auth_headers, [item])
     cv = await _cv(client, auth_headers)
-    preview = await _synth_block_preview(
-        client, auth_headers, cv, {"title": "Highlights"}
-    )
+    preview = await _synth_block_preview(client, auth_headers, cv, {"title": "Highlights"})
     assert "Tailored text for Backend Intern" in preview["html"]
     assert "item-detail" in preview["html"]
     assert ">Backend Intern<" in preview["html"], "source chip label renders"
@@ -184,9 +177,7 @@ async def test_synth_items_selected_excludes_others(client, db, auth_headers):
     item = await _make_item(db, uid)
     other = await _make_item(db, uid, title="Frontend Intern", start=date(2025, 1, 1))
     pinned_variant = await _create_variant(client, auth_headers, [item])
-    other_variant = await _create_variant(
-        client, auth_headers, [other], variant_key="other"
-    )
+    other_variant = await _create_variant(client, auth_headers, [other], variant_key="other")
     cv = await _cv(client, auth_headers)
     exclusive = await _synth_block_preview(
         client,
@@ -218,9 +209,7 @@ async def test_synth_items_hidden_without_variants(client, auth_headers):
     assert "Highlights</h2>" not in preview["html"]
 
 
-async def test_synth_items_starred_variant_excludes_overlay_applied(
-    client, db, auth_headers
-):
+async def test_synth_items_starred_variant_excludes_overlay_applied(client, db, auth_headers):
     uid = _uid_of(auth_headers)
     item = await _make_item(db, uid)
     variant = await _create_variant(client, auth_headers, [item])
@@ -351,9 +340,7 @@ async def test_estimator_honors_order_and_synth():
     from app.services.cv_renderer import DesignTokens
 
     design = DesignTokens()
-    props = ItemsBlockProps(
-        title="Work", source_key="experience", max_items=1, order=["a", "b"]
-    )
+    props = ItemsBlockProps(title="Work", source_key="experience", max_items=1, order=["a", "b"])
     snapshot = {
         "experience": [
             {"id": "b", "title": "B", "description": "word " * 80},
@@ -361,12 +348,8 @@ async def test_estimator_honors_order_and_synth():
         ]
     }
     ordered = _block_lines("items", props, snapshot, design)
-    unshuffled = _block_lines(
-        "items", props.model_copy(update={"order": []}), snapshot, design
-    )
-    assert ordered < unshuffled, (
-        "the estimator prices the user's survivor, not the tail"
-    )
+    unshuffled = _block_lines("items", props.model_copy(update={"order": []}), snapshot, design)
+    assert ordered < unshuffled, "the estimator prices the user's survivor, not the tail"
 
     synth_props = SynthItemsProps(title="Highlights", max_items=6)
     synth_snapshot = {

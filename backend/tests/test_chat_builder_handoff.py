@@ -10,9 +10,8 @@ from sqlalchemy import select
 from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
-from app.services.cv_service import CvService
 from app.seeds.cv_templates import seed_cv_template_bank
-
+from app.services.cv_service import CvService
 from tests.test_chat_streaming import _parse_sse
 
 
@@ -41,9 +40,7 @@ async def _cv(db, user, title="Handoff CV"):
 
 async def _session(client, headers, title="handoff"):
     return (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": title}, headers=headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": title}, headers=headers)
     ).json()
 
 
@@ -194,8 +191,8 @@ async def test_preview_intent_persists_and_emits(
 ):
     """Plan 83C/D: a template-look turn renders previews, emits `preview`
     events + a trace card, and persists template_previews metadata."""
-    from app.ai.gateway import register_mock_fixture
     from app.ai.agents.cv_builder_chat import _mock_builder_turn
+    from app.ai.gateway import register_mock_fixture
     from app.models.enums import AITaskType
     from app.services.cv_template_service import CvTemplateService
 
@@ -249,9 +246,7 @@ async def test_preview_intent_persists_and_emits(
     assert [e["template_id"] for e in persisted] == [e["template_id"] for e in previews]
 
 
-async def test_no_preview_intent_skips_previews(
-    client, db, auth_headers, builder_env, monkeypatch
-):
+async def test_no_preview_intent_skips_previews(client, db, auth_headers, builder_env, monkeypatch):
     from app.services.cv_template_service import CvTemplateService
 
     calls = {"n": 0}

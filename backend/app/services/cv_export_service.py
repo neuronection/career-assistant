@@ -15,6 +15,7 @@ from typing import Any, Literal
 from app.core.errors import ValidationError
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.enums import CvSynthStatus, CvVersionCreator
+from app.services.cv_blocks import block_area, block_hidden
 from app.services.cv_builder_service import CvBuilderService
 from app.services.cv_languages import (
     display_cefr,
@@ -28,12 +29,11 @@ from app.services.cv_pdf_service import (
     measure_pages,
 )
 from app.services.cv_renderer import (
-    default_section_title,
     _display_link,
     custom_text_blocks,
+    default_section_title,
     summary_text,
 )
-from app.services.cv_blocks import block_area, block_hidden
 
 ExportFormat = Literal["pdf", "docx", "md", "json", "ats_text"]
 
@@ -105,16 +105,14 @@ def slugify(name: str) -> str:
 
 def _period(item: dict) -> str:
     start, end = str(item.get("start") or ""), str(item.get("end") or "")
-    return " – ".join(part for part in (start, end) if part)
+    return " - ".join(part for part in (start, end) if part)
 
 
 def _heading_of(kind: str, props: dict) -> str:
     if kind == "summary":
         return props.get("title") or "Summary"
     if kind == "items":
-        return props.get("title") or default_section_title(
-            props.get("source_key") or "", "en"
-        )
+        return props.get("title") or default_section_title(props.get("source_key") or "", "en")
     return props.get("title") or kind.replace("_", " ").title()
 
 
@@ -137,9 +135,7 @@ def _visible_blocks(blocks: list[dict], snapshot: dict) -> list[tuple[str, dict,
             visible.append((kind, props, {"text": props.get("text") or ""}))
             continue
         if kind == "letter":
-            paragraphs = [
-                str(p) for p in props.get("paragraphs") or [] if str(p).strip()
-            ]
+            paragraphs = [str(p) for p in props.get("paragraphs") or [] if str(p).strip()]
             if not paragraphs:
                 continue
             visible.append((kind, props, {"paragraphs": paragraphs}))
@@ -221,8 +217,7 @@ def to_markdown(version_payload: dict) -> str:
             if contact:
                 lines.append(contact)
             links = " · ".join(
-                f"[{link.get('label') or link.get('kind') or 'link'}]"
-                f"({link.get('url')})"
+                f"[{link.get('label') or link.get('kind') or 'link'}]({link.get('url')})"
                 for link in data.get("links") or []
             )
             if links:
@@ -234,21 +229,17 @@ def to_markdown(version_payload: dict) -> str:
             lines.append(f"## {_heading_of(kind, props)}")
             for item in data:
                 period = _period(item)
-                lines.append(
-                    f"### {_item_head(item)}" + (f" ({period})" if period else "")
-                )
+                lines.append(f"### {_item_head(item)}" + (f" ({period})" if period else ""))
                 if item.get("description"):
                     lines.append(_prose_lines(str(item["description"])))
                 for achievement in item.get("achievements") or []:
                     lines.append(f"- {achievement.get('text') or ''}")
                 if item.get("skills"):
-                    lines.append(
-                        "Skills: " + ", ".join(str(skill) for skill in item["skills"])
-                    )
+                    lines.append("Skills: " + ", ".join(str(skill) for skill in item["skills"]))
         elif kind == "synth_items":
             lines.append(f"## {_heading_of(kind, props)}")
             for entry in data:
-                lines.append(f"### {str(entry.get('title') or '')}")
+                lines.append(f"### {entry.get('title') or ''!s}")
                 if entry.get("description"):
                     lines.append(_prose_lines(str(entry["description"])))
                 for bullet in entry.get("achievements") or []:
@@ -262,18 +253,12 @@ def to_markdown(version_payload: dict) -> str:
                     lines.append("Based on: " + ", ".join(labels))
         elif kind == "skills":
             lines.append(f"## {_heading_of(kind, props)}")
-            lines.append(
-                ", ".join(
-                    str(s.get("label") if isinstance(s, dict) else s) for s in data
-                )
-            )
+            lines.append(", ".join(str(s.get("label") if isinstance(s, dict) else s) for s in data))
         elif kind == "languages":
             lines.append(f"## {_heading_of(kind, props)}")
             lines.append(
                 ", ".join(
-                    _language_line(lang, props, snapshot)
-                    if isinstance(lang, dict)
-                    else str(lang)
+                    _language_line(lang, props, snapshot) if isinstance(lang, dict) else str(lang)
                     for lang in data
                 )
             )
@@ -292,11 +277,7 @@ def to_markdown(version_payload: dict) -> str:
                 lines.append(f"- {head}" + (f" ({date_part})" if date_part else ""))
         elif kind == "interests":
             lines.append(f"## {_heading_of(kind, props)}")
-            lines.append(
-                ", ".join(
-                    str(i.get("label") if isinstance(i, dict) else i) for i in data
-                )
-            )
+            lines.append(", ".join(str(i.get("label") if isinstance(i, dict) else i) for i in data))
         elif kind == "custom_text":
             lines.append(f"## {props.get('title') or 'Custom'}")
             lines.append(str(data.get("text") or ""))
@@ -377,15 +358,11 @@ def to_docx(version_payload: dict, title: str) -> bytes:
             document.add_heading(_heading_of(kind, props), level=1)
             for item in data:
                 period = _period(item)
-                document.add_heading(
-                    _item_head(item) + (f" ({period})" if period else ""), level=2
-                )
+                document.add_heading(_item_head(item) + (f" ({period})" if period else ""), level=2)
                 if item.get("description"):
                     _prose_paragraph(document, str(item["description"]))
                 for achievement in item.get("achievements") or []:
-                    document.add_paragraph(
-                        str(achievement.get("text") or ""), style="List Bullet"
-                    )
+                    document.add_paragraph(str(achievement.get("text") or ""), style="List Bullet")
                 if item.get("skills"):
                     document.add_paragraph(
                         "Skills: " + ", ".join(str(skill) for skill in item["skills"])
@@ -397,9 +374,7 @@ def to_docx(version_payload: dict, title: str) -> bytes:
                 if entry.get("description"):
                     _prose_paragraph(document, str(entry["description"]))
                 for bullet in entry.get("achievements") or []:
-                    document.add_paragraph(
-                        str(bullet.get("text") or ""), style="List Bullet"
-                    )
+                    document.add_paragraph(str(bullet.get("text") or ""), style="List Bullet")
                 labels = [
                     str(ref.get("label"))
                     for ref in entry.get("source_refs") or []
@@ -410,17 +385,13 @@ def to_docx(version_payload: dict, title: str) -> bytes:
         elif kind == "skills":
             document.add_heading(_heading_of(kind, props), level=1)
             document.add_paragraph(
-                ", ".join(
-                    str(s.get("label") if isinstance(s, dict) else s) for s in data
-                )
+                ", ".join(str(s.get("label") if isinstance(s, dict) else s) for s in data)
             )
         elif kind == "languages":
             document.add_heading(_heading_of(kind, props), level=1)
             document.add_paragraph(
                 ", ".join(
-                    _language_line(lang, props, snapshot)
-                    if isinstance(lang, dict)
-                    else str(lang)
+                    _language_line(lang, props, snapshot) if isinstance(lang, dict) else str(lang)
                     for lang in data
                 )
             )
@@ -443,9 +414,7 @@ def to_docx(version_payload: dict, title: str) -> bytes:
         elif kind == "interests":
             document.add_heading(_heading_of(kind, props), level=1)
             document.add_paragraph(
-                ", ".join(
-                    str(i.get("label") if isinstance(i, dict) else i) for i in data
-                )
+                ", ".join(str(i.get("label") if isinstance(i, dict) else i) for i in data)
             )
         elif kind == "custom_text":
             document.add_heading(str(props.get("title") or "Custom"), level=1)
@@ -471,9 +440,7 @@ def to_docx(version_payload: dict, title: str) -> bytes:
                 _add_inline_md_runs(paragraph, str(text))
             document.add_paragraph(str(props.get("closing") or ""))
             if props.get("show_signature", True):
-                document.add_paragraph(
-                    str((snapshot.get("basics") or {}).get("name") or "")
-                )
+                document.add_paragraph(str((snapshot.get("basics") or {}).get("name") or ""))
     buffer = io.BytesIO()
     document.save(buffer)
     return buffer.getvalue()
@@ -509,7 +476,7 @@ def _render_order(blocks: list[dict], template: object | None) -> list[dict]:
 
             design = TemplateContent.model_validate(template.content).design
             layout, side = design.layout, design.sidebar_side
-        except Exception:  # noqa: BLE001 — lint never fails on a bad row
+        except Exception:
             pass
     if layout != "sidebar":
         return blocks
@@ -544,9 +511,7 @@ def lint(
 
     expected = [
         _heading_of(kind, props).strip().lower()
-        for kind, props, _data in _visible_blocks(
-            _render_order(blocks, template), snapshot
-        )
+        for kind, props, _data in _visible_blocks(_render_order(blocks, template), snapshot)
         if kind not in ("header", "letter")
     ]
     rendered = [
@@ -557,8 +522,7 @@ def lint(
         add(
             "section_order",
             "fail",
-            "Rendered section order deviates from block order — extraction "
-            "would reorder content.",
+            "Rendered section order deviates from block order — extraction would reorder content.",
         )
     else:
         add("section_order", "pass", "Section order matches reading order.")
@@ -580,7 +544,7 @@ def lint(
                 break
     if len(summary_text(snapshot)) > 600:
         add("summary_length", "info", "Summary exceeds ~600 characters.")
-    for kind, props, data in _visible_blocks(blocks, snapshot):
+    for kind, _props, data in _visible_blocks(blocks, snapshot):
         if kind != "letter":
             continue
         words = sum(len(str(text).split()) for text in data.get("paragraphs") or [])
@@ -594,8 +558,7 @@ def lint(
             add(
                 "letter_length",
                 "info",
-                f"Cover letter is only ~{words} words — one more grounded "
-                "paragraph usually helps.",
+                f"Cover letter is only ~{words} words — one more grounded paragraph usually helps.",
             )
         else:
             add("letter_length", "pass", "Cover letter length is in the sweet spot.")
@@ -660,9 +623,7 @@ class CvExportService:
         """Compile (auto-version) then serialize in the requested format."""
         if fmt not in MEDIA_TYPES:
             raise ValidationError(f"Unknown export format: {fmt}")
-        version, html, _metrics = await self.builder.compile(
-            cv, created_by=CvVersionCreator.EXPORT
-        )
+        version, html, _metrics = await self.builder.compile(cv, created_by=CvVersionCreator.EXPORT)
         filename = f"{slugify(cv.title)}.{EXTENSIONS[fmt]}"
         if fmt == "pdf":
             try:
@@ -674,9 +635,7 @@ class CvExportService:
                 await self._stamp_pages_actual(version, actual, cv.max_pages)
             return ExportFile(filename, MEDIA_TYPES[fmt], pdf, False)
         if fmt == "docx":
-            return ExportFile(
-                filename, MEDIA_TYPES[fmt], to_docx(version.content, cv.title), False
-            )
+            return ExportFile(filename, MEDIA_TYPES[fmt], to_docx(version.content, cv.title), False)
         if fmt == "md":
             return ExportFile(
                 filename, MEDIA_TYPES[fmt], to_markdown(version.content).encode(), False
@@ -685,9 +644,7 @@ class CvExportService:
             return ExportFile(
                 filename, MEDIA_TYPES[fmt], to_ats_text(version.content).encode(), False
             )
-        return ExportFile(
-            filename, MEDIA_TYPES[fmt], to_json_export(cv, version), False
-        )
+        return ExportFile(filename, MEDIA_TYPES[fmt], to_json_export(cv, version), False)
 
     async def lint_report(self, cv: CvDocument) -> dict:
         """Deterministic lint over the current state (no version created).
@@ -699,9 +656,7 @@ class CvExportService:
         ages with every edit); the stamp only speaks when no engine can.
         """
         html, payload, resolution, metrics = await self.builder.render_state(cv)
-        report = lint(
-            payload, html, asdict(metrics), await self.builder.template_row(cv)
-        )
+        report = lint(payload, html, asdict(metrics), await self.builder.template_row(cv))
         report["resolved_items"] = len(resolution.items)
         report["checks"].extend(await self._synth_checks(cv, resolution))
         actual, source = await self._live_measure(cv, html)
@@ -740,9 +695,7 @@ class CvExportService:
 
         synth = CvSynthService(self.builder.cvs.db)
         selection = (
-            CvContextSelection.model_validate(cv.context)
-            if cv.context
-            else CvContextSelection()
+            CvContextSelection.model_validate(cv.context) if cv.context else CvContextSelection()
         )
         checks: list[dict] = []
 
@@ -754,9 +707,7 @@ class CvExportService:
         # Plan 110: one pin slot per item; legacy `:bullets`-suffixed keys
         # (immutable old versions) fold onto the single form for checks.
         pins = {
-            key[: -len(BULLETS_PIN_SUFFIX)]
-            if key.endswith(BULLETS_PIN_SUFFIX)
-            else key: value
+            key[: -len(BULLETS_PIN_SUFFIX)] if key.endswith(BULLETS_PIN_SUFFIX) else key: value
             for key, value in (selection.synth_pins or {}).items()
             if value
         }
@@ -781,14 +732,11 @@ class CvExportService:
                 row = await synth.get_owned(uuid.UUID(synth_id), cv.user_id)
             except ValueError:
                 reason = "the pin is malformed"
-            except Exception:  # noqa: BLE001 — missing/foreign variant
+            except Exception:
                 reason = "the pinned variant no longer exists"
             if reason is None:
                 if row.status != CvSynthStatus.ACTIVE.value:
-                    reason = (
-                        f"the pinned variant is a {row.status} — activate it "
-                        "to use it here"
-                    )
+                    reason = f"the pinned variant is a {row.status} — activate it to use it here"
                 elif row.voice.get("language") != cv.language:
                     reason = (
                         "the pinned variant is "
@@ -833,10 +781,7 @@ class CvExportService:
         for synth_id in dict.fromkeys(trace.values()):
             row = await synth.get_owned(uuid.UUID(synth_id), cv.user_id)
             if synth._state_of(row, context)["stale"]:
-                ref_key = (
-                    f"{row.source_refs[0]['source_key']}:"
-                    f"{row.source_refs[0]['item_id']}"
-                )
+                ref_key = f"{row.source_refs[0]['source_key']}:{row.source_refs[0]['item_id']}"
                 add(
                     "synth_stale",
                     "warn",
@@ -855,9 +800,7 @@ class CvExportService:
                 )
         return checks
 
-    async def _live_measure(
-        self, cv: CvDocument, html: str
-    ) -> tuple[int | None, str | None]:
+    async def _live_measure(self, cv: CvDocument, html: str) -> tuple[int | None, str | None]:
         """Real page count of the current state, printed through the engine.
 
         The measure prints the exact HTML an export would produce, so the
@@ -869,7 +812,7 @@ class CvExportService:
             measure = await measure_pages(html, page_size=cv.page_size, max_images=0)
         except PDFEngineUnavailable:
             return None, None
-        except Exception:  # noqa: BLE001 — engine missing/flaky → estimate stays
+        except Exception:
             return None, None
         return measure.pages, measure.source
 
@@ -898,13 +841,13 @@ class CvExportService:
 
 
 __all__ = [
-    "ExportFormat",
-    "ExportFile",
     "CvExportService",
+    "ExportFile",
+    "ExportFormat",
     "lint",
-    "to_markdown",
+    "slugify",
     "to_ats_text",
     "to_docx",
     "to_json_export",
-    "slugify",
+    "to_markdown",
 ]

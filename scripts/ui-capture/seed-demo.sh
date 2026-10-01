@@ -5,7 +5,7 @@
 # not a demo instance — see scripts/seed-demo.py for the guard details.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PY="${CA_SEED_PYTHON:-$ROOT/backend/venv/bin/python}"
+PY="${CA_SEED_PYTHON:-$ROOT/.venv/bin/python}"
 DEMO_DIR="${CA_DEMO_DIR:-$ROOT/dev/demo-data}"
 
 if [[ ! -f "$DEMO_DIR/career.sqlite3" ]]; then

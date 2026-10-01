@@ -1,10 +1,11 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Phase 26 postings: connector SDK contract kit, sync/dedup, skill-ID
 mapping, fit deltas, alerts, expiry, interactions."""
 
 import asyncio
 import json
 import uuid as uuid_mod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -19,9 +20,6 @@ from app.connectors.registry import (
     reset_registry,
 )
 from app.connectors.testing import ConnectorContractTests
-from tests.conftest import decode_session_token
-
-from tests.conftest import SyntheticConnector
 from app.models.posting_model import JobPosting
 from app.services.postings_service import (
     expire_stale,
@@ -29,6 +27,7 @@ from app.services.postings_service import (
     sync_source,
     upsert_posting,
 )
+from tests.conftest import SyntheticConnector, decode_session_token
 
 
 def _user_id(auth_headers) -> str:
@@ -83,46 +82,44 @@ GREENHOUSE_BODY = json.dumps(
 
 class TestCsvConnector(ConnectorContractTests):
     connector = get_connector("csv")
-    config = {"url": "https://jobs.example/feed.csv"}
+    config = {"url": "https://jobs.example/feed.csv"}  # noqa: RUF012 -- test fixture data
     body = CSV_BODY
 
 
 class TestJsonLdConnector(ConnectorContractTests):
     connector = get_connector("jsonld")
-    config = {"url": "https://jobs.example/careers"}
+    config = {"url": "https://jobs.example/careers"}  # noqa: RUF012 -- test fixture data
     body = JSONLD_BODY
 
 
 class TestRssConnector(ConnectorContractTests):
     connector = get_connector("rss")
-    config = {"url": "https://jobs.example/feed.xml"}
+    config = {"url": "https://jobs.example/feed.xml"}  # noqa: RUF012 -- test fixture data
     body = RSS_BODY
 
 
 class TestAtsApiConnector(ConnectorContractTests):
     connector = get_connector("ats_api")
-    config = {"provider": "greenhouse", "org": "acme"}
+    config = {"provider": "greenhouse", "org": "acme"}  # noqa: RUF012 -- test fixture data
     body = GREENHOUSE_BODY
 
 
 class TestManualUrlConnector(ConnectorContractTests):
     connector = get_connector("manual_url")
-    config = {"url": "https://jobs.example/posting/9"}
+    config = {"url": "https://jobs.example/posting/9"}  # noqa: RUF012 -- test fixture data
     body = JSONLD_BODY
 
 
 class TestSyntheticConnector(ConnectorContractTests):
     connector = SyntheticConnector()
-    config = {}
+    config = {}  # noqa: RUF012 -- test fixture data
     body = ""
-    initial_state = {}
+    initial_state = {}  # noqa: RUF012 -- test fixture data
 
     def test_incremental_state_yields_no_duplicates(self):
         async def _run():
             first = await self.connector.fetch(self.config, {}, transport=None)
-            second = await self.connector.fetch(
-                self.config, first.next_state, transport=None
-            )
+            second = await self.connector.fetch(self.config, first.next_state, transport=None)
             return first, second
 
         first, second = asyncio.run(_run())
@@ -201,9 +198,7 @@ async def test_connector_failure_is_isolated(
     assert "Unknown connector" in source.error
 
 
-async def test_sync_via_queue(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
-):
+async def test_sync_via_queue(client, auth_headers, profile_ready, seeded_catalog, db, source):
     from app.services.job_worker import JobWorker
 
     await _admin(client, auth_headers, db)
@@ -215,9 +210,7 @@ async def test_sync_via_queue(
     worker = JobWorker(db)
     while await worker.run_once():
         pass
-    detail = (
-        await client.get(f"/api/v1/background-jobs/{job_id}", headers=auth_headers)
-    ).json()
+    detail = (await client.get(f"/api/v1/background-jobs/{job_id}", headers=auth_headers)).json()
     assert detail["status"] == "succeeded"
 
 
@@ -236,11 +229,7 @@ async def test_mapping_skill_id_intersection_and_aliases(
     from app.models.posting_model import PostingSkill
 
     edges = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
@@ -281,9 +270,7 @@ async def test_below_threshold_goes_to_moderation(
     assert posting.status != "mapped"
 
 
-async def test_manual_mapping_wins(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
-):
+async def test_manual_mapping_wins(client, auth_headers, profile_ready, seeded_catalog, db, source):
     await sync_source(db, source)
     posting = (await db.execute(select(JobPosting))).scalars().first()
     await _admin(client, auth_headers, db)
@@ -304,9 +291,7 @@ async def test_manual_mapping_wins(
     await db.commit()
     await sync_source(db, source)
     refreshed = (
-        (await db.execute(select(JobPosting).where(JobPosting.id == posting.id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting.id))).scalars().first()
     )
     assert refreshed.catalog_job_id == job.id
     assert refreshed.mapping_method == "manual"
@@ -315,20 +300,18 @@ async def test_manual_mapping_wins(
 # ------------------------------------------------------------- fit delta
 
 
-async def test_fit_delta_math(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
-):
+async def test_fit_delta_math(client, auth_headers, profile_ready, seeded_catalog, db, source):
     await sync_source(db, source)
     posting = (await db.execute(select(JobPosting))).scalars().first()
     # Pin "fresh" explicitly: the seed date drifts toward FRESH_DECAY_CAP's
     # 4-week saturation as the calendar advances, which would silently
     # equalize the two captures (both capped -> no delta).
-    posting.posted_at = datetime.now(timezone.utc)
+    posting.posted_at = datetime.now(UTC)
     await db.commit()
     fit_now = await posting_fit(db, uuid_mod.UUID(_user_id(auth_headers)), posting)
     assert 0 <= fit_now <= 10
 
-    posting.posted_at = datetime.now(timezone.utc) - timedelta(days=40)
+    posting.posted_at = datetime.now(UTC) - timedelta(days=40)
     await db.commit()
     fit_old = await posting_fit(db, uuid_mod.UUID(_user_id(auth_headers)), posting)
     assert fit_old < fit_now
@@ -362,18 +345,14 @@ async def test_new_posting_match_alert_and_cooldown(
 # ---------------------------------------------------------------- expiry
 
 
-async def test_expiry_sweep(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
-):
+async def test_expiry_sweep(client, auth_headers, profile_ready, seeded_catalog, db, source):
     await sync_source(db, source)
     posting = (await db.execute(select(JobPosting))).scalars().first()
-    posting.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+    posting.expires_at = datetime.now(UTC) - timedelta(days=1)
     await db.commit()
     assert await expire_stale(db) == 1
     refreshed = (
-        (await db.execute(select(JobPosting).where(JobPosting.id == posting.id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting.id))).scalars().first()
     )
     assert refreshed.status == "expired"
 
@@ -403,16 +382,12 @@ async def test_interaction_state_round_trip(
         json={"posting_id": posting_id, "applied_via_url": "https://jobs.example/1"},
         headers=auth_headers,
     )
-    saved = (
-        await client.get("/api/v1/postings?saved=true", headers=auth_headers)
-    ).json()
+    saved = (await client.get("/api/v1/postings?saved=true", headers=auth_headers)).json()
     assert saved["total"] == 1
     item = saved["items"][0]
     assert item["seen"] is True
     assert item["applied_at"] is not None
-    unseen = (await client.get("/api/v1/postings", headers=auth_headers)).json()[
-        "unseen"
-    ]
+    unseen = (await client.get("/api/v1/postings", headers=auth_headers)).json()["unseen"]
     assert unseen == 0
 
     await client.post(

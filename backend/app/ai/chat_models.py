@@ -7,7 +7,7 @@ model; retries stay in the gateway funnel (``max_retries=0``) and tests
 inject an ``httpx`` transport instead of touching the network.
 """
 
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlsplit
 
 import httpx
@@ -43,7 +43,7 @@ class CompatibleChatOpenAI(ChatOpenAI):
         return super(ChatOpenAI, self)._default_params
 
 
-def is_openai_endpoint(base_url: Optional[str]) -> bool:
+def is_openai_endpoint(base_url: str | None) -> bool:
     """True when the base URL points at OpenAI's own API.
 
     Providers are sometimes registered as ``openai_compatible`` with
@@ -56,7 +56,7 @@ def is_openai_endpoint(base_url: Optional[str]) -> bool:
         return False
 
 
-def is_openai_wire(provider_type: str, base_url: Optional[str]) -> bool:
+def is_openai_wire(provider_type: str, base_url: str | None) -> bool:
     """Should payloads use OpenAI's modern wire contract?"""
     return provider_type == "openai" or (
         provider_type == "openai_compatible" and is_openai_endpoint(base_url)
@@ -64,7 +64,7 @@ def is_openai_wire(provider_type: str, base_url: Optional[str]) -> bool:
 
 
 def token_cap_kwargs(
-    provider_type: str, cap: int, base_url: Optional[str] = None
+    provider_type: str, cap: int, base_url: str | None = None
 ) -> dict[str, int]:
     """Token-cap params for a plain REST chat payload, per provider type.
 
@@ -80,7 +80,7 @@ def token_cap_kwargs(
 
 def _google_model(
     resolved: "ResolvedModel",
-    transport: Optional[httpx.AsyncBaseTransport] = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> ChatGoogleGenerativeAI:
     """Native Gemini API chat model (LangChain ``langchain-google-genai``).
 
@@ -128,9 +128,7 @@ def _google_model(
     return model
 
 
-async def discover_google_models(
-    api_key: Optional[str], base_url: Optional[str]
-) -> list[dict]:
+async def discover_google_models(api_key: str | None, base_url: str | None) -> list[dict]:
     """Gemini catalog via the google-genai SDK's model listing.
 
     Only generation-capable models are offered (embedding/TTS models would
@@ -166,7 +164,7 @@ async def discover_google_models(
 
 def build_chat_model(
     resolved: "ResolvedModel",
-    transport: Optional[httpx.AsyncBaseTransport] = None,
+    transport: httpx.AsyncBaseTransport | None = None,
     *,
     json_mode: bool = True,
 ) -> BaseChatModel:
@@ -223,7 +221,7 @@ def build_chat_model(
 
 def build_embedding_model(
     resolved: "ResolvedModel",
-    transport: Optional[httpx.AsyncBaseTransport] = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> "OpenAIEmbeddings":
     """Build the LangChain embeddings model for a resolved provider/model.
 

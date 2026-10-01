@@ -9,15 +9,15 @@ read/write (cross-user access is a 403, the chat-endpoint convention).
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import NotFoundError, ValidationError
 from app.models.enums import InterviewStatus
 from app.models.interview_model import InterviewSession
 from app.schemas.interview import (
-    InterviewPlanPatch,
     InterviewPlan,
+    InterviewPlanPatch,
     InterviewSessionCreate,
 )
 
@@ -26,17 +26,13 @@ class InterviewService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def _get_owned(
-        self, user_id: uuid.UUID, session_id: uuid.UUID
-    ) -> InterviewSession:
+    async def _get_owned(self, user_id: uuid.UUID, session_id: uuid.UUID) -> InterviewSession:
         session = await self.db.get(InterviewSession, session_id)
         if session is None or session.user_id != user_id:
             raise NotFoundError("Interview session not found")
         return session
 
-    async def create(
-        self, user_id: uuid.UUID, payload: InterviewSessionCreate
-    ) -> InterviewSession:
+    async def create(self, user_id: uuid.UUID, payload: InterviewSessionCreate) -> InterviewSession:
         """Resolve the role source, generate the plan draft, persist."""
         from app.ai.agents.interview_coach import generate_interview_plan
         from app.models.job_model import Job
@@ -56,9 +52,7 @@ class InterviewService:
                 raise NotFoundError("Catalog job not found")
             role_label = job.title
         else:
-            raise ValidationError(
-                "Provide a posting_ref or a job_code for the practice role"
-            )
+            raise ValidationError("Provide a posting_ref or a job_code for the practice role")
 
         plan: InterviewPlan = await generate_interview_plan(
             self.db,
@@ -154,9 +148,7 @@ class InterviewService:
         session = await self._get_owned(user_id, session_id)
         if session.status == InterviewStatus.COMPLETED.value:
             raise ValidationError("This interview is already complete")
-        if any(
-            row.get("question_id") == question_id for row in session.rubric_scores or []
-        ):
+        if any(row.get("question_id") == question_id for row in session.rubric_scores or []):
             raise ValidationError("This question was already answered")
         session.rubric_scores = [
             *(session.rubric_scores or []),
@@ -167,9 +159,7 @@ class InterviewService:
         await self.db.commit()
         return await self.get(user_id, session.id)
 
-    async def generate_debrief(
-        self, user_id: uuid.UUID, session_id: uuid.UUID
-    ) -> InterviewSession:
+    async def generate_debrief(self, user_id: uuid.UUID, session_id: uuid.UUID) -> InterviewSession:
         """Aggregate + narrative + resources for a completed session
         (idempotent — an existing debrief is returned untouched)."""
         from app.ai.agents.interview_coach import generate_debrief_payload
@@ -190,9 +180,7 @@ class InterviewService:
         await self.db.commit()
         return await self.get(user_id, session_id)
 
-    async def retry_weak(
-        self, user_id: uuid.UUID, session_id: uuid.UUID
-    ) -> InterviewSession:
+    async def retry_weak(self, user_id: uuid.UUID, session_id: uuid.UUID) -> InterviewSession:
         """One-click weak-area retry: a fresh planned session reusing the
         source's weak questions verbatim (deterministic — no LLM call)."""
         from app.models.interview_model import InterviewSession as Model

@@ -4,6 +4,7 @@ trail). No data migration — the table starts empty; earlier imports
 keep their apply reports as before."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0025"
@@ -32,9 +33,7 @@ def upgrade() -> None:
         sa.Column("entity_id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.UniqueConstraint(
-            "document_id", "entity_type", "entity_id", name="uq_cv_applied_entity"
-        ),
+        sa.UniqueConstraint("document_id", "entity_type", "entity_id", name="uq_cv_applied_entity"),
         sa.CheckConstraint(
             "entity_type IN ('basics', 'skills', 'experience_items', "
             "'education_items', 'certifications', 'profile_achievements', "
@@ -43,9 +42,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_cv_intake_applied_user_id", "cv_intake_applied", ["user_id"])
-    op.create_index(
-        "ix_cv_intake_applied_document_id", "cv_intake_applied", ["document_id"]
-    )
+    op.create_index("ix_cv_intake_applied_document_id", "cv_intake_applied", ["document_id"])
 
 
 def downgrade() -> None:

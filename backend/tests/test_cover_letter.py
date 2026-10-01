@@ -5,8 +5,6 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid
-
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.ai_model import AIGeneration
 from app.models.taxonomy_model import Skill
@@ -14,6 +12,7 @@ from app.models.user_model import UserSkill
 from app.schemas.cv_template import TemplateContent
 from app.services.cv_builder_service import FALLBACK_CONTENT
 from app.services.cv_renderer import render_cv
+from tests.conftest import _make_posting, _uid
 
 
 async def _experience(client, headers, **overrides) -> dict:
@@ -145,9 +144,7 @@ async def test_brief_reports_coverage_and_quotes(
     covered = {entry["skill_key"] for entry in brief["coverage"]["covered"]}
     missing = {entry["skill_key"] for entry in brief["coverage"]["missing"]}
     assert skill_row.key in covered and "kubernetes" in missing
-    programming = next(
-        skill for skill in brief["must_have"] if skill["skill_key"] == skill_row.key
-    )
+    programming = next(skill for skill in brief["must_have"] if skill["skill_key"] == skill_row.key)
     assert programming["user_level"] == 6
     assert programming["evidence_quote"] == "must know the thing"
     assert brief["evidence_items"] > 0
@@ -183,18 +180,12 @@ async def test_draft_returns_verified_paragraphs(
     }
     assert body["paragraphs"]
     for paragraph in body["paragraphs"]:
-        refs = {
-            (ref["source_key"], ref["item_id"]) for ref in paragraph["evidence_refs"]
-        }
+        refs = {(ref["source_key"], ref["item_id"]) for ref in paragraph["evidence_refs"]}
         assert refs, "every paragraph must cite evidence"
         assert refs <= known, "citations must resolve to the letter's context"
         assert paragraph["verified"] is True
     audited = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "cv_cover_letter")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "cv_cover_letter")))
         .scalars()
         .all()
     )
@@ -316,9 +307,7 @@ async def test_letter_exports_and_versions(
     assert docx.status_code == 200
     assert docx.content[:2] == b"PK"
 
-    lint = (
-        await client.get(f"/api/v1/cv/{letter['id']}/lint", headers=auth_headers)
-    ).json()
+    lint = (await client.get(f"/api/v1/cv/{letter['id']}/lint", headers=auth_headers)).json()
     check_ids = {check["id"] for check in lint["checks"]}
     assert "letter_length" in check_ids
     order = next(check for check in lint["checks"] if check["id"] == "section_order")

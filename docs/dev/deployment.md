@@ -166,7 +166,7 @@ cd frontend && npm ci && npm run build && cd ..
 
 # Backend
 cd backend
-python -m venv venv && ./venv/bin/pip install -r requirements.txt
+python -m venv venv && ./venv/bin/uv sync
 export CAREER_APP_ENV=production
 export CAREER_DATABASE_URL=postgresql+asyncpg://user:pass@127.0.0.1:5432/neuronection_career
 export CAREER_SESSION_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"

@@ -4,8 +4,6 @@ onsite + typed benefits; lifestyle gates against constraints."""
 import pytest
 from pydantic import ValidationError
 
-from tests.conftest import _make_posting, _uid
-
 from app.ai.agents.posting_extractor import (
     ExtractBenefit,
     ExtractHours,
@@ -16,7 +14,7 @@ from app.ai.agents.posting_extractor import (
 )
 from app.services.extract_service import EXTRACT_VERSION, apply_extract
 from app.services.posting_fit_service import lifestyle_gates
-
+from tests.conftest import _make_posting, _uid
 
 # ------------------------------------------------------------- schema v2
 
@@ -25,14 +23,10 @@ def test_v2_fields_require_evidence_and_literals():
     with pytest.raises(ValidationError):
         ExtractScheduleCue(cue="nights", evidence_quote="x", confidence=0.9)
     with pytest.raises(ValidationError):
-        ExtractScheduleCue(
-            cue="overtime", evidence_quote="a verbatim quote", confidence=0.9
-        )
+        ExtractScheduleCue(cue="overtime", evidence_quote="a verbatim quote", confidence=0.9)
     with pytest.raises(ValidationError):
         ExtractTravel(level="sometimes", evidence_quote="a verbatim quote")
-    cue = ExtractScheduleCue(
-        cue="nights", evidence_quote="night shifts rotation", confidence=0.9
-    )
+    cue = ExtractScheduleCue(cue="nights", evidence_quote="night shifts rotation", confidence=0.9)
     assert cue.cue == "nights"
 
 
@@ -62,22 +56,14 @@ def test_unset_vs_zero_distinct():
 
 
 def test_legacy_string_benefits_coerce():
-    legacy = PostingExtract.model_validate(
-        {"benefits": ["Private healthcare", "Meal vouchers"]}
-    )
+    legacy = PostingExtract.model_validate({"benefits": ["Private healthcare", "Meal vouchers"]})
     assert [b.kind for b in legacy.benefits] == ["other", "other"]
     assert legacy.benefits[0].raw == "Private healthcare"
     typed = PostingExtract.model_validate(
-        {
-            "benefits": [
-                {"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}
-            ]
-        }
+        {"benefits": [{"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}]}
     )
     assert typed.benefits[0].kind == "healthcare"
-    assert ExtractBenefit.coerce("Gym") == ExtractBenefit(
-        kind="other", raw="Gym", confidence=0.5
-    )
+    assert ExtractBenefit.coerce("Gym") == ExtractBenefit(kind="other", raw="Gym", confidence=0.5)
 
 
 # ------------------------------------------------------------ apply path
@@ -114,9 +100,7 @@ async def test_apply_extract_v2_lifestyle_facts_and_columns(
             evidence_quote="occasional travel to client sites",
             confidence=0.9,
         ),
-        benefits=[
-            {"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}
-        ],
+        benefits=[{"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}],
         skills=[],
     )
     await apply_extract(db, posting, extract)
@@ -202,9 +186,7 @@ async def test_lifestyle_gate_rules(db, source):
     unstated_frequent.posting_facts = {
         "lifestyle": {"travel_required": {"level": "frequent", "days_per_month": None}}
     }
-    assert lifestyle_gates(unstated_frequent, {"travel_days_per_month": 5}) == [
-        "travel"
-    ]
+    assert lifestyle_gates(unstated_frequent, {"travel_days_per_month": 5}) == ["travel"]
     assert lifestyle_gates(unstated_frequent, {"travel_days_per_month": 15}) == []
     assert lifestyle_gates(unstated_frequent, {}) == []
     no_constraints = lifestyle_gates(posting, None)
@@ -256,18 +238,12 @@ async def test_gates_surface_on_posting_detail(
     posting = await _make_posting(db, source)
     posting.extract_version = EXTRACT_VERSION
     posting.posting_facts = {
-        "lifestyle": {
-            "schedule_cues": [
-                {"cue": "weekends", "evidence_quote": "weekend rotations"}
-            ]
-        }
+        "lifestyle": {"schedule_cues": [{"cue": "weekends", "evidence_quote": "weekend rotations"}]}
     }
     db.add(posting)
     await db.commit()
 
-    detail = (
-        await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
-    ).json()
+    detail = (await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)).json()
     assert "shift" in (detail["match"]["gates"] or [])
 
     other = await client.get(
@@ -288,9 +264,9 @@ async def test_constraint_change_invalidates_cached_gates(
     db.add(posting)
     await db.commit()
 
-    before = (
-        await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
-    ).json()["match"]["gates"]
+    before = (await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)).json()[
+        "match"
+    ]["gates"]
     assert before == []
 
     await client.put(
@@ -304,7 +280,7 @@ async def test_constraint_change_invalidates_cached_gates(
         },
         headers=auth_headers,
     )
-    after = (
-        await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
-    ).json()["match"]["gates"]
+    after = (await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)).json()[
+        "match"
+    ]["gates"]
     assert after == ["travel"]

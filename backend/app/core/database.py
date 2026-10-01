@@ -1,7 +1,7 @@
 import json
 import logging
+from collections.abc import AsyncGenerator
 from datetime import date, datetime
-from typing import AsyncGenerator
 from uuid import UUID
 
 from sqlalchemy import create_engine
@@ -75,9 +75,7 @@ if settings.database_url.startswith("sqlite"):
     event.listens_for(engine.sync_engine, "connect")(sqlite_pragmas)
 
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 
 def _sync_database_url(url: str) -> str:
@@ -99,9 +97,7 @@ if settings.database_url.startswith("sqlite"):
         "echo": False,
     }
 
-sync_engine = create_engine(
-    _sync_database_url(settings.database_url), **_sync_engine_kwargs
-)
+sync_engine = create_engine(_sync_database_url(settings.database_url), **_sync_engine_kwargs)
 if settings.database_url.startswith("sqlite"):
     event.listens_for(sync_engine, "connect")(sqlite_pragmas)
 

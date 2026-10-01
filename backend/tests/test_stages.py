@@ -2,8 +2,6 @@
 
 from uuid import UUID
 
-
-from tests.conftest import decode_session_token
 from app.models.enums import CareerStage
 from app.services.stages_service import (
     derive_career_stage,
@@ -12,6 +10,7 @@ from app.services.stages_service import (
     max_birth_year,
     stage_preset,
 )
+from tests.conftest import decode_session_token
 
 
 def _basics(**overrides) -> dict:
@@ -42,9 +41,7 @@ def test_derivation_experienced_beats_young_age():
             "hours_per_week": 30,
         }
     ]
-    assert derive_career_stage(_basics(birth_year=1998), experience) == (
-        CareerStage.EXPERIENCED
-    )
+    assert derive_career_stage(_basics(birth_year=1998), experience) == (CareerStage.EXPERIENCED)
 
 
 def test_derivation_early_career_from_short_evidence():
@@ -56,9 +53,7 @@ def test_derivation_early_career_from_short_evidence():
             "hours_per_week": 20,
         }
     ]
-    assert derive_career_stage(_basics(birth_year=2002), experience) == (
-        CareerStage.EARLY_CAREER
-    )
+    assert derive_career_stage(_basics(birth_year=2002), experience) == (CareerStage.EARLY_CAREER)
 
 
 def test_derivation_returning_after_gap():
@@ -70,9 +65,7 @@ def test_derivation_returning_after_gap():
             "hours_per_week": 30,
         }
     ]
-    assert derive_career_stage(_basics(birth_year=1990), experience) == (
-        CareerStage.RETURNING
-    )
+    assert derive_career_stage(_basics(birth_year=1990), experience) == (CareerStage.RETURNING)
 
 
 def test_manual_override_wins_and_falls_back_when_cleared():
@@ -169,9 +162,7 @@ async def test_birth_year_accepts_older_users(client, auth_headers, profile_read
     assert too_young.status_code == 422
 
 
-async def test_grade_stripped_and_gpa_ignored_for_non_students(
-    client, auth_headers, profile_ready
-):
+async def test_grade_stripped_and_gpa_ignored_for_non_students(client, auth_headers, profile_ready):
     response = await client.put(
         "/api/v1/profile",
         json={
@@ -192,9 +183,7 @@ async def test_grade_stripped_and_gpa_ignored_for_non_students(
     assert body["stage_source"] == "explicit"
 
 
-async def test_non_student_stage_strips_stale_student_fields(
-    client, auth_headers, profile_ready
-):
+async def test_non_student_stage_strips_stale_student_fields(client, auth_headers, profile_ready):
     await client.put(
         "/api/v1/profile",
         json={"academics": {"gpa_band": "excellent", "favorite_subjects": []}},
@@ -354,12 +343,8 @@ async def test_bootstrap_flags_gate_universities_for_non_students(
     assert student["features"]["universities"] is True
     assert student["stage_source"] in {"derived", "explicit"}
 
-    await client.put(
-        "/api/v1/me/stage", json={"career_stage": "experienced"}, headers=auth_headers
-    )
-    experienced = (
-        await client.get("/api/v1/me/bootstrap", headers=auth_headers)
-    ).json()
+    await client.put("/api/v1/me/stage", json={"career_stage": "experienced"}, headers=auth_headers)
+    experienced = (await client.get("/api/v1/me/bootstrap", headers=auth_headers)).json()
     assert experienced["career_stage"] == "experienced"
     assert experienced["features"]["universities"] is False
     assert experienced["features"]["grade_fields"] is False

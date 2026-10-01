@@ -6,7 +6,7 @@ registries the API uses (block kinds, design tokens, context sources) at
 application time — the schema only fixes the shape, never the values.
 """
 
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -34,9 +34,7 @@ class UpdateDesignOp(BaseModel):
     can be reset to their derived default."""
 
     op: Literal["update_design"] = "update_design"
-    design: dict[str, Optional[Union[str, int, float, bool]]] = Field(
-        min_length=1, max_length=30
-    )
+    design: dict[str, str | int | float | bool | None] = Field(min_length=1, max_length=30)
 
 
 class SetContextOp(BaseModel):
@@ -48,17 +46,17 @@ class SetContextOp(BaseModel):
     exclude: list[CvContextRef] = Field(default_factory=list, max_length=200)
     # Synth state (plan 72): omitted = keep the CV's current values, so
     # context edits don't wipe the user's per-item variant stars.
-    synth_pins: Optional[dict[str, str]] = Field(default=None, max_length=100)
+    synth_pins: dict[str, str] | None = Field(default=None, max_length=100)
 
 
 class SetDocOptionsOp(BaseModel):
     """Document-level options: title, page size, page budget, language."""
 
     op: Literal["set_doc_options"] = "set_doc_options"
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    page_size: Optional[Literal["a4", "letter"]] = None
-    max_pages: Optional[int] = Field(default=None, ge=1, le=10)
-    language: Optional[str] = Field(default=None, min_length=2, max_length=10)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    page_size: Literal["a4", "letter"] | None = None
+    max_pages: int | None = Field(default=None, ge=1, le=10)
+    language: str | None = Field(default=None, min_length=2, max_length=10)
 
 
 class AddBlockOp(BaseModel):
@@ -67,8 +65,8 @@ class AddBlockOp(BaseModel):
     op: Literal["add_block"] = "add_block"
     kind: str = Field(min_length=1, max_length=40)
     props: dict = Field(default_factory=dict, max_length=30)
-    position: Optional[int] = Field(default=None, ge=0, le=24)
-    area: Optional[Literal["main", "sidebar"]] = Field(default=None)
+    position: int | None = Field(default=None, ge=0, le=24)
+    area: Literal["main", "sidebar"] | None = Field(default=None)
 
 
 class RemoveBlockOp(BaseModel):
@@ -102,7 +100,7 @@ class UpdateBlockPropsOp(BaseModel):
 
     op: Literal["update_block_props"] = "update_block_props"
     block_index: int = Field(ge=0, le=24)
-    props: dict[str, Optional[Union[str, int, float, bool, list, dict]]] = Field(
+    props: dict[str, str | int | float | bool | list | dict | None] = Field(
         min_length=1, max_length=30
     )
 
@@ -163,20 +161,7 @@ class UpsertVariantOp(BaseModel):
 
 
 BuilderOp = Annotated[
-    Union[
-        SetTemplateOp,
-        ApplyThemeOp,
-        UpdateDesignOp,
-        SetContextOp,
-        SetDocOptionsOp,
-        AddBlockOp,
-        RemoveBlockOp,
-        MoveBlockOp,
-        SetBlockAreaOp,
-        UpdateBlockPropsOp,
-        SetOverrideOp,
-        UpsertVariantOp,
-    ],
+    SetTemplateOp | ApplyThemeOp | UpdateDesignOp | SetContextOp | SetDocOptionsOp | AddBlockOp | RemoveBlockOp | MoveBlockOp | SetBlockAreaOp | UpdateBlockPropsOp | SetOverrideOp | UpsertVariantOp,  # noqa: E501 -- long message string; reflow when touched
     Field(discriminator="op"),
 ]
 
@@ -197,7 +182,7 @@ class OpResult(BaseModel):
     detail: str = Field(default="", max_length=300)
     # The styled template version the op landed on — polish-loop
     # coalescing reads this to keep restyling the SAME draft.
-    styled: Optional[dict] = None
+    styled: dict | None = None
 
 
 class CvOpsRequest(BaseModel):

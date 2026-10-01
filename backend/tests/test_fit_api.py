@@ -19,12 +19,8 @@ async def test_put_scoring_weights_refits_without_ai(
     client, auth_headers, profile_ready, seeded_catalog
 ):
     # seed one AI insight; weight changes must NOT add or change AI scores
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
-    await client.post(
-        "/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers
-    )
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
+    await client.post("/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers)
     before = (await client.get("/api/v1/match/insights", headers=auth_headers)).json()
     ai_before = {i["job_id"]: i["ai_score"] for i in before if i["ai_score"]}
 
@@ -72,9 +68,7 @@ async def test_refit_single_job_sync_and_all_queued(
     assert 0 <= body["fit_score"] <= 10
     assert body["breakdown"]["dimensions"]
 
-    queued = await client.post(
-        "/api/v1/match/fit", json={"all": True}, headers=auth_headers
-    )
+    queued = await client.post("/api/v1/match/fit", json={"all": True}, headers=auth_headers)
     assert queued.status_code == 200
     worker = JobWorker(db)
     while await worker.run_once():
@@ -82,9 +76,7 @@ async def test_refit_single_job_sync_and_all_queued(
     rows = (
         (
             await db.execute(
-                select(MatchInsight).where(
-                    MatchInsight.user_id == await _student_id(db)
-                )
+                select(MatchInsight).where(MatchInsight.user_id == await _student_id(db))
             )
         )
         .scalars()
@@ -97,14 +89,10 @@ async def test_refit_single_job_sync_and_all_queued(
 async def test_job_detail_and_candidates_carry_breakdown(
     client, auth_headers, profile_ready, seeded_catalog
 ):
-    detail = await client.get(
-        "/api/v1/jobs/software-developer/match", headers=auth_headers
-    )
+    detail = await client.get("/api/v1/jobs/software-developer/match", headers=auth_headers)
     insight = detail.json()["insight"]
     assert insight is None or insight["fit_breakdown"] is None  # pre-score
 
-    candidates = (
-        await client.get("/api/v1/match/candidates?limit=3", headers=auth_headers)
-    ).json()
+    candidates = (await client.get("/api/v1/match/candidates?limit=3", headers=auth_headers)).json()
     assert candidates
     assert candidates[0]["fit_score"] is not None

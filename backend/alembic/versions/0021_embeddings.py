@@ -4,9 +4,10 @@ The migration also best-effort provisions the pgvector extension on
 Postgres (self-hosters without it keep working — the store's JSONB
 vector is the single source of truth on every dialect)."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0021"
 down_revision = "0020"
@@ -27,7 +28,7 @@ def _try_enable_pgvector() -> bool:
         conn = op.get_bind().execution_options(isolation_level="AUTOCOMMIT")
         conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
         return True
-    except Exception:  # noqa: BLE001 — extension is an optimization only
+    except Exception:
         return False
 
 
@@ -43,13 +44,9 @@ def upgrade() -> None:
         sa.Column("vector", JSON, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.UniqueConstraint(
-            "entity_kind", "entity_id", name="uq_ai_embeddings_entity"
-        ),
+        sa.UniqueConstraint("entity_kind", "entity_id", name="uq_ai_embeddings_entity"),
     )
-    op.create_index(
-        "ix_ai_embeddings_kind_dim", "ai_embeddings", ["entity_kind", "dim"]
-    )
+    op.create_index("ix_ai_embeddings_kind_dim", "ai_embeddings", ["entity_kind", "dim"])
     if _enabled:
         # Provisioned for a future operator-accelerated read path; the
         # application never requires it (no schema dependency).

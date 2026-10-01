@@ -12,16 +12,15 @@ right after the query.
 
 import base64
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Text, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
-from app.models.enums import EducationLevel, EducationLevelOrder
-from app.models.enums import PostingSkillPriority
+from app.models.enums import EducationLevel, EducationLevelOrder, PostingSkillPriority
 from app.models.experience_model import Organization
 from app.models.job_model import Job, JobFamily
 from app.models.posting_model import (
@@ -62,11 +61,11 @@ DIMENSIONS = (
     "org",
 )
 
-_EPOCH = datetime.fromtimestamp(0, tz=timezone.utc)
+_EPOCH = datetime.fromtimestamp(0, tz=UTC)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ------------------------------------------------------------ filter parser
@@ -124,7 +123,7 @@ def parse_explore_filters(params: dict) -> dict:
             return [part.strip() for part in value.split(",") if part.strip()]
         return [str(part).strip() for part in value if str(part).strip()]
 
-    entries: list[tuple[str, Optional[int]]] = []
+    entries: list[tuple[str, int | None]] = []
     for entry in _as_list(params.get("skills")):
         key, sep, level = entry.partition(":")
         key = key.strip().lower()
@@ -136,7 +135,7 @@ def parse_explore_filters(params: dict) -> dict:
             except ValueError as exc:
                 raise ValidationError(f"invalid level for skill {key!r}") from exc
             if not 1 <= lvl <= 10:
-                raise ValidationError(f"level for {key!r} out of range 1–10")
+                raise ValidationError(f"level for {key!r} out of range 1-10")
             entries.append((key, lvl))
         else:
             entries.append((key, None))
@@ -148,21 +147,16 @@ def parse_explore_filters(params: dict) -> dict:
         filters["skill_mode"] = params["skill_mode"]
     if params.get("skill_priority"):
         try:
-            filters["skill_priority"] = PostingSkillPriority(
-                params["skill_priority"]
-            ).value
+            filters["skill_priority"] = PostingSkillPriority(params["skill_priority"]).value
         except ValueError as exc:
-            raise ValidationError(
-                "skill_priority must be must_have|nice_to_have|bonus"
-            ) from exc
+            raise ValidationError("skill_priority must be must_have|nice_to_have|bonus") from exc
 
     if params.get("education_min"):
         try:
             filters["education_min"] = EducationLevel(params["education_min"]).value
         except ValueError as exc:
             raise ValidationError(
-                "education_min must be one of: "
-                + ", ".join(e.value for e in EducationLevel)
+                "education_min must be one of: " + ", ".join(e.value for e in EducationLevel)
             ) from exc
 
     languages = [lang.lower() for lang in _as_list(params.get("languages"))]
@@ -171,15 +165,11 @@ def parse_explore_filters(params: dict) -> dict:
 
     if params.get("posted_within"):
         if params["posted_within"] not in POSTED_WINDOWS:
-            raise ValidationError(
-                "posted_within must be one of: " + ", ".join(POSTED_WINDOWS)
-            )
+            raise ValidationError("posted_within must be one of: " + ", ".join(POSTED_WINDOWS))
         filters["posted_within"] = params["posted_within"]
     if params.get("posted_after"):
         try:
-            filters["posted_after"] = datetime.fromisoformat(
-                str(params["posted_after"])
-            )
+            filters["posted_after"] = datetime.fromisoformat(str(params["posted_after"]))
         except ValueError as exc:
             raise ValidationError("posted_after must be an ISO date") from exc
     if params.get("fresh_only") not in (None, ""):
@@ -208,9 +198,7 @@ def parse_explore_filters(params: dict) -> dict:
             filters[key] = values[:10]
 
     SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
-    schedule = [
-        cue for cue in _as_list(params.get("schedule")) if cue in SCHEDULE_CUE_VALUES
-    ]
+    schedule = [cue for cue in _as_list(params.get("schedule")) if cue in SCHEDULE_CUE_VALUES]
     if schedule:
         filters["schedule"] = schedule[:5]
 
@@ -225,9 +213,7 @@ def parse_explore_filters(params: dict) -> dict:
         "transport",
         "other",
     )
-    benefits = [
-        kind for kind in _as_list(params.get("benefits")) if kind in BENEFIT_KIND_VALUES
-    ]
+    benefits = [kind for kind in _as_list(params.get("benefits")) if kind in BENEFIT_KIND_VALUES]
     if benefits:
         filters["benefits"] = benefits[:9]
 
@@ -286,9 +272,7 @@ def _conditions_for(
 
     if dimension == "q" and filters.get("q"):
         pattern = f"%{filters['q']}%"
-        conditions.append(
-            or_(JobPosting.title.ilike(pattern), JobPosting.org.ilike(pattern))
-        )
+        conditions.append(or_(JobPosting.title.ilike(pattern), JobPosting.org.ilike(pattern)))
 
     elif dimension == "skills" and filters.get("skills") and skill_ids:
         per_skill = []
@@ -345,30 +329,24 @@ def _conditions_for(
 
     elif dimension == "benefits" and filters.get("benefits"):
         facts_text = func.coalesce(func.cast(JobPosting.posting_facts, Text), "")
-        kind_conditions = [
-            facts_text.like(f'%"{kind}"%') for kind in filters["benefits"]
-        ]
+        kind_conditions = [facts_text.like(f'%"{kind}"%') for kind in filters["benefits"]]
         conditions.append(or_(*kind_conditions))
 
     elif dimension == "org" and filters.get("org"):
         conditions.append(
             JobPosting.org_id.in_(
-                select(Organization.id).where(
-                    Organization.name.ilike(f"%{filters['org']}%")
-                )
+                select(Organization.id).where(Organization.name.ilike(f"%{filters['org']}%"))
             )
         )
 
     elif dimension == "location" and (filters.get("city") or filters.get("country")):
         if filters.get("city"):
             conditions.append(
-                func.lower(JobPosting.location["city"].as_string())
-                == filters["city"].lower()
+                func.lower(JobPosting.location["city"].as_string()) == filters["city"].lower()
             )
         if filters.get("country"):
             conditions.append(
-                func.lower(JobPosting.location["country"].as_string())
-                == filters["country"].lower()
+                func.lower(JobPosting.location["country"].as_string()) == filters["country"].lower()
             )
 
     elif dimension == "released":
@@ -397,9 +375,7 @@ def _conditions_for(
             JobPosting.catalog_job_id.in_(
                 select(Job.id).where(
                     Job.family_id.in_(
-                        select(JobFamily.id).where(
-                            JobFamily.key.in_(filters["mapped_family"])
-                        )
+                        select(JobFamily.id).where(JobFamily.key.in_(filters["mapped_family"]))
                     )
                 )
             )
@@ -436,10 +412,10 @@ _EDU_ALIASES = {
 }
 
 
-def _parse_education(value: Optional[str]) -> Optional[str]:
+def _parse_education(value: str | None) -> str | None:
     if not value:
         return None
-    token = str(value).strip().lower().replace("'", "").replace("’", "")
+    token = str(value).strip().lower().replace("'", "").replace("'", "")
     token = " ".join(token.split())
     resolved = _EDU_ALIASES.get(token)
     if resolved:
@@ -450,21 +426,17 @@ def _parse_education(value: Optional[str]) -> Optional[str]:
         return None
 
 
-def _education_at_least(value: Optional[str], minimum: str) -> bool:
+def _education_at_least(value: str | None, minimum: str) -> bool:
     resolved = _parse_education(value)
     if resolved is None:
         return False
-    return EducationLevelOrder.at_least(
-        EducationLevel(resolved), EducationLevel(minimum)
-    )
+    return EducationLevelOrder.at_least(EducationLevel(resolved), EducationLevel(minimum))
 
 
 def _languages_supported(posting: JobPosting, languages: list[str]) -> bool:
     """extract['languages'] must include a requested language; postings
     without language data cannot answer a language filter."""
-    offered = [
-        str(lang).lower() for lang in (posting.extract or {}).get("languages") or []
-    ]
+    offered = [str(lang).lower() for lang in (posting.extract or {}).get("languages") or []]
     if not offered:
         return False
     return any(lang in offered for lang in languages)
@@ -494,7 +466,7 @@ def decode_cursor(cursor: str) -> tuple[str, Any, UUID]:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
         return payload["s"], _key_from_json(payload["k"]), UUID(payload["id"])
-    except Exception as exc:  # noqa: BLE001 — malformed cursors are 400s
+    except Exception as exc:
         raise ValidationError("Invalid pagination cursor") from exc
 
 
@@ -505,11 +477,7 @@ def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
     """Total order per sort: (key, id) with the id as stable tiebreak."""
     posting = entry["posting"]
     if sort == "salary":
-        key = (
-            float(posting.salary_min)
-            if posting.salary_min is not None
-            else float("-inf")
-        )
+        key = float(posting.salary_min) if posting.salary_min is not None else float("-inf")
     elif sort == "fit":
         key = float(entry.get("fit") or 0.0)
     elif sort == "relevance":
@@ -519,9 +487,7 @@ def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
     return key, posting.id
 
 
-async def _apply_hybrid_relevance(
-    db: AsyncSession, entries: list[dict], q: str
-) -> None:
+async def _apply_hybrid_relevance(db: AsyncSession, entries: list[dict], q: str) -> None:
     """RRF-merge the lexical relevance ranking with the semantic cosine
     ranking of the SAME candidate set. The candidate list
     is already hard-filtered — semantic only re-ranks inside it, and
@@ -535,7 +501,7 @@ async def _apply_hybrid_relevance(
         semantic = await EmbeddingService(db).search_similar(
             q, kind=KIND_POSTING, limit=max(len(entries) * 3, 20)
         )
-    except Exception:  # noqa: BLE001 — AI unconfigured → lexical-only
+    except Exception:
         return
     semantic_order = [item["entity_id"] for item in semantic]
     if not semantic_order:
@@ -544,9 +510,7 @@ async def _apply_hybrid_relevance(
 
     lexical_order = [
         str(entry["posting"].id)
-        for entry in sorted(
-            entries, key=lambda e: e.get("relevance") or 0.0, reverse=True
-        )
+        for entry in sorted(entries, key=lambda e: e.get("relevance") or 0.0, reverse=True)
     ]
     merged = hybrid_candidate_order(lexical_order, semantic_order)
     scores = {item_id: rank for rank, item_id in enumerate(merged, start=1)}
@@ -586,7 +550,7 @@ async def explore(
     filters: dict,
     *,
     sort: str = "fit",
-    cursor: Optional[str] = None,
+    cursor: str | None = None,
     limit: int = 20,
 ) -> dict:
     """The explore query: filters → facets → sort → cursor page."""
@@ -625,19 +589,14 @@ async def explore(
         conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids))
     query = base.where(and_(*conditions)) if conditions else base
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
-    entries = [
-        {"posting": posting, "interaction": interaction}
-        for posting, interaction in rows
-    ]
+    entries = [{"posting": posting, "interaction": interaction} for posting, interaction in rows]
 
     entries = [
         entry
         for entry in entries
         if (
             "education_min" not in filters
-            or _education_at_least(
-                entry["posting"].education_level, filters["education_min"]
-            )
+            or _education_at_least(entry["posting"].education_level, filters["education_min"])
         )
         and (
             "languages" not in filters
@@ -648,9 +607,7 @@ async def explore(
     if sort == "fit":
         from app.services.posting_fit_service import get_posting_fits_batch
 
-        fits = await get_posting_fits_batch(
-            db, user_id, [entry["posting"] for entry in entries]
-        )
+        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in entries])
         for entry in entries:
             entry["fit"] = fits[entry["posting"].id]["score"]
 
@@ -661,7 +618,7 @@ async def explore(
     total = len(entries)
 
     after_key: Any = None
-    after_id: Optional[UUID] = None
+    after_id: UUID | None = None
     if cursor:
         cursor_sort, after_key, after_id = decode_cursor(cursor)
         if cursor_sort != sort:
@@ -719,14 +676,12 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
         .where(JobPosting.status.in_(["mapped", "new"]))
     )
 
-    async def _count(extra=None, skip: Optional[set[str]] = None) -> int:
+    async def _count(extra=None, skip: set[str] | None = None) -> int:
         conditions: list = []
         for dimension in DIMENSIONS:
             if skip and dimension in skip:
                 continue
-            conditions.extend(
-                _conditions_for(dimension, filters, skill_ids, source_ids)
-            )
+            conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids))
         query = base.where(and_(*conditions)) if conditions else base
         if extra is not None:
             query = query.where(extra)
@@ -737,9 +692,7 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
 
     facets["source"] = {}
     for source in (
-        (await db.execute(select(JobSource).where(JobSource.enabled.is_(True))))
-        .scalars()
-        .all()
+        (await db.execute(select(JobSource).where(JobSource.enabled.is_(True)))).scalars().all()
     ):
         facets["source"][source.key] = await _count(
             JobPosting.source_id == source.id, skip={"source"}
@@ -747,9 +700,7 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
 
     facets["seniority"] = {}
     for value in SENIORITY_VALUES:
-        facets["seniority"][value] = await _count(
-            JobPosting.seniority == value, skip={"seniority"}
-        )
+        facets["seniority"][value] = await _count(JobPosting.seniority == value, skip={"seniority"})
 
     facets["remote_policy"] = {}
     for value in REMOTE_VALUES:
@@ -778,17 +729,13 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
         level = _parse_education(posting.education_level)
         if level:
             education_counts[level] = education_counts.get(level, 0) + 1
-    facets["education"] = dict(
-        sorted(education_counts.items(), key=lambda kv: -kv[1])[:8]
-    )
+    facets["education"] = dict(sorted(education_counts.items(), key=lambda kv: -kv[1])[:8])
 
     buckets = {"24h": 0, "7d": 0, "30d": 0, "90d": 0, "older": 0}
     rows = (
         (
             await db.execute(
-                _facet_query(
-                    db, base, filters, skill_ids, source_ids, skip={"released"}
-                )
+                _facet_query(db, base, filters, skill_ids, source_ids, skip={"released"})
             )
         )
         .scalars()
@@ -839,7 +786,7 @@ def _facet_query(
     skill_ids: dict[str, UUID],
     source_ids: dict[str, UUID],
     *,
-    skip: Optional[set[str]] = None,
+    skip: set[str] | None = None,
 ):
     conditions: list = []
     for dimension in DIMENSIONS:
@@ -854,22 +801,17 @@ def _facet_query(
 
 async def sources_with_counts(db: AsyncSession) -> list[dict]:
     """Enabled sources with open-posting counts (the filter dropdown)."""
-    counts = {
-        source_id: count
-        for source_id, count in (
+    counts = dict((
             await db.execute(
                 select(JobPosting.source_id, func.count(JobPosting.id))
                 .where(JobPosting.status.in_(["new", "mapped"]))
                 .group_by(JobPosting.source_id)
             )
-        ).all()
-    }
+        ).all())
     rows = (
         (
             await db.execute(
-                select(JobSource)
-                .where(JobSource.enabled.is_(True))
-                .order_by(JobSource.key)
+                select(JobSource).where(JobSource.enabled.is_(True)).order_by(JobSource.key)
             )
         )
         .scalars()
@@ -885,22 +827,15 @@ async def sources_with_counts(db: AsyncSession) -> list[dict]:
     ]
 
 
-async def similar_postings(
-    db: AsyncSession, posting: JobPosting, limit: int = 5
-) -> list[dict]:
+async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5) -> list[dict]:
     """Skill-ID Jaccard + shared mapped family bonus."""
-    mine = {
-        skill_id
-        for skill_id in (
+    mine = set((
             await db.execute(
-                select(PostingSkill.skill_id).where(
-                    PostingSkill.posting_id == posting.id
-                )
+                select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
             )
         )
         .scalars()
-        .all()
-    }
+        .all())
     rows = await db.execute(
         select(JobPosting, PostingSkill.skill_id)
         .outerjoin(PostingSkill, PostingSkill.posting_id == JobPosting.id)
@@ -932,10 +867,7 @@ async def similar_postings(
         other = by_id.get(posting_id)
         if other is None:
             continue
-        if (
-            posting.catalog_job_id is not None
-            and other.catalog_job_id == posting.catalog_job_id
-        ):
+        if posting.catalog_job_id is not None and other.catalog_job_id == posting.catalog_job_id:
             score = min(1.0, score + 0.15)
         results.append(
             {

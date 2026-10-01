@@ -23,6 +23,8 @@ from app.models.posting_model import JobPosting
 from app.models.taxonomy_model import Skill
 from app.models.user_model import UserSkill
 from app.schemas.cover_letter import (
+    LETTER_LENGTHS,
+    LETTER_TONES,
     BriefFit,
     BriefFitDimension,
     BriefSkill,
@@ -31,8 +33,6 @@ from app.schemas.cover_letter import (
     CoverLetterCreate,
     CoverLetterDraft,
     CoverLetterSuggestionOut,
-    LETTER_LENGTHS,
-    LETTER_TONES,
     VerifiedParagraph,
 )
 from app.schemas.cv_suggest import CoverageEntry, TailorCoverage
@@ -48,11 +48,7 @@ def _verified(paragraph, allowlist: set[tuple[str, str]]) -> bool:
 
 def _location_label(posting: JobPosting) -> str:
     location = posting.location or {}
-    parts = [
-        str(location.get(field) or "")
-        for field in ("city", "country")
-        if location.get(field)
-    ]
+    parts = [str(location.get(field) or "") for field in ("city", "country") if location.get(field)]
     if location.get("remote"):
         parts.append("Remote")
     return ", ".join(parts)
@@ -68,11 +64,7 @@ class CoverLetterService:
 
     async def _posting(self, posting_id: uuid.UUID) -> JobPosting:
         posting = (
-            (
-                await self.db.execute(
-                    select(JobPosting).where(JobPosting.id == posting_id)
-                )
-            )
+            (await self.db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
             .scalars()
             .first()
         )
@@ -97,7 +89,7 @@ class CoverLetterService:
             .where(SkillEvidence.user_id == user_id)
             .group_by(SkillEvidence.skill_id)
         )
-        return {skill_id: count for skill_id, count in rows.all()}
+        return dict(rows.all())
 
     @staticmethod
     def _coverage(extract: PostingExtract | None, levels: dict[str, int]):
@@ -113,9 +105,7 @@ class CoverLetterService:
             (covered if skill.skill_key in levels else missing).append(entry)
         return TailorCoverage(covered=covered, missing=missing)
 
-    async def brief(
-        self, user_id: uuid.UUID, posting_id: uuid.UUID
-    ) -> CoverLetterBriefOut:
+    async def brief(self, user_id: uuid.UUID, posting_id: uuid.UUID) -> CoverLetterBriefOut:
         """Deterministic grounding pack for one posting."""
         posting = await self._posting(posting_id)
         extract = None
@@ -172,8 +162,7 @@ class CoverLetterService:
             must_have=brief_skills("must_have"),
             nice_to_have=brief_skills("nice_to_have"),
             responsibilities=[
-                str(item.text)
-                for item in (extract.responsibilities if extract else [])[:10]
+                str(item.text) for item in (extract.responsibilities if extract else [])[:10]
             ],
             fit=fit,
             coverage=self._coverage(extract, levels),
@@ -181,9 +170,7 @@ class CoverLetterService:
             evidence_items=len(resolution.items),
         )
 
-    async def create(
-        self, user_id: uuid.UUID, payload: CoverLetterCreate
-    ) -> CvDocument:
+    async def create(self, user_id: uuid.UUID, payload: CoverLetterCreate) -> CvDocument:
         posting = await self._posting(payload.posting_id)
         template_id = None
         context: dict = {}
@@ -232,9 +219,7 @@ class CoverLetterService:
         if payload.length and payload.length not in LETTER_LENGTHS:
             raise ValidationError(f"Unknown length: {payload.length}")
         posting = await self._posting(cv.target_posting_id)
-        extract = (
-            PostingExtract.model_validate(posting.extract) if posting.extract else None
-        )
+        extract = PostingExtract.model_validate(posting.extract) if posting.extract else None
         levels = await self._levels(cv.user_id)
         counts = await self._evidence_counts(cv.user_id)
 
@@ -279,8 +264,7 @@ class CoverLetterService:
             "must_have": must_have,
             "missing_skills": [entry.skill_key for entry in coverage.missing],
             "responsibilities": [
-                str(item.text)
-                for item in (extract.responsibilities if extract else [])[:5]
+                str(item.text) for item in (extract.responsibilities if extract else [])[:5]
             ],
             "goal": goal,
         }

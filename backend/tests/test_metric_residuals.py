@@ -2,22 +2,21 @@
 funnel metrics (observation only), registry-driven engine dimension
 lists, and the RIASEC/values bank templates for 37's library."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid
-
+from app.models.assessment_template_model import AssessmentTemplate
 from app.models.enums import TemplateSource, TemplateStatus
 from app.models.job_model import Job, JobTag
-from app.models.assessment_template_model import AssessmentTemplate
 from app.models.metric_model import UserMetricProfile
 from app.models.posting_model import JobPosting, PostingInteraction
 from app.models.taxonomy_model import InterestTag
 from app.models.user_model import Profile
 from app.seeds.metrics import riasec_of_category, seed_metric_templates
 from app.services.metric_service import MetricService, revealed_prefs
+from tests.conftest import _make_posting, _uid
 
 
 async def _catalog_job_with_tag(db) -> tuple[Job, InterestTag]:
@@ -37,9 +36,7 @@ async def _engaged_posting(db, headers, source) -> JobPosting:
     existing = (
         (
             await db.execute(
-                select(JobTag).where(
-                    JobTag.job_id == job.id, JobTag.interest_tag_id == tag.id
-                )
+                select(JobTag).where(JobTag.job_id == job.id, JobTag.interest_tag_id == tag.id)
             )
         )
         .scalars()
@@ -47,7 +44,7 @@ async def _engaged_posting(db, headers, source) -> JobPosting:
     )
     if existing is None:
         db.add(JobTag(job_id=job.id, interest_tag_id=tag.id))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db.add(
         PostingInteraction(
             user_id=UUID(_uid(headers)),
@@ -88,9 +85,7 @@ async def test_revealed_preferences_off_by_default(
     result = await service.apply_revealed_preferences(user_id)
     assert result == {"applied": False, "reason": "disabled"}
     after = await _interest_rows(db, _uid(auth_headers))
-    assert {k: r.value for k, r in before.items()} == {
-        k: r.value for k, r in after.items()
-    }
+    assert {k: r.value for k, r in before.items()} == {k: r.value for k, r in after.items()}
 
 
 async def test_revealed_preferences_drift_capped(
@@ -99,9 +94,7 @@ async def test_revealed_preferences_drift_capped(
     service = MetricService(db)
     user_id = UUID(_uid(auth_headers))
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     profile.preferences = {
         **(profile.preferences or {}),
@@ -148,7 +141,7 @@ async def test_outcome_funnel_counts_and_rates(
         posting.catalog_job_id = job.id
         db.add(posting)
         postings.append(posting)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     user_id = UUID(_uid(auth_headers))
     db.add_all(
         [
@@ -192,12 +185,8 @@ async def test_outcome_funnel_counts_and_rates(
     assert surface.json()[0]["family"] == entry["family"]
 
 
-async def test_engine_dimensions_endpoint(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
-    response = await client.get(
-        "/api/v1/metrics/engine-dimensions", headers=auth_headers
-    )
+async def test_engine_dimensions_endpoint(client, auth_headers, profile_ready, seeded_catalog, db):
+    response = await client.get("/api/v1/metrics/engine-dimensions", headers=auth_headers)
     assert response.status_code == 200, response.text
     body = response.json()
     fit = [d for d in body if d["engine"] == "fit"]

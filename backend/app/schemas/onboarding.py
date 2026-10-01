@@ -1,6 +1,5 @@
 """Express onboarding + target mode schemas (Phase 27)."""
 
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,9 +21,9 @@ class ResolveOut(BaseModel):
 
 class ExpressIn(BaseModel):
     targets: list[str] = Field(min_length=1, max_length=3)
-    location: Optional[str] = Field(default=None, max_length=80)
-    remote: Optional[bool] = None
-    stage: Optional[str] = Field(default=None, max_length=20)
+    location: str | None = Field(default=None, max_length=80)
+    remote: bool | None = None
+    stage: str | None = Field(default=None, max_length=20)
     min_fit: float = Field(default=7.0, ge=0, le=10)
     max_per_day: int = Field(default=5, ge=1, le=50)
 

@@ -9,16 +9,14 @@ analogue and stays unused)."""
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import EducationLevel, EducationLevelOrder
-from app.models.enums import PostingSkillPriority
+from app.models.enums import EducationLevel, EducationLevelOrder, PostingSkillPriority
 from app.models.posting_model import JobPosting, PostingFit, PostingSkill
 from app.models.user_model import UserSkill
 
@@ -56,13 +54,11 @@ def posting_fit_dimension_spec() -> list[dict]:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _canonical_hash(payload: dict) -> str:
-    canonical = json.dumps(
-        payload or {}, sort_keys=True, separators=(",", ":"), default=str
-    )
+    canonical = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -72,7 +68,7 @@ async def _user_skills(db: AsyncSession, user_id: UUID) -> dict[UUID, int]:
             UserSkill.user_id == user_id, UserSkill.derive_enabled
         )
     )
-    return {skill_id: level for skill_id, level in rows.all()}
+    return dict(rows.all())
 
 
 def _skills_dimension(links: list[PostingSkill], user_levels: dict[UUID, int]) -> dict:
@@ -136,9 +132,7 @@ def _prereqs_dimension(posting: JobPosting, profile) -> dict:
                 EducationLevel(str(level).lower()),
             )
             score = 10.0 if met else 3.0
-            details.append(
-                f"education {'meets' if met else 'below'} requirement ({level})"
-            )
+            details.append(f"education {'meets' if met else 'below'} requirement ({level})")
         else:
             details.append(f"requires education: {level} (yours unspecified)")
 
@@ -165,7 +159,7 @@ def _prereqs_dimension(posting: JobPosting, profile) -> dict:
 
 
 def _location_remote_dimension(posting: JobPosting, profile) -> dict:
-    """The delta semantics as a standalone 0–10 dimension."""
+    """The delta semantics as a standalone 0-10 dimension."""
     prefs = profile.work_preferences or {}
     basics = profile.basics or {}
     location = posting.location or {}
@@ -232,7 +226,7 @@ def _inputs_payload(
     user_levels: dict[UUID, int],
     weights: dict,
     stage_value: str,
-    constraints: Optional[dict] = None,
+    constraints: dict | None = None,
 ) -> dict:
     return {
         "user_id": str(user_id),
@@ -256,7 +250,7 @@ def _inputs_payload(
     }
 
 
-def lifestyle_gates(posting: JobPosting, constraints: Optional[dict]) -> list[str]:
+def lifestyle_gates(posting: JobPosting, constraints: dict | None) -> list[str]:
     """lifestyle constraints vs v2 extract facts.
 
     gate semantics: reasons move a posting to flag surfaces,
@@ -300,7 +294,7 @@ def lifestyle_gates(posting: JobPosting, constraints: Optional[dict]) -> list[st
 
 
 async def compute_posting_fit(
-    db: AsyncSession, user_id: UUID, posting: JobPosting, context: Optional[dict] = None
+    db: AsyncSession, user_id: UUID, posting: JobPosting, context: dict | None = None
 ) -> dict:
     """Full deterministic score: {score, breakdown, extracted, estimate,
     inputs_hash}. When the posting is not deep-extracted the mapped
@@ -344,8 +338,7 @@ async def compute_posting_fit(
                 "archetype_estimate": {
                     "score": round(float(estimate), 2),
                     "detail": (
-                        "archetype estimate — deep extraction has not run "
-                        "for this posting yet"
+                        "archetype estimate — deep extraction has not run for this posting yet"
                     ),
                     "weight": 5,
                 }
@@ -357,11 +350,7 @@ async def compute_posting_fit(
         }
 
     links = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
@@ -377,8 +366,7 @@ async def compute_posting_fit(
 
     total_weight = sum(entry["weight"] for entry in breakdown.values())
     score = (
-        sum(entry["score"] * entry["weight"] for entry in breakdown.values())
-        / total_weight
+        sum(entry["score"] * entry["weight"] for entry in breakdown.values()) / total_weight
         if total_weight
         else 7.0
     )
@@ -408,9 +396,7 @@ async def get_posting_fit(
     inputs_hash = _canonical_hash(inputs)
 
     rows = await db.execute(
-        select(PostingFit).where(
-            PostingFit.user_id == user_id, PostingFit.posting_id == posting.id
-        )
+        select(PostingFit).where(PostingFit.user_id == user_id, PostingFit.posting_id == posting.id)
     )
     cached = rows.scalars().first()
     if cached is not None and not refresh and cached.inputs_hash == inputs_hash:
@@ -420,8 +406,7 @@ async def get_posting_fit(
             "extracted": cached.breakdown.get("archetype_estimate") is None
             if cached.breakdown
             else False,
-            "estimate": cached.breakdown is not None
-            and "archetype_estimate" in cached.breakdown,
+            "estimate": cached.breakdown is not None and "archetype_estimate" in cached.breakdown,
             # Gates are pure derived data (extract facts vs current
             # constraints) — recomputed on read, never cached stale.
             "gates": lifestyle_gates(posting, context["profile"].constraints),
@@ -450,7 +435,5 @@ async def get_posting_fits_batch(
     context = await _load_context(db, user_id)
     result: dict[UUID, dict] = {}
     for posting in postings:
-        result[posting.id] = await compute_posting_fit(
-            db, user_id, posting, context=context
-        )
+        result[posting.id] = await compute_posting_fit(db, user_id, posting, context=context)
     return result

@@ -4,7 +4,6 @@ from datetime import date, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-
 from sqlalchemy import select
 
 from app.models.experience_model import (
@@ -175,9 +174,7 @@ async def _skill_key(db) -> str:
     return row.key
 
 
-async def test_experience_crud_and_derivation_flow(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_experience_crud_and_derivation_flow(client, auth_headers, seeded_catalog, db):
     skill_key = await _skill_key(db)
     body = {
         "title": "DevOps intern",
@@ -195,9 +192,7 @@ async def test_experience_crud_and_derivation_flow(
             }
         ],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201, created.text
     item = created.json()
     assert item["org_name"] == "Acme Cloud"
@@ -211,13 +206,9 @@ async def test_experience_crud_and_derivation_flow(
     skills = preview.json()["skills"]
     assert len(skills) == 1
     expected_months = _months_between(date(2025, 1, 1), date(2025, 12, 31)) + 1
-    assert skills[0]["months"] == pytest.approx(
-        expected_months * KIND_WEIGHT["internship"]
-    )
+    assert skills[0]["months"] == pytest.approx(expected_months * KIND_WEIGHT["internship"])
 
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     assert applied.status_code == 200
     assert applied.json()["applied"] == 1
     assert applied.json()["conflicts"] == []
@@ -237,9 +228,7 @@ async def test_experience_crud_and_derivation_flow(
     assert trace_items[0]["experience_item"]["title"] == "DevOps intern"
 
 
-async def test_stale_machine_row_follows_derivation(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_stale_machine_row_follows_derivation(client, auth_headers, seeded_catalog, db):
     """document/cv_parse estimates are not protected by the ±2 gate:
     the fresh curve updates them (fixes the stale skills-page level)."""
     from app.models.taxonomy_model import Skill
@@ -257,9 +246,7 @@ async def test_stale_machine_row_follows_derivation(
         "end": "2025-12-31",
         "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201
     skill_id = UUID(created.json()["skills"][0]["skill_id"])
     db.add(
@@ -271,9 +258,7 @@ async def test_stale_machine_row_follows_derivation(
         )
     )
     await db.commit()
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     data = applied.json()
     assert data["applied"] == 1
     assert data["conflicts"] == []
@@ -282,9 +267,7 @@ async def test_stale_machine_row_follows_derivation(
     assert row.source == "experience"
 
 
-async def test_conflicting_self_report_not_overwritten(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_conflicting_self_report_not_overwritten(client, auth_headers, seeded_catalog, db):
     from app.models.taxonomy_model import Skill
 
     skill = (await db.execute(select(Skill).limit(1))).scalars().first()
@@ -300,9 +283,7 @@ async def test_conflicting_self_report_not_overwritten(
         "end": "2026-01-31",
         "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201
     skill_id = UUID(created.json()["skills"][0]["skill_id"])
     db.add(
@@ -314,9 +295,7 @@ async def test_conflicting_self_report_not_overwritten(
         )
     )
     await db.commit()
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     data = applied.json()
     assert data["applied"] == 0
     assert len(data["conflicts"]) == 1
@@ -324,14 +303,10 @@ async def test_conflicting_self_report_not_overwritten(
     assert row.level == 10
 
 
-async def test_claim_conflicts_leaf_row_untouched(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_claim_conflicts_leaf_row_untouched(client, auth_headers, seeded_catalog, db):
     """A claim far from the curve records its own conflict, never applied."""
     await _apply_claim_case(client, auth_headers, db, seeded_catalog, claimed=10)
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     data = applied.json()
     assert data["applied"] == 0
     assert len(data["conflicts"]) == 1
@@ -340,19 +315,15 @@ async def test_claim_conflicts_leaf_row_untouched(
     assert rows == []
 
 
-async def test_claim_confirmed_raises_confidence(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_claim_confirmed_raises_confidence(client, auth_headers, seeded_catalog, db):
     from app.services.experience_service import CONFLICT_STEP
 
     months = _months_between(date(2024, 1, 1), date(2024, 6, 30)) + 1
     from app.services.experience_derivation import months_to_level
 
-    target = int(round(months_to_level(months)))
+    target = round(months_to_level(months))
     await _apply_claim_case(client, auth_headers, db, seeded_catalog, claimed=target)
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     data = applied.json()
     assert data["applied"] == 1
     assert data["conflicts"] == []
@@ -363,9 +334,7 @@ async def test_claim_confirmed_raises_confidence(
     assert CONFLICT_STEP == 2
 
 
-async def test_disabled_skill_is_skipped_by_apply(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_disabled_skill_is_skipped_by_apply(client, auth_headers, seeded_catalog, db):
     """An opted-out row keeps its level/source; apply reports it skipped."""
     from uuid import UUID as PyUUID
 
@@ -384,9 +353,7 @@ async def test_disabled_skill_is_skipped_by_apply(
         "end": "2024-06-30",
         "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201
     skill_id = PyUUID(created.json()["skills"][0]["skill_id"])
     db.add(
@@ -399,9 +366,7 @@ async def test_disabled_skill_is_skipped_by_apply(
         )
     )
     await db.commit()
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     data = applied.json()
     assert data["applied"] == 0
     assert data["skipped_disabled"] == 1
@@ -410,9 +375,7 @@ async def test_disabled_skill_is_skipped_by_apply(
     assert row.source == "self_report"
 
 
-async def test_hidden_skill_is_skipped_by_apply(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_hidden_skill_is_skipped_by_apply(client, auth_headers, seeded_catalog, db):
     """A tombstoned skill is never re-created by the next apply."""
     from uuid import UUID as PyUUID
 
@@ -431,9 +394,7 @@ async def test_hidden_skill_is_skipped_by_apply(
         "end": "2024-06-30",
         "skills": [{"skill_key": skill.key, "role_in_item": "primary"}],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201
     skill_id = PyUUID(created.json()["skills"][0]["skill_id"])
     db.add(
@@ -446,9 +407,7 @@ async def test_hidden_skill_is_skipped_by_apply(
         )
     )
     await db.commit()
-    applied = await client.post(
-        "/api/v1/me/experience/derivation/apply", headers=auth_headers
-    )
+    applied = await client.post("/api/v1/me/experience/derivation/apply", headers=auth_headers)
     data = applied.json()
     assert data["applied"] == 0
     row = (await db.execute(select(UserSkill))).scalars().first()
@@ -474,9 +433,7 @@ async def _apply_claim_case(client, auth_headers, db, seeded_catalog, *, claimed
             }
         ],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201, created.text
     preview = await client.get("/api/v1/me/experience/derivation", headers=auth_headers)
     assert preview.status_code == 200
@@ -485,9 +442,7 @@ async def _apply_claim_case(client, auth_headers, db, seeded_catalog, *, claimed
     return summary
 
 
-async def test_draft_items_excluded_from_derivation(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_draft_items_excluded_from_derivation(client, auth_headers, seeded_catalog, db):
     skill_key = await _skill_key(db)
     body = {
         "title": "Draft project",
@@ -497,9 +452,7 @@ async def test_draft_items_excluded_from_derivation(
         "status": "draft",
         "skills": [{"skill_key": skill_key, "role_in_item": "primary"}],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201
     preview = await client.get("/api/v1/me/experience/derivation", headers=auth_headers)
     assert preview.json()["skills"] == []
@@ -514,9 +467,7 @@ async def test_draft_items_excluded_from_derivation(
     assert len(preview.json()["skills"]) == 1
 
 
-async def test_startless_project_keeps_bootstrap_alive(
-    client, auth_headers, seeded_catalog
-):
+async def test_startless_project_keeps_bootstrap_alive(client, auth_headers, seeded_catalog):
     """Projects may omit `start` (the only kind allowed to); the stage
     heuristic and profile snapshot must tolerate the missing year
     instead of 500ing /me/bootstrap (regression: migration 0032 made
@@ -545,9 +496,7 @@ async def test_experience_isolation(client, auth_headers, seeded_catalog, db):
         "end": "2025-06-30",
         "skills": [{"skill_key": skill_key}],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     item_id = created.json()["id"]
 
     other = await client.post(
@@ -559,21 +508,15 @@ async def test_experience_isolation(client, auth_headers, seeded_catalog, db):
         await client.get(f"/api/v1/me/experience/{item_id}", headers=other_headers)
     ).status_code in (404, 405)
     assert (
-        await client.patch(
-            f"/api/v1/me/experience/{item_id}", json={}, headers=other_headers
-        )
+        await client.patch(f"/api/v1/me/experience/{item_id}", json={}, headers=other_headers)
     ).status_code == 404
     assert (
         await client.delete(f"/api/v1/me/experience/{item_id}", headers=other_headers)
     ).status_code == 404
-    assert (await client.get("/api/v1/me/experience", headers=other_headers)).json()[
-        "items"
-    ] == []
+    assert (await client.get("/api/v1/me/experience", headers=other_headers)).json()["items"] == []
 
 
-async def test_unknown_skill_key_auto_proposed(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_unknown_skill_key_auto_proposed(client, auth_headers, seeded_catalog, db):
     """Free-text skills find-or-propose `proposed` rows:
     self-reporting never hard-fails, promotion stays an admin decision."""
     from app.models.taxonomy_model import Skill
@@ -585,18 +528,14 @@ async def test_unknown_skill_key_auto_proposed(
         "end": "2025-06-30",
         "skills": [{"skill_key": "rust-embedded", "role_in_item": "primary"}],
     }
-    response = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    response = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert response.status_code == 201, response.text
     item = response.json()
     assert item["skills"][0]["skill_key"] == "rust-embedded"
     assert item["skills"][0]["skill_label"] == "rust embedded"
 
     proposed = (
-        (await db.execute(select(Skill).where(Skill.key == "rust-embedded")))
-        .scalars()
-        .first()
+        (await db.execute(select(Skill).where(Skill.key == "rust-embedded"))).scalars().first()
     )
     assert proposed is not None
     assert proposed.status == "proposed"
@@ -616,9 +555,7 @@ async def test_unknown_skill_key_auto_proposed(
     )
     assert second.status_code == 201
     all_skills = (
-        (await db.execute(select(Skill).where(Skill.key == "rust-embedded")))
-        .scalars()
-        .all()
+        (await db.execute(select(Skill).where(Skill.key == "rust-embedded"))).scalars().all()
     )
     assert len(all_skills) == 1
 
@@ -687,9 +624,7 @@ async def test_item_links_validation_and_roundtrip(client, auth_headers):
             {"url": "mailto:me@x.io"},
         ],
     }
-    created = await client.post(
-        "/api/v1/me/experience", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/me/experience", json=body, headers=auth_headers)
     assert created.status_code == 201, created.text
     links = created.json()["links"]
     assert links[0]["kind"] == "github"

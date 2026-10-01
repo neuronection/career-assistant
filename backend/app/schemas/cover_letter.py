@@ -5,7 +5,6 @@ allowlist (or that cite nothing) — unverifiable claims are shown flagged
 in the reviewer, never auto-applied."""
 
 import uuid
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -48,14 +47,14 @@ class CoverLetterCreate(BaseModel):
     """Create a cover-letter document targeted at one posting."""
 
     posting_id: uuid.UUID
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    base_cv_id: Optional[uuid.UUID] = None
-    language: Optional[str] = Field(default=None, min_length=2, max_length=10)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    base_cv_id: uuid.UUID | None = None
+    language: str | None = Field(default=None, min_length=2, max_length=10)
 
 
 class CoverLetterActionRequest(BaseModel):
-    tone: Optional[str] = None
-    length: Optional[str] = None
+    tone: str | None = None
+    length: str | None = None
 
 
 class BriefSkill(BaseModel):
@@ -64,7 +63,7 @@ class BriefSkill(BaseModel):
     required_level: int = 0
     priority: str = ""
     evidence_quote: str = ""
-    user_level: Optional[int] = None
+    user_level: int | None = None
 
 
 class BriefFitDimension(BaseModel):
@@ -74,7 +73,7 @@ class BriefFitDimension(BaseModel):
 
 
 class BriefFit(BaseModel):
-    score: Optional[float] = None
+    score: float | None = None
     estimate: bool = False
     dimensions: list[BriefFitDimension] = Field(default_factory=list, max_length=8)
 

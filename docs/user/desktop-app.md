@@ -12,11 +12,11 @@ Download a prebuilt package from the
 
 ```bash
 cd backend
-python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
-./venv/bin/python -m careerassistant              # window + tray (default)
-./venv/bin/python -m careerassistant app --tray   # tray-only boot (auto-start)
-./venv/bin/python -m careerassistant web          # loopback server + browser
-./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
+python -m venv venv && ./venv/bin/uv sync --extra desktop
+uv run python -m careerassistant              # window + tray (default)
+uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
+uv run python -m careerassistant web          # loopback server + browser
+uv run python -m careerassistant seed         # migrations + starter catalog only
 ```
 
 Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (the

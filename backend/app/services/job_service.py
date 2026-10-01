@@ -37,7 +37,7 @@ class JobService:
             .where(Job.status == "published")
             .group_by(Job.family_id)
         )
-        counts = {fid: n for fid, n in counts_rows.all()}
+        counts = dict(counts_rows.all())
         nodes = {
             f.id: {
                 **self._family_out(f),
@@ -135,13 +135,9 @@ class JobService:
         # scale).
         predicates: list = []
         if demand:
-            predicates.append(
-                lambda a: (a.get("demand") or {}).get("outlook") == demand
-            )
+            predicates.append(lambda a: (a.get("demand") or {}).get("outlook") == demand)
         if education_level:
-            predicates.append(
-                lambda a: (a.get("education") or {}).get("level") == education_level
-            )
+            predicates.append(lambda a: (a.get("education") or {}).get("level") == education_level)
         if environment:
             predicates.append(lambda a: environment in (a.get("environments") or []))
         if min_salary is not None:
@@ -164,9 +160,7 @@ class JobService:
             if conditions:
                 count_query = count_query.where(*conditions)
             total = (await self.db.execute(count_query)).scalar() or 0
-            rows = await self.db.execute(
-                query.offset((page - 1) * page_size).limit(page_size)
-            )
+            rows = await self.db.execute(query.offset((page - 1) * page_size).limit(page_size))
             return list(rows.scalars().unique().all()), total
 
         rows = await self.db.execute(query)
@@ -181,9 +175,7 @@ class JobService:
 
     async def _get_with_family(self, job_id) -> Job:
         """Re-fetch a job with links eagerly loaded."""
-        rows = await self.db.execute(
-            select(Job).options(*JOB_LOAD_OPTIONS).where(Job.id == job_id)
-        )
+        rows = await self.db.execute(select(Job).options(*JOB_LOAD_OPTIONS).where(Job.id == job_id))
         return rows.scalars().unique().one()
 
     async def create(
@@ -245,21 +237,15 @@ class JobService:
             missing = [k for k in interest_keys if k not in tags]
             if missing:
                 raise ValidationError(f"Unknown interest keys: {', '.join(missing)}")
-            await self.db.execute(
-                JobTag.__table__.delete().where(JobTag.job_id == job_id)
-            )
+            await self.db.execute(JobTag.__table__.delete().where(JobTag.job_id == job_id))
             for key in interest_keys:
-                self.db.add(
-                    JobTag(job_id=job_id, interest_tag_id=tags[key].id, source=source)
-                )
+                self.db.add(JobTag(job_id=job_id, interest_tag_id=tags[key].id, source=source))
         if skills is not None:
             skill_rows = {
                 s.key: s
                 for s in (
                     await self.db.execute(
-                        select(Skill).where(
-                            Skill.key.in_([s.skill_key for s in skills])
-                        )
+                        select(Skill).where(Skill.key.in_([s.skill_key for s in skills]))
                     )
                 )
                 .scalars()
@@ -268,9 +254,7 @@ class JobService:
             missing = [s.skill_key for s in skills if s.skill_key not in skill_rows]
             if missing:
                 raise ValidationError(f"Unknown skill keys: {', '.join(missing)}")
-            await self.db.execute(
-                JobSkill.__table__.delete().where(JobSkill.job_id == job_id)
-            )
+            await self.db.execute(JobSkill.__table__.delete().where(JobSkill.job_id == job_id))
             for requirement in skills:
                 self.db.add(
                     JobSkill(
@@ -305,9 +289,7 @@ class JobService:
             await self._write_links(
                 job.id,
                 interest_keys if interest_keys is not None else None,
-                [JobSkillIn.model_validate(s) for s in skills]
-                if skills is not None
-                else None,
+                [JobSkillIn.model_validate(s) for s in skills] if skills is not None else None,
                 source="admin",
             )
         for field, value in payload.items():
@@ -360,15 +342,11 @@ class JobService:
                 selectinload(JobRelation.from_job).selectinload(Job.family),
                 selectinload(JobRelation.to_job).selectinload(Job.family),
             )
-            .where(
-                or_(JobRelation.from_job_id == job.id, JobRelation.to_job_id == job.id)
-            )
+            .where(or_(JobRelation.from_job_id == job.id, JobRelation.to_job_id == job.id))
         )
         return list(rows.scalars().unique().all())
 
-    async def graph(
-        self, root: str | None, depth: int = 2, family_key: str | None = None
-    ) -> dict:
+    async def graph(self, root: str | None, depth: int = 2, family_key: str | None = None) -> dict:
         """Nodes+edges payload centred on root (or a family subset)."""
         nodes: dict[str, Job] = {}
         edges: list[JobRelation] = []
@@ -395,31 +373,21 @@ class JobService:
                     rels = list(rows.scalars().unique().all())
                     edges.extend(rels)
                     for rel in rels:
-                        other = (
-                            rel.to_job if rel.from_job_id == node.id else rel.from_job
-                        )
+                        other = rel.to_job if rel.from_job_id == node.id else rel.from_job
                         if other.code not in nodes:
                             nodes[other.code] = other
                             next_frontier.append(other)
                 frontier = next_frontier
         else:
-            query = (
-                select(Job)
-                .options(selectinload(Job.family))
-                .where(Job.status == "published")
-            )
+            query = select(Job).options(selectinload(Job.family)).where(Job.status == "published")
             if family_key:
                 families = await self.families()
                 family = next((f for f in families if f.key == family_key), None)
                 if family is None:
                     raise NotFoundError("Family not found")
-                descendant_ids = [
-                    f.id for f in families if f.path.startswith(family.path)
-                ]
+                descendant_ids = [f.id for f in families if f.path.startswith(family.path)]
                 query = query.where(Job.family_id.in_(descendant_ids))
-            jobs = list(
-                (await self.db.execute(query.limit(200))).scalars().unique().all()
-            )
+            jobs = list((await self.db.execute(query.limit(200))).scalars().unique().all())
             for job in jobs:
                 nodes[job.code] = job
             if jobs:

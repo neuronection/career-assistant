@@ -30,9 +30,7 @@ CV_THEMES: list[CvTheme] = [
         "teal_modern",
         "Teal Modern",
         "Clean sans, centered header, teal accent.",
-        DesignTokens(
-            accent_color="#0f766e", heading_color="#134e4a", header_style="centered"
-        ),
+        DesignTokens(accent_color="#0f766e", heading_color="#134e4a", header_style="centered"),
     ),
     CvTheme(
         "graphite_minimal",

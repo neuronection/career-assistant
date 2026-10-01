@@ -1,13 +1,13 @@
 """SPA serving behavior: dist mount, index fallback, API 404 semantics."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.core.config import settings
 import app.main as main_module
+from app.core.config import settings
 from app.main import _find_spa_dist, create_app
 
 
@@ -15,9 +15,7 @@ from app.main import _find_spa_dist, create_app
 def spa_dist(tmp_path: Path) -> Path:
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
-    (dist / "index.html").write_text(
-        "<!doctype html><html><body><div id=root></div></body></html>"
-    )
+    (dist / "index.html").write_text("<!doctype html><html><body><div id=root></div></body></html>")
     (dist / "assets" / "app.js").write_text("console.log('app');")
     return dist
 
@@ -93,9 +91,7 @@ async def test_unmatched_api_path_returns_json_404_not_html(spa_dist, monkeypatc
         # contract below is the authenticated answer to a missing route.
         anonymous = await client.get("/api/v1/does-not-exist")
         assert anonymous.status_code == 401
-        response = await client.get(
-            "/api/v1/does-not-exist", headers=mint_session_headers()
-        )
+        response = await client.get("/api/v1/does-not-exist", headers=mint_session_headers())
         assert response.status_code == 404
         assert "application/json" in response.headers["content-type"]
         assert response.json() == {"detail": "Not Found"}

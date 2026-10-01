@@ -1,12 +1,12 @@
 """: task registry + model-tier routing."""
 
 import pytest
+from nx_auth.passwords import hash_password
 from sqlalchemy import select
 
 from app.ai.providers.resolution import resolve_task_model
 from app.ai.providers.service import AIProviderService
 from app.ai.tasks import TASKS_BY_NAME, task_tier
-from nx_auth.passwords import hash_password
 from app.core.encryption import encrypt_secret
 from app.models.ai_model import AIGeneration
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
@@ -80,7 +80,7 @@ async def _bind_tier(db, user: User, *, task_type: str, scope: str, tier: str):
 
 async def test_tier_assignment_routes_to_classified_model(db):
     user = await _mk_user(db, "tier-route@example.com")
-    provider, model = await _mk_tiered_model(
+    provider, _model = await _mk_tiered_model(
         db,
         scope="system",
         user=user,
@@ -110,7 +110,7 @@ async def test_user_tier_model_beats_system_tier_model(db):
         tier="fast",
         provider_name="a-sys",
     )
-    mine_provider, _ = await _mk_tiered_model(
+    _mine_provider, _ = await _mk_tiered_model(
         db,
         scope="user",
         user=owner,
@@ -178,15 +178,9 @@ async def test_unclassified_models_never_match_a_tier(db):
 
 async def test_audit_rows_carry_task_tier(db, client, auth_headers, seeded_catalog):
     job = (await client.get("/api/v1/jobs/nurse", headers=auth_headers)).json()
-    await client.post(
-        "/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers
-    )
+    await client.post("/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers)
     row = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "match_score")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "match_score")))
         .scalars()
         .first()
     )
@@ -231,11 +225,7 @@ async def test_model_and_assignment_tier_api(client, auth_headers, db):
 
     from app.models.user_model import User as _User
 
-    user = (
-        (await db.execute(_select(_User).where(_User.email == me["email"])))
-        .scalars()
-        .first()
-    )
+    user = (await db.execute(_select(_User).where(_User.email == me["email"]))).scalars().first()
     resolved = await resolve_task_model(db, "chat", user.id)
     assert resolved is not None
     assert resolved.tier == "fast"
@@ -260,15 +250,9 @@ async def test_set_assignment_model_clears_tier(db, client, auth_headers):
 
     from app.models.user_model import User as _User
 
-    user = (
-        (await db.execute(_select(_User).where(_User.email == me["email"])))
-        .scalars()
-        .first()
-    )
+    user = (await db.execute(_select(_User).where(_User.email == me["email"]))).scalars().first()
     service = AIProviderService(db)
-    await service.set_assignment(
-        user, task_type="assist", scope="user", model_id=None, tier="fast"
-    )
+    await service.set_assignment(user, task_type="assist", scope="user", model_id=None, tier="fast")
     assignment = await service.set_assignment(
         user, task_type="assist", scope="user", model_id=model_id
     )
@@ -284,9 +268,8 @@ async def test_validate_tier_accepts_known_values(db, tier):
 
 
 async def test_validate_tier_rejects_unknown(db):
-    from app.core.errors import ValidationError
-
     from app.ai.providers.service import _validate_tier
+    from app.core.errors import ValidationError
 
     with pytest.raises(ValidationError):
         _validate_tier("turbo")

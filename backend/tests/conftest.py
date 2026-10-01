@@ -1,6 +1,7 @@
+import contextlib
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Iterator
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import httpx
@@ -16,11 +17,10 @@ from app.connectors.base import (
     RawPosting,
 )
 from app.connectors.registry import register_connector, reset_registry
-from app.models.posting_model import JobPosting, JobSource, PostingSkill
-
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
 from app.main import app
+from app.models.posting_model import JobPosting, JobSource, PostingSkill
 
 TEST_DB_URL = settings.database_url
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
@@ -132,10 +132,8 @@ async def warm_vapid_keys():
     """
     from app.services.webpush_service import get_or_create_vapid_keys
 
-    try:
+    with contextlib.suppress(Exception):
         await get_or_create_vapid_keys()
-    except Exception:  # noqa: BLE001 — browser push stays fail-soft
-        pass
     yield
 
 
@@ -154,10 +152,8 @@ async def warm_checkpointer():
     """
     from app.ai.checkpointer import aclose_checkpointer, get_checkpointer
 
-    try:
+    with contextlib.suppress(Exception):
         await get_checkpointer()
-    except Exception:  # noqa: BLE001 — flows degrade without a checkpointer
-        pass
     yield
     await aclose_checkpointer()
 
@@ -223,10 +219,8 @@ async def _provision_vapid_keys() -> None:
     from app.services import webpush_service
 
     webpush_service._keys_cache = None
-    try:
+    with contextlib.suppress(Exception):
         await webpush_service.get_or_create_vapid_keys()
-    except Exception:  # noqa: BLE001 — browser push stays fail-soft
-        pass
 
 
 async def _truncate_all(conn) -> None:
@@ -292,9 +286,7 @@ async def clean_db(clean_identity) -> AsyncGenerator:
 
 def _test_session(conn) -> AsyncSession:
     """A session on the test's outer transaction (commit = savepoint)."""
-    return AsyncSession(
-        bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint"
-    )
+    return AsyncSession(bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint")
 
 
 def _sqlite_session() -> AsyncSession:
@@ -422,9 +414,7 @@ def mint_session_headers(
     kit = auth_kit()
     user = kit.users.get_by_email(email) or kit.users.create(
         email=email,
-        password_hash=_fixture_password_hash()
-        if password is None
-        else _fixture_hash(password),
+        password_hash=_fixture_password_hash() if password is None else _fixture_hash(password),
         full_name=full_name,
         is_admin=is_admin,
     )
@@ -478,9 +468,7 @@ def session_headers(response) -> dict:
             refresh = value
         elif name.strip() == "nx_csrf":
             csrf = value
-    assert access, (
-        f"no session cookie in response: {response.headers.get_list('set-cookie')}"
-    )
+    assert access, f"no session cookie in response: {response.headers.get_list('set-cookie')}"
     cookie = f"{_cookie_access_name()}={access}"
     if refresh:
         cookie += f"; nx_refresh={refresh}"
@@ -562,8 +550,8 @@ async def seeded_catalog(db) -> dict:
 @pytest.fixture
 async def profile_ready(client: AsyncClient, auth_headers: dict, db) -> dict:
     """A user with a filled profile; returns the profile payload."""
-    from app.seeds.run import seed_taxonomy
     from app.seeds.metrics import seed_metric_dimensions
+    from app.seeds.run import seed_taxonomy
 
     await seed_taxonomy(db)
     await seed_metric_dimensions(db)
@@ -587,12 +575,8 @@ async def profile_ready(client: AsyncClient, auth_headers: dict, db) -> dict:
             {"tag_key": "technology-ai", "weight": 4, "source": "self"},
             {"tag_key": "technology-games", "weight": 3, "source": "self"},
         ],
-        "hobbies": [
-            {"key": "gaming", "label": "Playing and modding games", "weight": 4}
-        ],
-        "likes": [
-            {"tag_key": "technology-data", "label": "Solving puzzles", "weight": 4}
-        ],
+        "hobbies": [{"key": "gaming", "label": "Playing and modding games", "weight": 4}],
+        "likes": [{"tag_key": "technology-data", "label": "Solving puzzles", "weight": 4}],
         "dislikes": [{"label": "Public speaking", "weight": 2}],
         "aspirations": [
             {
@@ -658,7 +642,7 @@ class SyntheticConnector(PostingConnector):
             title="QA Automation Engineer",
             org="SynthCo",
             url="https://syn.example/1",
-            posted_at=datetime.now(timezone.utc) - timedelta(days=2),
+            posted_at=datetime.now(UTC) - timedelta(days=2),
             skills_raw=["programming", "problem-solving"],
             raw={"description": "We need programming and problem-solving."},
         )
@@ -689,22 +673,21 @@ async def kinds(db):
 
 
 def _raw_posting(**kw) -> RawPosting:
-    defaults = dict(
-        external_id="ex-1",
-        title="Data Analyst",
-        org="ExtractCo",
-        url="https://ex.example/1",
+    defaults = {
+        "external_id": "ex-1",
+        "title": "Data Analyst",
+        "org": "ExtractCo",
+        "url": "https://ex.example/1",
         # Relative, never a fixed date: a pinned posted_at ages out of
         # posted_within windows and time-bombs the freshness tests.
-        posted_at=datetime.now(timezone.utc) - timedelta(days=2),
-        skills_raw=["programming", "problem-solving"],
-        raw={
+        "posted_at": datetime.now(UTC) - timedelta(days=2),
+        "skills_raw": ["programming", "problem-solving"],
+        "raw": {
             "description": (
-                "We need programming and problem-solving. "
-                "Salary: 40000-60000 EUR per year."
+                "We need programming and problem-solving. Salary: 40000-60000 EUR per year."
             )
         },
-    )
+    }
     defaults.update(kw)
     return RawPosting(**defaults)
 
@@ -719,17 +702,11 @@ async def _make_posting(db, source, **kw) -> JobPosting:
     return posting
 
 
-async def _add_posting_skill(
-    db, posting: JobPosting, skill_key: str, level, priority
-) -> None:
+async def _add_posting_skill(db, posting: JobPosting, skill_key: str, level, priority) -> None:
     """Upsert — the deep pass updates fast-pass rows in place."""
     from app.models.taxonomy_model import Skill
 
-    skill = (
-        (await db.execute(select(Skill).where(Skill.key == skill_key)))
-        .scalars()
-        .first()
-    )
+    skill = (await db.execute(select(Skill).where(Skill.key == skill_key))).scalars().first()
     assert skill is not None, f"seeded skill missing: {skill_key}"
     row = (
         (
@@ -791,7 +768,7 @@ def _chat_agent_mock():
     """Script the chat agent-round mock + register the structured reply
     mock for every test (the chatbot import side effect is gone — plan 98
     moved the builders to app/ai/mock_chat.py)."""
-    from app.ai import gateway as gateway_module, mock_chat  # noqa: F401
+    from app.ai import gateway as gateway_module
     from app.models.enums import AITaskType
 
     gateway_module.register_agent_mock(AITaskType.CHAT.value, _chat_agent_script)

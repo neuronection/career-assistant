@@ -8,8 +8,8 @@ agent-round funnel (native tool calls, audited, mock-scriptable).
 
 import json
 import sqlite3
-from contextlib import suppress
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -18,11 +18,10 @@ from sqlalchemy import select
 from app.ai.gateway import ainvoke_agent, register_agent_mock
 from app.ai.mock_chat import mock_chat_reply
 from app.models.ai_model import AIGeneration
-from app.models.enums import AITaskType
-
-from tests.test_ai_funnel import _assign_real_model, provider_module
 from app.models.chat_model import ChatMessage
+from app.models.enums import AITaskType
 from app.services.experience_service import ExperienceService
+from tests.test_ai_funnel import _assign_real_model, provider_module
 from tests.test_chat_profile_ops import _auth_user
 
 _GREGORIAN_100NS = 122192928000000000
@@ -44,13 +43,9 @@ def test_in_memory_saver_checkpoints_a_trivial_graph():
     graph.add_edge("step", END)
     compiled = graph.compile(checkpointer=InMemorySaver())
 
-    result = compiled.invoke(
-        {"value": "chat"}, config={"configurable": {"thread_id": "t-run-1"}}
-    )
+    result = compiled.invoke({"value": "chat"}, config={"configurable": {"thread_id": "t-run-1"}})
     assert result["value"] == "CHAT"
-    history = list(
-        compiled.get_state_history({"configurable": {"thread_id": "t-run-1"}})
-    )
+    history = list(compiled.get_state_history({"configurable": {"thread_id": "t-run-1"}}))
     assert history, "checkpoint thread recorded"
 
 
@@ -76,9 +71,9 @@ def test_main_chat_tool_keys_exclude_owned_families_and_capabilities():
         "cv_update_design",
         "cv_set_context",
     } <= set(keys), "the CV allowlist binds in main chat"
-    assert not any(
-        key.startswith("cv_") and key not in MAIN_CHAT_CV_TOOLS for key in keys
-    ), "non-allowlisted cv_* stay unbound (content editors stay builder-side)"
+    assert not any(key.startswith("cv_") and key not in MAIN_CHAT_CV_TOOLS for key in keys), (
+        "non-allowlisted cv_* stay unbound (content editors stay builder-side)"
+    )
     assert "propose_profile_edits" not in keys, "capabilities never bind"
 
     specs = chat_tool_specs()
@@ -147,8 +142,7 @@ def test_prune_checkpoints_removes_stale_threads(tmp_path: Path):
     connection = sqlite3.connect(db)
     try:
         connection.execute(
-            "create table checkpoints ("
-            "thread_id text, checkpoint_ns text, checkpoint_id text)"
+            "create table checkpoints (thread_id text, checkpoint_ns text, checkpoint_id text)"
         )
         connection.execute(
             "create table writes ("
@@ -158,12 +152,8 @@ def test_prune_checkpoints_removes_stale_threads(tmp_path: Path):
             ("fresh", _checkpoint_id(1000)),
             ("stale", _checkpoint_id(30 * 86_400_000)),
         ):
-            connection.execute(
-                "insert into checkpoints values (?, '0', ?)", (thread, cid)
-            )
-            connection.execute(
-                "insert into writes values (?, '0', ?, 'x')", (thread, cid)
-            )
+            connection.execute("insert into checkpoints values (?, '0', ?)", (thread, cid))
+            connection.execute("insert into writes values (?, '0', ?, 'x')", (thread, cid))
         connection.commit()
     finally:
         connection.close()
@@ -202,9 +192,7 @@ async def test_ainvoke_agent_audits_tool_calls(db, monkeypatch):
         tool_calls=[{"name": "my_experience", "args": {"limit": 5}, "id": "call-1"}],
     )
     fake = _FakeAgentModel(reply)
-    monkeypatch.setattr(
-        provider_module, "build_chat_model", lambda resolved, **kw: fake
-    )
+    monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved, **kw: fake)
 
     result = await ainvoke_agent(
         db,
@@ -218,23 +206,18 @@ async def test_ainvoke_agent_audits_tool_calls(db, monkeypatch):
     assert fake.bound is not None, "tools were bound on the model"
 
     rows = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "assist")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "assist")))
         .scalars()
         .all()
     )
     assert len(rows) == 1
     assert rows[0].status == "ok"
-    assert rows[0].output["tool_calls"] == [
-        {"name": "my_experience", "args": {"limit": 5}}
-    ]
+    assert rows[0].output["tool_calls"] == [{"name": "my_experience", "args": {"limit": 5}}]
 
 
 async def _assign_mock_model(db):
     from nx_auth.passwords import hash_password
+
     from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
     from app.models.user_model import User
 
@@ -308,9 +291,7 @@ async def test_ainvoke_agent_mock_is_scriptable(db):
 
 async def _send_turn(client, auth_headers, content: str):
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "rounds"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "rounds"}, headers=auth_headers)
     ).json()
     response = await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
@@ -332,9 +313,7 @@ async def _send_turn(client, auth_headers, content: str):
     return session, events
 
 
-async def test_agent_rounds_ground_edit_via_digest_tool(
-    client, db, auth_headers, monkeypatch
-):
+async def test_agent_rounds_ground_edit_via_digest_tool(client, db, auth_headers, monkeypatch):
     """Edit-verb turn: the agent mock calls my_experience; the proposal
     grounds on the tool result (never an invented id)."""
     from app.ai import gateway as gateway_module
@@ -347,9 +326,7 @@ async def test_agent_rounds_ground_edit_via_digest_tool(
     )
     await db.commit()
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "ground"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "ground"}, headers=auth_headers)
     ).json()
     response = await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
@@ -372,9 +349,7 @@ async def test_agent_rounds_ground_edit_via_digest_tool(
     assert cards[0]["entity_id"] == str(item.id)
 
 
-async def test_agent_round_budget_caps_executed_tools(
-    client, db, auth_headers, monkeypatch
-):
+async def test_agent_round_budget_caps_executed_tools(client, db, auth_headers, monkeypatch):
     """More tool calls than the per-turn budget → extras drop with a
     persisted reason and the turn still completes."""
     from app.ai import gateway as gateway_module
@@ -398,20 +373,14 @@ async def test_agent_round_budget_caps_executed_tools(
     assert names[-1] == "flow_finished", "the turn survives the greedy agent"
 
     rows = (
-        (
-            await db.execute(
-                select(ChatMessage).where(ChatMessage.session_id == session["id"])
-            )
-        )
+        (await db.execute(select(ChatMessage).where(ChatMessage.session_id == session["id"])))
         .scalars()
         .all()
     )
     assistant = next(r for r in rows if r.role == "assistant")
     # The per-turn budget caps AGENT-executed tools; retrieve's own
     # deterministic cards (search_jobs) ride the same trace.
-    assert (
-        len(assistant.metadata_json.get("tools", [])) <= 1 + ct.MAX_TOOL_CALLS_PER_TURN
-    )
+    assert len(assistant.metadata_json.get("tools", [])) <= 1 + ct.MAX_TOOL_CALLS_PER_TURN
     assert assistant.metadata_json.get("tools_dropped"), (
         "over-budget calls drop with a persisted reason"
     )
@@ -430,7 +399,7 @@ async def test_agent_rounds_stop_at_round_cap(client, db, auth_headers):
 
     gateway_module.register_agent_mock(AITaskType.CHAT.value, looper)
     try:
-        session, events = await _send_turn(client, auth_headers, "hello there")
+        _session, events = await _send_turn(client, auth_headers, "hello there")
     finally:
         gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
     names = [n for n, _ in events]
@@ -557,9 +526,7 @@ async def test_checkpointer_picks_sqlite_for_desktop(monkeypatch, tmp_path):
     assert result["value"] == "desktop!"
     history = [
         snap
-        async for snap in compiled.aget_state_history(
-            {"configurable": {"thread_id": "t-desk"}}
-        )
+        async for snap in compiled.aget_state_history({"configurable": {"thread_id": "t-desk"}})
     ]
     assert history, "checkpointed on the desktop sqlite saver"
     await cp.aclose_checkpointer()
@@ -617,18 +584,13 @@ async def test_postgres_prune_removes_stale_threads(db):
     assert removed >= 1
 
     threads = {
-        row[0]
-        for row in (
-            await db.execute(text("SELECT thread_id FROM checkpoints"))
-        ).fetchall()
+        row[0] for row in (await db.execute(text("SELECT thread_id FROM checkpoints"))).fetchall()
     }
     assert "stale-thread" not in threads
     assert "fresh-thread" in threads
     leftovers = (
         await db.execute(
-            text(
-                "SELECT count(*) FROM checkpoint_blobs WHERE thread_id = 'stale-thread'"
-            )
+            text("SELECT count(*) FROM checkpoint_blobs WHERE thread_id = 'stale-thread'")
         )
     ).scalar()
     assert leftovers == 0

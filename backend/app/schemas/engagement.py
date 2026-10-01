@@ -1,7 +1,6 @@
 """Engagement API schemas (Phase 24): searches, feed, notifications."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -33,7 +32,7 @@ class SearchOut(BaseModel):
 class FeedItemOut(BaseModel):
     job: JobOut
     fit_score: float
-    insight: Optional[MatchInsightOut] = None
+    insight: MatchInsightOut | None = None
     seen: bool = False
     saved: bool = False
     user_notes: str = ""
@@ -67,7 +66,7 @@ class RuleParams(BaseModel):
     max_per_day: int = Field(default=5, ge=1, le=50)
     # Discretion: employed users keep pings inside a window.
     # Pre-36 the check runs at emit; moves it to dispatch.
-    quiet_hours: Optional[dict] = None
+    quiet_hours: dict | None = None
 
     @field_validator("family_keys", "muted_family_keys")
     @classmethod
@@ -79,7 +78,7 @@ class RuleParams(BaseModel):
 
     @field_validator("quiet_hours")
     @classmethod
-    def _quiet_window_shape(cls, value: Optional[dict]) -> Optional[dict]:
+    def _quiet_window_shape(cls, value: dict | None) -> dict | None:
         if value is None:
             return None
         start, end = value.get("start"), value.get("end")
@@ -120,9 +119,9 @@ class NotificationOut(BaseModel):
     body: str
     payload: dict
     source_ref: dict = Field(default_factory=dict)
-    thread_key: Optional[str] = None
-    read_at: Optional[datetime] = None
-    dismissed_at: Optional[datetime] = None
+    thread_key: str | None = None
+    read_at: datetime | None = None
+    dismissed_at: datetime | None = None
     created_at: datetime
 
 
@@ -174,12 +173,12 @@ class NotificationPreferencesIn(BaseModel):
     """Global channel preferences (Phase 30 shape, matrix above)."""
 
     desktop_channel_enabled: bool = True
-    quiet_hours: Optional[QuietHoursIn] = None
+    quiet_hours: QuietHoursIn | None = None
 
 
 class NotificationPreferencesOut(BaseModel):
     desktop_channel_enabled: bool
-    quiet_hours: Optional[QuietHoursIn] = None
+    quiet_hours: QuietHoursIn | None = None
 
 
 class KindPrefOut(BaseModel):
@@ -187,7 +186,7 @@ class KindPrefOut(BaseModel):
     label: str
     group: str
     severity: str
-    manage_url: Optional[str] = None
+    manage_url: str | None = None
     mutable: bool
     default_channels: list[str]
     enabled: bool
@@ -196,21 +195,21 @@ class KindPrefOut(BaseModel):
 
 
 class PreferencesMatrixOut(BaseModel):
-    """The full per-kind × per-channel matrix."""
+    """The full per-kind x per-channel matrix."""
 
     channels: list[str]
-    quiet_hours: Optional[QuietHoursIn] = None
+    quiet_hours: QuietHoursIn | None = None
     desktop_channel_enabled: bool = True
     kinds: list[KindPrefOut]
 
 
 class KindPrefIn(BaseModel):
-    enabled: Optional[bool] = None
-    channels: Optional[list[str]] = Field(default=None, max_length=6)
+    enabled: bool | None = None
+    channels: list[str] | None = Field(default=None, max_length=6)
 
     @field_validator("channels")
     @classmethod
-    def _known_channels(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+    def _known_channels(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
             return None
         allowed = {"in_app", "desktop", "browser"}
@@ -235,7 +234,7 @@ class SubscriptionIn(BaseModel):
     p256dh: str = Field(min_length=1, max_length=200)
     auth: str = Field(min_length=1, max_length=200)
     device_id: str = Field(default="web", max_length=120)
-    user_agent: Optional[str] = Field(default=None, max_length=300)
+    user_agent: str | None = Field(default=None, max_length=300)
 
 
 class SubscriptionOut(BaseModel):
@@ -253,7 +252,7 @@ class VapidKeyOut(BaseModel):
 class BroadcastIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(default="", max_length=2000)
-    link: Optional[str] = Field(default=None, max_length=300)
+    link: str | None = Field(default=None, max_length=300)
 
 
 class UnseenCountOut(BaseModel):

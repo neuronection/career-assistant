@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import InterestTagKind
 
-# Semantic 1–10 proficiency anchors seeded onto every skill; AI drafts
+# Semantic 1-10 proficiency anchors seeded onto every skill; AI drafts
 # per-skill anchors and admins review overrides (Phase 21).
 DEFAULT_LEVEL_ANCHORS: list[dict] = [
     {
@@ -38,9 +38,7 @@ class InterestTag(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "interest_tags"
 
-    key: Mapped[str] = mapped_column(
-        String(80), unique=True, index=True, nullable=False
-    )
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     category: Mapped[str] = mapped_column(String(60), index=True, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
@@ -66,13 +64,11 @@ class Skill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "skills"
 
-    key: Mapped[str] = mapped_column(
-        String(80), unique=True, index=True, nullable=False
-    )
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     category: Mapped[str] = mapped_column(String(60), index=True, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("skills.id", ondelete="RESTRICT"), nullable=True
     )
     level_anchors: Mapped[list] = mapped_column(
@@ -80,12 +76,10 @@ class Skill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     # Display aliases only — matching/dedup resolves through keys and ids.
     aliases: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="active", index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", index=True)
     origin: Mapped[str] = mapped_column(String(20), nullable=False, default="bank")
     # Where a non-bank skill came from: template hash, posting ref, CV parse…
-    provenance: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    provenance: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
 
     parent: Mapped[Optional["Skill"]] = relationship(remote_side="Skill.id")
     children: Mapped[list["Skill"]] = relationship(back_populates="parent")

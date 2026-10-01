@@ -2,7 +2,7 @@
 (mock provider e2e), guardrails (budget abort, cooldown, pause), constraint
 learning, transparency timeline, isolation and the no-apply invariant."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -27,9 +27,7 @@ async def _goal(client, auth_headers, **overrides) -> dict:
         "constraints": {"salary_min": 1},
     }
     payload.update(overrides)
-    response = await client.post(
-        "/api/v1/autopilot/goals", json=payload, headers=auth_headers
-    )
+    response = await client.post("/api/v1/autopilot/goals", json=payload, headers=auth_headers)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -45,10 +43,7 @@ def _service(db, auth_headers=None) -> tuple[AutopilotService, str]:
 
 
 def test_scheduler_maps_autopilot_kind_to_job():
-    assert (
-        KIND_TASKS[ScheduleKind.USER_AUTOPILOT.value]
-        == BackgroundJobType.AUTOPILOT_RUN.value
-    )
+    assert KIND_TASKS[ScheduleKind.USER_AUTOPILOT.value] == BackgroundJobType.AUTOPILOT_RUN.value
 
 
 async def test_task_registered_in_registry():
@@ -76,16 +71,10 @@ async def test_goal_crud_round_trip(client, auth_headers, db):
     row = await db.get(AutopilotGoal, UUID(goal_id))
     assert row.status == "paused"
 
-    deleted = await client.delete(
-        f"/api/v1/autopilot/goals/{goal_id}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/autopilot/goals/{goal_id}", headers=auth_headers)
     assert deleted.status_code == 204
     remaining = (
-        (
-            await db.execute(
-                select(AutopilotGoal).where(AutopilotGoal.id == UUID(goal_id))
-            )
-        )
+        (await db.execute(select(AutopilotGoal).where(AutopilotGoal.id == UUID(goal_id))))
         .scalars()
         .first()
     )
@@ -130,9 +119,7 @@ async def test_cadence_schedule_wiring(client, auth_headers, db):
     rows = (
         (
             await db.execute(
-                select(Schedule).where(
-                    Schedule.kind == ScheduleKind.USER_AUTOPILOT.value
-                )
+                select(Schedule).where(Schedule.kind == ScheduleKind.USER_AUTOPILOT.value)
             )
         )
         .scalars()
@@ -151,9 +138,7 @@ async def test_cadence_schedule_wiring(client, auth_headers, db):
     rows = (
         (
             await db.execute(
-                select(Schedule).where(
-                    Schedule.kind == ScheduleKind.USER_AUTOPILOT.value
-                )
+                select(Schedule).where(Schedule.kind == ScheduleKind.USER_AUTOPILOT.value)
             )
         )
         .scalars()
@@ -190,9 +175,7 @@ async def test_run_e2e_mock_provider(client, auth_headers, db, search_fixtures, 
     findings = (
         (
             await db.execute(
-                select(AutopilotFinding).where(
-                    AutopilotFinding.run_id == UUID(result["run_id"])
-                )
+                select(AutopilotFinding).where(AutopilotFinding.run_id == UUID(result["run_id"]))
             )
         )
         .scalars()
@@ -218,9 +201,7 @@ async def test_run_e2e_mock_provider(client, auth_headers, db, search_fixtures, 
     assert notification.source_ref["goal_id"] == created["id"]
 
 
-async def test_runs_endpoint_transparency_timeline(
-    client, auth_headers, db, search_fixtures
-):
+async def test_runs_endpoint_transparency_timeline(client, auth_headers, db, search_fixtures):
     """The run payload renders the 'what I searched & why' timeline."""
     created = await _goal(client, auth_headers)
     service, user_id = _service(db, auth_headers)
@@ -253,16 +234,12 @@ async def test_filters_honor_never_terms_and_seen(
     from tests.conftest import _add_posting_skill, _make_posting
 
     user_id = _uid(auth_headers)
-    dev = await _make_posting(
-        db, source, external_id="ex-dev", title="Python Developer"
-    )
+    dev = await _make_posting(db, source, external_id="ex-dev", title="Python Developer")
     qa = await _make_posting(db, source, external_id="ex-qa", title="QA Engineer")
     await _add_posting_skill(db, dev, "programming", 5, "must_have")
     await _add_posting_skill(db, qa, "programming", 5, "must_have")
 
-    created = await _goal(
-        client, auth_headers, constraints={"never_terms": ["qa"], "top_n": 5}
-    )
+    created = await _goal(client, auth_headers, constraints={"never_terms": ["qa"], "top_n": 5})
     service = AutopilotService(db, checkpointer=InMemorySaver())
     result = await service.run_goal(UUID(created["id"]), user_id)
     await db.commit()
@@ -273,9 +250,7 @@ async def test_filters_honor_never_terms_and_seen(
     assert filter_entry["never"] == 1
 
     db.add(
-        PostingInteraction(
-            user_id=user_id, posting_id=dev.id, seen_at=datetime.now(timezone.utc)
-        )
+        PostingInteraction(user_id=user_id, posting_id=dev.id, seen_at=datetime.now(UTC))
     )
     await db.commit()
     second = await _goal(client, auth_headers)
@@ -288,9 +263,7 @@ async def test_filters_honor_never_terms_and_seen(
     assert str(qa.id) in surfaced2
 
 
-async def test_cooldown_suppresses_resurfacing(
-    client, auth_headers, db, search_fixtures
-):
+async def test_cooldown_suppresses_resurfacing(client, auth_headers, db, search_fixtures):
     """A posting surfaced in a recent run isn't re-surfaced for N days."""
     created = await _goal(client, auth_headers)
     service, user_id = _service(db, auth_headers)
@@ -310,9 +283,7 @@ async def test_cooldown_suppresses_resurfacing(
 # ------------------------------------------------------------ budget abort
 
 
-async def test_budget_abort_delivers_partials(
-    client, auth_headers, db, search_fixtures
-):
+async def test_budget_abort_delivers_partials(client, auth_headers, db, search_fixtures):
     """Run-level cap aborts cleanly; deterministic partials still ship."""
     created = await _goal(client, auth_headers, budget={"max_calls": 1})
     service, user_id = _service(db, auth_headers)
@@ -338,11 +309,7 @@ async def test_feedback_learning_round_trip(client, auth_headers, db, search_fix
     await db.commit()
     assert result["findings"]
     finding = (
-        (
-            await db.execute(
-                select(AutopilotFinding).order_by(AutopilotFinding.id).limit(1)
-            )
-        )
+        (await db.execute(select(AutopilotFinding).order_by(AutopilotFinding.id).limit(1)))
         .scalars()
         .first()
     )
@@ -387,9 +354,7 @@ async def test_pause_on_total_dismissal(client, auth_headers, db, search_fixture
     finding_rows = (
         (
             await db.execute(
-                select(AutopilotFinding).where(
-                    AutopilotFinding.run_id == UUID(result["run_id"])
-                )
+                select(AutopilotFinding).where(AutopilotFinding.run_id == UUID(result["run_id"]))
             )
         )
         .scalars()
@@ -428,9 +393,7 @@ async def test_stale_goal_nudge_after_three_zero_runs(
     """N consecutive zero-finding runs → nudge; pausing stays manual."""
     from app.models.engagement_model import Notification
 
-    created = await _goal(
-        client, auth_headers, constraints={"never_terms": ["analyst"]}
-    )
+    created = await _goal(client, auth_headers, constraints={"never_terms": ["analyst"]})
     service, user_id = _service(db, auth_headers)
     for _ in range(3):
         result = await service.run_goal(UUID(created["id"]), user_id)
@@ -481,9 +444,7 @@ async def test_cross_user_isolation(client, auth_headers, db, search_fixtures):
     listing = await client.get("/api/v1/autopilot/goals", headers=other_headers)
     assert listing.json() == []
 
-    detail = await client.get(
-        f"/api/v1/autopilot/goals/{created['id']}", headers=other_headers
-    )
+    detail = await client.get(f"/api/v1/autopilot/goals/{created['id']}", headers=other_headers)
     assert detail.status_code == 403, "cross-user goal access denied"
 
     service = AutopilotService(db, checkpointer=InMemorySaver())

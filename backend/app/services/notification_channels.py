@@ -16,9 +16,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from importlib import metadata
-from typing import Optional
-from datetime import datetime, timezone
 from uuid import UUID
 
 from app.models.enums import DeliveryStatus
@@ -49,7 +48,7 @@ class BaseChannel:
     def available(self) -> bool:
         raise NotImplementedError
 
-    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
         """Deliver; returns (status, error). Never raises by contract."""
         raise NotImplementedError
 
@@ -62,7 +61,7 @@ class InAppChannel(BaseChannel):
     def available(self) -> bool:
         return True
 
-    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
         return DeliveryStatus.DELIVERED.value, None
 
 
@@ -111,7 +110,7 @@ def _load_plugins() -> None:
     for ep in eps:
         try:
             channel = ep.load()()
-        except Exception as exc:  # noqa: BLE001 — one bad plugin never breaks boot
+        except Exception as exc:
             logger.warning("Notification channel %s failed to load: %s", ep.name, exc)
             continue
         if not isinstance(channel, BaseChannel):
@@ -137,7 +136,7 @@ def unregister_channel(key: str) -> None:
     _registry.pop(key, None)
 
 
-def get_channel(key: str) -> Optional[BaseChannel]:
+def get_channel(key: str) -> BaseChannel | None:
     _load_plugins()
     return _registry.get(key)
 
@@ -158,7 +157,7 @@ def available_channels() -> list[str]:
     return [key for key, channel in _registry.items() if channel.available()]
 
 
-def within_quiet_hours(quiet: Optional[dict], now: Optional[datetime] = None) -> bool:
+def within_quiet_hours(quiet: dict | None, now: datetime | None = None) -> bool:
     """True when `now` (UTC) falls inside {start, end} HH:MM quiet hours.
 
     Overnight windows (start > end) wrap midnight. Per-rule pings (plan
@@ -168,7 +167,7 @@ def within_quiet_hours(quiet: Optional[dict], now: Optional[datetime] = None) ->
         return False
     from datetime import datetime as dt
 
-    moment = (now or dt.now(timezone.utc)).time()
+    moment = (now or dt.now(UTC)).time()
     try:
         start = dt.strptime(quiet["start"], "%H:%M").time()
         end = dt.strptime(quiet["end"], "%H:%M").time()
@@ -180,4 +179,4 @@ def within_quiet_hours(quiet: Optional[dict], now: Optional[datetime] = None) ->
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

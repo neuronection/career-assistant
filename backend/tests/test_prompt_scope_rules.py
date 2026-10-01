@@ -27,10 +27,7 @@ def test_planner_scope_narration_and_honesty_guard():
     prompt = _flat(CHATBOT)
     assert "SCOPE NARRATION" in prompt
     assert "reversible via unpin" in prompt
-    assert (
-        "Never present a bullet-only rewrite as making the entry concise/shorter"
-        in prompt
-    )
+    assert "Never present a bullet-only rewrite as making the entry concise/shorter" in prompt
     assert "name what stays unchanged" in prompt
 
 
@@ -43,9 +40,7 @@ def test_planner_routing_prefers_variants_for_whole_entry():
 def test_variant_list_verdict_discipline():
     prompt = _flat(CHATBOT)
     assert "ALWAYS call it with the attached CV's id VERBATIM" in prompt
-    assert (
-        "ONLY rows with a pin/applicable verdict may be claimed as rendering" in prompt
-    )
+    assert "ONLY rows with a pin/applicable verdict may be claimed as rendering" in prompt
     agent = _flat(AGENT_ROUND)
     assert "applicability verdicts" in agent
     assert "never claim a variant renders on the CV" in agent

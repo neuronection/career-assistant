@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import UUID
 
 import httpx
@@ -21,13 +20,11 @@ def _validate_provider_type(provider_type: str) -> str:
     except ValueError as exc:
         raise ValidationError(f"Unknown provider type: {provider_type}") from exc
     if validated == AIProviderType.MOCK.value and not settings.is_dev:
-        raise ValidationError(
-            "The mock provider is only available in development environments."
-        )
+        raise ValidationError("The mock provider is only available in development environments.")
     return validated
 
 
-def _validate_tier(tier: Optional[str]) -> Optional[str]:
+def _validate_tier(tier: str | None) -> str | None:
     """Normalise/validate a model-tier value."""
     if tier is None:
         return None
@@ -37,7 +34,7 @@ def _validate_tier(tier: Optional[str]) -> Optional[str]:
         raise ValidationError(f"Unknown model tier: {tier}") from exc
 
 
-def _validate_reasoning_effort(effort: Optional[str]) -> Optional[str]:
+def _validate_reasoning_effort(effort: str | None) -> str | None:
     """Normalise a reasoning-effort value (empty string clears the knob).
 
     Free text on purpose: OpenAI-style levels (none/minimal/low/medium/
@@ -66,9 +63,7 @@ class AIProviderService:
 
     async def get_provider(self, provider_id: UUID, user: User) -> AIProvider:
         """Fetch a provider the caller can see."""
-        rows = await self.db.execute(
-            select(AIProvider).where(AIProvider.id == provider_id)
-        )
+        rows = await self.db.execute(select(AIProvider).where(AIProvider.id == provider_id))
         provider = rows.scalars().first()
         if provider is None:
             raise ValidationError("Provider not found")
@@ -83,10 +78,10 @@ class AIProviderService:
         name: str,
         provider_type: str,
         api_base: str,
-        api_key: Optional[str],
+        api_key: str | None,
         scope: str = "user",
-        is_local: Optional[bool] = None,
-        country: Optional[str] = None,
+        is_local: bool | None = None,
+        country: str | None = None,
     ) -> AIProvider:
         """Create a provider; system scope requires admin."""
         if scope == "system" and not user.is_admin:
@@ -111,13 +106,13 @@ class AIProviderService:
         provider_id: UUID,
         user: User,
         *,
-        name: Optional[str] = None,
-        provider_type: Optional[str] = None,
-        api_base: Optional[str] = None,
-        api_key: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        is_local: Optional[bool] = None,
-        country: Optional[str] = None,
+        name: str | None = None,
+        provider_type: str | None = None,
+        api_base: str | None = None,
+        api_key: str | None = None,
+        is_active: bool | None = None,
+        is_local: bool | None = None,
+        country: str | None = None,
     ) -> AIProvider:
         """Update a provider; ``***`` preserves the existing key."""
         provider = await self.get_provider(provider_id, user)
@@ -154,9 +149,7 @@ class AIProviderService:
         """Models of a provider the caller can see."""
         await self.get_provider(provider_id, user)
         rows = await self.db.execute(
-            select(AIModel)
-            .where(AIModel.provider_id == provider_id)
-            .order_by(AIModel.name)
+            select(AIModel).where(AIModel.provider_id == provider_id).order_by(AIModel.name)
         )
         return list(rows.scalars().all())
 
@@ -167,11 +160,11 @@ class AIProviderService:
         *,
         name: str,
         model_name: str,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        reasoning_effort: Optional[str] = None,
-        tier: Optional[str] = None,
-        caps: Optional[list[str]] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+        tier: str | None = None,
+        caps: list[str] | None = None,
     ) -> AIModel:
         """Add a model to a provider (tier declares which tier it serves)."""
         provider = await self.get_provider(provider_id, user)
@@ -197,12 +190,12 @@ class AIProviderService:
         model_id: UUID,
         user: User,
         *,
-        name: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        reasoning_effort: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        caps: Optional[list[str]] = None,
+        name: str | None = None,
+        is_active: bool | None = None,
+        reasoning_effort: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        caps: list[str] | None = None,
         set_temperature: bool = False,
         set_max_tokens: bool = False,
         set_reasoning_effort: bool = False,
@@ -261,9 +254,7 @@ class AIProviderService:
         tier; both ``None`` clears the assignment.
         """
         if scope == "system" and not user.is_admin:
-            raise PermissionDeniedError(
-                "Only admins can change global task assignments"
-            )
+            raise PermissionDeniedError("Only admins can change global task assignments")
         tier = _validate_tier(tier)
         provider_id = None
         if model_id is not None:
@@ -273,9 +264,7 @@ class AIProviderService:
             if model is None:
                 raise ValidationError("Model not found")
             provider = await self.get_provider(model.provider_id, user)
-            if provider.scope != scope and not (
-                scope == "system" and provider.scope == "system"
-            ):
+            if provider.scope != scope and not (scope == "system" and provider.scope == "system"):
                 raise PermissionDeniedError("Model belongs to another scope")
             provider_id = provider.id
         assignment_rows = await self.db.execute(
@@ -313,7 +302,7 @@ class AIProviderService:
         self,
         provider_id: UUID,
         user: User,
-        transport: Optional[httpx.AsyncBaseTransport] = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> list[dict]:
         """Fetch available models from the provider's /models API endpoint.
 
@@ -323,9 +312,7 @@ class AIProviderService:
         provider = await self.get_provider(provider_id, user)
         if provider.provider_type == "mock":
             if not settings.is_dev:
-                raise ValidationError(
-                    "The mock provider is only available in development."
-                )
+                raise ValidationError("The mock provider is only available in development.")
             return [
                 {"id": "mock-large", "name": "Mock Large", "owned_by": "mock"},
                 {"id": "mock-small", "name": "Mock Small", "owned_by": "mock"},
@@ -386,7 +373,7 @@ class AIProviderService:
         *,
         provider_id: UUID,
         model_id: UUID,
-        transport: Optional[httpx.AsyncBaseTransport] = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> dict:
         """Ping a provider/model with a minimal completion (plain httpx)."""
         provider = await self.get_provider(provider_id, user)
@@ -396,9 +383,7 @@ class AIProviderService:
             raise ValidationError("Model not found on this provider")
         if provider.provider_type == "mock":
             if not settings.is_dev:
-                raise ValidationError(
-                    "The mock provider is only available in development."
-                )
+                raise ValidationError("The mock provider is only available in development.")
             return {"ok": True, "reply": "mock provider: always OK"}
         if provider.provider_type == "google":
             return await self._run_test_google(provider, model, transport)
@@ -429,7 +414,7 @@ class AIProviderService:
         self,
         provider: AIProvider,
         model: AIModel,
-        transport: Optional[httpx.AsyncBaseTransport] = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> dict:
         """Connection test for native Gemini providers.
 

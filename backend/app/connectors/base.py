@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Connector SDK (Phase 26): the only extension point for posting sources.
 
 Connectors are pure normalizers: `fetch(config, state) -> ConnectorResult`
@@ -9,8 +10,9 @@ fetching (conditional GET, per-source caps, robots.txt for URL kinds).
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Awaitable, Callable, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,14 +23,14 @@ class SalarySpec(BaseModel):
     """ISO-4217 currency + NUMERIC range + period."""
 
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    min: Optional[float] = Field(default=None, ge=0)
-    max: Optional[float] = Field(default=None, ge=0)
+    min: float | None = Field(default=None, ge=0)
+    max: float | None = Field(default=None, ge=0)
     period: Literal["hour", "day", "week", "month", "year"] = "year"
 
 
 class LocationSpec(BaseModel):
-    city: Optional[str] = None
-    country: Optional[str] = None
+    city: str | None = None
+    country: str | None = None
     remote: bool = False
 
 
@@ -40,22 +42,18 @@ class RawPosting(BaseModel):
     org: str = Field(default="", max_length=200)
     location: LocationSpec = Field(default_factory=LocationSpec)
     url: str = Field(default="", max_length=1000)
-    posted_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
-    salary: Optional[SalarySpec] = None
-    seniority: Optional[
-        Literal["intern", "junior", "mid", "senior", "lead", "principal"]
-    ] = None
-    employment_type: Optional[
-        Literal["full_time", "part_time", "contract", "temporary", "internship"]
-    ] = None
-    contract_type: Optional[str] = Field(default=None, max_length=60)
-    onsite_policy: Optional[Literal["onsite", "hybrid", "remote"]] = None
-    work_hours: Optional[str] = Field(default=None, max_length=60)
-    hours_per_week_min: Optional[float] = Field(default=None, ge=0)
-    hours_per_week_max: Optional[float] = Field(default=None, ge=0)
-    travel_class: Optional[str] = Field(default=None, max_length=60)
-    education_level: Optional[str] = Field(default=None, max_length=40)
+    posted_at: datetime | None = None
+    expires_at: datetime | None = None
+    salary: SalarySpec | None = None
+    seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
+    employment_type: Literal["full_time", "part_time", "contract", "temporary", "internship"] | None = None
+    contract_type: str | None = Field(default=None, max_length=60)
+    onsite_policy: Literal["onsite", "hybrid", "remote"] | None = None
+    work_hours: str | None = Field(default=None, max_length=60)
+    hours_per_week_min: float | None = Field(default=None, ge=0)
+    hours_per_week_max: float | None = Field(default=None, ge=0)
+    travel_class: str | None = Field(default=None, max_length=60)
+    education_level: str | None = Field(default=None, max_length=40)
     # Skill mentions BEFORE taxonomy mapping (free text/keys); core maps them.
     skills_raw: list[str] = Field(default_factory=list, max_length=60)
     raw: dict = Field(default_factory=dict)
@@ -78,9 +76,7 @@ class ConnectorResult(BaseModel):
 # Transport injected by the runtime (or tests): polite GET returning
 # (status, body, etag, last_modified). Connectors never open sockets
 # themselves, so isolation + rate limiting stay in one place.
-HttpTransport = Callable[
-    [str, dict], Awaitable[tuple[int, str, str | None, str | None]]
-]
+HttpTransport = Callable[[str, dict], Awaitable[tuple[int, str, str | None, str | None]]]
 
 FetchFn = Callable[..., Awaitable[ConnectorResult]]
 

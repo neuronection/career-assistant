@@ -27,9 +27,12 @@ class AssistIn(BaseModel):
     question_id: str
 
 
+_EMPTY_RUN = CreateRunIn()
+
+
 @router.post("", status_code=201)
 async def create_run(
-    body: CreateRunIn = Body(default=CreateRunIn()),
+    body: CreateRunIn = Body(default=_EMPTY_RUN),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -40,9 +43,7 @@ async def create_run(
 
 
 @router.get("")
-async def history(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> list[dict]:
+async def history(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[dict]:
     """The caller's runs, newest first."""
     runs = await AssessmentService(db).history(user.id)
     return [
@@ -310,15 +311,11 @@ async def draft_template_ai_extend(
 
     extend_of = None
     if body.extend:
-        extend_of = (
-            await TemplateService(db).get_template(template_id, user.id)
-        ).content
+        extend_of = (await TemplateService(db).get_template(template_id, user.id)).content
     return await _draft_ai(db, user.id, body, extend_of=extend_of)
 
 
-async def _draft_ai(
-    db: AsyncSession, user_id, body: TemplateDraftAiIn, *, extend_of
-) -> dict:
+async def _draft_ai(db: AsyncSession, user_id, body: TemplateDraftAiIn, *, extend_of) -> dict:
     from sqlalchemy import select
 
     from app.ai.agents.assessment_designer import generate_template_draft
@@ -376,9 +373,7 @@ async def import_template(
     shared templates unusable across instances."""
     from app.services.assessment_templates import TemplateService
 
-    template, resolution = await TemplateService(db).import_template(
-        user.id, body.package
-    )
+    template, resolution = await TemplateService(db).import_template(user.id, body.package)
     out = _template_out(template)
     out["import_report"] = resolution
     return out

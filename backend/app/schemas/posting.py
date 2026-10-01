@@ -1,7 +1,6 @@
 """Posting API schemas (Phase 26)."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -27,8 +26,8 @@ class SourceCreateIn(BaseModel):
 
 
 class SourceUpdateIn(BaseModel):
-    config: Optional[dict] = None
-    enabled: Optional[bool] = None
+    config: dict | None = None
+    enabled: bool | None = None
 
 
 class SourceOut(BaseModel):
@@ -37,7 +36,7 @@ class SourceOut(BaseModel):
     connector_key: str
     config: dict
     enabled: bool
-    last_run_at: Optional[datetime] = None
+    last_run_at: datetime | None = None
     sync_state: dict
     error: str
 
@@ -53,44 +52,44 @@ class PostingOut(BaseModel):
     org: str
     location: dict
     url: str
-    seniority: Optional[str] = None
-    employment_type: Optional[str] = None
-    onsite_policy: Optional[str] = None
-    salary_currency: Optional[str] = None
-    salary_min: Optional[float] = None
-    salary_max: Optional[float] = None
-    salary_period: Optional[str] = None
-    posted_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
+    seniority: str | None = None
+    employment_type: str | None = None
+    onsite_policy: str | None = None
+    salary_currency: str | None = None
+    salary_min: float | None = None
+    salary_max: float | None = None
+    salary_period: str | None = None
+    posted_at: datetime | None = None
+    expires_at: datetime | None = None
     status: str
-    catalog_job_id: Optional[UUID] = None
-    mapping_method: Optional[str] = None
-    mapping_confidence: Optional[float] = None
+    catalog_job_id: UUID | None = None
+    mapping_method: str | None = None
+    mapping_confidence: float | None = None
     mapping_reason: str
-    fit: Optional[float] = None
+    fit: float | None = None
     seen: bool = False
     saved: bool = False
-    applied_at: Optional[datetime] = None
+    applied_at: datetime | None = None
     notes: str = ""
     # Deep extraction provenance: raw → fast-mapped → extracted.
-    extract_version: Optional[int] = None
+    extract_version: int | None = None
     needs_review: bool = False
     # Deterministic skills coverage (match-profile ranking only).
-    coverage: Optional[float] = None
+    coverage: float | None = None
     # Display-only source badge fields (filter key is authoritative).
     source_key: str = ""
-    catalog_job: Optional[JobOut] = None
+    catalog_job: JobOut | None = None
 
 
 class PostingDetailOut(PostingOut):
     """Detail view: full extract, source attribution, the
     match-score card and the similar-postings rail."""
 
-    extract: Optional[dict] = None
+    extract: dict | None = None
     source_title: str = ""
     source_connector: str = ""
-    source_synced_at: Optional[datetime] = None
-    match: Optional[dict] = None
+    source_synced_at: datetime | None = None
+    match: dict | None = None
     similar: list[dict] = Field(default_factory=list)
 
 
@@ -106,7 +105,7 @@ class SkillEntryIn(BaseModel):
     """One search skill entry: `sql:4` style, validated server-side."""
 
     key: str = Field(min_length=1, max_length=80)
-    level: Optional[int] = Field(default=None, ge=1, le=10)
+    level: int | None = Field(default=None, ge=1, le=10)
 
 
 class PostingsOut(BaseModel):
@@ -120,7 +119,7 @@ class ExploreOut(BaseModel):
 
     items: list[PostingOut]
     total: int
-    next_cursor: Optional[str] = None
+    next_cursor: str | None = None
     facets: dict = Field(default_factory=dict)
 
 
@@ -136,7 +135,7 @@ class SaveIn(BaseModel):
 class AppliedIn(BaseModel):
     posting_id: UUID
     applied_via_url: str = Field(default="", max_length=1000)
-    stage: Optional[ApplicationStage] = None
+    stage: ApplicationStage | None = None
 
 
 class MapIn(BaseModel):

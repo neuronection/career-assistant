@@ -95,9 +95,7 @@ async def update_interest(
 ) -> InterestTagOut:
     """Edit an interest tag (admin; key immutable, deprecate instead of delete)."""
     try:
-        tag = await TaxonomyService(db).update_interest(
-            tag_id, data.model_dump(exclude_none=False)
-        )
+        tag = await TaxonomyService(db).update_interest(tag_id, data.model_dump(exclude_none=False))
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return InterestTagOut.model_validate(tag)

@@ -118,9 +118,7 @@ async def bulk_synth_items(
     Library hygiene: archival strips stars pointing at the affected
     rows, restore uses the single activation path, delete pops the
     stars before deleting. Unknown ids fail the whole call."""
-    affected, deleted = await CvSynthService(db).bulk(
-        user.id, payload.ids, payload.action
-    )
+    affected, deleted = await CvSynthService(db).bulk(user.id, payload.ids, payload.action)
     return CvSynthBulkOut(affected=affected, deleted=deleted)
 
 
@@ -154,9 +152,7 @@ async def preview_synth_matches(
         selection = payload.context or CvContextSelection()
         resolution = await resolve(db, user.id, selection)
         ref_pairs = [
-            (key, item_id)
-            for key, ids in resolution.snapshot_index.items()
-            for item_id in ids
+            (key, item_id) for key, ids in resolution.snapshot_index.items() for item_id in ids
         ]
     matches = await service.match_for_user(
         user.id,
@@ -209,9 +205,7 @@ async def generate_synth_items(
     return CvSynthGenerateOut(items=[_out_plain(row) for row in rows])
 
 
-@router.post(
-    "/{item_id}/regenerate", response_model=CvSynthGenerateOut, status_code=201
-)
+@router.post("/{item_id}/regenerate", response_model=CvSynthGenerateOut, status_code=201)
 async def regenerate_synth_item(
     item_id: uuid.UUID,
     user=Depends(get_current_user),

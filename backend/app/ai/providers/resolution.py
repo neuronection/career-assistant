@@ -13,7 +13,6 @@ AI endpoints return 503 until a provider is configured in the UI.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import case, or_, select
@@ -36,13 +35,13 @@ class ResolvedModel:
 
     provider_type: str
     base_url: str
-    api_key: Optional[str]
+    api_key: str | None
     model_name: str
     source: str
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    reasoning_effort: Optional[str] = None
-    tier: Optional[str] = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    reasoning_effort: str | None = None
+    tier: str | None = None
 
 
 def _mock_excluded() -> list:
@@ -53,8 +52,8 @@ def _mock_excluded() -> list:
 
 
 async def _find_assignment(
-    db: AsyncSession, task_type: str, scope: str, user_id: Optional[UUID]
-) -> Optional[tuple[AIProvider, AIModel]]:
+    db: AsyncSession, task_type: str, scope: str, user_id: UUID | None
+) -> tuple[AIProvider, AIModel] | None:
     """Active model-binding assignment (provider+model) for a task at one scope."""
     conditions = [
         AITaskAssignment.task_type == task_type,
@@ -80,8 +79,8 @@ async def _find_assignment(
 
 
 async def _find_tier_assignment(
-    db: AsyncSession, task_type: str, scope: str, user_id: Optional[UUID]
-) -> Optional[str]:
+    db: AsyncSession, task_type: str, scope: str, user_id: UUID | None
+) -> str | None:
     """Active tier-binding assignment (tier set, no model) for a task."""
     conditions = [
         AITaskAssignment.task_type == task_type,
@@ -98,15 +97,13 @@ async def _find_tier_assignment(
 
 
 async def _find_tier_model(
-    db: AsyncSession, tier: str, user_id: Optional[UUID]
-) -> Optional[tuple[AIProvider, AIModel]]:
+    db: AsyncSession, tier: str, user_id: UUID | None
+) -> tuple[AIProvider, AIModel] | None:
     """Best active model registered for a tier; the caller's own providers
     win over system ones, then provider/model name order decides."""
     visibility = [AIProvider.scope == "system"]
     if user_id is not None:
-        visibility.append(
-            (AIProvider.scope == "user") & (AIProvider.user_id == user_id)
-        )
+        visibility.append((AIProvider.scope == "user") & (AIProvider.user_id == user_id))
     rows = await db.execute(
         select(AIProvider, AIModel)
         .join(AIModel, AIModel.provider_id == AIProvider.id)
@@ -174,8 +171,8 @@ async def ensure_dev_bootstrap(db: AsyncSession) -> None:
 
 
 async def _resolve_scanned(
-    db: AsyncSession, task_type: str, user_id: Optional[UUID], source_suffix: str = ""
-) -> Optional[ResolvedModel]:
+    db: AsyncSession, task_type: str, user_id: UUID | None, source_suffix: str = ""
+) -> ResolvedModel | None:
     """Scan task-specific then default assignments, user scope before system.
 
     Explicit model bindings win over tier bindings; within one binding
@@ -222,8 +219,8 @@ async def _resolve_scanned(
 async def resolve_task_model(
     db: AsyncSession,
     task_type: str,
-    user_id: Optional[UUID] = None,
-) -> Optional[ResolvedModel]:
+    user_id: UUID | None = None,
+) -> ResolvedModel | None:
     """Resolve the effective provider/model for a task and user.
 
     Returns ``None`` when nothing is configured (before an admin sets up
@@ -234,9 +231,7 @@ async def resolve_task_model(
     if resolved is not None:
         return resolved
     await ensure_dev_bootstrap(db)
-    return await _resolve_scanned(
-        db, task_type, user_id, source_suffix=" (dev bootstrap)"
-    )
+    return await _resolve_scanned(db, task_type, user_id, source_suffix=" (dev bootstrap)")
 
 
 def known_task_types() -> list[dict]:

@@ -9,7 +9,6 @@ are audited + budgeted like every AI call (``ai_generations`` via the
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import Boolean, CheckConstraint, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -18,8 +17,8 @@ from app.core.encryption import decrypt_secret, encrypt_secret, mask_secret
 from app.models.base import (
     Base,
     StructuredJSON,
-    TZDateTime,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -39,20 +38,14 @@ class AIMCPServer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     command: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     # Bearer token for http servers (encrypted at rest, masked on read).
-    _token: Mapped[Optional[str]] = mapped_column("token", String(1000), nullable=True)
+    _token: Mapped[str | None] = mapped_column("token", String(1000), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Discovery snapshot: [{"name","description"}]; enablement is a
     # separate allowlist so a refresh never silently widens access.
-    discovered_tools: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
-    enabled_tools: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
-    last_synced_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
-    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
+    discovered_tools: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    enabled_tools: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    last_synced_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
 
     @property
     def token(self) -> str:

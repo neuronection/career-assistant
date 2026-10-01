@@ -10,7 +10,6 @@ stay consistent and injection-proof.
 """
 
 import re
-from typing import Optional
 
 _ALLOWED_URL = re.compile(r"^(https?://|mailto:|tel:)", re.IGNORECASE)
 _TAG = re.compile(r"<[^>]*>")
@@ -23,7 +22,7 @@ _EMPHASIS_STRICT = re.compile(r"(\*\*\*+|___+)")
 _MULTI_UNDERSCORE = re.compile(r"(?<!\w)_([^_\n]+)_(?!\w)")
 
 
-def normalize_rich_text(value: Optional[str], max_length: int) -> str:
+def normalize_rich_text(value: str | None, max_length: int) -> str:
     """Clamp prose to the renderer's inline-markdown subset.
 
     Empty/None → "". Applies, in order: strip block constructs (code
@@ -54,7 +53,7 @@ def _safe_link(match: re.Match) -> str:
     return label
 
 
-def validate_rich_text(value: Optional[str], max_length: int) -> str:
+def validate_rich_text(value: str | None, max_length: int) -> str:
     """Pydantic-shaped wrapper: normalize then enforce the length bound.
 
     Raises ``ValidationError``-style ``ValueError`` only when the

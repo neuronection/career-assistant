@@ -126,7 +126,7 @@ class DesktopBridge:
             window.show()
             window.restore()
             window.evaluate_js("window.focus()")
-        except Exception:  # noqa: BLE001 — focus is best-effort
+        except Exception:
             logger.warning("Could not focus desktop window", exc_info=True)
 
     def notify(
@@ -164,10 +164,9 @@ class DesktopBridge:
             return False
         try:
             window.evaluate_js(
-                f"window.__caDesktopBridge && "
-                f"window.__caDesktopBridge.onNotify({json.dumps(item)})"
+                f"window.__caDesktopBridge && window.__caDesktopBridge.onNotify({json.dumps(item)})"
             )
             return True
-        except Exception:  # noqa: BLE001 — toast loss beats a crash
+        except Exception:
             logger.warning("Desktop toast push failed", exc_info=True)
             return False

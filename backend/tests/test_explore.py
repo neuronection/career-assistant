@@ -2,15 +2,9 @@
 ref codes, source visibility, chat tools."""
 
 import uuid as uuid_mod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
-from tests.conftest import (
-    _make_posting,
-    _uid,
-)
-
 from sqlalchemy import select
 
 from app.ai.agents.chatbot import (
@@ -22,6 +16,10 @@ from app.ai.agents.chatbot import (
 from app.models.posting_model import PostingFit
 from app.services.posting_fit_service import (
     get_posting_fit,
+)
+from tests.conftest import (
+    _make_posting,
+    _uid,
 )
 
 
@@ -77,7 +75,7 @@ async def test_explore_released_windows_and_fresh_only(
         db,
         source,
         external_id="old-1",
-        posted_at=datetime.now(timezone.utc) - timedelta(days=120),
+        posted_at=datetime.now(UTC) - timedelta(days=120),
     )
     fresh = await _make_posting(db, source, external_id="new-1")
     response = await client.get(
@@ -175,7 +173,7 @@ async def test_explore_facets_self_excluding(
     kinds,
     search_fixtures,
 ):
-    a, b, c = search_fixtures
+    a, b, _c = search_fixtures
     a.seniority, b.seniority = "mid", "senior"
     await db.commit()
     response = await client.get(
@@ -215,7 +213,7 @@ async def test_explore_cursor_pagination(
             db,
             source,
             external_id=f"page-{index}",
-            posted_at=datetime(2026, 8, 1 + index, tzinfo=timezone.utc),
+            posted_at=datetime(2026, 8, 1 + index, tzinfo=UTC),
         )
     first = await client.get(
         "/api/v1/postings/explore",
@@ -302,9 +300,7 @@ async def test_posting_fit_unextracted_fallback_estimate(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
     posting = await _make_posting(db, source)
-    result = await get_posting_fit(
-        db, __import__("uuid").UUID(_uid(auth_headers)), posting
-    )
+    result = await get_posting_fit(db, __import__("uuid").UUID(_uid(auth_headers)), posting)
     assert result["estimate"] is True and result["extracted"] is False
     note = result["breakdown"]["archetype_estimate"]
     assert "archetype estimate" in note["detail"]
@@ -405,9 +401,7 @@ async def test_similar_and_chat_tools(
     assert detail["source"]["connector"] == "synth"
     assert detail["provenance"] in ("raw", "fast-mapped", "extracted")
 
-    cards = await search_postings_tool(
-        db, uuid_mod.UUID(_uid(auth_headers)), "Analyst", None, n=5
-    )
+    cards = await search_postings_tool(db, uuid_mod.UUID(_uid(auth_headers)), "Analyst", None, n=5)
     assert cards["results"], "tool returns open postings"
     assert all(card["source"] == "synth" for card in cards["results"])
     assert cards["explore_query"]
@@ -428,7 +422,7 @@ async def test_chat_prep_runs_posting_tools_and_stores_metadata(
     kinds,
     search_fixtures,
 ):
-    a, _b, _c = search_fixtures
+    _a, _b, _c = search_fixtures
     prompt, metadata = await prepare_chat_prompt(
         db,
         profile_summary="student",
@@ -462,9 +456,7 @@ async def test_saved_search_round_trip_runs_explore_filters(
     assert recorded.status_code == 201, recorded.text
     search_id = recorded.json()["id"]
 
-    saved = await client.post(
-        f"/api/v1/me/searches/{search_id}/save", headers=auth_headers
-    )
+    saved = await client.post(f"/api/v1/me/searches/{search_id}/save", headers=auth_headers)
     assert saved.status_code == 200
 
     scheduled = await client.put(
@@ -479,9 +471,7 @@ async def test_saved_search_round_trip_runs_explore_filters(
     await _make_posting(db, source, external_id="run-2", seniority="junior")
     from app.services.digest_service import run_saved_search
 
-    result = await run_saved_search(
-        db, {"search_id": search_id, "user_id": _uid(auth_headers)}
-    )
+    result = await run_saved_search(db, {"search_id": search_id, "user_id": _uid(auth_headers)})
     assert result.get("new_matches") == 1
 
 
@@ -497,7 +487,7 @@ async def test_explore_contract_and_travel_filters(
     source,
     search_fixtures,
 ):
-    a, b, c = search_fixtures
+    a, b, _c = search_fixtures
     a.contract_type = "permanent"
     a.travel_class = "none"
     b.contract_type = "internship"
@@ -531,9 +521,7 @@ async def test_explore_schedule_and_benefit_filters(
 ):
     a, _b, _c = search_fixtures
     a.posting_facts = {
-        "lifestyle": {
-            "schedule_cues": [{"cue": "nights", "evidence_quote": "night shifts"}]
-        },
+        "lifestyle": {"schedule_cues": [{"cue": "nights", "evidence_quote": "night shifts"}]},
         "benefits": [{"kind": "healthcare", "raw": "Private healthcare"}],
     }
     await db.commit()

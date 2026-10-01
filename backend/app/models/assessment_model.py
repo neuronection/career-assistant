@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -17,12 +16,10 @@ class AssessmentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="full")
     # Set when a run executes a template; built-ins run template-less.
-    template_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("assessment_templates.id", ondelete="SET NULL"), nullable=True
     )
-    phase_order: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    phase_order: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     context: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="in_progress", index=True
@@ -43,7 +40,7 @@ class AssessmentQuestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "assessment_questions"
 
-    run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("assessment_runs.id", ondelete="CASCADE"), nullable=True, index=True
     )
     phase: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -52,18 +49,14 @@ class AssessmentQuestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Every question ships one line of guidance.
     help: Mapped[str] = mapped_column(Text, nullable=False, default="")
     options: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
-    time_split: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    time_split: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Career stages this question targets (Phase 25); empty = every stage.
-    audience_stages: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    audience_stages: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     source: Mapped[str] = mapped_column(String(10), nullable=False, default="bank")
-    status: Mapped[str] = mapped_column(
-        String(10), nullable=False, default="active", index=True
-    )
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="active", index=True)
     sort_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    run: Mapped[Optional[AssessmentRun]] = relationship(back_populates="questions")
+    run: Mapped[AssessmentRun | None] = relationship(back_populates="questions")
     answers: Mapped[list["AssessmentAnswer"]] = relationship(
         back_populates="question", cascade="all, delete-orphan"
     )
@@ -74,9 +67,7 @@ class AssessmentAnswer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "assessment_answers"
     __table_args__ = (
-        UniqueConstraint(
-            "run_id", "question_id", name="uq_assessment_answers_run_question"
-        ),
+        UniqueConstraint("run_id", "question_id", name="uq_assessment_answers_run_question"),
     )
 
     run_id: Mapped[uuid.UUID] = mapped_column(

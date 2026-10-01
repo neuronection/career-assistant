@@ -12,8 +12,7 @@ import io
 import json
 import re
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -44,7 +43,7 @@ def _conditional_headers(state: dict) -> dict:
     return headers
 
 
-def _parse_dt(value: str | None) -> Optional[datetime]:
+def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
@@ -121,9 +120,7 @@ class CsvConnector(PostingConnector):
     key = "csv"
     title = "CSV file"
     docs_url = "https://docs.career-assistant.local/connectors/csv"
-    capabilities = ConnectorCapabilities(
-        supports_incremental=True, max_requests_per_minute=10
-    )
+    capabilities = ConnectorCapabilities(supports_incremental=True, max_requests_per_minute=10)
     fixture_payload = ""
 
     def config_model(self) -> type[BaseModel]:
@@ -152,9 +149,7 @@ class CsvConnector(PostingConnector):
             except (csv.Error, ValueError) as exc:
                 errors.append(f"csv parse error: {exc}")
             next_state = _merge_state(state, etag, last_modified)
-        return ConnectorResult(
-            postings=postings, next_state=next_state, partial_errors=errors
-        )
+        return ConnectorResult(postings=postings, next_state=next_state, partial_errors=errors)
 
 
 JSONLD_SCRIPT = re.compile(
@@ -192,9 +187,7 @@ def parse_jsonld_payload(body: str) -> list[RawPosting]:
         except json.JSONDecodeError:
             continue
         for node in job_postings_from_jsonld(data):
-            external_id = str(
-                node.get("identifier") or node.get("url") or node.get("title") or ""
-            )
+            external_id = str(node.get("identifier") or node.get("url") or node.get("title") or "")
             if not external_id:
                 continue
             org = _text(node.get("hiringOrganization"))
@@ -210,34 +203,25 @@ def parse_jsonld_payload(body: str) -> list[RawPosting]:
             if isinstance(skills_blob, list):
                 skills = [_text(s) for s in skills_blob]
             else:
-                skills = [
-                    s.strip() for s in re.split(r"[,;]", str(skills_blob)) if s.strip()
-                ]
+                skills = [s.strip() for s in re.split(r"[,;]", str(skills_blob)) if s.strip()]
             salary = None
             if value_node:
                 salary = SalarySpec(
                     currency=str(value_node.get("currency") or "USD")[:3],
-                    min=float(value_node["minValue"])
-                    if value_node.get("minValue")
-                    else None,
-                    max=float(value_node["maxValue"])
-                    if value_node.get("maxValue")
-                    else None,
+                    min=float(value_node["minValue"]) if value_node.get("minValue") else None,
+                    max=float(value_node["maxValue"]) if value_node.get("maxValue") else None,
                 )
             employment_type = node.get("employmentType")
             postings.append(
                 RawPosting(
                     external_id=external_id[:300],
-                    title=_text(node.get("title") or node.get("name"))
-                    or "Untitled posting",
+                    title=_text(node.get("title") or node.get("name")) or "Untitled posting",
                     org=org,
                     url=str(node.get("url") or ""),
                     posted_at=_parse_dt(node.get("datePosted")),
                     expires_at=_parse_dt(node.get("validThrough")),
                     employment_type=(
-                        str(employment_type).split(".")[-1].lower()
-                        if employment_type
-                        else None
+                        str(employment_type).split(".")[-1].lower() if employment_type else None
                     ),
                     education_level=_text(node.get("educationRequirements")) or None,
                     skills_raw=skills[:60],
@@ -245,8 +229,7 @@ def parse_jsonld_payload(body: str) -> list[RawPosting]:
                     location={
                         "city": _text(address.get("addressLocality")) or None,
                         "country": _text(address.get("addressCountry")) or None,
-                        "remote": "remote"
-                        in str(node.get("jobLocationType", "")).lower(),
+                        "remote": "remote" in str(node.get("jobLocationType", "")).lower(),
                     },
                     salary=salary,
                 )
@@ -278,9 +261,7 @@ class JsonLdConnector(PostingConnector):
         if status == 304:
             return ConnectorResult(next_state=_merge_state(state, etag, last_modified))
         if status != 200:
-            return ConnectorResult(
-                partial_errors=[f"jsonld fetch failed with status {status}"]
-            )
+            return ConnectorResult(partial_errors=[f"jsonld fetch failed with status {status}"])
         postings = parse_jsonld_payload(body)
         return ConnectorResult(
             postings=postings, next_state=_merge_state(state, etag, last_modified)
@@ -351,9 +332,7 @@ class RssConnector(PostingConnector):
         if status == 304:
             return ConnectorResult(next_state=_merge_state(state, etag, last_modified))
         if status != 200:
-            return ConnectorResult(
-                partial_errors=[f"rss fetch failed with status {status}"]
-            )
+            return ConnectorResult(partial_errors=[f"rss fetch failed with status {status}"])
         try:
             postings = parse_rss_payload(body)
         except ET.ParseError as exc:
@@ -387,19 +366,12 @@ def parse_greenhouse_payload(body: str) -> list[RawPosting]:
             RawPosting(
                 external_id=str(job.get("id") or "")[:300],
                 title=(job.get("title") or "Untitled")[:300],
-                org=str(
-                    data.get("metadata", {}).get("title")
-                    or job.get("absolute_url")
-                    or ""
-                ),
+                org=str(data.get("metadata", {}).get("title") or job.get("absolute_url") or ""),
                 url=str(job.get("absolute_url") or ""),
-                posted_at=_parse_dt(
-                    job.get("updated_at") or job.get("first_published")
-                ),
+                posted_at=_parse_dt(job.get("updated_at") or job.get("first_published")),
                 location={
                     "city": (job.get("location") or {}).get("name") or None,
-                    "remote": "remote"
-                    in str((job.get("location") or {}).get("name", "")).lower(),
+                    "remote": "remote" in str((job.get("location") or {}).get("name", "")).lower(),
                 },
                 raw={"description": str(description)[:8000]},
             )
@@ -418,9 +390,7 @@ def parse_lever_payload(body: str) -> list[RawPosting]:
                 title=(job.get("text") or "Untitled")[:300],
                 url=str(job.get("hostedUrl") or ""),
                 posted_at=_parse_dt(
-                    datetime.fromtimestamp(
-                        job["createdAt"] / 1000, tz=timezone.utc
-                    ).isoformat()
+                    datetime.fromtimestamp(job["createdAt"] / 1000, tz=UTC).isoformat()
                 )
                 if job.get("createdAt")
                 else None,
@@ -451,9 +421,7 @@ def parse_ashby_payload(body: str) -> list[RawPosting]:
                     "city": (job.get("location") or "").get("city")
                     if isinstance(job.get("location"), dict)
                     else None,
-                    "remote": bool(
-                        (job.get("isRemote") if "isRemote" in job else False)
-                    ),
+                    "remote": bool(job.get("isRemote") if "isRemote" in job else False),
                 },
                 employment_type=(job.get("employmentType") or None),
                 seniority=(job.get("seniority") or None),
@@ -474,9 +442,7 @@ class AtsApiConnector(PostingConnector):
     key = "ats_api"
     title = "ATS public API (Greenhouse / Lever / Ashby)"
     docs_url = "https://docs.career-assistant.local/connectors/ats"
-    capabilities = ConnectorCapabilities(
-        supports_incremental=True, max_requests_per_minute=20
-    )
+    capabilities = ConnectorCapabilities(supports_incremental=True, max_requests_per_minute=20)
     fixture_payload = ""
 
     def config_model(self) -> type[BaseModel]:
@@ -528,9 +494,7 @@ class ManualUrlConnector(PostingConnector):
     key = "manual_url"
     title = "Paste a posting URL"
     docs_url = "https://docs.career-assistant.local/connectors/manual"
-    capabilities = ConnectorCapabilities(
-        supports_incremental=False, max_requests_per_minute=10
-    )
+    capabilities = ConnectorCapabilities(supports_incremental=False, max_requests_per_minute=10)
 
     def config_model(self) -> type[BaseModel]:
         return ManualUrlConfig
@@ -543,14 +507,10 @@ class ManualUrlConnector(PostingConnector):
             str(cfg.url), _conditional_headers(state or {})
         )
         if status != 200:
-            return ConnectorResult(
-                partial_errors=[f"manual fetch failed with status {status}"]
-            )
+            return ConnectorResult(partial_errors=[f"manual fetch failed with status {status}"])
         postings = parse_jsonld_payload(body)
         if not postings:
-            title_match = re.search(
-                r"<title>(.*?)</title>", body or "", re.DOTALL | re.IGNORECASE
-            )
+            title_match = re.search(r"<title>(.*?)</title>", body or "", re.DOTALL | re.IGNORECASE)
             if title_match:
                 postings.append(
                     RawPosting(

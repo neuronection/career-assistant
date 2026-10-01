@@ -1,13 +1,13 @@
 import re
-from typing import Optional
 
-from app.core.errors import ValidationError
-from app.models.enums import AITaskType
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.agents.context import context_json, parse_context
 from app.ai.agents.prompts import JOB_GENERATOR
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import JobDraftSet, RelationSuggestion
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.errors import ValidationError
+from app.models.enums import AITaskType
 
 
 def _slugify(text: str) -> str:
@@ -17,7 +17,7 @@ def _slugify(text: str) -> str:
 
 def _build_user_prompt(
     mode: str,
-    prompt: Optional[str],
+    prompt: str | None,
     criteria: dict,
     count: int,
     family_keys: list[str],
@@ -52,8 +52,7 @@ def _mock_draft_set(schema: type, user_prompt: str) -> dict:
         [f"{mode.title()} Specialist {i + 1}" for i in range(count)]
         if not prompt_text
         else [
-            f"{_slugify(prompt_text).replace('-', ' ').title()} Track {i + 1}"
-            for i in range(count)
+            f"{_slugify(prompt_text).replace('-', ' ').title()} Track {i + 1}" for i in range(count)
         ]
     )
     drafts = []
@@ -102,9 +101,7 @@ def _mock_draft_set(schema: type, user_prompt: str) -> dict:
                     "schedule_cues": ["flexible"],
                     "travel_required": {"level": "none", "days_per_month": 0},
                     "benefits_kinds": ["learning", "pension"],
-                    "typical_positives": [
-                        {"title": "Growth", "detail": "Clear progression"}
-                    ],
+                    "typical_positives": [{"title": "Growth", "detail": "Clear progression"}],
                     "typical_negatives": [
                         {"title": "Screen time", "detail": "Long hours at a desk"}
                     ],
@@ -138,13 +135,13 @@ async def generate_jobs(
     user_id,
     *,
     mode: str = "general",
-    prompt: Optional[str] = None,
-    criteria: Optional[dict] = None,
+    prompt: str | None = None,
+    criteria: dict | None = None,
     count: int = 5,
     family_keys: list[str] | None = None,
     interest_keys: list[str] | None = None,
     skill_keys: list[str] | None = None,
-    profile_snapshot: Optional[dict] = None,
+    profile_snapshot: dict | None = None,
     existing_codes: list[str] | None = None,
 ) -> JobDraftSet:
     """Generate a validated set of job drafts (optionally personalized)."""
@@ -173,11 +170,7 @@ async def generate_jobs(
     valid_relations: list[RelationSuggestion] = []
     codes = {d.code for d in result.drafts}
     for rel in result.relation_suggestions:
-        if (
-            rel.from_code in codes
-            and rel.to_code in codes
-            and rel.from_code != rel.to_code
-        ):
+        if rel.from_code in codes and rel.to_code in codes and rel.from_code != rel.to_code:
             valid_relations.append(rel)
     result.relation_suggestions = valid_relations
     # AI output must map onto the taxonomy: drop keys outside it.

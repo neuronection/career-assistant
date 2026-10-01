@@ -2,8 +2,6 @@
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _raw_posting
-
 from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting
 from app.services.organization_service import (
@@ -12,6 +10,7 @@ from app.services.organization_service import (
     trigram_similarity,
 )
 from app.services.postings_service import upsert_posting
+from tests.conftest import _make_posting, _raw_posting
 
 
 def _user_id(auth_headers) -> str:
@@ -31,7 +30,7 @@ async def test_legal_suffixes_normalize_to_one_org(db, auth_headers, seeded_cata
 
     assert _canonical("Acme Cloud GmbH") == _canonical("acme cloud ltd")
     service = OrganizationService(db)
-    org, created = await service.find_or_propose("Acme Cloud")
+    org, _created = await service.find_or_propose("Acme Cloud")
     variant, created_variant = await service.find_or_propose("Acme Cloud GmbH")
     assert org.id == variant.id
     assert not created_variant
@@ -48,9 +47,7 @@ async def test_find_or_propose_exact_alias_and_fuzzy(db, auth_headers, seeded_ca
 
     fuzzy, created_fuzzy = await service.find_or_propose("Acme Cloud GmbH")
     assert fuzzy.id == org.id and not created_fuzzy
-    assert "Acme Cloud GmbH" in (fuzzy.aliases or []), (
-        "variant labels fold into aliases for audit"
-    )
+    assert "Acme Cloud GmbH" in (fuzzy.aliases or []), "variant labels fold into aliases for audit"
 
     distinct, _ = await service.find_or_propose("Beta Industries")
     assert distinct.id != org.id
@@ -62,11 +59,7 @@ async def test_upsert_posting_attaches_org(db, seeded_catalog, source):
     await db.refresh(posting)
     assert posting.org_id is not None
     org = (
-        (
-            await db.execute(
-                select(Organization).where(Organization.id == posting.org_id)
-            )
-        )
+        (await db.execute(select(Organization).where(Organization.id == posting.org_id)))
         .scalars()
         .first()
     )
@@ -81,12 +74,8 @@ async def test_upsert_posting_attaches_org(db, seeded_catalog, source):
 
 
 async def test_matcher_folds_label_variants_across_postings(db, seeded_catalog, source):
-    first = await upsert_posting(
-        db, source, _raw_posting(org="SynthCo", external_id="org-1")
-    )
-    second = await upsert_posting(
-        db, source, _raw_posting(org="SynthCo GmbH", external_id="org-2")
-    )
+    first = await upsert_posting(db, source, _raw_posting(org="SynthCo", external_id="org-1"))
+    second = await upsert_posting(db, source, _raw_posting(org="SynthCo GmbH", external_id="org-2"))
     await db.commit()
     assert first.org_id is not None and second.org_id is not None
     assert first.org_id == second.org_id, "variants resolve to one organization"
@@ -196,9 +185,7 @@ async def test_market_snapshot_aggregates_by_org(
         db.add(posting)
     await db.commit()
 
-    snapshot = (
-        await client.get("/api/v1/market/snapshot", headers=auth_headers)
-    ).json()
+    snapshot = (await client.get("/api/v1/market/snapshot", headers=auth_headers)).json()
     top = {entry["org"]: entry["count"] for entry in snapshot["top_employers"]}
     assert top.get("SynthCo", 0) >= 2, "label variants collapse onto one org"
 
@@ -228,9 +215,7 @@ async def test_unmatched_postings_fall_back_to_raw_label(
     await db.commit()
 
     snapshot = (
-        await client.get(
-            "/api/v1/market/snapshot?family_key=technology", headers=auth_headers
-        )
+        await client.get("/api/v1/market/snapshot?family_key=technology", headers=auth_headers)
     ).json()
     labels = {entry["org"] for entry in snapshot["top_employers"]}
     assert isinstance(labels, set)

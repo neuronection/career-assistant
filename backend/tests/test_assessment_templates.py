@@ -12,11 +12,11 @@ from app.schemas.assessment_template import (
     Normalization,
     OptionScores,
     ResultBand,
+    Statement,
     TemplateContent,
     TemplateOption,
     TemplatePhase,
     TemplateQuestion,
-    Statement,
 )
 from app.services.assessment.question_kinds import (
     handler_for,
@@ -120,7 +120,7 @@ def test_multi_select_k_bounds():
         "time_split": {"min_select": 1, "max_select": 2},
     }
     handler = handler_for("multi_select")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         handler.validate(question, {"selected": ["o1", "o2", "o3"]})
     validated = handler.validate(question, {"selected": ["o1"]})
     assert validated == {"selected": ["o1"]}
@@ -141,7 +141,7 @@ def test_numeric_input_bounds():
         },
     }
     handler = handler_for("numeric_input")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         handler.validate(question, {"value": 100})
     derived = handler.derive(question, handler.validate(question, {"value": 30}))
     assert derived["skill_levels"] == {"s": 3.0}
@@ -193,7 +193,7 @@ def test_likert_reverse_flags():
     answer = handler.validate(question, {"values": {"st1": 5, "st2": 5}})
     derived = handler.derive(question, answer)
     # strongly agree with the positive statement: +2; strongly agree with
-    # the reverse statement: −2
+    # the reverse statement: -2
     assert derived["skill_levels"]["s"] == 0.0
     answer = handler.validate(question, {"values": {"st1": 5, "st2": 1}})
     derived = handler.derive(question, answer)
@@ -204,28 +204,24 @@ def test_likert_reverse_flags():
 
 
 def test_evidence_only_kind_cannot_carry_deltas():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         TemplateQuestion(
             kind="short_text",
             prompt="Tell us more",
             options=[
-                TemplateOption(
-                    id="o1", label="x", scores=OptionScores(skill_levels={"s": 1})
-                ),
+                TemplateOption(id="o1", label="x", scores=OptionScores(skill_levels={"s": 1})),
                 TemplateOption(id="o2", label="y"),
             ],
         )
 
 
 def test_delta_bounds_enforced():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         TemplateQuestion(
             kind="scenario_mcq",
             prompt="x",
             options=[
-                TemplateOption(
-                    id="o1", label="a", scores=OptionScores(skill_levels={"s": 50})
-                ),
+                TemplateOption(id="o1", label="a", scores=OptionScores(skill_levels={"s": 50})),
                 TemplateOption(id="o2", label="b"),
             ],
         )
@@ -244,24 +240,18 @@ async def test_authoring_rejects_unknown_keys(client, auth_headers, seeded_catal
         "title": "My test",
         "content": _content("no-such-skill").model_dump(mode="json"),
     }
-    response = await client.post(
-        "/api/v1/assessments/templates", json=body, headers=auth_headers
-    )
+    response = await client.post("/api/v1/assessments/templates", json=body, headers=auth_headers)
     assert response.status_code == 400
     assert "no-such-skill" in response.json()["detail"]
 
 
-async def test_authoring_publish_and_immutable_versions(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_authoring_publish_and_immutable_versions(client, auth_headers, seeded_catalog, db):
     skill_key = await _skill_key(db)
     body = {
         "title": "Work style test",
         "content": _content(skill_key).model_dump(mode="json"),
     }
-    created = await client.post(
-        "/api/v1/assessments/templates", json=body, headers=auth_headers
-    )
+    created = await client.post("/api/v1/assessments/templates", json=body, headers=auth_headers)
     assert created.status_code == 201, created.text
     template = created.json()
     assert template["status"] == "draft"
@@ -284,40 +274,30 @@ async def test_authoring_publish_and_immutable_versions(
     rows = (
         (
             await db.execute(
-                select(AssessmentTemplate).where(
-                    AssessmentTemplate.key == template["key"]
-                )
+                select(AssessmentTemplate).where(AssessmentTemplate.key == template["key"])
             )
         )
         .scalars()
         .all()
     )
     assert len(rows) == 2
-    assert rows[0].content_hash == original_hash or rows[1].content_hash == (
-        original_hash
-    )
+    assert rows[0].content_hash == original_hash or rows[1].content_hash == (original_hash)
     hashes = {r.version: r.content_hash for r in rows}
     assert hashes[1] == original_hash  # v1 immutable
 
 
-async def test_visibility_ladder_public_unreachable(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_visibility_ladder_public_unreachable(client, auth_headers, seeded_catalog, db):
     skill_key = await _skill_key(db)
     body = {
         "title": "Public attempt",
         "visibility": "public",
         "content": _content(skill_key).model_dump(mode="json"),
     }
-    response = await client.post(
-        "/api/v1/assessments/templates", json=body, headers=auth_headers
-    )
+    response = await client.post("/api/v1/assessments/templates", json=body, headers=auth_headers)
     assert response.status_code == 400
 
 
-async def test_export_import_round_trip_byte_stable(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_export_import_round_trip_byte_stable(client, auth_headers, seeded_catalog, db):
     skill_key = await _skill_key(db)
     created = await client.post(
         "/api/v1/assessments/templates",
@@ -362,9 +342,7 @@ async def test_export_import_round_trip_byte_stable(
     assert rejected.status_code == 400
 
 
-async def test_import_unknown_keys_propose_not_reject(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_import_unknown_keys_propose_not_reject(client, auth_headers, seeded_catalog, db):
     content = _content("brand-new-skill-37")
     package = {
         "schema_version": 1,
@@ -380,18 +358,14 @@ async def test_import_unknown_keys_propose_not_reject(
     assert imported.status_code == 201
     assert imported.json()["import_report"]["proposed"] == ["brand-new-skill-37"]
     rows = (
-        (await db.execute(select(Skill).where(Skill.key == "brand-new-skill-37")))
-        .scalars()
-        .all()
+        (await db.execute(select(Skill).where(Skill.key == "brand-new-skill-37"))).scalars().all()
     )
     assert len(rows) == 1
     assert rows[0].status == "proposed"
     assert rows[0].origin == "import"
 
 
-async def test_template_run_engine_parity(
-    client, auth_headers, seeded_catalog, db, kinds
-):
+async def test_template_run_engine_parity(client, auth_headers, seeded_catalog, db, kinds):
     """Template run → 23 engine parity: same answer shapes, evidence
     upserts, fit refresh."""
     from app.models.matching_model import MatchInsight
@@ -424,9 +398,7 @@ async def test_template_run_engine_parity(
     answers = []
     for question in questions:
         if question["kind"] == "scenario_mcq":
-            answers.append(
-                {"question_id": question["id"], "answer": {"option_id": "o1"}}
-            )
+            answers.append({"question_id": question["id"], "answer": {"option_id": "o1"}})
         else:
             answers.append(
                 {
@@ -440,9 +412,7 @@ async def test_template_run_engine_parity(
         headers=auth_headers,
     )
     assert submitted.status_code == 200
-    advanced = await client.post(
-        f"/api/v1/assessments/{run['id']}/advance", headers=auth_headers
-    )
+    advanced = await client.post(f"/api/v1/assessments/{run['id']}/advance", headers=auth_headers)
     assert advanced.status_code == 200
     effects = advanced.json().get("effects") or {}
     assert effects.get("applied_skills") == 1
@@ -458,9 +428,7 @@ async def test_template_run_engine_parity(
     assert fits, "fit refresh should have created insights"
 
 
-async def test_ai_draft_requires_review_before_publish(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_ai_draft_requires_review_before_publish(client, auth_headers, seeded_catalog, db):
     draft = await client.post(
         "/api/v1/assessments/templates/draft-ai",
         json={"brief": {"title": "Team style", "question_count": 2}},

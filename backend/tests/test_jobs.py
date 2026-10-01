@@ -27,9 +27,7 @@ async def test_job_attributes_are_structured(client, auth_headers, seeded_catalo
     job = response.json()
     attrs = job["attributes"]
     assert attrs["education"]["level"] == "bachelor"
-    assert any(
-        s["key"] == "programming" and s["required_level"] == 5 for s in job["skills"]
-    )
+    assert any(s["key"] == "programming" and s["required_level"] == 5 for s in job["skills"])
     assert any(i["key"] == "technology-software" for i in job["interests"])
     assert attrs["demand"]["outlook"] == "hot"
     assert attrs["salary"]["median"] == [60000, 95000]
@@ -42,15 +40,12 @@ async def test_job_search_by_q(client, auth_headers, seeded_catalog):
     jobs = response.json()
     assert jobs
     assert all(
-        "nurse" in j["title"].lower() or "nurse" in j["short_description"].lower()
-        for j in jobs
+        "nurse" in j["title"].lower() or "nurse" in j["short_description"].lower() for j in jobs
     )
 
 
 async def test_job_filter_by_family(client, auth_headers, seeded_catalog):
-    response = await client.get(
-        "/api/v1/jobs?family_key=healthcare", headers=auth_headers
-    )
+    response = await client.get("/api/v1/jobs?family_key=healthcare", headers=auth_headers)
     jobs = response.json()
     assert jobs
     assert all(j["family_key"].startswith("healthcare") for j in jobs)
@@ -78,9 +73,7 @@ async def test_job_filter_by_min_salary(client, auth_headers, seeded_catalog):
 
 
 async def test_job_relations_endpoint(client, auth_headers, seeded_catalog):
-    response = await client.get(
-        "/api/v1/jobs/relations/software-developer", headers=auth_headers
-    )
+    response = await client.get("/api/v1/jobs/relations/software-developer", headers=auth_headers)
     relations = response.json()
     assert len(relations) >= 3
     assert all(
@@ -104,9 +97,7 @@ async def test_graph_from_root(client, auth_headers, seeded_catalog):
 
 
 async def test_graph_by_family(client, auth_headers, seeded_catalog):
-    response = await client.get(
-        "/api/v1/jobs/graph?family=technology", headers=auth_headers
-    )
+    response = await client.get("/api/v1/jobs/graph?family=technology", headers=auth_headers)
     graph = response.json()
     family_nodes = {n["code"] for n in graph["nodes"]}
     assert "software-developer" in family_nodes
@@ -124,9 +115,7 @@ async def test_create_and_update_manual_job(client, auth_headers, seeded_catalog
             "demand": {"outlook": "growing", "note": "", "sources": {}},
         },
         "interest_keys": ["technology-software"],
-        "skills": [
-            {"skill_key": "programming", "required_level": 6, "importance": "core"}
-        ],
+        "skills": [{"skill_key": "programming", "required_level": 6, "importance": "core"}],
     }
     created = await client.post("/api/v1/jobs", json=payload, headers=auth_headers)
     assert created.status_code == 201, created.text

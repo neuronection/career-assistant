@@ -16,8 +16,9 @@ Revises: 0040
 import json
 import uuid
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0041"
 down_revision = "0040"
@@ -83,30 +84,22 @@ def upgrade() -> None:
     payload_expr = _json_literal(conn, ":p")
     context_expr = _json_literal(conn, ":c")
 
-    item_rows = conn.execute(
-        sa.text("SELECT id, payload FROM cv_synth_items")
-    ).fetchall()
+    item_rows = conn.execute(sa.text("SELECT id, payload FROM cv_synth_items")).fetchall()
     items: dict[str, tuple] = {
         _norm_id(rid): (rid, _as_dict(payload) or {}) for rid, payload in item_rows
     }
 
     rows = conn.execute(
-        sa.text(
-            "SELECT id, context, user_id FROM cv_documents WHERE context IS NOT NULL"
-        )
+        sa.text("SELECT id, context, user_id FROM cv_documents WHERE context IS NOT NULL")
     ).fetchall()
     parsed = [
-        (cv_id, context)
-        for cv_id, raw, _user_id in rows
-        if (context := _as_dict(raw)) is not None
+        (cv_id, context) for cv_id, raw, _user_id in rows if (context := _as_dict(raw)) is not None
     ]
     plain_referenced = _plain_referenced_ids(parsed)
 
     for cv_id, context in parsed:
         pins = context.get("synth_pins")
-        if not isinstance(pins, dict) or not any(
-            str(key).endswith(BULLETS_SUFFIX) for key in pins
-        ):
+        if not isinstance(pins, dict) or not any(str(key).endswith(BULLETS_SUFFIX) for key in pins):
             continue
 
         folded: dict[str, dict] = {}
@@ -147,32 +140,22 @@ def upgrade() -> None:
                 continue
             text_raw_id, text_payload = text_entry
             bullets_raw_id, bullets_payload = bullets_entry
-            if not text_payload.get("achievements") and bullets_payload.get(
-                "achievements"
-            ):
+            if not text_payload.get("achievements") and bullets_payload.get("achievements"):
                 text_payload["achievements"] = bullets_payload["achievements"]
                 conn.execute(
-                    sa.text(
-                        f"UPDATE cv_synth_items SET payload = {payload_expr} "
-                        "WHERE id = :rid"
-                    ),
+                    sa.text(f"UPDATE cv_synth_items SET payload = {payload_expr} WHERE id = :rid"),
                     {"p": json.dumps(text_payload), "rid": text_raw_id},
                 )
             new_pins[ref_key] = text_id
             if bullets_id not in plain_referenced:
                 conn.execute(
-                    sa.text(
-                        "UPDATE cv_synth_items SET status = 'archived' "
-                        "WHERE id = :rid"
-                    ),
+                    sa.text("UPDATE cv_synth_items SET status = 'archived' WHERE id = :rid"),
                     {"rid": bullets_raw_id},
                 )
 
         context["synth_pins"] = new_pins
         conn.execute(
-            sa.text(
-                f"UPDATE cv_documents SET context = {context_expr} WHERE id = :cid"
-            ),
+            sa.text(f"UPDATE cv_documents SET context = {context_expr} WHERE id = :cid"),
             {"c": json.dumps(context), "cid": cv_id},
         )
 

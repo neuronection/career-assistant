@@ -7,7 +7,7 @@ via `register_block_kind` (entry-point extensible later) and must pass the
 contract kit: props round-trip + sample renders + renderer parity.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,13 +21,11 @@ class BlockContainer(BaseModel):
 
     model_config = {"extra": "forbid"}
 
-    container: Literal["inherit", "flat", "tinted", "card", "outline", "accent-bar"] = (
-        "inherit"
-    )
-    background: Optional[str] = Field(default=None, pattern=HEX_COLOR)
-    border_color: Optional[str] = Field(default=None, pattern=HEX_COLOR)
-    radius: Optional[int] = Field(default=None, ge=0, le=8)
-    padding_mm: Optional[int] = Field(default=None, ge=1, le=10)
+    container: Literal["inherit", "flat", "tinted", "card", "outline", "accent-bar"] = "inherit"
+    background: str | None = Field(default=None, pattern=HEX_COLOR)
+    border_color: str | None = Field(default=None, pattern=HEX_COLOR)
+    radius: int | None = Field(default=None, ge=0, le=8)
+    padding_mm: int | None = Field(default=None, ge=1, le=10)
 
 
 GLOBAL_FIELD_PROMPTS: dict[str, str] = {
@@ -151,7 +149,7 @@ class HeaderProps(BaseModel):
 
 
 class SummaryProps(BaseModel):
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Summary", max_length=60)
     max_chars: int = Field(default=600, ge=200, le=1200)
     container: BlockContainer = Field(default_factory=BlockContainer)
@@ -160,13 +158,13 @@ class SummaryProps(BaseModel):
 class ItemsBlockProps(BaseModel):
     """Experience / education / certifications style item lists."""
 
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="", max_length=60)
     source_key: str = Field(min_length=1, max_length=60)
     # Optional kind filter (empty = all kinds). Lets one template split
     # the experience buckets into separate sections (Work / Projects).
-    kinds: list[Literal["job", "internship", "project", "freelance", "volunteer"]] = (
-        Field(default_factory=list, max_length=5)
+    kinds: list[Literal["job", "internship", "project", "freelance", "volunteer"]] = Field(
+        default_factory=list, max_length=5
     )
     max_items: int = Field(default=10, ge=1, le=30)
     # Item-id ordering (snapshot row ids; snapshot rows carry their
@@ -195,7 +193,7 @@ class ItemsBlockProps(BaseModel):
 
 
 class SkillsProps(BaseModel):
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Skills", max_length=60)
     display: Literal["chips", "list", "grouped", "bars"] = "chips"
     show_levels: bool = False
@@ -207,7 +205,7 @@ class SkillsProps(BaseModel):
 
 
 class LanguagesProps(BaseModel):
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Languages", max_length=60)
     display: Literal["chips", "list"] = "chips"
     # "English — Advanced (C1)": representative CEFR band next to the level.
@@ -220,7 +218,7 @@ class LanguagesProps(BaseModel):
 
 
 class AchievementsProps(BaseModel):
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Achievements", max_length=60)
     kinds: list[Literal["award", "honor", "publication", "extracurricular"]] = Field(
         default_factory=lambda: ["award", "honor", "publication", "extracurricular"],
@@ -230,14 +228,14 @@ class AchievementsProps(BaseModel):
 
 
 class InterestsProps(BaseModel):
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Interests", max_length=60)
     max_items: int = Field(default=6, ge=1, le=20)
     container: BlockContainer = Field(default_factory=BlockContainer)
 
 
 class CustomTextProps(BaseModel):
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(min_length=1, max_length=60)
     text: str = Field(default="", max_length=2000)
     container: BlockContainer = Field(default_factory=BlockContainer)
@@ -287,7 +285,7 @@ class SynthItemsProps(BaseModel):
     with the overlay) — the config UI surfaces staleness.
     """
 
-    icon: Optional[str] = Field(default=None, max_length=30)
+    icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Highlights", max_length=60)
     selected: list[str] = Field(default_factory=list, max_length=40)
     show_source_chips: bool = True
@@ -306,9 +304,7 @@ class BlockSpec:
 
 BUILTIN_BLOCKS: dict[str, BlockSpec] = {
     "header": BlockSpec("header", HeaderProps, {}),
-    "summary": BlockSpec(
-        "summary", SummaryProps, {"title": "Summary", "max_chars": 600}
-    ),
+    "summary": BlockSpec("summary", SummaryProps, {"title": "Summary", "max_chars": 600}),
     "items": BlockSpec(
         "items",
         ItemsBlockProps,
@@ -324,12 +320,8 @@ BUILTIN_BLOCKS: dict[str, BlockSpec] = {
         "skills", SkillsProps, {"title": "Skills", "display": "chips", "max_items": 18}
     ),
     "languages": BlockSpec("languages", LanguagesProps, {"title": "Languages"}),
-    "achievements": BlockSpec(
-        "achievements", AchievementsProps, {"title": "Achievements"}
-    ),
-    "interests": BlockSpec(
-        "interests", InterestsProps, {"title": "Interests", "max_items": 6}
-    ),
+    "achievements": BlockSpec("achievements", AchievementsProps, {"title": "Achievements"}),
+    "interests": BlockSpec("interests", InterestsProps, {"title": "Interests", "max_items": 6}),
     "custom_text": BlockSpec(
         "custom_text",
         CustomTextProps,
@@ -346,8 +338,7 @@ BUILTIN_BLOCKS: dict[str, BlockSpec] = {
             "paragraphs": [
                 "I am applying for the Software Intern role. During my "
                 "internship I shipped internal QA tooling end to end.",
-                "My coursework and projects gave me the Python and Git "
-                "habits your team builds on.",
+                "My coursework and projects gave me the Python and Git habits your team builds on.",
             ],
             "closing": "Sincerely,",
             "show_signature": True,
@@ -400,10 +391,8 @@ def _heal_required_props(spec: "BlockSpec", props: dict) -> dict | None:
     validation errors. None = the sample cannot help either."""
     schema = spec.props_schema
     try:
-        required = {
-            name for name, field in schema.model_fields.items() if field.is_required()
-        }
-    except Exception:  # noqa: BLE001 — reflection must never crash healing
+        required = {name for name, field in schema.model_fields.items() if field.is_required()}
+    except Exception:
         return None
     healed = dict(props)
     filled = False
@@ -445,13 +434,13 @@ def validate_blocks(blocks: list[dict]) -> list[tuple[str, BaseModel]]:
             if healed is None:
                 try:
                     props = spec.props_schema.model_validate(props_in)
-                except Exception as exc:  # noqa: BLE001 - pydantic errors are report text
+                except Exception as exc:
                     problems.append(f"block {index} ({kind}): {exc}")
                     continue
             else:
                 try:
                     props = spec.props_schema.model_validate(healed)
-                except Exception as exc:  # noqa: BLE001 - pydantic errors are report text
+                except Exception as exc:
                     problems.append(f"block {index} ({kind}): {exc}")
                     continue
         validated.append((kind, props))

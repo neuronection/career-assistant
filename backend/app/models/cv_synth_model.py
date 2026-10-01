@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Synthesized CV items: a user-level library of AI-written or manual
 variants over context source items (plan 62).
 
@@ -27,8 +28,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import (
     Base,
     StructuredJSON,
-    TZDateTime,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -38,12 +39,8 @@ class CvSynthItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "cv_synth_items"
     __table_args__ = (
-        CheckConstraint(
-            "scope IN ('item', 'summary', 'bullets')", name="scope_allowed"
-        ),
-        CheckConstraint(
-            "status IN ('draft', 'active', 'archived')", name="status_allowed"
-        ),
+        CheckConstraint("scope IN ('item', 'summary', 'bullets')", name="scope_allowed"),
+        CheckConstraint("status IN ('draft', 'active', 'archived')", name="status_allowed"),
         CheckConstraint("source IN ('ai', 'manual')", name="source_allowed"),
         CheckConstraint("variant_key <> ''", name="variant_key_present"),
         Index("ix_cv_synth_items_user_status", "user_id", "status"),

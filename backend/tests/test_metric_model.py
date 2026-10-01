@@ -2,8 +2,6 @@
 
 import pytest
 
-from tests.conftest import _uid
-
 from app.core.errors import ValidationError
 from app.models.enums import UserMetricSource
 from app.seeds.metrics import seed_metric_dimensions
@@ -12,6 +10,7 @@ from app.services.fit.dimensions import (
     interests_dimension,
 )
 from app.services.metric_service import MetricService
+from tests.conftest import _uid
 
 
 def _interest_payload(tag_key: str, weight: int = 5) -> dict:
@@ -40,8 +39,8 @@ async def test_registry_seed_is_idempotent(db):
 
 
 async def test_riasec_mapping_covers_seeded_categories(db):
-    from app.seeds.run import seed_taxonomy
     from app.seeds.metrics import unmapped_categories
+    from app.seeds.run import seed_taxonomy
 
     await seed_taxonomy(db)
     assert await unmapped_categories(db) == []
@@ -69,15 +68,10 @@ async def test_interest_affinity_vector_and_recompute(
     top = max(vector, key=vector.get)
     assert top == "interest.investigative"
     provenance = {row.dimension_key: row for row in rows}
-    assert (
-        provenance["interest.investigative"].source
-        == UserMetricSource.SELF_REPORT.value
-    )
+    assert provenance["interest.investigative"].source == UserMetricSource.SELF_REPORT.value
     assert provenance["interest.investigative"].evidence["basis"] == "profile.interests"
 
-    cleared = await client.put(
-        "/api/v1/profile", json={"interests": []}, headers=auth_headers
-    )
+    cleared = await client.put("/api/v1/profile", json={"interests": []}, headers=auth_headers)
     assert cleared.status_code == 200
     rows = await MetricService(db).user_metrics(_uid(auth_headers))
     assert [row for row in rows if row.dimension_key.startswith("interest.")] == []
@@ -131,12 +125,12 @@ def test_interests_blend_documents_parts():
 
 
 def test_salary_gate_semantics():
-    common = dict(
-        job_physical_requirements=[],
-        job_education_level=None,
-        user_physical_conditions=[],
-        user_max_education_years=None,
-    )
+    common = {
+        "job_physical_requirements": [],
+        "job_education_level": None,
+        "user_physical_conditions": [],
+        "user_max_education_years": None,
+    }
     assert evaluate_gates(
         **common,
         job_salary_entry_max=24000.0,
@@ -182,38 +176,26 @@ async def test_fit_breakdown_carries_affinity_and_salary_gate(
         },
         headers=auth_headers,
     )
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
     fit = (
-        await client.post(
-            "/api/v1/match/fit", json={"job_id": job["id"]}, headers=auth_headers
-        )
+        await client.post("/api/v1/match/fit", json={"job_id": job["id"]}, headers=auth_headers)
     ).json()
     interests = fit["breakdown"]["dimensions"]["interests"]
     assert "interest affinity" in interests["detail"]
-    rankings = (
-        await client.get("/api/v1/rankings?stretch=true", headers=auth_headers)
-    ).json()
+    rankings = (await client.get("/api/v1/rankings?stretch=true", headers=auth_headers)).json()
     gated = [row["gate_reasons"] for row in rankings["items"] if row.get("gated")]
     assert any("salary_min" in reasons for reasons in gated), (
         "jobs with an entry ceiling below the non-negotiable minimum land in stretch"
     )
 
 
-async def test_metrics_api_surface(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_metrics_api_surface(client, auth_headers, profile_ready, seeded_catalog, db):
     await seed_metric_dimensions(db)
-    registry = (
-        await client.get("/api/v1/metrics/registry", headers=auth_headers)
-    ).json()
+    registry = (await client.get("/api/v1/metrics/registry", headers=auth_headers)).json()
     keys = {row["key"] for row in registry["dimensions"]}
     assert "interest.social" in keys and "values.impact" in keys
 
-    missing = await client.get(
-        "/api/v1/metrics/me/interest.social", headers=auth_headers
-    )
+    missing = await client.get("/api/v1/metrics/me/interest.social", headers=auth_headers)
     assert missing.status_code == 404
 
     await client.put(
@@ -233,9 +215,7 @@ async def test_metrics_api_surface(
         if row["dimension_key"].startswith("interest.")
     }
     assert keys == {"interest.social", "interest.artistic"}
-    single = (
-        await client.get("/api/v1/metrics/me/interest.social", headers=auth_headers)
-    ).json()
+    single = (await client.get("/api/v1/metrics/me/interest.social", headers=auth_headers)).json()
     assert single["value"] == 10.0
     assert single["evidence"]["basis"] == "profile.interests"
 
@@ -296,9 +276,7 @@ async def test_workstyle_write_through(client, auth_headers, profile_ready, db):
     )
     rows = await MetricService(db).user_metrics(_uid(auth_headers))
     workstyle = {
-        row.dimension_key: row
-        for row in rows
-        if row.dimension_key.startswith("workstyle.")
+        row.dimension_key: row for row in rows if row.dimension_key.startswith("workstyle.")
     }
     assert workstyle["workstyle.teamwork"].value == 10.0
     assert workstyle["workstyle.pace"].value == 2.0
@@ -325,19 +303,11 @@ async def test_fit_breakdown_carries_values_dimension(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     service = MetricService(db)
-    await service.upsert_metric(
-        _uid(auth_headers), "values.autonomy", 3.0, confidence=0.9
-    )
-    await service.upsert_metric(
-        _uid(auth_headers), "values.variety", 9.0, confidence=0.9
-    )
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
+    await service.upsert_metric(_uid(auth_headers), "values.autonomy", 3.0, confidence=0.9)
+    await service.upsert_metric(_uid(auth_headers), "values.variety", 9.0, confidence=0.9)
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
     fit = (
-        await client.post(
-            "/api/v1/match/fit", json={"job_id": job["id"]}, headers=auth_headers
-        )
+        await client.post("/api/v1/match/fit", json={"job_id": job["id"]}, headers=auth_headers)
     ).json()
     values = fit["breakdown"]["dimensions"]["values"]
     assert "values fit across" in values["detail"]
@@ -370,16 +340,12 @@ async def test_template_values_battery_applies_dimensions(
                                 TemplateOption(
                                     id="o1",
                                     label="Lead the team myself",
-                                    scores=OptionScores(
-                                        dimension_levels={"values.autonomy": 3.0}
-                                    ),
+                                    scores=OptionScores(dimension_levels={"values.autonomy": 3.0}),
                                 ),
                                 TemplateOption(
                                     id="o2",
                                     label="Stable processes, clear rules",
-                                    scores=OptionScores(
-                                        dimension_levels={"values.security": 3.0}
-                                    ),
+                                    scores=OptionScores(dimension_levels={"values.security": 3.0}),
                                 ),
                             ],
                         )
@@ -400,9 +366,9 @@ async def test_template_values_battery_applies_dimensions(
         )
 
     bad_content = battery().model_dump(mode="json")
-    bad_content["phases"][0]["questions"][0]["options"][0]["scores"][
-        "dimension_levels"
-    ] = {"values.wrong": 3.0}
+    bad_content["phases"][0]["questions"][0]["options"][0]["scores"]["dimension_levels"] = {
+        "values.wrong": 3.0
+    }
     rejected = await client.post(
         "/api/v1/assessments/templates",
         json={"title": "Bad battery", "content": bad_content},
@@ -434,15 +400,11 @@ async def test_template_values_battery_applies_dimensions(
     question = run["questions"][0]
     saved = await client.post(
         f"/api/v1/assessments/{run['id']}/answers",
-        json={
-            "answers": [{"question_id": question["id"], "answer": {"option_id": "o1"}}]
-        },
+        json={"answers": [{"question_id": question["id"], "answer": {"option_id": "o1"}}]},
         headers=auth_headers,
     )
     assert saved.status_code == 200, saved.text
-    done = await client.post(
-        f"/api/v1/assessments/{run['id']}/advance", headers=auth_headers
-    )
+    done = await client.post(f"/api/v1/assessments/{run['id']}/advance", headers=auth_headers)
     assert done.json()["status"] == "completed", done.text
 
     rows = await MetricService(db).user_metrics(_uid(auth_headers))
@@ -503,29 +465,23 @@ async def test_transferability_updates_on_catalog_mutation(
             "demand": {"outlook": "stable", "note": "", "sources": {}},
         },
         "interest_keys": [],
-        "skills": [
-            {"skill_key": "programming", "required_level": 5, "importance": "core"}
-        ],
+        "skills": [{"skill_key": "programming", "required_level": 5, "importance": "core"}],
     }
     created = await client.post("/api/v1/jobs", json=payload, headers=auth_headers)
     assert created.status_code == 201, created.text
-    published = await client.post(
-        "/api/v1/jobs/transfer-probe-role/publish", headers=auth_headers
-    )
+    published = await client.post("/api/v1/jobs/transfer-probe-role/publish", headers=auth_headers)
     assert published.status_code == 200, published.text
 
     after = {r["skill_key"]: r for r in await service.transferability_rows()}
-    assert after["programming"]["family_count"] == (
-        before["programming"]["family_count"] + 1
-    ), "publishing a job in a new family raises the skill's family span"
+    assert after["programming"]["family_count"] == (before["programming"]["family_count"] + 1), (
+        "publishing a job in a new family raises the skill's family span"
+    )
 
     job_row = (
-        (await db.execute(select(Job).where(Job.code == "transfer-probe-role")))
-        .scalars()
-        .first()
+        (await db.execute(select(Job).where(Job.code == "transfer-probe-role"))).scalars().first()
     )
     await client.delete("/api/v1/jobs/transfer-probe-role", headers=auth_headers)
-    deleted_share = (
+    (
         (
             await db.execute(
                 select(SkillTransferability).where(
@@ -536,27 +492,21 @@ async def test_transferability_updates_on_catalog_mutation(
         .scalars()
         .first()
     )
-    assert deleted_share is None or True  # rows keyed by skill, not family
+    assert True  # rows keyed by skill, not family
     final = {r["skill_key"]: r for r in await service.transferability_rows()}
-    assert (
-        final["programming"]["family_count"] == before["programming"]["family_count"]
-    ), "delete recomputes back to the baseline"
-
-
-async def test_transferability_api_surface(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
-    await MetricService(db).recompute_skill_transferability()
-    response = await client.get(
-        "/api/v1/metrics/transferability?limit=5", headers=auth_headers
+    assert final["programming"]["family_count"] == before["programming"]["family_count"], (
+        "delete recomputes back to the baseline"
     )
+
+
+async def test_transferability_api_surface(client, auth_headers, profile_ready, seeded_catalog, db):
+    await MetricService(db).recompute_skill_transferability()
+    response = await client.get("/api/v1/metrics/transferability?limit=5", headers=auth_headers)
     assert response.status_code == 200, response.text
     rows = response.json()
     assert 0 < len(rows) <= 5
     first = rows[0]
-    assert {"skill_key", "skill_label", "family_count", "total_families", "share"} <= (
-        set(first)
-    )
+    assert {"skill_key", "skill_label", "family_count", "total_families", "share"} <= (set(first))
 
     recomputed = await client.post(
         "/api/v1/metrics/transferability/recompute", headers=auth_headers

@@ -7,17 +7,17 @@ from app.core.database import get_db
 from app.core.errors import AINotConfiguredError, DomainError
 from app.models.enums import BackgroundJobType, MatchStatus
 from app.models.matching_model import MatchInsight
+from app.schemas.job import JobOut
 from app.schemas.matching import (
     CandidateOut,
     FitBreakdownOut,
     FitRefitIn,
     MatchInsightOut,
-    RateIn,
-    RankingsOut,
     RankedJob,
+    RankingsOut,
+    RateIn,
     ScoreIn,
 )
-from app.schemas.job import JobOut
 from app.services.deps import get_current_user, get_profile_for_user
 from app.services.job_service import JobService
 from app.services.job_worker import enqueue
@@ -25,6 +25,9 @@ from app.services.matching_service import MatchingService
 from app.services.university_service import UniversityService
 
 router = APIRouter(tags=["matching"])
+
+_EMPTY_REFIT = FitRefitIn()
+_EMPTY_SCORE = ScoreIn()
 
 
 def _insight_out(insight: MatchInsight) -> MatchInsightOut:
@@ -61,18 +64,14 @@ def _ranked_item(item: dict) -> RankedJob:
         job=JobOut.from_model(item["job"]),
         score=item["score"],
         fit_score=item["fit_score"],
-        ai_score=float(insight.ai_score)
-        if insight and insight.ai_score is not None
-        else None,
+        ai_score=float(insight.ai_score) if insight and insight.ai_score is not None else None,
         user_score=insight.user_score if insight else None,
         status=MatchStatus(insight.status) if insight and insight.status else None,
         breakdown=FitBreakdownOut.model_validate(insight.fit_breakdown or {})
         if insight and insight.fit_breakdown
         else None,
         specialist_dimension=(
-            (insight.fit_breakdown or {}).get("specialist_dimension")
-            if insight
-            else None
+            (insight.fit_breakdown or {}).get("specialist_dimension") if insight else None
         ),
         gated=bool((insight.fit_breakdown or {}).get("gates")) if insight else False,
         gate_reasons=(insight.fit_breakdown or {}).get("gates") or [],
@@ -89,14 +88,12 @@ async def candidates(
 ) -> list[CandidateOut]:
     """Top unscored jobs by deterministic fit (not yet AI-explained)."""
     profile = await get_profile_for_user(db, user.id)
-    items = await MatchingService(db).generate_candidates(
-        profile, limit=limit, family_key=family
-    )
+    items = await MatchingService(db).generate_candidates(profile, limit=limit, family_key=family)
     return [
         CandidateOut(
             job=JobOut.from_model(c["job"]),
             fit_score=c["fit_score"],
-            breakdown=FitBreakdownOut.model_validate((c["insight"].fit_breakdown or {}))
+            breakdown=FitBreakdownOut.model_validate(c["insight"].fit_breakdown or {})
             if c["insight"].fit_breakdown
             else None,
         )
@@ -106,7 +103,7 @@ async def candidates(
 
 @router.post("/match/fit")
 async def refit_fit(
-    body: FitRefitIn = Body(default=FitRefitIn()),
+    body: FitRefitIn = Body(default=_EMPTY_REFIT),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -120,9 +117,7 @@ async def refit_fit(
         job = await enqueue(db, BackgroundJobType.FIT_REFIT.value, {}, user_id=user.id)
         return {"job_id": str(job.id), "status": job.status}
     if not body.job_id:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "job_id or all=true is required"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "job_id or all=true is required")
     profile = await get_profile_for_user(db, user.id)
     try:
         job_row = await JobService(db).require_job(body.job_id)
@@ -139,7 +134,7 @@ async def refit_fit(
 
 @router.post("/match/score")
 async def score_jobs(
-    body: ScoreIn = Body(default=ScoreIn()),
+    body: ScoreIn = Body(default=_EMPTY_SCORE),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MatchInsightOut] | dict:
@@ -263,15 +258,11 @@ async def compare_jobs(
         try:
             value = UUIDType(part)
         except ValueError as exc:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid job id"
-            ) from exc
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid job id") from exc
         if value not in ids:
             ids.append(value)
     if not 2 <= len(ids) <= 4:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "compare needs 2-4 job ids"
-        )
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "compare needs 2-4 job ids")
     profile = await get_profile_for_user(db, user.id)
     try:
         items = await MatchingService(db).compare(profile, job_ids=ids)
@@ -288,9 +279,7 @@ async def job_match_detail(
     job_service = JobService(db)
     job = await job_service.require_job(ref)
     rows = await db.execute(
-        select(MatchInsight).where(
-            MatchInsight.user_id == user.id, MatchInsight.job_id == job.id
-        )
+        select(MatchInsight).where(MatchInsight.user_id == user.id, MatchInsight.job_id == job.id)
     )
     insight = rows.scalars().first()
     links = await UniversityService(db).job_links(job.id)

@@ -1,11 +1,12 @@
 """— CV template system: versioning, registry, renderer, AI, review."""
 
-import pytest
 import copy
 import io
 import uuid
+from datetime import UTC
 from uuid import UUID
 
+import pytest
 from sqlalchemy import select
 
 from app.models.cv_model import CvDocument
@@ -17,7 +18,6 @@ from app.services.cv_renderer import render_cv
 from app.services.cv_template_service import CvTemplateService
 from app.services.engagement_service import canonical_hash
 from tests.conftest import _uid, session_headers
-
 
 VALID_CONTENT = {
     "blocks": [
@@ -97,7 +97,7 @@ def test_renderer_deterministic_and_escapes():
     assert first.html == second.html, "same inputs must render byte-equal"
     assert "<script>" not in first.html
     assert "&lt;script&gt;" in first.html
-    assert "Jun 2024 – Jan 2025" in first.html
+    assert "Jun 2024 - Jan 2025" in first.html
     assert not first.metrics.overflow
 
 
@@ -145,9 +145,7 @@ async def test_template_crud_versions_and_ownership(client, db, auth_headers):
     assert template["status"] == "draft"
 
     edited = dict(VALID_CONTENT)
-    edited["blocks"] = VALID_CONTENT["blocks"] + [
-        {"kind": "interests", "props": {"max_items": 6}}
-    ]
+    edited["blocks"] = VALID_CONTENT["blocks"] + [{"kind": "interests", "props": {"max_items": 6}}]
     v2 = await client.patch(
         f"/api/v1/cv/templates/{template['id']}",
         json={"title": "My Layout 2", "description": "", "content": edited},
@@ -174,9 +172,7 @@ async def test_template_crud_versions_and_ownership(client, db, auth_headers):
     )
     assert steal.status_code == 404
 
-    delete = await client.delete(
-        f"/api/v1/cv/templates/{template['id']}", headers=auth_headers
-    )
+    delete = await client.delete(f"/api/v1/cv/templates/{template['id']}", headers=auth_headers)
     assert delete.status_code == 204
     rows = await db.execute(select(CvTemplate).where(CvTemplate.key == template["key"]))
     assert rows.scalars().all() == []
@@ -184,9 +180,7 @@ async def test_template_crud_versions_and_ownership(client, db, auth_headers):
 
 async def test_template_export_import_round_trip(client, db, auth_headers):
     template = await _make_template(client, auth_headers)
-    export = await client.get(
-        f"/api/v1/cv/templates/{template['id']}/export", headers=auth_headers
-    )
+    export = await client.get(f"/api/v1/cv/templates/{template['id']}/export", headers=auth_headers)
     assert export.status_code == 200
     package = export.json()
     assert package["content_hash"]
@@ -203,9 +197,7 @@ async def test_template_export_import_round_trip(client, db, auth_headers):
     )
     assert rejected.status_code == 400, "hash mismatch must reject"
 
-    imported = await client.post(
-        "/api/v1/cv/templates/import", json=package, headers=other_headers
-    )
+    imported = await client.post("/api/v1/cv/templates/import", json=package, headers=other_headers)
     assert imported.status_code == 201, imported.text
     body = imported.json()
     assert body["source"] == "imported"
@@ -225,9 +217,7 @@ async def test_template_import_rejects_unknown_block_kind(client, auth_headers):
         content=content,
         content_hash=canonical_hash(content),
     ).model_dump(mode="json")
-    response = await client.post(
-        "/api/v1/cv/templates/import", json=package, headers=auth_headers
-    )
+    response = await client.post("/api/v1/cv/templates/import", json=package, headers=auth_headers)
     assert response.status_code == 400
     assert "unknown kind" in response.json()["detail"]
 
@@ -289,9 +279,7 @@ async def test_suggest_templates_via_mock(client, db, auth_headers):
 async def test_suggest_templates_no_candidates(client, db, auth_headers):
     from tests.conftest import _uid
 
-    result = await CvTemplateService(db).suggest(
-        UUID(_uid(auth_headers)), language="en"
-    )
+    result = await CvTemplateService(db).suggest(UUID(_uid(auth_headers)), language="en")
     assert result == {"picks": [], "candidates_considered": 0}
 
 
@@ -433,7 +421,7 @@ async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
     """Plan 70: edited bank specs ship as version 2 — the seeder inserts
     the new immutable row alongside a pre-existing v1 and the listing
     dedupes to the highest version."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     db.add(
         CvTemplate(
@@ -459,7 +447,7 @@ async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
                     "prompts": {},
                 }
             ).model_dump(mode="json"),
-            created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2025, 1, 1, tzinfo=UTC),
         )
     )
     await db.commit()
@@ -479,8 +467,7 @@ async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
     }
     assert set(rows) == {("ats-classic", 1), ("ats-classic", 2)}
     assert (
-        rows[("ats-classic", 2)].content["blocks"]
-        != rows[("ats-classic", 1)].content["blocks"]
+        rows[("ats-classic", 2)].content["blocks"] != rows[("ats-classic", 1)].content["blocks"]
     ), "v2 carries the plan-70 content"
     assert rows[("ats-classic", 1)].content_hash == "legacy", "v1 rows are immutable"
 
@@ -515,9 +502,7 @@ async def test_sidebar_bank_template_uses_area_paddings(db):
     blocks = row.content["blocks"]
     assert all(block.get("area") in {"main", "sidebar"} for block in blocks)
     source_keys = [
-        block.get("props", {}).get("source_key")
-        for block in blocks
-        if block.get("kind") == "items"
+        block.get("props", {}).get("source_key") for block in blocks if block.get("kind") == "items"
     ]
     assert "experience" in source_keys and "projects" in source_keys
     assert "certifications" in source_keys
@@ -537,9 +522,7 @@ async def test_sidebar_bank_template_uses_area_paddings(db):
     assert teal.version == 4
     assert teal.content["design"]["show_photo"] is True
     assert teal.content["design"]["show_heading_icons"] is True
-    skills = next(
-        block for block in teal.content["blocks"] if block.get("kind") == "skills"
-    )
+    skills = next(block for block in teal.content["blocks"] if block.get("kind") == "skills")
     assert skills["props"]["display"] == "bars"
     modern_rows = (
         (
@@ -612,8 +595,8 @@ async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_hea
     """The designer is area-capable: a sidebar brief yields sidebar-
     assigned compact blocks with layout=sidebar, and a draft that
     declares a layout its blocks contradict gets normalized."""
-    from app.ai.gateway import MOCK_FIXTURES
     from app.ai.agents.cv_template_designer import draft_template
+    from app.ai.gateway import MOCK_FIXTURES
     from app.models.enums import AITaskType
     from app.schemas.cv_template import TemplateContent
 
@@ -625,9 +608,7 @@ async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_hea
     assert response.status_code == 201, response.text
     content = response.json()["content"]
     assert content["design"]["layout"] == "sidebar"
-    sidebar_kinds = {
-        block["kind"] for block in content["blocks"] if block.get("area") == "sidebar"
-    }
+    sidebar_kinds = {block["kind"] for block in content["blocks"] if block.get("area") == "sidebar"}
     assert sidebar_kinds, "the sidebar brief assigns blocks to the sidebar"
     assert sidebar_kinds <= {"skills", "languages", "interests", "certifications", "qr"}
 
@@ -646,9 +627,7 @@ async def test_ai_draft_assigns_areas_and_normalizes_layout(client, db, auth_hea
     previous = monkey_style.get(AITaskType.CV_TEMPLATE_DESIGN.value)
     monkey_style[AITaskType.CV_TEMPLATE_DESIGN.value] = _contradictory
     try:
-        draft = await draft_template(
-            db, UUID(_uid(auth_headers)), brief="any", page_budget=1
-        )
+        draft = await draft_template(db, UUID(_uid(auth_headers)), brief="any", page_budget=1)
     finally:
         if previous is not None:
             monkey_style[AITaskType.CV_TEMPLATE_DESIGN.value] = previous
@@ -681,9 +660,7 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
 
     monkeypatch.setattr(pdf_service, "measure_pages", _png)
     monkeypatch.setattr(advisor, "rank_templates", _spy_rank)
-    result = await CvTemplateService(db).suggest(
-        UUID(_uid(auth_headers)), language="en"
-    )
+    result = await CvTemplateService(db).suggest(UUID(_uid(auth_headers)), language="en")
     assert result["picks"]
     images = seen["images"]
     assert images and all(mime == "image/png" for mime, _data in images)
@@ -695,9 +672,7 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
 
     monkeypatch.setattr(pdf_service, "measure_pages", _unavailable)
     seen.clear()
-    result = await CvTemplateService(db).suggest(
-        UUID(_uid(auth_headers)), language="en"
-    )
+    result = await CvTemplateService(db).suggest(UUID(_uid(auth_headers)), language="en")
     assert result["picks"]
     assert seen.get("images") in (None, []), "engine off degrades to metadata-only"
 
@@ -745,18 +720,14 @@ async def test_suggest_layout_hint_boosts_sidebar_candidates(client, db, auth_he
     assert content.design.layout == "sidebar", "the layout hint wins the baseline"
 
 
-async def test_suggest_demotes_recently_used_templates(
-    client, db, auth_headers, monkeypatch
-):
+async def test_suggest_demotes_recently_used_templates(client, db, auth_headers, monkeypatch):
     """Variety lever, not a ban: the templates the user's recent CVs
     already showcase drop below fresh candidates in the determinstic
     baseline, and the advisor target names them for the AI ranking."""
     from app.models.cv_model import CvDocument
 
     await seed_cv_template_bank(db)
-    template = await db.execute(
-        select(CvTemplate).where(CvTemplate.author_key == "bank")
-    )
+    template = await db.execute(select(CvTemplate).where(CvTemplate.author_key == "bank"))
     template = template.scalars().first()
     db.add(
         CvDocument(
@@ -782,18 +753,14 @@ async def test_suggest_demotes_recently_used_templates(
         return await real_rank(db, user_id, candidates, target)
 
     monkeypatch.setattr(advisor, "rank_templates", _spy)
-    result = await CvTemplateService(db).suggest(
-        UUID(_uid(auth_headers)), language="en"
-    )
+    result = await CvTemplateService(db).suggest(UUID(_uid(auth_headers)), language="en")
     target = seen["target"] or {}
     assert template.title in (target.get("recently_used") or [])
     top = await db.get(CvTemplate, UUID(result["picks"][0]["template_id"]))
     assert top.id != template.id, "a repeat is demoted below every fresh pick"
 
 
-async def test_suggest_never_ranks_the_user_s_own_templates(
-    client, db, auth_headers, monkeypatch
-):
+async def test_suggest_never_ranks_the_user_s_own_templates(client, db, auth_headers, monkeypatch):
     """A fresh generate's auto pick ranges over curated bank templates
     only: private copies (tests, one-offs, older styled duplicates)
     must not win by recency luck when the brief asks for a look they
@@ -817,11 +784,9 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
 
     await seed_cv_template_bank(db)
     listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
-    template = [t for t in listing.json() if t["source"] == "bank"][0]
+    template = next(t for t in listing.json() if t["source"] == "bank")
 
-    created = await client.post(
-        "/api/v1/cv", json={"title": "Preview me"}, headers=auth_headers
-    )
+    created = await client.post("/api/v1/cv", json={"title": "Preview me"}, headers=auth_headers)
     assert created.status_code == 201, created.text
     cv_id = created.json()["id"]
 
@@ -841,9 +806,7 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
         .scalars()
         .first()
     )
-    profile.aspirations = [
-        {"label": "Backend intern", "notes": "I care about the details."}
-    ]
+    profile.aspirations = [{"label": "Backend intern", "notes": "I care about the details."}]
     db.add(profile)
     await db.commit()
     response = await client.post(
@@ -855,9 +818,7 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
     assert "Backend intern" in body["html"], "the own snapshot renders"
 
     cv_row = (
-        (await db.execute(select(CvDocument).where(CvDocument.id == UUID(cv_id))))
-        .scalars()
-        .one()
+        (await db.execute(select(CvDocument).where(CvDocument.id == UUID(cv_id)))).scalars().one()
     )
     snapshot = await CvBuilderService(db).snapshot_for_cv(cv_row)
     assert "Backend intern" in str(snapshot.get("summary"))
@@ -868,9 +829,7 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
         json={"email": "other@example.com", "password": "supersecret1"},
     )
     other_headers = session_headers(second)
-    other_cv = await client.post(
-        "/api/v1/cv", json={"title": "Theirs"}, headers=other_headers
-    )
+    other_cv = await client.post("/api/v1/cv", json={"title": "Theirs"}, headers=other_headers)
     assert other_cv.status_code == 201, other_cv.text
     leak = await client.post(
         f"/api/v1/cv/templates/{template['id']}/preview-with",
@@ -976,9 +935,7 @@ async def test_template_version_listing_and_diff(client, db, auth_headers):
     assert paths["design.heading_rule"]["to"] == "accent"
     assert "interests:" in body["block_changes"]["added"][0]
 
-    first = await client.get(
-        f"/api/v1/cv/templates/{template['id']}/diff", headers=auth_headers
-    )
+    first = await client.get(f"/api/v1/cv/templates/{template['id']}/diff", headers=auth_headers)
     assert first.status_code == 400, "v1 has no earlier version to diff against"
     explicit = await client.get(
         f"/api/v1/cv/templates/{updated.json()['id']}/diff?against={template['id']}",
@@ -1032,9 +989,7 @@ def test_items_block_links_opt_in_and_print_safe():
     assert "x.io/4" not in html  # capped at 3
 
 
-async def test_preview_png_cached_and_capability_gated(
-    client, db, auth_headers, monkeypatch
-):
+async def test_preview_png_cached_and_capability_gated(client, db, auth_headers, monkeypatch):
     """Plan 83B: the PNG route renders once, caches by content hash, and
     answers 503 with the capability message when the engine is missing."""
     from app.services.cv_pdf_service import PDFEngineUnavailable
@@ -1097,9 +1052,7 @@ async def test_preview_png_hides_foreign_templates(db, auth_headers):
     from app.models.user_model import User
     from app.services.cv_template_service import CvTemplateService
 
-    owner_rows = await db.execute(
-        select(User).where(User.email == "student@example.com")
-    )
+    owner_rows = await db.execute(select(User).where(User.email == "student@example.com"))
     owner = owner_rows.scalars().first()
     private = await CvTemplateService(db).create(
         owner.id,

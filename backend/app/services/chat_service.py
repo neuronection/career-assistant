@@ -1,7 +1,8 @@
+import itertools
 import uuid
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,12 +20,12 @@ def _sort_key(message: ChatMessage):
 
 
 def _walk_active_path(
-    all_messages: list[ChatMessage], active_root_id: Optional[uuid.UUID]
+    all_messages: list[ChatMessage], active_root_id: uuid.UUID | None
 ) -> list[ChatMessage]:
     """The visible conversation: pointer walk from the active root, active-
     child pointers with newest-sibling fallback, cycle-safe."""
     by_id = {message.id: message for message in all_messages}
-    children: dict[Optional[uuid.UUID], list[ChatMessage]] = defaultdict(list)
+    children: dict[uuid.UUID | None, list[ChatMessage]] = defaultdict(list)
     for message in sorted(all_messages, key=_sort_key):
         children[message.parent_id].append(message)
 
@@ -52,14 +53,14 @@ def _walk_active_path(
 
 def _siblings_of(
     message: ChatMessage,
-    children: dict[Optional[uuid.UUID], list[ChatMessage]],
+    children: dict[uuid.UUID | None, list[ChatMessage]],
 ) -> list[ChatMessage]:
     return children.get(message.parent_id, [message])
 
 
 def _decorate(messages: list[ChatMessage], all_messages: list[ChatMessage]) -> None:
     """Attach variant info in-memory (index/count/sibling ids) for MessageOut."""
-    children: dict[Optional[uuid.UUID], list[ChatMessage]] = defaultdict(list)
+    children: dict[uuid.UUID | None, list[ChatMessage]] = defaultdict(list)
     for message in sorted(all_messages, key=_sort_key):
         children[message.parent_id].append(message)
     for message in messages:
@@ -81,9 +82,7 @@ class ChatService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_session(
-        self, user_id: uuid.UUID, data: SessionCreate
-    ) -> ChatSession:
+    async def create_session(self, user_id: uuid.UUID, data: SessionCreate) -> ChatSession:
         """Start a new chat session."""
         session = ChatSession(user_id=user_id, title=data.title, context=data.context)
         self.db.add(session)
@@ -95,7 +94,7 @@ class ChatService:
         self,
         session: ChatSession,
         content: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> ChatMessage:
         """Root assistant message (no user turn before it) — the opening
         question of an interview practice session."""
@@ -112,9 +111,7 @@ class ChatService:
         await self.db.refresh(message)
         return message
 
-    async def list_sessions(
-        self, user_id: uuid.UUID
-    ) -> list[tuple[ChatSession, datetime]]:
+    async def list_sessions(self, user_id: uuid.UUID) -> list[tuple[ChatSession, datetime]]:
         """Sessions of the caller with computed last activity, most recent
         first. `updated_at` only moves on session-row writes (rename), so
         the real recency signal is the newest message timestamp. Sessions
@@ -144,9 +141,7 @@ class ChatService:
         return items
 
     @staticmethod
-    def _last_activity(
-        session: ChatSession, last_message: Optional[datetime]
-    ) -> datetime:
+    def _last_activity(session: ChatSession, last_message: datetime | None) -> datetime:
         updated = session.updated_at or session.created_at
         return max(updated, last_message) if last_message else updated
 
@@ -154,9 +149,7 @@ class ChatService:
         """Computed last activity of one session (newest message, else the
         session's own update)."""
         rows = await self.db.execute(
-            select(func.max(ChatMessage.created_at)).where(
-                ChatMessage.session_id == session.id
-            )
+            select(func.max(ChatMessage.created_at)).where(ChatMessage.session_id == session.id)
         )
         return self._last_activity(session, rows.scalar_one_or_none())
 
@@ -171,17 +164,13 @@ class ChatService:
             raise NotFoundError("Session not found")
         return session
 
-    async def _owned_session(
-        self, user_id: uuid.UUID, session_id: uuid.UUID
-    ) -> ChatSession:
+    async def _owned_session(self, user_id: uuid.UUID, session_id: uuid.UUID) -> ChatSession:
         session = await self._load_session(session_id)
         if session.user_id != user_id:
             raise PermissionDeniedError("Not your session")
         return session
 
-    async def get_session(
-        self, user_id: uuid.UUID, session_id: uuid.UUID
-    ) -> ChatSession:
+    async def get_session(self, user_id: uuid.UUID, session_id: uuid.UUID) -> ChatSession:
         """Fetch a session owned by the caller."""
         return await self._owned_session(user_id, session_id)
 
@@ -204,9 +193,7 @@ class ChatService:
     async def message_count(self, session_id: uuid.UUID) -> int:
         """Number of messages already persisted in the session."""
         rows = await self.db.execute(
-            select(func.count(ChatMessage.id)).where(
-                ChatMessage.session_id == session_id
-            )
+            select(func.count(ChatMessage.id)).where(ChatMessage.session_id == session_id)
         )
         return int(rows.scalar_one())
 
@@ -228,9 +215,7 @@ class ChatService:
         await self.db.refresh(session, ["messages"])
         return list(session.messages)
 
-    async def messages(
-        self, user_id: uuid.UUID, session_id: uuid.UUID
-    ) -> list[ChatMessage]:
+    async def messages(self, user_id: uuid.UUID, session_id: uuid.UUID) -> list[ChatMessage]:
         """The visible (active-path) messages, variant-decorated."""
         session = await self._owned_session(user_id, session_id)
         all_messages = await self._all_messages(session)
@@ -243,7 +228,7 @@ class ChatService:
         user_id: uuid.UUID,
         session_id: uuid.UUID,
         content: str,
-        attachments: Optional[list[dict]] = None,
+        attachments: list[dict] | None = None,
     ) -> tuple[ChatSession, list[dict], uuid.UUID]:
         """Persist the user message at the active tip; returns
         (session, history, message id)."""
@@ -338,10 +323,10 @@ class ChatService:
         session: ChatSession,
         parent_user_message_id: uuid.UUID,
         partial: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
         *,
         allow_empty: bool = False,
-    ) -> Optional[ChatMessage]:
+    ) -> ChatMessage | None:
         """Persist an aborted turn's partial prefix as an interrupted
         assistant message (study pattern, stop feature) — with
         the partial turn trace when the stream runner gathered one.
@@ -380,7 +365,7 @@ class ChatService:
         user_id: uuid.UUID,
         message_id: uuid.UUID,
         content: str,
-        attachments: Optional[list[dict]] = None,
+        attachments: list[dict] | None = None,
     ) -> tuple[ChatSession, list[dict], uuid.UUID]:
         """Branch a user message: new sibling with the edited content, flip
         the parent's active-child pointer, return context for a fresh turn."""
@@ -411,7 +396,7 @@ class ChatService:
             session.active_root_id = edited.id
         await self.db.flush()
 
-        path = _walk_active_path(all_messages + [edited], session.active_root_id)
+        path = _walk_active_path([*all_messages, edited], session.active_root_id)
         history = [
             {"role": m.role, "content": m.content}
             for m in path
@@ -447,19 +432,17 @@ class ChatService:
         target: ChatMessage,
     ) -> None:
         chain: list[ChatMessage] = []
-        current: Optional[ChatMessage] = target
+        current: ChatMessage | None = target
         while current is not None:
             chain.append(current)
             current = by_id.get(current.parent_id) if current.parent_id else None
         chain.reverse()
         if chain and chain[0].parent_id is None:
             session.active_root_id = chain[0].id
-        for parent, child in zip(chain, chain[1:]):
+        for parent, child in itertools.pairwise(chain):
             parent.active_child_id = child.id
 
-    async def select_message(
-        self, user_id: uuid.UUID, message_id: uuid.UUID
-    ) -> list[ChatMessage]:
+    async def select_message(self, user_id: uuid.UUID, message_id: uuid.UUID) -> list[ChatMessage]:
         """Flip exactly one pointer: the parent's active child (or the
         session's active root for root-level variants). Level-flip
         semantics — no ancestor-chain activation (family contract)."""
@@ -479,7 +462,7 @@ class ChatService:
         """Read-only branch-tree projection for the graph rail."""
         session = await self._owned_session(user_id, session_id)
         all_messages = await self._all_messages(session)
-        children: dict[Optional[uuid.UUID], list[uuid.UUID]] = defaultdict(list)
+        children: dict[uuid.UUID | None, list[uuid.UUID]] = defaultdict(list)
         for message in sorted(all_messages, key=_sort_key):
             children[message.parent_id].append(message.id)
         nodes = [

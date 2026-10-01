@@ -6,14 +6,13 @@ templates. Candidates are stable ids (`t0`, `t1`, …) so validation
 never depends on model output echoing UUIDs.
 """
 
-from typing import Optional
 
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.models.enums import AITaskType
-from pydantic import BaseModel, Field
 
 
 class TemplatePick(BaseModel):
@@ -55,14 +54,12 @@ def _mock_rank(schema: type, user_prompt: str) -> dict:
     ordered += [
         ref
         for ref in refs
-        if ref not in ordered
-        and any(word in query for word in ("sidebar", "ats-safe", "classic"))
+        if ref not in ordered and any(word in query for word in ("sidebar", "ats-safe", "classic"))
     ]
     ordered += [ref for ref in refs if ref not in ordered]
     return {
         "ranking": [
-            {"template_ref": ref, "reason": "Matches the request context"}
-            for ref in ordered[:5]
+            {"template_ref": ref, "reason": "Matches the request context"} for ref in ordered[:5]
         ]
     }
 
@@ -74,8 +71,8 @@ async def rank_templates(
     db: AsyncSession,
     user_id,
     candidates: list[TemplateCandidate],
-    target: Optional[dict] = None,
-    images: Optional[list[tuple[str, bytes]]] = None,
+    target: dict | None = None,
+    images: list[tuple[str, bytes]] | None = None,
 ) -> TemplateRanking:
     """Rank template refs best-first; output filtered to the allowlist.
 

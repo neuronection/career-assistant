@@ -12,7 +12,7 @@ reference (AD2b).
 
 import uuid
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
@@ -37,9 +37,7 @@ async def resolve_attachments(
     seen: set[uuid.UUID] = set()
     for item in items:
         rows = await db.execute(
-            select(CvDocument).where(
-                CvDocument.id == item.cv_id, CvDocument.user_id == user_id
-            )
+            select(CvDocument).where(CvDocument.id == item.cv_id, CvDocument.user_id == user_id)
         )
         cv = rows.scalars().first()
         if cv is None:
@@ -77,7 +75,7 @@ async def cv_reference_text(db: AsyncSession, cv: CvDocument) -> str:
     try:
         _html, payload, _resolution, _metrics = await service.render_state(cv)
         return _clip(to_ats_text(payload))
-    except Exception:  # noqa: BLE001 — empty context, no template: degrade
+    except Exception:
         return ""
 
 
@@ -104,9 +102,7 @@ async def effective_attachments(db: AsyncSession, session, user_message) -> list
     return []
 
 
-async def attachment_cv(
-    db: AsyncSession, user_id: uuid.UUID, cv_id
-) -> CvDocument | None:
+async def attachment_cv(db: AsyncSession, user_id: uuid.UUID, cv_id) -> CvDocument | None:
     """The owned CV behind one attachment entry, or None."""
     try:
         parsed = uuid.UUID(str(cv_id))
@@ -118,9 +114,7 @@ async def attachment_cv(
     return rows.scalars().first()
 
 
-async def turn_references(
-    db: AsyncSession, session, user_message
-) -> tuple[list[dict], list[dict]]:
+async def turn_references(db: AsyncSession, session, user_message) -> tuple[list[dict], list[dict]]:
     """(stored attachment snapshots, prompt reference blocks) for a turn.
 
     The message's own attachments are the explicit reference; a message
@@ -128,9 +122,9 @@ async def turn_references(
     session's active path (earlier reference, AD2b).
     """
     attachments = await effective_attachments(db, session, user_message)
-    earlier = not bool(
-        (user_message.metadata_json or {}).get("attachments") or []
-    ) and bool(attachments)
+    earlier = not bool((user_message.metadata_json or {}).get("attachments") or []) and bool(
+        attachments
+    )
     if not attachments:
         return [], []
 

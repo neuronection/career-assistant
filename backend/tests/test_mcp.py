@@ -3,21 +3,19 @@ limiting) and the client bridge (registration, discovery, namespaced +
 audited invocation)."""
 
 import asyncio
-
-import pytest
-from uuid import UUID
 import threading
+from uuid import UUID
 
 import httpx
+import pytest
 from sqlalchemy import select
-
-from tests.conftest import _uid
 
 from app.ai.mcp_server import MCPTokenStore, build_mcp_asgi_app, build_mcp_server
 from app.ai.tools.base import ToolScope
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.services.mcp_bridge_service import MCPBridgeService
+from tests.conftest import _uid
 
 
 async def test_server_exposes_exactly_the_read_scope_allowlist():
@@ -57,9 +55,7 @@ async def test_http_transport_rejects_anonymous_and_accepts_token(
     monkeypatch.setattr(mcp_module, "_TOKEN_STORE", store)
 
     app = build_mcp_asgi_app()
-    config = uvicorn.Config(
-        app, host="127.0.0.1", port=unused_tcp_port, log_level="error"
-    )
+    config = uvicorn.Config(app, host="127.0.0.1", port=unused_tcp_port, log_level="error")
     server = uvicorn.Server(config)
     threading.Thread(target=server.run, daemon=True).start()
     await asyncio.sleep(0.8)
@@ -120,14 +116,14 @@ async def test_bridge_registration_discovery_and_invoke(
     assert row.enabled is False
 
     # Invoke before enable/refresh → refused.
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         await service.invoke(row.id, "echo", {"text": "hi"}, user_id=None)
 
     refreshed = await service.refresh(row.id)
     assert [t["name"] for t in refreshed.discovered_tools] == ["echo"]
     assert refreshed.enabled_tools == [], "discovery never auto-enables"
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         await service.invoke(row.id, "echo", {"text": "hi"}, user_id=None)
 
     await service.set_enabled(row.id, True)
@@ -139,9 +135,7 @@ async def test_bridge_registration_discovery_and_invoke(
     audit = (
         (
             await db.execute(
-                select(AIGeneration).where(
-                    AIGeneration.task_type == AITaskType.MCP_TOOL_CALL.value
-                )
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.MCP_TOOL_CALL.value)
             )
         )
         .scalars()
@@ -152,9 +146,7 @@ async def test_bridge_registration_discovery_and_invoke(
     assert audit.model == "external-1"
 
 
-async def test_bridge_admin_api_round_trip(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_bridge_admin_api_round_trip(client, auth_headers, profile_ready, seeded_catalog, db):
     from app.models.user_model import User
 
     user = (await db.execute(select(User).limit(1))).scalars().first()

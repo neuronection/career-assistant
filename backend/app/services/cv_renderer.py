@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Deterministic CV renderer: the ONLY render path.
 
 Pure function of (template content, context snapshot, options) →
@@ -244,7 +245,7 @@ def format_period(start: Any, end: Any, date_format: str = "mon_yyyy") -> str:
 
     start_label, end_label = side(start), side(end or "")
     if start_label and end_label:
-        return f"{start_label} – {end_label}"
+        return f"{start_label} - {end_label}"
     return start_label or end_label
 
 
@@ -272,24 +273,20 @@ class RenderResult:
 
 
 def _lines_per_page(design: DesignTokens, page_size: str) -> int:
-    width_mm, height_mm = PAGE_MM[page_size]
+    _width_mm, height_mm = PAGE_MM[page_size]
     usable = height_mm - 2 * _page_margin_mm(design)
     line_mm = design.base_size_pt * 0.3528 * design.line_height
     return max(20, int(usable / line_mm))
 
 
-def _chars_per_line(
-    design: DesignTokens, page_size: str, width_share: float = 1.0
-) -> int:
+def _chars_per_line(design: DesignTokens, page_size: str, width_share: float = 1.0) -> int:
     """Average characters one text line holds at the current geometry.
 
     `width_share` narrows the estimate for sidebar columns; ~0.48em per
     char is a conservative average for the font stacks in use.
     """
     width_mm, _ = PAGE_MM[page_size]
-    usable_width = (width_mm - 2 * _page_margin_mm(design)) * max(
-        0.1, min(width_share, 1.0)
-    )
+    usable_width = (width_mm - 2 * _page_margin_mm(design)) * max(0.1, min(width_share, 1.0))
     char_mm = design.base_size_pt * 0.3528 * 0.48
     return max(20, int(usable_width / char_mm))
 
@@ -297,9 +294,7 @@ def _chars_per_line(
 def _wrap_lines(text: str, chars_per_line: int) -> int:
     """Wrapped line cost, honoring hard breaks (each line wraps alone)."""
     return sum(
-        math.ceil(len(part) / chars_per_line)
-        for part in (text or "").split("\n")
-        if part.strip()
+        math.ceil(len(part) / chars_per_line) for part in (text or "").split("\n") if part.strip()
     )
 
 
@@ -327,7 +322,7 @@ def _block_lines(
 ) -> int:
     """Estimated line cost of one block from the snapshot.
 
-    Column-aware (a sidebar block wraps ~3× sooner than the main
+    Column-aware (a sidebar block wraps ~3x sooner than the main
     column) so shrink/truncate fire on the content that actually
     overflows — long item descriptions were previously free.
     """
@@ -393,9 +388,7 @@ def _block_lines(
         if selected_ids:
             chosen = {str(x) for x in selected_ids}
             skill_rows = [
-                s
-                for s in skill_rows
-                if isinstance(s, dict) and _chosen_matches(chosen, s)
+                s for s in skill_rows if isinstance(s, dict) and _chosen_matches(chosen, s)
             ]
         count = min(len(skill_rows), props.max_items)
         chips_per_row = max(2, chars // 14)
@@ -412,9 +405,7 @@ def _block_lines(
         extra = 0
         if getattr(props, "show_proficiency", False):
             certifications = snapshot.get("certifications") or []
-            extra += len(
-                proficiency_for(snapshot.get("languages") or [], certifications)
-            )
+            extra += len(proficiency_for(snapshot.get("languages") or [], certifications))
         if getattr(props, "display", "chips") == "list":
             count = min(len(snapshot.get("languages") or []), 8) + extra
         return math.ceil(count / max(2, chars // 16)) + 1
@@ -422,11 +413,7 @@ def _block_lines(
         achievements = snapshot.get("achievements") or []
         lines = 1
         for achievement in achievements[:10]:
-            text = (
-                str(achievement.get("title") or "")
-                if isinstance(achievement, dict)
-                else ""
-            )
+            text = str(achievement.get("title") or "") if isinstance(achievement, dict) else ""
             lines += max(1, _wrap_lines(text, chars))
         return lines
     if kind == "interests":
@@ -544,21 +531,14 @@ def _render_items(items: list, props: Any) -> str:
             fragments.append(f"<p class='item-detail'>{prose_html(detail)}</p>")
         if props.show_achievements and item.get("achievements"):
             bullets = "".join(
-                f"<li>{inline_md(str(a.get('text') or ''))}</li>"
-                for a in item["achievements"][:5]
+                f"<li>{inline_md(str(a.get('text') or ''))}</li>" for a in item["achievements"][:5]
             )
             fragments.append(f"<ul class='ach'>{bullets}</ul>")
         if props.show_skills and item.get("skills"):
-            chips = "".join(
-                f"<span class='chip'>{esc(s)}</span>" for s in item["skills"][:8]
-            )
+            chips = "".join(f"<span class='chip'>{esc(s)}</span>" for s in item["skills"][:8])
             fragments.append(f"<div class='chips'>{chips}</div>")
         if getattr(props, "show_links", False) and item.get("links"):
-            shown = [
-                _display_link(link)
-                for link in item["links"][:3]
-                if isinstance(link, dict)
-            ]
+            shown = [_display_link(link) for link in item["links"][:3] if isinstance(link, dict)]
             shown = [text for text in shown if text]
             if shown:
                 fragments.append(f"<p class='item-links'>{esc(' · '.join(shown))}</p>")
@@ -578,9 +558,7 @@ def _container_of(props: Any, design: Any) -> tuple[str, str]:
     container = getattr(props, "container", None) or _NoContainer()
     mode = getattr(container, "container", "inherit")
     base_mode = (
-        mode
-        if mode != "inherit"
-        else ("card" if design.section_style == "card" else "flat")
+        mode if mode != "inherit" else ("card" if design.section_style == "card" else "flat")
     )
     classes: list[str] = ["cv-block"]
     styles: list[str] = []
@@ -591,14 +569,10 @@ def _container_of(props: Any, design: Any) -> tuple[str, str]:
         )
     if base_mode == "outline":
         classes.append("cv-outline")
-        styles.append(
-            f"border:0.4mm solid {container.border_color or design.border_color}"
-        )
+        styles.append(f"border:0.4mm solid {container.border_color or design.border_color}")
     if base_mode == "accent-bar":
         classes.append("cv-accentbar")
-        styles.append(
-            f"border-left:1mm solid {container.border_color or design.accent_color}"
-        )
+        styles.append(f"border-left:1mm solid {container.border_color or design.accent_color}")
     if container.radius is not None:
         styles.append(f"border-radius:{container.radius}mm")
     elif base_mode in ("card", "tinted", "outline", "accent-bar"):
@@ -619,13 +593,9 @@ class _NoContainer:
     padding_mm = None
 
 
-def _section_tag(
-    kind: str, title: str, body: str, design: Any, props: Any = None
-) -> str:
+def _section_tag(kind: str, title: str, body: str, design: Any, props: Any = None) -> str:
     """Wrap a section body with the resolved container style."""
-    classes, style = (
-        _container_of(props, design) if props is not None else ("cv-block", "")
-    )
+    classes, style = _container_of(props, design) if props is not None else ("cv-block", "")
     marker = ""
     if title and getattr(design, "show_heading_icons", False):
         from app.services.cv_icons import SECTION_KIND_ICONS, icon
@@ -653,10 +623,7 @@ def _render_block(
         basics = snapshot.get("basics") or {}
         headline = esc(basics.get("headline") or "")
         name_raw = str(basics.get("name") or "")
-        if (
-            getattr(design, "name_style", "plain") == "accent_surname"
-            and " " in name_raw
-        ):
+        if getattr(design, "name_style", "plain") == "accent_surname" and " " in name_raw:
             head, surname = name_raw.rsplit(" ", 1)
             name_html = f"{esc(head)} <span class='name-accent'>{esc(surname)}</span>"
         else:
@@ -741,13 +708,9 @@ def _render_block(
             detail = str(entry.get("description") or "").strip()
             if detail:
                 fragments.append(f"<p class='item-detail'>{prose_html(detail)}</p>")
-            bullets = [
-                str(text.get("text") or "") for text in entry.get("achievements") or []
-            ]
+            bullets = [str(text.get("text") or "") for text in entry.get("achievements") or []]
             if bullets:
-                bullet_html = "".join(
-                    f"<li>{inline_md(str(text))}</li>" for text in bullets[:8]
-                )
+                bullet_html = "".join(f"<li>{inline_md(str(text))}</li>" for text in bullets[:8])
                 fragments.append(f"<ul class='ach'>{bullet_html}</ul>")
             if props.show_source_chips:
                 chips = "".join(
@@ -776,9 +739,7 @@ def _render_block(
         selected_ids = getattr(props, "selected", None) or []
         if selected_ids:
             chosen = {str(x) for x in selected_ids}
-            skills = [
-                s for s in skills if isinstance(s, dict) and _chosen_matches(chosen, s)
-            ]
+            skills = [s for s in skills if isinstance(s, dict) and _chosen_matches(chosen, s)]
             if not skills:
                 return "", False
         shown = skills[: props.max_items]
@@ -822,13 +783,9 @@ def _render_block(
             groups: dict[str, list[str]] = {}
             for skill in shown:
                 category = (
-                    str(skill.get("category") or "").strip()
-                    if isinstance(skill, dict)
-                    else ""
+                    str(skill.get("category") or "").strip() if isinstance(skill, dict) else ""
                 )
-                groups.setdefault(category.title() or "General", []).append(
-                    _chip(skill)
-                )
+                groups.setdefault(category.title() or "General", []).append(_chip(skill))
             body = "".join(
                 f"<div class='skill-group'><p class='skill-cat'>{esc(category)}</p>"
                 f"<div class='chips'>{''.join(chips)}</div></div>"
@@ -869,11 +826,7 @@ def _render_block(
 
         entries = [_entry(lang) for lang in languages]
         if props.display == "list":
-            body = (
-                "<ul class='items'>"
-                + "".join(f"<li>{_text(e)}</li>" for e in entries)
-                + "</ul>"
-            )
+            body = "<ul class='items'>" + "".join(f"<li>{_text(e)}</li>" for e in entries) + "</ul>"
         else:
             body = (
                 "<div class='chips'>"
@@ -887,19 +840,13 @@ def _render_block(
     if kind == "achievements":
         achievements = snapshot.get("achievements") or []
         allowed = [
-            a
-            for a in achievements
-            if not props.kinds or (a.get("kind") or "award") in props.kinds
+            a for a in achievements if not props.kinds or (a.get("kind") or "award") in props.kinds
         ]
         if not allowed:
             return "", False
         rows = "".join(
             f"<li><span class='item-title'>{esc(a.get('title') or a)}</span>"
-            + (
-                f" <span class='item-org'>{esc(a['issuer'])}</span>"
-                if a.get("issuer")
-                else ""
-            )
+            + (f" <span class='item-org'>{esc(a['issuer'])}</span>" if a.get("issuer") else "")
             + (
                 f" <span class='item-period'>{esc(a.get('date', ''))}</span>"
                 if a.get("date")
@@ -972,13 +919,9 @@ def _render_block(
                 + "</div>"
             )
         if props.subject:
-            body += (
-                f"<p class='letter-subject'><strong>{esc(props.subject)}</strong></p>"
-            )
+            body += f"<p class='letter-subject'><strong>{esc(props.subject)}</strong></p>"
         body += f"<p class='letter-salutation'>{esc(props.salutation)}</p>"
-        body += "".join(
-            f"<p class='letter-p'>{inline_md(text)}</p>" for text in paragraphs
-        )
+        body += "".join(f"<p class='letter-p'>{inline_md(text)}</p>" for text in paragraphs)
         body += f"<p class='letter-closing'>{esc(props.closing)}</p>"
         if props.show_signature and basics.get("name"):
             body += f"<p class='letter-signature'>{esc(basics['name'])}</p>"
@@ -1013,8 +956,9 @@ def _first_link_target(links: list, wanted: str) -> str | None:
 
 def _render_qr(target: str, props: Any, design: Any) -> str:
     """Compact inline SVG QR (no network, deterministic matrix)."""
-    import qrcode
     from urllib.parse import quote
+
+    import qrcode
 
     code = qrcode.QRCode(
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -1024,10 +968,7 @@ def _render_qr(target: str, props: Any, design: Any) -> str:
     code.make(fit=True)
     matrix = code.get_matrix()
     dark = "".join(
-        f"M{x} {y}h1v1h-1z"
-        for y, row in enumerate(matrix)
-        for x, cell in enumerate(row)
-        if cell
+        f"M{x} {y}h1v1h-1z" for y, row in enumerate(matrix) for x, cell in enumerate(row) if cell
     )
     size = int(props.size_mm)
     svg = (
@@ -1043,9 +984,7 @@ def _render_qr(target: str, props: Any, design: Any) -> str:
         f"<img src='{esc(data)}' alt='QR code' "
         f"style='width:{size}mm;height:{size}mm;display:block'/>"
     )
-    return _section_tag(
-        "qr", "", f"<div class='qr-wrap'>{body}</div>", design, props
-    ), True
+    return _section_tag("qr", "", f"<div class='qr-wrap'>{body}</div>", design, props), True
 
 
 def _font_face_css(font_stack: str) -> str:
@@ -1071,18 +1010,14 @@ def _page_margin_boxes(design: DesignTokens, snapshot: dict | None) -> tuple[str
         name = str(basics.get("name") or "").strip()
         label = f"{name} — CV" if name else "Curriculum vitae"
         inner.append(
-            "@bottom-left { content: '%s'; font-size: 8pt; color: #6b7280; }"
-            % esc(label).replace("&#x27;", "\\'")
+            "@bottom-left {{ content: '{}'; font-size: 8pt; color: #6b7280; }}".format(esc(label).replace("&#x27;", "\\'"))
         )
     if mode == "numbers":
         inner.append(
             '@bottom-right { content: counter(page) " / " counter(pages); '
             "font-size: 8pt; color: #6b7280; }"
         )
-    standalone = (
-        "@page :first { @bottom-left { content: none; } "
-        "@bottom-right { content: none; } }"
-    )
+    standalone = "@page :first { @bottom-left { content: none; } @bottom-right { content: none; } }"
     return " ".join(inner), standalone
 
 
@@ -1389,9 +1324,7 @@ def render_cv(
         if use_sidebar
         else 0.0
     ) / max(1, design.sidebar_columns)
-    main_share = _effective_share(1.0, design.main_padding_mm) / max(
-        1, design.main_columns
-    )
+    main_share = _effective_share(1.0, design.main_padding_mm) / max(1, design.main_columns)
     main_bodies, main_entries = render_column(main_blocks, main_share)
     sidebar_bodies, sidebar_entries = (
         render_column(sidebar_blocks, sidebar_share)
@@ -1410,9 +1343,7 @@ def render_cv(
             use_sidebar and bool(sidebar_entries),
         )
 
-    metrics.estimated_lines = sum(e[2] for e in main_entries) + sum(
-        e[2] for e in sidebar_entries
-    )
+    metrics.estimated_lines = sum(e[2] for e in main_entries) + sum(e[2] for e in sidebar_entries)
     metrics.estimated_pages = _page_estimate()
     metrics.max_pages = max_pages
     metrics.overflow = metrics.estimated_pages > max_pages
@@ -1421,9 +1352,7 @@ def render_cv(
     if metrics.overflow:
         if content.pages.overflow_policy == CvOverflowPolicy.SHRINK:
             shrink = max(0.85, math.sqrt(max_pages / metrics.estimated_pages))
-            metrics.lines_per_page = _lines_per_page_per_shrink(
-                design, page_size, shrink
-            )
+            metrics.lines_per_page = _lines_per_page_per_shrink(design, page_size, shrink)
             metrics.estimated_pages = _page_estimate()
             metrics.overflow = metrics.estimated_pages > max_pages
         elif content.pages.overflow_policy == CvOverflowPolicy.TRUNCATE:
@@ -1456,12 +1385,8 @@ def render_cv(
     return RenderResult(html=html_out, metrics=metrics)
 
 
-def _lines_per_page_per_shrink(
-    design: DesignTokens, page_size: str, shrink: float
-) -> int:
-    shrunken = design.model_copy(
-        update={"base_size_pt": round(design.base_size_pt * shrink, 2)}
-    )
+def _lines_per_page_per_shrink(design: DesignTokens, page_size: str, shrink: float) -> int:
+    shrunken = design.model_copy(update={"base_size_pt": round(design.base_size_pt * shrink, 2)})
     return _lines_per_page(shrunken, page_size)
 
 
@@ -1488,8 +1413,7 @@ def truncate_column(
 
     def live_blocks() -> int:
         return sum(
-            len([entry for entry in entries if entry[2] > 0])
-            for entries, _bodies in columns
+            len([entry for entry in entries if entry[2] > 0]) for entries, _bodies in columns
         )
 
     while True:

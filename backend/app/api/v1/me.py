@@ -85,8 +85,8 @@ async def _bootstrap_payload(db, profile) -> dict:
 
     from app.models.engagement_model import NotificationRule
     from app.models.enums import NotificationRuleKind
-    from app.services.notification_channels import available_channels
     from app.services.experience_service import ExperienceService
+    from app.services.notification_channels import available_channels
     from app.services.stages_service import (
         effective_stage,
         feature_flags,
@@ -103,8 +103,7 @@ async def _bootstrap_payload(db, profile) -> dict:
             await db.execute(
                 select(NotificationRule).where(
                     NotificationRule.user_id == profile.user_id,
-                    NotificationRule.kind
-                    == NotificationRuleKind.NEW_POSTING_MATCH.value,
+                    NotificationRule.kind == NotificationRuleKind.NEW_POSTING_MATCH.value,
                     NotificationRule.enabled.is_(True),
                 )
             )
@@ -130,9 +129,7 @@ async def _bootstrap_payload(db, profile) -> dict:
 
 
 @router.get("/bootstrap")
-async def bootstrap(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> dict:
+async def bootstrap(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """Stage + per-feature flags for the SPA shell."""
     from app.services.deps import get_profile_for_user
 
@@ -206,7 +203,7 @@ async def put_scoring_weights(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Store fit-dimension weight sliders (1–5) and refit (deterministic only)."""
+    """Store fit-dimension weight sliders (1-5) and refit (deterministic only)."""
     from app.schemas.profile import ScoringWeights
     from app.services.deps import get_profile_for_user
     from app.services.fit.service import FitService
@@ -216,8 +213,7 @@ async def put_scoring_weights(
     except (TypeError, ValueError) as exc:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "weights must be integers 1–5 for skills, location, experience, "
-            "education, interests",
+            "weights must be integers 1-5 for skills, location, experience, education, interests",
         ) from exc
     profile = await get_profile_for_user(db, user.id)
     profile.preferences = {
@@ -234,9 +230,7 @@ async def put_scoring_weights(
 
 
 @router.get("/followups")
-async def get_followups(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> dict:
+async def get_followups(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """Follow-up surface: preferences + per-application state."""
     from app.services.followups_service import list_followups
 

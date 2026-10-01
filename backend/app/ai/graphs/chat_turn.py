@@ -24,8 +24,9 @@ import asyncio
 import json
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,9 +105,9 @@ class ChatTurnState(TypedDict, total=False):
     prompt: str
     tool_metadata: dict
     reply: dict
-    model: Optional[str]
-    tokens_in: Optional[int]
-    tokens_out: Optional[int]
+    model: str | None
+    tokens_in: int | None
+    tokens_out: int | None
     proposals: list[dict]
     proposals_dropped: int
     dropped_reasons: list[dict]
@@ -144,17 +145,17 @@ class TurnDeps:
     content: str
     history: list[dict]
     profile_summary: str
-    page_context: Optional[dict]
-    cv_references: Optional[list[dict]]
+    page_context: dict | None
+    cv_references: list[dict] | None
     emit: Callable[[str, dict], None]
     turn_started: float = field(default_factory=time.monotonic)
     run_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    stream: Optional[StructuredStream] = None
+    stream: StructuredStream | None = None
     nodes_trace: list[dict] = field(default_factory=list)
     created_proposals: list = field(default_factory=list)
     tool_metadata: dict = field(default_factory=dict)
     generating: bool = False
-    generate_started: Optional[float] = None
+    generate_started: float | None = None
     degraded: bool = False
     aborted: bool = False
 
@@ -168,7 +169,7 @@ def is_cancellation(exc: BaseException) -> bool:
     flow_failed) depends on telling it apart from a real failure.
     """
     seen: set[int] = set()
-    current: Optional[BaseException] = exc
+    current: BaseException | None = exc
     while current is not None and id(current) not in seen:
         if isinstance(current, asyncio.CancelledError):
             return True
@@ -282,9 +283,9 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
     """
     from langchain_core.messages import HumanMessage
 
-    from app.ai.agents.prompts import AGENT_ROUND
     from app.ai.agents.chatbot import ground_digests
     from app.ai.agents.context import context_json, parse_context
+    from app.ai.agents.prompts import AGENT_ROUND
     from app.ai.tools.langchain import chat_tool_specs
 
     rounds = state.get("rounds", 0)
@@ -303,7 +304,7 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
             user_id=deps.user.id,
             run=RunRef(id=deps.run_id, stage=f"agent_round:{rounds}"),
         )
-    except Exception as exc:  # noqa: BLE001 — degrade, never fail the turn
+    except Exception as exc:
         if is_cancellation(exc):
             raise
         deps.degraded = True
@@ -342,9 +343,7 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
         deps.tool_metadata = tool_metadata
         return {
             "degraded": True,
-            "tool_results_extra": {
-                k: v for k, v in tool_results.items() if k not in before
-            },
+            "tool_results_extra": {k: v for k, v in tool_results.items() if k not in before},
             "tool_metadata": tool_metadata,
             "prompt": context_json(ctx),
         }
@@ -382,7 +381,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         started = time.monotonic()
         try:
             result = await run_tool(deps.db, call["name"], deps.user.id, call["args"])
-        except Exception as exc:  # noqa: BLE001 — an observation, not a failure
+        except Exception as exc:
             result = {"error": str(exc)}
         executed += 1
         # Trace honesty (plan 109 follow-up): a registry tool's trace row
@@ -398,9 +397,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
             # session cache so later turns without keywords stay grounded.
             from app.services import chat_digest_cache
 
-            sigs = await chat_digest_cache.digest_signatures(
-                deps.db, deps.user.id, [call["name"]]
-            )
+            sigs = await chat_digest_cache.digest_signatures(deps.db, deps.user.id, [call["name"]])
             sig = sigs.get(call["name"])
             if sig and deps.session is not None:
                 chat_digest_cache.save(
@@ -493,14 +490,10 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         tool_results.update(extra)
         if read_results:
             tool_results["read_profile_item"] = [
-                row
-                for row in read_results
-                if row.get("kind") != ProposalKind.PROFILE_SECTION.value
+                row for row in read_results if row.get("kind") != ProposalKind.PROFILE_SECTION.value
             ]
             tool_results["read_profile_section"] = [
-                row
-                for row in read_results
-                if row.get("kind") == ProposalKind.PROFILE_SECTION.value
+                row for row in read_results if row.get("kind") == ProposalKind.PROFILE_SECTION.value
             ]
         prompt = context_json(ctx)
     return {
@@ -639,9 +632,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
             user_id=deps.user.id,
             run=RunRef(
                 id=deps.run_id,
-                stage=(
-                    "ops_draft" if rounds_used == 0 else f"ops_repair:{rounds_used}"
-                ),
+                stage=("ops_draft" if rounds_used == 0 else f"ops_repair:{rounds_used}"),
             ),
         )
         rounds_used += 1
@@ -667,9 +658,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
         )
         draft_prompt = context_json(ctx)
     deps.emit("node_finished", {"id": "ops_draft", "duration_ms": 0})
-    _note_node(
-        deps, "ops_draft", "validating profile edits", ops_started, time.monotonic()
-    )
+    _note_node(deps, "ops_draft", "validating profile edits", ops_started, time.monotonic())
     outcomes_payload: dict[str, Any] = {
         "drafted": len(op_dicts),
         "resolved": len(resolved_ops),
@@ -719,9 +708,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
                     resolved = await resolve_cv_set_bullets(
                         deps.db, deps.user.id, (op.get("payload") or {})
                     )
-                    row["label"] = (
-                        f"bullets of {resolved['item_label']} on {resolved['cv_title']}"
-                    )
+                    row["label"] = f"bullets of {resolved['item_label']} on {resolved['cv_title']}"
                     row["count"] = len((op.get("payload") or {}).get("bullets") or [])
                 except DomainError:
                     row["label"] = "CV bullets rewrite"
@@ -850,9 +837,7 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
         for proposal in deps.created_proposals:
             proposal.chat_message_id = message.id
         await deps.db.commit()
-    await ChatService(deps.db).autotitle_if_first_turn(
-        deps.user.id, deps.session.id, deps.content
-    )
+    await ChatService(deps.db).autotitle_if_first_turn(deps.user.id, deps.session.id, deps.content)
     deps.emit(
         "meta",
         {
@@ -910,11 +895,7 @@ def build_chat_turn_graph(deps: TurnDeps, checkpointer: Any):
         # Plan 99.3: edit-intent turns draft+validate their ops BEFORE
         # the visible answer streams; degraded providers skip the
         # pipeline (parity path) and non-edit turns go straight to synth.
-        if (
-            state.get("edit_intent")
-            and not state.get("degraded")
-            and not state.get("ops_done")
-        ):
+        if state.get("edit_intent") and not state.get("degraded") and not state.get("ops_done"):
             return "ops_draft"
         return "synth"
 

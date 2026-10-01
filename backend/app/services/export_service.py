@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -25,10 +25,7 @@ MANIFEST_SCHEMA_VERSION = 1
 
 def _row_dict(row) -> dict:
     """Serialize a model row with JSON-safe primitives."""
-    return {
-        column.name: _jsonable(getattr(row, column.name))
-        for column in row.__table__.columns
-    }
+    return {column.name: _jsonable(getattr(row, column.name)) for column in row.__table__.columns}
 
 
 def _jsonable(value):
@@ -45,14 +42,10 @@ def export_dir() -> Path:
     return path
 
 
-async def collect_user_data(
-    db: AsyncSession, user_id: uuid.UUID
-) -> tuple[dict, list[Document]]:
+async def collect_user_data(db: AsyncSession, user_id: uuid.UUID) -> tuple[dict, list[Document]]:
     """Gather every user-owned entity as plain JSON-ready dicts."""
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     insights = (
         (await db.execute(select(MatchInsight).where(MatchInsight.user_id == user_id)))
@@ -71,17 +64,13 @@ async def collect_user_data(
         .all()
     )
     documents = (
-        (await db.execute(select(Document).where(Document.user_id == user_id)))
-        .scalars()
-        .all()
+        (await db.execute(select(Document).where(Document.user_id == user_id))).scalars().all()
     )
     messages = (
         (
             await db.execute(
                 select(ChatMessage).where(
-                    ChatMessage.session_id.in_(
-                        [s.id for s in sessions] or [uuid.uuid4()]
-                    )
+                    ChatMessage.session_id.in_([s.id for s in sessions] or [uuid.uuid4()])
                 )
             )
         )
@@ -121,7 +110,7 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
 
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "app_version": settings.version,
         "user_id": str(user.id),
         "email": user.email,
@@ -139,9 +128,7 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
     archive_path = export_dir() / f"career-assistant-export-{job_id}.zip"
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as bundle:
         bundle.writestr("manifest.json", json.dumps(manifest, indent=2))
-        bundle.writestr(
-            "profile.json", json.dumps(data["profile"], indent=2, default=str)
-        )
+        bundle.writestr("profile.json", json.dumps(data["profile"], indent=2, default=str))
         bundle.writestr(
             "match_insights.json",
             json.dumps(data["match_insights"], indent=2, default=str),
@@ -154,9 +141,7 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
             "cv_synth_items.json",
             json.dumps(data["cv_synth_items"], indent=2, default=str),
         )
-        bundle.writestr(
-            "documents.json", json.dumps(data["documents"], indent=2, default=str)
-        )
+        bundle.writestr("documents.json", json.dumps(data["documents"], indent=2, default=str))
         for document in documents:
             file_path = DocumentService.upload_file_path(document)
             if file_path is not None and file_path.is_file():
@@ -166,7 +151,7 @@ async def build_export(db: AsyncSession, user: User, job_id: uuid.UUID) -> Path:
 
 def cleanup_old_exports(max_age_days: int = 7) -> int:
     """Delete export archives older than the retention window."""
-    cutoff = datetime.now(timezone.utc).timestamp() - max_age_days * 86400
+    cutoff = datetime.now(UTC).timestamp() - max_age_days * 86400
     removed = 0
     for file_path in export_dir().glob("*.zip"):
         try:

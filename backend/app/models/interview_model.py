@@ -12,7 +12,6 @@ summary, with links to learning resources for weak skills.
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -52,11 +51,11 @@ class InterviewSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     # Null = generic practice for a catalog archetype (family_key path).
-    posting_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    posting_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("job_postings.id", ondelete="SET NULL"), nullable=True
     )
     # The practice transcript lives in chat; set on start.
-    chat_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    chat_session_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="mixed")
@@ -66,12 +65,10 @@ class InterviewSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # The user-approved question plan: list of InterviewQuestion dicts.
     plan: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     # Per-question rubric rows keyed by plan-item id (list of dicts).
-    rubric_scores: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    rubric_scores: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     # Debrief aggregate: summary, strengths, gaps,
     # recommendations, resources — written on completion.
-    debrief: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    debrief: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
 
     posting = relationship("JobPosting", viewonly=True)
     chat_session = relationship("ChatSession", viewonly=True)
@@ -86,7 +83,7 @@ class InterviewSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         }
 
     @property
-    def next_question(self) -> Optional[dict]:
+    def next_question(self) -> dict | None:
         """First plan item without a rubric row (plan order is the flow)."""
         answered = self.answered_ids
         for item in self.plan or []:
@@ -95,5 +92,5 @@ class InterviewSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return None
 
     @property
-    def finished_at(self) -> Optional[datetime]:
+    def finished_at(self) -> datetime | None:
         return self.updated_at

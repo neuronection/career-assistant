@@ -18,6 +18,7 @@ sys.exit(f"database not reachable at {host}:{port}")
 '
 
 echo "Running database migrations..."
+cd /app/backend
 alembic upgrade head
 
 echo "Starting Career Assistant on ${CAREER_API_HOST:-0.0.0.0}:${CAREER_API_PORT:-8100}"

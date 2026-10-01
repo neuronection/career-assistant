@@ -2,9 +2,10 @@
 autopilot_findings, plus the schedule slot that runs goals on a
 cadence (schedules.kind gains `user_autopilot`, .task `autopilot_run`)."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0015"
 down_revision = "0014"
@@ -84,8 +85,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
-            "status IN ('running', 'completed', 'budget_aborted', "
-            "'cancelled', 'failed')",
+            "status IN ('running', 'completed', 'budget_aborted', 'cancelled', 'failed')",
             name="status_allowed",
         ),
     )

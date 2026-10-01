@@ -19,28 +19,24 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import AITaskType, BackgroundJobType
 from app.models.experience_model import ExperienceItem
 from app.models.posting_model import JobPosting
-from app.schemas.cv import CvContextSelection
 from app.models.profile_entities_model import EducationItem
 from app.models.user_model import Profile, UserSkill
+from app.schemas.cv import CvContextSelection
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.job_worker import enqueue
 
 
-async def assert_generatable(
-    db: AsyncSession, user_id: UUID, request: CvGenerateRequest
-) -> None:
+async def assert_generatable(db: AsyncSession, user_id: UUID, request: CvGenerateRequest) -> None:
     """Fail-fast request checks: posting/template exist + sparse guard.
 
-    The section × source crossing itself is re-computed inside the run
+    The section x source crossing itself is re-computed inside the run
     .
     """
     if request.target_posting_id is not None:
         posting = (
             (
                 await db.execute(
-                    select(JobPosting.id).where(
-                        JobPosting.id == request.target_posting_id
-                    )
+                    select(JobPosting.id).where(JobPosting.id == request.target_posting_id)
                 )
             )
             .scalars()
@@ -66,15 +62,11 @@ async def assert_generatable(
     )
     if education.scalars().first() is not None:
         return
-    skills = await db.execute(
-        select(UserSkill.id).where(UserSkill.user_id == user_id).limit(1)
-    )
+    skills = await db.execute(select(UserSkill.id).where(UserSkill.user_id == user_id).limit(1))
     if skills.scalars().first() is not None:
         return
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     if profile and (profile.aspirations or []):
         return

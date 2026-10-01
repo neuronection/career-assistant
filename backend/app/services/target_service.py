@@ -8,8 +8,7 @@ aggregates the target dashboard. Progressive profiling nudges reuse
 """
 
 import re
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -36,7 +35,7 @@ TRIGRAM = re.compile(r"[a-z0-9]+")
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _trigrams(text: str) -> set[str]:
@@ -77,11 +76,7 @@ async def resolve_query(db: AsyncSession, user_id, query: str) -> dict:
         .scalars()
         .all()
     )
-    skills = (
-        (await db.execute(select(Skill).where(Skill.status == "active")))
-        .scalars()
-        .all()
-    )
+    skills = (await db.execute(select(Skill).where(Skill.status == "active"))).scalars().all()
     from app.services.job_service import JOB_LOAD_OPTIONS
 
     jobs = (
@@ -176,9 +171,9 @@ async def express_onboarding(
     user_id: UUID,
     *,
     targets: list[str],
-    location: Optional[str] = None,
-    remote: Optional[bool] = None,
-    stage: Optional[str] = None,
+    location: str | None = None,
+    remote: bool | None = None,
+    stage: str | None = None,
     min_fit: float = 7.0,
     max_per_day: int = 5,
 ) -> dict:
@@ -238,11 +233,7 @@ async def express_onboarding(
     # jobs (source=express, weight 4) — enough signal for sane sparse fit.
     tag_rows = await db.execute(
         select(JobTag.interest_tag_id, func.count(JobTag.id))
-        .where(
-            JobTag.job_id.in_(
-                select(Job.id).where(Job.family_id.in_(target_family_ids))
-            )
-        )
+        .where(JobTag.job_id.in_(select(Job.id).where(Job.family_id.in_(target_family_ids))))
         .group_by(JobTag.interest_tag_id)
         .order_by(func.count(JobTag.id).desc())
         .limit(4)
@@ -250,11 +241,7 @@ async def express_onboarding(
     express_tag_ids = [row[0] for row in tag_rows.all()]
     existing = {
         row.interest_tag_id: row
-        for row in (
-            await db.execute(
-                select(UserInterest).where(UserInterest.user_id == user_id)
-            )
-        )
+        for row in (await db.execute(select(UserInterest).where(UserInterest.user_id == user_id)))
         .scalars()
         .all()
     }
@@ -272,9 +259,7 @@ async def express_onboarding(
         elif row.source == TagSource.EXPRESS.value:
             row.weight = max(row.weight, 4)
 
-    aspirations = [
-        a for a in (profile.aspirations or []) if a.get("source") != "express"
-    ]
+    aspirations = [a for a in (profile.aspirations or []) if a.get("source") != "express"]
     for label in target_labels[:3]:
         aspirations.append(
             {
@@ -337,9 +322,7 @@ async def completeness_ring(db: AsyncSession, user_id: UUID) -> dict:
     from app.models.user_model import UserSkill
 
     skill_count = (
-        await db.execute(
-            select(_func.count(UserSkill.id)).where(UserSkill.user_id == user_id)
-        )
+        await db.execute(select(_func.count(UserSkill.id)).where(UserSkill.user_id == user_id))
     ).scalar() or 0
     interest_count = (
         await db.execute(
@@ -416,9 +399,7 @@ async def get_nudges(db: AsyncSession, user_id: UUID) -> list[dict]:
     from app.models.user_model import UserSkill
 
     skill_count = (
-        await db.execute(
-            select(_func.count(UserSkill.id)).where(UserSkill.user_id == user_id)
-        )
+        await db.execute(select(_func.count(UserSkill.id)).where(UserSkill.user_id == user_id))
     ).scalar() or 0
 
     candidates = {
@@ -494,8 +475,7 @@ async def target_dashboard(db: AsyncSession, user_id: UUID) -> dict:
             await db.execute(
                 select(NotificationRule).where(
                     NotificationRule.user_id == user_id,
-                    NotificationRule.kind
-                    == NotificationRuleKind.NEW_POSTING_MATCH.value,
+                    NotificationRule.kind == NotificationRuleKind.NEW_POSTING_MATCH.value,
                     NotificationRule.enabled.is_(True),
                 )
             )
@@ -536,16 +516,10 @@ async def target_dashboard(db: AsyncSession, user_id: UUID) -> dict:
     interaction_rows = await db.execute(
         select(PostingInteraction).where(PostingInteraction.user_id == user_id)
     )
-    seen_ids = {
-        i.posting_id for i in interaction_rows.scalars().all() if i.seen_at is not None
-    }
+    seen_ids = {i.posting_id for i in interaction_rows.scalars().all() if i.seen_at is not None}
 
-    salary_mins = [
-        float(p.salary_min) for p in open_postings if p.salary_min is not None
-    ]
-    salary_maxs = [
-        float(p.salary_max) for p in open_postings if p.salary_max is not None
-    ]
+    salary_mins = [float(p.salary_min) for p in open_postings if p.salary_min is not None]
+    salary_maxs = [float(p.salary_max) for p in open_postings if p.salary_max is not None]
     employer_counts: dict[str, int] = {}
     for p in open_postings:
         if p.org:
@@ -569,9 +543,7 @@ async def target_dashboard(db: AsyncSession, user_id: UUID) -> dict:
                                 JobRelation.from_job_id.in_(target_job_ids),
                                 JobRelation.to_job_id.in_(target_job_ids),
                             ),
-                            JobRelation.relation_type.in_(
-                                ["similar_to", "specialises_into"]
-                            ),
+                            JobRelation.relation_type.in_(["similar_to", "specialises_into"]),
                         )
                     )
                 )
@@ -582,16 +554,12 @@ async def target_dashboard(db: AsyncSession, user_id: UUID) -> dict:
 
             for edge in edges[:50]:
                 other_id = (
-                    edge.to_job_id
-                    if edge.from_job_id in target_job_ids
-                    else edge.from_job_id
+                    edge.to_job_id if edge.from_job_id in target_job_ids else edge.from_job_id
                 )
                 job = (
                     (
                         await db.execute(
-                            select(Job)
-                            .options(*JOB_LOAD_OPTIONS)
-                            .where(Job.id == other_id)
+                            select(Job).options(*JOB_LOAD_OPTIONS).where(Job.id == other_id)
                         )
                     )
                     .scalars()

@@ -31,18 +31,10 @@ export CAREER_RATELIMIT_AI=0
 cd "$ROOT"
 
 echo ">>> resolving backend toolchain"
-if [[ -x "$ROOT/backend/venv/bin/alembic" ]]; then
-  ALEMBIC_BIN=("$ROOT/backend/venv/bin/alembic")
-  PY_BIN=("$ROOT/backend/venv/bin/python")
-  PYTEST_BIN=("$ROOT/backend/venv/bin/pytest")
-  UVICORN_BIN=("$ROOT/backend/venv/bin/uvicorn")
-else
-  # CI installs into the global env — no venv checkout to lean on.
-  ALEMBIC_BIN=(python3 -m alembic)
-  PY_BIN=(python3)
-  PYTEST_BIN=(python3 -m pytest)
-  UVICORN_BIN=(python3 -m uvicorn)
-fi
+ALEMBIC_BIN=(uv run alembic)
+PY_BIN=(uv run python)
+PYTEST_BIN=(uv run pytest)
+UVICORN_BIN=(uv run uvicorn)
 
 if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   echo ">>> building SPA"

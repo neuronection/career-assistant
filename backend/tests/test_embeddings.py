@@ -5,14 +5,13 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid
-
 from app.models.embedding_model import AIEmbedding
 from app.services.embedding_service import (
     EmbeddingService,
-    cosine,
     compose_posting_text,
+    cosine,
 )
+from tests.conftest import _make_posting, _uid
 
 
 def test_cosine_math():
@@ -43,15 +42,15 @@ async def test_upsert_dedupes_on_content_hash(
 ):
     service = EmbeddingService(db)
     entity_id = UUID(int=1)
-    row1, did1 = await service.upsert_embedding(
+    _row1, did1 = await service.upsert_embedding(
         "posting", entity_id, "A data engineering role in Athens", vector=[0.1, 0.2]
     )
     assert did1 is True
-    row2, did2 = await service.upsert_embedding(
+    _row2, did2 = await service.upsert_embedding(
         "posting", entity_id, "A data engineering role in Athens", vector=[0.1, 0.2]
     )
     assert did2 is False, "same text skips the gateway entirely"
-    row3, did3 = await service.upsert_embedding(
+    _row3, did3 = await service.upsert_embedding(
         "posting", entity_id, "A different role entirely", vector=[0.3, 0.4]
     )
     assert did3 is True, "changed text re-embeds"
@@ -83,11 +82,9 @@ async def test_compose_posting_text_covers_extract():
     class FakePosting:
         title = "Backend Engineer"
         org = "ACME"
-        raw = {"description": "Build services."}
-        extract = {
-            "skills": [
-                {"raw_label": "sql", "priority": "must_have", "required_level": 6}
-            ],
+        raw = {"description": "Build services."}  # noqa: RUF012 -- test fixture data
+        extract = {  # noqa: RUF012 -- test fixture data
+            "skills": [{"raw_label": "sql", "priority": "must_have", "required_level": 6}],
             "responsibilities": [{"text": "Ship payments", "time_pct": 40}],
         }
 

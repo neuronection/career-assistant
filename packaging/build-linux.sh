@@ -15,7 +15,7 @@ TARGET="${1:-all}"
 VERSION="${2:-}"
 BUNDLE="$ROOT/backend/dist/$APP"
 WORK="$ROOT/packaging/_build"
-VENV_PY="$ROOT/backend/venv/bin/python"
+VENV_PY="$ROOT/.venv/bin/python"
 
 if [[ -z "$VERSION" ]]; then
   VERSION="$(cd "$ROOT/backend" && "$VENV_PY" -c 'import app; print(app.__version__)')"
@@ -30,7 +30,7 @@ fi
 # spec runs (its node driver rides as package data), and the Chromium headless
 # shell lands next to the executable where _bundled_browsers_path() finds it.
 echo "==> Installing the PDF engine into the build venv"
-"$VENV_PY" -m pip install -q -r "$ROOT/backend/requirements-pdf.txt"
+(cd "$ROOT" && uv sync --frozen --extra pdf --extra desktop)
 
 echo "==> PyInstaller onedir (version $VERSION)"
 "$VENV_PY" -m PyInstaller --clean --noconfirm \
@@ -38,7 +38,7 @@ echo "==> PyInstaller onedir (version $VERSION)"
   "$ROOT/packaging/career-assistant.spec"
 
 echo "==> Bundling the Chromium headless shell (PDF page-count truth)"
-PLAYWRIGHT_BROWSERS_PATH="$BUNDLE/ms-playwright" "$ROOT/backend/venv/bin/playwright" \
+PLAYWRIGHT_BROWSERS_PATH="$BUNDLE/ms-playwright" "$ROOT/.venv/bin/playwright" \
   install chromium --only-shell
 
 echo "==> Smoke test: frozen enginecheck (bundled browser must print 1 page)"

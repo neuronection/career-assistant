@@ -17,8 +17,8 @@ Everything that echoes ``session.context`` outward (the model's
 """
 
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +59,7 @@ _SIG_TABLES: dict[str, tuple] = {
 }
 
 
-def context_without_cache(context: Optional[dict]) -> Optional[dict]:
+def context_without_cache(context: dict | None) -> dict | None:
     """Echo ``session.context`` outward without the reserved cache keys."""
     if not context:
         return context
@@ -70,7 +70,7 @@ def context_without_cache(context: Optional[dict]) -> Optional[dict]:
     return stripped
 
 
-def load(session: Optional[ChatSession]) -> dict[str, dict]:
+def load(session: ChatSession | None) -> dict[str, dict]:
     """The cached digest entries (payload + sig + fetched_at) or ``{}``."""
     if session is None or not session.context:
         return {}
@@ -84,7 +84,7 @@ def load(session: Optional[ChatSession]) -> dict[str, dict]:
     }
 
 
-def load_reads(session: Optional[ChatSession]) -> dict[str, dict]:
+def load_reads(session: ChatSession | None) -> dict[str, dict]:
     """Cached full-item read entries keyed ``read:{kind}:{entity_id}``."""
     if session is None or not session.context:
         return {}
@@ -99,7 +99,7 @@ def load_reads(session: Optional[ChatSession]) -> dict[str, dict]:
 
 
 def save(
-    session: Optional[ChatSession],
+    session: ChatSession | None,
     refreshed: dict[str, dict[str, Any]],
 ) -> bool:
     """Persist refreshed digest entries; ``True`` when the row changed.
@@ -116,11 +116,7 @@ def save(
     cached = dict(load(session))
     cached.update(load_reads(session))
     cached.update(refreshed)
-    cached = {
-        k: v
-        for k, v in cached.items()
-        if k in DIGEST_SEQUENCE or k.startswith(READ_PREFIX)
-    }
+    cached = {k: v for k, v in cached.items() if k in DIGEST_SEQUENCE or k.startswith(READ_PREFIX)}
     context = dict(session.context or {})
     context[CACHE_KEY] = cached
     session.context = context
@@ -130,9 +126,7 @@ def save(
 
 async def _table_sig(db: AsyncSession, model, user_id: uuid.UUID):
     rows = await db.execute(
-        select(func.count(model.id), func.max(model.updated_at)).where(
-            model.user_id == user_id
-        )
+        select(func.count(model.id), func.max(model.updated_at)).where(model.user_id == user_id)
     )
     count, latest = rows.one()
     return count, latest.isoformat() if latest is not None else ""
@@ -168,7 +162,7 @@ def fresh_entry(payload: dict, sig: str) -> dict:
     return {
         "payload": payload,
         "sig": sig,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "fetched_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -177,9 +171,7 @@ def read_cache_key(kind: str, entity_id) -> str:
     return f"{READ_PREFIX}{kind}:{entity_id}"
 
 
-async def entity_signature(
-    db: AsyncSession, kind: str, entity_id: uuid.UUID
-) -> Optional[str]:
+async def entity_signature(db: AsyncSession, kind: str, entity_id: uuid.UUID) -> str | None:
     """Freshness signature of ONE entity row: its ``updated_at`` iso.
 
     The read-gate analogue of ``digest_signatures`` — a point lookup
@@ -190,17 +182,15 @@ async def entity_signature(
     spec = KIND_SPECS.get(kind)
     if spec is None or spec.model is None or entity_id is None:
         return None
-    row = await db.execute(
-        select(spec.model.updated_at).where(spec.model.id == entity_id)
-    )
+    row = await db.execute(select(spec.model.updated_at).where(spec.model.id == entity_id))
     updated_at = row.scalars().first()
     return updated_at.isoformat() if updated_at is not None else None
 
 
 async def grounded_read_keys(
     db: AsyncSession,
-    session: Optional[ChatSession],
-    turn_keys: Optional[list[str]] = None,
+    session: ChatSession | None,
+    turn_keys: list[str] | None = None,
 ) -> set[str]:
     """The read-before-edit grounding set for one turn.
 

@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Phase 22: deterministic fit engine — formulas, fairness, weights, staleness."""
 
 from app.services.fit.dimensions import (
@@ -54,12 +55,10 @@ def test_experience_never_zero_for_missing_signal():
     score, _detail, signalled = experience_dimension(None, required, {})
     assert score == 7.0 and signalled is False
     # band but no evidence ⇒ neutral, not zero
-    score, detail, signalled = experience_dimension(band, required, {})
+    score, _detail, signalled = experience_dimension(band, required, {})
     assert score == 7.0 and signalled is False
     # evidence that matches none of the required skills ⇒ neutral
-    score, _detail, signalled = experience_dimension(
-        band, required, {"other-skill": 24.0}
-    )
+    score, _detail, signalled = experience_dimension(band, required, {"other-skill": 24.0})
     assert score == 7.0 and signalled is False
     # partial evidence scales up to full coverage at the band's low end
     partial = experience_dimension(band, required, {"s1": 6.0})
@@ -121,12 +120,8 @@ def test_interests_overlap_plus_workstyle():
     both = interests_dimension(
         job_interest_ids={"a"},
         user_interest_ids={"a"},
-        user_work_style={
-            k: 3 for k in ("teamwork", "environment", "structure", "pace", "leadership")
-        },
-        job_work_style={
-            k: 3 for k in ("teamwork", "environment", "structure", "pace", "leadership")
-        },
+        user_work_style=dict.fromkeys(("teamwork", "environment", "structure", "pace", "leadership"), 3),
+        job_work_style=dict.fromkeys(("teamwork", "environment", "structure", "pace", "leadership"), 3),
     )
     assert both[0] == 10.0
 
@@ -146,10 +141,7 @@ def test_compute_fit_neutral_dimensions_redistribute_weights():
             "skill_levels": {"s1": 8, "s2": 4, "s3": 6},
             "education_level": "high_school",
             "interest_ids": {"i1"},
-            "work_style": {
-                k: 3
-                for k in ("teamwork", "environment", "structure", "pace", "leadership")
-            },
+            "work_style": dict.fromkeys(("teamwork", "environment", "structure", "pace", "leadership"), 3),
         },
         weights={
             "skills": 5,
@@ -188,12 +180,8 @@ def test_fairness_niche_beats_popular_on_fit_alone():
         "education_level": "high_school",
         "interest_ids": set(),
     }
-    niche = make_job(
-        [{"skill_id": "s1", "required_level": 8, "importance": "core"}], "stable"
-    )
-    popular = make_job(
-        [{"skill_id": "s9", "required_level": 9, "importance": "core"}], "hot"
-    )
+    niche = make_job([{"skill_id": "s1", "required_level": 8, "importance": "core"}], "stable")
+    popular = make_job([{"skill_id": "s9", "required_level": 9, "importance": "core"}], "hot")
     weights = {
         "skills": 5,
         "location": 1,

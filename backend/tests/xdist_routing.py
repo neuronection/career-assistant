@@ -29,8 +29,9 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 def _migrate_worker_db() -> None:
     """Bring the worker database to head in-process (idempotent at head)."""
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     config.set_main_option(

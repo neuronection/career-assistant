@@ -9,7 +9,7 @@ covers v2 fields only, so salary/education stay human-owned.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +63,7 @@ class CatalogEnrichService:
             job.ai_metadata = {
                 **(job.ai_metadata or {}),
                 "enrichment_proposal": patch.model_dump(mode="json"),
-                "enrichment_proposed_at": datetime.now(timezone.utc).isoformat(),
+                "enrichment_proposed_at": datetime.now(UTC).isoformat(),
             }
             self.db.add(job)
             proposed += 1
@@ -105,7 +105,7 @@ class CatalogEnrichService:
         job.ai_metadata = {
             **(job.ai_metadata or {}),
             "enrichment_proposal": None,
-            "enrichment_applied_at": datetime.now(timezone.utc).isoformat(),
+            "enrichment_applied_at": datetime.now(UTC).isoformat(),
         }
         self.db.add(job)
         await self.db.commit()
@@ -122,7 +122,7 @@ class CatalogEnrichService:
         job.ai_metadata = {
             **(job.ai_metadata or {}),
             "enrichment_proposal": None,
-            "enrichment_rejected_at": datetime.now(timezone.utc).isoformat(),
+            "enrichment_rejected_at": datetime.now(UTC).isoformat(),
         }
         self.db.add(job)
         await self.db.commit()

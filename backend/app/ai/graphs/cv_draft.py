@@ -18,14 +18,15 @@ interrupts (the request carries all user intent, review happens in the
 builder).
 """
 
+import contextlib
 import copy
-import logging
 import json
+import logging
 import re
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from collections.abc import Mapping
-from typing import Any, Awaitable, Callable, Optional, TypedDict, cast
+from datetime import UTC, datetime
+from typing import Any, TypedDict, cast
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -69,7 +70,7 @@ def _polish_max(state) -> int:
     top keeps keep-or-revert verdicts resolvable within any run."""
     try:
         return max(1, int(_request(state).polish_iterations))
-    except Exception:  # noqa: BLE001 — malformed request state → default
+    except Exception:
         return POLISH_MAX_ITERATIONS
 
 
@@ -140,8 +141,8 @@ class GraphDeps:
     """Per-invocation dependencies (never checkpointed)."""
 
     db: AsyncSession
-    progress: Optional[ProgressCb] = None
-    cancelled: Optional[CancelCb] = None
+    progress: ProgressCb | None = None
+    cancelled: CancelCb | None = None
 
 
 # ------------------------------------------------------------------ helpers
@@ -157,7 +158,7 @@ async def _is_cancelled(deps: GraphDeps) -> bool:
         return False
     try:
         return bool(await deps.cancelled())
-    except Exception:  # noqa: BLE001 — cancel checks never break the flow
+    except Exception:
         return False
 
 
@@ -200,7 +201,7 @@ def _clamp_title(title: str, target: dict) -> str:
     role, else "My CV")."""
     from app.services.rich_text import normalize_rich_text
 
-    clean = normalize_rich_text(title, 120).strip().rstrip(" -—–")
+    clean = normalize_rich_text(title, 120).strip().rstrip(" -")
     if clean:
         return clean[:120]
     posting_title = str(target.get("title") or "").strip()
@@ -221,31 +222,23 @@ def _clamp_plan(
         if kind not in allowed or kind in seen or not items_by_kind.get(kind):
             continue
         seen.add(kind)
-        known = {
-            str(item["item_id"]) for item in items_by_kind[kind] if item.get("item_id")
-        }
+        known = {str(item["item_id"]) for item in items_by_kind[kind] if item.get("item_id")}
         clamped.append(
             {
                 "kind": kind,
                 "source_key": kind,
-                "item_ids": [
-                    item_id for item_id in section.item_ids if item_id in known
-                ][:MAX_PLAN_ITEMS_PER_KIND],
+                "item_ids": [item_id for item_id in section.item_ids if item_id in known][
+                    :MAX_PLAN_ITEMS_PER_KIND
+                ],
                 "rationale": str(section.rationale or "")[:400],
             }
         )
     return {"sections": clamped}
 
 
-def _plan_item_ids(
-    plan: dict, kind: str, items_by_kind: dict[str, list[dict]]
-) -> list[str]:
+def _plan_item_ids(plan: dict, kind: str, items_by_kind: dict[str, list[dict]]) -> list[str]:
     """The plan's item ids for a kind (unplanned = every available item)."""
-    known = [
-        str(item["item_id"])
-        for item in items_by_kind.get(kind) or []
-        if item.get("item_id")
-    ]
+    known = [str(item["item_id"]) for item in items_by_kind.get(kind) or [] if item.get("item_id")]
     for section in plan.get("sections") or []:
         if section.get("kind") == kind:
             ids = [str(item_id) for item_id in section.get("item_ids") or []]
@@ -276,7 +269,7 @@ def _clamp_section_texts(texts: CvDraftTexts, allowed_ids: list[str]) -> list[di
     ]
 
 
-def _section_payload(clamped: list[dict], kind: str) -> Optional[dict]:
+def _section_payload(clamped: list[dict], kind: str) -> dict | None:
     for section in clamped:
         if section.get("kind") == kind:
             return section
@@ -295,7 +288,7 @@ def _planned_item_ids(plan: dict, context: dict) -> set[str]:
 def _clamp_proposals(
     structure: CvDraftStructure,
     state: CvDraftState,
-    plan: Optional[dict] = None,
+    plan: dict | None = None,
 ) -> list[dict]:
     """Clamp the planner's gap-variant proposals (plan 69.2).
 
@@ -332,7 +325,7 @@ def _clamp_proposals(
     return clamped
 
 
-def _section_usable(section: Optional[dict], kind: str) -> bool:
+def _section_usable(section: dict | None, kind: str) -> bool:
     """A section is usable when it carries grounded text to apply.
 
     Items sections accept bullets-only drafts: a rewrite that lands as
@@ -394,9 +387,7 @@ def make_collect_node(deps: GraphDeps):
             posting = (
                 (
                     await deps.db.execute(
-                        select(JobPosting).where(
-                            JobPosting.id == request.target_posting_id
-                        )
+                        select(JobPosting).where(JobPosting.id == request.target_posting_id)
                     )
                 )
                 .scalars()
@@ -408,8 +399,7 @@ def make_collect_node(deps: GraphDeps):
                 target = {"title": posting.title, "org": posting.org or ""}
                 if request.posting_text.strip():
                     warnings.append(
-                        "Pasted posting text ignored — the saved target "
-                        "posting takes precedence"
+                        "Pasted posting text ignored — the saved target posting takes precedence"
                     )
         elif request.posting_text.strip():
             # Pasted job posting: first non-empty line usually is the
@@ -478,12 +468,10 @@ def make_plan_node(deps: GraphDeps):
             await _report(deps, PROGRESS_PLAN, "planned sections")
             return {
                 "plan": clamped,
-                "cv_title": _clamp_title(
-                    str(structure.title or ""), context.get("target") or {}
-                ),
+                "cv_title": _clamp_title(str(structure.title or ""), context.get("target") or {}),
                 "synth_proposals": proposals,
             }
-        except Exception as exc:  # noqa: BLE001 — deterministic plan fallback
+        except Exception as exc:
             logger.warning("cv_draft plan fell back to canonical order: %s", exc)
             await _report(deps, PROGRESS_PLAN, "planned sections")
             return {
@@ -550,9 +538,7 @@ def make_enrich_node(deps: GraphDeps):
         specs = [spec for key in ENRICH_TOOL_KEYS if (spec := tool_spec(key))]
         if not specs:
             return {}
-        listing = "\n".join(
-            f"[{ref_key}] {label} — {url}" for ref_key, url, label in candidates
-        )
+        listing = "\n".join(f"[{ref_key}] {label} — {url}" for ref_key, url, label in candidates)
         prompt = (
             f"CANDIDATE LINKED PAGES (fetch at most {MAX_ENRICH_SOURCES}):\n"
             f"{listing}\n\nFetch the ones that will make this CV's "
@@ -573,7 +559,7 @@ def make_enrich_node(deps: GraphDeps):
                     user_id=user_id,
                     run=_run_ref(state, f"cv_draft.enrich:{round_index}"),
                 )
-            except Exception:  # noqa: BLE001 — enrichment is best-effort
+            except Exception:
                 return {"web_evidence": evidence} if evidence else {}
             calls = message.tool_calls or []
             if not calls:
@@ -587,9 +573,7 @@ def make_enrich_node(deps: GraphDeps):
                 result = await run_tool(deps.db, name, user_id, args)
                 if not isinstance(result, dict) or result.get("available") is False:
                     continue
-                url = str(
-                    result.get("url") or args.get("url") or args.get("repo") or ""
-                )
+                url = str(result.get("url") or args.get("url") or args.get("repo") or "")
                 ref_key = next(
                     (
                         candidate_ref
@@ -602,12 +586,8 @@ def make_enrich_node(deps: GraphDeps):
                     {
                         "source": name,
                         "url": url,
-                        "title": str(
-                            result.get("title") or result.get("full_name") or ""
-                        ),
-                        "text": str(
-                            result.get("text") or result.get("readme_text") or ""
-                        )[:4000],
+                        "title": str(result.get("title") or result.get("full_name") or ""),
+                        "text": str(result.get("text") or result.get("readme_text") or "")[:4000],
                     }
                 )
                 messages = [
@@ -663,9 +643,7 @@ def make_synthesize_node(deps: GraphDeps):
             gen_request = CvSynthItemGenerate(
                 refs=[CvContextRef(source_key=source_key, item_id=item_id)],
                 action=action,
-                posting_id=(
-                    request.target_posting_id if action == "posting_fit" else None
-                ),
+                posting_id=(request.target_posting_id if action == "posting_fit" else None),
                 language=request.language,
                 tone=request.tone,
                 length=SYNTH_LENGTH_MAP.get(request.length),
@@ -676,11 +654,9 @@ def make_synthesize_node(deps: GraphDeps):
                     gen_request,
                     run=_run_ref(state, "cv_synth"),
                 )
-            except Exception as exc:  # noqa: BLE001 — grounding never fails the run
+            except Exception as exc:
                 logger.warning("cv_draft variant grounding skipped: %s", exc)
-                warnings.append(
-                    f"Variant grounding skipped for {source_key}: {str(item_id)[:20]}"
-                )
+                warnings.append(f"Variant grounding skipped for {source_key}: {str(item_id)[:20]}")
                 continue
             if not rows:
                 continue
@@ -765,7 +741,7 @@ def make_draft_node(deps: GraphDeps):
                         linked_sources=linked_sources or None,
                         run=_run_ref(state, "cv_draft.draft"),
                     )
-                except Exception as exc:  # noqa: BLE001 — fallback, never fail
+                except Exception as exc:
                     retry_note = f"{type(exc).__name__}: {exc}"[:300]
                     continue
                 clamped = _clamp_section_texts(result, allowed_ids)
@@ -785,9 +761,7 @@ def make_draft_node(deps: GraphDeps):
             await _report(
                 deps,
                 PROGRESS_DRAFT_START
-                + int(
-                    (PROGRESS_DRAFT_END - PROGRESS_DRAFT_START) * (position + 1) / total
-                ),
+                + int((PROGRESS_DRAFT_END - PROGRESS_DRAFT_START) * (position + 1) / total),
                 f"drafted {kind} ({position + 1}/{total})",
             )
         if fallback:
@@ -861,9 +835,7 @@ async def _resolve_template_for_run(
 
         follow_target = context.get("target") or {}
         posting = (
-            SimpleNamespace(
-                title=follow_target.get("title"), org=follow_target.get("org")
-            )
+            SimpleNamespace(title=follow_target.get("title"), org=follow_target.get("org"))
             if follow_target.get("title")
             else None
         )
@@ -873,7 +845,7 @@ async def _resolve_template_for_run(
             posting=posting,
             notes=request.notes,
         )
-    except Exception:  # noqa: BLE001 — the pick is advice, never the run
+    except Exception:
         return None, "AI template pick unavailable — using the studio default"
     picks = result.get("picks") or []
     if not picks:
@@ -895,7 +867,7 @@ def make_assemble_node(deps: GraphDeps):
         items_by_kind = _items_by_kind(state.get("context") or {})
         overrides: dict[str, dict] = {}
 
-        def section_of(kind: str) -> Optional[dict]:
+        def section_of(kind: str) -> dict | None:
             for section in texts:
                 if section.get("kind") == kind:
                     return section
@@ -935,9 +907,7 @@ def make_assemble_node(deps: GraphDeps):
                     if kind != "certifications" and str(item.get("text") or "").strip():
                         patch["description"] = str(item["text"])
                     bullets = [
-                        str(bullet)
-                        for bullet in item.get("bullets") or []
-                        if str(bullet).strip()
+                        str(bullet) for bullet in item.get("bullets") or [] if str(bullet).strip()
                     ]
                     if bullets:
                         patch["achievements"] = [{"text": bullet} for bullet in bullets]
@@ -945,9 +915,7 @@ def make_assemble_node(deps: GraphDeps):
                         overrides[f"{kind}:{item['item_id']}"] = patch
             elif kind == "skills":
                 chosen = _plan_item_ids(plan, kind, items_by_kind)
-                all_skills = [
-                    str(x.get("item_id")) for x in items_by_kind.get("skills") or []
-                ]
+                all_skills = [str(x.get("item_id")) for x in items_by_kind.get("skills") or []]
                 props: dict = {"title": "Skills", "show_levels": False}
                 if chosen and len(chosen) < len(all_skills):
                     # The plan picked a relevance subset — carry it to the
@@ -958,9 +926,7 @@ def make_assemble_node(deps: GraphDeps):
             elif kind == "languages":
                 generated.append({"kind": "languages", "props": {"title": "Languages"}})
             elif kind == "achievements":
-                generated.append(
-                    {"kind": "achievements", "props": {"title": "Achievements"}}
-                )
+                generated.append({"kind": "achievements", "props": {"title": "Achievements"}})
             elif kind == "interests":
                 generated.append({"kind": "interests", "props": {"title": "Interests"}})
         if not request.include_photo:
@@ -983,19 +949,13 @@ def make_assemble_node(deps: GraphDeps):
                 row = await CvTemplateService(deps.db).get_readable(
                     template_id, UUID(state["user_id"])
                 )
-                template_skeleton = (
-                    TemplateContent.model_validate(row.content).blocks or []
-                )
-            except Exception:  # noqa: BLE001 — a bad template never fails the run
+                template_skeleton = TemplateContent.model_validate(row.content).blocks or []
+            except Exception:
                 template_id = None
         blocks = (
-            _merge_onto_template(template_skeleton, generated)
-            if template_skeleton
-            else generated
+            _merge_onto_template(template_skeleton, generated) if template_skeleton else generated
         )
-        posting_title = str(
-            ((state.get("context") or {}).get("target") or {}).get("title") or ""
-        )
+        posting_title = str(((state.get("context") or {}).get("target") or {}).get("title") or "")
         title = str(state.get("cv_title") or "").strip()
         if not title:
             title = f"CV — {posting_title}"[:200] if posting_title else "My CV"
@@ -1023,9 +983,7 @@ def make_assemble_node(deps: GraphDeps):
         await deps.db.flush()
 
         builder = CvBuilderService(deps.db)
-        version, _html, _metrics = await builder.compile(
-            cv, created_by=CvVersionCreator.AI_APPLY
-        )
+        version, _html, _metrics = await builder.compile(cv, created_by=CvVersionCreator.AI_APPLY)
         lint = await CvExportService(deps.db).lint_report(cv)
         await deps.db.commit()
         await _report(deps, PROGRESS_ASSEMBLE, "assembled the CV")
@@ -1050,7 +1008,7 @@ def make_assemble_node(deps: GraphDeps):
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _trace_stage(polish: dict, node: str, note: str = "") -> None:
@@ -1059,16 +1017,15 @@ def _trace_stage(polish: dict, node: str, note: str = "") -> None:
     stages.append({"node": node, "at": _now_iso(), "note": note})
 
 
-async def _mirror_job_result(
-    deps: GraphDeps, state: CvDraftState, polish: dict
-) -> None:
+async def _mirror_job_result(deps: GraphDeps, state: CvDraftState, polish: dict) -> None:
     """Mirror the trace + cv id into the job's result row mid-run.
 
     The queue writes the authoritative result at completion; mirrored
     copies let the live preview/progress card show the timeline while
     the loop is still working (overwritten harmlessly at finish)."""
-    from app.models.background_job_model import BackgroundJob
     from sqlalchemy.orm.attributes import flag_modified
+
+    from app.models.background_job_model import BackgroundJob
 
     job = (
         (
@@ -1109,7 +1066,7 @@ def _snapshot_items(resolution, snapshot_index: dict) -> dict[str, list]:
     return grouped
 
 
-def _override_ids(working: Optional[dict]) -> set[str]:
+def _override_ids(working: dict | None) -> set[str]:
     """Item ids that carry field overrides (their content landed)."""
     ids: set[str] = set()
     for key in (working or {}).get("overrides") or {}:
@@ -1119,9 +1076,7 @@ def _override_ids(working: Optional[dict]) -> set[str]:
     return ids
 
 
-ITEM_KINDS = frozenset(
-    {"experience", "education", "certifications", "projects", "volunteer"}
-)
+ITEM_KINDS = frozenset({"experience", "education", "certifications", "projects", "volunteer"})
 
 
 def _plan_ids_and_kinds(plan: dict) -> tuple[set[str], dict[str, str]]:
@@ -1136,7 +1091,7 @@ def _plan_ids_and_kinds(plan: dict) -> tuple[set[str], dict[str, str]]:
     return chosen, planned
 
 
-def coverage_matrix_for(state: CvDraftState, working: Optional[dict]) -> dict:
+def coverage_matrix_for(state: CvDraftState, working: dict | None) -> dict:
     """The deterministic content-coverage audit (plan 64 §3).
 
     Included = ids the plan chose / that carry overrides / that a
@@ -1167,27 +1122,21 @@ def coverage_matrix_for(state: CvDraftState, working: Optional[dict]) -> dict:
                 item_id=item_id,
                 label=str(item.get("label") or ""),
                 payload={},
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         )
         refs.append(
-            CvCoverageRef(
-                source_key=kind, item_id=item_id, label=str(item.get("label") or "")
-            )
+            CvCoverageRef(source_key=kind, item_id=item_id, label=str(item.get("label") or ""))
         )
         if item_id in included:
             continue
         if kind not in enabled:
             dropped[item_id] = f"the {kind} section is not enabled"
         elif kind in planned and kind in ITEM_KINDS:
-            dropped[item_id] = (
-                f"the {kind} section plan chose other items ({planned[kind]})"
-            )
+            dropped[item_id] = f"the {kind} section plan chose other items ({planned[kind]})"
         elif kind in planned:
             included.add(item_id)
-    matrix = build_coverage_matrix(
-        grouped_items, included_ids=included, dropped=dropped
-    )
+    matrix = build_coverage_matrix(grouped_items, included_ids=included, dropped=dropped)
     return matrix.model_dump(mode="json")
 
 
@@ -1222,9 +1171,9 @@ def route_after_review(state: CvDraftState) -> str:
     coverage = critique.get("coverage") or {}
     blocking = lint_fails or any(issue.get("level") == "fail" for issue in issues)
     missing = coverage.get("missing") or []
-    pending_judgements = polish.get("variant_pending") or (
-        polish.get("redesign") or {}
-    ).get("pending")
+    pending_judgements = polish.get("variant_pending") or (polish.get("redesign") or {}).get(
+        "pending"
+    )
     suggested_warn = any(
         issue.get("level") == "warn" and issue.get("suggested_ops") for issue in issues
     )
@@ -1250,7 +1199,7 @@ def polish_outcome(status: str, error: str = "") -> dict:
 STRUCTURAL_AREAS = frozenset({"layout", "structure"})
 
 
-def _structural_fail(critique: dict) -> Optional[str]:
+def _structural_fail(critique: dict) -> str | None:
     """The first fail-level structural issue message (or None)."""
     for issue in critique.get("issues") or []:
         if issue.get("level") == "fail" and issue.get("area") in STRUCTURAL_AREAS:
@@ -1258,7 +1207,7 @@ def _structural_fail(critique: dict) -> Optional[str]:
     return None
 
 
-def _style_fail(critique: dict) -> Optional[str]:
+def _style_fail(critique: dict) -> str | None:
     """The first fail-level style issue message (or None).
 
     The reviewer raises `area: "style"` only when the user's notes
@@ -1274,9 +1223,7 @@ def _public_request(request) -> dict:
     """The trace's `request` block (§0.11): the user's prompt, unaltered."""
     return {
         "notes": str(request.notes or ""),
-        "target_posting_id": (
-            str(request.target_posting_id) if request.target_posting_id else ""
-        ),
+        "target_posting_id": (str(request.target_posting_id) if request.target_posting_id else ""),
         "tone": request.tone or "",
         "length": request.length,
         "language": request.language,
@@ -1327,9 +1274,7 @@ def _summary_lint(lint: dict) -> dict:
         "empty_blocks": list(lint.get("metrics", {}).get("empty_blocks") or []),
         "pages_actual": lint.get("metrics", {}).get("pages_actual"),
         "max_pages": lint.get("max_pages"),
-        "pages_actual_over_budget": bool(
-            lint.get("metrics", {}).get("pages_actual_over_budget")
-        ),
+        "pages_actual_over_budget": bool(lint.get("metrics", {}).get("pages_actual_over_budget")),
     }
 
 
@@ -1385,14 +1330,12 @@ def make_review_node(deps: GraphDeps):
         summary_lint = _summary_lint(lint)
         override_summary = {
             key: sorted(fields)
-            for key, fields in (
-                (cv.working_content or {}).get("overrides") or {}
-            ).items()
+            for key, fields in ((cv.working_content or {}).get("overrides") or {}).items()
             if isinstance(fields, dict) and fields
         }
         try:
             measure = await measure_pages(html, page_size=cv.page_size)
-        except Exception:  # noqa: BLE001 — engine missing/flaky → lint-only facts
+        except Exception:
             measure = None
         measured_pages = (measure.pages if measure is not None else 0) or 0
         _review_pages_truth(summary_lint, measured_pages, int(request.max_pages))
@@ -1433,14 +1376,12 @@ def make_review_node(deps: GraphDeps):
         }
         if review_audit:
             iteration_record["audit_ids"].append(review_audit["id"])
-        _trace_stage(
-            polish, "review", iteration_record.get("summary") or "review complete"
-        )
+        _trace_stage(polish, "review", iteration_record.get("summary") or "review complete")
         polish.setdefault("iterations", []).append(iteration_record)
         polish["iteration"] = iteration + 1
-        percentage = PROGRESS_ASSEMBLE + (
-            (iteration + 1) * (100 - PROGRESS_ASSEMBLE - 1)
-        ) // (_polish_max(state) + 1)
+        percentage = PROGRESS_ASSEMBLE + ((iteration + 1) * (100 - PROGRESS_ASSEMBLE - 1)) // (
+            _polish_max(state) + 1
+        )
         await _report(
             deps,
             min(98, percentage),
@@ -1539,24 +1480,19 @@ def make_fix_node(deps: GraphDeps):
                     "op": operation.op,
                     "ok": False,
                     "detail": (
-                        f"rejected: the page budget stays {max_pages_cap} — "
-                        "trim content instead"
+                        f"rejected: the page budget stays {max_pages_cap} — trim content instead"
                     ),
                 }
                 return entry
             result = await apply_operation(db, cv, operation, styled_slot=styled_slot)
             if not result.ok:
-                try:
+                with contextlib.suppress(Exception):
                     await db.refresh(cv)
-                except Exception:  # noqa: BLE001 — a stale row reloads lazily
-                    pass
             entry = {"op": operation.op, "ok": result.ok, "detail": result.detail[:200]}
-        except Exception as exc:  # noqa: BLE001 — a rejected op never blocks
+        except Exception as exc:
             logger.warning("polish op rejected: %s", exc)
-            try:
+            with contextlib.suppress(Exception):
                 await db.refresh(cv)
-            except Exception:  # noqa: BLE001 — a stale row reloads lazily
-                pass
             entry = {
                 "op": str((op_dict or {}).get("op")),
                 "ok": False,
@@ -1564,7 +1500,7 @@ def make_fix_node(deps: GraphDeps):
             }
         return entry
 
-    async def _variant_candidate(critique: dict) -> Optional[dict]:
+    async def _variant_candidate(critique: dict) -> dict | None:
         """The first set_override op a fail issue suggests (the variant slot)."""
         for issue in critique.get("issues") or []:
             if issue.get("level") != "fail":
@@ -1579,7 +1515,7 @@ def make_fix_node(deps: GraphDeps):
                     }
         return None
 
-    async def _resolve_variant(db, state, cv) -> Optional[dict]:
+    async def _resolve_variant(db, state, cv) -> dict | None:
         """Keep-or-revert a variant the last review already judged."""
         pending = (state.get("polish") or {}).get("variant_pending")
         if not pending:
@@ -1630,7 +1566,7 @@ def make_fix_node(deps: GraphDeps):
                     CvSynthItemUpdate(status="active"),
                 )
                 record["activated"] = True
-            except Exception as exc:  # noqa: BLE001 — activation is best-effort
+            except Exception as exc:
                 logger.warning("cv_draft kept variant activation skipped: %s", exc)
         if still_flagged and pending.get("previous_text") is not None:
             await _apply(
@@ -1655,7 +1591,7 @@ def make_fix_node(deps: GraphDeps):
                 )
         return record
 
-    async def _new_variant(db, state, cv) -> Optional[dict]:
+    async def _new_variant(db, state, cv) -> dict | None:
         """Ground a variant through CV_SYNTH and apply it as an override."""
         candidate = await _variant_candidate(dict(state.get("critique") or {}))
         if candidate is None:
@@ -1676,9 +1612,7 @@ def make_fix_node(deps: GraphDeps):
         )
         ref_key = f"{candidate['source_key']}:{candidate['item_id']}"
         base_text = str(
-            ((cv.working_content or {}).get("overrides") or {})
-            .get(ref_key, {})
-            .get("description")
+            ((cv.working_content or {}).get("overrides") or {}).get(ref_key, {}).get("description")
             or ""
         )
         base_texts = (
@@ -1696,10 +1630,7 @@ def make_fix_node(deps: GraphDeps):
             return None
         row = rows[0]
         overrides = (cv.working_content or {}).get("overrides") or {}
-        patch = (
-            overrides.get(f"{candidate['source_key']}:{candidate['item_id']}" or "")
-            or {}
-        )
+        patch = overrides.get(f"{candidate['source_key']}:{candidate['item_id']}") or {}
         previous = patch.get(candidate["field"] or "description")
         payload = dict(row.payload or {})
         text = str(payload.get(candidate["field"] or "description") or "")
@@ -1727,7 +1658,7 @@ def make_fix_node(deps: GraphDeps):
             "op_result": result["detail"],
         }
 
-    async def _resolve_redesign(db, state, cv) -> Optional[dict]:
+    async def _resolve_redesign(db, state, cv) -> dict | None:
         """Keep-or-revert a redesign the last review judged."""
         redesign = (state.get("polish") or {}).get("redesign") or {}
         if not redesign.get("pending"):
@@ -1756,8 +1687,8 @@ def make_fix_node(deps: GraphDeps):
         }
 
     async def _redesign_once(
-        db, state, cv, mode: str, problem: Optional[str] = None
-    ) -> Optional[dict]:
+        db, state, cv, mode: str, problem: str | None = None
+    ) -> dict | None:
         """The escape hatch, two rungs (escalating ladder).
 
         `modified` (first): a copy of the current template patched by the
@@ -1777,14 +1708,11 @@ def make_fix_node(deps: GraphDeps):
 
         request = _request(state)
         message = (
-            problem
-            if problem is not None
-            else _structural_fail(dict(state.get("critique") or {}))
+            problem if problem is not None else _structural_fail(dict(state.get("critique") or {}))
         )
         current, _template_id = await CvBuilderService(db).template_content(cv)
         block_mix = [
-            str(block.get("kind"))
-            for block in (cv.working_content or {}).get("blocks") or []
+            str(block.get("kind")) for block in (cv.working_content or {}).get("blocks") or []
         ]
         previous_template_id = str(cv.template_id) if cv.template_id else ""
         if mode == "modified":
@@ -1828,9 +1756,7 @@ def make_fix_node(deps: GraphDeps):
             description="Polish-loop redesign draft",
             source=CvTemplateSource.AI,
         )
-        result = await _apply(
-            db, cv, {"op": "set_template", "template_id": str(template.id)}
-        )
+        result = await _apply(db, cv, {"op": "set_template", "template_id": str(template.id)})
         current_blocks = (cv.working_content or {}).get("blocks") or []
         merged = _merge_onto_template(template_content.blocks, current_blocks)
         working = dict(cv.working_content or {})
@@ -1868,14 +1794,10 @@ def make_fix_node(deps: GraphDeps):
             if iterations:
                 iterations[-1].setdefault("redesign", []).append(redesign_verdict)
         polish["layout_fails"] = (
-            int(polish.get("layout_fails") or 0) + 1
-            if _structural_fail(critique)
-            else 0
+            int(polish.get("layout_fails") or 0) + 1 if _structural_fail(critique) else 0
         )
         style_fail = _style_fail(critique)
-        polish["style_fails"] = (
-            int(polish.get("style_fails") or 0) + 1 if style_fail else 0
-        )
+        polish["style_fails"] = int(polish.get("style_fails") or 0) + 1 if style_fail else 0
         redesign_pending = bool((polish.get("redesign") or {}).get("pending"))
         stage = str(polish.get("redesign_stage") or "")
         if (
@@ -1905,9 +1827,7 @@ def make_fix_node(deps: GraphDeps):
             mode = "modified" if stage == "" else "fresh"
             polish["redesign_stage"] = "modified" if mode == "modified" else "fresh"
             polish["styled_slot"] = {}
-            polish["redesign"] = await _redesign_once(deps.db, state, cv, mode) or {
-                "drafted": True
-            }
+            polish["redesign"] = await _redesign_once(deps.db, state, cv, mode) or {"drafted": True}
         for issue in critique.get("issues") or []:
             if applied >= MAX_OPS_PER_ITERATION:
                 break
@@ -1950,14 +1870,12 @@ def make_fix_node(deps: GraphDeps):
         else:
             polish["stale_rounds"] = 0
         if no_progress and int(polish.get("stale_rounds") or 0) >= 2:
-            _trace_stage(
-                polish, "fix", "stale — the applier keeps rejecting; capping here"
-            )
+            _trace_stage(polish, "fix", "stale — the applier keeps rejecting; capping here")
         new_warnings: list[str] = []
         if applied < MAX_OPS_PER_ITERATION and not polish.get("variant_pending"):
             try:
                 pending = await _new_variant(deps.db, state, cv)
-            except Exception as exc:  # noqa: BLE001 — grounding never fails the run
+            except Exception as exc:
                 logger.warning("cv_draft polish variant grounding skipped: %s", exc)
                 new_warnings.append(f"Variant grounding skipped: {str(exc)[:120]}")
                 pending = None
@@ -1989,14 +1907,11 @@ async def _star_groundings(db, cv, state, proposals: list[dict]) -> None:
     write their pins into the CV's `synth_pins`."""
     from app.schemas.cv import CvContextSelection
     from app.schemas.cv_synth import CvSynthItemUpdate
-
     from app.services.cv_synth_service import CvSynthService
 
     try:
         selection = (
-            CvContextSelection.model_validate(cv.context)
-            if cv.context
-            else CvContextSelection()
+            CvContextSelection.model_validate(cv.context) if cv.context else CvContextSelection()
         )
         service = CvSynthService(db)
         user_id = UUID(state["user_id"])
@@ -2007,15 +1922,13 @@ async def _star_groundings(db, cv, state, proposals: list[dict]) -> None:
             if not source_key or not item_id or not synth_id:
                 continue
             try:
-                await service.update(
-                    UUID(synth_id), user_id, CvSynthItemUpdate(status="active")
-                )
-            except Exception as exc:  # noqa: BLE001 — star what applied
+                await service.update(UUID(synth_id), user_id, CvSynthItemUpdate(status="active"))
+            except Exception as exc:
                 logger.warning("cv_draft gap variant activation skipped: %s", exc)
             selection.synth_pins[f"{source_key}:{item_id}"] = synth_id
         if selection.synth_pins:
             cv.context = selection.model_dump(mode="json")
-    except Exception as exc:  # noqa: BLE001 — starring never fails the run
+    except Exception as exc:
         logger.warning("cv_draft gap variant starring skipped: %s", exc)
 
 
@@ -2036,19 +1949,14 @@ def make_finalize_node(deps: GraphDeps):
 
         cv = await _load_cv(deps, state)
         builder = CvBuilderService(deps.db)
-        version, _html, _metrics = await builder.compile(
-            cv, created_by=CvVersionCreator.AI_APPLY
-        )
+        version, _html, _metrics = await builder.compile(cv, created_by=CvVersionCreator.AI_APPLY)
         polish = dict(state.get("polish") or {})
         _trace_stage(polish, "finalize", f"final v{version.version}")
         outcome = polish.get("outcome") or {}
         if outcome.get("status") not in ("cancelled",):
             review_lint = state.get("review_lint") or {}
             failed = (
-                any(
-                    str(check.get("level")) == "fail"
-                    for check in review_lint.get("checks") or []
-                )
+                any(str(check.get("level")) == "fail" for check in review_lint.get("checks") or [])
                 or bool(review_lint.get("pages_actual_over_budget"))
             ) or any(
                 issue.get("level") == "fail"
@@ -2085,7 +1993,7 @@ def route_by_abort(state: CvDraftState) -> str:
     return "end" if state.get("abort_reason") else "continue"
 
 
-def build_cv_draft_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
+def build_cv_draft_graph(deps: GraphDeps, checkpointer: Any | None = None):
     """Compile collect → plan → draft → assemble → (polish loop).
 
     The polish loop (plan 64): review → gate → fix → review ⤺ (≤
@@ -2102,16 +2010,12 @@ def build_cv_draft_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
     builder.add_node("finalize", make_finalize_node(deps))
 
     builder.add_edge(START, "collect")
-    builder.add_conditional_edges(
-        "collect", route_by_abort, {"end": END, "continue": "plan"}
-    )
+    builder.add_conditional_edges("collect", route_by_abort, {"end": END, "continue": "plan"})
     builder.add_node("enrich", make_enrich_node(deps))
     builder.add_edge("plan", "enrich")
     builder.add_edge("enrich", "synthesize")
     builder.add_edge("synthesize", "draft")
-    builder.add_conditional_edges(
-        "draft", route_by_abort, {"end": END, "continue": "assemble"}
-    )
+    builder.add_conditional_edges("draft", route_by_abort, {"end": END, "continue": "assemble"})
     builder.add_edge("assemble", "review")
     builder.add_conditional_edges(
         "review",
@@ -2135,7 +2039,7 @@ def initial_state(*, user_id: UUID, run_id: UUID, request: dict) -> CvDraftState
     )
 
 
-def build_cv_polish_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
+def build_cv_polish_graph(deps: GraphDeps, checkpointer: Any | None = None):
     """Re-enter the flow at review for an existing CV (plan 64 §3 / 64.5).
 
     `collect` rebuilds the deterministic context from the CV's stored
@@ -2150,9 +2054,7 @@ def build_cv_polish_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
     builder.add_node("finalize", make_finalize_node(deps))
 
     builder.add_edge(START, "collect")
-    builder.add_conditional_edges(
-        "collect", route_by_abort, {"end": END, "continue": "review"}
-    )
+    builder.add_conditional_edges("collect", route_by_abort, {"end": END, "continue": "review"})
     builder.add_conditional_edges(
         "review",
         route_after_review,

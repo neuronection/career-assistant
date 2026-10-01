@@ -9,9 +9,7 @@ async def test_interest_taxonomy_seeded(client, auth_headers, seeded_catalog):
 
 
 async def test_interest_taxonomy_category_filter(client, auth_headers, seeded_catalog):
-    response = await client.get(
-        "/api/v1/taxonomy/interests?category=science", headers=auth_headers
-    )
+    response = await client.get("/api/v1/taxonomy/interests?category=science", headers=auth_headers)
     tags = response.json()
     assert tags
     assert all(t["category"] == "science" for t in tags)

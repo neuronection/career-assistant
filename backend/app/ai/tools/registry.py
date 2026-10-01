@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from importlib import metadata
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,7 +70,7 @@ def _load_plugins() -> None:
     for ep in eps:
         try:
             tool = ep.load()()
-        except Exception as exc:  # noqa: BLE001 — one bad plugin never breaks boot
+        except Exception as exc:
             logger.warning("Tool plugin %s failed to load: %s", ep.name, exc)
             continue
         if not isinstance(tool, AITool):
@@ -135,18 +135,14 @@ def _coerce_tool_args(input_model: type[BaseModel], args: dict, key: str) -> Any
             if isinstance(value, str) and max_len and len(value) > max_len:
                 cleaned[name] = value[:max_len]
                 clamped = True
-            elif (
-                isinstance(value, list)
-                and name in field_max
-                and len(value) > field_max[name]
-            ):
+            elif isinstance(value, list) and name in field_max and len(value) > field_max[name]:
                 cleaned[name] = value[: field_max[name]]
                 clamped = True
         if not clamped:
-            raise DomainError(f"Invalid input for tool {key}")
+            raise DomainError(f"Invalid input for tool {key}") from None
         try:
             return input_model.model_validate(cleaned)
-        except ValidationError as retry:  # noqa: BLE001 — surface the real shape issue
+        except ValidationError as retry:
             logger.warning("tool args still invalid after clamp: %s (%s)", key, retry)
             raise DomainError(f"Invalid input for tool {key}: {retry}") from retry
 
@@ -181,7 +177,7 @@ async def run_tool(
     db: AsyncSession,
     key: str,
     user_id,
-    args: Optional[dict] = None,
+    args: dict | None = None,
 ) -> Any:
     """Validate args and execute a registry tool (the one executor)."""
     tool = get_tool(key)

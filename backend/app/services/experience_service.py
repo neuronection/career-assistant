@@ -8,8 +8,7 @@ explicitly — conflicts with existing self-report levels route through the
 
 import re
 import uuid
-from datetime import date, datetime, timezone
-from typing import Optional
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -30,8 +29,8 @@ from app.models.user_model import UserSkill
 from app.services.experience_derivation import (
     DerivedSkill,
     default_last_used,
-    derive_skill_months,
     derivation_summary,
+    derive_skill_months,
     years_of_experience,
 )
 
@@ -55,7 +54,7 @@ class ExperienceService:
     # -------------------------------------------------------------- items
 
     async def list_items(
-        self, user_id: UUID, *, status: Optional[str] = None
+        self, user_id: UUID, *, status: str | None = None
     ) -> list[ExperienceItem]:
         query = (
             select(ExperienceItem)
@@ -124,9 +123,7 @@ class ExperienceService:
         await self.db.refresh(item)
         return item
 
-    async def update_item(
-        self, user_id: UUID, item_id: UUID, payload: dict
-    ) -> ExperienceItem:
+    async def update_item(self, user_id: UUID, item_id: UUID, payload: dict) -> ExperienceItem:
         item = await self.get_item(user_id, item_id)
         if "title" in payload:
             item.title = payload["title"]
@@ -144,12 +141,7 @@ class ExperienceService:
         if "end" in payload or "open_ended" in payload:
             end = _parse_date(payload.get("end"))
             open_ended = bool(payload.get("open_ended", item.open_ended))
-            if (
-                end is None
-                and not open_ended
-                and not item.open_ended
-                and "end" in payload
-            ):
+            if end is None and not open_ended and not item.open_ended and "end" in payload:
                 raise ValidationError("end is required unless the item is open-ended")
             item.end = end
             item.open_ended = open_ended
@@ -186,9 +178,7 @@ class ExperienceService:
         for key in keys:
             norm = key.strip().lower()
             existing = (
-                (await self.db.execute(select(Skill).where(Skill.key == norm)))
-                .scalars()
-                .first()
+                (await self.db.execute(select(Skill).where(Skill.key == norm))).scalars().first()
             )
             if existing is None:
                 existing = Skill(
@@ -209,9 +199,7 @@ class ExperienceService:
         existing_rows = (
             (
                 await self.db.execute(
-                    select(ExperienceSkill).where(
-                        ExperienceSkill.experience_id == item.id
-                    )
+                    select(ExperienceSkill).where(ExperienceSkill.experience_id == item.id)
                 )
             )
             .scalars()
@@ -239,7 +227,7 @@ class ExperienceService:
                 raise ValidationError(f"Invalid role_in_item: {role}")
             level_claim = entry.get("level_claim")
             if level_claim is not None and not 1 <= int(level_claim) <= 10:
-                raise ValidationError("level_claim must be 1–10")
+                raise ValidationError("level_claim must be 1-10")
             self.db.add(
                 ExperienceSkill(
                     experience_id=item.id,
@@ -252,9 +240,7 @@ class ExperienceService:
             )
         await self.db.flush()
 
-    async def _replace_achievements(
-        self, item: ExperienceItem, achievements: list[dict]
-    ) -> None:
+    async def _replace_achievements(self, item: ExperienceItem, achievements: list[dict]) -> None:
         existing_rows = (
             (
                 await self.db.execute(
@@ -271,14 +257,13 @@ class ExperienceService:
         await self.db.flush()
         for entry in achievements:
             metric = entry.get("metric")
-            if metric is not None:
-                if metric.get("kind") not in (
-                    "time_saved",
-                    "scale",
-                    "revenue",
-                    "quality",
-                ):
-                    raise ValidationError(f"Unknown metric kind: {metric.get('kind')}")
+            if metric is not None and metric.get("kind") not in (
+                "time_saved",
+                "scale",
+                "revenue",
+                "quality",
+            ):
+                raise ValidationError(f"Unknown metric kind: {metric.get('kind')}")
             self.db.add(
                 ExperienceAchievement(
                     experience_id=item.id,
@@ -288,15 +273,13 @@ class ExperienceService:
             )
         await self.db.flush()
 
-    async def _resolve_org(self, name: str) -> Optional[Organization]:
+    async def _resolve_org(self, name: str) -> Organization | None:
         """Find-or-propose by slug."""
         name = (name or "").strip()
         if not name:
             return None
         key = slugify_org(name)
-        rows = await self.db.execute(
-            select(Organization).where(Organization.key == key)
-        )
+        rows = await self.db.execute(select(Organization).where(Organization.key == key))
         org = rows.scalars().first()
         if org is not None:
             return org
@@ -342,9 +325,7 @@ class ExperienceService:
         """Light summary for the profile snapshot (title/kind/years/skills)."""
         rows = await self.db.execute(
             select(ExperienceItem)
-            .options(
-                selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill)
-            )
+            .options(selectinload(ExperienceItem.skills).selectinload(ExperienceSkill.skill))
             .where(
                 ExperienceItem.user_id == user_id,
                 ExperienceItem.status == "active",
@@ -359,8 +340,7 @@ class ExperienceService:
                 "years": (
                     max(
                         0,
-                        (item.end.year if item.end else date.today().year)
-                        - item.start.year,
+                        (item.end.year if item.end else date.today().year) - item.start.year,
                     )
                     if item.start
                     else 0
@@ -426,9 +406,7 @@ class ExperienceService:
         existing_rows = {
             row.skill_id: row
             for row in (
-                await self.db.execute(
-                    select(UserSkill).where(UserSkill.user_id == user_id)
-                )
+                await self.db.execute(select(UserSkill).where(UserSkill.user_id == user_id))
             )
             .scalars()
             .all()
@@ -439,12 +417,10 @@ class ExperienceService:
         for skill_id, derived_skill in derived.items():
             sid = UUID(skill_id)
             existing = existing_rows.get(sid)
-            if existing is not None and (
-                not existing.derive_enabled or existing.hidden
-            ):
+            if existing is not None and (not existing.derive_enabled or existing.hidden):
                 skipped += 1
                 continue
-            target = int(round(derived_skill.level))
+            target = round(derived_skill.level)
             claim = derived_skill.claimed_level
             await self._write_evidence(user_id, sid, derived_skill, participations)
             if claim is not None and abs(claim - target) > CONFLICT_STEP:
@@ -524,7 +500,7 @@ class ExperienceService:
                     note="derived from experience",
                     level_value=derived_skill.level,
                     confidence=derived_skill.confidence,
-                    claimed_at=datetime.now(timezone.utc),
+                    claimed_at=datetime.now(UTC),
                 )
             )
 
@@ -570,12 +546,8 @@ class ExperienceService:
                         if row.experience_item is not None
                         else None
                     ),
-                    "level_value": float(row.level_value)
-                    if row.level_value is not None
-                    else None,
-                    "confidence": float(row.confidence)
-                    if row.confidence is not None
-                    else None,
+                    "level_value": float(row.level_value) if row.level_value is not None else None,
+                    "confidence": float(row.confidence) if row.confidence is not None else None,
                     "note": row.note,
                     "claimed_at": row.claimed_at,
                 }
@@ -584,7 +556,7 @@ class ExperienceService:
         }
 
 
-def _parse_date(value) -> Optional[date]:
+def _parse_date(value) -> date | None:
     if value in (None, ""):
         return None
     if isinstance(value, date):

@@ -80,9 +80,7 @@ CV_FIELD_MAP: list[tuple[str, str, str, str]] = [
     ("interests[]", "profile.interests", "Listed interests/hobbies.", "items"),
 ]
 
-FIELD_BY_PATH = {
-    path: (target, hint, kind) for path, target, hint, kind in CV_FIELD_MAP
-}
+FIELD_BY_PATH = {path: (target, hint, kind) for path, target, hint, kind in CV_FIELD_MAP}
 
 # Targets that write profile-facing data on apply; others are report-only.
 APPLYABLE_TARGETS = {

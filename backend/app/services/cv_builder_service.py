@@ -45,9 +45,7 @@ FALLBACK_CONTENT: dict = {
 }
 
 
-def _annotate_snapshot_ids(
-    snapshot: dict, snapshot_index: dict[str, list[str]]
-) -> None:
+def _annotate_snapshot_ids(snapshot: dict, snapshot_index: dict[str, list[str]]) -> None:
     """Stamp each snapshot row with its context item id (plan 72.1).
 
     `snapshot_index` maps source key → row ids positionally, so the
@@ -81,9 +79,7 @@ class CvBuilderService:
         honor `props.order`, and the plan-72 `synth` key lists the
         applying variants for this CV's language/posting."""
         selection = (
-            CvContextSelection.model_validate(cv.context)
-            if cv.context
-            else CvContextSelection()
+            CvContextSelection.model_validate(cv.context) if cv.context else CvContextSelection()
         )
         resolved = await resolve(
             self.db, cv.user_id, selection, photo_document_id=cv.photo_document_id
@@ -115,9 +111,7 @@ class CvBuilderService:
         when it cannot apply the profile text does — never another
         variant's text. Stale variants are NOT filtered (overlay
         parity)."""
-        from app.services.cv_synth_service import CvSynthService
-
-        from app.services.cv_synth_service import BULLETS_PIN_SUFFIX
+        from app.services.cv_synth_service import BULLETS_PIN_SUFFIX, CvSynthService
 
         refs = [
             (source_key, item_id)
@@ -170,11 +164,7 @@ class CvBuilderService:
                     "source_key": ref["source_key"],
                     "item_id": ref["item_id"],
                     "label": labels.get(ref["item_id"])
-                    or (
-                        variant.payload.get("title")
-                        if isinstance(variant.payload, dict)
-                        else None
-                    )
+                    or (variant.payload.get("title") if isinstance(variant.payload, dict) else None)
                     or variant.variant_key,
                 }
                 for ref in variant.source_refs
@@ -187,9 +177,7 @@ class CvBuilderService:
                 {
                     "id": str(variant.id),
                     "title": title,
-                    "description": payload.get("description")
-                    or payload.get("summary")
-                    or "",
+                    "description": payload.get("description") or payload.get("summary") or "",
                     "achievements": payload.get("achievements") or [],
                     "source_refs": source_refs,
                 }
@@ -205,9 +193,7 @@ class CvBuilderService:
         ride string sorting.
         """
         if cv.template_id is not None:
-            return await CvTemplateService(self.db).get_readable(
-                cv.template_id, cv.user_id
-            )
+            return await CvTemplateService(self.db).get_readable(cv.template_id, cv.user_id)
         rows = await self.db.execute(
             select(CvTemplate)
             .where(CvTemplate.author_key == "bank")
@@ -219,9 +205,7 @@ class CvBuilderService:
         )
         return rows.scalars().first()
 
-    async def template_content(
-        self, cv: CvDocument
-    ) -> tuple[TemplateContent, str | None]:
+    async def template_content(self, cv: CvDocument) -> tuple[TemplateContent, str | None]:
         """The template package a CV renders with.
 
         Returns the content and the resolved template id (None for the
@@ -232,9 +216,7 @@ class CvBuilderService:
             return TemplateContent.model_validate(template.content), str(template.id)
         return TemplateContent.model_validate(FALLBACK_CONTENT), None
 
-    async def render_state(
-        self, cv: CvDocument
-    ) -> tuple[str, dict, CvResolution, RenderMetrics]:
+    async def render_state(self, cv: CvDocument) -> tuple[str, dict, CvResolution, RenderMetrics]:
         """Render the CV's current state: html, version payload, resolution."""
         resolution = await self.resolution(cv)
         template_content, template_id = await self.template_content(cv)
@@ -279,16 +261,12 @@ class CvBuilderService:
         }
         return result.html, payload, resolution, result.metrics
 
-    async def preview(
-        self, cv: CvDocument
-    ) -> tuple[str, dict, CvResolution, list[dict]]:
+    async def preview(self, cv: CvDocument) -> tuple[str, dict, CvResolution, list[dict]]:
         """Render the current state WITHOUT creating a version."""
         html, payload, resolution, metrics = await self.render_state(cv)
         return html, asdict(metrics), resolution, payload["blocks"]
 
-    async def snapshot_for_cv(
-        self, cv: CvDocument, *, with_overrides: bool = True
-    ) -> dict:
+    async def snapshot_for_cv(self, cv: CvDocument, *, with_overrides: bool = True) -> dict:
         """The CV's resolved snapshot (editor overrides on by default).
 
         Readers other than the builder (template gallery previews,
@@ -327,9 +305,7 @@ class CvBuilderService:
         """Snapshot the current state as the next immutable version."""
         html, payload, resolution, metrics = await self.render_state(cv)
         if not resolution.items and not (cv.working_content or {}).get("overrides"):
-            raise ValidationError(
-                "Nothing to compile: the context selection resolves no items"
-            )
+            raise ValidationError("Nothing to compile: the context selection resolves no items")
         version = await self.cvs.create_version(
             cv.id,
             cv.user_id,
@@ -387,8 +363,7 @@ class CvBuilderService:
         measure = await measure_pages(html, page_size=str(cv.page_size), max_images=1)
         if not measure.images:
             raise PDFEngineUnavailable(
-                "The CV preview could not be rendered — the print engine "
-                "may be missing."
+                "The CV preview could not be rendered — the print engine may be missing."
             )
         _mime, png = thumbnail_image(measure.images[0][1])
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -441,9 +416,7 @@ class CvBuilderService:
         )
         latest = rows.scalars().first()
         resolution = await self.resolution(cv)
-        current = {
-            (ref["source_key"], ref["item_id"]): ref for ref in resolution.item_refs()
-        }
+        current = {(ref["source_key"], ref["item_id"]): ref for ref in resolution.item_refs()}
         if latest is None:
             return {
                 "has_baseline": False,

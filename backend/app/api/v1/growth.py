@@ -135,9 +135,7 @@ async def post_checkin(
 
 
 @router.get("/skills/{skill_id}/resources")
-async def skill_resources(
-    skill_id: UUID, db: AsyncSession = Depends(get_db)
-) -> list[dict]:
+async def skill_resources(skill_id: UUID, db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Published learning resources for a skill (gap panels, radar cards)."""
     rows = (
         (
@@ -176,8 +174,9 @@ async def create_skill_resource(
 ) -> dict:
     """Admin CRUD ( hosts the full moderation queue; AI suggestions
     land as drafts via `source`)."""
-    from app.core.errors import ValidationError
     from urllib.parse import urlparse
+
+    from app.core.errors import ValidationError
 
     if not user.is_admin:
         from fastapi import HTTPException

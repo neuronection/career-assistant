@@ -43,9 +43,7 @@ async def photo_state(
     """Whether the caller has a profile photo (and its document id)."""
     profile = await _profile(db, user.id)
     return {
-        "photo_document_id": (
-            str(profile.photo_document_id) if profile.photo_document_id else None
-        )
+        "photo_document_id": (str(profile.photo_document_id) if profile.photo_document_id else None)
     }
 
 
@@ -58,13 +56,9 @@ async def upload_photo(
     """Set (or replace) the caller's profile photo."""
     content = await file.read()
     if file.content_type not in PHOTO_MIME:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Photo must be PNG, JPEG or WebP"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Photo must be PNG, JPEG or WebP")
     if len(content) > PHOTO_MAX_BYTES:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Photo must be 2 MB or smaller"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Photo must be 2 MB or smaller")
     profile = await _profile(db, user.id)
     from app.services.document_service import DocumentService
 
@@ -134,13 +128,9 @@ async def upload_gallery_photo(
     """Add a photo to the gallery without changing the profile default."""
     content = await file.read()
     if file.content_type not in PHOTO_MIME:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Photo must be PNG, JPEG or WebP"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Photo must be PNG, JPEG or WebP")
     if len(content) > PHOTO_MAX_BYTES:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Photo must be 2 MB or smaller"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Photo must be 2 MB or smaller")
     await _profile(db, user.id)
     from app.services.document_service import DocumentService
 

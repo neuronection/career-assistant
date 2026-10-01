@@ -11,7 +11,6 @@ reaches the inbox at all.
 
 import logging
 from datetime import timedelta
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -51,7 +50,7 @@ def _start_of_day():
     return utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def thread_key(source_ref: Optional[dict]) -> Optional[str]:
+def thread_key(source_ref: dict | None) -> str | None:
     """Stable thread signature for a typed source_ref (inbox threading)."""
     if not source_ref:
         return None
@@ -76,13 +75,13 @@ class NotificationService:
         *,
         title: str,
         body: str = "",
-        payload: Optional[dict] = None,
-        source_ref: Optional[dict] = None,
-        dedup_key: Optional[str] = None,
-        dedup_ttl_days: Optional[int] = None,
-        max_per_day: Optional[int] = None,
-        severity: Optional[str] = None,
-    ) -> Optional[Notification]:
+        payload: dict | None = None,
+        source_ref: dict | None = None,
+        dedup_key: str | None = None,
+        dedup_ttl_days: int | None = None,
+        max_per_day: int | None = None,
+        severity: str | None = None,
+    ) -> Notification | None:
         """Single funnel: event + inbox rows, then per-channel dispatch.
 
         Returns the event, or None when suppressed (dedup, every recipient
@@ -125,9 +124,7 @@ class NotificationService:
             source_ref=source_ref,
             dedup_key=dedup_key,
             dedup_expires_at=(
-                utcnow() + timedelta(days=dedup_ttl_days or DEDUP_TTL_DAYS)
-                if dedup_key
-                else None
+                utcnow() + timedelta(days=dedup_ttl_days or DEDUP_TTL_DAYS) if dedup_key else None
             ),
         )
         self.db.add(notification)
@@ -162,7 +159,7 @@ class NotificationService:
         notification: Notification,
         kind_row: NotificationKind,
         recipients: list[UUID],
-        max_per_day: Optional[int],
+        max_per_day: int | None,
     ) -> None:
         """Per-recipient guardrails, then per-channel transport + log."""
         channels = available_channels()
@@ -196,9 +193,7 @@ class NotificationService:
                         continue
                 await self._deliver(notification, user_id, kind_row.key, channel)
 
-    async def _channel_capped(
-        self, user_id: UUID, kind_id: UUID, channel: str, cap: int
-    ) -> bool:
+    async def _channel_capped(self, user_id: UUID, kind_id: UUID, channel: str, cap: int) -> bool:
         rows = await self.db.execute(
             select(NotificationDelivery.id)
             .join(Notification, Notification.id == NotificationDelivery.notification_id)
@@ -241,7 +236,7 @@ class NotificationService:
                     severity=notification.severity,
                 )
             )
-        except Exception as exc:  # noqa: BLE001 — a broken channel never breaks emit
+        except Exception as exc:
             logger.warning("Channel %s dispatch failed", channel.key, exc_info=True)
             status, error = DeliveryStatus.FAILED.value, str(exc)[:1000]
         delivery.status = status
@@ -254,8 +249,8 @@ class NotificationService:
         user_id: UUID,
         *,
         unread_only: bool = False,
-        kind: Optional[str] = None,
-        status: Optional[str] = None,
+        kind: str | None = None,
+        status: str | None = None,
         limit: int = 50,
     ) -> dict:
         """Inbox rows joined to their events, newest first, + unread count."""
@@ -302,7 +297,7 @@ class NotificationService:
         self,
         user_id: UUID,
         *,
-        group: Optional[str] = None,
+        group: str | None = None,
         limit: int = 100,
     ) -> dict:
         """Items threaded by `source_ref` — one career item, one row.
@@ -353,9 +348,7 @@ class NotificationService:
     async def dismiss(self, user_id: UUID, ids: list[UUID]) -> int:
         return await self._mark(user_id, ids, NotificationStatus.DISMISSED)
 
-    async def _mark(
-        self, user_id: UUID, ids: list[UUID], status: NotificationStatus
-    ) -> int:
+    async def _mark(self, user_id: UUID, ids: list[UUID], status: NotificationStatus) -> int:
         allowed = [NotificationStatus.UNREAD.value]
         if status is NotificationStatus.DISMISSED:
             allowed.append(NotificationStatus.READ.value)
@@ -388,9 +381,7 @@ class NotificationService:
             pref.kind_id: pref
             for pref in (
                 await self.db.execute(
-                    select(NotificationKindPref).where(
-                        NotificationKindPref.user_id == user_id
-                    )
+                    select(NotificationKindPref).where(NotificationKindPref.user_id == user_id)
                 )
             )
             .scalars()
@@ -418,8 +409,7 @@ class NotificationService:
                     "default_channels": list(kind.default_channels or ["in_app"]),
                     "enabled": (
                         kind_prefs[kind.id].enabled
-                        if kind.id in kind_prefs
-                        and kind_prefs[kind.id].enabled is not None
+                        if kind.id in kind_prefs and kind_prefs[kind.id].enabled is not None
                         else kind.default_enabled
                     ),
                     "channels": (
@@ -438,8 +428,8 @@ class NotificationService:
         user_id: UUID,
         kind_key: str,
         *,
-        enabled: Optional[bool] = None,
-        channels: Optional[list[str]] = None,
+        enabled: bool | None = None,
+        channels: list[str] | None = None,
     ) -> dict:
         """Upsert one kind preference; None fields fall back to defaults."""
         kind_row = await self._kind_row(kind_key)
@@ -474,12 +464,8 @@ class NotificationService:
         """Global channel preferences only (desktop toggle + quiet hours)."""
         row = await self._global_pref_row(user_id)
         return {
-            "desktop_channel_enabled": (
-                row.desktop_channel_enabled if row is not None else True
-            ),
-            "quiet_hours": (
-                dict(row.quiet_hours) if row is not None and row.quiet_hours else None
-            ),
+            "desktop_channel_enabled": (row.desktop_channel_enabled if row is not None else True),
+            "quiet_hours": (dict(row.quiet_hours) if row is not None and row.quiet_hours else None),
         }
 
     async def set_global_prefs(
@@ -487,7 +473,7 @@ class NotificationService:
         user_id: UUID,
         *,
         desktop_channel_enabled: bool = True,
-        quiet_hours: Optional[dict] = None,
+        quiet_hours: dict | None = None,
     ) -> dict:
         """Full-replace upsert of the global row (PUT semantics)."""
         from sqlalchemy.orm.attributes import flag_modified
@@ -510,27 +496,21 @@ class NotificationService:
             "quiet_hours": dict(row.quiet_hours) if row.quiet_hours else None,
         }
 
-    async def _global_pref_row(self, user_id: UUID) -> Optional[NotificationPreference]:
+    async def _global_pref_row(self, user_id: UUID) -> NotificationPreference | None:
         rows = await self.db.execute(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id == user_id
-            )
+            select(NotificationPreference).where(NotificationPreference.user_id == user_id)
         )
         return rows.scalars().first()
 
     # ------------------------------------------------------------ lookup
 
-    async def _kind_row(self, key: str) -> Optional[NotificationKind]:
-        rows = await self.db.execute(
-            select(NotificationKind).where(NotificationKind.key == key)
-        )
+    async def _kind_row(self, key: str) -> NotificationKind | None:
+        rows = await self.db.execute(select(NotificationKind).where(NotificationKind.key == key))
         return rows.scalars().first()
 
     async def _pref_rows(self, user_ids: list[UUID]) -> dict[UUID, dict]:
         rows = await self.db.execute(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id.in_(user_ids)
-            )
+            select(NotificationPreference).where(NotificationPreference.user_id.in_(user_ids))
         )
         return {
             row.user_id: {

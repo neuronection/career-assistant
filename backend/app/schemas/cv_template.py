@@ -7,7 +7,7 @@ over global defaults at AI-call time.
 """
 
 import uuid
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -47,7 +47,7 @@ class DesignTokens(BaseModel):
     # byte-stable single pages), "name" repeats "Name — CV" bottom-left,
     # "numbers" prints "P / N" bottom-right (needs a modern engine).
     running_footer: Literal["none", "name", "numbers"] = "none"
-    margin_mm: Optional[int] = Field(default=None, ge=0, le=25)
+    margin_mm: int | None = Field(default=None, ge=0, le=25)
     # Modern-layout tokens: section containers, corners, heading style.
     section_style: Literal["flat", "card"] = "flat"
     corner_radius: int = Field(default=0, ge=0, le=6)
@@ -62,7 +62,7 @@ class DesignTokens(BaseModel):
     # Explicit chip text color; None derives so the accent wash stays
     # theme-coherent (tint/outline/plain use the heading color, solid
     # uses white). Sidebars always keep their own text color.
-    chip_text_color: Optional[str] = Field(default=None, pattern=HEX_COLOR)
+    chip_text_color: str | None = Field(default=None, pattern=HEX_COLOR)
     heading_case: Literal["uppercase", "title", "none"] = "uppercase"
     heading_weight: int = Field(default=600, ge=400, le=800)
     # Two-column layout: a colored sidebar holds its assigned blocks.
@@ -71,8 +71,8 @@ class DesignTokens(BaseModel):
     icon_size_mm: float = Field(default=3.2, ge=2.0, le=6.0)
     photo_shape: Literal["circle", "rounded", "square", "arch"] = "circle"
     photo_size_mm: int = Field(default=22, ge=10, le=40)
-    section_gap_mm: Optional[int] = Field(default=None, ge=0, le=14)
-    item_gap_mm: Optional[int] = Field(default=None, ge=0, le=8)
+    section_gap_mm: int | None = Field(default=None, ge=0, le=14)
+    item_gap_mm: int | None = Field(default=None, ge=0, le=8)
     border_color: str = Field(default="#e5e7eb", pattern=HEX_COLOR)
     layout: Literal["single", "sidebar"] = "single"
     sidebar_side: Literal["left", "right"] = "left"
@@ -83,8 +83,8 @@ class DesignTokens(BaseModel):
     # sidebar column. None = legacy renderer defaults (sidebar 4mm/4.5mm,
     # main unpadded). Sidebar templates typically pair these with
     # margin_mm=0 so the areas own the spacing instead of the page.
-    main_padding_mm: Optional[int] = Field(default=None, ge=0, le=25)
-    sidebar_padding_mm: Optional[int] = Field(default=None, ge=0, le=25)
+    main_padding_mm: int | None = Field(default=None, ge=0, le=25)
+    sidebar_padding_mm: int | None = Field(default=None, ge=0, le=25)
 
 
 class PagesConfig(BaseModel):
@@ -179,4 +179,4 @@ class VisualReviewRequest(BaseModel):
     Without images the deterministic renderer-metrics lint runs alone.
     """
 
-    page_count: Optional[int] = Field(default=None, ge=1, le=10)
+    page_count: int | None = Field(default=None, ge=1, le=10)

@@ -20,7 +20,7 @@ import re
 import shutil
 import sqlite3
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.config import settings
@@ -62,7 +62,7 @@ def create_backup(data_dir: Path) -> Path:
     if not db_path.is_file():
         raise RuntimeError(f"Database file not found: {db_path}")
 
-    created = datetime.now(timezone.utc)
+    created = datetime.now(UTC)
     out = backups_dir(data_dir) / (f"backup-{created.strftime('%Y%m%d-%H%M%S')}.zip")
     keys_file = data_dir / "auth_keys.json"
     secret = data_dir / "secret.key"
@@ -78,9 +78,7 @@ def create_backup(data_dir: Path) -> Path:
         if uploads.is_dir():
             for file_path in uploads.rglob("*"):
                 if file_path.is_file() and "exports" not in file_path.parts:
-                    bundle.write(
-                        file_path, arcname=str(file_path.relative_to(data_dir))
-                    )
+                    bundle.write(file_path, arcname=str(file_path.relative_to(data_dir)))
         if keys_file.is_file():
             bundle.write(keys_file, arcname="auth_keys.json")
             contents.append("auth_keys.json")
@@ -111,11 +109,7 @@ def _backup_timestamp(path: Path) -> datetime:
 
 def list_backups(data_dir: Path) -> list[Path]:
     return sorted(
-        (
-            p
-            for p in backups_dir(data_dir).glob("backup-*.zip")
-            if BACKUP_PATTERN.match(p.name)
-        ),
+        (p for p in backups_dir(data_dir).glob("backup-*.zip") if BACKUP_PATTERN.match(p.name)),
         key=_backup_timestamp,
     )
 
@@ -147,7 +141,7 @@ def backup_if_due(data_dir: Path) -> Path | None:
     if existing:
         newest = _backup_timestamp(existing[-1])
         age_hours = (
-            datetime.now(timezone.utc) - newest.replace(tzinfo=timezone.utc)
+            datetime.now(UTC) - newest.replace(tzinfo=UTC)
         ).total_seconds() / 3600
         if age_hours < 24:
             return None
@@ -155,7 +149,7 @@ def backup_if_due(data_dir: Path) -> Path | None:
         archive = create_backup(data_dir)
         prune_backups(data_dir)
         return archive
-    except Exception:  # noqa: BLE001 — backups must never block startup
+    except Exception:
         logger.exception("Scheduled backup failed")
         return None
 
@@ -183,7 +177,7 @@ def verify_or_repair_database(data_dir: Path) -> str:
         return "ok"
 
     quarantine = db_path.with_name(
-        f"corrupt-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.db"
+        f"corrupt-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.db"
     )
     db_path.replace(quarantine)
     logger.error("Database corrupt; quarantined as %s", quarantine.name)

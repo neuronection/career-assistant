@@ -3,8 +3,8 @@
 Same discipline as the fit engine: no DB, no LLM, every formula documented
 and tested. The unit of evidence is the (item, skill) pair:
 
-    effective months = calendar months × kind weight × role weight
-                       × hours intensity × recency factor
+    effective months = calendar months x kind weight x role weight
+                       x hours intensity x recency factor
 
 Overlap dedup: per skill, a month is counted once at the *max* rate of the
 items covering it — "3 years of Python" is computed, never stored, and
@@ -40,7 +40,7 @@ HOURS_REFERENCE = 40.0
 RECENCY_YEARS = 3.0
 RECENCY_FACTOR = 0.5
 
-# Months of (weighted) evidence → level curve: level = 1 + 9·(1−e^(−m/48)).
+# Months of (weighted) evidence → level curve: level = 1 + 9·(1-e^(-m/48)).
 # Anchors: 12mo ≈ 3.0, 24mo ≈ 4.5, 36mo ≈ 5.8, 48mo ≈ 6.7, 72mo ≈ 8.0.
 LEVEL_TAU = 48.0
 
@@ -57,7 +57,7 @@ class DerivedSkill:
     level: float
     confidence: float
     supporting_items: list[str] = field(default_factory=list)
-    # Mean of the user's explicit 1–10 claims across participations,
+    # Mean of the user's explicit 1-10 claims across participations,
     # rounded; None when no participation carries a claim.
     claimed_level: int | None = None
 
@@ -144,9 +144,7 @@ def years_of_experience(items, today: date | None = None) -> float:
     union of [start, end] spans is the honest total.
     """
     today = today or date.today()
-    spans = sorted(
-        span for span in (item_span(item, today) for item in items or []) if span
-    )
+    spans = sorted(span for span in (item_span(item, today) for item in items or []) if span)
     total = 0
     current_start: int | None = None
     current_end: int | None = None
@@ -165,7 +163,7 @@ def years_of_experience(items, today: date | None = None) -> float:
 
 
 def months_to_level(months: float) -> float:
-    """Weighted months → anchored 1–10 level (monotonic, documented)."""
+    """Weighted months → anchored 1-10 level (monotonic, documented)."""
     if months <= 0:
         return 1.0
     return round(min(10.0, 1.0 + 9.0 * (1.0 - math.exp(-months / LEVEL_TAU))), 1)
@@ -220,9 +218,7 @@ def derive_skill_months(
             confidence=months_to_confidence(months),
             supporting_items=sorted(supporters.get(skill_id, set())),
             claimed_level=(
-                int(round(sum(skill_claims) / len(skill_claims)))
-                if skill_claims
-                else None
+                round(sum(skill_claims) / len(skill_claims)) if skill_claims else None
             ),
         )
     return derived
@@ -261,16 +257,16 @@ def default_last_used(item_end: date | None, open_ended: bool) -> date | None:
 
 
 __all__ = [
-    "DerivedSkill",
     "KIND_WEIGHT",
-    "ROLE_WEIGHT",
     "RECENCY_YEARS",
-    "derive_skill_months",
+    "ROLE_WEIGHT",
+    "DerivedSkill",
+    "default_last_used",
     "derivation_summary",
+    "derive_skill_months",
     "months_per_item",
     "months_to_confidence",
     "months_to_level",
-    "years_of_experience",
     "stale_since",
-    "default_last_used",
+    "years_of_experience",
 ]

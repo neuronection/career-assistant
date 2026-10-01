@@ -9,9 +9,9 @@ from app.ai.agents.university_parser import parse_universities
 __all__ = [
     "analyze_profile",
     "generate_jobs",
-    "suggest_relations",
-    "suggest_paths",
-    "score_match",
     "parse_universities",
     "quick_assist",
+    "score_match",
+    "suggest_paths",
+    "suggest_relations",
 ]

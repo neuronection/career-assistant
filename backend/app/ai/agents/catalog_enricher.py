@@ -1,9 +1,10 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Catalog enricher: proposes the v2 lifestyle vocabulary for
 archetypes that predate it. One audited CATALOG_ENRICH call per job; the
 patch covers ONLY the v2 fields — salary bands and education stay
 human-owned (moderation applies or rejects; nothing auto-merges)."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,22 +16,12 @@ from app.models.enums import AITaskType
 class EnrichmentPatch(BaseModel):
     """v2-only proposal; absent = nothing proposed for that field."""
 
-    contract_type: Optional[
-        Literal[
-            "permanent",
-            "temporary",
-            "contract",
-            "freelance",
-            "b2b",
-            "internship",
-            "apprenticeship",
-        ]
-    ] = None
-    work_hours: Optional[dict] = Field(default=None)
-    schedule_cues: list[
-        Literal["shift_work", "on_call", "nights", "weekends", "flexible"]
-    ] = Field(default_factory=list, max_length=5)
-    travel_required: Optional[dict] = Field(default=None)
+    contract_type: Literal["permanent", "temporary", "contract", "freelance", "b2b", "internship", "apprenticeship"] | None = None
+    work_hours: dict | None = Field(default=None)
+    schedule_cues: list[Literal["shift_work", "on_call", "nights", "weekends", "flexible"]] = Field(
+        default_factory=list, max_length=5
+    )
+    travel_required: dict | None = Field(default=None)
     benefits_kinds: list[
         Literal[
             "healthcare",

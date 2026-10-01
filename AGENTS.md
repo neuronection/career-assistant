@@ -70,7 +70,7 @@ health-assistant. Core rules:
 ./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI (ADR-0023)
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
 ./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
-cd backend && ./venv/bin/pytest tests -q -n auto           # equivalent direct invocation
+cd backend && uv run pytest tests -q -n auto           # equivalent direct invocation
 cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
 cd frontend && npm run build && npm run test -- --run
 ```

@@ -8,6 +8,7 @@ in-process; self-host runs one API worker) — the same trade-off as the
 """
 
 import asyncio
+import contextlib
 import logging
 from uuid import UUID
 
@@ -37,14 +38,10 @@ def publish(user_id: UUID, event: str, data: dict) -> None:
     for queue in list(_subscribers.get(user_id, ())):
         payload = {"event": event, "data": data}
         if queue.full():
-            try:
+            with contextlib.suppress(asyncio.QueueEmpty):
                 queue.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
-        try:
+        with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover — drop-oldest above
             queue.put_nowait(payload)
-        except asyncio.QueueFull:  # pragma: no cover — drop-oldest above
-            pass
 
 
 def subscriber_count(user_id: UUID) -> int:

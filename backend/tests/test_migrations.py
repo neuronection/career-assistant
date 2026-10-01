@@ -3,10 +3,12 @@ back to the previous shape and upgrade again on the suite's test DB."""
 
 import asyncio
 import os
+from datetime import UTC
 
 import pytest
-from alembic import command
 from alembic.config import Config
+
+from alembic import command
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +34,7 @@ async def _ensure_fold_user(session, email: str) -> str:
     map below that revision — migrations under test run on older shapes.
     """
     import uuid as _uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import text
 
@@ -40,7 +42,7 @@ async def _ensure_fold_user(session, email: str) -> str:
     if row is not None:
         return str(row[0])
     user_id = _uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # created_at/updated_at are explicit: the baseline DDL's server
     # default is Postgres-only `now()`, which SQLite cannot evaluate at
     # INSERT time.
@@ -78,9 +80,7 @@ def _table_present(table: str = "cv_synth_items") -> bool:
         try:
             async with engine.connect() as conn:
                 return bool(
-                    await conn.run_sync(
-                        lambda sync_conn: inspect(sync_conn).has_table(table)
-                    )
+                    await conn.run_sync(lambda sync_conn: inspect(sync_conn).has_table(table))
                 )
         finally:
             await engine.dispose()
@@ -99,9 +99,7 @@ def _column_present(table: str, column: str) -> bool:
         try:
             async with engine.connect() as conn:
                 columns = await conn.run_sync(
-                    lambda sync_conn: [
-                        col["name"] for col in inspect(sync_conn).get_columns(table)
-                    ]
+                    lambda sync_conn: [col["name"] for col in inspect(sync_conn).get_columns(table)]
                 )
             return column in columns
         finally:
@@ -170,7 +168,7 @@ def test_0043_profiles_one_to_many_legacy_backfill():
 
     async def seed_legacy() -> list:
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from sqlalchemy import text
         from sqlalchemy.ext.asyncio import create_async_engine
@@ -178,7 +176,7 @@ def test_0043_profiles_one_to_many_legacy_backfill():
         from app.core.config import settings
 
         user_ids = [uuid.uuid4() for _ in range(2)]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         engine = create_async_engine(settings.database_url)
         try:
             async with engine.begin() as conn:
@@ -223,14 +221,14 @@ def test_0043_profiles_one_to_many_legacy_backfill():
 
     async def probe() -> tuple[list[tuple], int]:
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from sqlalchemy import text
         from sqlalchemy.ext.asyncio import create_async_engine
 
         from app.core.config import settings
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         engine = create_async_engine(settings.database_url)
         try:
             async with engine.begin() as conn:
@@ -341,15 +339,11 @@ def _schedules_checks() -> dict[str, str]:
         try:
             async with engine.connect() as conn:
                 checks = await conn.run_sync(
-                    lambda sync_conn: inspect(sync_conn).get_check_constraints(
-                        "schedules"
-                    )
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("schedules")
                 )
             # The metadata naming convention renders prefixed names
             # (ck_schedules_kind_allowed) — normalize to the short name.
-            return {
-                c["name"].replace("ck_schedules_", ""): c["sqltext"] for c in checks
-            }
+            return {c["name"].replace("ck_schedules_", ""): c["sqltext"] for c in checks}
         finally:
             await engine.dispose()
 
@@ -383,14 +377,10 @@ def test_0026_language_code_roundtrip():
     )
 
     command.downgrade(config, "0025")
-    assert not _column_present("certifications", "language_code"), (
-        "downgrade 0025 drops the column"
-    )
+    assert not _column_present("certifications", "language_code"), "downgrade 0025 drops the column"
 
     command.upgrade(config, "head")
-    assert _column_present("certifications", "language_code"), (
-        "re-upgrade restores the column"
-    )
+    assert _column_present("certifications", "language_code"), "re-upgrade restores the column"
 
 
 def test_0031_user_skill_hidden_roundtrip():
@@ -400,9 +390,7 @@ def test_0031_user_skill_hidden_roundtrip():
     assert _column_present("user_skills", "hidden"), "user_skills.hidden exists at head"
 
     command.downgrade(config, "0030")
-    assert not _column_present("user_skills", "hidden"), (
-        "downgrade 0030 drops the column"
-    )
+    assert not _column_present("user_skills", "hidden"), "downgrade 0030 drops the column"
 
     command.upgrade(config, "head")
     assert _column_present("user_skills", "hidden"), "re-upgrade restores the column"
@@ -412,12 +400,8 @@ def test_0029_run_linkage_roundtrip():
     config = _configured()
 
     command.upgrade(config, "head")
-    assert _column_present("ai_generations", "run_id"), (
-        "ai_generations.run_id exists at head"
-    )
-    assert _column_present("ai_generations", "run_stage"), (
-        "ai_generations.run_stage exists at head"
-    )
+    assert _column_present("ai_generations", "run_id"), "ai_generations.run_id exists at head"
+    assert _column_present("ai_generations", "run_stage"), "ai_generations.run_stage exists at head"
 
 
 def test_0030_derive_enabled_roundtrip():
@@ -429,30 +413,20 @@ def test_0030_derive_enabled_roundtrip():
     )
 
     command.downgrade(config, "0029")
-    assert not _column_present("user_skills", "derive_enabled"), (
-        "downgrade 0029 drops the column"
-    )
+    assert not _column_present("user_skills", "derive_enabled"), "downgrade 0029 drops the column"
 
     command.upgrade(config, "head")
-    assert _column_present("user_skills", "derive_enabled"), (
-        "re-upgrade restores the column"
-    )
+    assert _column_present("user_skills", "derive_enabled"), "re-upgrade restores the column"
 
     command.downgrade(config, "0028")
-    assert not _column_present("ai_generations", "run_id"), (
-        "downgrade 0028 drops the run columns"
-    )
+    assert not _column_present("ai_generations", "run_id"), "downgrade 0028 drops the run columns"
     assert not _column_present("ai_generations", "run_stage"), (
         "downgrade 0028 drops the run columns"
     )
 
     command.upgrade(config, "head")
-    assert _column_present("ai_generations", "run_id"), (
-        "re-upgrade restores the run columns"
-    )
-    assert _column_present("ai_generations", "run_stage"), (
-        "re-upgrade restores the run columns"
-    )
+    assert _column_present("ai_generations", "run_id"), "re-upgrade restores the run columns"
+    assert _column_present("ai_generations", "run_stage"), "re-upgrade restores the run columns"
 
 
 def _start_nullable() -> bool:
@@ -522,14 +496,11 @@ def _proposal_kinds_check() -> str:
         try:
             async with engine.connect() as conn:
                 checks = await conn.run_sync(
-                    lambda sync_conn: inspect(sync_conn).get_check_constraints(
-                        "profile_proposals"
-                    )
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("profile_proposals")
                 )
-            return {
-                c["name"].replace("ck_profile_proposals_", ""): c["sqltext"]
-                for c in checks
-            }["kind_allowed"]
+            return {c["name"].replace("ck_profile_proposals_", ""): c["sqltext"] for c in checks}[
+                "kind_allowed"
+            ]
         finally:
             await engine.dispose()
 
@@ -580,14 +551,11 @@ def _proposal_status_checks() -> dict[str, str]:
         try:
             async with engine.connect() as conn:
                 checks = await conn.run_sync(
-                    lambda sync_conn: inspect(sync_conn).get_check_constraints(
-                        "profile_proposals"
-                    )
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("profile_proposals")
                 )
-            return {
-                c["name"].replace("ck_profile_proposals_", ""): c["sqltext"]
-                for c in checks
-            }["status_allowed"]
+            return {c["name"].replace("ck_profile_proposals_", ""): c["sqltext"] for c in checks}[
+                "status_allowed"
+            ]
         finally:
             await engine.dispose()
 
@@ -698,11 +666,7 @@ def test_0041_one_slot_pin_fold():
         try:
             async with maker() as session:
                 cv = (
-                    (
-                        await session.execute(
-                            select(CvDocument).where(CvDocument.id == seeded["cv"])
-                        )
-                    )
+                    (await session.execute(select(CvDocument).where(CvDocument.id == seeded["cv"])))
                     .scalars()
                     .one()
                 )
@@ -718,9 +682,7 @@ def test_0041_one_slot_pin_fold():
                 bullets_row = (
                     (
                         await session.execute(
-                            select(CvSynthItem).where(
-                                CvSynthItem.id == seeded["bullets"]
-                            )
+                            select(CvSynthItem).where(CvSynthItem.id == seeded["bullets"])
                         )
                     )
                     .scalars()
@@ -756,16 +718,10 @@ async def _cleanup_fold_data(seeded: dict) -> None:
     maker = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with maker() as session:
-            await session.execute(
-                delete(CvSynthItem).where(CvSynthItem.id == seeded["text"])
-            )
-            await session.execute(
-                delete(CvSynthItem).where(CvSynthItem.id == seeded["bullets"])
-            )
+            await session.execute(delete(CvSynthItem).where(CvSynthItem.id == seeded["text"]))
+            await session.execute(delete(CvSynthItem).where(CvSynthItem.id == seeded["bullets"]))
             await session.execute(delete(CvDocument).where(CvDocument.title == "Fold"))
-            await session.execute(
-                delete(User).where(User.email == "fold0041@example.com")
-            )
+            await session.execute(delete(User).where(User.email == "fold0041@example.com"))
             await session.commit()
     finally:
         await engine.dispose()
@@ -936,9 +892,7 @@ def test_0041_fold_states_and_cross_cv_guard():
         "both keys on the same row collapse to one"
     )
     assert seeded["ref_gone"] not in pins_a, "a pin to two deleted rows never dangles"
-    assert items[seeded["t_merge"]].payload["achievements"] == [
-        {"text": "from bullets"}
-    ]
+    assert items[seeded["t_merge"]].payload["achievements"] == [{"text": "from bullets"}]
     assert items[seeded["b_only"]].status == "active"
     assert items[seeded["t_same"]].status == "active"
     assert items[seeded["b_merge"]].status == "active", (
@@ -961,15 +915,11 @@ def test_0041_fold_states_and_cross_cv_guard():
                     seeded["b_only"],
                     seeded["t_same"],
                 ):
-                    await session.execute(
-                        delete(CvSynthItem).where(CvSynthItem.id == value)
-                    )
+                    await session.execute(delete(CvSynthItem).where(CvSynthItem.id == value))
                 await session.execute(
                     delete(CvDocument).where(CvDocument.title.in_(["FoldA", "FoldB"]))
                 )
-                await session.execute(
-                    delete(User).where(User.email == "fold0041b@example.com")
-                )
+                await session.execute(delete(User).where(User.email == "fold0041b@example.com"))
                 await session.commit()
         finally:
             await engine.dispose()
@@ -985,7 +935,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
     import base64
     import hashlib
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from cryptography.fernet import Fernet, InvalidToken
     from sqlalchemy.ext.asyncio import create_async_engine
@@ -994,9 +944,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
     from app.core.encryption import decrypt_secret
 
     legacy_secret = "legacy-jwt-secret-0123456789abcdef"
-    legacy = Fernet(
-        base64.urlsafe_b64encode(hashlib.sha256(legacy_secret.encode()).digest())
-    )
+    legacy = Fernet(base64.urlsafe_b64encode(hashlib.sha256(legacy_secret.encode()).digest()))
 
     def sealed(plaintext: str) -> str:
         return "enc::" + legacy.encrypt(plaintext.encode()).decode()
@@ -1045,7 +993,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
         sa.column("updated_at", sa.DateTime(timezone=True)),
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     names = {
         "settings": ["t.p3d.github", "t.p3d.vapid", "t.p3d.bogus"],
         "mcp": ["t-p3d-bridge", "t-p3d-bridge-bogus"],
@@ -1057,7 +1005,7 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
         try:
             async with engine.begin() as conn:
                 for name, key in zip(
-                    names["providers"], (sealed("sk-secret-123"), "sk-plain-legacy")
+                    names["providers"], (sealed("sk-secret-123"), "sk-plain-legacy"), strict=False
                 ):
                     await conn.execute(
                         providers.insert().values(
@@ -1149,18 +1097,18 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
                 async with engine.connect() as conn:
                     provider_rows = (
                         await conn.execute(
-                            sa.select(
-                                providers.c.name, providers.c.api_key_encrypted
-                            ).where(providers.c.name.in_(names["providers"]))
+                            sa.select(providers.c.name, providers.c.api_key_encrypted).where(
+                                providers.c.name.in_(names["providers"])
+                            )
                         )
                     ).fetchall()
                     setting_rows = {
                         row[0]: row[1]
                         for row in (
                             await conn.execute(
-                                sa.select(
-                                    app_settings.c.key, app_settings.c.value
-                                ).where(app_settings.c.key.in_(names["settings"]))
+                                sa.select(app_settings.c.key, app_settings.c.value).where(
+                                    app_settings.c.key.in_(names["settings"])
+                                )
                             )
                         ).fetchall()
                     }
@@ -1168,9 +1116,9 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
                         row[0]: row[1]
                         for row in (
                             await conn.execute(
-                                sa.select(
-                                    mcp_servers.c.name, mcp_servers.c.token
-                                ).where(mcp_servers.c.name.in_(names["mcp"]))
+                                sa.select(mcp_servers.c.name, mcp_servers.c.token).where(
+                                    mcp_servers.c.name.in_(names["mcp"])
+                                )
                             )
                         ).fetchall()
                     }
@@ -1208,14 +1156,10 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
             try:
                 async with engine.begin() as conn:
                     await conn.execute(
-                        delete(providers).where(
-                            providers.c.name.in_(names["providers"])
-                        )
+                        delete(providers).where(providers.c.name.in_(names["providers"]))
                     )
                     await conn.execute(
-                        delete(app_settings).where(
-                            app_settings.c.key.in_(names["settings"])
-                        )
+                        delete(app_settings).where(app_settings.c.key.in_(names["settings"]))
                     )
                     await conn.execute(
                         delete(mcp_servers).where(mcp_servers.c.name.in_(names["mcp"]))

@@ -9,8 +9,7 @@ is never automated — findings are suggestions only.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -33,7 +32,7 @@ STALE_STREAK = 3
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class AutopilotService:
@@ -43,12 +42,10 @@ class AutopilotService:
 
     # -------------------------------------------------------------- goals
 
-    async def create_goal(
-        self, user_id: UUID, data: AutopilotGoalCreate
-    ) -> AutopilotGoal:
+    async def create_goal(self, user_id: UUID, data: AutopilotGoalCreate) -> AutopilotGoal:
         """Create a goal; an optional cadence attaches a schedule."""
-        from app.services.scheduler.runner import SchedulerService
         from app.services.scheduler import triggers as trigger_registry
+        from app.services.scheduler.runner import SchedulerService
 
         if data.cadence is not None:
             trigger_registry.resolve_trigger(data.cadence)
@@ -62,9 +59,7 @@ class AutopilotService:
         self.db.add(goal)
         await self.db.flush()
         if data.cadence is not None:
-            await SchedulerService(self.db).set_autopilot_schedule(
-                user_id, goal.id, data.cadence
-            )
+            await SchedulerService(self.db).set_autopilot_schedule(user_id, goal.id, data.cadence)
         await self.db.commit()
         await self.db.refresh(goal)
         return goal
@@ -87,36 +82,28 @@ class AutopilotService:
         from app.services.scheduler.runner import SchedulerService
 
         goal = await self._require_goal(user_id, goal_id)
-        payload = data.model_dump(
-            exclude_none=True, exclude={"cadence", "remove_cadence"}
-        )
+        payload = data.model_dump(exclude_none=True, exclude={"cadence", "remove_cadence"})
         if "constraints" in payload:
-            constraints = AutopilotConstraints.model_validate(
-                payload.pop("constraints")
-            )
+            constraints = AutopilotConstraints.model_validate(payload.pop("constraints"))
             goal.constraints = constraints.model_dump(mode="json")
         if "budget" in payload:
-            goal.budget = AutopilotBudget.model_validate(
-                payload.pop("budget")
-            ).model_dump(mode="json", exclude_none=True)
+            goal.budget = AutopilotBudget.model_validate(payload.pop("budget")).model_dump(
+                mode="json", exclude_none=True
+            )
         for field, value in payload.items():
             setattr(goal, field, value)
         if data.remove_cadence:
-            await SchedulerService(self.db).set_autopilot_schedule(
-                user_id, goal.id, None
-            )
+            await SchedulerService(self.db).set_autopilot_schedule(user_id, goal.id, None)
         elif data.cadence is not None:
-            await SchedulerService(self.db).set_autopilot_schedule(
-                user_id, goal.id, data.cadence
-            )
+            await SchedulerService(self.db).set_autopilot_schedule(user_id, goal.id, data.cadence)
         await self.db.commit()
         await self.db.refresh(goal)
         return goal
 
     async def delete_goal(self, user_id: UUID, goal_id: UUID) -> None:
         """Delete a goal with its runs/findings and cadence schedule."""
-        from app.models.schedule_model import Schedule
         from app.models.enums import ScheduleKind
+        from app.models.schedule_model import Schedule
 
         goal = await self._require_goal(user_id, goal_id)
         rows = await self.db.execute(
@@ -288,9 +275,7 @@ class AutopilotService:
                 if term not in terms:
                     terms.append(term)
             constraints["must_terms"] = terms[:10]
-            never = [
-                t for t in constraints.get("never_terms") or [] if t not in learned
-            ]
+            never = [t for t in constraints.get("never_terms") or [] if t not in learned]
             constraints["never_terms"] = never
             goal.constraints = constraints
         paused = False
@@ -305,9 +290,7 @@ class AutopilotService:
             "goal_paused": paused,
         }
 
-    async def _learn_terms(
-        self, finding: AutopilotFinding, *, avoid: bool
-    ) -> list[str]:
+    async def _learn_terms(self, finding: AutopilotFinding, *, avoid: bool) -> list[str]:
         """Terms to add to the goal's constraints from one posting.
 
         "hide like this" learns the org + top skill keys (concrete, visible
@@ -456,9 +439,7 @@ class AutopilotService:
             db=self.db,
             progress=progress,
             cancelled=cancelled,
-            cooldown_ids=await self._cooldown_ids(
-                goal.id, cooldown_days, exclude_run=run.id
-            ),
+            cooldown_ids=await self._cooldown_ids(goal.id, cooldown_days, exclude_run=run.id),
         )
         checkpointer = self._checkpointer
         if checkpointer is None:
@@ -494,7 +475,7 @@ class AutopilotService:
             "resumed": resume,
         }
 
-    async def _stale_running_run(self, goal_id: UUID) -> Optional[AutopilotRun]:
+    async def _stale_running_run(self, goal_id: UUID) -> AutopilotRun | None:
         """A `running` row left behind by a dead worker (crash resume)."""
         rows = await self.db.execute(
             select(AutopilotRun)
@@ -507,9 +488,7 @@ class AutopilotService:
         )
         return rows.scalars().first()
 
-    async def _cooldown_ids(
-        self, goal_id: UUID, cooldown_days: int, *, exclude_run
-    ) -> set[str]:
+    async def _cooldown_ids(self, goal_id: UUID, cooldown_days: int, *, exclude_run) -> set[str]:
         """Posting ids this goal already surfaced inside the cooldown
         window — a surfaced posting isn't re-surfaced for N days."""
         if not cooldown_days:
@@ -559,7 +538,7 @@ class AutopilotService:
 
     # ------------------------------------------------------------- output
 
-    async def _last_run_out(self, goal_id: UUID) -> Optional[dict]:
+    async def _last_run_out(self, goal_id: UUID) -> dict | None:
         rows = await self.db.execute(
             select(AutopilotRun)
             .where(AutopilotRun.goal_id == goal_id)

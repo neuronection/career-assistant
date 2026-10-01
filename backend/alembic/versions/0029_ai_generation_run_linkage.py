@@ -4,6 +4,7 @@ audit row indistinguishable from today; the ledger outlives deleted
 CVs/jobs/users and the budget sums are untouched."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0029"
@@ -21,9 +22,7 @@ def upgrade() -> None:
         "ai_generations",
         sa.Column("run_stage", sa.String(length=40), nullable=True),
     )
-    op.create_index(
-        "ix_ai_generations_run_id", "ai_generations", ["run_id"], unique=False
-    )
+    op.create_index("ix_ai_generations_run_id", "ai_generations", ["run_id"], unique=False)
 
 
 def downgrade() -> None:

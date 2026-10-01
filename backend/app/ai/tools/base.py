@@ -1,15 +1,16 @@
 """Tool registry v2 primitives."""
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Awaitable, Callable, Optional, Type
+from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class ToolScope(str, Enum):
+class ToolScope(StrEnum):
     """What a tool may do to user data (MCP exposure is read-scope only)."""
 
     READ = "read"
@@ -20,7 +21,7 @@ class ToolScope(str, Enum):
 class ToolContext:
     """Per-invocation context handed to tool handlers."""
 
-    user_id: Optional[uuid.UUID] = None
+    user_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -40,8 +41,8 @@ class AITool:
     key: str
     title: str
     description: str
-    input_model: Type[BaseModel]
-    handler: Optional[Callable[[AsyncSession, ToolContext, Any], Awaitable[Any]]]
+    input_model: type[BaseModel]
+    handler: Callable[[AsyncSession, ToolContext, Any], Awaitable[Any]] | None
     scope: ToolScope = ToolScope.READ
     audiences: frozenset = field(default_factory=lambda: frozenset({"chat"}))
     cost_hint: str = "cheap"

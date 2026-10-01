@@ -23,8 +23,7 @@ staleness then tracks source drift *after* the user spoke.
 """
 
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,8 +31,8 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.ai.gateway import RunRef
 from app.core.errors import NotFoundError, ValidationError
-from app.models.cv_synth_model import CvSynthItem
 from app.models.cv_model import CvDocument
+from app.models.cv_synth_model import CvSynthItem
 from app.models.enums import CvSynthSource, CvSynthStatus
 from app.schemas.cv_synth import (
     CvSynthItemCreate,
@@ -49,9 +48,7 @@ BULLETS_PIN_SUFFIX = ":bullets"
 TEXT_SCOPES = ("item", "summary")
 
 
-def swap_variant_payload(
-    payload: dict, ref: tuple[str, str], variant: CvSynthItem
-) -> None:
+def swap_variant_payload(payload: dict, ref: tuple[str, str], variant: CvSynthItem) -> None:
     """Swap one variant into an item payload by FIELD PRESENCE
     (plan 110 AD1 — one variant per item, one pin slot): each present
     field of the variant's payload OWNS that layer, `scope` is pure
@@ -85,16 +82,14 @@ def swap_variant_payload(
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _ref_tuple(ref: dict) -> tuple[str, str]:
     return (str(ref.get("source_key") or ""), str(ref.get("item_id") or ""))
 
 
-async def _context_index(
-    db: AsyncSession, user_id: uuid.UUID
-) -> dict[tuple[str, str], dict]:
+async def _context_index(db: AsyncSession, user_id: uuid.UUID) -> dict[tuple[str, str], dict]:
     """`{(source_key, item_id): payload}` over every registered source."""
     resolved = await resolve_sources(db, user_id)
     index: dict[tuple[str, str], dict] = {}
@@ -110,9 +105,7 @@ def _payload_hash(payload: dict) -> str:
     return canonical_hash({k: v for k, v in (payload or {}).items() if k != "photo"})
 
 
-def _source_state_of(
-    refs: list[dict], context: dict[tuple[str, str], dict]
-) -> list[dict]:
+def _source_state_of(refs: list[dict], context: dict[tuple[str, str], dict]) -> list[dict]:
     """Per-ref content hash of the source payload at creation time."""
     state = []
     for ref in refs:
@@ -182,13 +175,9 @@ class CvSynthService:
 
     # ------------------------- library CRUD -------------------------
 
-    async def create_manual(
-        self, user_id: uuid.UUID, payload: CvSynthItemCreate
-    ) -> CvSynthItem:
+    async def create_manual(self, user_id: uuid.UUID, payload: CvSynthItemCreate) -> CvSynthItem:
         """A user-written variant (no AI; goes live immediately)."""
-        refs = [
-            {"source_key": r.source_key, "item_id": r.item_id} for r in payload.refs
-        ]
+        refs = [{"source_key": r.source_key, "item_id": r.item_id} for r in payload.refs]
         _validate_refs(refs)
         if payload.scope == "bullets":
             if not payload.payload.achievements:
@@ -234,9 +223,7 @@ class CvSynthService:
         if posting_id is not None:
             query = query.where(CvSynthItem.target_posting_id == posting_id)
         rows = list(
-            (await self.db.execute(query.order_by(CvSynthItem.created_at.desc())))
-            .scalars()
-            .all()
+            (await self.db.execute(query.order_by(CvSynthItem.created_at.desc()))).scalars().all()
         )
         context = await _context_index(self.db, user_id)
         out = []
@@ -257,7 +244,7 @@ class CvSynthService:
         """Computed read state: staleness + orphaning."""
         stale = False
         orphaned = False
-        for ref, entry in zip(row.source_refs, row.source_state):
+        for ref, entry in zip(row.source_refs, row.source_state, strict=False):
             payload = context.get(_ref_tuple(ref))
             if payload is None:
                 orphaned = True
@@ -312,13 +299,9 @@ class CvSynthService:
     async def _refresh_source_state(self, row: CvSynthItem) -> None:
         """Snapshot the current source payloads into `source_state`."""
         context = await _context_index(self.db, row.user_id)
-        row.source_state = _source_state_of(
-            [dict(ref) for ref in row.source_refs], context
-        )
+        row.source_state = _source_state_of([dict(ref) for ref in row.source_refs], context)
 
-    async def refresh_source_state(
-        self, item_id: uuid.UUID, user_id: uuid.UUID
-    ) -> CvSynthItem:
+    async def refresh_source_state(self, item_id: uuid.UUID, user_id: uuid.UUID) -> CvSynthItem:
         """Mark a stale variant reviewed: re-snapshot source hashes.
 
         Plan 102's "Reset": the user judged the text still right after a
@@ -348,7 +331,7 @@ class CvSynthService:
         user_id: uuid.UUID,
         source_key: str,
         item_id: str,
-        synth_id: Optional[str],
+        synth_id: str | None,
     ) -> CvDocument:
         """Star (or unstar) ONE item's variant on one CV.
 
@@ -369,9 +352,7 @@ class CvSynthService:
                 raise ValidationError(f"malformed variant id: {synth_id!r}") from exc
             row = await self.get_owned(row_id, user_id)
             if row.status == CvSynthStatus.ARCHIVED.value:
-                raise ValidationError(
-                    "archived variants cannot be pinned — restore the row first"
-                )
+                raise ValidationError("archived variants cannot be pinned — restore the row first")
             if row.status == CvSynthStatus.DRAFT.value:
                 row.status = CvSynthStatus.ACTIVE.value
             pins[key] = str(row.id)
@@ -403,9 +384,7 @@ class CvSynthService:
         if action not in ("archive", "unarchive", "delete"):
             raise ValidationError(f"Unknown bulk action: {action!r}")
         rows = await self.db.execute(
-            select(CvSynthItem).where(
-                CvSynthItem.user_id == user_id, CvSynthItem.id.in_(ids)
-            )
+            select(CvSynthItem).where(CvSynthItem.user_id == user_id, CvSynthItem.id.in_(ids))
         )
         found = list(rows.scalars().all())
         known_ids = {row.id for row in found}
@@ -458,9 +437,7 @@ class CvSynthService:
             pins = (cv.context or {}).get("synth_pins")
             if not isinstance(pins, dict) or not pins:
                 continue
-            keep = {
-                key: value for key, value in pins.items() if str(value) not in doomed
-            }
+            keep = {key: value for key, value in pins.items() if str(value) not in doomed}
             if len(keep) != len(pins):
                 (cv.context or {})["synth_pins"] = keep
                 flag_modified(cv, "context")
@@ -469,9 +446,7 @@ class CvSynthService:
         """Stamp `last_used_at` on the applying rows (resolver hook)."""
         if not ids:
             return
-        rows = await self.db.execute(
-            select(CvSynthItem).where(CvSynthItem.id.in_(list(ids)))
-        )
+        rows = await self.db.execute(select(CvSynthItem).where(CvSynthItem.id.in_(list(ids))))
         for row in rows.scalars().all():
             row.last_used_at = _now()
         await self.db.commit()
@@ -494,9 +469,7 @@ class CvSynthService:
         from app.services.cv_service import CvService
 
         owned = await self.db.execute(
-            select(CvDocument).where(
-                CvDocument.user_id == user_id, CvDocument.id == cv_id
-            )
+            select(CvDocument).where(CvDocument.user_id == user_id, CvDocument.id == cv_id)
         )
         cv = owned.scalars().first()
         if cv is None:
@@ -531,8 +504,8 @@ class CvSynthService:
         user_id: uuid.UUID,
         request: CvSynthItemGenerate,
         *,
-        run: Optional[RunRef] = None,
-        base_texts: Optional[dict[tuple[str, str], str]] = None,
+        run: RunRef | None = None,
+        base_texts: dict[tuple[str, str], str] | None = None,
     ) -> list[CvSynthItem]:
         """One CV_SYNTH run → AI draft rows (verified, committed audit).
 
@@ -551,10 +524,7 @@ class CvSynthService:
 
         if request.action == "translate":
             return await self.generate_translation(user_id, request, run=run)
-        refs = [
-            {"source_key": ref.source_key, "item_id": ref.item_id}
-            for ref in request.refs
-        ]
+        refs = [{"source_key": ref.source_key, "item_id": ref.item_id} for ref in request.refs]
         _validate_refs(refs)
         variant_key = request.variant_key or "default"
         context = await _context_index(self.db, user_id)
@@ -566,9 +536,7 @@ class CvSynthService:
             )
         posting_brief = None
         if request.posting_id is not None:
-            posting_brief = await self._posting_brief(
-                user_id, request.posting_id, request.action
-            )
+            posting_brief = await self._posting_brief(user_id, request.posting_id, request.action)
         evidence = [_evidence_entry(context, ref) for ref in refs]
         for index, ref in enumerate(refs):
             base = (base_texts or {}).get(_ref_tuple(ref))
@@ -611,7 +579,7 @@ class CvSynthService:
         user_id: uuid.UUID,
         request: CvSynthItemGenerate,
         *,
-        run: Optional[RunRef] = None,
+        run: RunRef | None = None,
     ) -> list[CvSynthItem]:
         """Translate an existing master variant into the target language.
 
@@ -649,9 +617,7 @@ class CvSynthService:
             instruction=request.instruction,
             run=run,
         )
-        rows = await self._persist_batch(
-            user_id, request, batch, refs, context, language=target
-        )
+        rows = await self._persist_batch(user_id, request, batch, refs, context, language=target)
         return rows
 
     @staticmethod
@@ -660,14 +626,10 @@ class CvSynthService:
         payload = row.payload or {}
         text = payload.get("description") or payload.get("summary") or ""
         if not text and payload.get("achievements"):
-            text = "\n".join(
-                str(entry.get("text") or "") for entry in payload["achievements"]
-            )
+            text = "\n".join(str(entry.get("text") or "") for entry in payload["achievements"])
         return text or ""
 
-    async def regenerate(
-        self, user_id: uuid.UUID, item_id: uuid.UUID
-    ) -> list[CvSynthItem]:
+    async def regenerate(self, user_id: uuid.UUID, item_id: uuid.UUID) -> list[CvSynthItem]:
         """Re-run a stored AI variant's exact params → a fresh draft."""
         row = await self.get_owned(item_id, user_id)
         if row.source != CvSynthSource.AI.value:
@@ -683,9 +645,7 @@ class CvSynthService:
             length=row.voice.get("length"),
             instruction=row.voice.get("instruction"),
             language=row.voice.get("language") or "en",
-            target_language=row.voice.get("language")
-            if action == "translate"
-            else None,
+            target_language=row.voice.get("language") if action == "translate" else None,
             translate_of=uuid.UUID(str(row.voice["translate_of"]))
             if action == "translate" and row.voice.get("translate_of")
             else (row.id if action == "translate" else None),
@@ -695,19 +655,13 @@ class CvSynthService:
         rows = await self.generate(user_id, request)
         return rows
 
-    async def _posting_brief(
-        self, user_id: uuid.UUID, posting_id: uuid.UUID, action: str
-    ) -> dict:
+    async def _posting_brief(self, user_id: uuid.UUID, posting_id: uuid.UUID, action: str) -> dict:
         """The posting digest the prompt sees (tailor pattern)."""
         from app.ai.agents.posting_extractor import PostingExtract
         from app.models.posting_model import JobPosting
 
         posting = (
-            (
-                await self.db.execute(
-                    select(JobPosting).where(JobPosting.id == posting_id)
-                )
-            )
+            (await self.db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
             .scalars()
             .first()
         )
@@ -722,9 +676,7 @@ class CvSynthService:
             return {
                 "title": extract.title_norm or posting.title,
                 "must_have_skills": [
-                    skill.skill_key
-                    for skill in extract.skills
-                    if skill.priority == "must_have"
+                    skill.skill_key for skill in extract.skills if skill.priority == "must_have"
                 ],
                 "text": _posting_text(posting),
             }
@@ -796,14 +748,11 @@ class CvSynthService:
                     "length": request.length,
                     "action": request.action,
                     "instruction": request.instruction,
-                    "translate_of": str(request.translate_of)
-                    if request.translate_of
-                    else None,
+                    "translate_of": str(request.translate_of) if request.translate_of else None,
                 },
                 status=CvSynthStatus.DRAFT.value,
                 source=CvSynthSource.AI.value,
-                verified=bool(evidence_refs)
-                and all(ref in allowlist for ref in final_refs),
+                verified=bool(evidence_refs) and all(ref in allowlist for ref in final_refs),
             )
             self.db.add(row)
             created.append(row)
@@ -822,15 +771,13 @@ class CvSynthService:
 
         Delegates to `match_for_user` with the CV's match context
         (plan 69: generation matches before any CvDocument exists)."""
-        return await self.match_for_user(
-            cv.user_id, cv.language, cv.target_posting_id, refs
-        )
+        return await self.match_for_user(cv.user_id, cv.language, cv.target_posting_id, refs)
 
     async def pin_overlay_snapshot(
         self,
         user_id: uuid.UUID,
         language: str,
-        target_posting_id: Optional[uuid.UUID],
+        target_posting_id: uuid.UUID | None,
         pins: dict,
         snapshot: dict,
         snapshot_index: dict[str, list[str]],
@@ -880,15 +827,13 @@ class CvSynthService:
             elif isinstance(rows, list):
                 for position, existing in enumerate(index):
                     if existing == item_id and position < len(rows):
-                        swap_variant_payload(
-                            rows[position], (source_key, item_id), variant
-                        )
+                        swap_variant_payload(rows[position], (source_key, item_id), variant)
 
     async def match_for_user(
         self,
         user_id: uuid.UUID,
         language: str,
-        target_posting_id: Optional[uuid.UUID],
+        target_posting_id: uuid.UUID | None,
         refs: list[tuple[str, str]] | None = None,
         pins: dict | None = None,
     ) -> dict[tuple[str, str], CvSynthItem]:
@@ -926,25 +871,21 @@ class CvSynthService:
             pinned = str(pins.get(f"{ref[0]}:{ref[1]}", "")) if pins else ""
             if pinned:
                 pinned_row = next((row for row in rows if str(row.id) == pinned), None)
-                if pinned_row is not None:
-                    if (
-                        pinned_row.target_posting_id
-                        in (
-                            None,
-                            target_posting_id,
-                        )
-                        and pinned_row.voice.get("language") == language
-                    ):
-                        applying[ref] = pinned_row
-                        continue
-            candidates = [
-                r for r in by_ref.get(ref, []) if r.voice.get("language") == language
-            ]
+                if pinned_row is not None and (
+                    pinned_row.target_posting_id
+                    in (
+                        None,
+                        target_posting_id,
+                    )
+                    and pinned_row.voice.get("language") == language
+                ):
+                    applying[ref] = pinned_row
+                    continue
+            candidates = [r for r in by_ref.get(ref, []) if r.voice.get("language") == language]
             scoped = [
                 r
                 for r in candidates
-                if r.target_posting_id is not None
-                and r.target_posting_id == target_posting_id
+                if r.target_posting_id is not None and r.target_posting_id == target_posting_id
             ]
             generic = [r for r in candidates if r.target_posting_id is None]
             pool = scoped or generic
@@ -962,9 +903,7 @@ class CvSynthService:
 
     # ------------------------- resolution overlay -------------------------
 
-    async def apply_to_resolution(
-        self, cv, resolution, pins: dict | None = None
-    ) -> dict:
+    async def apply_to_resolution(self, cv, resolution, pins: dict | None = None) -> dict:
         """Per-item overlay for a stored CV; delegates to `apply_to_items`."""
         return await self.apply_to_items(
             cv.user_id,
@@ -978,7 +917,7 @@ class CvSynthService:
         self,
         user_id: uuid.UUID,
         language: str,
-        target_posting_id: Optional[uuid.UUID],
+        target_posting_id: uuid.UUID | None,
         resolution,
         pins: dict | None = None,
     ) -> dict:

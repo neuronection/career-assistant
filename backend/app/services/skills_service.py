@@ -122,9 +122,7 @@ class SkillService:
         )
         return list(rows.scalars().all())
 
-    async def put_user_skills(
-        self, user_id: UUID, items: list[dict]
-    ) -> list[UserSkill]:
+    async def put_user_skills(self, user_id: UUID, items: list[dict]) -> list[UserSkill]:
         """Replace the caller's self_report rows; other sources untouched."""
         resolved: list[tuple[Skill, dict]] = []
         for item in items:
@@ -175,9 +173,7 @@ class SkillService:
             provenance={"via": "chat_proposal"},
         )
         rows = await self.db.execute(
-            select(UserSkill).where(
-                UserSkill.user_id == user_id, UserSkill.skill_id == skill.id
-            )
+            select(UserSkill).where(UserSkill.user_id == user_id, UserSkill.skill_id == skill.id)
         )
         row = rows.scalars().first()
         if row is None:
@@ -197,9 +193,7 @@ class SkillService:
     ) -> UserSkill:
         """Toggle the derivation opt-out flag on one of the user's rows."""
         rows = await self.db.execute(
-            select(UserSkill).where(
-                UserSkill.user_id == user_id, UserSkill.skill_id == skill_id
-            )
+            select(UserSkill).where(UserSkill.user_id == user_id, UserSkill.skill_id == skill_id)
         )
         row = rows.scalars().first()
         if row is None:
@@ -216,9 +210,7 @@ class SkillService:
         """Tombstone one row: hidden from every surface, derivation
         never re-creates it. Re-adding the skill makes a fresh row."""
         rows = await self.db.execute(
-            select(UserSkill).where(
-                UserSkill.user_id == user_id, UserSkill.skill_id == skill_id
-            )
+            select(UserSkill).where(UserSkill.user_id == user_id, UserSkill.skill_id == skill_id)
         )
         row = rows.scalars().first()
         if row is None:
@@ -232,9 +224,7 @@ class SkillService:
         """Required vs current per job skill + a suggested next step."""
         hints = await self._path_hints(job.id)
         mine = {
-            row.skill_id: row.level
-            for row in await self.user_skills(user_id)
-            if row.derive_enabled
+            row.skill_id: row.level for row in await self.user_skills(user_id) if row.derive_enabled
         }
         gaps = []
         for link in sorted(

@@ -9,7 +9,6 @@ Mock fixtures are deterministic so the whole loop runs offline in tests;
 the mock reviewer parses `[PAGE n]` markers the same way the OCR mock does.
 """
 
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -186,8 +185,7 @@ def _normalize_areas(content: TemplateContent) -> TemplateContent:
     `layout: sidebar` with no sidebar block (or the inverse) silently
     loses the designer's intent — align the token with the blocks."""
     has_sidebar = any(
-        str(block.get("area") or block.get("column") or "") == "sidebar"
-        for block in content.blocks
+        str(block.get("area") or block.get("column") or "") == "sidebar" for block in content.blocks
     )
     layout = "sidebar" if has_sidebar else "single"
     if content.design.layout != layout:
@@ -205,9 +203,9 @@ async def draft_template(
     target_role: str = "",
     density: str = "normal",
     page_budget: int = 1,
-    base_content: Optional[TemplateContent] = None,
+    base_content: TemplateContent | None = None,
     critique_message: str = "",
-    run: Optional[RunRef] = None,
+    run: RunRef | None = None,
 ) -> TemplateContent:
     """Brief → validated template draft (author reviews before publish).
 

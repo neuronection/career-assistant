@@ -1,10 +1,11 @@
 """— CV exports + deterministic ATS lint."""
 
 import json
+from io import BytesIO
 
 import pytest
 from docx import Document as open_docx
-from io import BytesIO
+
 from tests.conftest import session_headers
 
 
@@ -12,15 +13,11 @@ def test_custom_text_docx_runs_bullets_and_ats_stripping():
     from app.services.cv_export_service import to_ats_text, to_docx
 
     text = (
-        "Curious **engineer** from Athens.\n"
-        "- *Ships* fast\n"
-        "- Loves [Python](https://python.org)\n"
+        "Curious **engineer** from Athens.\n- *Ships* fast\n- Loves [Python](https://python.org)\n"
     )
     payload = {
         "snapshot": {},
-        "blocks": [
-            {"kind": "custom_text", "props": {"title": "About me", "text": text}}
-        ],
+        "blocks": [{"kind": "custom_text", "props": {"title": "About me", "text": text}}],
     }
 
     docx_bytes = to_docx(payload, "CV")
@@ -50,9 +47,7 @@ def test_language_line_cefr_upgrades_to_certificate_band():
 
     lang = {"label": "English", "code": "en", "level": "advanced", "cefr": "C1"}
     ecpe = {
-        "title": (
-            "Examination for the Certificate of Proficiency in English (ECPE) - C2"
-        ),
+        "title": ("Examination for the Certificate of Proficiency in English (ECPE) - C2"),
         "org": "University of Michigan",
         "start": "May 2025",
         "end": "",
@@ -60,12 +55,8 @@ def test_language_line_cefr_upgrades_to_certificate_band():
     snapshot = {"certifications": [ecpe]}
 
     assert _language_line(lang, {}, snapshot) == "English — advanced"
-    assert _language_line(lang, {"show_cefr": True}, snapshot) == (
-        "English — advanced (C2)"
-    )
-    assert _language_line(
-        lang, {"show_cefr": True, "show_proficiency": True}, snapshot
-    ) == (
+    assert _language_line(lang, {"show_cefr": True}, snapshot) == ("English — advanced (C2)")
+    assert _language_line(lang, {"show_cefr": True, "show_proficiency": True}, snapshot) == (
         "English — advanced (C2) · Examination for the Certificate of "
         "Proficiency in English (ECPE) - C2, May 2025"
     )
@@ -123,16 +114,12 @@ async def _make_built_cv(client, headers) -> dict:
     )
     assert response.status_code == 200, response.text
     await _experience(client, headers)
-    created = await client.post(
-        "/api/v1/cv", json={"title": "Backend Intern CV"}, headers=headers
-    )
+    created = await client.post("/api/v1/cv", json={"title": "Backend Intern CV"}, headers=headers)
     assert created.status_code == 201, created.text
     return created.json()
 
 
-async def test_export_markdown_auto_versions(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_export_markdown_auto_versions(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_built_cv(client, auth_headers)
     response = await client.post(
         f"/api/v1/cv/{cv['id']}/export", json={"format": "md"}, headers=auth_headers
@@ -170,9 +157,7 @@ async def test_export_all_formats(client, auth_headers, profile_ready, seeded_ca
         f"/api/v1/cv/{cv['id']}/export", json={"format": "docx"}, headers=auth_headers
     )
     document = open_docx(BytesIO(docx_response.content))
-    headings = [
-        p.text for p in document.paragraphs if p.style.name.startswith("Heading")
-    ]
+    headings = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
     assert any("Experience" in heading for heading in headings)
     assert any("DevOps intern" in heading for heading in headings)
 
@@ -194,9 +179,7 @@ async def test_export_all_formats(client, auth_headers, profile_ready, seeded_ca
     assert pdf_response.content.startswith(b"%PDF")
 
 
-async def test_export_unknown_format_rejected(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_export_unknown_format_rejected(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_built_cv(client, auth_headers)
     response = await client.post(
         f"/api/v1/cv/{cv['id']}/export", json={"format": "rtf"}, headers=auth_headers
@@ -204,9 +187,7 @@ async def test_export_unknown_format_rejected(
     assert response.status_code == 422
 
 
-async def test_lint_flags_missing_contact_and_passes_filled(
-    client, auth_headers, seeded_catalog
-):
+async def test_lint_flags_missing_contact_and_passes_filled(client, auth_headers, seeded_catalog):
     anonymous = await client.post(
         "/api/v1/auth/register",
         json={
@@ -233,29 +214,21 @@ async def test_lint_flags_missing_contact_and_passes_filled(
         headers=bare_headers,
     )
     assert response.status_code == 200, response.text
-    bare = await client.post(
-        "/api/v1/cv", json={"title": "Bare CV"}, headers=bare_headers
-    )
-    report = (
-        await client.get(f"/api/v1/cv/{bare.json()['id']}/lint", headers=bare_headers)
-    ).json()
+    bare = await client.post("/api/v1/cv", json={"title": "Bare CV"}, headers=bare_headers)
+    report = (await client.get(f"/api/v1/cv/{bare.json()['id']}/lint", headers=bare_headers)).json()
     assert report["passed"] is False and report["score"] < 90
     ids = {check["id"] for check in report["checks"]}
     assert "contact_name" in ids and "contact_phone" in ids
 
     built = await _make_built_cv(client, auth_headers)
-    report = (
-        await client.get(f"/api/v1/cv/{built['id']}/lint", headers=auth_headers)
-    ).json()
+    report = (await client.get(f"/api/v1/cv/{built['id']}/lint", headers=auth_headers)).json()
     assert report["passed"] is True, report["checks"]
     assert report["score"] >= 90
     order = next(check for check in report["checks"] if check["id"] == "section_order")
     assert order["level"] == "pass"
 
 
-async def test_lint_flags_non_standard_heading(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_lint_flags_non_standard_heading(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_built_cv(client, auth_headers)
     await client.patch(
         f"/api/v1/cv/{cv['id']}",
@@ -277,12 +250,8 @@ async def test_lint_flags_non_standard_heading(
         },
         headers=auth_headers,
     )
-    report = (
-        await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
-    ).json()
-    heading_checks = [
-        check for check in report["checks"] if check["id"] == "standard_headings"
-    ]
+    report = (await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)).json()
+    heading_checks = [check for check in report["checks"] if check["id"] == "standard_headings"]
     assert heading_checks and "my journey" in heading_checks[0]["message"]
 
 

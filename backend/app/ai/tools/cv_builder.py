@@ -7,7 +7,8 @@ registry objects so the registry lists them and the MCP layer
 every handler resolves the owned CV from the ToolContext user.
 """
 
-from typing import Literal, Optional
+import contextlib
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -81,16 +82,16 @@ class SetContextInput(CvRefInput):
 
 
 class SetDocOptionsInput(CvRefInput):
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    page_size: Optional[str] = None
-    max_pages: Optional[int] = Field(default=None, ge=1, le=10)
-    language: Optional[str] = Field(default=None, min_length=2, max_length=10)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    page_size: str | None = None
+    max_pages: int | None = Field(default=None, ge=1, le=10)
+    language: str | None = Field(default=None, min_length=2, max_length=10)
 
 
 class AddBlockInput(CvRefInput):
     kind: str = Field(min_length=1, max_length=40)
     props: dict = Field(default_factory=dict, max_length=30)
-    position: Optional[int] = Field(default=None, ge=0, le=24)
+    position: int | None = Field(default=None, ge=0, le=24)
 
 
 class BlockIndexInput(CvRefInput):
@@ -158,10 +159,8 @@ def _op_wrapper(op_model):
             raise DomainError(result.detail)
         out = result.model_dump(mode="json")
         if op.op in _STYLING_OPS:
-            try:
+            with contextlib.suppress(Exception):
                 out["after"] = await styled_after(db, cv)
-            except Exception:  # noqa: BLE001 — verify never breaks the op
-                pass
         return out
 
     return _handler

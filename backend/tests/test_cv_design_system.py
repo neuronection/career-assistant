@@ -5,8 +5,8 @@ import re
 import pytest
 from pydantic import ValidationError
 
-from app.services.cv_renderer import format_period, render_cv
 from app.schemas.cv_template import TemplateContent
+from app.services.cv_renderer import format_period, render_cv
 
 
 def _content(**design) -> TemplateContent:
@@ -40,7 +40,7 @@ async def test_themes_endpoint_lists_predefined_sets(client, auth_headers):
 
 
 def test_date_formats():
-    assert format_period("2024-06", "2025-01", "mon_yyyy") == "Jun 2024 – Jan 2025"
+    assert format_period("2024-06", "2025-01", "mon_yyyy") == "Jun 2024 - Jan 2025"
     assert format_period("2024-06", None, "iso") == "2024-06"
     assert format_period("2024-06", None, "eu") == "06/2024"
     assert format_period("2024-06", None, "year") == "2024"
@@ -159,7 +159,7 @@ def test_items_render_org_on_own_line_with_period_on_head_row():
     html = render_cv(_content(), SAMPLE_SNAPSHOT).html
     head = html.split("<div class='item-head'>", 1)[1].split("</div>", 1)[0]
     assert "<span class='item-title'>Software Intern</span>" in head
-    assert "<span class='item-period'>2024-06 – 2024-09</span>" in head
+    assert "<span class='item-period'>2024-06 - 2024-09</span>" in head
     assert "<div class='item-org'>Sample Corp</div>" in html
     assert "float: right" not in html, "dates pin via flex, never float"
 
@@ -168,9 +168,7 @@ def test_empty_item_title_promotes_org_to_the_head_line():
     content = _content()
     snapshot = {
         "basics": {"name": "Jane Doe"},
-        "experience": [
-            {"title": "", "org": "Sample Corp", "start": "2024-06", "end": ""}
-        ],
+        "experience": [{"title": "", "org": "Sample Corp", "start": "2024-06", "end": ""}],
     }
     html = render_cv(content, snapshot).html
     head = html.split("<div class='item-head'>", 1)[1].split("</div>", 1)[0]
@@ -192,9 +190,7 @@ def test_item_descriptions_print_single_hard_breaks():
         ],
     }
     html = render_cv(_content(), snapshot).html
-    assert (
-        "<p class='item-detail'>line one<br>line two <strong>bold</strong></p>" in html
-    )
+    assert "<p class='item-detail'>line one<br>line two <strong>bold</strong></p>" in html
 
 
 def test_date_position_prop_switches_item_layout():
@@ -211,9 +207,7 @@ def test_date_position_prop_switches_item_layout():
         }
         if date_position is not None:
             props["date_position"] = date_position
-        return TemplateContent.model_validate(
-            {"blocks": [{"kind": "items", "props": props}]}
-        )
+        return TemplateContent.model_validate({"blocks": [{"kind": "items", "props": props}]})
 
     snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
 
@@ -541,9 +535,9 @@ def test_overflow_css_keeps_semantic_units_on_one_page_unused():
 
 
 def test_estimation_counts_descriptions_and_narrows_sidebar_columns():
-    from app.services.cv_renderer import _block_lines
-    from app.services.cv_blocks import ItemsBlockProps
     from app.schemas.cv_template import DesignTokens
+    from app.services.cv_blocks import ItemsBlockProps
+    from app.services.cv_renderer import _block_lines
 
     props = ItemsBlockProps.model_validate(
         {"source_key": "experience", "show_skills": False, "show_achievements": False}
@@ -562,20 +556,14 @@ def test_estimation_counts_descriptions_and_narrows_sidebar_columns():
     assert flat > 10  # an 800-word description is no longer free
 
     # A sidebar-width column wraps ~3x sooner than the main column.
-    narrow = _block_lines(
-        "items", props, {"experience": long_item}, design, width_share=0.34
-    )
+    narrow = _block_lines("items", props, {"experience": long_item}, design, width_share=0.34)
     assert narrow > flat
 
     # Short snippet sanity: head + spacing stays a modest line count.
     short = _block_lines(
         "items",
         props,
-        {
-            "experience": [
-                {"title": "Engineer", "org": "Acme", "start": "2024-01", "end": ""}
-            ]
-        },
+        {"experience": [{"title": "Engineer", "org": "Acme", "start": "2024-01", "end": ""}]},
         design,
     )
     assert short <= 4
@@ -672,9 +660,7 @@ def test_chip_style_variants_change_the_chip_rule():
     from app.schemas.cv_template import DesignTokens
     from app.services.cv_renderer import _chip_rules
 
-    solid, sidebar = _chip_rules(
-        DesignTokens.model_validate({"chip_style": "solid"}), 10
-    )
+    solid, sidebar = _chip_rules(DesignTokens.model_validate({"chip_style": "solid"}), 10)
     assert "background: var(--accent); color: #ffffff" in solid
     assert sidebar == ""
     outline, sidebar = _chip_rules(
@@ -682,9 +668,7 @@ def test_chip_style_variants_change_the_chip_rule():
     )
     assert "border: 0.3mm solid color-mix(in srgb, var(--accent) 50%" in outline
     assert "border-color: color-mix(in srgb, currentColor 45%" in sidebar
-    plain, sidebar = _chip_rules(
-        DesignTokens.model_validate({"chip_style": "plain"}), 10
-    )
+    plain, sidebar = _chip_rules(DesignTokens.model_validate({"chip_style": "plain"}), 10)
     assert "background: transparent" in plain
     assert sidebar == ".cv-sidebar .chip { color: inherit; }"
 
@@ -697,14 +681,10 @@ def test_chip_text_color_derives_by_default_and_overrides():
     assert "color: var(--heading);" in derived
     solid, _ = _chip_rules(DesignTokens.model_validate({"chip_style": "solid"}), 10)
     assert "color: #ffffff" in solid
-    custom, _ = _chip_rules(
-        DesignTokens.model_validate({"chip_text_color": "#0f172a"}), 10
-    )
+    custom, _ = _chip_rules(DesignTokens.model_validate({"chip_text_color": "#0f172a"}), 10)
     assert "color: #0f172a;" in custom
     custom_solid, _ = _chip_rules(
-        DesignTokens.model_validate(
-            {"chip_style": "solid", "chip_text_color": "#0f172a"}
-        ),
+        DesignTokens.model_validate({"chip_style": "solid", "chip_text_color": "#0f172a"}),
         10,
     )
     assert "color: #0f172a" in custom_solid
@@ -719,25 +699,19 @@ def test_explicit_chip_text_color_wins_in_the_sidebar():
     assert "color: inherit" in sidebar
     # Explicit: the user's chip text color beats the sidebar tint.
     _, sidebar = _chip_rules(
-        DesignTokens.model_validate(
-            {"chip_style": "outline", "chip_text_color": "#16a34a"}
-        ),
+        DesignTokens.model_validate({"chip_style": "outline", "chip_text_color": "#16a34a"}),
         10,
     )
     assert "color: inherit" not in sidebar
     assert "border-color: color-mix(in srgb, currentColor 45%" in sidebar
     _, sidebar = _chip_rules(
-        DesignTokens.model_validate(
-            {"chip_style": "tint", "chip_text_color": "#ffffff"}
-        ),
+        DesignTokens.model_validate({"chip_style": "tint", "chip_text_color": "#ffffff"}),
         10,
     )
     assert "color: inherit" not in sidebar
     assert "background: color-mix(in srgb, currentColor 20%" in sidebar
     _, sidebar = _chip_rules(
-        DesignTokens.model_validate(
-            {"chip_style": "plain", "chip_text_color": "#ffffff"}
-        ),
+        DesignTokens.model_validate({"chip_style": "plain", "chip_text_color": "#ffffff"}),
         10,
     )
     assert sidebar == ""
@@ -754,10 +728,7 @@ def test_chip_tint_pct_scales_the_tint_wash():
 
     snapshot = {**SAMPLE_SNAPSHOT, "languages": LANGS, "certifications": CERTS}
     html = render_cv(content, snapshot).html
-    assert (
-        ".chip { background: color-mix(in srgb, var(--accent) 30%, "
-        "var(--background))" in html
-    )
+    assert ".chip { background: color-mix(in srgb, var(--accent) 30%, var(--background))" in html
     assert "currentColor 38%" in html
 
 
@@ -832,7 +803,7 @@ def test_cefr_band_helpers():
     assert display_cefr("advanced", None) == "C1"
     assert display_cefr("native", ECPE) == "Native"
     assert display_cefr("basic", ECPE) == "C2"
-    assert display_cefr("intermediate", {"title": "B1 exam"}) == "B1–B2"
+    assert display_cefr("intermediate", {"title": "B1 exam"}) == "B1-B2"
     assert display_cefr("", ECPE) == "C2"
     assert display_cefr("", None) == ""
 
@@ -861,7 +832,7 @@ def test_explicit_language_link_beats_derived_matching():
     snapshot = {
         **SAMPLE_SNAPSHOT,
         "languages": LANGS,
-        "certifications": [explicit] + CERTS,
+        "certifications": [explicit, *CERTS],
     }
     html = render_cv(content, snapshot).html
     # "Quest 3" has no detectable exam name, but the explicit link wins.
@@ -881,7 +852,7 @@ def test_proficiency_matching_prefers_first_issued_language_certificate():
 
     assert language_name("en") == "English"
     assert language_name("xx") == "XX"
-    assert cefr_of("intermediate") == "B1–B2"
+    assert cefr_of("intermediate") == "B1-B2"
     assert is_proficiency_cert(CERTS[0]) is True
     assert match_language(CERTS[0], LANGS) == "en"
 
@@ -910,12 +881,7 @@ def test_proficiency_matching_prefers_first_issued_language_certificate():
     assert is_proficiency_cert(generic) and match_language(generic, LANGS) == "en"
 
     # Unrelated certificate stays unclaimed
-    assert (
-        proficiency_for(
-            LANGS, [{"title": "CCNA", "org": "Cisco", "start": "", "end": ""}]
-        )
-        == {}
-    )
+    assert proficiency_for(LANGS, [{"title": "CCNA", "org": "Cisco", "start": "", "end": ""}]) == {}
 
 
 def test_offered_language_codes_are_catalog_subset():
@@ -1014,9 +980,7 @@ def test_spacing_tokens_and_icons():
     assert "margin-bottom: 8mm" in html
     assert "border-bottom:1px solid var(--accent)" in html
 
-    legacy = TemplateContent.model_validate(
-        {"blocks": [{"kind": "summary"}], "design": {}}
-    )
+    legacy = TemplateContent.model_validate({"blocks": [{"kind": "summary"}], "design": {}})
     legacy_html = render_cv(legacy, SAMPLE_SNAPSHOT).html
     assert "margin-bottom: calc(0.8em * var(--spacing))" in legacy_html
     assert "margin-bottom: 8mm" not in legacy_html
@@ -1049,16 +1013,10 @@ async def test_profile_photo_upload_render_and_unset(
     )
     assert upload.status_code == 200, upload.text
 
-    cv = await client.post(
-        "/api/v1/cv", json={"title": "Photo CV"}, headers=auth_headers
-    )
-    preview = await client.post(
-        f"/api/v1/cv/{cv.json()['id']}/preview", headers=auth_headers
-    )
+    cv = await client.post("/api/v1/cv", json={"title": "Photo CV"}, headers=auth_headers)
+    preview = await client.post(f"/api/v1/cv/{cv.json()['id']}/preview", headers=auth_headers)
     assert preview.status_code == 200
-    assert "<img class='cv-photo'" not in preview.json()["html"], (
-        "show_photo defaults off"
-    )
+    assert "<img class='cv-photo'" not in preview.json()["html"], "show_photo defaults off"
 
     unset = await client.delete("/api/v1/me/photo", headers=auth_headers)
     assert unset.status_code == 204
@@ -1103,15 +1061,11 @@ def test_template_prompts_merge_into_system_prompt():
     assert "Lead with internships." in merged
     bare = compose_system("summary")
     assert "Never mention age." not in bare
-    bullet = compose_system(
-        "bullet", {"__handling__": "H", "summary": "Lead with internships."}
-    )
+    bullet = compose_system("bullet", {"__handling__": "H", "summary": "Lead with internships."})
     assert "H" in bullet and "Lead with internships." not in bullet
 
 
-async def test_photo_state_endpoint_roundtrip(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_photo_state_endpoint_roundtrip(client, auth_headers, profile_ready, seeded_catalog):
     import io
 
     state = await client.get("/api/v1/me/photo", headers=auth_headers)
@@ -1192,9 +1146,7 @@ async def test_photo_gallery_and_per_cv_photo_override(
     )
     assert foreign.status_code == 404
 
-    removed = await client.delete(
-        f"/api/v1/me/photo/gallery/{second}", headers=auth_headers
-    )
+    removed = await client.delete(f"/api/v1/me/photo/gallery/{second}", headers=auth_headers)
     assert removed.status_code == 204
     after = await client.get(f"/api/v1/cv/{cv.json()['id']}", headers=auth_headers)
     assert after.json()["photo_document_id"] is None, "deleted photo SET NULLs"
@@ -1312,9 +1264,7 @@ def test_area_padding_feeds_pagination_heuristic():
         },
     ]
     bare = render_cv(
-        TemplateContent.model_validate(
-            {"blocks": blocks, "design": {"layout": "sidebar"}}
-        ),
+        TemplateContent.model_validate({"blocks": blocks, "design": {"layout": "sidebar"}}),
         SAMPLE_SNAPSHOT,
     ).metrics
     padded = render_cv(
@@ -1338,9 +1288,7 @@ def test_grouped_skills_render_by_category():
 
     content = TemplateContent.model_validate(
         {
-            "blocks": [
-                {"kind": "skills", "props": {"display": "grouped", "max_items": 18}}
-            ],
+            "blocks": [{"kind": "skills", "props": {"display": "grouped", "max_items": 18}}],
             "design": {},
         }
     )
@@ -1355,25 +1303,19 @@ def test_grouped_skills_feed_the_overflow_estimate():
 
     content = TemplateContent.model_validate(
         {
-            "blocks": [
-                {"kind": "skills", "props": {"display": "grouped", "max_items": 18}}
-            ],
+            "blocks": [{"kind": "skills", "props": {"display": "grouped", "max_items": 18}}],
             "design": {},
         }
     )
     chips = TemplateContent.model_validate(
         {
-            "blocks": [
-                {"kind": "skills", "props": {"display": "chips", "max_items": 18}}
-            ],
+            "blocks": [{"kind": "skills", "props": {"display": "chips", "max_items": 18}}],
             "design": {},
         }
     )
     grouped = render_cv(content, SAMPLE_SNAPSHOT).metrics.estimated_lines
     flat = render_cv(chips, SAMPLE_SNAPSHOT).metrics.estimated_lines
-    categories = len(
-        {s.get("category") for s in SAMPLE_SNAPSHOT["skills"] if s.get("category")}
-    )
+    categories = len({s.get("category") for s in SAMPLE_SNAPSHOT["skills"] if s.get("category")})
     assert grouped > flat
     assert grouped >= flat + categories, "each category heading costs a line"
 
@@ -1553,9 +1495,7 @@ def test_running_footer_margin_boxes():
         "the footer stays off page 1 where the header already names the owner"
     )
     off = render_cv(
-        TemplateContent.model_validate(
-            {"blocks": [{"kind": "header", "props": {}}], "design": {}}
-        ),
+        TemplateContent.model_validate({"blocks": [{"kind": "header", "props": {}}], "design": {}}),
         SAMPLE_SNAPSHOT,
     ).html
     assert "@bottom-right" not in off, "the default stays byte-stable"

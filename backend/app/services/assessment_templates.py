@@ -9,7 +9,6 @@ promotion governs the vocabulary), and execution by compiling onto the
 
 import re
 import uuid
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -79,12 +78,8 @@ class TemplateService:
         for band in content.normalization.bands:
             keys.update((band.suggested_levels or {}).keys())
         keys.discard(None)
-        result = await self._resolve_skill_keys(
-            sorted(keys), propose_unknown=propose_unknown
-        )
-        result["dimension_report"] = await self._resolve_dimension_keys(
-            sorted(dimensions)
-        )
+        result = await self._resolve_skill_keys(sorted(keys), propose_unknown=propose_unknown)
+        result["dimension_report"] = await self._resolve_dimension_keys(sorted(dimensions))
         return result
 
     async def _resolve_dimension_keys(self, keys: list[str]) -> dict:
@@ -110,23 +105,15 @@ class TemplateService:
         known = set(rows)
         unknown = [key for key in keys if key not in known]
         if unknown:
-            raise ValidationError(
-                "Unknown metric dimensions: " + ", ".join(sorted(unknown))
-            )
+            raise ValidationError("Unknown metric dimensions: " + ", ".join(sorted(unknown)))
         return {"unknown": [], "resolved": len(known)}
 
-    async def _resolve_skill_keys(
-        self, keys: list[str], *, propose_unknown: bool
-    ) -> dict:
+    async def _resolve_skill_keys(self, keys: list[str], *, propose_unknown: bool) -> dict:
         from app.models.taxonomy_model import Skill
 
         if not keys:
             return {"proposed": [], "resolved": 0}
-        rows = (
-            (await self.db.execute(select(Skill).where(Skill.key.in_(keys))))
-            .scalars()
-            .all()
-        )
+        rows = (await self.db.execute(select(Skill).where(Skill.key.in_(keys)))).scalars().all()
         known = {s.key for s in rows}
         missing = [k for k in keys if k not in known]
         if not missing:
@@ -154,14 +141,10 @@ class TemplateService:
         for phase in content.phases:
             for question in phase.questions:
                 handler_for(question.kind)
-                if question.kind in EVIDENCE_ONLY_KINDS:
-                    if any(
-                        o.scores.skill_levels or o.scores.interest_keys
-                        for o in question.options
-                    ):
-                        raise ValidationError(
-                            f"evidence-only kind {question.kind} carries deltas"
-                        )
+                if question.kind in EVIDENCE_ONLY_KINDS and any(
+                    o.scores.skill_levels or o.scores.interest_keys for o in question.options
+                ):
+                    raise ValidationError(f"evidence-only kind {question.kind} carries deltas")
 
     # -------------------------------------------------------------- CRUD
 
@@ -170,10 +153,10 @@ class TemplateService:
         user_id: UUID,
         *,
         include_bank: bool = True,
-        source: Optional[str] = None,
-        language: Optional[str] = None,
-        audience_stage: Optional[str] = None,
-        ref: Optional[str] = None,
+        source: str | None = None,
+        language: str | None = None,
+        audience_stage: str | None = None,
+        ref: str | None = None,
     ) -> list[AssessmentTemplate]:
         """Mine + bank + unlisted-by-ref. `public` stays unreachable (422
         on write; the discovery page is the later sharing phase)."""
@@ -209,9 +192,7 @@ class TemplateService:
     async def resolve_by_ref(self, ref: str) -> AssessmentTemplate:
         """A share ref resolves to the LATEST version of its family."""
         rows = await self.db.execute(
-            select(AssessmentTemplate).where(
-                AssessmentTemplate.ref == ref.strip().upper()
-            )
+            select(AssessmentTemplate).where(AssessmentTemplate.ref == ref.strip().upper())
         )
         first = rows.scalars().first()
         if first is None:
@@ -235,10 +216,9 @@ class TemplateService:
             return template
         if require_owner:
             raise NotFoundError("Template not found")
-        shareable = (
-            template.status == TemplateStatus.PUBLISHED.value
-            and template.visibility
-            in (TemplateVisibility.UNLISTED.value, TemplateVisibility.PUBLIC.value)
+        shareable = template.status == TemplateStatus.PUBLISHED.value and template.visibility in (
+            TemplateVisibility.UNLISTED.value,
+            TemplateVisibility.PUBLIC.value,
         )
         if not shareable:
             raise NotFoundError("Template not found")
@@ -252,7 +232,7 @@ class TemplateService:
         description: str = "",
         content: TemplateContent,
         visibility: str = TemplateVisibility.PRIVATE.value,
-        audience_stages: Optional[list[str]] = None,
+        audience_stages: list[str] | None = None,
         language: str = "en",
         source: str = TemplateSource.USER.value,
     ) -> AssessmentTemplate:
@@ -288,11 +268,11 @@ class TemplateService:
         user_id: UUID,
         template_id: UUID,
         *,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        content: Optional[TemplateContent] = None,
-        visibility: Optional[str] = None,
-        status: Optional[str] = None,
+        title: str | None = None,
+        description: str | None = None,
+        content: TemplateContent | None = None,
+        visibility: str | None = None,
+        status: str | None = None,
     ) -> AssessmentTemplate:
         """Edits create version n+1 — versions are immutable rows (42.B)."""
         template = await self.get_template(template_id, user_id, require_owner=True)
@@ -308,9 +288,7 @@ class TemplateService:
             key=template.key,
             version=next_version,
             title=title or template.title,
-            description=(
-                description if description is not None else template.description
-            ),
+            description=(description if description is not None else template.description),
             author_user_id=template.author_user_id,
             author_key=template.author_key,
             source=template.source,
@@ -380,9 +358,7 @@ class TemplateService:
         (unknown → proposed, import succeeds with a report) → stored as
         source=imported, private, author=importer."""
         if package.get("schema_version") != TEMPLATE_SCHEMA_VERSION:
-            raise ValidationError(
-                f"Unsupported template schema: {package.get('schema_version')}"
-            )
+            raise ValidationError(f"Unsupported template schema: {package.get('schema_version')}")
         content_hash = package.get("content_hash")
         content = TemplateContent.model_validate(package.get("content") or {})
         computed = _canonical_hash(content.model_dump(mode="json"))
@@ -429,9 +405,7 @@ class TemplateService:
             "template_key": template.key,
             "template_title": template.title,
             "template_content": template.content,
-            "phase_titles": {
-                str(5 + i): phase.title for i, phase in enumerate(content.phases)
-            },
+            "phase_titles": {str(5 + i): phase.title for i, phase in enumerate(content.phases)},
         }
         service = AssessmentService(self.db)
         run = await service.create_run(
@@ -443,14 +417,9 @@ class TemplateService:
         await self.db.commit()
         return run
 
-    async def _latest_published(
-        self, template_id: UUID, user_id: UUID
-    ) -> AssessmentTemplate:
+    async def _latest_published(self, template_id: UUID, user_id: UUID) -> AssessmentTemplate:
         template = await self.get_template(template_id, user_id)
-        if (
-            template.status != TemplateStatus.PUBLISHED.value
-            and template.author_user_id != user_id
-        ):
+        if template.status != TemplateStatus.PUBLISHED.value and template.author_user_id != user_id:
             raise ValidationError("Template is not published")
         latest = await self._latest_version(template.key, template.author_key)
         return latest
@@ -458,9 +427,7 @@ class TemplateService:
     async def compile_results(self, run: AssessmentRun) -> dict:
         """Raw accumulated deltas → normalized levels + band (deterministic
         parity: same answer shapes, evidence upserts, fit refresh)."""
-        content = TemplateContent.model_validate(
-            (run.context or {}).get("template_content") or {}
-        )
+        content = TemplateContent.model_validate((run.context or {}).get("template_content") or {})
         raw: dict[str, float] = {}
         raw_dimensions: dict[str, float] = {}
         interests: list[str] = []
@@ -524,7 +491,5 @@ def _canonical_hash(payload: dict) -> str:
     import hashlib
     import json
 
-    canonical = json.dumps(
-        payload or {}, sort_keys=True, separators=(",", ":"), default=str
-    )
+    canonical = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

@@ -119,9 +119,7 @@ class CvTemplateService:
             raise NotFoundError("Template not found")
         return template
 
-    async def get_readable(
-        self, template_id: uuid.UUID, user_id: uuid.UUID
-    ) -> CvTemplate:
+    async def get_readable(self, template_id: uuid.UUID, user_id: uuid.UUID) -> CvTemplate:
         """Fetch any template the caller can render (bank + own)."""
         rows = await self.db.execute(
             select(CvTemplate).where(
@@ -253,10 +251,7 @@ class CvTemplateService:
         anything that is not the caller's draft at that exact version —
         published/older/user-facing rows stay immutable."""
         template = await self.get_owned(template_id, user_id)
-        if (
-            template.version != int(version)
-            or template.status != CvTemplateStatus.DRAFT.value
-        ):
+        if template.version != int(version) or template.status != CvTemplateStatus.DRAFT.value:
             raise ValidationError("Version is not the caller's coalescable draft")
         validate_blocks(content.blocks)
         template.content = content.model_dump(mode="json")
@@ -356,15 +351,15 @@ class CvTemplateService:
             "props_changed": [],
         }
         old_by_sig: dict[str, dict] = {}
-        for block, sig in zip(older.blocks, old_blocks):
+        for block, sig in zip(older.blocks, old_blocks, strict=False):
             old_by_sig.setdefault(sig, block)
-        for block, sig in zip(newer.blocks, new_blocks):
+        for block, sig in zip(newer.blocks, new_blocks, strict=False):
             previous = old_by_sig.get(sig)
             if previous is None:
                 continue
-            if previous.get("props") != block.get("props") or previous.get(
+            if previous.get("props") != block.get("props") or previous.get("area") != block.get(
                 "area"
-            ) != block.get("area"):
+            ):
                 block_changes["props_changed"].append(
                     {"block": sig, "area": block.get("area", "main")}
                 )
@@ -390,9 +385,7 @@ class CvTemplateService:
 
     # ----------------------------------------------------- import/export
 
-    async def export(
-        self, template_id: uuid.UUID, user_id: uuid.UUID
-    ) -> CvTemplateExport:
+    async def export(self, template_id: uuid.UUID, user_id: uuid.UUID) -> CvTemplateExport:
         """File-first export package with hash integrity."""
         template = await self.get_readable(template_id, user_id)
         content = TemplateContent.model_validate(template.content)
@@ -410,9 +403,7 @@ class CvTemplateService:
             content_hash=canonical_hash(dumped),
         )
 
-    async def import_package(
-        self, user_id: uuid.UUID, package: CvTemplateExport
-    ) -> CvTemplate:
+    async def import_package(self, user_id: uuid.UUID, package: CvTemplateExport) -> CvTemplate:
         """Validate + store an imported template (private, source=imported).
 
         Unknown block kinds are rejected with a report (layout kinds are
@@ -421,15 +412,13 @@ class CvTemplateService:
         if package.kind != "cv_template":
             raise ValidationError("Not a CV template package")
         if package.schema_version != TEMPLATE_SCHEMA_VERSION:
-            raise ValidationError(
-                f"Unsupported template schema version: {package.schema_version}"
-            )
+            raise ValidationError(f"Unsupported template schema version: {package.schema_version}")
         computed = canonical_hash(package.content)
         if computed != package.content_hash:
             raise ValidationError("Template package hash mismatch")
         try:
             content = TemplateContent.model_validate(package.content)
-        except Exception as exc:  # noqa: BLE001 - surfaced as a validation error
+        except Exception as exc:
             raise ValidationError(f"Invalid template content: {exc}") from exc
         meta = package.metadata or {}
         return await self.create(
@@ -515,9 +504,7 @@ class CvTemplateService:
 
     # ----------------------------------------------------------- suggest
 
-    async def _recent_template_ids(
-        self, user_id: uuid.UUID, limit: int = 5
-    ) -> set[uuid.UUID]:
+    async def _recent_template_ids(self, user_id: uuid.UUID, limit: int = 5) -> set[uuid.UUID]:
         """The templates of the user's most recent CVs (recency-limited).
 
         Grists for the variety mill: the auto pick should not hand every
@@ -535,7 +522,7 @@ class CvTemplateService:
             .order_by(CvDocument.created_at.desc())
             .limit(limit)
         )
-        return {row for row in rows.scalars().all()}
+        return set(rows.scalars().all())
 
     async def suggest(
         self,
@@ -627,9 +614,7 @@ class CvTemplateService:
         ]
         return {"picks": picks, "candidates_considered": len(ordered)}
 
-    async def _candidate_thumbnails(
-        self, rows: list[CvTemplate]
-    ) -> list[tuple[str, bytes]]:
+    async def _candidate_thumbnails(self, rows: list[CvTemplate]) -> list[tuple[str, bytes]]:
         """First-page PNG per candidate, in candidate order ([] = skip).
 
         The (mime, bytes) images ride to the model in candidate-ref
@@ -645,10 +630,8 @@ class CvTemplateService:
                 html, _metrics = self.preview_html_content(
                     TemplateContent.model_validate(row.content)
                 )
-                measure = await measure_pages(
-                    html, page_size=str(row.page_size), max_images=1
-                )
-            except Exception:  # noqa: BLE001 — one bad candidate degrades
+                measure = await measure_pages(html, page_size=str(row.page_size), max_images=1)
+            except Exception:
                 continue
             if measure.images:
                 images.append(measure.images[0])
@@ -667,16 +650,14 @@ class CvTemplateService:
             html, _metrics = self.preview_html_content(
                 TemplateContent.model_validate(template.content)
             )
-            measure = await measure_pages(
-                html, page_size=str(template.page_size), max_images=1
-            )
+            measure = await measure_pages(html, page_size=str(template.page_size), max_images=1)
         except PDFEngineUnavailable:
             raise
-        except Exception:  # noqa: BLE001 — one bad template degrades
+        except Exception:
             return None
         if not measure.images:
             return None
-        mime, png = measure.images[0]
+        _mime, png = measure.images[0]
         return png
 
     async def preview_png_cached(
@@ -699,8 +680,7 @@ class CvTemplateService:
             from app.services.cv_pdf_service import PDFEngineUnavailable
 
             raise PDFEngineUnavailable(
-                "The template preview could not be rendered — the print "
-                "engine may be missing."
+                "The template preview could not be rendered — the print engine may be missing."
             )
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path.write_bytes(png)
@@ -740,9 +720,7 @@ class CvTemplateService:
 
         from app.models.cv_model import CvVersion
 
-        template_ref = cast(CvVersion.content["template_id"], String).label(
-            "template_ref"
-        )
+        template_ref = cast(CvVersion.content["template_id"], String).label("template_ref")
         groups = (
             await self.db.execute(
                 select(template_ref, func.count())
@@ -761,9 +739,7 @@ class CvTemplateService:
         return [
             {
                 "template_key": by_id[str(ref)].key if str(ref) in by_id else None,
-                "template_source": (
-                    by_id[str(ref)].source if str(ref) in by_id else None
-                ),
+                "template_source": (by_id[str(ref)].source if str(ref) in by_id else None),
                 "exported": exports,
             }
             for ref, exports in groups

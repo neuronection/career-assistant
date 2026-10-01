@@ -29,12 +29,8 @@ def _schedule_out(schedule: Schedule) -> dict:
         "trigger": schedule.trigger,
         "payload": schedule.payload,
         "enabled": schedule.enabled,
-        "next_run_at": schedule.next_run_at.isoformat()
-        if schedule.next_run_at
-        else None,
-        "last_run_at": schedule.last_run_at.isoformat()
-        if schedule.last_run_at
-        else None,
+        "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+        "last_run_at": schedule.last_run_at.isoformat() if schedule.last_run_at else None,
         "last_status": schedule.last_status,
         "consecutive_failures": schedule.consecutive_failures,
         "misfire_policy": schedule.misfire_policy,

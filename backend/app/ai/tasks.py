@@ -10,7 +10,7 @@ tier routing.
 
 from dataclasses import dataclass
 
-from app.models.enums import AICapability, AITaskType, AITaskTier
+from app.models.enums import AICapability, AITaskTier, AITaskType
 
 
 @dataclass(frozen=True)
@@ -165,8 +165,7 @@ TASK_DEFS: list[TaskDef] = [
     ),
     TaskDef(
         AITaskType.CV_SYNTH.value,
-        "Synthesized CV variants: grounded summarize/detail/restyle/"
-        "postings/translations",
+        "Synthesized CV variants: grounded summarize/detail/restyle/postings/translations",
         AICapability.TEXT.value,
         AITaskTier.STRONG.value,
     ),

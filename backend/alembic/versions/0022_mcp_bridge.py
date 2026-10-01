@@ -1,8 +1,9 @@
 """MCP client bridge: the ai_mcp_servers table."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0022"
 down_revision = "0021"
@@ -29,9 +30,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("name", name="uq_ai_mcp_servers_name"),
-        sa.CheckConstraint(
-            "transport IN ('http', 'stdio')", name="transport_allowed"
-        ),
+        sa.CheckConstraint("transport IN ('http', 'stdio')", name="transport_allowed"),
     )
 
 

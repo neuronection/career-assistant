@@ -9,13 +9,12 @@ from sqlalchemy import select
 
 from app.models.chat_model import ChatMessage
 from app.models.user_model import User
+from app.schemas.chat import ChatAttachmentIn
 from app.schemas.cv import CvDocumentCreate
 from app.services.chat_attachments import resolve_attachments
 from app.services.cv_service import CvService
-from app.schemas.chat import ChatAttachmentIn
-
-from tests.test_chat_streaming import _parse_sse
 from tests.conftest import session_headers
+from tests.test_chat_streaming import _parse_sse
 
 
 async def _auth_user(db) -> User:
@@ -29,9 +28,7 @@ async def _cv(db, user, title="Backend CV") -> object:
 
 async def _session(client, headers) -> dict:
     return (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "refs"}, headers=headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "refs"}, headers=headers)
     ).json()
 
 
@@ -53,9 +50,9 @@ async def test_attachment_validation(db, auth_headers, client):
     resolved = await resolve_attachments(db, user.id, [ChatAttachmentIn(cv_id=cv.id)])
     assert resolved == [{"kind": "cv", "cv_id": str(cv.id), "title": "Backend CV"}]
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         await resolve_attachments(db, user.id, [ChatAttachmentIn(cv_id=uuid.uuid4())])
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         await resolve_attachments(
             db,
             user.id,
@@ -108,9 +105,7 @@ async def test_reference_block_and_chips(client, db, auth_headers):
     assert "My Career CV" in assistant.content
 
 
-async def test_uncompiled_cv_falls_back_to_preview_and_writes_no_version(
-    client, db, auth_headers
-):
+async def test_uncompiled_cv_falls_back_to_preview_and_writes_no_version(client, db, auth_headers):
     from app.models.cv_model import CvVersion
 
     user = await _auth_user(db)

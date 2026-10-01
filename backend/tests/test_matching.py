@@ -2,12 +2,8 @@ from app.services.job_worker import JobWorker
 from tests.conftest import session_headers
 
 
-async def test_candidates_rank_by_fit(
-    client, auth_headers, profile_ready, seeded_catalog
-):
-    response = await client.get(
-        "/api/v1/match/candidates?limit=5", headers=auth_headers
-    )
+async def test_candidates_rank_by_fit(client, auth_headers, profile_ready, seeded_catalog):
+    response = await client.get("/api/v1/match/candidates?limit=5", headers=auth_headers)
     assert response.status_code == 200
     candidates = response.json()
     assert candidates
@@ -18,9 +14,7 @@ async def test_candidates_rank_by_fit(
     assert top["breakdown"]["dimensions"]["skills"]["score"] is not None
 
 
-async def test_candidates_respect_gates(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_candidates_respect_gates(client, auth_headers, profile_ready, seeded_catalog):
     await client.put(
         "/api/v1/profile",
         json={
@@ -31,9 +25,7 @@ async def test_candidates_respect_gates(
         },
         headers=auth_headers,
     )
-    response = await client.get(
-        "/api/v1/match/candidates?limit=50", headers=auth_headers
-    )
+    response = await client.get("/api/v1/match/candidates?limit=50", headers=auth_headers)
     codes = [c["job"]["code"] for c in response.json()]
     assert "firefighter" not in codes
 
@@ -41,9 +33,7 @@ async def test_candidates_respect_gates(
 async def test_score_specific_job_persists_insight(
     client, auth_headers, profile_ready, seeded_catalog
 ):
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
     response = await client.post(
         "/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers
     )
@@ -57,12 +47,8 @@ async def test_score_specific_job_persists_insight(
     assert insight["prerequisites"]
 
 
-async def test_score_batch_and_idempotent(
-    client, db, auth_headers, profile_ready, seeded_catalog
-):
-    first = await client.post(
-        "/api/v1/match/score", json={"limit": 3}, headers=auth_headers
-    )
+async def test_score_batch_and_idempotent(client, db, auth_headers, profile_ready, seeded_catalog):
+    first = await client.post("/api/v1/match/score", json={"limit": 3}, headers=auth_headers)
     assert first.status_code == 202
     job_id = first.json()["job_id"]
     worker = JobWorker(db)
@@ -77,9 +63,7 @@ async def test_score_batch_and_idempotent(
 
     # A second batch scores nothing new (mock scores are deterministic, so the
     # insight set is idempotent).
-    again = await client.post(
-        "/api/v1/match/score", json={"limit": 3}, headers=auth_headers
-    )
+    again = await client.post("/api/v1/match/score", json={"limit": 3}, headers=auth_headers)
     assert again.status_code == 202
     while await worker.run_once():
         pass
@@ -94,16 +78,12 @@ async def test_score_batch_and_idempotent(
     assert forced.status_code == 202
     while await worker.run_once():
         pass
-    forced_insights = (
-        await client.get("/api/v1/match/insights", headers=auth_headers)
-    ).json()
+    forced_insights = (await client.get("/api/v1/match/insights", headers=auth_headers)).json()
     # force re-scores the same top-3 by fit — the set stays identical
     assert len([i for i in forced_insights if i["ai_score"] is not None]) == 3
 
 
-async def test_rate_and_my_insights(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_rate_and_my_insights(client, auth_headers, profile_ready, seeded_catalog):
     job = (await client.get("/api/v1/jobs/nurse", headers=auth_headers)).json()
     rated = await client.put(
         "/api/v1/match/rate",
@@ -135,12 +115,8 @@ async def test_rate_and_my_insights(
 async def test_rankings_fit_default_and_filtered(
     client, auth_headers, profile_ready, seeded_catalog
 ):
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
-    await client.post(
-        "/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers
-    )
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
+    await client.post("/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers)
     await client.put(
         "/api/v1/match/rate",
         json={"job_id": job["id"], "user_score": 9},
@@ -155,37 +131,27 @@ async def test_rankings_fit_default_and_filtered(
     assert top["score"] >= 6.0
     assert top["fit_score"] is not None
     assert top["breakdown"]["dimensions"]["skills"]["score"] is not None
-    scored = next(
-        i for i in rankings["items"] if i["job"]["code"] == "software-developer"
-    )
+    scored = next(i for i in rankings["items"] if i["job"]["code"] == "software-developer")
     assert scored["ai_score"] is not None and scored["user_score"] == 9
     # fit + ai agree within the blend: score sits between the two signals
     assert scored["fit_score"] <= scored["score"] <= scored["ai_score"] or (
         scored["ai_score"] <= scored["score"] <= scored["fit_score"]
     )
 
-    filtered = await client.get(
-        "/api/v1/rankings?family_key=healthcare", headers=auth_headers
-    )
+    filtered = await client.get("/api/v1/rankings?family_key=healthcare", headers=auth_headers)
     codes = {i["job"]["code"] for i in filtered.json()["items"]}
     assert "nurse" in codes
     assert "software-developer" not in codes
 
-    by_interest = await client.get(
-        "/api/v1/rankings?interests=people-health", headers=auth_headers
-    )
+    by_interest = await client.get("/api/v1/rankings?interests=people-health", headers=auth_headers)
     interest_codes = {i["job"]["code"] for i in by_interest.json()["items"]}
     assert "nurse" in interest_codes
     assert "software-developer" not in interest_codes
 
-    min_score = await client.get(
-        "/api/v1/rankings?ai_score_min=1", headers=auth_headers
-    )
+    min_score = await client.get("/api/v1/rankings?ai_score_min=1", headers=auth_headers)
     assert len(min_score.json()["items"]) == 1
 
-    sorted_by_user = await client.get(
-        "/api/v1/rankings?sort=user_score", headers=auth_headers
-    )
+    sorted_by_user = await client.get("/api/v1/rankings?sort=user_score", headers=auth_headers)
     assert sorted_by_user.json()["items"][0]["job"]["code"] == "software-developer"
 
     plain_demand = await client.get(
@@ -212,23 +178,15 @@ async def test_rankings_gated_jobs_reach_stretch_tab(
     assert physician["gated"] is True
 
 
-async def test_rankings_isolated_per_user(
-    client, auth_headers, profile_ready, seeded_catalog
-):
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
-    await client.post(
-        "/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers
-    )
+async def test_rankings_isolated_per_user(client, auth_headers, profile_ready, seeded_catalog):
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
+    await client.post("/api/v1/match/score", json={"job_id": job["id"]}, headers=auth_headers)
     other = await client.post(
         "/api/v1/auth/register",
         json={"email": "rankother@example.com", "password": "password123"},
     )
     other_headers = session_headers(other)
-    response = await client.get(
-        "/api/v1/rankings?ai_score_min=0", headers=other_headers
-    )
+    response = await client.get("/api/v1/rankings?ai_score_min=0", headers=other_headers)
     assert response.json()["items"] == []
 
 
@@ -236,9 +194,7 @@ async def test_job_match_detail(client, auth_headers, profile_ready, seeded_cata
     await client.post(
         "/api/v1/match/score", json={"job_id": None, "limit": 2}, headers=auth_headers
     )
-    detail = await client.get(
-        "/api/v1/jobs/software-developer/match", headers=auth_headers
-    )
+    detail = await client.get("/api/v1/jobs/software-developer/match", headers=auth_headers)
     body = detail.json()
     assert body["job"]["code"] == "software-developer"
     assert body["university_pathways"] == []
@@ -274,18 +230,14 @@ async def test_compare_returns_rows_in_request_order(
     assert "education_years" in physician_row["gate_reasons"]
 
 
-async def test_compare_matches_rankings_scores(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_compare_matches_rankings_scores(client, auth_headers, profile_ready, seeded_catalog):
     dev = await _job_id(client, auth_headers, "software-developer")
     nurse = await _job_id(client, auth_headers, "nurse")
     response = await client.get(
         f"/api/v1/match/compare?job_ids={dev},{nurse}", headers=auth_headers
     )
     compared = {r["job"]["code"]: r for r in response.json()}
-    rankings = (
-        await client.get("/api/v1/rankings?page_size=100", headers=auth_headers)
-    ).json()
+    rankings = (await client.get("/api/v1/rankings?page_size=100", headers=auth_headers)).json()
     for item in rankings["items"]:
         code = item["job"]["code"]
         if code in compared:
@@ -306,9 +258,7 @@ async def test_compare_deduplicates_repeated_ids(
     assert [r["job"]["code"] for r in rows] == ["software-developer", "nurse"]
 
 
-async def test_compare_validates_input(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_compare_validates_input(client, auth_headers, profile_ready, seeded_catalog):
     dev = await _job_id(client, auth_headers, "software-developer")
     nurse = await _job_id(client, auth_headers, "nurse")
     firefighter = await _job_id(client, auth_headers, "firefighter")
@@ -329,9 +279,7 @@ async def test_compare_validates_input(
     )
     assert garbage.status_code == 422
 
-    missing = await client.get(
-        f"/api/v1/match/compare?job_ids={dev},{ghost}", headers=auth_headers
-    )
+    missing = await client.get(f"/api/v1/match/compare?job_ids={dev},{ghost}", headers=auth_headers)
     assert missing.status_code == 404
 
 
@@ -363,9 +311,7 @@ async def test_upsert_insight_survives_raced_insert(
         prerequisites=[],
     )
     user = (
-        (await db.execute(select(User).where(User.email == "student@example.com")))
-        .scalars()
-        .one()
+        (await db.execute(select(User).where(User.email == "student@example.com"))).scalars().one()
     )
     job = (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS))).scalars().first()
 
@@ -399,9 +345,7 @@ async def test_upsert_insight_survives_raced_insert(
     assert str(refreshed.id)
 
 
-async def test_upsert_fit_survives_raced_insert(
-    db, auth_headers, profile_ready, seeded_catalog
-):
+async def test_upsert_fit_survives_raced_insert(db, auth_headers, profile_ready, seeded_catalog):
     """`FitService.upsert_fit` is the path every workspace-load surface takes
     through `backfilled_insights` (dashboard rankings, feed, candidates): the
     read misses while the row already exists, the conflict-safe insert lets
@@ -419,9 +363,7 @@ async def test_upsert_fit_survives_raced_insert(
     from app.services.job_service import JOB_LOAD_OPTIONS
 
     user = (
-        (await db.execute(select(User).where(User.email == "student@example.com")))
-        .scalars()
-        .one()
+        (await db.execute(select(User).where(User.email == "student@example.com"))).scalars().one()
     )
     job = (await db.execute(select(Job).options(*JOB_LOAD_OPTIONS))).scalars().first()
 

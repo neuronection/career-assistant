@@ -2,7 +2,7 @@
 driven queueing, skill+level search, profile-coverage parity, provenance."""
 
 import uuid as uuid_mod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -19,7 +19,6 @@ from app.services.extract_service import (
     run_extract_job,
 )
 from app.services.postings_service import sync_source, upsert_posting
-
 from tests.conftest import _make_posting, _raw_posting
 
 
@@ -67,19 +66,13 @@ async def test_deep_extract_schema_resolution_and_evidence(
     assert all(len(s["evidence_quote"]) >= 3 for s in skills)
 
     rows = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
     filled = {r.skill_id: r for r in rows if r.required_level is not None}
     assert filled, "deep extraction fills posting_skills levels"
-    assert all(
-        r.priority in ("must_have", "nice_to_have", "bonus") for r in filled.values()
-    )
+    assert all(r.priority in ("must_have", "nice_to_have", "bonus") for r in filled.values())
 
 
 async def test_unresolved_labels_become_moderation_proposals(
@@ -96,18 +89,12 @@ async def test_unresolved_labels_become_moderation_proposals(
     await extract_posting_now(db, posting)
     await db.refresh(posting)
 
-    unresolved = [
-        s for s in (posting.extract or {}).get("skills") or [] if s.get("unresolved")
-    ]
+    unresolved = [s for s in (posting.extract or {}).get("skills") or [] if s.get("unresolved")]
     assert unresolved and unresolved[0]["raw_label"] == "cobol"
     assert unresolved[0]["evidence_quote"]
 
     proposed = (
-        (
-            await db.execute(
-                select(Skill).where(Skill.key == "cobol", Skill.status == "proposed")
-            )
-        )
+        (await db.execute(select(Skill).where(Skill.key == "cobol", Skill.status == "proposed")))
         .scalars()
         .first()
     )
@@ -115,11 +102,7 @@ async def test_unresolved_labels_become_moderation_proposals(
     assert proposed.provenance["posting_id"] == str(posting.id)
     # proposed skills get no posting_skills edge (active-only matching)
     skill_rows = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
@@ -166,11 +149,7 @@ async def test_low_confidence_fields_suppressed_and_flagged(
     kept = [s["skill_key"] for s in posting.extract["skills"]]
     assert kept == ["programming"]  # low-confidence skill dropped
     levels = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
@@ -268,9 +247,7 @@ async def test_changed_content_resets_extract(
     await upsert_posting(
         db,
         source,
-        _raw_posting(
-            raw={"description": "Totally different content now with programming."}
-        ),
+        _raw_posting(raw={"description": "Totally different content now with programming."}),
     )
     await db.commit()
     await db.refresh(posting)
@@ -352,7 +329,7 @@ async def test_demand_posting_claims_before_backlog(
         url="https://ex.example/s",
         content_hash=uuid_mod.uuid4().hex,
         raw={"description": "nothing"},
-        posted_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        posted_at=datetime(2026, 7, 1, tzinfo=UTC),
     )
     db.add(stale)
     await db.commit()
@@ -368,9 +345,7 @@ async def test_demand_posting_claims_before_backlog(
 # ----------------------------------------------------------------- search
 
 
-async def test_search_level_threshold_and_all_mode(
-    client, auth_headers, search_fixtures
-):
+async def test_search_level_threshold_and_all_mode(client, auth_headers, search_fixtures):
     response = await client.get(
         "/api/v1/postings/search",
         params={"skills": "programming:4"},
@@ -398,7 +373,7 @@ async def test_search_any_mode_and_null_level_included_without_threshold(
         params={"skills": "problem-solving", "mode": "any"},
         headers=auth_headers,
     )
-    ids = set(i["id"] for i in response.json()["items"])
+    ids = {i["id"] for i in response.json()["items"]}
     assert str(b.id) in ids and str(c.id) in ids  # C matches (no level asked)
 
 
@@ -522,7 +497,5 @@ async def test_admin_needs_review_listing_and_reextract(
 
 
 async def test_search_endpoints_require_auth(client, search_fixtures):
-    response = await client.get(
-        "/api/v1/postings/search", params={"skills": "programming"}
-    )
+    response = await client.get("/api/v1/postings/search", params={"skills": "programming"})
     assert response.status_code in (401, 403)

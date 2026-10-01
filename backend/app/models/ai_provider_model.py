@@ -1,7 +1,6 @@
 import uuid
-from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Float, String, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
@@ -12,16 +11,12 @@ class AIProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "ai_providers"
     __table_args__ = (
-        UniqueConstraint(
-            "scope", "user_id", "name", name="uq_ai_providers_scope_user_name"
-        ),
+        UniqueConstraint("scope", "user_id", "name", name="uq_ai_providers_scope_user_name"),
     )
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    scope: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="system", index=True
-    )
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    scope: Mapped[str] = mapped_column(String(20), nullable=False, default="system", index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     provider_type: Mapped[str] = mapped_column(
@@ -30,12 +25,12 @@ class AIProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     api_base: Mapped[str] = mapped_column(
         String(500), nullable=False, default="https://api.openai.com/v1"
     )
-    api_key_encrypted: Mapped[Optional[str]] = mapped_column(String(600), nullable=True)
+    api_key_encrypted: Mapped[str | None] = mapped_column(String(600), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Data-residency metadata (UI only, parity with study): where a
     # provider runs and which jurisdiction its data lands in.
-    is_local: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    country: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    is_local: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
     models: Mapped[list["AIModel"]] = relationship(
         back_populates="provider", cascade="all, delete-orphan"
@@ -45,7 +40,7 @@ class AIProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     @property
-    def api_key(self) -> Optional[str]:
+    def api_key(self) -> str | None:
         """Decrypted API key (legacy plaintext rows are read verbatim)."""
         from app.core.encryption import decrypt_secret
 
@@ -63,12 +58,12 @@ class AIModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     model_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    reasoning_effort: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    tier: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_effort: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tier: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # AICapability values; NULL means "not declared — clients may guess".
-    caps: Mapped[Optional[list]] = mapped_column(StructuredJSON, nullable=True)
+    caps: Mapped[list | None] = mapped_column(StructuredJSON, nullable=True)
 
     provider: Mapped[AIProvider] = relationship(back_populates="models")
 
@@ -84,22 +79,18 @@ class AITaskAssignment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "ai_task_assignments"
 
     task_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    scope: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="system", index=True
-    )
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    scope: Mapped[str] = mapped_column(String(20), nullable=False, default="system", index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    provider_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    provider_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ai_providers.id", ondelete="CASCADE"), nullable=True
     )
-    model_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    model_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ai_models.id", ondelete="CASCADE"), nullable=True
     )
-    tier: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    tier: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    provider: Mapped[Optional[AIProvider]] = relationship(
-        back_populates="task_assignments"
-    )
-    model: Mapped[Optional[AIModel]] = relationship()
+    provider: Mapped[AIProvider | None] = relationship(back_populates="task_assignments")
+    model: Mapped[AIModel | None] = relationship()

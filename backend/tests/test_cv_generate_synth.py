@@ -18,7 +18,6 @@ from app.models.cv_model import CvDocument, CvVersion
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_generate_service import CvGenerateService
 from app.services.cv_synth_service import CvSynthService
-
 from tests.conftest import _uid
 
 
@@ -100,9 +99,7 @@ async def _last_version(db, cv_id) -> CvVersion:
     )
 
 
-async def test_starred_variant_is_reused(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_starred_variant_is_reused(client, auth_headers, profile_ready, seeded_catalog, db):
     item = await _make_item(db, auth_headers)
     variant = await _active_variant(client, auth_headers, db, item)
     result = await _generate(db, auth_headers, pins=_pin(str(item.id), variant["id"]))
@@ -193,9 +190,7 @@ async def test_apply_to_items_pins_only(client, db, auth_headers):
             resolve(
                 db,
                 uid,
-                CvContextSelection(
-                    context={"synth_pins": _pin(str(item.id), variant["id"])}
-                ),
+                CvContextSelection(context={"synth_pins": _pin(str(item.id), variant["id"])}),
             ),
         )
         if False
@@ -242,9 +237,7 @@ async def test_plan_proposals_ground_gap_variants(
     from app.models.cv_synth_model import CvSynthItem
 
     item = await _make_item(db, auth_headers)
-    result = await _generate_with_plan(
-        db, auth_headers, monkeypatch, _structure_for(str(item.id))
-    )
+    result = await _generate_with_plan(db, auth_headers, monkeypatch, _structure_for(str(item.id)))
     assert result["status"] == "completed", result
     assert len(result["synth_proposed"]) == 1
     record = result["synth_proposed"][0]
@@ -267,11 +260,7 @@ async def test_plan_proposals_ground_gap_variants(
         "the draft grounds on the gap variant's text"
     )
     audited = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "cv_synth")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "cv_synth")))
         .scalars()
         .all()
     )
@@ -318,9 +307,7 @@ async def test_proposal_failure_falls_back_to_source_text(
         raise RuntimeError("synth provider down")
 
     monkeypatch.setattr(CvSynthService, "generate", broken)
-    result = await _generate_with_plan(
-        db, auth_headers, monkeypatch, _structure_for(str(item.id))
-    )
+    result = await _generate_with_plan(db, auth_headers, monkeypatch, _structure_for(str(item.id)))
     assert result["status"] == "completed"
     assert result["synth_proposed"] == []
     assert any("Variant grounding skipped" in warning for warning in result["warnings"])
@@ -437,9 +424,7 @@ def test_clamp_proposals_rules_unit():
                 ],
             },
             "plan": {
-                "sections": [
-                    {"kind": "experience", "item_ids": [f"i-{n}" for n in range(1, 6)]}
-                ]
+                "sections": [{"kind": "experience", "item_ids": [f"i-{n}" for n in range(1, 6)]}]
             },
         },
     )
@@ -455,9 +440,7 @@ async def test_generate_splits_experience_family_into_three_sections(
     """Plan 70: jobs/internships/freelance, projects and volunteering each
     get their own items block with their own source key."""
     work = await _make_item(db, auth_headers, kind="internship")
-    project = await _make_item(
-        db, auth_headers, kind="project", description="Shipped a campus app"
-    )
+    project = await _make_item(db, auth_headers, kind="project", description="Shipped a campus app")
     volunteer = await _make_item(
         db, auth_headers, kind="volunteer", description="Organized food drives"
     )
@@ -482,9 +465,7 @@ async def test_generate_sections_request_can_drop_the_split(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     work = await _make_item(db, auth_headers, kind="internship")
-    project = await _make_item(
-        db, auth_headers, kind="project", description="Shipped a campus app"
-    )
+    project = await _make_item(db, auth_headers, kind="project", description="Shipped a campus app")
     service = CvGenerateService(db, checkpointer=InMemorySaver())
     result = await service.generate(
         UUID(_uid(auth_headers)),
@@ -513,9 +494,7 @@ async def test_synth_reuse_matches_rekeyed_project_items(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     """Variants keyed on the post-split source key apply during generate."""
-    project = await _make_item(
-        db, auth_headers, kind="project", description="Shipped a campus app"
-    )
+    project = await _make_item(db, auth_headers, kind="project", description="Shipped a campus app")
     row = (
         await client.post(
             "/api/v1/cv/synth/generate",
@@ -531,9 +510,7 @@ async def test_synth_reuse_matches_rekeyed_project_items(
         json={"status": "active"},
         headers=auth_headers,
     )
-    result = await _generate(
-        db, auth_headers, pins={f"projects:{project.id}": row["id"]}
-    )
+    result = await _generate(db, auth_headers, pins={f"projects:{project.id}": row["id"]})
     assert result["status"] == "completed", result
     assert result["synth_applied"].get(f"projects:{project.id}") == row["id"], result
     cv = await db.get(CvDocument, UUID(result["cv_id"]))

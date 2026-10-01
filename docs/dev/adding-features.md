@@ -108,7 +108,7 @@ them.
 ## Before you commit
 
 ```bash
-cd backend && ./venv/bin/pytest tests -q -n auto
+cd backend && uv run pytest tests -q -n auto
 cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
 cd frontend && npm run build && npm run test -- --run && npm run lint
 ./scripts/check-changelog.sh

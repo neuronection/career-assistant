@@ -5,8 +5,7 @@ never a fit input. Capture is idempotent per
 scope per day: re-running upserts today's row.
 """
 
-from datetime import date, datetime, timezone
-from typing import Optional
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -19,8 +18,8 @@ SNAPSHOT_DAY_WINDOW = 366
 
 
 def _scope_fields(
-    *, family_key: Optional[str] = None, job_id: Optional[UUID] = None
-) -> tuple[str, str, Optional[str], Optional[UUID]]:
+    *, family_key: str | None = None, job_id: UUID | None = None
+) -> tuple[str, str, str | None, UUID | None]:
     """(scope_kind, scope_key, family_key, job_id) from one scope arg."""
     if family_key is not None and job_id is None:
         return "family", f"family:{family_key}", family_key, None
@@ -30,22 +29,20 @@ def _scope_fields(
 
 
 def _today(now: datetime) -> date:
-    return now.astimezone(timezone.utc).date()
+    return now.astimezone(UTC).date()
 
 
 async def capture_scope(
     db: AsyncSession,
     *,
-    family_key: Optional[str] = None,
-    job_id: Optional[UUID] = None,
-    now: Optional[datetime] = None,
+    family_key: str | None = None,
+    job_id: UUID | None = None,
+    now: datetime | None = None,
 ) -> MarketSnapshot:
     """Snapshot one scope now; upsert today's row (same-day idempotent)."""
 
-    now = now or datetime.now(timezone.utc)
-    scope_kind, scope_key, family_key, job_id = _scope_fields(
-        family_key=family_key, job_id=job_id
-    )
+    now = now or datetime.now(UTC)
+    scope_kind, scope_key, family_key, job_id = _scope_fields(family_key=family_key, job_id=job_id)
     payload = await market_snapshot(db, family_key=family_key, job_id=job_id)
     row = (
         (
@@ -117,8 +114,8 @@ async def capture_all(db: AsyncSession, *, limit: int = 500) -> int:
 async def trend(
     db: AsyncSession,
     *,
-    family_key: Optional[str] = None,
-    job_id: Optional[UUID] = None,
+    family_key: str | None = None,
+    job_id: UUID | None = None,
     limit: int = 60,
 ) -> list[dict]:
     """Ordered history for one scope, oldest first."""

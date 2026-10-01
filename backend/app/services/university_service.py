@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -41,9 +40,7 @@ class UniversityService:
         rows = await self.db.execute(
             select(University)
             .options(
-                selectinload(University.departments).selectinload(
-                    Department.admissions
-                ),
+                selectinload(University.departments).selectinload(Department.admissions),
                 selectinload(University.departments).selectinload(Department.job_links),
             )
             .where(University.id == university_id)
@@ -72,9 +69,7 @@ class UniversityService:
         await self.db.refresh(university)
         return university
 
-    async def add_department(
-        self, university_id: UUID, data: DepartmentCreate
-    ) -> Department:
+    async def add_department(self, university_id: UUID, data: DepartmentCreate) -> Department:
         """Add a department to a university."""
         await self.get_university(university_id)
         department = Department(
@@ -128,9 +123,7 @@ class UniversityService:
         )
         admission = rows.scalars().first()
         if admission is None:
-            admission = DepartmentAdmission(
-                department_id=department_id, year=year, source=source
-            )
+            admission = DepartmentAdmission(department_id=department_id, year=year, source=source)
             self.db.add(admission)
         admission.baseline_score = baseline_score
         admission.top_score = top_score
@@ -149,9 +142,9 @@ class UniversityService:
         *,
         relevance: float = 5.0,
         rationale: str = "",
-        required_subjects: Optional[list] = None,
+        required_subjects: list | None = None,
         typical_position: str = "",
-        employment_rate_pct: Optional[float] = None,
+        employment_rate_pct: float | None = None,
         source: str = "manual",
     ) -> JobDepartmentLink:
         """Create or update the rich job↔department relation."""
@@ -191,12 +184,8 @@ class UniversityService:
         rows = await self.db.execute(
             select(JobDepartmentLink)
             .options(
-                selectinload(JobDepartmentLink.department).selectinload(
-                    Department.university
-                ),
-                selectinload(JobDepartmentLink.department).selectinload(
-                    Department.admissions
-                ),
+                selectinload(JobDepartmentLink.department).selectinload(Department.university),
+                selectinload(JobDepartmentLink.department).selectinload(Department.admissions),
             )
             .where(JobDepartmentLink.job_id == job_id)
         )

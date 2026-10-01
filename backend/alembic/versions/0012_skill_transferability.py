@@ -7,8 +7,9 @@ deterministically from the join graph on catalog change ( sweep
 or inline on catalog mutations); never hand-edited.
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0012"
 down_revision = "0011"
@@ -35,13 +36,9 @@ def upgrade() -> None:
         sa.CheckConstraint("share >= 0 AND share <= 1", name="share_range"),
         sa.UniqueConstraint("skill_id", name="one_row_per_skill"),
     )
-    op.create_index(
-        "ix_skill_transferability_skill_id", "skill_transferability", ["skill_id"]
-    )
+    op.create_index("ix_skill_transferability_skill_id", "skill_transferability", ["skill_id"])
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_skill_transferability_skill_id", table_name="skill_transferability"
-    )
+    op.drop_index("ix_skill_transferability_skill_id", table_name="skill_transferability")
     op.drop_table("skill_transferability")

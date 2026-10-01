@@ -7,7 +7,6 @@ from sqlalchemy import select
 
 from app.models.chat_model import ChatSession
 from app.services import chat_tool_memory
-
 from tests.test_chat_profile_ops import _auth_user
 
 
@@ -36,9 +35,7 @@ async def test_save_load_and_ttl(db, auth_headers):
     _remember(
         session,
         {
-            chat_tool_memory.entry_key(
-                "github_repo", "neuronection/career-assistant"
-            ): {
+            chat_tool_memory.entry_key("github_repo", "neuronection/career-assistant"): {
                 "tool": "github_repo",
                 "ident": "neuronection/career-assistant",
                 "payload": _repo_result(),
@@ -48,14 +45,9 @@ async def test_save_load_and_ttl(db, auth_headers):
     )
     await db.commit()
 
-    loaded = chat_tool_memory.load(
-        (await db.execute(select(ChatSession))).scalars().one()
-    )
-    assert (
-        chat_tool_memory.entry_key("github_repo", "neuronection/career-assistant")
-        in loaded
-    )
-    assert list(loaded.values())[0]["payload"]["full_name"].endswith("career-assistant")
+    loaded = chat_tool_memory.load((await db.execute(select(ChatSession))).scalars().one())
+    assert chat_tool_memory.entry_key("github_repo", "neuronection/career-assistant") in loaded
+    assert next(iter(loaded.values()))["payload"]["full_name"].endswith("career-assistant")
 
     # Outward echo strips the reserved key (assistant-ui page context).
     from app.services.chat_digest_cache import context_without_cache
@@ -83,9 +75,7 @@ async def test_unavailable_results_never_persist(db, auth_headers):
     )
     assert not changed
     await db.commit()
-    loaded = chat_tool_memory.load(
-        (await db.execute(select(ChatSession))).scalars().one()
-    )
+    loaded = chat_tool_memory.load((await db.execute(select(ChatSession))).scalars().one())
     assert loaded == {}
 
 
@@ -113,9 +103,7 @@ async def test_ground_section_shapes(db, auth_headers):
                 "ident": "what is fastapi",
                 "payload": {
                     "available": True,
-                    "results": [
-                        {"title": "FastAPI", "url": "https://fastapi.tiangolo.com"}
-                    ],
+                    "results": [{"title": "FastAPI", "url": "https://fastapi.tiangolo.com"}],
                 },
                 "sig": "",
             },
@@ -167,9 +155,7 @@ async def test_expired_entries_are_dropped(db, auth_headers):
             "fetched_at_epoch"
         ] = stale_epoch
         session.context = {**context, chat_tool_memory.CACHE_CONTEXT_KEY: seeded}
-    assert chat_tool_memory.load(session) == {}, (
-        "an entry older than the TTL never grounds"
-    )
+    assert chat_tool_memory.load(session) == {}, "an entry older than the TTL never grounds"
 
 
 async def test_prompt_carries_memory_on_followup(db, auth_headers, monkeypatch):

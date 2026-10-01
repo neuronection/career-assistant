@@ -8,7 +8,6 @@ funnels through NotificationService.emit — no feature writes rows directly.
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -24,10 +23,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 from app.models.enums import (
@@ -76,9 +75,7 @@ class NotificationKind(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "notification_kinds"
 
-    key: Mapped[str] = mapped_column(
-        String(60), unique=True, index=True, nullable=False
-    )
+    key: Mapped[str] = mapped_column(String(60), unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     group: Mapped[str] = mapped_column(String(40), nullable=False, default="career")
     severity: Mapped[str] = mapped_column(
@@ -91,7 +88,7 @@ class NotificationKind(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     mutable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Deep link into the owning feature's settings (preferences UI one click away).
-    manage_url: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    manage_url: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -126,12 +123,10 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # Typed extras: {job_id, family_key, link, score, actions[], source_ref…}.
     payload: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
-    source_ref: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    source_ref: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Emit-time collapse: same key while the TTL is live ⇒ no new event.
-    dedup_key: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
-    dedup_expires_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
+    dedup_key: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    dedup_expires_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
 
 
 class NotificationRecipient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -139,9 +134,7 @@ class NotificationRecipient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "notification_recipients"
     __table_args__ = (
-        UniqueConstraint(
-            "notification_id", "user_id", name="uq_notification_recipients_pair"
-        ),
+        UniqueConstraint("notification_id", "user_id", name="uq_notification_recipients_pair"),
         Index("ix_notification_recipients_user_status", "user_id", "status"),
         CheckConstraint(
             "status IN ('unread', 'read', 'dismissed')",
@@ -160,10 +153,8 @@ class NotificationRecipient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
         default=NotificationStatus.UNREAD.value,
     )
-    read_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    dismissed_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
+    read_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    dismissed_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
 
 
 class NotificationDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -206,8 +197,8 @@ class NotificationDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
         default=DeliveryStatus.PENDING.value,
     )
-    error: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    subscription_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("notification_subscriptions.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -240,21 +231,19 @@ class NotificationSubscription(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     endpoint_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     p256dh: Mapped[str] = mapped_column(String(200), nullable=False)
     auth: Mapped[str] = mapped_column(String(200), nullable=False)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class NotificationKindPref(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Per-user × per-kind preference (enable/disable + channel override).
+    """Per-user x per-kind preference (enable/disable + channel override).
 
     NULL fields fall back to the kind row's defaults, so new kinds light up
     sanely without per-user seeding.
     """
 
     __tablename__ = "notification_kind_prefs"
-    __table_args__ = (
-        UniqueConstraint("user_id", "kind_id", name="uq_notification_kind_prefs"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "kind_id", name="uq_notification_kind_prefs"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -262,8 +251,8 @@ class NotificationKindPref(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     kind_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("notification_kinds.id", ondelete="RESTRICT"), nullable=False
     )
-    enabled: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    channels: Mapped[Optional[list]] = mapped_column(StructuredJSON, nullable=True)
+    enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    channels: Mapped[list | None] = mapped_column(StructuredJSON, nullable=True)
 
 
 class NotificationRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -299,14 +288,10 @@ class NotificationPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "notification_preferences"
-    __table_args__ = (
-        UniqueConstraint("user_id", name="uq_notification_preferences_user"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", name="uq_notification_preferences_user"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    desktop_channel_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True
-    )
-    quiet_hours: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    desktop_channel_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    quiet_hours: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)

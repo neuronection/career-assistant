@@ -8,8 +8,7 @@ can never drift from what was actually spent. A breach raises
 not audited, no generation happened).
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,13 +20,13 @@ from app.models.enums import AITaskType
 WINDOWS = ("day", "month")
 
 
-def window_start(window: str, now: Optional[datetime] = None) -> datetime:
+def window_start(window: str, now: datetime | None = None) -> datetime:
     """UTC start of the active budget window."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if window == "month":
-        return datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        return datetime(now.year, now.month, 1, tzinfo=UTC)
     if window == "day":
-        return datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        return datetime(now.year, now.month, now.day, tzinfo=UTC)
     raise ValueError(f"unknown budget window: {window}")
 
 
@@ -66,7 +65,8 @@ async def _consumed_since(db: AsyncSession, budget: AIBudget, start: datetime) -
 async def enforce_budgets(db: AsyncSession, task: AITaskType, user_id=None) -> None:
     """Raise ``DomainError`` when any matching budget is exhausted."""
     rows = await db.execute(_matching_budgets(db, task, user_id))
-    for budget in rows.scalars().all():
+    budgets: list[AIBudget] = list(rows.scalars().all())
+    for budget in budgets:
         try:
             start = window_start(budget.window)
         except ValueError:
@@ -98,8 +98,8 @@ async def usage_rollups(db: AsyncSession, window: str = "day") -> list[dict]:
         {
             "task_type": task_type,
             "calls": calls,
-            "tokens_in": int(tokens_in),
-            "tokens_out": int(tokens_out),
+            "tokens_in": int(tokens_in or 0),
+            "tokens_out": int(tokens_out or 0),
         }
         for task_type, calls, tokens_in, tokens_out in rows.all()
     ]

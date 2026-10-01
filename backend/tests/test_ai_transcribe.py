@@ -15,23 +15,18 @@ def _audio_file(content: bytes = b"fake-audio-bytes", mime: str = "audio/webm"):
 
 
 async def test_transcribe_round_trip_through_mock(client, db, auth_headers):
-    response = await client.post(
-        "/api/v1/ai/transcribe", files=_audio_file(), headers=auth_headers
-    )
+    response = await client.post("/api/v1/ai/transcribe", files=_audio_file(), headers=auth_headers)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["text"].strip()
     assert body["model"]
 
-    from app.models.ai_model import AIGeneration
     from sqlalchemy import select
 
+    from app.models.ai_model import AIGeneration
+
     rows = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "transcribe")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "transcribe")))
         .scalars()
         .all()
     )
@@ -66,24 +61,18 @@ async def test_transcribe_validates_language(client, auth_headers):
     assert response.status_code == 422
 
 
-async def test_transcribe_returns_503_when_unassigned(
-    client, auth_headers, monkeypatch
-):
+async def test_transcribe_returns_503_when_unassigned(client, auth_headers, monkeypatch):
     from app.ai.providers import resolution
 
     async def _none(db, task, user_id=None):
         return None
 
     monkeypatch.setattr(resolution, "resolve_task_model", _none)
-    response = await client.post(
-        "/api/v1/ai/transcribe", files=_audio_file(), headers=auth_headers
-    )
+    response = await client.post("/api/v1/ai/transcribe", files=_audio_file(), headers=auth_headers)
     assert response.status_code == 503
 
 
-async def test_transcribe_unsupported_provider_maps_to_422(
-    client, auth_headers, monkeypatch
-):
+async def test_transcribe_unsupported_provider_maps_to_422(client, auth_headers, monkeypatch):
     from app.ai.providers import resolution
     from app.ai.providers.resolution import ResolvedModel
 
@@ -97,9 +86,7 @@ async def test_transcribe_unsupported_provider_maps_to_422(
         )
 
     monkeypatch.setattr(resolution, "resolve_task_model", _text_only)
-    response = await client.post(
-        "/api/v1/ai/transcribe", files=_audio_file(), headers=auth_headers
-    )
+    response = await client.post("/api/v1/ai/transcribe", files=_audio_file(), headers=auth_headers)
     assert response.status_code == 422
     assert "speech-to-text" in response.json()["detail"]
 
@@ -130,9 +117,7 @@ def test_transcribe_with_google_provider_is_native():
         return httpx.Response(
             200,
             json={
-                "candidates": [
-                    {"content": {"parts": [{"text": " hello world "}], "role": "model"}}
-                ]
+                "candidates": [{"content": {"parts": [{"text": " hello world "}], "role": "model"}}]
             },
         )
 

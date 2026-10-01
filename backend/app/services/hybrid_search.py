@@ -6,14 +6,12 @@ candidate set is always the SQL/lexically-filtered one, so a vector hit
 can never resurrect a posting the user's hard filters excluded.
 """
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 RRF_K = 60  # standard k: dampens rank-position noise between lists
 
 
-def rrf_merge(
-    ranked_lists: Sequence[Sequence[str]], k: int = RRF_K
-) -> dict[str, float]:
+def rrf_merge(ranked_lists: Sequence[Sequence[str]], k: int = RRF_K) -> dict[str, float]:
     """Reciprocal-rank-fusion scores for one merged ranking.
 
     score(d) = Σ over lists  1 / (k + position(d) in that list); items

@@ -82,9 +82,7 @@ async def test_job_department_link(client, auth_headers, seeded_catalog):
             headers=auth_headers,
         )
     ).json()
-    job = (
-        await client.get("/api/v1/jobs/software-developer", headers=auth_headers)
-    ).json()
+    job = (await client.get("/api/v1/jobs/software-developer", headers=auth_headers)).json()
     link = await client.post(
         "/api/v1/universities/job-links",
         json={
@@ -101,9 +99,7 @@ async def test_job_department_link(client, auth_headers, seeded_catalog):
     assert link.status_code == 201, link.text
     assert link.json()["relevance"] == 9.5
 
-    detail = await client.get(
-        "/api/v1/jobs/software-developer/match", headers=auth_headers
-    )
+    detail = await client.get("/api/v1/jobs/software-developer/match", headers=auth_headers)
     assert detail.status_code == 200
     pathways = detail.json()["university_pathways"]
     assert len(pathways) == 1
@@ -124,8 +120,6 @@ async def test_university_search(client, auth_headers):
     )
     found = await client.get("/api/v1/universities?q=athens", headers=auth_headers)
     assert len(found.json()) == 1
-    by_country = await client.get(
-        "/api/v1/universities?country=Germany", headers=auth_headers
-    )
+    by_country = await client.get("/api/v1/universities?country=Germany", headers=auth_headers)
     assert len(by_country.json()) == 1
     assert by_country.json()[0]["name"] == "Berlin Uni"

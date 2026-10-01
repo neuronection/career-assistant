@@ -64,9 +64,7 @@ async def test_education_crud_and_ownership(client, db, auth_headers):
     )
     assert foreign.status_code == 404
 
-    deleted = await client.delete(
-        f"/api/v1/me/education/{item['id']}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/me/education/{item['id']}", headers=auth_headers)
     assert deleted.status_code == 204
     assert (await client.get("/api/v1/me/education", headers=auth_headers)).json() == []
 
@@ -149,9 +147,7 @@ async def test_cv_readiness_progresses_with_data(client, db, auth_headers):
                 "phone": "+30 555",
                 "city": "Athens",
                 "headline": "Aspiring engineer",
-                "links": [
-                    {"kind": "github", "url": "https://github.com/jane", "label": "gh"}
-                ],
+                "links": [{"kind": "github", "url": "https://github.com/jane", "label": "gh"}],
             },
             "academics": {"languages": [{"code": "en", "level": "advanced"}]},
             "aspirations": [{"label": "Build an app", "tag_keys": []}],
@@ -201,9 +197,7 @@ async def _seed_university(db) -> tuple[University, Department, University]:
     university = University(name="TU Sample", country="NL", city="Utrecht")
     db.add(university)
     await db.flush()
-    department = Department(
-        university_id=university.id, name="Computer Science", degree="master"
-    )
+    department = Department(university_id=university.id, name="Computer Science", degree="master")
     db.add(department)
     other = University(name="Other University", country="NL", city="Leiden")
     db.add(other)
@@ -384,9 +378,7 @@ async def test_fit_uses_derived_education_level(client, db, auth_headers):
         headers=auth_headers,
     )
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     context = await FitService(db).user_context(profile)
     assert context["education_level"] == "high_school"

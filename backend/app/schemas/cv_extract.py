@@ -1,7 +1,8 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """CV extraction contract: `CvExtract` — the structured AI
 output of the CV-parse task.
 
-Every field carries provenance: `confidence` 0–1, an `evidence_quote`
+Every field carries provenance: `confidence` 0-1, an `evidence_quote`
 verbatim from the source text, and a page reference. Unset ≠ empty
 : nothing is guessed, optional-with-threshold only.
 The `cv_field_map` (services/cv_field_map.py) binds these fields to
@@ -9,7 +10,7 @@ profile targets and generates the extraction prompt — schema and prompts
 cannot drift.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -19,7 +20,7 @@ from app.services.stages_service import max_birth_year
 
 class FieldEvidence(BaseModel):
     quote: str = Field(default="", max_length=1000)
-    page: Optional[int] = Field(default=None, ge=0)
+    page: int | None = Field(default=None, ge=0)
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
@@ -38,7 +39,7 @@ class ExtractedBasics(BaseModel):
     location: str = Field(default="", max_length=200)
     city: str = Field(default="", max_length=80)
     country: str = Field(default="", max_length=80)
-    birth_year: Optional[int] = Field(default=None, ge=1950, le=max_birth_year())
+    birth_year: int | None = Field(default=None, ge=1950, le=max_birth_year())
     links: list[ExtractedLink] = Field(default_factory=list, max_length=8)
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 
@@ -51,13 +52,13 @@ class ExtractedMetric(BaseModel):
 
 class ExtractedSkill(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    level_claim: Optional[int] = Field(default=None, ge=1, le=10)
+    level_claim: int | None = Field(default=None, ge=1, le=10)
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 
 
 class ExtractedAchievement(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
-    metric: Optional[ExtractedMetric] = None
+    metric: ExtractedMetric | None = None
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 
 
@@ -69,9 +70,7 @@ class ExtractedExperience(BaseModel):
     end: str = Field(default="", max_length=10)
     description: str = Field(default="", max_length=4000)
     skills: list[ExtractedSkill] = Field(default_factory=list, max_length=15)
-    achievements: list[ExtractedAchievement] = Field(
-        default_factory=list, max_length=10
-    )
+    achievements: list[ExtractedAchievement] = Field(default_factory=list, max_length=10)
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 
 
@@ -81,9 +80,7 @@ class ExtractedEducation(BaseModel):
     level: str = Field(default="", max_length=30)
     start: str = Field(default="", max_length=10)
     end: str = Field(default="", max_length=10)
-    grade_band: Optional[
-        Literal["low", "below_average", "average", "good", "excellent", "unknown"]
-    ] = None
+    grade_band: Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None = None
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 
 
@@ -131,8 +128,6 @@ class CvExtract(BaseModel):
 
         return validate_rich_text(value, 2000)
 
-    certifications: list[ExtractedCertification] = Field(
-        default_factory=list, max_length=10
-    )
+    certifications: list[ExtractedCertification] = Field(default_factory=list, max_length=10)
     awards: list[ExtractedAward] = Field(default_factory=list, max_length=10)
     interests: list[ExtractedInterest] = Field(default_factory=list, max_length=10)

@@ -58,9 +58,7 @@ def _merged() -> dict:
 def _merge(merged: dict, option: dict, share: float = 1.0) -> None:
     scores = option.get("scores") or {}
     for key, value in (scores.get("skill_levels") or {}).items():
-        merged["skill_levels"][key] = (
-            merged["skill_levels"].get(key, 0) + float(value) * share
-        )
+        merged["skill_levels"][key] = merged["skill_levels"].get(key, 0) + float(value) * share
     for key, value in (scores.get("dimension_levels") or {}).items():
         merged["dimension_levels"][key] = (
             merged["dimension_levels"].get(key, 0) + float(value) * share
@@ -100,7 +98,7 @@ class TimeAllocation:
         if not set(weights) <= ids:
             raise ValidationError("weights reference unknown options")
         if any(v < 0 or v > 100 for v in weights.values()):
-            raise ValidationError("weights must be 0–100")
+            raise ValidationError("weights must be 0-100")
         if sum(weights.values()) not in (0, 100):
             raise ValidationError("allocation must sum to 100 (or 0 to skip)")
         return {"weights": weights}
@@ -138,7 +136,7 @@ class Ranking:
 
 
 class Slider:
-    """A 1–10 self-rating; time_split carries what is being rated."""
+    """A 1-10 self-rating; time_split carries what is being rated."""
 
     scoring_capable = True
 
@@ -147,7 +145,7 @@ class Slider:
             raise ValidationError("slider answer needs {value}")
         value = int(answer["value"])
         if not 1 <= value <= 10:
-            raise ValidationError("slider value must be 1–10")
+            raise ValidationError("slider value must be 1-10")
         return {"value": value}
 
     def derive(self, question: dict, answer: dict) -> dict:
@@ -197,7 +195,7 @@ class MultiSelect:
 
 
 class ForcedChoice:
-    """Pick between 2–4 statement blocks — the modern personality format
+    """Pick between 2-4 statement blocks — the modern personality format
     (less social-desirability bias than Likert-only)."""
 
     scoring_capable = True
@@ -207,7 +205,7 @@ class ForcedChoice:
             raise ValidationError("forced_choice answer needs {option_id}")
         options = question.get("options") or []
         if not 2 <= len(options) <= 4:
-            raise ValidationError("forced_choice needs 2–4 blocks")
+            raise ValidationError("forced_choice needs 2-4 blocks")
         _find_option(question, str(answer["option_id"]))
         return {"option_id": str(answer["option_id"])}
 
@@ -218,20 +216,17 @@ class ForcedChoice:
 
 
 class LikertMatrix:
-    """Statements × agreement scale (1–5) with reverse-score flags.
+    """Statements x agreement scale (1-5) with reverse-score flags.
 
-    Per statement: `(agreement − 3) / 2` scales the statement's delta
-    (−1…+1), sign-flipped for reverse-scored statements. Neutral (3)
+    Per statement: `(agreement - 3) / 2` scales the statement's delta
+    (-1…+1), sign-flipped for reverse-scored statements. Neutral (3)
     contributes nothing — skips stay neutral.
     """
 
     scoring_capable = True
 
     def _statements(self, question: dict) -> dict[str, dict]:
-        return {
-            str(s["id"]): s
-            for s in (question.get("time_split") or {}).get("statements") or []
-        }
+        return {str(s["id"]): s for s in (question.get("time_split") or {}).get("statements") or []}
 
     def validate(self, question: dict, answer) -> dict:
         if not isinstance(answer, dict) or not isinstance(answer.get("values"), dict):
@@ -245,7 +240,7 @@ class LikertMatrix:
                 raise ValidationError("values reference unknown statements")
             v = int(value)
             if not 1 <= v <= 5:
-                raise ValidationError("agreement values must be 1–5")
+                raise ValidationError("agreement values must be 1-5")
             values[str(statement_id)] = v
         return {"values": values}
 
@@ -388,7 +383,7 @@ def _load_kind_plugins() -> None:
             handler_cls = ep.load()
             probe = handler_cls()
             _contract_check(ep.name, probe)
-        except Exception as exc:  # noqa: BLE001 — one bad kind never breaks boot
+        except Exception as exc:
             logger.warning("Question kind %s failed the contract kit: %s", ep.name, exc)
             continue
         REGISTRY.setdefault(ep.name, handler_cls)

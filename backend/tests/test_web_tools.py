@@ -6,7 +6,6 @@ from app.ai.tools import run_tool
 from app.core.encryption import encrypt_secret
 from app.services import webfetch
 
-
 _PUBLIC = "93.184.216.34"
 
 
@@ -43,9 +42,7 @@ def searx_url(db):
 
 
 class FakeResponse:
-    def __init__(
-        self, status_code=200, content=b"", json_data=None, headers=None, encoding=None
-    ):
+    def __init__(self, status_code=200, content=b"", json_data=None, headers=None, encoding=None):
         self.encoding = encoding
         self.status_code = status_code
         self._content = content
@@ -182,9 +179,7 @@ async def test_fetch_url_plain_interprets_html(db, monkeypatch):
             "127.0.0.1": FakeResponse(),
         },
     )
-    result = await run_tool(
-        db, "fetch_url", None, {"url": "https://93.184.216.34/page"}
-    )
+    result = await run_tool(db, "fetch_url", None, {"url": "https://93.184.216.34/page"})
     assert result["status"] == 200
     assert result["title"] == "P"
     assert "body text" in result["text"]
@@ -278,9 +273,7 @@ async def test_github_repo_metadata_and_readme(db, monkeypatch):
 
     monkeypatch.setattr(webfetch, "_resolve_host", lambda host: _public(host))
     _route(monkeypatch, {"api.github.com": real_route})
-    result = await run_tool(
-        db, "github_repo", None, {"repo": "https://github.com/owner/repo"}
-    )
+    result = await run_tool(db, "github_repo", None, {"repo": "https://github.com/owner/repo"})
     assert result["available"] is True
     assert result["stars"] == 5
     assert result["license"] == "MIT"
@@ -334,9 +327,7 @@ async def test_rate_limits_flowthrough_registry(db, monkeypatch):
     from app.ai.tools.web import RATE_WINDOWS
 
     limit, _window = RATE_WINDOWS["web_search"]
-    results = [
-        await run_tool(db, "web_search", None, {"query": "q"}) for _ in range(limit + 1)
-    ]
+    results = [await run_tool(db, "web_search", None, {"query": "q"}) for _ in range(limit + 1)]
     assert results[-1]["reason"].startswith("rate limit")
 
 
@@ -373,9 +364,7 @@ async def test_pasted_github_link_runs_github_repo(db, monkeypatch):
     )
     names = [t["name"] for t in metadata["tools"]]
     assert "github_repo" in names
-    assert "https://github.com/owner/proj" in prompt or metadata_tools_has(
-        metadata, "github_repo"
-    )
+    assert "https://github.com/owner/proj" in prompt or metadata_tools_has(metadata, "github_repo")
 
 
 def metadata_tools_has(metadata, name):

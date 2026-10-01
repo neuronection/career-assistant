@@ -9,11 +9,11 @@ from app.core.database import get_db
 from app.schemas.experience import (
     DerivationApplyOut,
     DerivationOut,
+    EvidenceOut,
     ExperienceItemIn,
     ExperienceItemOut,
     ExperienceItemUpdate,
     ExperienceOut,
-    EvidenceOut,
 )
 from app.services.deps import get_current_user
 from app.services.experience_service import ExperienceService
@@ -50,9 +50,7 @@ def _item_out(item) -> ExperienceItemOut:
         status=item.status,
         created_at=item.created_at,
         skills=[_skill_out(link) for link in item.skills],
-        achievements=[
-            {"id": a.id, "text": a.text, "metric": a.metric} for a in item.achievements
-        ],
+        achievements=[{"id": a.id, "text": a.text, "metric": a.metric} for a in item.achievements],
     )
 
 
@@ -120,15 +118,13 @@ async def apply_experience_derivation(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> DerivationApplyOut:
     """Write derived levels to user_skills + skill_evidence (conflict-aware)."""
-    from app.services.job_worker import enqueue
     from app.models.enums import BackgroundJobType
     from app.services.fit.service import FitService
+    from app.services.job_worker import enqueue
 
     service = ExperienceService(db)
     result = await service.apply_derivation(user.id)
-    await enqueue(
-        db, BackgroundJobType.MATCH_SCORE.value, {"limit": 10}, user_id=user.id
-    )
+    await enqueue(db, BackgroundJobType.MATCH_SCORE.value, {"limit": 10}, user_id=user.id)
     await FitService(db).refit_user(user.id)
     return DerivationApplyOut.model_validate(result)
 
@@ -140,6 +136,4 @@ async def skill_evidence(
     db: AsyncSession = Depends(get_db),
 ) -> EvidenceOut:
     """Trace: which items/runs/documents support this skill's level."""
-    return EvidenceOut.model_validate(
-        await ExperienceService(db).skill_evidence(user.id, skill_id)
-    )
+    return EvidenceOut.model_validate(await ExperienceService(db).skill_evidence(user.id, skill_id))

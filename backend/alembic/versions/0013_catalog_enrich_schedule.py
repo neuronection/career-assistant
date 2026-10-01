@@ -53,6 +53,5 @@ def downgrade() -> None:
         batch.drop_constraint("task_allowed", type_="check")
         batch.create_check_constraint(
             "task_allowed",
-            "task IS NULL OR task IN ('posting_sync', 'digest', "
-            "'saved_search_run', 'fit_refit')",
+            "task IS NULL OR task IN ('posting_sync', 'digest', 'saved_search_run', 'fit_refit')",
         )

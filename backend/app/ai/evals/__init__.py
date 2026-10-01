@@ -9,14 +9,14 @@ mock fixtures encode; live-provider spot-checks stay an admin action
 (costs money, never in CI).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Type
+from typing import Any
 
 from pydantic import BaseModel
 
 from app.ai.agents.posting_extractor import PostingExtract
 from app.ai.prompt_versions import prompt_version
-from app.models.enums import AITaskType
 from app.ai.schemas import (
     ChatReply,
     CvBuildCritique,
@@ -25,6 +25,7 @@ from app.ai.schemas import (
     ProfileInsight,
     UniversityExtraction,
 )
+from app.models.enums import AITaskType
 from app.schemas.cv_extract import CvExtract
 
 
@@ -33,7 +34,7 @@ class GoldenCase:
     """One blessed agent-task fixture."""
 
     task: str
-    schema: Type[BaseModel]
+    schema: type[BaseModel]
     system: str
     user: str
     prompt_version: str
@@ -141,15 +142,13 @@ def _check_build_review(critique: CvBuildCritique) -> None:
 
 
 def _build_cases() -> list[GoldenCase]:
-    from app.ai.agents.prompts import CHATBOT
-    import app.ai.agents  # noqa: F401 — registers every mock fixture
+    import app.ai.agents
     import app.ai.agents.cv_build_reviewer  # noqa: F401 — fixture side effect
-
-    from app.ai.agents.job_generator import JOB_GENERATOR
-    from app.ai.agents.prompts import MATCH_SCORER, PROFILE_ANALYST, UNIVERSITY_PARSER
-    from app.schemas.cv_extract import CvExtract
-    from app.ai.agents.posting_extractor import PostingExtract
     from app.ai.agents.cv_parser import build_extraction_prompt
+    from app.ai.agents.job_generator import JOB_GENERATOR
+    from app.ai.agents.posting_extractor import PostingExtract
+    from app.ai.agents.prompts import CHATBOT, MATCH_SCORER, PROFILE_ANALYST, UNIVERSITY_PARSER
+    from app.schemas.cv_extract import CvExtract
 
     cases = [
         GoldenCase(

@@ -1,6 +1,5 @@
 import io
 import uuid
-from typing import Optional
 from pathlib import Path
 
 from sqlalchemy import select
@@ -28,7 +27,7 @@ class DocumentService:
         return directory / f"{document_id}{suffix}"
 
     @staticmethod
-    def upload_file_path(document: Document) -> Optional[Path]:
+    def upload_file_path(document: Document) -> Path | None:
         """Stored file path for a document row (None when unplausible)."""
         if not document.filename:
             return None
@@ -61,8 +60,7 @@ class DocumentService:
     def extract_text(document: Document) -> tuple[str, int]:
         """Extract raw text from the stored file (pdf via pypdf, else utf-8)."""
         path = (
-            Path(settings.upload_dir)
-            / f"{document.id}{Path(document.filename).suffix or '.bin'}"
+            Path(settings.upload_dir) / f"{document.id}{Path(document.filename).suffix or '.bin'}"
         )
         if not path.exists():
             raise NotFoundError("Stored file missing")
@@ -99,9 +97,7 @@ class DocumentService:
     async def get_owned(self, document_id: uuid.UUID, user_id: uuid.UUID) -> Document:
         """Fetch a document belonging to the caller."""
         rows = await self.db.execute(
-            select(Document).where(
-                Document.id == document_id, Document.user_id == user_id
-            )
+            select(Document).where(Document.id == document_id, Document.user_id == user_id)
         )
         document = rows.scalars().first()
         if document is None:
@@ -131,9 +127,7 @@ class DocumentService:
         await self.db.commit()
         return created
 
-    async def _upsert_university(
-        self, uni_data: dict, user_id: uuid.UUID
-    ) -> University:
+    async def _upsert_university(self, uni_data: dict, user_id: uuid.UUID) -> University:
         """Find-or-create a university by (name, country)."""
         name = uni_data.get("name", "").strip()
         if not name:
@@ -158,9 +152,7 @@ class DocumentService:
             await self.db.flush()
         return university
 
-    async def _upsert_department(
-        self, university_id: uuid.UUID, dept_data: dict
-    ) -> Department:
+    async def _upsert_department(self, university_id: uuid.UUID, dept_data: dict) -> Department:
         """Find-or-create a department by (university, name)."""
         import datetime as dt
 
@@ -225,9 +217,7 @@ class DocumentService:
         admission.confidence = float(adm.get("confidence", 0.8))
         admission.document_id = document_id
 
-    async def list_documents(
-        self, user_id: uuid.UUID, kind: str | None = None
-    ) -> list[Document]:
+    async def list_documents(self, user_id: uuid.UUID, kind: str | None = None) -> list[Document]:
         """All documents of a user, newest first (optionally by kind)."""
         stmt = select(Document).where(Document.user_id == user_id)
         if kind is not None:

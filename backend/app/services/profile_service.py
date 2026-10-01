@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -62,9 +62,7 @@ class ProfileService:
         ):
             if section in payload and payload[section] is not None:
                 if section == "basics":
-                    payload[section] = self._preserve_path(
-                        profile.basics or {}, payload[section]
-                    )
+                    payload[section] = self._preserve_path(profile.basics or {}, payload[section])
                 setattr(profile, section, payload[section])
                 if section != "hobbies":
                     fit_relevant = True
@@ -139,19 +137,15 @@ class ProfileService:
         return stage, source
 
     async def _write_interests(self, user_id: UUID, items: list[dict]) -> None:
-        """Replace the user's interest links (taxonomy keys, weights 1–5)."""
+        """Replace the user's interest links (taxonomy keys, weights 1-5)."""
         if not items:
-            await self.db.execute(
-                delete(UserInterest).where(UserInterest.user_id == user_id)
-            )
+            await self.db.execute(delete(UserInterest).where(UserInterest.user_id == user_id))
             return
         tags = {
             t.key: t
             for t in (
                 await self.db.execute(
-                    select(InterestTag).where(
-                        InterestTag.key.in_([i["tag_key"] for i in items])
-                    )
+                    select(InterestTag).where(InterestTag.key.in_([i["tag_key"] for i in items]))
                 )
             )
             .scalars()
@@ -159,12 +153,8 @@ class ProfileService:
         }
         missing = [i["tag_key"] for i in items if i["tag_key"] not in tags]
         if missing:
-            raise ValidationError(
-                f"Unknown interest keys: {', '.join(sorted(set(missing)))}"
-            )
-        await self.db.execute(
-            delete(UserInterest).where(UserInterest.user_id == user_id)
-        )
+            raise ValidationError(f"Unknown interest keys: {', '.join(sorted(set(missing)))}")
+        await self.db.execute(delete(UserInterest).where(UserInterest.user_id == user_id))
         seen: set[str] = set()
         for item in items:
             key = item["tag_key"]
@@ -185,8 +175,7 @@ class ProfileService:
     def interests_out(rows: list[UserInterest]) -> list[dict]:
         """API shape for the interests section (same as the old JSONB)."""
         return [
-            {"tag_key": row.tag.key, "weight": row.weight, "source": row.source}
-            for row in rows
+            {"tag_key": row.tag.key, "weight": row.weight, "source": row.source} for row in rows
         ]
 
     async def snapshot(self, profile: Profile) -> dict:
@@ -243,9 +232,7 @@ class ProfileService:
         )
 
     @staticmethod
-    def interest_weights(
-        profile: Profile, interest_rows: list[UserInterest]
-    ) -> dict[str, int]:
+    def interest_weights(profile: Profile, interest_rows: list[UserInterest]) -> dict[str, int]:
         """Map of interest tag key → weight (max weight wins)."""
         weights: dict[str, int] = {}
         for row in interest_rows:
@@ -269,11 +256,9 @@ class ProfileService:
                 suggested_skills.append(canonical)
         profile.ai_summary = {
             **insight.model_dump(mode="json"),
-            "suggested_interest_keys": [
-                k for k in insight.suggested_interest_keys if k in known
-            ],
+            "suggested_interest_keys": [k for k in insight.suggested_interest_keys if k in known],
             "suggested_skill_keys": suggested_skills,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
         self.db.add(profile)
         await self.db.commit()
@@ -294,17 +279,14 @@ class ProfileService:
         """
         checks = {
             "basics": bool(
-                (profile.basics or {}).get("country")
-                or (profile.basics or {}).get("birth_year")
+                (profile.basics or {}).get("country") or (profile.basics or {}).get("birth_year")
             ),
             "academics": bool((profile.academics or {}).get("favorite_subjects")),
             "interests": interests_count > 0,
             "hobbies": bool(profile.hobbies),
             "likes": bool(profile.likes) or bool(profile.dislikes),
             "aspirations": bool(profile.aspirations),
-            "work_preferences": bool(
-                (profile.work_preferences or {}).get("focus_areas")
-            ),
+            "work_preferences": bool((profile.work_preferences or {}).get("focus_areas")),
             "constraints": bool(
                 (profile.constraints or {}).get("physical_conditions")
                 or (profile.constraints or {}).get("max_education_years")
@@ -316,9 +298,7 @@ class ProfileService:
         required_done = sum(1 for key in required if checks.get(key))
         return {
             "percent": round(done / len(checks) * 100),
-            "required_percent": (
-                round(required_done / len(required) * 100) if required else 100
-            ),
+            "required_percent": (round(required_done / len(required) * 100) if required else 100),
             "sections": checks,
             "required": {key: key in required for key in checks},
         }
@@ -326,11 +306,7 @@ class ProfileService:
 
 async def _skill_alias_map(db: AsyncSession) -> dict[str, str]:
     """normalized key/alias → canonical key for every active skill."""
-    rows = (
-        (await db.execute(select(Skill).where(Skill.status == "active")))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(Skill).where(Skill.status == "active"))).scalars().all()
     mapping: dict[str, str] = {}
     for skill in rows:
         mapping[skill.key.strip().lower()] = skill.key

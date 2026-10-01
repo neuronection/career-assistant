@@ -8,6 +8,7 @@ stale values behind.
 """
 
 import uuid
+from datetime import UTC
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,19 +61,13 @@ class MetricService:
     async def registry(self) -> list[MetricDimension]:
         """All dimension rows, stable order (group, key)."""
         rows = await self.db.execute(
-            select(MetricDimension).order_by(
-                MetricDimension.group.asc(), MetricDimension.key.asc()
-            )
+            select(MetricDimension).order_by(MetricDimension.group.asc(), MetricDimension.key.asc())
         )
         return list(rows.scalars().all())
 
     async def require_dimension(self, key: str) -> MetricDimension:
         row = (
-            (
-                await self.db.execute(
-                    select(MetricDimension).where(MetricDimension.key == key)
-                )
-            )
+            (await self.db.execute(select(MetricDimension).where(MetricDimension.key == key)))
             .scalars()
             .first()
         )
@@ -129,9 +124,9 @@ class MetricService:
     async def interest_affinity(self, user_id: uuid.UUID) -> dict[str, float]:
         """RIASEC vector from interest tags' categories ({} without signal).
 
-        Deterministic: each tag contributes its 1–5 weight to its
+        Deterministic: each tag contributes its 1-5 weight to its
         category's letter; per-letter sums normalize against the strongest
-        letter → 1 + 9 × (sum / max), so the profile shape survives
+        letter → 1 + 9 x (sum / max), so the profile shape survives
         interest-count changes.
         """
         rows = await self.db.execute(
@@ -157,9 +152,7 @@ class MetricService:
         """Full-replace the user's interest.* metric rows; returns the count."""
         from app.seeds.metrics import RIASEC_LETTERS
 
-        await self._ensure_dimensions(
-            [f"interest.{letter}" for letter in RIASEC_LETTERS]
-        )
+        await self._ensure_dimensions([f"interest.{letter}" for letter in RIASEC_LETTERS])
         await self.db.execute(
             delete(UserMetricProfile).where(
                 UserMetricProfile.user_id == user_id,
@@ -181,10 +174,8 @@ class MetricService:
         await self.db.commit()
         return len(vector)
 
-    async def recompute_workstyle(
-        self, user_id: uuid.UUID, work_preferences: dict
-    ) -> int:
-        """Write the 1–5 work-style sliders through as self_report evidence
+    async def recompute_workstyle(self, user_id: uuid.UUID, work_preferences: dict) -> int:
+        """Write the 1-5 work-style sliders through as self_report evidence
         (: the sliders stay the capture UI, dimensions are the
         language). Full-replace within the workstyle family."""
         await self._ensure_dimensions([f"workstyle.{key}" for key in work_preferences])
@@ -313,13 +304,13 @@ class MetricService:
         call. Never touches the exploration slot — that guard lives in
         the fit engine, untouched here.
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from app.models.job_model import JobTag
         from app.models.posting_model import JobPosting, PostingInteraction
         from app.models.user_model import Profile
 
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         profile = (
             (await self.db.execute(select(Profile).where(Profile.user_id == user_id)))
             .scalars()
@@ -396,9 +387,7 @@ class MetricService:
                 await self.db.execute(
                     select(UserMetricProfile).where(
                         UserMetricProfile.user_id == user_id,
-                        UserMetricProfile.dimension_key.like(
-                            f"{INTEREST_DIMENSION_PREFIX}%"
-                        ),
+                        UserMetricProfile.dimension_key.like(f"{INTEREST_DIMENSION_PREFIX}%"),
                     )
                 )
             )
@@ -407,16 +396,12 @@ class MetricService:
         }
         from app.seeds.metrics import RIASEC_LETTERS
 
-        await self._ensure_dimensions(
-            [f"interest.{letter}" for letter in RIASEC_LETTERS]
-        )
+        await self._ensure_dimensions([f"interest.{letter}" for letter in RIASEC_LETTERS])
         moved: dict[str, float] = {}
         for key, target_value in target.items():
             row = existing.get(key)
             current = float(row.value) if row is not None else 5.5
-            delta = max(
-                -REVEALED_STEP_CAP, min(REVEALED_STEP_CAP, target_value - current)
-            )
+            delta = max(-REVEALED_STEP_CAP, min(REVEALED_STEP_CAP, target_value - current))
             if abs(delta) < 0.01:
                 continue
             new_value = round(min(10.0, max(1.0, current + delta)), 2)
@@ -471,12 +456,8 @@ class MetricService:
         results = []
         for bucket in families.values():
             applied = bucket["applied"]
-            bucket["interview_rate"] = (
-                round(bucket["interview"] / applied, 2) if applied else None
-            )
-            bucket["offer_rate"] = (
-                round(bucket["offer"] / applied, 2) if applied else None
-            )
+            bucket["interview_rate"] = round(bucket["interview"] / applied, 2) if applied else None
+            bucket["offer_rate"] = round(bucket["offer"] / applied, 2) if applied else None
             results.append(bucket)
         results.sort(key=lambda item: (-item["applied"], item["family"]))
         return results
@@ -494,7 +475,7 @@ class MetricService:
 # ------------------------------------------------------------ residuals
 
 REVEALED_WINDOW_DAYS = 28
-REVEALED_STEP_CAP = 0.5  # ≤5% of the 1–10 scale per (weekly) call
+REVEALED_STEP_CAP = 0.5  # ≤5% of the 1-10 scale per (weekly) call
 
 _REVEALED_ENGAGEMENT_WEIGHTS = {"seen": 1.0, "saved": 3.0, "applied": 5.0}
 

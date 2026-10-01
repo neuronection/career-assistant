@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -17,10 +16,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -30,31 +29,25 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint(
-            "oidc_issuer", "oidc_subject", name="uq_users_oidc_issuer_subject"
-        ),
+        UniqueConstraint("oidc_issuer", "oidc_subject", name="uq_users_oidc_issuer_subject"),
     )
 
     email: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
     # NULLABLE (§5): NULL ⇒ password login refused for that row (DIM owner
     # until a password is set); otherwise bcrypt ≥12 rounds (nx_auth).
-    password_hash: Mapped[Optional[str]] = mapped_column(nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(nullable=True)
     full_name: Mapped[str] = mapped_column(nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
     # Brute-force protection: consecutive failures lock the account until
     # locked_until passes (or an admin unlocks).
-    failed_login_attempts: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
-    locked_until: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Bumped to invalidate every outstanding token ("sign out everywhere").
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     # OIDC link (§14, present from day one); unique as a pair above.
-    oidc_issuer: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    oidc_subject: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    oidc_issuer: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    oidc_subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     profiles: Mapped[list["Profile"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -85,35 +78,23 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
     # Optional profile accent (study's shared ProfileSwitcher swatch).
-    color: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # Last-used tracking (§6: the last-used profile is remembered per
     # user) — the desktop binding fallback sorts on it.
-    last_used_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
+    last_used_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     basics: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
-    academics: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    academics: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     hobbies: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     likes: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     dislikes: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
-    aspirations: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
-    work_preferences: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    aspirations: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    work_preferences: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Scoring-weight preferences (22) live as a structured section.
-    preferences: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
-    constraints: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
-    ai_summary: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    preferences: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    constraints: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    ai_summary: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     # Profile photo: a documents row (kind=photo); NULL = no photo.
-    photo_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    photo_document_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -121,13 +102,11 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class UserInterest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """User ↔ interest-tag link with 1–5 weight (replaces profile JSONB)."""
+    """User ↔ interest-tag link with 1-5 weight (replaces profile JSONB)."""
 
     __tablename__ = "user_interests"
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "interest_tag_id", name="uq_user_interests_user_tag"
-        ),
+        UniqueConstraint("user_id", "interest_tag_id", name="uq_user_interests_user_tag"),
         CheckConstraint("weight >= 1 AND weight <= 5", name="weight_range"),
         Index("ix_user_interests_interest_tag_id", "interest_tag_id"),
     )
@@ -141,13 +120,13 @@ class UserInterest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     weight: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="self")
     # Display-only summary; real evidence lives in typed tables (Phase 42).
-    evidence: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    evidence: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
 
     tag = relationship("InterestTag")
 
 
 class UserSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """User's claimed skill level on the 1–10 anchored scale (Phase 21)."""
+    """User's claimed skill level on the 1-10 anchored scale (Phase 21)."""
 
     __tablename__ = "user_skills"
     __table_args__ = (
@@ -163,9 +142,7 @@ class UserSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("skills.id", ondelete="RESTRICT"), nullable=False
     )
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="self_report"
-    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     # When False the user opted out: apply_derivation never touches or
     # re-creates this row (self_report rows ignore it — always owned).

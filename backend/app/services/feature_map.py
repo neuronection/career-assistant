@@ -97,9 +97,7 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "education",
             "Education requirement",
             ("column_write", "prereq_gates"),
-            prompt_hint=(
-                "education: stated level + field, only when the text says so."
-            ),
+            prompt_hint=("education: stated level + field, only when the text says so."),
         ),
         FeatureRow(
             "languages",
@@ -145,8 +143,7 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "Work-hours pattern + weekly range",
             ("facts_write", "fit_gates"),
             prompt_hint=(
-                "work_hours: full_time/part_time + hours_per_week range with "
-                "evidence_quote."
+                "work_hours: full_time/part_time + hours_per_week range with evidence_quote."
             ),
         ),
         FeatureRow(
@@ -200,9 +197,7 @@ FEATURE_MAP: dict[str, FeatureRow] = {
 # Fields the generated prompt must cover: every extractable feature with
 # a hint. Prompt and schema cannot drift — a new PostingExtract field
 # without a map row simply never reaches the model brief.
-PROMPT_FEATURES: tuple[str, ...] = tuple(
-    key for key, row in FEATURE_MAP.items() if row.extracts
-)
+PROMPT_FEATURES: tuple[str, ...] = tuple(key for key, row in FEATURE_MAP.items() if row.extracts)
 
 
 def generated_feature_instructions() -> str:

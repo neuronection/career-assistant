@@ -10,7 +10,7 @@ the source document and evidence quote. Re-intake dedupes on
 
 import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError, ValidationError
 from app.models.cv_intake_model import CvIntakeApplied, CvParseDraft
 from app.models.document_model import Document
+from app.models.enums import (
+    ExperienceItemSource,
+    RoleInItem,
+    SkillOrigin,
+    TagSource,
+    UserSkillSource,
+)
 from app.models.experience_model import (
     ExperienceAchievement,
     ExperienceItem,
@@ -32,13 +39,6 @@ from app.models.profile_entities_model import (
 )
 from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import Profile, User, UserInterest, UserSkill
-from app.models.enums import (
-    ExperienceItemSource,
-    RoleInItem,
-    SkillOrigin,
-    TagSource,
-    UserSkillSource,
-)
 from app.schemas.cv_extract import CvExtract
 from app.services.cv_source_service import cv_extraction_of
 from app.services.stages_service import max_birth_year
@@ -102,9 +102,7 @@ def _parse_date(raw: str) -> date | None:
 
     iso_full = re.fullmatch(r"(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})", text)
     if iso_full:
-        return as_date(
-            int(iso_full.group(1)), int(iso_full.group(2)), int(iso_full.group(3))
-        )
+        return as_date(int(iso_full.group(1)), int(iso_full.group(2)), int(iso_full.group(3)))
     iso_month = re.fullmatch(r"(\d{4})[-/.](\d{1,2})", text)
     if iso_month:
         month = int(iso_month.group(2))
@@ -114,9 +112,7 @@ def _parse_date(raw: str) -> date | None:
         return as_date(int(text), None, None)
     day_first = re.fullmatch(r"(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})", text)
     if day_first:
-        return as_date(
-            int(day_first.group(3)), int(day_first.group(2)), int(day_first.group(1))
-        )
+        return as_date(int(day_first.group(3)), int(day_first.group(2)), int(day_first.group(1)))
     month_first = re.fullmatch(r"(\d{1,2})[-/.](\d{4})", text)
     if month_first:
         month = int(month_first.group(1))
@@ -232,13 +228,9 @@ class CvIntakeService:
                 )
             )
 
-    async def _owned_document(
-        self, document_id: uuid.UUID, user_id: uuid.UUID
-    ) -> Document:
+    async def _owned_document(self, document_id: uuid.UUID, user_id: uuid.UUID) -> Document:
         rows = await self.db.execute(
-            select(Document).where(
-                Document.id == document_id, Document.user_id == user_id
-            )
+            select(Document).where(Document.id == document_id, Document.user_id == user_id)
         )
         document = rows.scalars().first()
         if document is None:
@@ -247,9 +239,7 @@ class CvIntakeService:
 
     # ------------------------------------------------------------ parse
 
-    async def parse_to_draft(
-        self, document_id: uuid.UUID, user_id: uuid.UUID
-    ) -> CvParseDraft:
+    async def parse_to_draft(self, document_id: uuid.UUID, user_id: uuid.UUID) -> CvParseDraft:
         """Run the CV_PARSE agent over the extraction text → review draft."""
         from app.ai.agents.cv_parser import parse_cv
 
@@ -281,9 +271,7 @@ class CvIntakeService:
         await self.db.refresh(draft)
         return draft
 
-    async def get_draft(
-        self, document_id: uuid.UUID, user_id: uuid.UUID
-    ) -> CvParseDraft:
+    async def get_draft(self, document_id: uuid.UUID, user_id: uuid.UUID) -> CvParseDraft:
         """The live draft of a document (review screen payload)."""
         await self._owned_document(document_id, user_id)
         rows = await self.db.execute(
@@ -364,9 +352,7 @@ class CvIntakeService:
             for draft, doc in rows.all()
         ]
 
-    async def applied_counts(
-        self, document_id: uuid.UUID, user_id: uuid.UUID
-    ) -> list[dict]:
+    async def applied_counts(self, document_id: uuid.UUID, user_id: uuid.UUID) -> list[dict]:
         """Where an applied import landed: per-entity-type created counts."""
         await self._owned_document(document_id, user_id)
         rows = await self.db.execute(
@@ -377,10 +363,7 @@ class CvIntakeService:
             )
             .group_by(CvIntakeApplied.entity_type)
         )
-        return [
-            {"entity_type": entity_type, "count": count}
-            for entity_type, count in rows.all()
-        ]
+        return [{"entity_type": entity_type, "count": count} for entity_type, count in rows.all()]
 
     async def discard(self, document_id: uuid.UUID, user_id: uuid.UUID) -> None:
         """Discard the draft; nothing was ever written to the profile."""
@@ -468,9 +451,7 @@ class CvIntakeService:
                     )
 
         if self._selected(selections, "experience"):
-            for index in self._indices(
-                selections, "experience", len(extract.experience)
-            ):
+            for index in self._indices(selections, "experience", len(extract.experience)):
                 item = extract.experience[index]
                 created = await self._create_experience(
                     user_id,
@@ -501,9 +482,7 @@ class CvIntakeService:
             await self._apply_languages(user_id, extract, document_id)
 
         if self._selected(selections, "certifications"):
-            for index in self._indices(
-                selections, "certifications", len(extract.certifications)
-            ):
+            for index in self._indices(selections, "certifications", len(extract.certifications)):
                 item = extract.certifications[index]
                 name = str(item.name or "").strip()
                 issuer = str(item.issuer or "").strip()
@@ -512,9 +491,7 @@ class CvIntakeService:
                     func.lower(Certification.name) == name.lower(),
                 ]
                 if issuer:
-                    dup_condition.append(
-                        func.lower(Certification.issuer) == issuer.lower()
-                    )
+                    dup_condition.append(func.lower(Certification.issuer) == issuer.lower())
                 existing = (
                     (await self.db.execute(select(Certification).where(*dup_condition)))
                     .scalars()
@@ -535,9 +512,7 @@ class CvIntakeService:
                 self.db.add(certification)
                 await self.db.flush()
                 self._note(user_id, document_id, "certifications", certification.id)
-                report["created"]["certifications"] = (
-                    report["created"].get("certifications", 0) + 1
-                )
+                report["created"]["certifications"] = report["created"].get("certifications", 0) + 1
 
         if self._selected(selections, "awards"):
             for index in self._indices(selections, "awards", len(extract.awards)):
@@ -596,14 +571,10 @@ class CvIntakeService:
         profile = await get_profile_for_user(self.db, user_id)
         data = dict(profile.basics or {})
         user = (
-            await self.db.execute(
-                select(User.id, User.full_name).where(User.id == user_id)
-            )
+            await self.db.execute(select(User.id, User.full_name).where(User.id == user_id))
         ).first()
         return {
-            "full_name": str(
-                (user.full_name if user else "") or data.get("full_name") or ""
-            ),
+            "full_name": str((user.full_name if user else "") or data.get("full_name") or ""),
             "email": data.get("email", ""),
             "phone": data.get("phone", ""),
             "headline": data.get("headline", ""),
@@ -637,16 +608,10 @@ class CvIntakeService:
 
         profile = await get_profile_for_user(self.db, user_id)
         data = dict(profile.basics or {})
-        user = (
-            (await self.db.execute(select(User).where(User.id == user_id)))
-            .scalars()
-            .first()
-        )
+        user = (await self.db.execute(select(User).where(User.id == user_id))).scalars().first()
         name_value = str(basics.get("full_name") or "").strip()[:160]
         if name_value:
-            current_name = str(
-                (user.full_name if user else "") or data.get("full_name") or ""
-            )
+            current_name = str((user.full_name if user else "") or data.get("full_name") or "")
             if current_name != name_value:
                 if current_name:
                     if "full_name" in overwrite:
@@ -749,9 +714,7 @@ class CvIntakeService:
             func.lower(ExperienceItem.title) == title.lower(),
         ]
         if org_name:
-            dup_condition.append(
-                func.lower(ExperienceItem.org_name) == org_name.lower()
-            )
+            dup_condition.append(func.lower(ExperienceItem.org_name) == org_name.lower())
         if start is not None:
             dup_condition.append(ExperienceItem.start == start)
         rows = await self.db.execute(select(ExperienceItem).where(*dup_condition))
@@ -809,9 +772,7 @@ class CvIntakeService:
         key = _slug(name)
         rows = await self.db.execute(
             select(Skill)
-            .where(
-                or_(Skill.key == key, func.lower(Skill.label) == name.strip().lower())
-            )
+            .where(or_(Skill.key == key, func.lower(Skill.label) == name.strip().lower()))
             .limit(1)
         )
         skill = rows.scalars().first()
@@ -844,9 +805,7 @@ class CvIntakeService:
         if skill is None:
             return
         rows = await self.db.execute(
-            select(UserSkill).where(
-                UserSkill.user_id == user_id, UserSkill.skill_id == skill.id
-            )
+            select(UserSkill).where(UserSkill.user_id == user_id, UserSkill.skill_id == skill.id)
         )
         user_skill = rows.scalars().first()
         if user_skill is None:
@@ -873,7 +832,7 @@ class CvIntakeService:
                 note=(quote or "claimed in CV")[:500],
                 level_value=level_claim or user_skill.level,
                 confidence=0.8 if level_claim else 0.5,
-                claimed_at=datetime.now(timezone.utc),
+                claimed_at=datetime.now(UTC),
             )
         )
 
@@ -883,10 +842,8 @@ class CvIntakeService:
         rows = await self.db.execute(
             select(EducationItem).where(
                 EducationItem.user_id == user_id,
-                func.lower(EducationItem.institution)
-                == str(item.get("institution", "")).lower(),
-                func.lower(EducationItem.program)
-                == str(item.get("program", "")).lower(),
+                func.lower(EducationItem.institution) == str(item.get("institution", "")).lower(),
+                func.lower(EducationItem.program) == str(item.get("program", "")).lower(),
             )
         )
         if rows.scalars().first() is not None:

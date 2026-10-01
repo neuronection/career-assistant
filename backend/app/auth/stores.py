@@ -19,6 +19,7 @@ their product JSON sections; `profiles` is family 1:N since P3b).
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import uuid
 from datetime import UTC, datetime
@@ -138,9 +139,7 @@ class CareerUserStore:
             session.refresh(row)
             return _record(row)
 
-    def set_login_failures(
-        self, user_id: str, failed: int, locked_until: datetime | None
-    ) -> None:
+    def set_login_failures(self, user_id: str, failed: int, locked_until: datetime | None) -> None:
         with self._factory() as session:
             row = session.get(UserRow, user_id)
             if row is not None:
@@ -198,9 +197,7 @@ class CareerUserStore:
         with self._factory() as session:
             return int(
                 session.scalar(
-                    select(func.count())
-                    .select_from(UserRow)
-                    .where(UserRow.is_admin.is_(True))
+                    select(func.count()).select_from(UserRow).where(UserRow.is_admin.is_(True))
                 )
                 or 0
             )
@@ -224,16 +221,12 @@ class CareerUserStore:
         from app.models.document_model import Document
         from app.services.document_service import DocumentService
 
-        documents = session.scalars(
-            select(Document).where(Document.user_id == user_id)
-        ).all()
+        documents = session.scalars(select(Document).where(Document.user_id == user_id)).all()
         for document in documents:
             file_path = DocumentService.upload_file_path(document)
             if file_path is not None and file_path.is_file():
-                try:
+                with contextlib.suppress(OSError):
                     file_path.unlink()
-                except OSError:
-                    pass
 
     def activity_counts(self) -> dict[str, int]:
         """Product-defined activity per user (identity-auth §12): match
@@ -337,9 +330,7 @@ class CareerSessionStore:
             row = session.get(AuthSessionRow, family_id)
             return _session(row) if row is not None else None
 
-    def rotate(
-        self, family_id: str, refresh_jti_hash: str, expires_at: datetime
-    ) -> None:
+    def rotate(self, family_id: str, refresh_jti_hash: str, expires_at: datetime) -> None:
         with self._factory() as session:
             row = session.get(AuthSessionRow, family_id)
             if row is not None and row.revoked_at is None:

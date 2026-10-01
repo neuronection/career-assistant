@@ -25,16 +25,12 @@ class JobFamily(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "job_families"
 
-    key: Mapped[str] = mapped_column(
-        String(80), unique=True, index=True, nullable=False
-    )
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
-    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("job_families.id", ondelete="CASCADE"), nullable=True
     )
-    path: Mapped[str] = mapped_column(
-        String(300), nullable=False, default="", index=True
-    )
+    path: Mapped[str] = mapped_column(String(300), nullable=False, default="", index=True)
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
@@ -52,30 +48,22 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "jobs"
 
-    code: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, nullable=False
-    )
+    code: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     family_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("job_families.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     short_description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="published", index=True
-    )
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="seed", index=True
-    )
-    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="published", index=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="seed", index=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    attributes: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    attributes: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Curated outbound links [{label, url, kind}] (Phase 24) — admin-edited
     # catalog metadata; AI suggestions only ever reach the moderation queue.
     links: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
-    ai_metadata: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    ai_metadata: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
 
     family: Mapped[JobFamily] = relationship(back_populates="jobs")
     skill_links: Mapped[list["JobSkill"]] = relationship(
@@ -104,9 +92,7 @@ class JobRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "job_relations"
     __table_args__ = (
-        UniqueConstraint(
-            "from_job_id", "to_job_id", "relation_type", name="uq_job_relation_edge"
-        ),
+        UniqueConstraint("from_job_id", "to_job_id", "relation_type", name="uq_job_relation_edge"),
         Index("ix_job_relations_from", "from_job_id"),
         Index("ix_job_relations_to", "to_job_id"),
     )
@@ -120,17 +106,13 @@ class JobRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     relation_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     weight: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="seed", index=True
-    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="seed", index=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
 
     from_job: Mapped[Job] = relationship(
         back_populates="relations_from", foreign_keys=[from_job_id]
     )
-    to_job: Mapped[Job] = relationship(
-        back_populates="relations_to", foreign_keys=[to_job_id]
-    )
+    to_job: Mapped[Job] = relationship(back_populates="relations_to", foreign_keys=[to_job_id])
 
 
 class JobSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):

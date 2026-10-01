@@ -6,10 +6,10 @@ endpoints (plan §6)."""
 import uuid
 from uuid import UUID
 
-import app.ai.agents.cv_build_reviewer  # noqa: F401 — registers the mock fixture at import so per-test overrides survive
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy import select
 
+import app.ai.agents.cv_build_reviewer  # noqa: F401 — registers the mock fixture at import so per-test overrides survive
 from app.ai.gateway import MOCK_FIXTURES
 from app.ai.graphs import cv_draft
 from app.ai.graphs.cv_draft import route_after_review
@@ -20,10 +20,8 @@ from app.models.cv_template_model import CvTemplate
 from app.models.enums import AITaskType, BackgroundJobStatus, BackgroundJobType
 from app.schemas.cv_generate import CvGenerateRequest
 from app.services.cv_generate_service import CvGenerateService
-
 from tests.conftest import _uid, session_headers
 from tests.test_cv_generate import _experience
-
 
 # ------------------------------------------------------------- gate routing
 
@@ -253,9 +251,7 @@ async def test_polish_cap_stops_at_the_iteration_limit(
     def _always_fail(schema, prompt):
         return {
             "summary": "Still failing.",
-            "issues": [
-                {"level": "fail", "area": "density", "message": "Layout is off."}
-            ],
+            "issues": [{"level": "fail", "area": "density", "message": "Layout is off."}],
             "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
         }
 
@@ -368,9 +364,7 @@ async def test_polish_cap_is_request_configurable(
     def _always_fail(schema, prompt):
         return {
             "summary": "Still failing.",
-            "issues": [
-                {"level": "fail", "area": "density", "message": "Layout is off."}
-            ],
+            "issues": [{"level": "fail", "area": "density", "message": "Layout is off."}],
             "coverage": {"covered": [], "dropped_knowingly": [], "missing": []},
         }
 
@@ -428,9 +422,7 @@ async def test_review_node_reports_a_cancelled_run(db):
     assert result["polish"]["outcome"]["status"] == "cancelled"
 
 
-async def test_mirror_annotates_the_runs_llm_call_ledger(
-    db, client, auth_headers, profile_ready
-):
+async def test_mirror_annotates_the_runs_llm_call_ledger(db, client, auth_headers, profile_ready):
     """The mid-run mirror (65.2) carries the run's LLM-call ledger into
     `job.result.polish.llm_calls` — what the live preview + progress card
     poll — assembled from the audit rows the run opted into (65.1)."""
@@ -543,9 +535,7 @@ async def test_variant_is_applied_then_kept_by_the_next_review(
     final = await _latest_final_version(db, cv)
     trace = final.content["polish"]
     assert trace["outcome"]["status"] == "completed"
-    verdicts = [
-        v["verdict"] for iteration in trace["iterations"] for v in iteration["variants"]
-    ]
+    verdicts = [v["verdict"] for iteration in trace["iterations"] for v in iteration["variants"]]
     assert verdicts and "kept" in verdicts
     rows = (await db.execute(sql("select status, source from cv_synth_items"))).all()
     assert rows, "the kept variant lives in the library"
@@ -597,9 +587,7 @@ async def test_structural_redesign_escape_hatch_triggers_and_keeps(
     trace = (await _latest_final_version(db, cv)).content["polish"]
     assert trace["outcome"]["status"] == "completed"
     assert trace.get("redesign_stage") == "modified"
-    redesigns = [
-        r for iteration in trace["iterations"] for r in iteration.get("redesign") or []
-    ]
+    redesigns = [r for iteration in trace["iterations"] for r in iteration.get("redesign") or []]
     assert any(r["verdict"] == "kept" for r in redesigns), redesigns
     assert any(r.get("mode") == "modified" for r in redesigns), redesigns
     assert trace["redesign"].get("pending") is False
@@ -625,8 +613,7 @@ async def test_style_brief_redesign_escalates_once_and_keeps(
                         "level": "fail",
                         "area": "style",
                         "message": (
-                            "The pages do not reflect the requested "
-                            "Material 3 expressive style."
+                            "The pages do not reflect the requested Material 3 expressive style."
                         ),
                     }
                 ],
@@ -646,9 +633,7 @@ async def test_style_brief_redesign_escalates_once_and_keeps(
     trace = (await _latest_final_version(db, cv)).content["polish"]
     assert trace["outcome"]["status"] == "completed"
     assert trace.get("style_redesign_done") is True
-    redesigns = [
-        r for iteration in trace["iterations"] for r in iteration.get("redesign") or []
-    ]
+    redesigns = [r for iteration in trace["iterations"] for r in iteration.get("redesign") or []]
     assert any(r.get("mode") == "modified" for r in redesigns), redesigns
     assert any(r["verdict"] == "kept" for r in redesigns), redesigns
     assert trace.get("redesign_stage", "") == "", (
@@ -684,13 +669,10 @@ async def test_redesign_ladder_escapes_to_fresh_when_modified_reverts(
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
     trace = (await _latest_final_version(db, cv)).content["polish"]
     assert trace.get("redesign_stage") == "fresh"
-    redesigns = [
-        r for iteration in trace["iterations"] for r in iteration.get("redesign") or []
-    ]
-    assert any(
-        r.get("verdict") == "reverted" and r.get("mode") == "modified"
-        for r in redesigns
-    ), redesigns
+    redesigns = [r for iteration in trace["iterations"] for r in iteration.get("redesign") or []]
+    assert any(r.get("verdict") == "reverted" and r.get("mode") == "modified" for r in redesigns), (
+        redesigns
+    )
     fresh_verdicts = [r for r in redesigns if r.get("mode") == "fresh"]
     assert fresh_verdicts, "the ladder drafted the from-scratch template"
     assert (
@@ -725,14 +707,10 @@ async def test_preview_renders_the_committed_state_while_running(
     )
     db.add(ghost)
     await db.commit()
-    body = (
-        await client.get(f"/api/v1/cv/generate/{run_id}/preview", headers=auth_headers)
-    ).json()
+    body = (await client.get(f"/api/v1/cv/generate/{run_id}/preview", headers=auth_headers)).json()
     assert body["html"], "the committed state renders deterministically"
     assert "<!DOCTYPE html>" in body["html"]
-    foreign = await client.get(
-        f"/api/v1/cv/generate/{uuid.uuid4()}/preview", headers=auth_headers
-    )
+    foreign = await client.get(f"/api/v1/cv/generate/{uuid.uuid4()}/preview", headers=auth_headers)
     assert foreign.status_code == 404
 
 
@@ -752,9 +730,7 @@ async def test_preview_soft_answers_before_the_draft_exists(
     db.add(empty_job)
     await db.commit()
     body = (
-        await client.get(
-            f"/api/v1/cv/generate/{empty_job.id}/preview", headers=auth_headers
-        )
+        await client.get(f"/api/v1/cv/generate/{empty_job.id}/preview", headers=auth_headers)
     ).json()
     assert body["html"] == ""
     assert body["stage"] == ""
@@ -888,10 +864,9 @@ async def test_runs_endpoint_splits_resumed_runs(
 def test_mock_over_budget_suggests_trim_not_widening():
     """The bank mock never widens the budget: an over-budget lint yields
     a content-trim op (skills max_items), never set_doc_options."""
+    from app.ai.agents.context import context_json
     from app.ai.agents.cv_build_reviewer import _mock_build_critique
     from app.ai.schemas import CvBuildCritique
-
-    from app.ai.agents.context import context_json
 
     prompt = "note\n" + context_json(
         {
@@ -910,9 +885,7 @@ def test_mock_over_budget_suggests_trim_not_widening():
         }
     )
     critique = _mock_build_critique(CvBuildCritique, prompt)
-    ops = [
-        op for issue in critique["issues"] for op in (issue.get("suggested_ops") or [])
-    ]
+    ops = [op for issue in critique["issues"] for op in (issue.get("suggested_ops") or [])]
     assert ops, "the over-budget fail suggests densify + trim"
     assert ops[0]["operation"]["op"] == "update_design", (
         "densification rides first — tighter type and spacing"
@@ -999,18 +972,16 @@ async def test_page_budget_is_a_hard_cap_and_notes_reach_the_review(
         run_id=uuid.uuid4(),
     )
     assert result["status"] == "completed"
-    assert any(
-        "Make it very modern with a side panel." == notes for notes in seen_notes
-    ), "the reviewer prompt carried the user's brief"
+    assert any(notes == "Make it very modern with a side panel." for notes in seen_notes), (
+        "the reviewer prompt carried the user's brief"
+    )
 
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
     assert cv.max_pages == 1, "the page budget never grows"
 
     final = await _latest_final_version(db, cv)
     ops = [
-        entry
-        for iteration in final.content["polish"]["iterations"]
-        for entry in iteration["ops"]
+        entry for iteration in final.content["polish"]["iterations"] for entry in iteration["ops"]
     ]
     widen = [entry for entry in ops if entry["op"] == "set_doc_options"]
     assert widen and widen[0]["ok"] is False, "the widening op was rejected"
@@ -1075,8 +1046,8 @@ async def test_lint_measures_live_pages_when_engine_present(
     """The estimate lies for dense two-column layouts — with the PDF
     engine present, lint measures the REAL page count and the budget
     fail stands (a 1.5-page CV is never 'fits in 1')."""
-    from app.services.cv_export_service import CvExportService
     import app.services.cv_pdf_service as pdf_service
+    from app.services.cv_export_service import CvExportService
 
     await _experience(client, auth_headers)
     result = await CvGenerateService(db).generate(

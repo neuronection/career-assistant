@@ -2,12 +2,10 @@
 # Multi-stage build: frontend bundle → single uvicorn image serving API + SPA.
 #
 # Build via compose (docker-compose.standalone.yml / .prod.yml /
-# .demo.yml — each supplies the `auth-kit` named context) or:
-#   docker build --build-context auth-kit=../auth-kit -f docker/Dockerfile .
-# The `auth-kit` context supplies the family auth-kit (ADR-0013) at the
-# git-SHA revision pinned in backend/requirements.txt — CI/release check
-# that revision out before building; for local builds keep ../auth-kit at
-# the pinned revision (image contents must match the pin).
+# .demo.yml) or:  docker build -f docker/Dockerfile .
+# The family auth-kit installs from its public git-SHA pin (uv clones it
+# with transient `git`; the credentials dance and the named `auth-kit`
+# build context are gone — the repo is public, study's image is proof).
 
 FROM node:20-alpine AS frontend-build
 WORKDIR /build
@@ -19,28 +17,33 @@ RUN npm run build
 FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH" \
     SPA_DIST=/app/frontend/dist \
-    APP_ENV=production \
-    API_HOST=0.0.0.0
+    CAREER_APP_ENV=production \
+    CAREER_API_HOST=0.0.0.0
 
 WORKDIR /app
-COPY backend/requirements.txt ./
-# Bridge (see the requirements.txt header): the kit pin is declared there
-# but installed from the named `auth-kit` build context below, keeping
-# image builds credentialless. Phase 0.8 (PyPI) drops this filter.
-RUN grep -v '^neuronection-auth-kit @' requirements.txt > /tmp/reqs.txt \
-    && pip install -r /tmp/reqs.txt
-# Family auth-kit (ADR-0013 / identity-auth §5) — named build context
-# `auth-kit` at the pinned revision, copied to /auth-kit and installed on
-# top of the pinned requirements (its dependencies are already there).
-COPY --from=auth-kit pyproject.toml README.md /auth-kit/
-COPY --from=auth-kit src /auth-kit/src
-RUN pip install --no-deps /auth-kit
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 
-COPY backend/app ./app
-COPY backend/alembic ./alembic
-COPY backend/alembic.ini ./
+# Dependency layer first (cache-friendly): workspace manifests + lockfile.
+# The auth-kit git-SHA pin clones from GitHub during sync; git is
+# transient and purged before the layer commits (study's recipe).
+COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/pyproject.toml
+COPY backend/app backend/app
+COPY backend/careerassistant backend/careerassistant
+RUN --mount=type=cache,target=/root/.cache/uv \
+    apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && uv sync --frozen --no-dev \
+    && apt-get purge -y git \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Code + runtime layers
+COPY backend/alembic backend/alembic
+COPY backend/alembic.ini backend/alembic.ini
 COPY --from=frontend-build /build/dist ./frontend/dist
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -52,6 +55,6 @@ USER career
 
 EXPOSE 8100
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"API_PORT\",\"8100\")}/health', timeout=4)"
+    CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"CAREER_API_PORT\",\"8100\")}/health', timeout=4)"
 
 ENTRYPOINT ["entrypoint.sh"]

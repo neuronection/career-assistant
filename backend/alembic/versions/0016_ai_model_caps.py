@@ -2,9 +2,10 @@
 AICapability values). NULL keeps the legacy behavior of guessing
 capabilities from the model id on the client."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "0016"
 down_revision = "0015"

@@ -7,16 +7,17 @@ tests stay hermetic.
 
 import asyncio
 import base64
-import httpx
 import json
 import logging
 import random
 import re
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar, overload
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
+import httpx
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -72,14 +73,12 @@ class RunRef(BaseModel):
     stage: str = Field(..., description="Stage label, e.g. 'cv_draft.plan'")
 
 
-def register_mock_fixture(
-    task: AITaskType, builder: Callable[[type[T], str], dict]
-) -> None:
+def register_mock_fixture[T: BaseModel](task: AITaskType, builder: Callable[[type[T], str], dict]) -> None:  # noqa: E501 -- long message string; reflow when touched
     """Register a deterministic mock output builder for a task type."""
     MOCK_FIXTURES[task.value] = builder
 
 
-def _rebalanced_prefix(prefix: str) -> Optional[str]:
+def _rebalanced_prefix(prefix: str) -> str | None:
     """Close whatever the truncated JSON prefix left open, or None.
 
     Minimal-only scan: track string state and the bracket stack; a cut
@@ -204,7 +203,7 @@ def _stream_failure_message(finish_reason: str) -> str:
 
 
 def _user_content(
-    user: str, images: Optional[list[tuple[str, bytes]]]
+    user: str, images: list[tuple[str, bytes]] | None
 ) -> str | list[str | dict[str, Any]]:
     """The user message as sent: plain text, or text + base64 image
     parts (the vision path shared by invoke and stream)."""
@@ -222,13 +221,13 @@ def _user_content(
     return parts
 
 
-async def _invoke_model(
+async def _invoke_model[T: BaseModel](
     schema: type[T],
     system: str,
     user: str,
     resolved: "ResolvedModel",
-    images: Optional[list[tuple[str, bytes]]] = None,
-) -> tuple[T, Optional[int], Optional[int]]:
+    images: list[tuple[str, bytes]] | None = None,
+) -> tuple[T, int | None, int | None]:
     """Call the resolved model through the LangChain factory and validate.
 
     `images` are (mime, bytes) parts appended to the user message as
@@ -251,7 +250,7 @@ async def _invoke_model(
     )
 
 
-def _mock_output(schema: type[T], task: AITaskType, user: str) -> T:
+def _mock_output[T: BaseModel](schema: type[T], task: AITaskType, user: str) -> T:
     """Build a deterministic mock output for the given schema."""
     ensure_mock_registry()
     builder = MOCK_FIXTURES.get(task.value)
@@ -283,9 +282,7 @@ def _generic_mock(schema: type[BaseModel]) -> dict:
                 branch = prop["anyOf"][0]
                 if "$ref" in branch:
                     target = resolve(branch["$ref"])
-                    out[name] = (
-                        target["enum"][0] if target.get("enum") else fill(target)
-                    )
+                    out[name] = target["enum"][0] if target.get("enum") else fill(target)
                     continue
                 enum = branch.get("enum")
                 if enum:
@@ -305,13 +302,9 @@ def _generic_mock(schema: type[BaseModel]) -> dict:
             elif ptype == "object":
                 out[name] = fill(prop)
             elif ptype == "integer":
-                out[name] = (
-                    prop.get("minimum") if prop.get("minimum") is not None else 1
-                )
+                out[name] = prop.get("minimum") if prop.get("minimum") is not None else 1
             elif ptype == "number":
-                out[name] = (
-                    prop.get("maximum") if prop.get("maximum") is not None else 5
-                )
+                out[name] = prop.get("maximum") if prop.get("maximum") is not None else 5
             elif ptype == "boolean":
                 out[name] = True
             else:
@@ -328,18 +321,18 @@ async def _record(
     task: AITaskType,
     model: str,
     prompt: str,
-    output: Optional[dict],
-    tokens_in: Optional[int],
-    tokens_out: Optional[int],
+    output: dict | None,
+    tokens_in: int | None,
+    tokens_out: int | None,
     latency_ms: float,
     status: str,
     error: str = "",
-    provider_type: Optional[str] = None,
-    model_name: Optional[str] = None,
-    pack_key: Optional[str] = None,
-    pack_version: Optional[int] = None,
-    run_id: Optional[uuid.UUID] = None,
-    run_stage: Optional[str] = None,
+    provider_type: str | None = None,
+    model_name: str | None = None,
+    pack_key: str | None = None,
+    pack_version: int | None = None,
+    run_id: uuid.UUID | None = None,
+    run_stage: str | None = None,
 ) -> AIGeneration:
     """Persist an audit row for one AI call (the row is returned so the
     `with_audit_ref` opt-in can hand back exactly what was written)."""
@@ -383,42 +376,42 @@ def _audit_ref(row: AIGeneration) -> dict:
 
 
 @overload
-async def ainvoke_structured(
+async def ainvoke_structured[T: BaseModel](
     db: AsyncSession,
     task: AITaskType,
     schema: type[T],
     system: str,
     user: str,
     user_id=None,
-    images: Optional[list[tuple[str, bytes]]] = None,
-    run: Optional[RunRef] = None,
+    images: list[tuple[str, bytes]] | None = None,
+    run: RunRef | None = None,
     with_audit_ref: Literal[False] = False,
 ) -> "T": ...
 
 
 @overload
-async def ainvoke_structured(
+async def ainvoke_structured[T: BaseModel](
     db: AsyncSession,
     task: AITaskType,
     schema: type[T],
     system: str,
     user: str,
     user_id=None,
-    images: Optional[list[tuple[str, bytes]]] = None,
-    run: Optional[RunRef] = None,
+    images: list[tuple[str, bytes]] | None = None,
+    run: RunRef | None = None,
     with_audit_ref: Literal[True] = True,
 ) -> "tuple[T, dict]": ...
 
 
-async def ainvoke_structured(
+async def ainvoke_structured[T: BaseModel](
     db: AsyncSession,
     task: AITaskType,
     schema: type[T],
     system: str,
     user: str,
     user_id=None,
-    images: Optional[list[tuple[str, bytes]]] = None,
-    run: Optional[RunRef] = None,
+    images: list[tuple[str, bytes]] | None = None,
+    run: RunRef | None = None,
     with_audit_ref: bool = False,
 ) -> "T | tuple[T, dict]":
     """Run an AI task and return a schema-validated result (audited).
@@ -559,9 +552,7 @@ async def ainvoke_structured(
             return (result, _audit_ref(row)) if with_audit_ref else result
         except Exception as exc:
             last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning(
-                "AI task %s attempt %d failed: %s", task.value, attempt + 1, last_error
-            )
+            logger.warning("AI task %s attempt %d failed: %s", task.value, attempt + 1, last_error)
             if resolved.provider_type == "mock":
                 break
     latency = (time.perf_counter() - started) * 1000
@@ -627,7 +618,7 @@ async def ainvoke_agent(
     messages: list[BaseMessage],
     tools: list[dict],
     user_id=None,
-    run: Optional[RunRef] = None,
+    run: RunRef | None = None,
 ) -> AIMessage:
     """One native tool-round model call through the standard funnel.
 
@@ -717,9 +708,7 @@ async def ainvoke_agent(
             else:
                 model = build_chat_model(resolved, json_mode=False)
                 bound = model.bind_tools(tools) if tools else model
-                message = await bound.ainvoke(
-                    [SystemMessage(content=effective_system), *messages]
-                )
+                message = await bound.ainvoke([SystemMessage(content=effective_system), *messages])
             usage: dict[str, Any] = dict(getattr(message, "usage_metadata", None) or {})
             latency = (time.perf_counter() - started) * 1000
             await _record(
@@ -746,7 +735,7 @@ async def ainvoke_agent(
                 run_stage=run_stage,
             )
             return message
-        except Exception as exc:  # noqa: BLE001 — same retry policy as structured
+        except Exception as exc:
             last_error = str(exc)
             logger.warning(
                 "agent attempt %d for task %s failed: %s",
@@ -778,7 +767,7 @@ async def ainvoke_agent(
 
 def utcnow() -> datetime:
     """Current UTC time."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def stable_hash(text: str) -> int:
@@ -828,13 +817,13 @@ class StructuredStream:
     """
 
     def __init__(self) -> None:
-        self.reply: Optional[BaseModel] = None
+        self.reply: BaseModel | None = None
         self.error: str = ""
-        self.model: Optional[str] = None
+        self.model: str | None = None
         # Usage from the last streamed chunk, when the provider reports it
         # (surfaced on the turn trace for the UI).
-        self.tokens_in: Optional[int] = None
-        self.tokens_out: Optional[int] = None
+        self.tokens_in: int | None = None
+        self.tokens_out: int | None = None
         self._raw: list[str] = []
 
     async def chunks(
@@ -845,7 +834,7 @@ class StructuredStream:
         system: str,
         user: str,
         user_id=None,
-        images: Optional[list[tuple[str, bytes]]] = None,
+        images: list[tuple[str, bytes]] | None = None,
     ):
         from app.ai.providers.resolution import resolve_task_model
 
@@ -880,7 +869,7 @@ class StructuredStream:
         effective_system = compose_system(system, pack)
 
         model = None
-        messages: Optional[list] = None
+        messages: list | None = None
         finish_reason = ""
         try:
             if resolved.provider_type == "mock":
@@ -898,7 +887,7 @@ class StructuredStream:
                 model = build_chat_model(resolved)
                 messages = [
                     SystemMessage(
-                        content=f"{effective_system}\n\nReply with JSON matching this schema:\n{_schema_hint(schema)}"
+                        content=f"{effective_system}\n\nReply with JSON matching this schema:\n{_schema_hint(schema)}"  # noqa: E501 -- long message string; reflow when touched
                     ),
                     HumanMessage(content=_user_content(user, images)),
                 ]
@@ -942,14 +931,8 @@ class StructuredStream:
                 # One non-streaming rescue — but never when answer text
                 # already streamed (the UI showed it; a diverging retry
                 # would contradict it).
-                if (
-                    model is None
-                    or messages is None
-                    or partial_answer_text(accumulated).strip()
-                ):
-                    raise StructuredAIError(
-                        _stream_failure_message(finish_reason)
-                    ) from exc
+                if model is None or messages is None or partial_answer_text(accumulated).strip():
+                    raise StructuredAIError(_stream_failure_message(finish_reason)) from exc
                 message = await model.ainvoke(messages)
                 text = _message_text(message)
                 finish_reason = _finish_reason(message) or finish_reason
@@ -958,19 +941,13 @@ class StructuredStream:
                     self.tokens_in = usage.get("input_tokens")
                     self.tokens_out = usage.get("output_tokens")
                 if not text.strip():
-                    raise StructuredAIError(
-                        _stream_failure_message(finish_reason)
-                    ) from exc
+                    raise StructuredAIError(_stream_failure_message(finish_reason)) from exc
                 self._raw.append(text)
                 yield text
                 try:
-                    self.reply = schema.model_validate(
-                        _extract_json("".join(self._raw))
-                    )
+                    self.reply = schema.model_validate(_extract_json("".join(self._raw)))
                 except (json.JSONDecodeError, PydanticValidationError) as rescue_exc:
-                    raise StructuredAIError(
-                        _stream_failure_message(finish_reason)
-                    ) from rescue_exc
+                    raise StructuredAIError(_stream_failure_message(finish_reason)) from rescue_exc
             await _record(
                 db,
                 user_id,
@@ -987,7 +964,7 @@ class StructuredStream:
                 pack_key=pack.key if pack else None,
                 pack_version=pack.version if pack else None,
             )
-        except Exception as exc:  # noqa: BLE001 — failures audited, then raised
+        except Exception as exc:
             self.error = f"{type(exc).__name__}: {exc}"
             audit_error = self.error
             if self.reply is None:
@@ -1153,7 +1130,7 @@ async def transcribe_audio(
     user_id=None,
     data: bytes,
     mime: str,
-    language: Optional[str] = None,
+    language: str | None = None,
 ) -> tuple[str, str]:
     """Speech-to-text for dictation. Resolves the
     ``transcribe`` task like every gateway call (budget, rate limit,
@@ -1198,7 +1175,7 @@ async def transcribe_audio(
                 text = await asyncio.to_thread(
                     transcribe_with, client, resolved, data, mime, language
                 )
-    except Exception as exc:  # noqa: BLE001 — failures audited, then raised
+    except Exception as exc:
         status = "error"
         error = f"{type(exc).__name__}: {exc}"
         raise

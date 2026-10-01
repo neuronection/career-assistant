@@ -64,9 +64,7 @@ class ProfileDigestInput(BaseModel):
 class ReadProfileItemInput(BaseModel):
     """Open ONE profile entity's full content before proposing edits."""
 
-    kind: Literal[
-        "experience_item", "education_item", "certification", "profile_achievement"
-    ]
+    kind: Literal["experience_item", "education_item", "certification", "profile_achievement"]
     entity_id: str = Field(min_length=8, max_length=64)
 
 
@@ -85,9 +83,7 @@ async def _search_jobs(db, ctx: ToolContext, args: SearchJobsInput):
 async def _search_postings(db, ctx: ToolContext, args: SearchPostingsInput):
     from app.ai.agents.chatbot import search_postings_tool
 
-    return await search_postings_tool(
-        db, ctx.user_id, args.query, args.filters, n=args.n
-    )
+    return await search_postings_tool(db, ctx.user_id, args.query, args.filters, n=args.n)
 
 
 async def _get_posting(db, ctx: ToolContext, args: PostingRefInput):
@@ -227,23 +223,16 @@ async def _compare_jobs(db, ctx: ToolContext, args: CompareJobsInput):
                 "title": item["job"].title,
                 "fit_score": round(item["fit_score"], 1),
                 "gated": bool((item["insight"].fit_breakdown or {}).get("gates")),
-                "gate_reasons": (item["insight"].fit_breakdown or {}).get("gates")
-                or [],
+                "gate_reasons": (item["insight"].fit_breakdown or {}).get("gates") or [],
                 "dimensions": {
                     dim: round(float(entry["score"]), 1)
                     for dim, entry in (
                         (item["insight"].fit_breakdown or {}).get("dimensions") or {}
                     ).items()
                 },
-                "education_level": (item["job"].attributes or {})
-                .get("education", {})
-                .get("level"),
-                "demand_outlook": (item["job"].attributes or {})
-                .get("demand", {})
-                .get("outlook"),
-                "salary_median": (item["job"].attributes or {})
-                .get("salary", {})
-                .get("median"),
+                "education_level": (item["job"].attributes or {}).get("education", {}).get("level"),
+                "demand_outlook": (item["job"].attributes or {}).get("demand", {}).get("outlook"),
+                "salary_median": (item["job"].attributes or {}).get("salary", {}).get("median"),
             }
             for item in items
         ],

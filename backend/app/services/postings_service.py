@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Postings service (Phase 26): sync, skill-ID mapping, fit deltas,
 listings, interactions, alerts, expiry.
 
@@ -8,8 +9,7 @@ match."""
 
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -48,7 +48,7 @@ SKILL_ALIASES_EXTRA = {
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _norm(token: str) -> str:
@@ -71,7 +71,7 @@ async def sync_source(db: AsyncSession, source: JobSource) -> dict:
         return {"synced": 0, "error": str(exc)}
     try:
         result = await connector.fetch(source.config, source.sync_state or {})
-    except Exception as exc:  # noqa: BLE001 — isolation: capture, never raise
+    except Exception as exc:
         source.error = f"connector failure: {exc}"
         await db.commit()
         return {"synced": 0, "error": str(exc)}
@@ -103,9 +103,7 @@ async def sync_source(db: AsyncSession, source: JobSource) -> dict:
     return {"synced": synced, "extract_queued": extract_queued, "errors": errors}
 
 
-async def upsert_posting(
-    db: AsyncSession, source: JobSource, raw
-) -> Optional[JobPosting]:
+async def upsert_posting(db: AsyncSession, source: JobSource, raw) -> JobPosting | None:
     """Dedup by (source_id, external_id) + content_hash — unchanged content
     is a no-op; changed content re-maps unless a human mapped it."""
     rows = await db.execute(
@@ -197,7 +195,7 @@ def _match_keywords(text: str, index: dict[str, UUID]) -> dict[str, UUID]:
 
 
 async def map_posting(
-    db: AsyncSession, posting: JobPosting, tokens: Optional[list[str]] = None
+    db: AsyncSession, posting: JobPosting, tokens: list[str] | None = None
 ) -> None:
     """Extract taxonomy skills (alias index first, audited AI second) and
     map onto the catalog by skill-ID intersection; below threshold stays
@@ -213,7 +211,7 @@ async def map_posting(
     if len(explicit) < 2 and description:
         try:
             inferred = await _ai_extract_skills(db, posting, index)
-        except Exception:  # noqa: BLE001 — AI is optional sugar on the pipeline
+        except Exception:
             inferred = {}
 
     skills: dict[UUID, tuple[str, float]] = {}
@@ -222,9 +220,7 @@ async def map_posting(
     for skill_id in inferred.values():
         skills.setdefault(skill_id, (PostingEvidence.INFERRED.value, confidence_ai))
 
-    await db.execute(
-        PostingSkill.__table__.delete().where(PostingSkill.posting_id == posting.id)
-    )
+    await db.execute(PostingSkill.__table__.delete().where(PostingSkill.posting_id == posting.id))
     for skill_id, (evidence, confidence) in skills.items():
         db.add(
             PostingSkill(
@@ -248,8 +244,7 @@ async def map_posting(
         posting.mapping_method = MappingMethod.SKILL_OVERLAP.value
         posting.mapping_confidence = round(best_score, 3)
         posting.mapping_reason = (
-            f"{len(skills)} skills intersect; overlap {best_score:.2f} "
-            f"(runner-up {runner_up:.2f})"
+            f"{len(skills)} skills intersect; overlap {best_score:.2f} (runner-up {runner_up:.2f})"
         )
         posting.status = "mapped"
     else:
@@ -266,16 +261,14 @@ def _posting_skill_tokens(posting: JobPosting) -> list[str]:
     return [str(s) for s in (posting.raw or {}).get("_skills_raw", [])]
 
 
-async def resolve_posting(db: AsyncSession, ref_or_id: str) -> Optional[JobPosting]:
+async def resolve_posting(db: AsyncSession, ref_or_id: str) -> JobPosting | None:
     """: everywhere accepts a short `ref` (Crockford base32) or the
     internal UUID; unknown values resolve to None (caller 404s)."""
     token = str(ref_or_id).strip()
     try:
         posting_id = UUID(token)
     except ValueError:
-        rows = await db.execute(
-            select(JobPosting).where(JobPosting.ref == token.upper())
-        )
+        rows = await db.execute(select(JobPosting).where(JobPosting.ref == token.upper()))
         return rows.scalars().first()
     rows = await db.execute(select(JobPosting).where(JobPosting.id == posting_id))
     return rows.scalars().first()
@@ -309,18 +302,14 @@ async def _active_skill_keys(db: AsyncSession) -> list[str]:
 
 async def _best_catalog_job(
     db: AsyncSession, posting_skill_ids: set[UUID]
-) -> tuple[Optional[Job], float, float]:
+) -> tuple[Job | None, float, float]:
     """Skill-ID intersection weighted by job_skills importance/level."""
     from app.services.fit.dimensions import IMPORTANCE_WEIGHT
 
-    rows = await db.execute(
-        select(Job, JobSkill).join(JobSkill, JobSkill.job_id == Job.id)
-    )
+    rows = await db.execute(select(Job, JobSkill).join(JobSkill, JobSkill.job_id == Job.id))
     scored: dict[UUID, tuple[float, float, Job]] = {}
     for job, link in rows:
-        weight = IMPORTANCE_WEIGHT.get(link.importance, 1.0) * (
-            min(link.required_level, 10) / 10.0
-        )
+        weight = IMPORTANCE_WEIGHT.get(link.importance, 1.0) * (min(link.required_level, 10) / 10.0)
         entry = scored.setdefault(job.id, [0.0, 0.0, job])
         entry[1] += weight
         if link.skill_id in posting_skill_ids:
@@ -379,9 +368,12 @@ async def posting_fit(db: AsyncSession, user_id: UUID, posting: JobPosting) -> f
     location = posting.location or {}
     if location.get("remote"):
         score += 0.5 if prefs.get("remote_ok", True) else -1.0
-    elif basics.get("city") and location.get("city"):
-        if basics["city"].strip().lower() != location["city"].strip().lower():
-            score -= 0.5
+    elif (
+        basics.get("city")
+        and location.get("city")
+        and basics["city"].strip().lower() != location["city"].strip().lower()
+    ):
+        score -= 0.5
 
     stage, _source = await _stage_for(db, user_id)
     seniority_ranks = {
@@ -392,7 +384,7 @@ async def posting_fit(db: AsyncSession, user_id: UUID, posting: JobPosting) -> f
         "lead": 4,
         "principal": 5,
     }
-    posting_rank = seniority_ranks.get(posting.seniority or "", None)
+    posting_rank = seniority_ranks.get(posting.seniority or "")
     if posting_rank is not None:
         if stage.value == "student" and posting_rank >= 3:
             score -= 1.0
@@ -415,10 +407,10 @@ async def list_postings(
     db: AsyncSession,
     user_id: UUID,
     *,
-    source_id: Optional[UUID] = None,
-    remote: Optional[bool] = None,
-    seniority: Optional[str] = None,
-    catalog_job_id: Optional[UUID] = None,
+    source_id: UUID | None = None,
+    remote: bool | None = None,
+    seniority: str | None = None,
+    catalog_job_id: UUID | None = None,
     saved: bool = False,
     sort: str = "fit",
     include_hidden: bool = False,
@@ -467,9 +459,8 @@ async def list_postings(
     unseen = 0
     for posting, interaction in rows:
         seen = interaction is not None and interaction.seen_at is not None
-        if saved:
-            if interaction is None or interaction.saved_at is None:
-                continue
+        if saved and (interaction is None or interaction.saved_at is None):
+            continue
         if not seen:
             unseen += 1
         items.append({"posting": posting, "interaction": interaction, "seen": seen})
@@ -498,9 +489,9 @@ async def list_postings(
 PRIORITY_WEIGHT = {"must_have": 3.0, "nice_to_have": 2.0, "bonus": 1.0}
 
 
-def parse_skill_entries(raw: str) -> list[tuple[str, Optional[int]]]:
+def parse_skill_entries(raw: str) -> list[tuple[str, int | None]]:
     """`skills=sql:4,python:3` → [(key, level|None)]; validated at API."""
-    entries: list[tuple[str, Optional[int]]] = []
+    entries: list[tuple[str, int | None]] = []
     for part in (raw or "").split(","):
         part = part.strip()
         if not part:
@@ -513,11 +504,9 @@ def parse_skill_entries(raw: str) -> list[tuple[str, Optional[int]]]:
             try:
                 lvl = int(level)
             except ValueError as exc:
-                raise ValidationError(
-                    f"invalid level for skill {key!r} (use 1–10)"
-                ) from exc
+                raise ValidationError(f"invalid level for skill {key!r} (use 1-10)") from exc
             if not 1 <= lvl <= 10:
-                raise ValidationError(f"level for {key!r} out of range 1–10")
+                raise ValidationError(f"level for {key!r} out of range 1-10")
             entries.append((key, lvl))
         else:
             entries.append((key, None))
@@ -530,13 +519,13 @@ async def search_postings(
     db: AsyncSession,
     user_id: UUID,
     *,
-    entries: list[tuple[str, Optional[int]]],
+    entries: list[tuple[str, int | None]],
     mode: str = "all",
-    priority: Optional[str] = None,
-    source_id: Optional[UUID] = None,
-    remote: Optional[bool] = None,
-    seniority: Optional[str] = None,
-    catalog_job_id: Optional[UUID] = None,
+    priority: str | None = None,
+    source_id: UUID | None = None,
+    remote: bool | None = None,
+    seniority: str | None = None,
+    catalog_job_id: UUID | None = None,
     saved: bool = False,
     sort: str = "fresh",
     match_profile: bool = False,
@@ -548,16 +537,12 @@ async def search_postings(
 
     from app.models.job_model import Job, JobSkill, JobTag
 
-    normalized: list[tuple[str, Optional[int]]] = []
+    normalized: list[tuple[str, int | None]] = []
     for key, lvl in entries:
         normalized.append((_norm(key), lvl))
-    rows = await db.execute(
-        select(Skill).where(Skill.key.in_([k for k, _ in normalized]))
-    )
+    rows = await db.execute(select(Skill).where(Skill.key.in_([k for k, _ in normalized])))
     by_key = {skill.key: skill for skill in rows.scalars().all()}
-    unknown = [
-        orig for (orig, _), (key, _) in zip(entries, normalized) if key not in by_key
-    ]
+    unknown = [orig for (orig, _), (key, _) in zip(entries, normalized, strict=False) if key not in by_key]
     if unknown:
         raise ValidationError(f"Unknown skills: {', '.join(sorted(set(unknown)))}")
 
@@ -597,10 +582,7 @@ async def search_postings(
         )
         .where(JobPosting.status.in_(["mapped", "new"]))
     )
-    if mode == "all":
-        query = query.where(and_(*conditions))
-    else:
-        query = query.where(or_(*conditions))
+    query = query.where(and_(*conditions)) if mode == "all" else query.where(or_(*conditions))
     if not saved:
         query = query.where(
             or_(
@@ -622,9 +604,8 @@ async def search_postings(
     unseen = 0
     for posting, interaction in rows:
         seen = interaction is not None and interaction.seen_at is not None
-        if saved:
-            if interaction is None or interaction.saved_at is None:
-                continue
+        if saved and (interaction is None or interaction.saved_at is None):
+            continue
         if not seen:
             unseen += 1
         items.append({"posting": posting, "interaction": interaction, "seen": seen})
@@ -632,9 +613,7 @@ async def search_postings(
     if match_profile:
         coverages = {}
         for item in items:
-            coverages[item["posting"].id] = await profile_coverage(
-                db, user_id, item["posting"]
-            )
+            coverages[item["posting"].id] = await profile_coverage(db, user_id, item["posting"])
         items.sort(
             key=lambda i: (
                 0 if not i["seen"] else 1,
@@ -662,18 +641,14 @@ async def search_postings(
     return {"items": items, "unseen": unseen, "total": len(items)}
 
 
-async def profile_coverage(
-    db: AsyncSession, user_id: UUID, posting: JobPosting
-) -> float:
+async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting) -> float:
     """Deterministic coverage of the user's skills over the posting's
     extracted requirements — the curve, no new semantics:
     per skill `min(user, required) / required`, priority-weighted, with
     fully-unmet must-have requirements capping the score at 4.0."""
     from app.models.user_model import UserSkill
 
-    rows = await db.execute(
-        select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-    )
+    rows = await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id))
     links = [link for link in rows.scalars().all() if link.required_level is not None]
     if not links:
         return 0.0
@@ -682,9 +657,7 @@ async def profile_coverage(
             UserSkill.user_id == user_id, UserSkill.derive_enabled
         )
     )
-    user_levels: dict[UUID, int] = {
-        skill_id: level for skill_id, level in level_rows.all()
-    }
+    user_levels: dict[UUID, int] = dict(level_rows.all())
 
     total_weight = 0.0
     covered = 0.0
@@ -749,8 +722,8 @@ async def set_state(
     posting_id: UUID,
     *,
     field: str,
-    value: Optional[datetime],
-    extra: Optional[dict] = None,
+    value: datetime | None,
+    extra: dict | None = None,
 ) -> PostingInteraction:
     rows = await db.execute(select(JobPosting).where(JobPosting.id == posting_id))
     if rows.scalars().first() is None:
@@ -777,7 +750,6 @@ async def check_new_posting_alerts(db: AsyncSession, posting: JobPosting) -> lis
     if posting.status != "mapped" or posting.catalog_job_id is None:
         return []
     from app.models.engagement_model import NotificationRule
-
     from app.services.notification_channels import within_quiet_hours
     from app.services.notification_service import NotificationService
 
@@ -785,8 +757,7 @@ async def check_new_posting_alerts(db: AsyncSession, posting: JobPosting) -> lis
         (
             await db.execute(
                 select(NotificationRule).where(
-                    NotificationRule.kind
-                    == NotificationRuleKind.NEW_POSTING_MATCH.value,
+                    NotificationRule.kind == NotificationRuleKind.NEW_POSTING_MATCH.value,
                     NotificationRule.enabled.is_(True),
                 )
             )
@@ -855,15 +826,11 @@ async def run_sync_job(db: AsyncSession, payload: dict) -> dict:
     """POSTING_SYNC handler: one source or every enabled source."""
     source_id = payload.get("source_id")
     if source_id:
-        rows = await db.execute(
-            select(JobSource).where(JobSource.id == UUID(source_id))
-        )
+        rows = await db.execute(select(JobSource).where(JobSource.id == UUID(source_id)))
         sources = list(rows.scalars().all())
     else:
         sources = list(
-            (await db.execute(select(JobSource).where(JobSource.enabled.is_(True))))
-            .scalars()
-            .all()
+            (await db.execute(select(JobSource).where(JobSource.enabled.is_(True)))).scalars().all()
         )
     totals = {"synced": 0, "sources": len(sources), "errors": []}
     for source in sources:

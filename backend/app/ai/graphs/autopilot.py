@@ -13,9 +13,10 @@ stays a user click.
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Optional, TypedDict
+from datetime import UTC, datetime, timedelta
+from typing import Any, TypedDict
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -69,8 +70,8 @@ class GraphDeps:
     """Per-invocation dependencies (never checkpointed)."""
 
     db: AsyncSession
-    progress: Optional[ProgressCb] = None
-    cancelled: Optional[CancelCb] = None
+    progress: ProgressCb | None = None
+    cancelled: CancelCb | None = None
     cooldown_ids: set[str] = field(default_factory=set)
 
 
@@ -78,7 +79,7 @@ class GraphDeps:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _report(deps: GraphDeps, pct: int, stage: str) -> None:
@@ -91,7 +92,7 @@ async def _is_cancelled(deps: GraphDeps) -> bool:
         return False
     try:
         return bool(await deps.cancelled())
-    except Exception:  # noqa: BLE001 — cancel checks never break the flow
+    except Exception:
         return False
 
 
@@ -99,9 +100,7 @@ def _constraints(state: AutopilotState) -> dict:
     return state.get("constraints") or {}
 
 
-async def _ledger_usage(
-    db: AsyncSession, user_id: str, since: datetime
-) -> tuple[int, int]:
+async def _ledger_usage(db: AsyncSession, user_id: str, since: datetime) -> tuple[int, int]:
     """(tokens, calls) this user's autopilot task consumed since ``since``.
 
     The audit ledger is the single source of spend — the same source the
@@ -203,9 +202,7 @@ def _deterministic_why(candidate: dict) -> str:
     why = f"Fit {float(candidate.get('fit') or 0):.1f}/10"
     if parts:
         why += f" ({', '.join(parts)})"
-    skills = [
-        s.get("key", "") for s in candidate.get("skills") or [] if isinstance(s, dict)
-    ]
+    skills = [s.get("key", "") for s in candidate.get("skills") or [] if isinstance(s, dict)]
     top = [key for key in skills[:3] if key]
     if top:
         why += f"; looking for {', '.join(top)}"
@@ -215,9 +212,7 @@ def _deterministic_why(candidate: dict) -> str:
 def _candidate_texts(candidate: dict) -> str:
     """All text a quote may come from (the quote-verification corpus)."""
     skills = " ".join(
-        str(s.get("key", ""))
-        for s in candidate.get("skills") or []
-        if isinstance(s, dict)
+        str(s.get("key", "")) for s in candidate.get("skills") or [] if isinstance(s, dict)
     )
     duties = " ".join(str(r) for r in candidate.get("responsibilities") or [])
     return " ".join(
@@ -244,7 +239,7 @@ def _verify_quotes(candidate: dict, quotes: list) -> list[str]:
     return verified[:5]
 
 
-def _serialize_candidate(item: dict) -> Optional[dict]:
+def _serialize_candidate(item: dict) -> dict | None:
     """JSON-safe candidate dict (checkpoint state) with evidence fields."""
     posting = item.get("posting")
     if posting is None or item.get("fit") is None:
@@ -321,11 +316,9 @@ def make_plan_node(deps: GraphDeps):
                 user_id=UUID(state["user_id"]),
             )
             return {"plan": result.model_dump(mode="json")}
-        except Exception as exc:  # noqa: BLE001 — abort cleanly, deliver
+        except Exception as exc:
             lowered = str(exc).lower()
-            reason = (
-                "budget" if "budget" in lowered or "rate limit" in lowered else "error"
-            )
+            reason = "budget" if "budget" in lowered or "rate limit" in lowered else "error"
             return {"abort_reason": reason, "error": f"{type(exc).__name__}: {exc}"}
 
     return plan
@@ -346,9 +339,7 @@ def make_guard_node(deps: GraphDeps):
         except (KeyError, ValueError):
             return {}
         tokens, calls = await _ledger_usage(deps.db, state["user_id"], since)
-        over = (max_tokens and tokens > max_tokens) or (
-            max_calls and calls >= max_calls
-        )
+        over = (max_tokens and tokens > max_tokens) or (max_calls and calls >= max_calls)
         if over:
             return {"abort_reason": "budget", "tokens_used": tokens}
         return {"tokens_used": tokens}
@@ -397,7 +388,7 @@ def make_search_node(deps: GraphDeps):
                         existing.get("fit") or 0
                     ):
                         best[key] = candidate
-            except Exception as exc:  # noqa: BLE001 — a bad variant never kills the run
+            except Exception as exc:
                 entry["error"] = f"{type(exc).__name__}: {exc}"[:300]
             timeline.append(entry)
             await _report(
@@ -510,11 +501,9 @@ def make_curate_node(deps: GraphDeps):
                 user_id=UUID(state["user_id"]),
             )
             return {"curation": result.model_dump(mode="json")}
-        except Exception as exc:  # noqa: BLE001 — fall back to deterministic
+        except Exception as exc:
             lowered = str(exc).lower()
-            reason = (
-                "budget" if "budget" in lowered or "rate limit" in lowered else "error"
-            )
+            reason = "budget" if "budget" in lowered or "rate limit" in lowered else "error"
             return {
                 "abort_reason": state.get("abort_reason") or reason,
                 "error": f"{type(exc).__name__}: {exc}",
@@ -617,8 +606,7 @@ def make_deliver_node(deps: GraphDeps):
                 "autopilot_findings",
                 [UUID(state["user_id"])],
                 title=(
-                    f"Autopilot found {len(findings)} match"
-                    f"{'es' if len(findings) != 1 else ''}"
+                    f"Autopilot found {len(findings)} match{'es' if len(findings) != 1 else ''}"
                 ),
                 body=(state.get("goal_text") or "")[:300],
                 payload={
@@ -645,7 +633,7 @@ def route_by_abort(state: AutopilotState) -> str:
     return "deliver" if state.get("abort_reason") else "continue"
 
 
-def build_autopilot_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
+def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
     """Compile plan → search → filter → evaluate → guard → curate →
     deliver. The guard sits between the deterministic pipeline and the
     second LLM call: at budget the searched candidates still ship with
@@ -689,8 +677,8 @@ def initial_state(
     goal_text: str,
     constraints: dict,
     budget: dict,
-    top_n: Optional[int] = None,
-    cooldown_days: Optional[int] = None,
+    top_n: int | None = None,
+    cooldown_days: int | None = None,
 ) -> AutopilotState:
     """The first checkpoint's payload (everything a resumed run needs)."""
     now = _utcnow()
@@ -756,9 +744,7 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
                 {
                     "rationale": "target families only",
                     "query": "",
-                    "filters": {
-                        "mapped_family": [str(k) for k in ctx["target_families"][:3]]
-                    },
+                    "filters": {"mapped_family": [str(k) for k in ctx["target_families"][:3]]},
                 }
             )
         variants.append(
@@ -780,11 +766,7 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
         for candidate in ranked:
             snippet = " ".join(str(candidate.get("description_snippet") or "").split())
             quote = snippet[:80].strip()
-            skills = [
-                s.get("key")
-                for s in candidate.get("skills") or []
-                if isinstance(s, dict)
-            ]
+            skills = [s.get("key") for s in candidate.get("skills") or [] if isinstance(s, dict)]
             skill_bit = f" Seeks {skills[0]}." if skills else ""
             why = (
                 f"{candidate.get('title')} at {candidate.get('org')} scores "

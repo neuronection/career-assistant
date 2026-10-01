@@ -8,7 +8,7 @@ record; versioning snapshots land with's endpoints.
 
 import uuid
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -22,7 +22,7 @@ class CvSourcePage(BaseModel):
     text: str = ""
     source: Literal["text_layer", "ocr_vision", "ocr_tesseract"]
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-    image_path: Optional[str] = None
+    image_path: str | None = None
 
 
 class CvSourceExtraction(BaseModel):
@@ -89,24 +89,24 @@ class CvDocumentCreate(BaseModel):
     language: str = Field(default="en", min_length=2, max_length=10)
     page_size: CvPageSize = CvPageSize.A4
     max_pages: int = Field(default=1, ge=1, le=10)
-    target_posting_id: Optional[uuid.UUID] = None
-    template_id: Optional[uuid.UUID] = None
-    photo_document_id: Optional[uuid.UUID] = None
-    source_document_id: Optional[uuid.UUID] = None
+    target_posting_id: uuid.UUID | None = None
+    template_id: uuid.UUID | None = None
+    photo_document_id: uuid.UUID | None = None
+    source_document_id: uuid.UUID | None = None
     context: CvContextSelection = Field(default_factory=CvContextSelection)
 
 
 class CvDocumentUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    status: Optional[CvStatus] = None
-    language: Optional[str] = Field(default=None, min_length=2, max_length=10)
-    page_size: Optional[CvPageSize] = None
-    max_pages: Optional[int] = Field(default=None, ge=1, le=10)
-    target_posting_id: Optional[uuid.UUID] = None
-    template_id: Optional[uuid.UUID] = None
-    photo_document_id: Optional[uuid.UUID] = None
-    working_content: Optional[dict] = None
-    context: Optional[CvContextSelection] = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    status: CvStatus | None = None
+    language: str | None = Field(default=None, min_length=2, max_length=10)
+    page_size: CvPageSize | None = None
+    max_pages: int | None = Field(default=None, ge=1, le=10)
+    target_posting_id: uuid.UUID | None = None
+    template_id: uuid.UUID | None = None
+    photo_document_id: uuid.UUID | None = None
+    working_content: dict | None = None
+    context: CvContextSelection | None = None
 
 
 class CvVersionOut(BaseModel):
@@ -125,25 +125,25 @@ class CvDocumentOut(BaseModel):
     id: uuid.UUID
     title: str
     kind: CvKind
-    target_posting_id: Optional[uuid.UUID] = None
-    template_id: Optional[uuid.UUID] = None
-    photo_document_id: Optional[uuid.UUID] = None
+    target_posting_id: uuid.UUID | None = None
+    template_id: uuid.UUID | None = None
+    photo_document_id: uuid.UUID | None = None
     language: str
     page_size: CvPageSize
     max_pages: int
     status: CvStatus
     working_content: dict
     context: dict
-    source_document_id: Optional[uuid.UUID] = None
+    source_document_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
-    latest_version: Optional[int] = None
+    latest_version: int | None = None
 
     model_config = {"from_attributes": True}
 
     @field_validator("context", mode="before")
     @classmethod
-    def _validate_context(cls, value):  # noqa: ANN001 - raw JSONB
+    def _validate_context(cls, value):
         if isinstance(value, dict) and value:
             CvContextSelection.model_validate(value)
         return value
@@ -174,7 +174,7 @@ class CvContextItemRef(BaseModel):
     source_key: str
     item_id: str
     label: str = ""
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 class CvResolutionOut(BaseModel):
@@ -191,7 +191,7 @@ class CvSynthPinIn(BaseModel):
 
     source_key: str = Field(min_length=1, max_length=60)
     item_id: str = Field(min_length=1, max_length=64)
-    synth_id: Optional[str] = Field(default=None, max_length=64)
+    synth_id: str | None = Field(default=None, max_length=64)
 
 
 class CvPreviewOut(BaseModel):
@@ -249,4 +249,4 @@ class CvDesignOut(BaseModel):
     """The CV's effective design tokens + template meta."""
 
     design: dict
-    template: Optional[CvTemplateMeta] = None
+    template: CvTemplateMeta | None = None

@@ -158,9 +158,7 @@ def effective_stage(
 
 def stage_preset(stage: CareerStage) -> dict[str, int]:
     """Suggested fit-weight sliders for a stage (never forced)."""
-    return dict(
-        STAGE_WEIGHT_PRESETS.get(stage, STAGE_WEIGHT_PRESETS[CareerStage.STUDENT])
-    )
+    return dict(STAGE_WEIGHT_PRESETS.get(stage, STAGE_WEIGHT_PRESETS[CareerStage.STUDENT]))
 
 
 def feature_flags(stage: CareerStage) -> dict[str, bool]:
@@ -183,9 +181,7 @@ REQUIRED_BY_PATH: dict[str, frozenset[str]] = {
 }
 
 
-def required_sections(
-    path: str | None, flags: dict[str, bool] | None = None
-) -> set[str]:
+def required_sections(path: str | None, flags: dict[str, bool] | None = None) -> set[str]:
     """Required profile checks for a start path.
 
     `explore` students also owe academics (the education mini-step's

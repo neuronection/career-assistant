@@ -5,7 +5,7 @@ weekly digest through the notification machinery, and evaluate a
 scheduled saved search — notifying only when NEW matches exist."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _unseen_target_postings(db: AsyncSession, user_id: UUID) -> int:
@@ -31,8 +31,7 @@ async def _unseen_target_postings(db: AsyncSession, user_id: UUID) -> int:
             await db.execute(
                 select(NotificationRule).where(
                     NotificationRule.user_id == user_id,
-                    NotificationRule.kind
-                    == NotificationRuleKind.NEW_POSTING_MATCH.value,
+                    NotificationRule.kind == NotificationRuleKind.NEW_POSTING_MATCH.value,
                     NotificationRule.enabled.is_(True),
                 )
             )
@@ -72,9 +71,7 @@ async def _unseen_target_postings(db: AsyncSession, user_id: UUID) -> int:
     return unseen
 
 
-async def build_and_emit_digest(
-    db: AsyncSession, user_id: UUID, *, now: datetime
-) -> dict:
+async def build_and_emit_digest(db: AsyncSession, user_id: UUID, *, now: datetime) -> dict:
     """Weekly digest: new postings in target families + radar headline."""
     from app.services.growth_service import near_miss_radar
     from app.services.notification_service import NotificationService
@@ -92,9 +89,7 @@ async def build_and_emit_digest(
         "digest_ready",
         [user_id],
         title="Your weekly career digest",
-        body=". ".join(body_parts)
-        if body_parts
-        else "Nothing new this week — your feed is quiet.",
+        body=". ".join(body_parts) if body_parts else "Nothing new this week — your feed is quiet.",
         payload={
             "new_postings": unseen,
             "radar_count": len(radar),
@@ -176,7 +171,7 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
         query = query.where(and_(*conditions))
     rows = (await db.execute(query)).all()
     new_matches = 0
-    for posting, interaction in rows:
+    for _posting, interaction in rows:
         if interaction is None or interaction.seen_at is None:
             new_matches += 1
 

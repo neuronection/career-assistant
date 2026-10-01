@@ -39,9 +39,7 @@ class MetricDimension(TimestampMixin, UUIDPrimaryKeyMixin, Base):
 
     __tablename__ = "metric_dimensions"
 
-    key: Mapped[str] = mapped_column(
-        String(60), unique=True, index=True, nullable=False
-    )
+    key: Mapped[str] = mapped_column(String(60), unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(80), nullable=False)
     group: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(400), nullable=False, default="")
@@ -51,9 +49,7 @@ class MetricDimension(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # Which assessment kinds / profile sections / behaviors feed it and
     # which consumers read it — declared, not implied.
     sources: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
-    consumers: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    consumers: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
 
     __table_args__ = (
         CheckConstraint(
@@ -105,9 +101,7 @@ class UserMetricProfile(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     confidence: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.6, server_default="0.6"
     )
-    source: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="self_report"
-    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
     evidence: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
 
     user: Mapped["User"] = relationship(viewonly=True)

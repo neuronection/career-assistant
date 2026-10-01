@@ -27,9 +27,9 @@ from app.schemas.engagement import (
     ThreadsOut,
     VapidKeyOut,
 )
+from app.services import notification_stream
 from app.services.deps import get_current_user, require_admin
 from app.services.notification_service import NotificationService
-from app.services import notification_stream
 
 router = APIRouter(tags=["notifications"])
 
@@ -58,9 +58,7 @@ async def list_threads(
     db: AsyncSession = Depends(get_db),
 ) -> ThreadsOut:
     """Inbox threaded by source_ref — one career item, one row."""
-    result = await NotificationService(db).inbox_threads(
-        user.id, group=group, limit=limit
-    )
+    result = await NotificationService(db).inbox_threads(user.id, group=group, limit=limit)
     return ThreadsOut.model_validate(result)
 
 
@@ -85,9 +83,7 @@ async def dismiss_notifications(
 
 
 @router.get("/notifications/unread-count")
-async def unread_count(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> dict:
+async def unread_count(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     count = await NotificationService(db).unread_count(user.id)
     return {"unread_count": count}
 
@@ -114,16 +110,14 @@ async def stream(
                     break
                 try:
                     message = await asyncio.wait_for(queue.get(), timeout=15)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": heartbeat\n\n"
                     continue
                 yield _sse(message["event"], message["data"])
         finally:
             notification_stream.unsubscribe(user.id, queue)
 
-    return StreamingResponse(
-        event_source(), media_type="text/event-stream", headers=_SSE_HEADERS
-    )
+    return StreamingResponse(event_source(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
@@ -141,9 +135,7 @@ async def get_preferences(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> PreferencesMatrixOut:
     """The full kind list with per-kind states + global channel prefs."""
-    return PreferencesMatrixOut.model_validate(
-        await NotificationService(db).preferences(user.id)
-    )
+    return PreferencesMatrixOut.model_validate(await NotificationService(db).preferences(user.id))
 
 
 @router.put("/notifications/preferences", response_model=NotificationPreferencesOut)
@@ -156,9 +148,7 @@ async def put_global_preferences(
     prefs = await NotificationService(db).set_global_prefs(
         user.id,
         desktop_channel_enabled=data.desktop_channel_enabled,
-        quiet_hours=(
-            data.quiet_hours.model_dump() if data.quiet_hours is not None else None
-        ),
+        quiet_hours=(data.quiet_hours.model_dump() if data.quiet_hours is not None else None),
     )
     await db.commit()
     return NotificationPreferencesOut(

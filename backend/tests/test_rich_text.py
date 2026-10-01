@@ -66,8 +66,8 @@ def test_hard_trims_to_the_bound():
 
 
 def test_schemas_normalize_llm_and_user_input():
-    from app.schemas.experience import ExperienceItemIn
     from app.schemas.cv_assistant import SetOverrideOp
+    from app.schemas.experience import ExperienceItemIn
 
     item = ExperienceItemIn.model_validate(
         {
@@ -93,12 +93,10 @@ def test_schemas_normalize_llm_and_user_input():
 
 def test_renderer_inline_md_stays_compatible():
     """The renderer's `inline_md` renders exactly what normalization keeps."""
-    from app.services.rich_text import normalize_rich_text
     from app.services.cv_renderer import inline_md
+    from app.services.rich_text import normalize_rich_text
 
     raw = "**Lead** with <em>something</em> and [docs](https://a.io/x)"
     assert "<strong>Lead</strong>" in inline_md(normalize_rich_text(raw, 500))
     assert "<em>" not in inline_md(normalize_rich_text(raw, 500))
-    assert '<a href="https://a.io/x">docs</a>' in inline_md(
-        normalize_rich_text(raw, 500)
-    )
+    assert '<a href="https://a.io/x">docs</a>' in inline_md(normalize_rich_text(raw, 500))

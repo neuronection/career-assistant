@@ -151,11 +151,11 @@ Run it as a local desktop application (pywebview window, SQLite database, everyt
 
 ```bash
 cd backend
-python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
-./venv/bin/python -m careerassistant              # window + tray (default mode)
-./venv/bin/python -m careerassistant app --tray   # tray-only boot (auto-start)
-./venv/bin/python -m careerassistant web          # loopback server + system browser
-./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
+python -m venv venv && ./venv/bin/uv sync --extra desktop
+uv run python -m careerassistant              # window + tray (default mode)
+uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
+uv run python -m careerassistant web          # loopback server + system browser
+uv run python -m careerassistant seed         # migrations + starter catalog only
 ```
 
 **Prebuilt packages** (no Python needed) are published on the

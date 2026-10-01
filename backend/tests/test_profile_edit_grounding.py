@@ -5,15 +5,14 @@ import json
 import uuid
 
 import pytest
-
 from sqlalchemy import select
 
 from app.ai import gateway as gateway_module
-from app.ai.mock_chat import mock_chat_reply, mock_read_calls, mock_profile_ops
+from app.ai.mock_chat import mock_chat_reply, mock_profile_ops, mock_read_calls
 from app.ai.tools import run_tool
 from app.core.errors import DomainError
-from app.models.enums import AITaskType
 from app.models.chat_model import ChatSession
+from app.models.enums import AITaskType
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
 from app.services.chat_digest_cache import (
@@ -27,7 +26,6 @@ from app.services.chat_digest_cache import (
 )
 from app.services.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
-
 from tests.test_chat_profile_ops import _auth_user, _send, _session
 
 LONG_DESCRIPTION = (
@@ -129,9 +127,7 @@ async def test_read_profile_section_returns_full_json(db, auth_headers):
     db.add(profile)
     await db.commit()
 
-    result = await run_tool(
-        db, "read_profile_section", user.id, {"section": "academics"}
-    )
+    result = await run_tool(db, "read_profile_section", user.id, {"section": "academics"})
     assert result["section"] == "academics"
     assert result["content"]["languages"] == [{"code": "en", "level": "native"}]
     with pytest.raises(DomainError, match="read_profile_section"):
@@ -221,9 +217,7 @@ async def test_cached_read_gates_only_while_fresh(db, auth_headers):
     grounded = await grounded_read_keys(db, session_row, [])
     assert key in grounded
 
-    await ExperienceService(db).update_item(
-        user.id, item.id, {"description": "changed"}
-    )
+    await ExperienceService(db).update_item(user.id, item.id, {"description": "changed"})
     grounded_stale = await grounded_read_keys(db, session_row, [])
     assert key not in grounded_stale
     assert load_reads(session_row).get(key)
@@ -254,9 +248,7 @@ def test_mock_reads_mirror_the_ops():
     ]
     read_tools = {
         **tools,
-        "read_profile_item": [
-            {"kind": "experience_item", "entity_id": "item-1", "content": {}}
-        ],
+        "read_profile_item": [{"kind": "experience_item", "entity_id": "item-1", "content": {}}],
     }
     ops = mock_profile_ops(read_tools, message)
     assert ops and ops[0]["action"] == "delete"
@@ -324,11 +316,7 @@ async def test_turn_without_read_drops_update_op(client, db, auth_headers):
 
     assert not [p for n, p in events if n == "proposal"]
     rows = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )

@@ -2,7 +2,7 @@
 hours, check-ins."""
 
 import uuid as uuid_mod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
@@ -14,13 +14,13 @@ from app.connectors.base import (
     RawPosting,
 )
 from app.connectors.registry import register_connector, reset_registry
-from tests.conftest import decode_session_token
 from app.models.job_model import Job
 from app.models.posting_model import JobPosting
 from app.models.taxonomy_model import Skill
 from app.services.growth_service import (
     near_miss_radar,
 )
+from tests.conftest import decode_session_token
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ class SyntheticConnector(PostingConnector):
                     title="QA Automation Engineer",
                     org="SynthCo",
                     url="https://syn.example/1",
-                    posted_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+                    posted_at=datetime(2026, 8, 20, tzinfo=UTC),
                     salary_min=45000.0,
                     salary_max=65000.0,
                     salary_currency="USD",
@@ -201,10 +201,8 @@ async def test_plan_completes_when_steps_exhausted(
 # ----------------------------------------------------------------- radar
 
 
-async def test_radar_band_and_deficit_math(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
-    """Direct service-level check: craft an insight in the 5.5–7.5 band
+async def test_radar_band_and_deficit_math(client, auth_headers, profile_ready, seeded_catalog, db):
+    """Direct service-level check: craft an insight in the 5.5-7.5 band
     with ≤3 core deficits and confirm the radar entry math."""
     from app.models.matching_model import MatchInsight
     from app.services.fit.service import FitService
@@ -229,9 +227,7 @@ async def test_radar_band_and_deficit_math(
     # One mid fit write puts the job inside the band.
     from app.services.fit.dimensions import FitResult
 
-    await fit.upsert_fit(
-        _user_id(auth_headers), job, FitResult(score=6.5, breakdown={}, gates=[])
-    )
+    await fit.upsert_fit(_user_id(auth_headers), job, FitResult(score=6.5, breakdown={}, gates=[]))
     radar = await near_miss_radar(db, _user_id(auth_headers))
     entry = next((r for r in radar if r["code"] == "software-developer"), None)
     assert entry is not None
@@ -276,11 +272,7 @@ async def test_resource_validation_and_moderation_flow(
     user.is_admin = True
     await db.commit()
 
-    skill = (
-        (await db.execute(select(Skill).where(Skill.key == "programming")))
-        .scalars()
-        .first()
-    )
+    skill = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
 
     insecure = await client.post(
         f"/api/v1/skills/{skill.id}/resources",
@@ -330,9 +322,7 @@ async def test_snapshot_thin_sample_suppression(
 
     await sync_source(db, source)
     snapshot = (
-        await client.get(
-            "/api/v1/market/snapshot?family_key=technology", headers=auth_headers
-        )
+        await client.get("/api/v1/market/snapshot?family_key=technology", headers=auth_headers)
     ).json()
     assert snapshot["sample_size"] == 1
     assert snapshot["thin_sample"] is True
@@ -359,7 +349,7 @@ async def test_snapshot_sufficient_sample_shows_band(
             content_hash=f"hash-{i}",
             catalog_job_id=base.catalog_job_id,
             status="mapped",
-            posted_at=datetime(2026, 8, 1 + i, tzinfo=timezone.utc),
+            posted_at=datetime(2026, 8, 1 + i, tzinfo=UTC),
             salary_min=40000 + i * 1000,
             salary_max=60000 + i * 1000,
             salary_currency="USD",
@@ -386,10 +376,10 @@ async def test_snapshot_sufficient_sample_shows_band(
 async def test_quiet_hours_suppress_pings(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds
 ):
-    from app.services.notification_service import NotificationService
-    from app.services.fit.service import FitService
     from app.services.fit.dimensions import FitResult
+    from app.services.fit.service import FitService
     from app.services.job_service import JobService
+    from app.services.notification_service import NotificationService
 
     await client.put(
         "/api/v1/notifications/rules",
@@ -446,9 +436,7 @@ async def test_checkin_cadence_skip_and_skill_conflicts(
     assert conflict.json()["conflicts"]
     assert conflict.json()["applied_skills"] == 0
 
-    skip = await client.post(
-        "/api/v1/me/checkin", json={"skipped": True}, headers=auth_headers
-    )
+    skip = await client.post("/api/v1/me/checkin", json={"skipped": True}, headers=auth_headers)
     assert skip.status_code == 200
     after_skip = (await client.get("/api/v1/me/checkin", headers=auth_headers)).json()
-    assert datetime.fromisoformat(after_skip["next_at"]) > datetime.now(timezone.utc)
+    assert datetime.fromisoformat(after_skip["next_at"]) > datetime.now(UTC)

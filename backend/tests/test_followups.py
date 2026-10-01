@@ -1,12 +1,10 @@
 """— application follow-ups: sweep nudges, stage prompts,
 user-adjustable prefs, scheduler wiring."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
-
-from tests.conftest import _make_posting, _uid
 
 from app.models.background_job_model import BackgroundJob
 from app.models.engagement_model import Notification, NotificationKind
@@ -19,18 +17,17 @@ from app.services.followups_service import (
 )
 from app.services.job_worker import JobWorker
 from app.services.scheduler.runner import SchedulerService
+from tests.conftest import _make_posting, _uid
 
 
-async def _applied(
-    db, headers, source, *, days_ago=8, stage=None
-) -> PostingInteraction:
+async def _applied(db, headers, source, *, days_ago=8, stage=None) -> PostingInteraction:
     posting: JobPosting = await _make_posting(db, source, external_id="fu-1")
     db.add(
         PostingInteraction(
             user_id=UUID(_uid(headers)),
             posting_id=posting.id,
-            seen_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
-            applied_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+            seen_at=datetime.now(UTC) - timedelta(days=days_ago),
+            applied_at=datetime.now(UTC) - timedelta(days=days_ago),
             stage=stage,
         )
     )
@@ -39,15 +36,11 @@ async def _applied(
 
 
 async def _notes(db, kind_key="followup_due") -> list[Notification]:
-    kind = await db.execute(
-        select(NotificationKind).where(NotificationKind.key == kind_key)
-    )
+    kind = await db.execute(select(NotificationKind).where(NotificationKind.key == kind_key))
     kind_row = kind.scalars().first()
     if kind_row is None:
         return []
-    rows = await db.execute(
-        select(Notification).where(Notification.kind_id == kind_row.id)
-    )
+    rows = await db.execute(select(Notification).where(Notification.kind_id == kind_row.id))
     return list(rows.scalars().all())
 
 
@@ -70,7 +63,7 @@ async def test_second_nudge_waits_for_first_and_the_delay(
     assert await sweep(db) == 0, "before the first delay nothing is due"
 
     rows = (await db.execute(select(PostingInteraction))).scalars().all()
-    rows[0].applied_at = datetime.now(timezone.utc) - timedelta(days=20)
+    rows[0].applied_at = datetime.now(UTC) - timedelta(days=20)
     await db.commit()
     assert await sweep(db) == 1  # first
     assert await sweep(db) == 1  # second (20d > 14d)
@@ -98,12 +91,10 @@ async def test_disabled_user_and_adjusted_delays(
     await update_prefs(db, UUID(_uid(auth_headers)), {"enabled": False})
     assert await sweep(db) == 0
 
-    await update_prefs(
-        db, UUID(_uid(auth_headers)), {"enabled": True, "first_delay_days": 30}
-    )
+    await update_prefs(db, UUID(_uid(auth_headers)), {"enabled": True, "first_delay_days": 30})
     assert await sweep(db) == 0, "8d < 30d custom delay"
     rows = (await db.execute(select(PostingInteraction))).scalars().all()
-    rows[0].applied_at = datetime.now(timezone.utc) - timedelta(days=31)
+    rows[0].applied_at = datetime.now(UTC) - timedelta(days=31)
     await db.commit()
     assert await sweep(db) == 1
 
@@ -144,9 +135,7 @@ async def test_scheduler_provisions_and_enqueues_the_sweep(
     rows = (
         (
             await db.execute(
-                select(Schedule).where(
-                    Schedule.kind == ScheduleKind.SYSTEM_FOLLOWUPS.value
-                )
+                select(Schedule).where(Schedule.kind == ScheduleKind.SYSTEM_FOLLOWUPS.value)
             )
         )
         .scalars()
@@ -158,7 +147,7 @@ async def test_scheduler_provisions_and_enqueues_the_sweep(
     await db.execute(
         Schedule.__table__.update()
         .where(Schedule.id == rows[0].id)
-        .values(next_run_at=datetime.now(timezone.utc) - td(minutes=1))
+        .values(next_run_at=datetime.now(UTC) - td(minutes=1))
     )
     await db.commit()
     await service.tick()
@@ -192,8 +181,6 @@ async def test_job_handler_runs_the_sweep(
 
 def test_prefs_clamping():
     assert followup_prefs({})["first_delay_days"] == 7
-    merged = followup_prefs(
-        {"followups": {"first_delay_days": 0, "second_delay_days": 999}}
-    )
+    merged = followup_prefs({"followups": {"first_delay_days": 0, "second_delay_days": 999}})
     assert merged["first_delay_days"] == 1
     assert merged["second_delay_days"] == 120

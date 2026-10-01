@@ -1,6 +1,6 @@
 """: demand history — capture, idempotency, trend, endpoint."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -31,7 +31,7 @@ async def _add_posting(db, job: Job, index: int = 0) -> None:
             catalog_job_id=job.id,
             salary_min=Decimal(40000 + index * 1000),
             salary_currency="EUR",
-            posted_at=datetime(2026, 8, 1 + index % 20, tzinfo=timezone.utc),
+            posted_at=datetime(2026, 8, 1 + index % 20, tzinfo=UTC),
             content_hash=f"h-{job.id}-{index}",
         )
     )
@@ -39,11 +39,7 @@ async def _add_posting(db, job: Job, index: int = 0) -> None:
 
 
 async def _seeded_job(db) -> Job:
-    return (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    return (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
 
 
 async def test_capture_scope_is_same_day_idempotent(db, seeded_catalog):
@@ -75,9 +71,7 @@ async def test_capture_all_covers_families_and_jobs(db, seeded_catalog):
 
     captured = await mhs.capture_all(db)
     assert captured >= 2  # the family scope + the job scope
-    kinds = {
-        r.scope_kind for r in (await db.execute(select(MarketSnapshot))).scalars().all()
-    }
+    kinds = {r.scope_kind for r in (await db.execute(select(MarketSnapshot))).scalars().all()}
     assert kinds == {"family", "job"}
 
 
@@ -97,9 +91,7 @@ async def test_worker_handler_captures(db, seeded_catalog):
     from app.models.enums import BackgroundJobStatus
     from app.services.job_worker import enqueue
 
-    enqueued = await enqueue(
-        db, BackgroundJobType.MARKET_HISTORY_CAPTURE.value, {}, user_id=None
-    )
+    enqueued = await enqueue(db, BackgroundJobType.MARKET_HISTORY_CAPTURE.value, {}, user_id=None)
     worker = JobWorker(db)
     assert await worker.run_once()
     await db.refresh(enqueued)
@@ -117,9 +109,7 @@ async def test_system_schedule_slot_provisioned(db):
     rows = (
         (
             await db.execute(
-                select(Schedule).where(
-                    Schedule.kind == ScheduleKind.SYSTEM_MARKET_HISTORY.value
-                )
+                select(Schedule).where(Schedule.kind == ScheduleKind.SYSTEM_MARKET_HISTORY.value)
             )
         )
         .scalars()

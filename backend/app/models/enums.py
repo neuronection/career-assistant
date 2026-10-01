@@ -1,7 +1,8 @@
-from enum import Enum
+from enum import StrEnum
+from typing import ClassVar
 
 
-class EducationLevel(str, Enum):
+class EducationLevel(StrEnum):
     NO_FORMAL = "no_formal"
     MIDDLE_SCHOOL = "middle_school"
     HIGH_SCHOOL = "high_school"
@@ -14,7 +15,7 @@ class EducationLevel(str, Enum):
 class EducationLevelOrder:
     """Ranking used to compare education requirements with what users have/want."""
 
-    ORDER = {
+    ORDER: ClassVar[dict[EducationLevel, int]] = {
         EducationLevel.NO_FORMAL: 0,
         EducationLevel.MIDDLE_SCHOOL: 1,
         EducationLevel.HIGH_SCHOOL: 2,
@@ -30,25 +31,25 @@ class EducationLevelOrder:
         return cls.ORDER.get(level, 0) >= cls.ORDER.get(minimum, 0)
 
 
-class DemandOutlook(str, Enum):
+class DemandOutlook(StrEnum):
     DECLINING = "declining"
     STABLE = "stable"
     GROWING = "growing"
     HOT = "hot"
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
 
 
-class JobSource(str, Enum):
+class JobSource(StrEnum):
     SEED = "seed"
     AI = "ai"
     USER = "user"
 
 
-class RelationType(str, Enum):
+class RelationType(StrEnum):
     SIMILAR_TO = "similar_to"
     SPECIALISES_INTO = "specialises_into"
     LEADS_TO = "leads_to"
@@ -56,7 +57,7 @@ class RelationType(str, Enum):
     PREREQUISITE_OF = "prerequisite_of"
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     OFFICE = "office"
     FIELD = "field"
     LAB = "lab"
@@ -71,7 +72,7 @@ class Environment(str, Enum):
     STAGE = "stage"
 
 
-class PhysicalActivity(str, Enum):
+class PhysicalActivity(StrEnum):
     SEDENTARY = "sedentary"
     LIGHT = "light"
     MODERATE = "moderate"
@@ -79,7 +80,7 @@ class PhysicalActivity(str, Enum):
     INTENSE = "physical_intense"
 
 
-class PhysicalCondition(str, Enum):
+class PhysicalCondition(StrEnum):
     NONE = "none"
     MOBILITY_LIMITED = "mobility_limited"
     HEARING_IMPAIRED = "hearing_impaired"
@@ -88,27 +89,27 @@ class PhysicalCondition(str, Enum):
     OTHER = "other"
 
 
-class UniversityType(str, Enum):
+class UniversityType(StrEnum):
     PUBLIC = "public"
     PRIVATE = "private"
     OTHER = "other"
 
 
-class DegreeLevel(str, Enum):
+class DegreeLevel(StrEnum):
     VOCATIONAL = "vocational"
     BACHELOR = "bachelor"
     MASTER = "master"
     PHD = "phd"
 
 
-class DocumentKind(str, Enum):
+class DocumentKind(StrEnum):
     UNIVERSITY_CATALOG = "university_catalog"
     CV = "cv"
     PHOTO = "photo"
     OTHER = "other"
 
 
-class DocumentStatus(str, Enum):
+class DocumentStatus(StrEnum):
     UPLOADED = "uploaded"
     PARSING = "parsing"
     PARSED = "parsed"
@@ -119,31 +120,31 @@ class DocumentStatus(str, Enum):
     FAILED = "failed"
 
 
-class MatchStatus(str, Enum):
+class MatchStatus(StrEnum):
     INTERESTED = "interested"
     CONSIDERING = "considering"
     DISMISSED = "dismissed"
 
 
-class PrerequisiteStatus(str, Enum):
+class PrerequisiteStatus(StrEnum):
     MET = "met"
     UNMET = "unmet"
     UNKNOWN = "unknown"
 
 
-class ChatRole(str, Enum):
+class ChatRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
 
 
-class SkillStatus(str, Enum):
+class SkillStatus(StrEnum):
     PROPOSED = "proposed"
     ACTIVE = "active"
     DEPRECATED = "deprecated"
 
 
-class SkillOrigin(str, Enum):
+class SkillOrigin(StrEnum):
     BANK = "bank"
     AI = "ai"
     USER = "user"
@@ -151,19 +152,19 @@ class SkillOrigin(str, Enum):
     CV_PARSE = "cv_parse"
 
 
-class JobSkillImportance(str, Enum):
+class JobSkillImportance(StrEnum):
     CORE = "core"
     IMPORTANT = "important"
     BONUS = "bonus"
 
 
-class JobSkillSource(str, Enum):
+class JobSkillSource(StrEnum):
     SEED = "seed"
     AI = "ai"
     ADMIN = "admin"
 
 
-class UserSkillSource(str, Enum):
+class UserSkillSource(StrEnum):
     SELF_REPORT = "self_report"
     ASSESSMENT = "assessment"
     EXPERIENCE = "experience"
@@ -171,55 +172,55 @@ class UserSkillSource(str, Enum):
     DOCUMENT = "document"
 
 
-class PathStepKind(str, Enum):
+class PathStepKind(StrEnum):
     EDUCATION = "education"
     JOB = "job"
     EXPERIENCE = "experience"
     CERTIFICATION = "certification"
 
 
-class PathSource(str, Enum):
+class PathSource(StrEnum):
     SEED = "seed"
     AI = "ai"
     ADMIN = "admin"
 
 
-class PathStatus(str, Enum):
+class PathStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
 
 
-class AssessmentKind(str, Enum):
+class AssessmentKind(StrEnum):
     ONBOARDING = "onboarding"
     FULL = "full"
     CUSTOM = "custom"
     TEMPLATE = "template"
 
 
-class AssessmentStatus(str, Enum):
+class AssessmentStatus(StrEnum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     ABANDONED = "abandoned"
 
 
-class QuestionKind(str, Enum):
+class QuestionKind(StrEnum):
     SCENARIO_MCQ = "scenario_mcq"
     TIME_ALLOCATION = "time_allocation"
     RANKING = "ranking"
     SLIDER = "slider"
 
 
-class QuestionSource(str, Enum):
+class QuestionSource(StrEnum):
     BANK = "bank"
     AI = "ai"
 
 
-class QuestionStatus(str, Enum):
+class QuestionStatus(StrEnum):
     ACTIVE = "active"
     RETIRED = "retired"
 
 
-class AITaskType(str, Enum):
+class AITaskType(StrEnum):
     ASSESSMENT_GENERATE = "assessment_generate"
     TEMPLATE_DESIGN = "template_design"
     PROFILE_ANALYZE = "profile_analyze"
@@ -256,26 +257,26 @@ class AITaskType(str, Enum):
     MCP_TOOL_CALL = "mcp_tool_call"
 
 
-class AIScope(str, Enum):
+class AIScope(StrEnum):
     SYSTEM = "system"
     USER = "user"
 
 
-class AIProviderType(str, Enum):
+class AIProviderType(StrEnum):
     MOCK = "mock"
     OPENAI = "openai"
     OPENAI_COMPATIBLE = "openai_compatible"
     GOOGLE = "google"
 
 
-class AITaskTier(str, Enum):
+class AITaskTier(StrEnum):
     """Model tiers: fast interactive tasks vs deep quality ones."""
 
     FAST = "fast"
     STRONG = "strong"
 
 
-class AICapability(str, Enum):
+class AICapability(StrEnum):
     """Capabilities a task requires from its assigned model.
 
     Also the allowed values of the persisted ``ai_models.caps`` list —
@@ -289,13 +290,13 @@ class AICapability(str, Enum):
     AUDIO = "audio"
 
 
-class TagSource(str, Enum):
+class TagSource(StrEnum):
     SELF = "self"
     AI = "ai"
     EXPRESS = "express"
 
 
-class CareerStage(str, Enum):
+class CareerStage(StrEnum):
     STUDENT = "student"
     EARLY_CAREER = "early_career"
     EXPERIENCED = "experienced"
@@ -303,7 +304,7 @@ class CareerStage(str, Enum):
     RETURNING = "returning"
 
 
-class OnboardingPath(str, Enum):
+class OnboardingPath(StrEnum):
     """Start-path choice from the /onboarding hero.
 
     Drives the wizard step list and the required-section scope;
@@ -316,38 +317,38 @@ class OnboardingPath(str, Enum):
     BROWSE = "browse"
 
 
-class SearchScope(str, Enum):
+class SearchScope(StrEnum):
     CATALOG = "catalog"
     RANKINGS = "rankings"
     UNIVERSITIES = "universities"
     POSTINGS = "postings"
 
 
-class PostingStatus(str, Enum):
+class PostingStatus(StrEnum):
     NEW = "new"
     MAPPED = "mapped"
     EXPIRED = "expired"
     HIDDEN = "hidden"
 
 
-class PostingEvidence(str, Enum):
+class PostingEvidence(StrEnum):
     EXPLICIT = "explicit"
     INFERRED = "inferred"
 
 
-class PostingSkillPriority(str, Enum):
+class PostingSkillPriority(StrEnum):
     MUST_HAVE = "must_have"
     NICE_TO_HAVE = "nice_to_have"
     BONUS = "bonus"
 
 
-class MappingMethod(str, Enum):
+class MappingMethod(StrEnum):
     SKILL_OVERLAP = "skill_overlap"
     AI = "ai"
     MANUAL = "manual"
 
 
-class SalaryPeriod(str, Enum):
+class SalaryPeriod(StrEnum):
     HOUR = "hour"
     DAY = "day"
     WEEK = "week"
@@ -355,13 +356,13 @@ class SalaryPeriod(str, Enum):
     YEAR = "year"
 
 
-class ApplicationStage(str, Enum):
+class ApplicationStage(StrEnum):
     APPLIED = "applied"
     INTERVIEW = "interview"
     OFFER = "offer"
 
 
-class Seniority(str, Enum):
+class Seniority(StrEnum):
     INTERN = "intern"
     JUNIOR = "junior"
     MID = "mid"
@@ -370,27 +371,27 @@ class Seniority(str, Enum):
     PRINCIPAL = "principal"
 
 
-class GrowthPlanStatus(str, Enum):
+class GrowthPlanStatus(StrEnum):
     ACTIVE = "active"
     COMPLETED = "completed"
     ABANDONED = "abandoned"
 
 
-class GrowthStepKind(str, Enum):
+class GrowthStepKind(StrEnum):
     SKILL = "skill"
     EXPERIENCE = "experience"
     CERTIFICATION = "certification"
     EDUCATION = "education"
 
 
-class GrowthStepStatus(str, Enum):
+class GrowthStepStatus(StrEnum):
     TODO = "todo"
     DOING = "doing"
     DONE = "done"
     SKIPPED = "skipped"
 
 
-class ResourceKind(str, Enum):
+class ResourceKind(StrEnum):
     COURSE = "course"
     BOOK = "book"
     CERT = "cert"
@@ -398,48 +399,48 @@ class ResourceKind(str, Enum):
     VIDEO = "video"
 
 
-class ResourceCost(str, Enum):
+class ResourceCost(StrEnum):
     FREE = "free"
     FREEMIUM = "freemium"
     PAID = "paid"
 
 
-class ResourceStatus(str, Enum):
+class ResourceStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
 
 
-class ResourceSource(str, Enum):
+class ResourceSource(StrEnum):
     ADMIN = "admin"
     AI = "ai"
 
 
-class InterestTagKind(str, Enum):
+class InterestTagKind(StrEnum):
     TOPIC = "topic"
     INDUSTRY = "industry"
 
 
-class JobLinkKind(str, Enum):
+class JobLinkKind(StrEnum):
     APPLY = "apply"
     LEARN = "learn"
     CERTIFICATION = "certification"
     VIDEO = "video"
 
 
-class NotificationRuleKind(str, Enum):
+class NotificationRuleKind(StrEnum):
     FIT_THRESHOLD = "fit_threshold"
     NEW_IN_FAMILY = "new_in_family"
     NEW_POSTING_MATCH = "new_posting_match"
 
 
-class NotificationSeverity(str, Enum):
+class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"
     WARNING = "warning"
     CRITICAL = "critical"
 
 
-class NotificationStatus(str, Enum):
+class NotificationStatus(StrEnum):
     """Inbox state of one (notification, recipient) pair."""
 
     UNREAD = "unread"
@@ -447,7 +448,7 @@ class NotificationStatus(str, Enum):
     DISMISSED = "dismissed"
 
 
-class NotificationChannel(str, Enum):
+class NotificationChannel(StrEnum):
     """Delivery channels; the registry leaves email/sms slots open."""
 
     IN_APP = "in_app"
@@ -455,14 +456,14 @@ class NotificationChannel(str, Enum):
     BROWSER = "browser"
 
 
-class DeliveryStatus(str, Enum):
+class DeliveryStatus(StrEnum):
     PENDING = "pending"
     SENT = "sent"
     DELIVERED = "delivered"
     FAILED = "failed"
 
 
-class ExperienceKind(str, Enum):
+class ExperienceKind(StrEnum):
     """Experience item kinds; legacy JSONB `part_time` maps to job."""
 
     JOB = "job"
@@ -472,19 +473,19 @@ class ExperienceKind(str, Enum):
     FREELANCE = "freelance"
 
 
-class ExperienceItemSource(str, Enum):
+class ExperienceItemSource(StrEnum):
     SELF_REPORT = "self_report"
     CV_PARSE = "cv_parse"
     ASSESSMENT = "assessment"
     IMPORT = "import"
 
 
-class ExperienceItemStatus(str, Enum):
+class ExperienceItemStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
 
 
-class RoleInItem(str, Enum):
+class RoleInItem(StrEnum):
     """The skill's role inside one experience item."""
 
     PRIMARY = "primary"
@@ -492,7 +493,7 @@ class RoleInItem(str, Enum):
     EXPOSURE = "exposure"
 
 
-class OrgStatus(str, Enum):
+class OrgStatus(StrEnum):
     """Organization lifecycle."""
 
     PROPOSED = "proposed"
@@ -500,14 +501,14 @@ class OrgStatus(str, Enum):
     DEPRECATED = "deprecated"
 
 
-class AchievementMetricKind(str, Enum):
+class AchievementMetricKind(StrEnum):
     TIME_SAVED = "time_saved"
     SCALE = "scale"
     REVENUE = "revenue"
     QUALITY = "quality"
 
 
-class TemplateSource(str, Enum):
+class TemplateSource(StrEnum):
     """Where a template came from."""
 
     BANK = "bank"
@@ -516,7 +517,7 @@ class TemplateSource(str, Enum):
     IMPORTED = "imported"
 
 
-class TemplateVisibility(str, Enum):
+class TemplateVisibility(StrEnum):
     """Visibility ladder; `public` stays unreachable until community
     sharing ships."""
 
@@ -525,13 +526,13 @@ class TemplateVisibility(str, Enum):
     PUBLIC = "public"
 
 
-class TemplateStatus(str, Enum):
+class TemplateStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
     RETIRED = "retired"
 
 
-class BackgroundJobType(str, Enum):
+class BackgroundJobType(StrEnum):
     DOCUMENT_PARSE = "document_parse"
     JOB_GENERATE = "job_generate"
     MATCH_SCORE = "match_score"
@@ -557,7 +558,7 @@ class BackgroundJobType(str, Enum):
     CHECKPOINT_PRUNE = "checkpoint_prune"
 
 
-class ScheduleKind(str, Enum):
+class ScheduleKind(StrEnum):
     SYSTEM_SOURCE_SYNC = "system_source_sync"
     SYSTEM_DIGEST = "system_digest"
     SYSTEM_DEMAND_IMPORT = "system_demand_import"
@@ -572,13 +573,13 @@ class ScheduleKind(str, Enum):
     USER_AUTOPILOT = "user_autopilot"
 
 
-class MisfirePolicy(str, Enum):
+class MisfirePolicy(StrEnum):
     ASAP = "asap"
     SKIP = "skip"
     NEXT_SLOT = "next_slot"
 
 
-class ScheduleStatus(str, Enum):
+class ScheduleStatus(StrEnum):
     CLAIMED = "claimed"
     QUEUED = "queued"
     SKIPPED_OVERLAP = "skipped_overlap"
@@ -588,7 +589,7 @@ class ScheduleStatus(str, Enum):
     OK = "ok"
 
 
-class BackgroundJobStatus(str, Enum):
+class BackgroundJobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
@@ -596,25 +597,25 @@ class BackgroundJobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class CvKind(str, Enum):
+class CvKind(StrEnum):
     """CV record kinds; cover letters land with 34.3."""
 
     RESUME = "resume"
     COVER_LETTER = "cover_letter"
 
 
-class CvStatus(str, Enum):
+class CvStatus(StrEnum):
     DRAFT = "draft"
     FINAL = "final"
     ARCHIVED = "archived"
 
 
-class CvPageSize(str, Enum):
+class CvPageSize(StrEnum):
     A4 = "a4"
     LETTER = "letter"
 
 
-class CvVersionCreator(str, Enum):
+class CvVersionCreator(StrEnum):
     """What produced an immutable cv_versions row."""
 
     USER_SAVE = "user_save"
@@ -624,7 +625,7 @@ class CvVersionCreator(str, Enum):
     DUPLICATE = "duplicate"
 
 
-class CvSynthStatus(str, Enum):
+class CvSynthStatus(StrEnum):
     """Lifecycle of a synthesized CV item (draft-then-approve)."""
 
     DRAFT = "draft"
@@ -632,21 +633,21 @@ class CvSynthStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class CvSynthScope(str, Enum):
+class CvSynthScope(StrEnum):
     """What a synthesized item replaces."""
 
     ITEM = "item"
     SUMMARY = "summary"
 
 
-class CvSynthSource(str, Enum):
+class CvSynthSource(StrEnum):
     """Who wrote the variant text."""
 
     AI = "ai"
     MANUAL = "manual"
 
 
-class CvPageTextSource(str, Enum):
+class CvPageTextSource(StrEnum):
     """Where a source document page's text came from."""
 
     TEXT_LAYER = "text_layer"
@@ -654,7 +655,7 @@ class CvPageTextSource(str, Enum):
     OCR_TESSERACT = "ocr_tesseract"
 
 
-class MetricGroup(str, Enum):
+class MetricGroup(StrEnum):
     """Metric dimension families."""
 
     INTEREST = "interest"
@@ -664,7 +665,7 @@ class MetricGroup(str, Enum):
     APTITUDE = "aptitude"
 
 
-class UserMetricSource(str, Enum):
+class UserMetricSource(StrEnum):
     """How a user metric value was produced."""
 
     SELF_REPORT = "self_report"
@@ -673,7 +674,7 @@ class UserMetricSource(str, Enum):
     DERIVED = "derived"
 
 
-class CvTemplateSource(str, Enum):
+class CvTemplateSource(StrEnum):
     """Where a CV template came from."""
 
     BANK = "bank"
@@ -683,7 +684,7 @@ class CvTemplateSource(str, Enum):
     DUPLICATED = "duplicated"
 
 
-class CvTemplateVisibility(str, Enum):
+class CvTemplateVisibility(StrEnum):
     """Visibility ladder; `public` stays unreachable until community
     sharing ships."""
 
@@ -692,13 +693,13 @@ class CvTemplateVisibility(str, Enum):
     PUBLIC = "public"
 
 
-class CvTemplateStatus(str, Enum):
+class CvTemplateStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
     RETIRED = "retired"
 
 
-class CvOverflowPolicy(str, Enum):
+class CvOverflowPolicy(StrEnum):
     """What the renderer does when content exceeds the page budget."""
 
     SHRINK = "shrink"
@@ -706,7 +707,7 @@ class CvOverflowPolicy(str, Enum):
     WARN = "warn"
 
 
-class AutopilotRunStatus(str, Enum):
+class AutopilotRunStatus(StrEnum):
     """Lifecycle of one autopilot run."""
 
     RUNNING = "running"
@@ -716,7 +717,7 @@ class AutopilotRunStatus(str, Enum):
     FAILED = "failed"
 
 
-class InterviewKind(str, Enum):
+class InterviewKind(StrEnum):
     """Interview practice session focus."""
 
     TECHNICAL = "technical"
@@ -725,7 +726,7 @@ class InterviewKind(str, Enum):
     RESEARCH = "research"
 
 
-class InterviewStatus(str, Enum):
+class InterviewStatus(StrEnum):
     """Lifecycle of one interview practice session."""
 
     PLANNED = "planned"
@@ -734,14 +735,14 @@ class InterviewStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
-class AutopilotFeedback(str, Enum):
+class AutopilotFeedback(StrEnum):
     """Finding feedback that teaches the goal's constraints."""
 
     MORE_LIKE_THIS = "more_like_this"
     HIDE_LIKE_THIS = "hide_like_this"
 
 
-class ProposalKind(str, Enum):
+class ProposalKind(StrEnum):
     """Entity kinds a HITL profile proposal can mutate (plan 77, 82)."""
 
     EXPERIENCE_ITEM = "experience_item"
@@ -755,13 +756,13 @@ class ProposalKind(str, Enum):
     CV_CHOICE = "cv_choice"
 
 
-class ProposalAction(str, Enum):
+class ProposalAction(StrEnum):
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
 
 
-class ProposalStatus(str, Enum):
+class ProposalStatus(StrEnum):
     """Detached-card lifecycle: resolve is idempotent per terminal state."""
 
     PENDING = "pending"
@@ -772,5 +773,5 @@ class ProposalStatus(str, Enum):
     REVERTED = "reverted"
 
 
-class ProposalSource(str, Enum):
+class ProposalSource(StrEnum):
     CHAT = "chat"

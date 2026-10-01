@@ -17,7 +17,8 @@ ciphertext.
 
 import logging
 
-from nx_auth.boot import BootConfigError, validate_boot_config as _kit_validate
+from nx_auth.boot import BootConfigError
+from nx_auth.boot import validate_boot_config as _kit_validate
 
 from app.core.config import settings
 

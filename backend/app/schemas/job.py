@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -25,9 +25,9 @@ MoneyRange = tuple[int, int]
 
 class SalaryInfo(BaseModel):
     currency: str = "USD"
-    entry: Optional[MoneyRange] = None
-    median: Optional[MoneyRange] = None
-    senior: Optional[MoneyRange] = None
+    entry: MoneyRange | None = None
+    median: MoneyRange | None = None
+    senior: MoneyRange | None = None
 
 
 class DemandInfo(BaseModel):
@@ -70,13 +70,13 @@ BENEFIT_KINDS = Literal[
 
 class CatalogWorkHours(BaseModel):
     pattern: Literal["full_time", "part_time"]
-    hours_per_week_min: Optional[int] = Field(default=None, ge=1, le=80)
-    hours_per_week_max: Optional[int] = Field(default=None, ge=1, le=80)
+    hours_per_week_min: int | None = Field(default=None, ge=1, le=80)
+    hours_per_week_max: int | None = Field(default=None, ge=1, le=80)
 
 
 class CatalogTravel(BaseModel):
     level: Literal["none", "occasional", "frequent"]
-    days_per_month: Optional[int] = Field(default=None, ge=0, le=31)
+    days_per_month: int | None = Field(default=None, ge=0, le=31)
 
 
 class WorkStyle(BaseModel):
@@ -107,7 +107,7 @@ class JobAttributes(BaseModel):
     subjects: list[str] = Field(default_factory=list, max_length=10)
     # Typical years of experience band (min, max) — feeds the fit engine's
     # experience dimension (Phase 22). Absent ⇒ neutral "no signal".
-    experience_typical_years: Optional[tuple[float, float]] = None
+    experience_typical_years: tuple[float, float] | None = None
     work_style: WorkStyle = Field(default_factory=WorkStyle)
     education: EducationRequirement = Field(default_factory=EducationRequirement)
     physical: PhysicalRequirement = Field(default_factory=PhysicalRequirement)
@@ -116,10 +116,10 @@ class JobAttributes(BaseModel):
     environments: list[Environment] = Field(default_factory=list, max_length=6)
     typical_positives: list[Aspect] = Field(default_factory=list, max_length=8)
     typical_negatives: list[Aspect] = Field(default_factory=list, max_length=8)
-    contract_type: Optional[CONTRACT_TYPES] = None
-    work_hours: Optional[CatalogWorkHours] = None
+    contract_type: CONTRACT_TYPES | None = None
+    work_hours: CatalogWorkHours | None = None
     schedule_cues: list[SCHEDULE_CUES] = Field(default_factory=list, max_length=5)
-    travel_required: Optional[CatalogTravel] = None
+    travel_required: CatalogTravel | None = None
     benefits_kinds: list[BENEFIT_KINDS] = Field(default_factory=list, max_length=9)
 
 
@@ -168,7 +168,7 @@ class JobFamilyOut(BaseModel):
     id: UUID
     key: str
     label: str
-    parent_id: Optional[UUID]
+    parent_id: UUID | None
     path: str
     level: int
     description: str
@@ -190,14 +190,14 @@ class JobCreate(BaseModel):
 
 
 class JobUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, min_length=2, max_length=160)
-    short_description: Optional[str] = Field(default=None, max_length=2000)
-    family_key: Optional[str] = None
-    attributes: Optional[JobAttributes] = None
-    interest_keys: Optional[list[str]] = Field(default=None, max_length=12)
-    skills: Optional[list[JobSkillIn]] = Field(default=None, max_length=15)
-    links: Optional[list[JobLink]] = Field(default=None, max_length=10)
-    status: Optional[JobStatus] = None
+    title: str | None = Field(default=None, min_length=2, max_length=160)
+    short_description: str | None = Field(default=None, max_length=2000)
+    family_key: str | None = None
+    attributes: JobAttributes | None = None
+    interest_keys: list[str] | None = Field(default=None, max_length=12)
+    skills: list[JobSkillIn] | None = Field(default=None, max_length=15)
+    links: list[JobLink] | None = Field(default=None, max_length=10)
+    status: JobStatus | None = None
 
 
 class JobOut(BaseModel):
@@ -217,7 +217,7 @@ class JobOut(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_model(cls, job: "Job") -> "JobOut":  # noqa: F821
+    def from_model(cls, job: "Job") -> "JobOut":
         """Build an API representation from the ORM model."""
         return cls(
             id=job.id,
@@ -229,8 +229,7 @@ class JobOut(BaseModel):
             source=JobSource(job.source),
             attributes=JobAttributes.model_validate(job.attributes or {}),
             interests=[
-                InterestRefOut(key=link.tag.key, label=link.tag.label)
-                for link in job.tag_links
+                InterestRefOut(key=link.tag.key, label=link.tag.label) for link in job.tag_links
             ],
             skills=[
                 JobSkillOut(
@@ -265,7 +264,7 @@ class GraphNode(BaseModel):
     code: str
     title: str
     family_key: str
-    demand: Optional[str] = None
+    demand: str | None = None
 
 
 class GraphEdge(BaseModel):

@@ -9,7 +9,6 @@ produced them (SET NULL, never CASCADE) and expire after a TTL.
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -22,14 +21,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import (
     Base,
     StructuredJSON,
-    TZDateTime,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
-_STATUS_ALLOWED = (
-    "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired', 'reverted')"
-)
+_STATUS_ALLOWED = "status IN ('pending', 'approved', 'rejected', 'conflict', 'expired', 'reverted')"
 _ACTION_ALLOWED = "action IN ('create', 'update', 'delete')"
 _KIND_ALLOWED = (
     "kind IN ('experience_item', 'education_item', 'certification', "
@@ -60,33 +57,29 @@ class ProfileProposal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Target row for update/delete (None for create and section patches).
     # Plain UUID, no FK: the target table depends on `kind` (typed ref per
     # plan 42 — ownership is enforced by the kind handlers at load time).
-    entity_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     entity_label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     # Typed patch in the REST schema shape; delete ops carry a FULL entity
     # snapshot (revert + conflict messaging).
     payload_json: Mapped[dict] = mapped_column(StructuredJSON, nullable=False)
     # Entity.updated_at snapshot at creation — mismatch at approve = conflict.
-    base_updated_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
+    base_updated_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Field-level before/after rows, computed server-side at creation.
-    diff_json: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    diff_json: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="pending")
     source: Mapped[str] = mapped_column(String(12), nullable=False, default="chat")
     # Lineage back to the chat turn and the audited model call. SET NULL:
     # proposals survive session/message deletion (first-class data).
-    chat_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    chat_session_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
     )
-    chat_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    chat_message_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
     )
-    ai_generation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    ai_generation_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ai_generations.id", ondelete="SET NULL"), nullable=True
     )
-    resolved_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     resolve_error: Mapped[str] = mapped_column(
         String(400), nullable=False, default="", server_default=""
     )

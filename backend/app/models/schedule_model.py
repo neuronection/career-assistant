@@ -8,7 +8,6 @@ real on every dialect."""
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -23,10 +22,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -65,24 +64,20 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_schedules_next_run", "next_run_at"),
     )
 
-    owner_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     kind: Mapped[str] = mapped_column(String(40), nullable=False)
     # BackgroundJobType value; NULL for banner-only kinds (user_checkin).
-    task: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    task: Mapped[str | None] = mapped_column(String(40), nullable=True)
     trigger: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     payload: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    next_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    last_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    last_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
-    last_job_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
-    consecutive_failures: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
-    misfire_policy: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="asap"
-    )
+    next_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    last_job_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    misfire_policy: Mapped[str] = mapped_column(String(20), nullable=False, default="asap")
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")

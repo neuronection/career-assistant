@@ -1,6 +1,5 @@
 """Schemas for the skill ontology user surface (Phase 21)."""
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -49,10 +48,10 @@ class GapOut(BaseModel):
     label: str
     required_level: int
     importance: JobSkillImportance
-    user_level: Optional[int] = None
-    delta: Optional[int] = None
+    user_level: int | None = None
+    delta: int | None = None
     suggestion: str = ""
-    next_step: Optional[str] = None
+    next_step: str | None = None
 
 
 class SkillGapReport(BaseModel):
@@ -70,7 +69,7 @@ class SkillJobsOut(BaseModel):
     label: str
     category: str
     description: str
-    parent_id: Optional[UUID] = None
+    parent_id: UUID | None = None
     level_anchors: list[dict] = Field(default_factory=list)
     aliases: list[str] = Field(default_factory=list)
     status: str

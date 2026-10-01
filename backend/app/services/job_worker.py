@@ -9,8 +9,9 @@ reuse the existing services; only the entry point moves off the request path.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,7 +150,7 @@ class JobWorker:
                 )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:  # noqa: BLE001 — queue must survive any handler
+        except Exception as exc:
             logger.warning("Job %s failed: %s", job_id, exc)
             await self._fail(job_id, exc)
 
@@ -204,9 +205,7 @@ class JobWorker:
     async def recover_orphans(self) -> int:
         """Requeue jobs stuck in `running` (process died mid-flight)."""
         rows = await self.db.execute(
-            select(BackgroundJob).where(
-                BackgroundJob.status == BackgroundJobStatus.RUNNING.value
-            )
+            select(BackgroundJob).where(BackgroundJob.status == BackgroundJobStatus.RUNNING.value)
         )
         orphans = list(rows.scalars().all())
         for job in orphans:
@@ -224,7 +223,7 @@ class JobWorker:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _run_document_parse(
@@ -285,9 +284,7 @@ async def _run_match_score(
     profile = await service.profile_for(user_id)
     targets = await service.resolve_targets(
         profile,
-        job_ids=[uuid.UUID(j) for j in payload["job_ids"]]
-        if payload.get("job_ids")
-        else None,
+        job_ids=[uuid.UUID(j) for j in payload["job_ids"]] if payload.get("job_ids") else None,
         limit=int(payload.get("limit", 10)),
     )
     scored = 0
@@ -363,9 +360,7 @@ async def _run_path_suggest(
                 targets.append(found)
     else:
         targets, _ = await job_service.list_jobs(status="published", page_size=100)
-    with_paths = {
-        row[0] for row in await db.execute(select(CareerPath.job_id).distinct())
-    }
+    with_paths = {row[0] for row in await db.execute(select(CareerPath.job_id).distinct())}
     targets = [t for t in targets if t.id not in with_paths]
     if not targets:
         return {"paths_created": 0, "jobs": []}
@@ -404,9 +399,7 @@ async def _run_path_suggest(
                 skill = None
                 if step.skill_key:
                     rows = await db.execute(
-                        select(Skill).where(
-                            Skill.key == step.skill_key, Skill.status == "active"
-                        )
+                        select(Skill).where(Skill.key == step.skill_key, Skill.status == "active")
                     )
                     skill = rows.scalars().first()
                 if step.kind == "education" and not step.education_level:
@@ -467,7 +460,7 @@ async def _run_fit_refit(
             .all()
         )
         done = 0
-        for index, user_id in enumerate(stale_users):
+        for _index, user_id in enumerate(stale_users):
             await FitService(db).refit_user(user_id)
             done += 1
             await progress(
@@ -496,15 +489,13 @@ async def _run_posting_sync(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
 async def _run_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Weekly digest: radar + new-posting counts as one
     notification through the machinery."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.services.digest_service import build_and_emit_digest
 
     payload = job.payload or {}
     user_id = payload.get("user_id") or _require_user(job)
-    return await build_and_emit_digest(
-        db, uuid.UUID(str(user_id)), now=datetime.now(timezone.utc)
-    )
+    return await build_and_emit_digest(db, uuid.UUID(str(user_id)), now=datetime.now(UTC))
 
 
 async def _run_followup_sweep(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
@@ -516,9 +507,7 @@ async def _run_followup_sweep(db: AsyncSession, job: BackgroundJob, **_kw) -> di
     return {"emitted": emitted}
 
 
-async def _run_market_history_capture(
-    db: AsyncSession, job: BackgroundJob, **_kw
-) -> dict:
+async def _run_market_history_capture(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Daily demand-history capture: one snapshot per family
     and job scope with live postings; analytics only, never a fit input."""
     from app.services.market_history_service import capture_all
@@ -724,9 +713,7 @@ async def _run_cv_synth(
     from app.schemas.cv_synth import CvSynthItemGenerate
     from app.services.cv_synth_service import CvSynthService
 
-    request = CvSynthItemGenerate.model_validate(
-        (job.payload or {}).get("request") or {}
-    )
+    request = CvSynthItemGenerate.model_validate((job.payload or {}).get("request") or {})
     service = CvSynthService(db)
     rows = await service.generate(_require_user(job), request)
     activate = bool((job.payload or {}).get("activate"))
@@ -751,12 +738,10 @@ async def _run_cv_synth(
         if raw_cv:
             try:
                 cv_id = uuid.UUID(raw_cv)
-                pinned_now = await service.pin_variants_on_cv(
-                    _require_user(job), cv_id, rows
-                )
+                pinned_now = await service.pin_variants_on_cv(_require_user(job), cv_id, rows)
             except ValueError:
                 pinned_now = False
-            except Exception:  # noqa: BLE001 — rows are already active; never
+            except Exception:
                 # lose the completion notification over a failed pin.
                 logger.exception("cv_synth pin-on-cv failed for job %s", job.id)
                 pinned_now = False
@@ -769,8 +754,7 @@ async def _run_cv_synth(
         from app.services.notification_service import NotificationService
 
         body = body or (
-            f"{len(rows)} new variants were activated — find them in "
-            "the CV synth library."
+            f"{len(rows)} new variants were activated — find them in the CV synth library."
         )
         await NotificationService(db).emit(
             "cv_synth_ready",
@@ -787,8 +771,7 @@ async def _run_cv_synth(
             "cv_synth_ready",
             [_require_user(job)],
             title="Synthesized variants are ready for review",
-            body=f"{len(drafts)} new variants are drafts — review them in "
-            "the CV synth library.",
+            body=f"{len(drafts)} new variants are drafts — review them in the CV synth library.",
             payload={"count": len(drafts), "ids": [str(r.id) for r in drafts]},
             source_ref={"kind": "cv_synth", "job_id": str(job.id)},
         )

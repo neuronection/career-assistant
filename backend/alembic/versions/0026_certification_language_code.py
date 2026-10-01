@@ -3,6 +3,7 @@ optionally names the language a certificate evidences. Pure additive
 column, no data migration — existing rows keep their derived matching."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0026"

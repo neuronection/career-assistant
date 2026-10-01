@@ -10,9 +10,9 @@ from app.core.errors import DomainError
 from app.schemas.skills import (
     SkillGapReport,
     SkillJobsOut,
+    UserSkillOut,
     UserSkillPatchIn,
     UserSkillsIn,
-    UserSkillOut,
 )
 from app.services.deps import get_current_user
 from app.services.job_service import JobService

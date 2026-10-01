@@ -1,8 +1,9 @@
-from app.models.enums import AITaskType
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import UniversityExtraction
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.enums import AITaskType
 
 
 def _build_user_prompt(text: str, max_chars: int = 24000) -> str:
@@ -65,7 +66,7 @@ def _mock_extraction(schema: type, user_prompt: str) -> dict:
             continue
         idx = lower.find(marker)
         name_part = line[idx:]
-        name_part = re.split(r"\s+[—–-]\s+", name_part)[0].strip()
+        name_part = re.split(r"\s+[-—]\s+", name_part)[0].strip()
         baseline_match = re.search(
             r"baseline\s*,?\s*(20\d{2})?\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?)",
             line,
@@ -117,9 +118,7 @@ def _mock_extraction(schema: type, user_prompt: str) -> dict:
 register_mock_fixture(AITaskType.UNIVERSITY_PARSE, _mock_extraction)
 
 
-async def parse_universities(
-    db: AsyncSession, user_id, text: str
-) -> UniversityExtraction:
+async def parse_universities(db: AsyncSession, user_id, text: str) -> UniversityExtraction:
     """Extract structured universities/departments/admissions from raw text."""
     return await ainvoke_structured(
         db,

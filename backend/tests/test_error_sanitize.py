@@ -18,9 +18,7 @@ def test_scrubs_bearer_and_api_keys() -> None:
     assert "sk-abc123XYZ_secret" not in sanitize_error_detail(
         "provider rejected key sk-abc123XYZ_secret with 401"
     )
-    assert "hunter2token" not in sanitize_error_detail(
-        "Authorization: Bearer hunter2token"
-    )
+    assert "hunter2token" not in sanitize_error_detail("Authorization: Bearer hunter2token")
 
 
 def test_scrubs_secret_assignments() -> None:

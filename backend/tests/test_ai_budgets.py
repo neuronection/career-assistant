@@ -1,8 +1,9 @@
 """: generalized budgets — hard stops, windowing, rollups."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.ai import gateway as gateway_module
@@ -11,7 +12,6 @@ from app.ai.gateway import StructuredStream, ainvoke_structured
 from app.core.errors import DomainError
 from app.models.ai_model import AIBudget, AIGeneration
 from app.models.enums import AITaskType
-from pydantic import BaseModel
 from tests.conftest import session_headers
 
 
@@ -30,8 +30,9 @@ class _FakeChatModel:
 
 
 async def _assign_real_model(db, email: str, scope: str = "user"):
-    from app.core.encryption import encrypt_secret
     from nx_auth.passwords import hash_password
+
+    from app.core.encryption import encrypt_secret
     from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
     from app.models.user_model import User
 
@@ -77,9 +78,7 @@ async def _spend(db, user_id, tokens, *, task="assist", age=None):
             tokens_out=0,
             latency_ms=1.0,
             status="ok",
-            created_at=(
-                datetime.now(timezone.utc) - age if age else datetime.now(timezone.utc)
-            ),
+            created_at=(datetime.now(UTC) - age if age else datetime.now(UTC)),
         )
     )
     await db.commit()
@@ -88,9 +87,7 @@ async def _spend(db, user_id, tokens, *, task="assist", age=None):
 async def test_budget_hard_stop_blocks_invoke(db, monkeypatch):
     user = await _assign_real_model(db, "budget-stop@example.com")
     await _spend(db, user.id, 1000)
-    db.add(
-        AIBudget(name="assist cap", task_type="assist", window="day", max_tokens=100)
-    )
+    db.add(AIBudget(name="assist cap", task_type="assist", window="day", max_tokens=100))
     await db.commit()
     called = []
 
@@ -107,16 +104,10 @@ async def test_budget_hard_stop_blocks_invoke(db, monkeypatch):
 async def test_budget_window_ignores_old_spend(db, monkeypatch):
     user = await _assign_real_model(db, "budget-window@example.com")
     await _spend(db, user.id, 1000, age=timedelta(days=3))
-    db.add(
-        AIBudget(name="assist cap", task_type="assist", window="day", max_tokens=100)
-    )
+    db.add(AIBudget(name="assist cap", task_type="assist", window="day", max_tokens=100))
     await db.commit()
-    monkeypatch.setattr(
-        gateway_module, "build_chat_model", lambda resolved: _FakeChatModel()
-    )
-    result = await ainvoke_structured(
-        db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-    )
+    monkeypatch.setattr(gateway_module, "build_chat_model", lambda resolved: _FakeChatModel())
+    result = await ainvoke_structured(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     assert result.answer == "ok"
 
 
@@ -134,27 +125,19 @@ async def test_budget_user_scope_only_binds_that_user(db, monkeypatch):
         )
     )
     await db.commit()
-    monkeypatch.setattr(
-        gateway_module, "build_chat_model", lambda resolved: _FakeChatModel()
-    )
-    result = await ainvoke_structured(
-        db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-    )
+    monkeypatch.setattr(gateway_module, "build_chat_model", lambda resolved: _FakeChatModel())
+    result = await ainvoke_structured(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     assert result.answer == "ok"
 
 
 async def test_budget_blocks_stream_before_first_chunk(db, monkeypatch):
     user = await _assign_real_model(db, "budget-stream@example.com")
     await _spend(db, user.id, 1000)
-    db.add(
-        AIBudget(name="stream cap", task_type="assist", window="day", max_tokens=100)
-    )
+    db.add(AIBudget(name="stream cap", task_type="assist", window="day", max_tokens=100))
     await db.commit()
     stream = StructuredStream()
     with pytest.raises(DomainError, match="stream cap"):
-        async for _ in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        ):
+        async for _ in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id):
             pass
     rows = (await db.execute(select(AIGeneration))).scalars().all()
     assert len(rows) == 1  # only the seeded spend; the stop is not audited
@@ -166,17 +149,15 @@ async def test_global_budget_matches_unscoped_calls(db, monkeypatch):
     db.add(AIBudget(name="global cap", task_type=None, window="day", max_tokens=10))
     await db.commit()
     await db.commit()
-    monkeypatch.setattr(
-        gateway_module, "build_chat_model", lambda resolved: _FakeChatModel()
-    )
+    monkeypatch.setattr(gateway_module, "build_chat_model", lambda resolved: _FakeChatModel())
     with pytest.raises(DomainError, match="global cap"):
         await ainvoke_structured(db, AITaskType.ASSIST, _Out, "s", "u")
 
 
 def test_window_start_anchors():
-    now = datetime(2026, 9, 4, 15, 30, tzinfo=timezone.utc)
-    assert window_start("day", now) == datetime(2026, 9, 4, tzinfo=timezone.utc)
-    assert window_start("month", now) == datetime(2026, 9, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 4, 15, 30, tzinfo=UTC)
+    assert window_start("day", now) == datetime(2026, 9, 4, tzinfo=UTC)
+    assert window_start("month", now) == datetime(2026, 9, 1, tzinfo=UTC)
     with pytest.raises(ValueError):
         window_start("week")
 
@@ -218,9 +199,7 @@ async def test_budget_crud_api(client, auth_headers, db):
     )
     assert bad_task.status_code == 404
 
-    deleted = await client.delete(
-        f"/api/v1/ai/budgets/{budget_id}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/ai/budgets/{budget_id}", headers=auth_headers)
     assert deleted.status_code == 204
 
 
@@ -231,9 +210,5 @@ async def test_budgets_and_rollups_are_admin_only(client, auth_headers):
     )
     member = session_headers(other)
     assert (await client.get("/api/v1/ai/budgets", headers=member)).status_code == 403
-    assert (
-        await client.get("/api/v1/ai/usage/rollups", headers=member)
-    ).status_code == 403
-    assert (
-        await client.get("/api/v1/ai/usage/rollups", headers=auth_headers)
-    ).status_code == 200
+    assert (await client.get("/api/v1/ai/usage/rollups", headers=member)).status_code == 403
+    assert (await client.get("/api/v1/ai/usage/rollups", headers=auth_headers)).status_code == 200

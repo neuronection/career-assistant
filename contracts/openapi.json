@@ -10387,7 +10387,7 @@
         "type": "object"
       },
       "PreferencesMatrixOut": {
-        "description": "The full per-kind \u00d7 per-channel matrix.",
+        "description": "The full per-kind x per-channel matrix.",
         "properties": {
           "channels": {
             "items": {
@@ -10488,8 +10488,16 @@
       "ProfileAchievementIn": {
         "properties": {
           "date": {
-            "title": "Date",
-            "type": "null"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "detail": {
             "default": "",
@@ -10550,8 +10558,16 @@
             "type": "string"
           },
           "date": {
-            "title": "Date",
-            "type": "null"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "detail": {
             "title": "Detail",
@@ -10610,8 +10626,16 @@
       "ProfileAchievementPatch": {
         "properties": {
           "date": {
-            "title": "Date",
-            "type": "null"
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
           },
           "detail": {
             "anyOf": [
@@ -12132,7 +12156,7 @@
         "type": "object"
       },
       "ScoringWeights": {
-        "description": "Per-dimension importance sliders (1\u20135) for the fit engine (22+38).",
+        "description": "Per-dimension importance sliders (1-5) for the fit engine (22+38).",
         "properties": {
           "education": {
             "default": 3,
@@ -26397,7 +26421,7 @@
     },
     "/api/v1/me/preferences/scoring": {
       "put": {
-        "description": "Store fit-dimension weight sliders (1\u20135) and refit (deterministic only).",
+        "description": "Store fit-dimension weight sliders (1-5) and refit (deterministic only).",
         "operationId": "put_scoring_weights_api_v1_me_preferences_scoring_put",
         "requestBody": {
           "content": {

@@ -3,13 +3,13 @@
 import uuid
 
 import pytest
+from nx_auth.passwords import hash_password
 from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.models.job_model import Job, JobSkill
 from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import User, UserInterest, UserSkill
-from nx_auth.passwords import hash_password
 
 
 async def _user(db, email="skills@example.com") -> User:
@@ -44,9 +44,7 @@ async def test_unknown_skill_404(client, auth_headers, seeded_catalog):
     assert response.status_code == 404
 
 
-async def test_put_user_skills_roundtrip_and_validation(
-    client, auth_headers, seeded_catalog
-):
+async def test_put_user_skills_roundtrip_and_validation(client, auth_headers, seeded_catalog):
     payload = {
         "skills": [
             {"skill_key": "programming", "level": 7},
@@ -62,7 +60,7 @@ async def test_put_user_skills_roundtrip_and_validation(
     listing = (await client.get("/api/v1/me/skills", headers=auth_headers)).json()
     assert len(listing) == 2
 
-    # 1–10 bounds enforced
+    # 1-10 bounds enforced
     for bad in (0, 11):
         bad_save = await client.put(
             "/api/v1/me/skills",
@@ -77,10 +75,7 @@ async def test_put_user_skills_roundtrip_and_validation(
         json={"skills": [{"skill_key": "teamwork", "level": 5}]},
         headers=auth_headers,
     )
-    keys = {
-        r["key"]
-        for r in (await client.get("/api/v1/me/skills", headers=auth_headers)).json()
-    }
+    keys = {r["key"] for r in (await client.get("/api/v1/me/skills", headers=auth_headers)).json()}
     assert keys == {"teamwork"}
 
 
@@ -107,9 +102,7 @@ async def test_unknown_skill_self_report_creates_proposed(
     assert any(p["key"] == "quantum-tinkering" for p in proposals)
 
 
-async def test_patch_derive_enabled_toggle_and_404(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_patch_derive_enabled_toggle_and_404(client, auth_headers, seeded_catalog, db):
     """Non-self_report rows can opt out of derivation; unknown rows 404."""
     saved = await client.put(
         "/api/v1/me/skills",
@@ -146,8 +139,9 @@ async def test_patch_derive_enabled_toggle_and_404(
 async def test_delete_user_skill_tombstones(client, auth_headers, seeded_catalog, db):
     """DELETE hides the row from every listing and derivation apply
     never resurrects it; re-adding via PUT makes a fresh self_report."""
-    from app.models.user_model import UserSkill
     from sqlalchemy import func as _func
+
+    from app.models.user_model import UserSkill
 
     saved = await client.put(
         "/api/v1/me/skills",
@@ -155,9 +149,7 @@ async def test_delete_user_skill_tombstones(client, auth_headers, seeded_catalog
         headers=auth_headers,
     )
     row = saved.json()[0]
-    deleted = await client.delete(
-        f"/api/v1/me/skills/{row['skill_id']}", headers=auth_headers
-    )
+    deleted = await client.delete(f"/api/v1/me/skills/{row['skill_id']}", headers=auth_headers)
     assert deleted.status_code == 204
     listing = (await client.get("/api/v1/me/skills", headers=auth_headers)).json()
     assert listing == []
@@ -188,11 +180,7 @@ async def test_delete_user_skill_tombstones(client, auth_headers, seeded_catalog
 async def test_aliases_are_display_only_but_resolve(
     client, client_admin_headers, db, seeded_catalog
 ):
-    skill = (
-        (await db.execute(select(Skill).where(Skill.key == "programming")))
-        .scalars()
-        .first()
-    )
+    skill = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
     skill.aliases = ["coding", "software development"]
     await db.commit()
 
@@ -237,9 +225,7 @@ async def test_gaps_report(client, auth_headers, seeded_catalog, db):
     assert hinted
 
 
-async def test_disabled_skill_excluded_from_gaps(
-    client, auth_headers, seeded_catalog, db
-):
+async def test_disabled_skill_excluded_from_gaps(client, auth_headers, seeded_catalog, db):
     """Opting out freezes scoring: the gap report treats it as unclaimed."""
     from sqlalchemy import func
 
@@ -288,9 +274,7 @@ async def test_disabled_skill_excluded_from_cv_context_and_fit(
         .first()
     )
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user.id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user.id))).scalars().first()
     )
     from app.services.cv_context_service import _resolve_skills
 
@@ -301,9 +285,7 @@ async def test_disabled_skill_excluded_from_cv_context_and_fit(
     assert context["skill_levels"] == {uuid.UUID(row["skill_id"]): 7}
 
     stamps = (
-        await db.execute(
-            select(UserSkill).where(UserSkill.skill_id == uuid.UUID(row["skill_id"]))
-        )
+        await db.execute(select(UserSkill).where(UserSkill.skill_id == uuid.UUID(row["skill_id"])))
     ).scalar_one()
     stamps.derive_enabled = False
     await db.commit()
@@ -315,15 +297,9 @@ async def test_disabled_skill_excluded_from_cv_context_and_fit(
 
 
 async def test_join_table_uniqueness_enforced(db, seeded_catalog):
-    job = (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     existing = (
-        (await db.execute(select(JobSkill).where(JobSkill.job_id == job.id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobSkill).where(JobSkill.job_id == job.id))).scalars().first()
     )
 
     with pytest.raises(IntegrityError):
@@ -340,11 +316,7 @@ async def test_join_table_uniqueness_enforced(db, seeded_catalog):
 
 async def test_user_level_bounds_enforced_at_db(db, seeded_catalog):
     user = await _user(db)
-    skill = (
-        (await db.execute(select(Skill).where(Skill.key == "programming")))
-        .scalars()
-        .first()
-    )
+    skill = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
     with pytest.raises(IntegrityError):
         db.add(UserSkill(user_id=user.id, skill_id=skill.id, level=11))
         await db.flush()
@@ -354,11 +326,7 @@ async def test_user_level_bounds_enforced_at_db(db, seeded_catalog):
 async def test_user_interest_unique_and_weights(db, seeded_catalog):
     user = await _user(db, "interests@example.com")
     tag = (
-        (
-            await db.execute(
-                select(InterestTag).where(InterestTag.key == "technology-software")
-            )
-        )
+        (await db.execute(select(InterestTag).where(InterestTag.key == "technology-software")))
         .scalars()
         .first()
     )

@@ -1,12 +1,13 @@
-from app.core.errors import ValidationError
-from app.models.enums import AITaskType
-from app.models.taxonomy_model import InterestTag, Skill
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import ProfileInsight
+from app.core.errors import ValidationError
+from app.models.enums import AITaskType
+from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import Profile
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _build_user_prompt(
@@ -51,17 +52,13 @@ def _mock_profile_insight(schema: type, user_prompt: str) -> dict:
 register_mock_fixture(AITaskType.PROFILE_ANALYZE, _mock_profile_insight)
 
 
-async def analyze_profile(
-    db: AsyncSession, user_id, profile: Profile
-) -> ProfileInsight:
+async def analyze_profile(db: AsyncSession, user_id, profile: Profile) -> ProfileInsight:
     """Produce a structured insight summary for a student profile."""
     from app.services.profile_service import ProfileService
 
     interest_rows = (await db.execute(select(InterestTag.key))).scalars().all()
     skill_rows = (
-        (await db.execute(select(Skill.key).where(Skill.status == "active")))
-        .scalars()
-        .all()
+        (await db.execute(select(Skill.key).where(Skill.status == "active"))).scalars().all()
     )
     interests = await ProfileService(db).interest_rows(profile.user_id)
     interests_payload = ProfileService.interests_out(interests)

@@ -132,9 +132,7 @@ async def generate(
         "criteria": body.get("criteria") or {},
         "count": int(body.get("count", 5)),
     }
-    job = await enqueue(
-        db, BackgroundJobType.JOB_GENERATE.value, payload, user_id=user.id
-    )
+    job = await enqueue(db, BackgroundJobType.JOB_GENERATE.value, payload, user_id=user.id)
     return {"job_id": str(job.id), "status": job.status}
 
 

@@ -1,6 +1,6 @@
 """Pydantic schemas for every structured AI output (validated before storage)."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -42,9 +42,7 @@ class AssessmentOption(BaseModel):
 
 
 class AssessmentQuestionDraft(BaseModel):
-    kind: Literal["scenario_mcq", "time_allocation", "ranking", "slider"] = (
-        "scenario_mcq"
-    )
+    kind: Literal["scenario_mcq", "time_allocation", "ranking", "slider"] = "scenario_mcq"
     prompt: str = Field(min_length=1, max_length=800)
     help: str = Field(default="", max_length=500)
     options: list[AssessmentOption] = Field(default_factory=list, max_length=6)
@@ -53,9 +51,7 @@ class AssessmentQuestionDraft(BaseModel):
 class AssessmentQuestionSet(BaseModel):
     """AI-drafted question batch for phase 3 (validated onto taxonomy)."""
 
-    questions: list[AssessmentQuestionDraft] = Field(
-        default_factory=list, max_length=10
-    )
+    questions: list[AssessmentQuestionDraft] = Field(default_factory=list, max_length=10)
 
 
 class JobDraft(BaseModel):
@@ -85,9 +81,7 @@ class JobDraftSet(BaseModel):
     """Generated jobs + relations among them."""
 
     drafts: list[JobDraft] = Field(default_factory=list, max_length=20)
-    relation_suggestions: list[RelationSuggestion] = Field(
-        default_factory=list, max_length=60
-    )
+    relation_suggestions: list[RelationSuggestion] = Field(default_factory=list, max_length=60)
     rationale_note: str = Field(default="", max_length=1000)
 
 
@@ -111,16 +105,14 @@ class MatchResult(BaseModel):
     summary: str = Field(default="", max_length=2000)
     positives: list[ScoredAspectOut] = Field(default_factory=list, max_length=8)
     negatives: list[ScoredAspectOut] = Field(default_factory=list, max_length=8)
-    prerequisites: list[PrerequisiteCheckOut] = Field(
-        default_factory=list, max_length=8
-    )
+    prerequisites: list[PrerequisiteCheckOut] = Field(default_factory=list, max_length=8)
 
 
 class AdmissionRow(BaseModel):
     year: int = Field(ge=1990, le=2100)
-    baseline_score: Optional[float] = None
-    top_score: Optional[float] = None
-    quota: Optional[int] = None
+    baseline_score: float | None = None
+    top_score: float | None = None
+    quota: int | None = None
     units: str = Field(default="points", max_length=40)
     confidence: float = Field(default=0.8, ge=0, le=1)
 
@@ -131,7 +123,7 @@ class DepartmentExtraction(BaseModel):
     degree: Literal["vocational", "bachelor", "master", "phd"] = "bachelor"
     duration_years: int = Field(default=4, ge=1, le=10)
     language: str = Field(default="", max_length=30)
-    application_deadline: Optional[str] = Field(default=None, max_length=10)
+    application_deadline: str | None = Field(default=None, max_length=10)
     admissions: list[AdmissionRow] = Field(default_factory=list, max_length=10)
 
 
@@ -146,9 +138,7 @@ class UniversityExtractionItem(BaseModel):
 class UniversityExtraction(BaseModel):
     """Structured result of parsing a university/admissions document."""
 
-    universities: list[UniversityExtractionItem] = Field(
-        default_factory=list, max_length=30
-    )
+    universities: list[UniversityExtractionItem] = Field(default_factory=list, max_length=30)
 
 
 class ProfileOp(BaseModel):
@@ -173,7 +163,7 @@ class ProfileOp(BaseModel):
         "cv_choice",
     ]
     action: Literal["create", "update", "delete"]
-    entity_id: Optional[str] = Field(default=None, max_length=64)
+    entity_id: str | None = Field(default=None, max_length=64)
     payload: dict = Field(default_factory=dict)
     text_edits: list[TextEdit] = Field(default_factory=list, max_length=10)
     collection_edits: list[CollectionEdit] = Field(default_factory=list, max_length=10)
@@ -206,9 +196,9 @@ class DraftPathStep(BaseModel):
     """One step of an AI-drafted path; typed refs are resolved server-side."""
 
     kind: Literal["education", "job", "experience", "certification"]
-    family_key: Optional[str] = Field(default=None, max_length=80)
-    skill_key: Optional[str] = Field(default=None, max_length=80)
-    education_level: Optional[str] = Field(default=None, max_length=30)
+    family_key: str | None = Field(default=None, max_length=80)
+    skill_key: str | None = Field(default=None, max_length=80)
+    education_level: str | None = Field(default=None, max_length=30)
     label: str = Field(default="", max_length=200)
     optional: bool = False
 
@@ -287,9 +277,7 @@ class CvDraftStructure(BaseModel):
 
     title: str = Field(default="", max_length=120)
     sections: list[CvDraftSectionPlan] = Field(default_factory=list, max_length=12)
-    synth_proposals: list[CvDraftSynthProposal] = Field(
-        default_factory=list, max_length=6
-    )
+    synth_proposals: list[CvDraftSynthProposal] = Field(default_factory=list, max_length=6)
 
 
 class CvDraftItemText(BaseModel):
@@ -383,30 +371,30 @@ class CvBuildCritique(BaseModel):
 
 
 __all__ = [
-    "ProfileInsight",
-    "JobDraft",
-    "RelationSuggestion",
-    "JobDraftSet",
-    "MatchResult",
-    "UniversityExtraction",
-    "ChatReply",
-    "PathDraftSet",
     "Aspect",
+    "ChatReply",
+    "CuratedFinding",
+    "Curation",
+    "CvBuildCoverageReview",
+    "CvBuildCritique",
+    "CvBuildReviewIssue",
+    "CvDraftItemText",
+    "CvDraftSectionPlan",
+    "CvDraftSectionText",
+    "CvDraftStructure",
+    "CvDraftTexts",
+    "CvSuggestedOp",
     "DemandOutlook",
     "EducationLevel",
     "Environment",
+    "JobDraft",
+    "JobDraftSet",
+    "MatchResult",
+    "PathDraftSet",
     "PhysicalActivity",
+    "ProfileInsight",
+    "RelationSuggestion",
     "SearchPlan",
     "SearchPlanVariant",
-    "CuratedFinding",
-    "Curation",
-    "CvDraftSectionPlan",
-    "CvDraftStructure",
-    "CvDraftItemText",
-    "CvDraftSectionText",
-    "CvDraftTexts",
-    "CvBuildCoverageReview",
-    "CvBuildReviewIssue",
-    "CvSuggestedOp",
-    "CvBuildCritique",
+    "UniversityExtraction",
 ]

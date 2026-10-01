@@ -37,9 +37,7 @@ def test_benefit_kinds_feed_values_signal():
     assert base == {}, "no inputs ⇒ no signal"
 
     pension_only = job_values_signal({"benefits_kinds": ["pension"]})
-    assert pension_only == {"values.security": 7.0}, (
-        "a pension alone is a grounded security signal"
-    )
+    assert pension_only == {"values.security": 7.0}, "a pension alone is a grounded security signal"
 
     combined = job_values_signal(
         {
@@ -85,11 +83,7 @@ async def test_enrichment_sweep_propose_apply_reject(
 
     from app.models.job_model import Job
 
-    job = (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     assert job is not None
     salary_before = (job.attributes or {}).get("salary")
     assert salary_before, "seeded archetype carries human-owned salary"
@@ -114,9 +108,7 @@ async def test_enrichment_sweep_propose_apply_reject(
     assert (job.ai_metadata or {}).get("enrichment_proposal") is None
     assert job not in await service.candidates()
 
-    other = next(
-        candidate for candidate in await service.pending() if candidate.id != job.id
-    )
+    other = next(candidate for candidate in await service.pending() if candidate.id != job.id)
     rejected = await service.reject(other)
     assert rejected is other
     assert ((other.ai_metadata or {}).get("enrichment_proposal")) is None
@@ -130,18 +122,12 @@ async def test_enrichment_moderation_endpoints(
 
     from app.models.job_model import Job
 
-    job = (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     service = CatalogEnrichService(db)
     await service.run_sweep(limit=5)
     await db.refresh(job)
 
-    queue = (
-        await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)
-    ).json()
+    queue = (await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)).json()
     assert any(row["id"] == str(job.id) for row in queue)
 
     rejected = await client.post(
@@ -151,9 +137,7 @@ async def test_enrichment_moderation_endpoints(
     assert rejected.status_code == 200
     assert rejected.json() == {"id": str(job.id), "applied": False}
 
-    empty = (
-        await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)
-    ).json()
+    empty = (await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)).json()
     assert all(row["id"] != str(job.id) for row in empty)
 
     missing = await client.post(
@@ -166,8 +150,8 @@ async def test_enrichment_moderation_endpoints(
 async def test_sweep_runs_through_the_queue(
     client, auth_headers, client_admin_headers, seeded_catalog, db
 ):
-    from app.services.job_worker import JobWorker, enqueue
     from app.models.enums import BackgroundJobType
+    from app.services.job_worker import JobWorker, enqueue
 
     await enqueue(db, BackgroundJobType.CATALOG_ENRICH.value, {"limit": 5})
     worker = JobWorker(db)

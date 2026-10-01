@@ -9,9 +9,7 @@ from app.services.profile_service import ProfileService
 
 # §15 profile-scoped: the middleware-bound profile is the request's
 # scope (`get_profile_id` re-checks it; ownership was validated there).
-router = APIRouter(
-    prefix="/profile", tags=["profile"], dependencies=[Depends(get_profile_id)]
-)
+router = APIRouter(prefix="/profile", tags=["profile"], dependencies=[Depends(get_profile_id)])
 
 
 async def _profile_out(db, profile) -> dict:
@@ -42,12 +40,10 @@ async def _profile_out(db, profile) -> dict:
         "likes": profile.likes or [],
         "dislikes": profile.dislikes or [],
         "aspirations": profile.aspirations or [],
-        "work_preferences": WorkPreferencesSection.model_validate(
-            profile.work_preferences or {}
+        "work_preferences": WorkPreferencesSection.model_validate(profile.work_preferences or {}),
+        "preferences": PreferencesSection.model_validate(profile.preferences or {}).model_dump(
+            mode="json"
         ),
-        "preferences": PreferencesSection.model_validate(
-            profile.preferences or {}
-        ).model_dump(mode="json"),
         "constraints": ConstraintsSection.model_validate(profile.constraints or {}),
         "ai_summary": profile.ai_summary,
     }
@@ -65,15 +61,11 @@ async def _required_sections(db, profile) -> set[str]:
     stage, _source = effective_stage(
         profile.basics or {}, await ExperienceService(db).stage_dicts(profile.user_id)
     )
-    return required_sections(
-        (profile.basics or {}).get("onboarding_path"), feature_flags(stage)
-    )
+    return required_sections((profile.basics or {}).get("onboarding_path"), feature_flags(stage))
 
 
 @router.get("")
-async def get_profile(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> dict:
+async def get_profile(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """The caller's structured profile (+ completeness)."""
     service = ProfileService(db)
     profile = await service.get(user.id)
@@ -109,9 +101,7 @@ async def update_profile(
 
 
 @router.post("/ai-analyze")
-async def ai_analyze(
-    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> dict:
+async def ai_analyze(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """Run the AI profile analyst and store the structured summary."""
     service = ProfileService(db)
     profile = await service.get(user.id)

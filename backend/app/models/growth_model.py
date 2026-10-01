@@ -7,7 +7,6 @@ PostgreSQL so a reorder is one transaction."""
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -20,10 +19,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -42,12 +41,8 @@ class GrowthPlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     target_job_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
     )
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="active", index=True
-    )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
 
     steps: Mapped[list["GrowthPlanStep"]] = relationship(
         back_populates="plan", cascade="all, delete-orphan"
@@ -80,17 +75,17 @@ class GrowthPlanStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
-    skill_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("skills.id", ondelete="SET NULL"), nullable=True
     )
-    path_step_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    path_step_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("career_path_steps.id", ondelete="SET NULL"), nullable=True
     )
     label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
-    target_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    target_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="todo")
     # Completion evidence: the self-reported level for skill steps.
-    completed_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    completed_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     plan: Mapped[GrowthPlan] = relationship(back_populates="steps")
 
@@ -118,7 +113,7 @@ class LearningResource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     provider: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     cost: Mapped[str] = mapped_column(String(20), nullable=False, default="free")
-    level_target: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    level_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="published")
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="admin")
-    notes: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    notes: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)

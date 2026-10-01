@@ -15,8 +15,8 @@ from cryptography.fernet import Fernet, InvalidToken
 from app.core import keys
 from app.core.config import settings
 from app.core.encryption import (
-    DataKeyError,
     MASK_MARKER,
+    DataKeyError,
     decrypt_secret,
     encrypt_secret,
     fernet_from_data_key,
@@ -157,9 +157,7 @@ def test_previous_key_decrypts_only_primary_seals(pinned_ring, monkeypatch):
     non-disruptive: rows sealed before the swap keep reading while every
     new write seals under the primary. Runbook: docs/dev/security.md."""
     old_token = (base64.urlsafe_b64encode(b"old-" * 8).decode())[:-1]
-    sealed_old = (
-        "enc::" + fernet_from_data_key(old_token).encrypt(b"before-rotation").decode()
-    )
+    sealed_old = "enc::" + fernet_from_data_key(old_token).encrypt(b"before-rotation").decode()
     monkeypatch.setattr(settings, "data_key_previous", old_token)
     reset_data_cipher()
     assert decrypt_secret(sealed_old) == "before-rotation"

@@ -47,7 +47,7 @@ EXPERIENCE_KIND_WEIGHT = {
     "project": 0.4,
 }
 
-# Work-style sliders compared 1–5; max mean distance is 4.
+# Work-style sliders compared 1-5; max mean distance is 4.
 WORK_STYLE_KEYS = (
     "teamwork",
     "environment",
@@ -70,9 +70,9 @@ DEFAULT_WEIGHTS = {
     "values": 3,
 }
 
-# Per-dimension confidence (user slider × confidence = effective weight).
+# Per-dimension confidence (user slider x confidence = effective weight).
 # All 1.0 today; the hook exists for future registry-driven confidence.
-DIMENSION_CONFIDENCE = {k: 1.0 for k in DEFAULT_WEIGHTS}
+DIMENSION_CONFIDENCE = dict.fromkeys(DEFAULT_WEIGHTS, 1.0)
 
 DIMENSIONS = tuple(DEFAULT_WEIGHTS)
 
@@ -103,7 +103,7 @@ def fit_dimension_spec() -> list[dict]:
 
 @dataclass
 class FitResult:
-    """Score + per-dimension breakdown for one user×job pair."""
+    """Score + per-dimension breakdown for one userxjob pair."""
 
     score: float
     breakdown: dict
@@ -111,9 +111,7 @@ class FitResult:
     specialist_dimension: str | None = None
 
 
-def skills_dimension(
-    required: list[dict], user_levels: dict[str, int]
-) -> tuple[float, str]:
+def skills_dimension(required: list[dict], user_levels: dict[str, int]) -> tuple[float, str]:
     """Importance-weighted coverage over `job_skills`.
 
     Per skill: `min(user, required) / required` — surplus never inflates.
@@ -159,9 +157,7 @@ def skills_dimension(
     return round(score, 2), detail
 
 
-def education_dimension(
-    required_level: str | None, user_level: str | None
-) -> tuple[float, str]:
+def education_dimension(required_level: str | None, user_level: str | None) -> tuple[float, str]:
     """EducationLevelOrder gap: meets → 10, one short (in progress) → 6.
 
     Students are the audience — being one level short is the *expected*
@@ -260,11 +256,7 @@ def location_dimension(
         return NEUTRAL, "job location unknown", False
     if user_city and job_city and user_city.strip().lower() == job_city.strip().lower():
         return 10.0, f"same city ({job_city})", True
-    if (
-        user_country
-        and job_country
-        and user_country.strip().lower() == job_country.strip().lower()
-    ):
+    if user_country and job_country and user_country.strip().lower() == job_country.strip().lower():
         if willing_to_relocate:
             return 8.0, f"same country ({job_country}), relocation is an option", True
         return 7.0, f"same country ({job_country})", True
@@ -290,7 +282,7 @@ def interests_dimension(
     RIASEC values across the letters the job signals (both sides derive
     from interest-tag categories — the job's letter set is its tags'
     categories mapped through the registry). Work-style distance = mean
-    absolute difference over the five 1–5 sliders → `10 − 2.5·distance`.
+    absolute difference over the five 1-5 sliders → `10 - 2.5·distance`.
     A part with no signal on either side drops out; no parts ⇒ neutral.
     """
     interest_part: float | None = None
@@ -299,13 +291,9 @@ def interests_dimension(
         interest_part = 10.0 * overlap
     affinity_part: float | None = None
     riasec = user_riasec or {}
-    shared_letters = sorted(
-        letter for letter in (job_riasec_letters or set()) if letter in riasec
-    )
+    shared_letters = sorted(letter for letter in (job_riasec_letters or set()) if letter in riasec)
     if shared_letters:
-        affinity_part = sum(riasec[letter] for letter in shared_letters) / len(
-            shared_letters
-        )
+        affinity_part = sum(riasec[letter] for letter in shared_letters) / len(shared_letters)
     style_part: float | None = None
     if user_work_style and job_work_style:
         deltas = [
@@ -401,9 +389,7 @@ def job_values_signal(attrs: dict) -> dict[str, float]:
     if benefits & {"pension", "healthcare"}:
         signal["values.security"] = max(signal.get("values.security", 0.0), 7.0)
     if "leave" in benefits:
-        signal["values.work_life_balance"] = max(
-            signal.get("values.work_life_balance", 0.0), 7.0
-        )
+        signal["values.work_life_balance"] = max(signal.get("values.work_life_balance", 0.0), 7.0)
     if "remote_budget" in benefits:
         signal["values.autonomy"] = max(signal.get("values.autonomy", 0.0), 8.0)
     if "equity" in benefits:
@@ -419,14 +405,14 @@ def values_dimension(
     user_values: dict[str, float],
 ) -> tuple[float, str, bool]:
     """Work-values similarity: mean absolute distance over the
-    values BOTH sides signal → `10 − (10/9)·distance` (identical 10,
+    values BOTH sides signal → `10 - (10/9)·distance` (identical 10,
     maximal disagreement 0). One-sided or no signal ⇒ neutral."""
     shared = sorted(set(job_values) & set(user_values))
     if not shared:
         return NEUTRAL, "no values signal on one side", False
-    distance = sum(
-        abs(float(user_values[key]) - float(job_values[key])) for key in shared
-    ) / len(shared)
+    distance = sum(abs(float(user_values[key]) - float(job_values[key])) for key in shared) / len(
+        shared
+    )
     score = max(0.0, 10.0 - (10.0 / 9.0) * distance)
     return round(score, 2), f"values fit across {len(shared)} signals", True
 
@@ -477,17 +463,17 @@ def compute_fit(
     user: dict,
     weights: dict[str, int] | None = None,
 ) -> FitResult:
-    """Fit score for one user×job pair.
+    """Fit score for one userxjob pair.
 
     `job` keys: skill_links [{skill_id, required_level, importance}],
     education_level, experience_band, job_city, job_country, job_remote,
     interest_ids, work_style, physical_requirements, riasec_letters,
-    salary_entry_max, values_signal {values.key: 1–10}.
+    salary_entry_max, values_signal {values.key: 1-10}.
     `user` keys: skill_levels {skill_id: level}, education_level,
     skill_months {skill_id: derived evidence months}, city,
     country, remote_ok, willing_to_relocate, physical_conditions,
     max_education_years, interest_ids, work_style, riasec
-    {letter: value}, values {values.key: 1–10}, salary_min,
+    {letter: value}, values {values.key: 1-10}, salary_min,
     salary_negotiable.
     """
     weights = {**DEFAULT_WEIGHTS, **(weights or {})}
@@ -522,9 +508,7 @@ def compute_fit(
     )
     breakdown["experience"] = {"score": exp_score, "detail": exp_detail}
     if exp_signalled:
-        effective["experience"] = (
-            weights["experience"] * DIMENSION_CONFIDENCE["experience"]
-        )
+        effective["experience"] = weights["experience"] * DIMENSION_CONFIDENCE["experience"]
 
     loc_score, loc_detail, loc_signalled = location_dimension(
         job_city=job.get("job_city"),
@@ -549,9 +533,7 @@ def compute_fit(
     )
     breakdown["interests"] = {"score": int_score, "detail": int_detail}
     if int_signalled:
-        effective["interests"] = (
-            weights["interests"] * DIMENSION_CONFIDENCE["interests"]
-        )
+        effective["interests"] = weights["interests"] * DIMENSION_CONFIDENCE["interests"]
 
     values_score, values_detail, values_signalled = values_dimension(
         job_values=job.get("values_signal") or {},
@@ -570,10 +552,7 @@ def compute_fit(
     if total_weight <= 0:
         score = NEUTRAL
     else:
-        score = (
-            sum(effective[dim] * breakdown[dim]["score"] for dim in effective)
-            / total_weight
-        )
+        score = sum(effective[dim] * breakdown[dim]["score"] for dim in effective) / total_weight
     score = round(score, 2)
 
     specialist = None

@@ -3,6 +3,7 @@ true). False-derived rows keep their last level and are never touched
 or re-created by apply_derivation until the user re-enables them."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0030"

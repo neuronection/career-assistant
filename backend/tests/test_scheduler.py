@@ -2,12 +2,11 @@
 claim semantics, digests, saved-search runs, check-in integration."""
 
 import uuid as uuid_mod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 
-from tests.conftest import decode_session_token
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobStatus, ScheduleKind
 from app.models.matching_model import MatchInsight
@@ -15,9 +14,10 @@ from app.models.posting_model import JobPosting
 from app.models.schedule_model import Schedule
 from app.services.fit.dimensions import FIT_VERSION, FitResult
 from app.services.fit.service import FitService
+from app.services.job_worker import JobWorker
 from app.services.scheduler import triggers as trigger_registry
 from app.services.scheduler.runner import SchedulerService
-from app.services.job_worker import JobWorker
+from tests.conftest import decode_session_token
 
 
 def _uid(auth_headers) -> uuid_mod.UUID:
@@ -26,7 +26,7 @@ def _uid(auth_headers) -> uuid_mod.UUID:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_interval_jitter_bounds():
 
 
 def test_daily_at_timezone_and_dst_edge():
-    now = datetime(2026, 8, 31, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 31, 10, 0, tzinfo=UTC)
     athens = trigger_registry.next_after(
         {"type": "daily_at", "params": {"time": "08:00", "timezone": "Europe/Athens"}},
         now,
@@ -62,7 +62,7 @@ def test_daily_at_timezone_and_dst_edge():
     assert athens.hour == 5
     # US DST start (2026-03-08, 02:30 does not exist) — must not crash and
     # must still land on a sane 02:30-local instant.
-    before = datetime(2026, 3, 7, 20, 0, tzinfo=timezone.utc)
+    before = datetime(2026, 3, 7, 20, 0, tzinfo=UTC)
     dst = trigger_registry.next_after(
         {
             "type": "daily_at",
@@ -75,7 +75,7 @@ def test_daily_at_timezone_and_dst_edge():
 
 
 def test_weekly_next_occurrence():
-    now = datetime(2026, 8, 31, 10, 0, tzinfo=timezone.utc)  # a Monday
+    now = datetime(2026, 8, 31, 10, 0, tzinfo=UTC)  # a Monday
     nxt = trigger_registry.next_after(
         {
             "type": "weekly",
@@ -89,10 +89,8 @@ def test_weekly_next_occurrence():
 
 
 def test_cron_parser_valid_and_malformed():
-    now = datetime(2026, 8, 31, 10, 0, tzinfo=timezone.utc)  # Monday 10:00
-    nxt = trigger_registry.next_after(
-        {"type": "cron", "params": {"expr": "30 8 * * 1-5"}}, now
-    )
+    now = datetime(2026, 8, 31, 10, 0, tzinfo=UTC)  # Monday 10:00
+    nxt = trigger_registry.next_after({"type": "cron", "params": {"expr": "30 8 * * 1-5"}}, now)
     assert (nxt.hour, nxt.minute) == (8, 30)
     assert nxt.weekday() == 1  # Tuesday (next workday)
     list_expr = trigger_registry.next_after(
@@ -100,7 +98,7 @@ def test_cron_parser_valid_and_malformed():
     )
     assert list_expr.day in (1, 15)
     for bad in ["99 * * * *", "not a cron", "60 25 32 13 7"]:
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
             trigger_registry.next_after({"type": "cron", "params": {"expr": bad}}, now)
 
 
@@ -131,7 +129,7 @@ def test_plugin_trigger_registration():
         assert abs((nxt - _now()).total_seconds() - 300) < 5
     finally:
         trigger_registry.reset_registry()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         trigger_registry.resolve_trigger({"type": "synthetic_trigger", "params": {}})
 
 
@@ -143,9 +141,7 @@ async def test_system_schedules_provisioned_once(client, auth_headers, db):
     await service.ensure_system_schedules()
     await service.ensure_system_schedules()
     rows = (
-        (await db.execute(select(Schedule).where(Schedule.owner_user_id.is_(None))))
-        .scalars()
-        .all()
+        (await db.execute(select(Schedule).where(Schedule.owner_user_id.is_(None)))).scalars().all()
     )
     kinds = [r.kind for r in rows]
     assert kinds.count("system_source_sync") == 1
@@ -187,9 +183,7 @@ async def test_overlap_guard_and_claim_semantics(
     assert schedule.last_job_id == first_job_id
 
 
-async def test_misfire_policies(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_misfire_policies(client, auth_headers, profile_ready, seeded_catalog, db):
     service = SchedulerService(db)
     for policy, should_fire in (("asap", True), ("skip", False), ("next_slot", False)):
         schedule = await service.ensure_schedule(
@@ -213,9 +207,7 @@ async def test_misfire_policies(
             assert schedule.next_run_at > _now()
 
 
-async def test_failure_backoff_ladder(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_failure_backoff_ladder(client, auth_headers, profile_ready, seeded_catalog, db):
     service = SchedulerService(db)
     schedule = await service.ensure_schedule(
         kind=ScheduleKind.SYSTEM_SOURCE_SYNC.value,
@@ -298,9 +290,7 @@ async def test_failure_alerts_admin_after_threshold(
     await service._handle_due(schedule, _now())
 
     assert await NotificationService(db).unread_count(user.id) >= 1
-    notifications = (
-        await client.get("/api/v1/notifications", headers=auth_headers)
-    ).json()
+    notifications = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
     assert any(n["kind"] == "background_failed" for n in notifications["items"])
 
 
@@ -338,9 +328,7 @@ async def test_digest_schedule_end_to_end(
     while await worker.run_once():
         pass
 
-    notifications = (
-        await client.get("/api/v1/notifications", headers=auth_headers)
-    ).json()
+    notifications = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
     assert any(n["kind"] == "digest_ready" for n in notifications["items"])
 
 
@@ -417,9 +405,7 @@ async def test_saved_search_schedule_end_to_end(
     while await worker.run_once():
         pass
 
-    notifications = (
-        await client.get("/api/v1/notifications", headers=auth_headers)
-    ).json()
+    notifications = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
     assert any(
         n["kind"] == "new_posting_match" and "found 1 new match" in n["title"]
         for n in notifications["items"]
@@ -437,9 +423,7 @@ async def test_saved_search_schedule_end_to_end(
 # -------------------------------------------------------- check-ins + sweep
 
 
-async def test_checkin_uses_scheduler(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_checkin_uses_scheduler(client, auth_headers, profile_ready, seeded_catalog, db):
     status = (await client.get("/api/v1/me/checkin", headers=auth_headers)).json()
     assert status["due"] is False
     schedule = (
@@ -462,18 +446,14 @@ async def test_checkin_uses_scheduler(
     status = (await client.get("/api/v1/me/checkin", headers=auth_headers)).json()
     assert status["due"] is True
 
-    skipped = await client.post(
-        "/api/v1/me/checkin", json={"skipped": True}, headers=auth_headers
-    )
+    skipped = await client.post("/api/v1/me/checkin", json={"skipped": True}, headers=auth_headers)
     assert skipped.status_code == 200
     await db.refresh(schedule)
     assert schedule.next_run_at > _now()
     assert schedule.last_status == "ok"
 
 
-async def test_stale_refit_sweep(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_stale_refit_sweep(client, auth_headers, profile_ready, seeded_catalog, db):
     from app.services.job_service import JobService
 
     job = await JobService(db).get_by_code_or_id("software-developer")
@@ -482,11 +462,7 @@ async def test_stale_refit_sweep(
     )
     # Age one insight: its fit_version is behind → the sweep must pick the user.
     insight = (
-        (
-            await db.execute(
-                select(MatchInsight).where(MatchInsight.user_id == _uid(auth_headers))
-            )
-        )
+        (await db.execute(select(MatchInsight).where(MatchInsight.user_id == _uid(auth_headers))))
         .scalars()
         .first()
     )
