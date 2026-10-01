@@ -83,12 +83,20 @@ shared `neuronection-auth-kit` package is the implementation:
   refresh families with rotation + reuse detection, bcrypt ≥12 passwords.
 - **Lockout** after repeated failures (`CAREER_AUTH_LOCKOUT_THRESHOLD` /
   `CAREER_AUTH_LOCKOUT_MINUTES`) and a minimum password length (10).
-- **§16 config surface** (plan 16 P3d): `CAREER_COOKIE_SECURE`,
+- **§16 config surface** (plan 16 P3d / ADR-0028): `CAREER_COOKIE_SECURE`,
   `CAREER_AUTH_ACCESS_TTL_MINUTES`, `CAREER_AUTH_REFRESH_TTL_DAYS`,
   `CAREER_AUTH_REFRESH_ABSOLUTE_DAYS`, `CAREER_AUTH_LOCKOUT_*`,
   `CAREER_TRUSTED_PROXY_COUNT` and `CAREER_RATELIMIT_*` are routed through
-  `Settings` into the kit config (`_install_identity`), so the deployment
-  `.env` file works like the process environment (OS env wins).
+  `Settings` into the kit config (`app/auth/install.install_identity`,
+  via `nx_auth.config.knob_overrides` — one table with the kit), so the
+  deployment `.env` file works like the process environment (OS env
+  wins).
+- **Identity glue (ADR-0028, plan 20):** the §4 init rules
+  (`nx_auth.instance.initialize_instance` — §4.4 coerces
+  `CAREER_AUTH_MODE=open` on a server entrypoint to `authenticated`,
+  unknown values fail closed, post-init flips warn loudly) and the boot
+  guards (`nx_auth.boot`, wired in `app/core/boot.py`) are the shared
+  family implementations; the local copies were deleted same-commit.
 
 ## Rate limiting
 

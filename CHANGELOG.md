@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Identity glue unified on the auth-kit (plan 20 Phase 3, ADR-0028):**
+  the local `app/auth/instance.py` copy of the §4 init rules and the
+  boot-guard logic in `app/core/boot.py` are gone (same-commit delete) —
+  career now calls `nx_auth.instance.initialize_instance` and
+  `nx_auth.boot.validate_boot_config` (the donor implementations, now
+  shared). `_install_identity` moved to `app/auth/install.py`
+  (`install_identity`), and the §16 knob set is routed through
+  `nx_auth.config.knob_overrides` (one table with the kit) instead of a
+  hand-maintained override list. `IdentityMode` comes from the kit with
+  fail-closed parsing; `KeyRing.load_for` adoption follows with the
+  Phase 4 alignment.
+- `tests/test_instance_modes.py` gains the S14 contract cases — the
+  §4.5 `PATCH /api/v1/admin/instance` round trip over the career
+  adapters (password-less DIM owner sets credentials, password-confirmed
+  flip back, wrong password inert) and the multi-user refusal rail.
+
 ## [v0.16.0] - 2026-10-01
 
 ### Added

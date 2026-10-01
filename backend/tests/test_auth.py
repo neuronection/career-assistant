@@ -113,14 +113,14 @@ async def test_registration_env_var_reaches_the_register_route(monkeypatch):
     import httpx
     from fastapi import FastAPI
 
-    import app.main as main_module
+    import app.auth.install as install_module
     from app.core.config import Settings
 
     monkeypatch.setenv("CAREER_REGISTRATION_ENABLED", "false")
-    monkeypatch.setattr(main_module, "settings", Settings())
+    monkeypatch.setattr(install_module, "settings", Settings())
 
     fresh = FastAPI()
-    main_module._install_identity(fresh)
+    install_module.install_identity(fresh)
     assert fresh.state.auth.config.registration_enabled is False
 
     transport = httpx.ASGITransport(app=fresh)
@@ -138,16 +138,16 @@ async def test_registration_flag_reads_the_dotenv_file_too(monkeypatch, tmp_path
     file, but the file alone has to reach the kit config."""
     from fastapi import FastAPI
 
-    import app.main as main_module
+    import app.auth.install as install_module
     from app.core.config import Settings
 
     env_file = tmp_path / ".env"
     env_file.write_text("CAREER_REGISTRATION_ENABLED=false\n")
     monkeypatch.delenv("CAREER_REGISTRATION_ENABLED", raising=False)
-    monkeypatch.setattr(main_module, "settings", Settings(_env_file=str(env_file)))
+    monkeypatch.setattr(install_module, "settings", Settings(_env_file=str(env_file)))
 
     fresh = FastAPI()
-    main_module._install_identity(fresh)
+    install_module.install_identity(fresh)
     assert fresh.state.auth.config.registration_enabled is False
 
 

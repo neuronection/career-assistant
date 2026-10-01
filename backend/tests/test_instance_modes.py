@@ -8,7 +8,7 @@ endpoint (open desktop only) and the per-boot shell-secret request gate.
 import pytest
 from httpx import ASGITransport
 
-from app.auth.instance import initialize_instance
+from nx_auth.instance import initialize_instance
 from app.auth.stores import CareerInstanceStore
 from app.core.config import settings
 from app.core.database import AuthSessionLocal
@@ -321,3 +321,112 @@ async def test_unknown_stored_mode_fails_closed(client):
     assert (
         await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"})
     ).status_code == 401
+
+
+# ------------------------------------------- S14 / §4.5 admin transitions
+
+
+async def test_admin_instance_transition_round_trip(desktop_factory):
+    """S14 — `PATCH /api/v1/admin/instance` over the career adapters:
+    the password-less DIM owner sets credentials and enables login
+    (§4.5 `open → authenticated`), then confirms the password to go back
+    open; a wrong password never flips anything. Server entrypoints
+    refuse `open` outright (pinned in test_server_never_runs_open)."""
+    application, client, secret = desktop_factory()
+    exchange = await client.post(
+        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
+    )
+    dim_headers = session_headers(exchange) | {"X-Shell-Token": secret}
+    assert _store().get("auth_mode") == "open"
+
+    to_auth = await client.patch(
+        "/api/v1/admin/instance",
+        json={"auth_mode": "authenticated", "password": "supersecret1"},
+        headers=dim_headers,
+    )
+    assert to_auth.status_code == 200, to_auth.text
+    assert _store().get("auth_mode") == "authenticated"
+
+    # local-boot dies with the flip (§4.2) — password session from here.
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "owner@local", "password": "supersecret1"},
+        headers={"X-Shell-Token": secret},
+    )
+    assert login.status_code == 200, login.text
+    authed_headers = session_headers(login) | {"X-Shell-Token": secret}
+
+    wrong = await client.patch(
+        "/api/v1/admin/instance",
+        json={"auth_mode": "open", "password": "not-the-password"},
+        headers=authed_headers,
+    )
+    assert wrong.status_code == 403
+    assert _store().get("auth_mode") == "authenticated", "wrong password must not flip"
+
+    to_open = await client.patch(
+        "/api/v1/admin/instance",
+        json={"auth_mode": "open", "password": "supersecret1"},
+        headers=authed_headers,
+    )
+    assert to_open.status_code == 200, to_open.text
+    assert _store().get("auth_mode") == "open"
+
+
+async def test_admin_instance_open_refused_with_other_users(desktop_factory):
+    """S14 — multi-user instances cannot go open (§4.5 refusal rail):
+    the password-confirmed flip is refused while another user row
+    exists, and succeeds once the account is gone."""
+    application, client, secret = desktop_factory()
+    exchange = await client.post(
+        "/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret}
+    )
+    dim_headers = session_headers(exchange) | {"X-Shell-Token": secret}
+    assert (
+        await client.patch(
+            "/api/v1/admin/instance",
+            json={"auth_mode": "authenticated", "password": "supersecret1"},
+            headers=dim_headers,
+        )
+    ).status_code == 200
+
+    owner = session_headers(
+        await client.post(
+            "/api/v1/auth/login",
+            json={"email": "owner@local", "password": "supersecret1"},
+            headers={"X-Shell-Token": secret},
+        )
+    ) | {"X-Shell-Token": secret}
+
+    registered = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "second@example.com", "password": "supersecret1"},
+        headers={"X-Shell-Token": secret},
+    )
+    assert registered.status_code == 201, registered.text
+    second = session_headers(registered) | {"X-Shell-Token": secret}
+
+    refused = await client.patch(
+        "/api/v1/admin/instance",
+        json={"auth_mode": "open", "password": "supersecret1"},
+        headers=owner,
+    )
+    assert refused.status_code == 403
+    assert _store().get("auth_mode") == "authenticated"
+
+    # the second account removes itself (§12 self-service delete)
+    gone = await client.request(
+        "DELETE",
+        "/api/v1/me",
+        json={"password": "supersecret1"},
+        headers=second,
+    )
+    assert gone.status_code == 204, gone.text
+
+    allowed = await client.patch(
+        "/api/v1/admin/instance",
+        json={"auth_mode": "open", "password": "supersecret1"},
+        headers=owner,
+    )
+    assert allowed.status_code == 200, allowed.text
+    assert _store().get("auth_mode") == "open"

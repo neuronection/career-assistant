@@ -4,26 +4,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from enum import StrEnum
-
-from pydantic import AliasChoices, Field
+from nx_auth.instance import IdentityMode, parse_identity_mode
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
 
 APP_NAME: str = "Career Assistant"
-
-
-class IdentityMode(StrEnum):
-    """Entry half of the instance-mode matrix (identity-auth §4).
-
-    `SERVER` is the web/docker entrypoint; `DESKTOP` is declared by the
-    `python -m careerassistant` shell (via bootstrap_environment) and by
-    shell-less desktop dev (run-dev.sh, ADR-0023).
-    """
-
-    SERVER = "server"
-    DESKTOP = "desktop"
 
 
 def _resolve_env_file() -> Optional[str]:
@@ -290,6 +277,13 @@ class Settings(BaseSettings):
         """CORS origins as a list."""
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
+    @field_validator("IDENTITY_MODE", mode="before")
+    @classmethod
+    def _fail_closed_identity_mode(cls, value: object) -> IdentityMode:
+        """Entrypoint values are parsed by the kit and fail closed to
+        `SERVER` — the stricter half (identity-auth §4, ADR-0028)."""
+        return parse_identity_mode(None if value is None else str(value))
+
     @property
     def identity_mode(self) -> IdentityMode:
         """Entrypoint half of the instance-mode matrix (identity-auth §4).
@@ -297,11 +291,7 @@ class Settings(BaseSettings):
         `DESKTOP` only when the desktop entrypoint declared it; anything
         unknown fails closed to `SERVER` (the stricter half).
         """
-        return (
-            IdentityMode.DESKTOP
-            if self.IDENTITY_MODE == IdentityMode.DESKTOP
-            else IdentityMode.SERVER
-        )
+        return parse_identity_mode(str(self.IDENTITY_MODE))
 
     @property
     def is_dev(self) -> bool:

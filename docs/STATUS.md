@@ -47,7 +47,7 @@ schema surfaces may still change.
 | Desktop app (pywebview window + tray, background scheduler) | done | Single-instance lock; auto-start opt-in |
 | Desktop packaging (deb / AppImage / Windows exe) | done | Tag-driven releases; `careerassistant enginecheck` probe |
 | MCP server (`/mcp`, read-scope tools) + client bridge | done | Token rotation; per-host rate limiting; audited + budgeted |
-| Identity & auth (family `auth-kit`, ADR-0013) | done | Cookie sessions + double-submit CSRF, key-separated token contract, DB-authoritative init-only instance modes (fail-closed), desktop DIM + shell-secret gate; user management is the kit's §12 surface with the shared `AdminUserTable` (Settings → Users) and account self-service (Settings → Account: sessions, password change, deletion) |
+| Identity & auth (family `auth-kit`, ADR-0013/0028) | done | Cookie sessions + double-submit CSRF, key-separated token contract, DB-authoritative init-only instance modes (fail-closed), desktop DIM + shell-secret gate; user management is the kit's §12 surface with the shared `AdminUserTable` (Settings → Users) and account self-service (Settings → Account: sessions, password change, deletion). Plan 20 Phase 3: the §4 init + boot guards + §16 knob routing are the shared kit glue (`app/auth/install.py`, `nx_auth.boot`); S14 §4.5 transition cases in the suite |
 | AI gateway (single structured-output path, DB-only config) | done | Audited in `ai_generations`; mock provider dev/test-only |
 | Skill packs (versioned instruction data) | done | Tone/structure only; validators untouched |
 | Production self-host stack (prod + standalone nginx, TLS) | done | See [dev/deployment.md](dev/deployment.md) |

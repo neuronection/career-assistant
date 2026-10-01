@@ -53,7 +53,7 @@ def _settings_from_env_text(monkeypatch, tmp_path, text: str):
 
 
 async def test_sec16_matrix_reaches_kit_config_from_dotenv(monkeypatch, tmp_path):
-    import app.main as main_module
+    import app.auth.install as install_module
 
     fresh = _settings_from_env_text(
         monkeypatch,
@@ -74,10 +74,10 @@ async def test_sec16_matrix_reaches_kit_config_from_dotenv(monkeypatch, tmp_path
         )
         + "\n",
     )
-    monkeypatch.setattr(main_module, "settings", fresh)
+    monkeypatch.setattr(install_module, "settings", fresh)
 
     app = FastAPI()
-    main_module._install_identity(app)
+    install_module.install_identity(app)
     config = app.state.auth.config
 
     assert config.cookie_secure is True
@@ -169,20 +169,20 @@ def test_sec16_legacy_unprefixed_ratelimit_names_still_work(monkeypatch):
 async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(
     monkeypatch, tmp_path
 ):
-    import app.main as main_module
+    import app.auth.install as install_module
     from app.core.config import settings as global_settings
     from app.core.ratelimit import client_identity
 
     fresh = _settings_from_env_text(
         monkeypatch, tmp_path, "CAREER_TRUSTED_PROXY_COUNT=1\n"
     )
-    monkeypatch.setattr(main_module, "settings", fresh)
+    monkeypatch.setattr(install_module, "settings", fresh)
     monkeypatch.setattr(
         global_settings, "TRUSTED_PROXY_COUNT", fresh.TRUSTED_PROXY_COUNT
     )
 
     app = FastAPI()
-    main_module._install_identity(app)
+    install_module.install_identity(app)
     assert app.state.auth.config.trusted_proxy_count == 1
 
     scope = {
@@ -194,7 +194,7 @@ async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(
 
 async def test_sec16_matrix_reaches_kit_config_from_os_environ(monkeypatch):
     """Process-environment routing (no .env file involved)."""
-    import app.main as main_module
+    import app.auth.install as install_module
 
     for var in _KNOB_ENV:
         monkeypatch.delenv(var, raising=False)
@@ -205,10 +205,10 @@ async def test_sec16_matrix_reaches_kit_config_from_os_environ(monkeypatch):
     from app.core.config import Settings
 
     fresh = Settings(_env_file=None)
-    monkeypatch.setattr(main_module, "settings", fresh)
+    monkeypatch.setattr(install_module, "settings", fresh)
 
     app = FastAPI()
-    main_module._install_identity(app)
+    install_module.install_identity(app)
     config = app.state.auth.config
     assert config.cookie_secure is True
     assert config.access_ttl_minutes == 25

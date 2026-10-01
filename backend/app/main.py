@@ -1,9 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import replace
 import json
 import logging
-import os
 from pathlib import Path
 import sys
 from urllib.parse import parse_qs
@@ -17,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_router
 from app.core.boot import configure_logging, validate_boot_config
+from app.auth.install import install_identity
 from app.core.config import IdentityMode, settings
 from app.core.profile_context import (
     reset_active_profile,
@@ -371,118 +370,6 @@ async def lifespan(app: FastAPI):
             logger.warning("PDF engine shutdown failed", exc_info=True)
 
 
-def _install_identity(application: FastAPI) -> None:
-    """Mount the family auth-kit (identity-auth §4/§5/§8/§10/§11).
-
-    - init-only instance modes: `instance_settings` is seeded on an empty
-      DB (§4 — DB authoritative, env flips ignored loudly, fail-closed);
-    - `/api/v1/auth/*` + `/api/v1/me/*` + `/api/v1/admin/*` at their
-      exact §12 paths (in-tree auth routes are gone — same-commit delete);
-    - cookie sessions + double-submit CSRF (§10) and per-request session
-      enforcement (§4.2 — every `/api/` request, exempt prefixes aside);
-    - desktop entrypoint: the per-boot shell secret becomes the §11
-      request gate (and keeps marking `?shell=` documents for the desktop
-      CSP variant); DIM exchange mounts in desktop mode only.
-    """
-    from nx_auth import AuthConfig
-    from nx_auth import install as install_auth_kit
-
-    from app.auth.instance import initialize_instance
-    from app.auth.stores import (
-        CareerAuditSink,
-        CareerInstanceStore,
-        CareerProfileStore,
-        CareerSessionStore,
-        CareerUserStore,
-    )
-    from app.core.database import AuthSessionLocal
-    from app.core.keys import keyring
-
-    instance_store = CareerInstanceStore(AuthSessionLocal)
-    effective_auth_mode = initialize_instance(
-        instance_store,
-        identity_mode=settings.identity_mode,
-        auth_mode_env=settings.AUTH_MODE,
-        demo_mode_env=settings.DEMO_MODE,
-    )
-
-    # §11 gate arms only when a shell actually attaches: shell.py sets
-    # CAREER_SHELL=1 before create_app. Shell-less desktop dev (run-dev.sh:
-    # uvicorn + vite, ADR-0023) has no shell to hold the per-boot token or
-    # carry it as `?shell=` — arming the gate there would 403 every auth
-    # request from the dev SPA ("invalid shell token").
-    shell_attached = (
-        settings.identity_mode is IdentityMode.DESKTOP
-        and os.environ.get("CAREER_SHELL") == "1"
-    )
-    if settings.identity_mode is IdentityMode.DESKTOP and not shell_attached:
-        # Fail loud, not silent: this is the shell-less dev shape (ADR-0023)
-        # — ungated + open-auth DIM. Safe on loopback only; a non-loopback
-        # bind here exposes an owner-level API to the network.
-        logging.getLogger(__name__).warning(
-            "desktop identity WITHOUT an attached shell (CAREER_SHELL unset) — "
-            "the X-Shell-Token gate is DISARMED (§11 / ADR-0023); bind the "
-            "server to loopback only"
-        )
-        if effective_auth_mode != "open":
-            # Init-only trap: a profile stamped `authenticated` under older
-            # server-identity dev runs keeps it — the SPA shows the login
-            # gate even though the §11 gate is disarmed (§4: mode changes
-            # are admin actions, never launch-time).
-            logging.getLogger(__name__).warning(
-                "local profile auth_mode=%r — the login gate applies to this "
-                "instance; `./scripts/run-dev.sh --reset` wipes the local "
-                "profile and re-initializes it open (backups kept)",
-                effective_auth_mode,
-            )
-    shell_secret: str | None = None
-    if shell_attached:
-        # One per-boot secret serves both desktop gates (§11): the
-        # X-Shell-Token request gate and the `?shell=` CSP marker.
-        from app.desktop.shell_token import issue
-
-        shell_secret = issue()
-
-    config = AuthConfig.from_env(
-        "CAREER",
-        iss="career",
-        identity_mode=settings.identity_mode,
-        require_shell_secret=shell_secret is not None,
-        # §16 knobs resolved through Settings so real env vars and the
-        # .env file both reach the kit config (the P3c routing pattern)
-        # — the kit's `from_env` reads os.environ only.
-        registration_enabled=settings.REGISTRATION_ENABLED,
-        cookie_secure=settings.COOKIE_SECURE,
-        access_ttl_minutes=settings.AUTH_ACCESS_TTL_MINUTES,
-        refresh_ttl_days=settings.AUTH_REFRESH_TTL_DAYS,
-        refresh_absolute_days=settings.AUTH_REFRESH_ABSOLUTE_DAYS,
-        lockout_threshold=settings.AUTH_LOCKOUT_THRESHOLD,
-        lockout_minutes=settings.AUTH_LOCKOUT_MINUTES,
-        trusted_proxy_count=settings.TRUSTED_PROXY_COUNT,
-        auth_rate_per_minute=settings.AUTH_RATE_LIMIT,
-        auth_email_rate_per_minute=settings.AUTH_EMAIL_RATE_LIMIT,
-    )
-    config = replace(
-        config,
-        # Public instance facts (P3e demo badge) must be readable pre-login.
-        auth_exempt_prefixes=(*config.auth_exempt_prefixes, "/api/v1/instance"),
-    )
-    install_auth_kit(
-        application,
-        config=config,
-        # One KeyRing for signing AND secrets at rest (§8): the same
-        # resolution `app.core.encryption` encrypts under.
-        ring=keyring(),
-        users=CareerUserStore(AuthSessionLocal),
-        sessions=CareerSessionStore(AuthSessionLocal),
-        instance=instance_store,
-        profiles=CareerProfileStore(AuthSessionLocal),
-        audit=CareerAuditSink(AuthSessionLocal),
-        shell_secret=shell_secret,
-        owner_email="owner@local",
-    )
-
-
 def create_app() -> FastAPI:
     """Build the FastAPI application (API + optional SPA mount)."""
     application = FastAPI(
@@ -509,7 +396,7 @@ def create_app() -> FastAPI:
     # ordering).
     application.add_middleware(ProfileBindingMiddleware)
 
-    _install_identity(application)
+    install_identity(application)
 
     @application.exception_handler(AccountLockedError)
     async def account_locked_handler(request: Request, exc: AccountLockedError):

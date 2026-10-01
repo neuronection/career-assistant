@@ -80,7 +80,7 @@ def test_boot_guard_rejects_unusable_data_key(monkeypatch):
     _production(monkeypatch)
     _pin_keys(monkeypatch, _STRONG["session"], _STRONG["refresh"], "z" * 48)
     monkeypatch.setattr(settings, "DEBUG", False)
-    with pytest.raises(BootConfigError, match="exactly 32 key bytes"):
+    with pytest.raises(BootConfigError, match="must be usable Fernet"):
         validate_boot_config()
 
 
