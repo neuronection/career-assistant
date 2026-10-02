@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """cv_choice cards (plan 108): the multi-select picker that fans out
 into canonical pending child proposals — creation-time payload
 validation, option-selective materialization, and resolve semantics.

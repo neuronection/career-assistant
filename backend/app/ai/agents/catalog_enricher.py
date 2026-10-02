@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Catalog enricher: proposes the v2 lifestyle vocabulary for
 archetypes that predate it. One audited CATALOG_ENRICH call per job; the
 patch covers ONLY the v2 fields — salary bands and education stay

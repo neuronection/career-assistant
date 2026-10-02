@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """CV extraction contract: `CvExtract` — the structured AI
 output of the CV-parse task.
 

@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """HITL profile proposals API (plan 77): list + idempotent resolve."""
 
 from typing import Literal

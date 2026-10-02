@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """CV builder copilot agent.
 
 One audited task (`cv_builder_chat`) turns a chat message into a bounded

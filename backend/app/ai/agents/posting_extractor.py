@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """AI posting extractor (Phase 31): one structured call per posting that
 squeezes the raw text into auditable data — skills with required level
 1-10 + priority + mandatory evidence quote, seniority, salary,

@@ -75,7 +75,7 @@ class RunRef(BaseModel):
 
 def register_mock_fixture[T: BaseModel](
     task: AITaskType, builder: Callable[[type[T], str], dict]
-) -> None:  # noqa: E501 -- long message string; reflow when touched
+) -> None:
     """Register a deterministic mock output builder for a task type."""
     MOCK_FIXTURES[task.value] = builder
 

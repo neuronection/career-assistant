@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Connector SDK (Phase 26): the only extension point for posting sources.
 
 Connectors are pure normalizers: `fetch(config, state) -> ConnectorResult`

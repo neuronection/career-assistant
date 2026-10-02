@@ -1,4 +1,3 @@
-# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Phase 22: deterministic fit engine — formulas, fairness, weights, staleness."""
 
 from app.services.fit.dimensions import (

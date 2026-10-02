@@ -172,7 +172,7 @@ BuilderOp = Annotated[
     | SetBlockAreaOp
     | UpdateBlockPropsOp
     | SetOverrideOp
-    | UpsertVariantOp,  # noqa: E501 -- long message string; reflow when touched
+    | UpsertVariantOp,
     Field(discriminator="op"),
 ]
 
