@@ -46,7 +46,9 @@ class RawPosting(BaseModel):
     expires_at: datetime | None = None
     salary: SalarySpec | None = None
     seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
-    employment_type: Literal["full_time", "part_time", "contract", "temporary", "internship"] | None = None
+    employment_type: (
+        Literal["full_time", "part_time", "contract", "temporary", "internship"] | None
+    ) = None
     contract_type: str | None = Field(default=None, max_length=60)
     onsite_policy: Literal["onsite", "hybrid", "remote"] | None = None
     work_hours: str | None = Field(default=None, max_length=60)

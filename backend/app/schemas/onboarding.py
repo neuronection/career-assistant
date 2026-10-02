@@ -1,6 +1,5 @@
 """Express onboarding + target mode schemas (Phase 27)."""
 
-
 from pydantic import BaseModel, Field
 
 

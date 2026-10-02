@@ -161,7 +161,18 @@ class UpsertVariantOp(BaseModel):
 
 
 BuilderOp = Annotated[
-    SetTemplateOp | ApplyThemeOp | UpdateDesignOp | SetContextOp | SetDocOptionsOp | AddBlockOp | RemoveBlockOp | MoveBlockOp | SetBlockAreaOp | UpdateBlockPropsOp | SetOverrideOp | UpsertVariantOp,  # noqa: E501 -- long message string; reflow when touched
+    SetTemplateOp
+    | ApplyThemeOp
+    | UpdateDesignOp
+    | SetContextOp
+    | SetDocOptionsOp
+    | AddBlockOp
+    | RemoveBlockOp
+    | MoveBlockOp
+    | SetBlockAreaOp
+    | UpdateBlockPropsOp
+    | SetOverrideOp
+    | UpsertVariantOp,  # noqa: E501 -- long message string; reflow when touched
     Field(discriminator="op"),
 ]
 

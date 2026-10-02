@@ -80,7 +80,9 @@ class ExtractedEducation(BaseModel):
     level: str = Field(default="", max_length=30)
     start: str = Field(default="", max_length=10)
     end: str = Field(default="", max_length=10)
-    grade_band: Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None = None
+    grade_band: (
+        Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None
+    ) = None
     evidence: FieldEvidence = Field(default_factory=FieldEvidence)
 
 

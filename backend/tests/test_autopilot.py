@@ -249,9 +249,7 @@ async def test_filters_honor_never_terms_and_seen(
     filter_entry = next(e for e in result["searches"] if e.get("step") == "filter")
     assert filter_entry["never"] == 1
 
-    db.add(
-        PostingInteraction(user_id=user_id, posting_id=dev.id, seen_at=datetime.now(UTC))
-    )
+    db.add(PostingInteraction(user_id=user_id, posting_id=dev.id, seen_at=datetime.now(UTC)))
     await db.commit()
     second = await _goal(client, auth_headers)
     result2 = await AutopilotService(db, checkpointer=InMemorySaver()).run_goal(

@@ -1010,7 +1010,9 @@ def _page_margin_boxes(design: DesignTokens, snapshot: dict | None) -> tuple[str
         name = str(basics.get("name") or "").strip()
         label = f"{name} — CV" if name else "Curriculum vitae"
         inner.append(
-            "@bottom-left {{ content: '{}'; font-size: 8pt; color: #6b7280; }}".format(esc(label).replace("&#x27;", "\\'"))
+            "@bottom-left {{ content: '{}'; font-size: 8pt; color: #6b7280; }}".format(
+                esc(label).replace("&#x27;", "\\'")
+            )
         )
     if mode == "numbers":
         inner.append(

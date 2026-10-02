@@ -139,9 +139,11 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
                 "args": {"kind": "certification", "entity_id": certs[0]["id"]},
             }
         ]
-    if (tools.get("my_profile_digest") or {}) and (
-        words & set(_LANGUAGE_CODES) or "language" in words
-    ) and not _section_was_read(tools, "academics"):
+    if (
+        (tools.get("my_profile_digest") or {})
+        and (words & set(_LANGUAGE_CODES) or "language" in words)
+        and not _section_was_read(tools, "academics")
+    ):
         return [{"name": "read_profile_section", "args": {"section": "academics"}}]
     return []
 

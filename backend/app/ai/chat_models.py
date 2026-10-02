@@ -63,9 +63,7 @@ def is_openai_wire(provider_type: str, base_url: str | None) -> bool:
     )
 
 
-def token_cap_kwargs(
-    provider_type: str, cap: int, base_url: str | None = None
-) -> dict[str, int]:
+def token_cap_kwargs(provider_type: str, cap: int, base_url: str | None = None) -> dict[str, int]:
     """Token-cap params for a plain REST chat payload, per provider type.
 
     Modern OpenAI models reject ``max_tokens`` while OpenAI-compatible

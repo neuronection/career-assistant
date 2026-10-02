@@ -104,10 +104,7 @@ class ProfileEntitiesService:
                 university_id = department.university_id
             elif department.university_id != university_id:
                 raise ValidationError("Department does not belong to the selected university")
-        if (
-            university_id is not None
-            and await self.db.get(University, university_id) is None
-        ):
+        if university_id is not None and await self.db.get(University, university_id) is None:
             raise NotFoundError("University not found")
         return university_id
 

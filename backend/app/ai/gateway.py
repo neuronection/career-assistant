@@ -73,7 +73,9 @@ class RunRef(BaseModel):
     stage: str = Field(..., description="Stage label, e.g. 'cv_draft.plan'")
 
 
-def register_mock_fixture[T: BaseModel](task: AITaskType, builder: Callable[[type[T], str], dict]) -> None:  # noqa: E501 -- long message string; reflow when touched
+def register_mock_fixture[T: BaseModel](
+    task: AITaskType, builder: Callable[[type[T], str], dict]
+) -> None:  # noqa: E501 -- long message string; reflow when touched
     """Register a deterministic mock output builder for a task type."""
     MOCK_FIXTURES[task.value] = builder
 

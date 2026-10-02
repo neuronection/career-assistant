@@ -407,7 +407,10 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
                     "section": str(props.get("title") or props.get("source_key") or kind),
                     "items": len(rows),
                     "entries": _cap(
-                        [{"title": _headline(row), **layer} for row, layer in zip(rows, layers, strict=False)]
+                        [
+                            {"title": _headline(row), **layer}
+                            for row, layer in zip(rows, layers, strict=False)
+                        ]
                     ),
                     "with_description": sum(layer["description"] for layer in layers),
                     "with_bullets": sum(layer["bullets"] for layer in layers),
@@ -1255,9 +1258,7 @@ async def builder_turn_events(
     def _open_node(node_id: str, label: str) -> None:
         open_nodes[node_id] = (time.monotonic(), label)
 
-    def _note_node(
-        node_id: str, status: str = "done", ended: float | None = None
-    ) -> dict | None:
+    def _note_node(node_id: str, status: str = "done", ended: float | None = None) -> dict | None:
         """Close one node window for the persisted trace."""
         window = open_nodes.pop(node_id, None)
         if window is None:

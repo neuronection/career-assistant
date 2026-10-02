@@ -1686,9 +1686,7 @@ def make_fix_node(deps: GraphDeps):
             "mode": redesign.get("mode"),
         }
 
-    async def _redesign_once(
-        db, state, cv, mode: str, problem: str | None = None
-    ) -> dict | None:
+    async def _redesign_once(db, state, cv, mode: str, problem: str | None = None) -> dict | None:
         """The escape hatch, two rungs (escalating ladder).
 
         `modified` (first): a copy of the current template patched by the

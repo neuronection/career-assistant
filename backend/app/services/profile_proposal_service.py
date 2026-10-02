@@ -1703,7 +1703,9 @@ class ProfileProposalService:
             )
             and proposal.resolved_at is not None
         ):
-            _entity, updated_at = await self._load_entity(proposal.kind, user_id, proposal.entity_id)  # noqa: E501 -- long message string; reflow when touched
+            _entity, updated_at = await self._load_entity(
+                proposal.kind, user_id, proposal.entity_id
+            )  # noqa: E501 -- long message string; reflow when touched
             if _ts(updated_at) > _ts(proposal.resolved_at + _REVERT_TOLERANCE):
                 raise ConflictError("Changed since it was applied — edit state moved")
 

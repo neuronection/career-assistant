@@ -47,7 +47,8 @@ def _out(proposal) -> ProfileProposalOut:
 
 @router.get("/me/profile-proposals")
 async def list_profile_proposals(
-    status: Literal["pending", "approved", "rejected", "conflict", "expired", "reverted"] | None = None,
+    status: Literal["pending", "approved", "rejected", "conflict", "expired", "reverted"]
+    | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),

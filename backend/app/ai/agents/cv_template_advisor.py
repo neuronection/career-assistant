@@ -6,7 +6,6 @@ templates. Candidates are stable ids (`t0`, `t1`, …) so validation
 never depends on model output echoing UUIDs.
 """
 
-
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 

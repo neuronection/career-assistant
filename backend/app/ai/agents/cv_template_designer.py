@@ -9,7 +9,6 @@ Mock fixtures are deterministic so the whole loop runs offline in tests;
 the mock reviewer parses `[PAGE n]` markers the same way the OCR mock does.
 """
 
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context

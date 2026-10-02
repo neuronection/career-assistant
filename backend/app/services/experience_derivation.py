@@ -217,9 +217,7 @@ def derive_skill_months(
             level=months_to_level(months),
             confidence=months_to_confidence(months),
             supporting_items=sorted(supporters.get(skill_id, set())),
-            claimed_level=(
-                round(sum(skill_claims) / len(skill_claims)) if skill_claims else None
-            ),
+            claimed_level=(round(sum(skill_claims) / len(skill_claims)) if skill_claims else None),
         )
     return derived
 

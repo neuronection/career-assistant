@@ -128,9 +128,7 @@ async def plan_extractions(
 # ------------------------------------------------------------------- apply
 
 
-def _sane_salary(
-    low: float | None, high: float | None
-) -> tuple[float | None, float | None]:
+def _sane_salary(low: float | None, high: float | None) -> tuple[float | None, float | None]:
     if low is not None and high is not None and low > high:
         return None, None
     return low, high

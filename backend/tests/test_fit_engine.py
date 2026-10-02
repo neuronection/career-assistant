@@ -120,8 +120,12 @@ def test_interests_overlap_plus_workstyle():
     both = interests_dimension(
         job_interest_ids={"a"},
         user_interest_ids={"a"},
-        user_work_style=dict.fromkeys(("teamwork", "environment", "structure", "pace", "leadership"), 3),
-        job_work_style=dict.fromkeys(("teamwork", "environment", "structure", "pace", "leadership"), 3),
+        user_work_style=dict.fromkeys(
+            ("teamwork", "environment", "structure", "pace", "leadership"), 3
+        ),
+        job_work_style=dict.fromkeys(
+            ("teamwork", "environment", "structure", "pace", "leadership"), 3
+        ),
     )
     assert both[0] == 10.0
 
@@ -141,7 +145,9 @@ def test_compute_fit_neutral_dimensions_redistribute_weights():
             "skill_levels": {"s1": 8, "s2": 4, "s3": 6},
             "education_level": "high_school",
             "interest_ids": {"i1"},
-            "work_style": dict.fromkeys(("teamwork", "environment", "structure", "pace", "leadership"), 3),
+            "work_style": dict.fromkeys(
+                ("teamwork", "environment", "structure", "pace", "leadership"), 3
+            ),
         },
         weights={
             "skills": 5,

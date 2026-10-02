@@ -79,9 +79,7 @@ class CvSynthGenerateInput(BaseModel):
 class CvSynthUpdateInput(BaseModel):
     item_id: str = Field(min_length=8, max_length=64)
     description: str | None = Field(default=None, min_length=1, max_length=4000)
-    status: CvSynthStateStatus | None = Field(
-        default=None, description="draft | active | archived"
-    )
+    status: CvSynthStateStatus | None = Field(default=None, description="draft | active | archived")
     variant_key: str | None = None
 
 

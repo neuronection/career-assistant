@@ -292,7 +292,9 @@ async def test_approve_fanout_drops_invalid_children_with_reason(db, auth_header
             ],
         },
     )
-    _approved, applied, _ = await service.approve(user.id, parent.id, option_keys=["title", "bogus"])
+    _approved, applied, _ = await service.approve(
+        user.id, parent.id, option_keys=["title", "bogus"]
+    )
     assert len(applied["children"]) == 1
     assert applied["dropped"] and "bogus" in applied["dropped"][0]["key"]
 

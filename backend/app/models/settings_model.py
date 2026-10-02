@@ -6,7 +6,6 @@ later phases. Sensitive values are Fernet-encrypted via
 ``app.core.encryption`` before they land in `value`.
 """
 
-
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 

@@ -801,13 +801,15 @@ def _facet_query(
 
 async def sources_with_counts(db: AsyncSession) -> list[dict]:
     """Enabled sources with open-posting counts (the filter dropdown)."""
-    counts = dict((
+    counts = dict(
+        (
             await db.execute(
                 select(JobPosting.source_id, func.count(JobPosting.id))
                 .where(JobPosting.status.in_(["new", "mapped"]))
                 .group_by(JobPosting.source_id)
             )
-        ).all())
+        ).all()
+    )
     rows = (
         (
             await db.execute(
@@ -829,13 +831,15 @@ async def sources_with_counts(db: AsyncSession) -> list[dict]:
 
 async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5) -> list[dict]:
     """Skill-ID Jaccard + shared mapped family bonus."""
-    mine = set((
+    mine = set(
+        (
             await db.execute(
                 select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
             )
         )
         .scalars()
-        .all())
+        .all()
+    )
     rows = await db.execute(
         select(JobPosting, PostingSkill.skill_id)
         .outerjoin(PostingSkill, PostingSkill.posting_id == JobPosting.id)

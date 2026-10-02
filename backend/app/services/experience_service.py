@@ -53,9 +53,7 @@ class ExperienceService:
 
     # -------------------------------------------------------------- items
 
-    async def list_items(
-        self, user_id: UUID, *, status: str | None = None
-    ) -> list[ExperienceItem]:
+    async def list_items(self, user_id: UUID, *, status: str | None = None) -> list[ExperienceItem]:
         query = (
             select(ExperienceItem)
             .options(

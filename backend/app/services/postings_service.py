@@ -542,7 +542,9 @@ async def search_postings(
         normalized.append((_norm(key), lvl))
     rows = await db.execute(select(Skill).where(Skill.key.in_([k for k, _ in normalized])))
     by_key = {skill.key: skill for skill in rows.scalars().all()}
-    unknown = [orig for (orig, _), (key, _) in zip(entries, normalized, strict=False) if key not in by_key]
+    unknown = [
+        orig for (orig, _), (key, _) in zip(entries, normalized, strict=False) if key not in by_key
+    ]
     if unknown:
         raise ValidationError(f"Unknown skills: {', '.join(sorted(set(unknown)))}")
 

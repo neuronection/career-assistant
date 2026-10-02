@@ -140,9 +140,7 @@ def backup_if_due(data_dir: Path) -> Path | None:
     existing = list_backups(data_dir)
     if existing:
         newest = _backup_timestamp(existing[-1])
-        age_hours = (
-            datetime.now(UTC) - newest.replace(tzinfo=UTC)
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(UTC) - newest.replace(tzinfo=UTC)).total_seconds() / 3600
         if age_hours < 24:
             return None
     try:
@@ -176,9 +174,7 @@ def verify_or_repair_database(data_dir: Path) -> str:
     if not db_path.is_file() or _validate_sqlite(db_path):
         return "ok"
 
-    quarantine = db_path.with_name(
-        f"corrupt-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.db"
-    )
+    quarantine = db_path.with_name(f"corrupt-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.db")
     db_path.replace(quarantine)
     logger.error("Database corrupt; quarantined as %s", quarantine.name)
 

@@ -159,7 +159,9 @@ class PostingExtract(BaseModel):
 
     title_norm: str | None = Field(default=None, max_length=300)
     seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
-    employment_type: Literal["full_time", "part_time", "contract", "temporary", "internship"] | None = None
+    employment_type: (
+        Literal["full_time", "part_time", "contract", "temporary", "internship"] | None
+    ) = None
     remote_policy: Literal["onsite", "hybrid", "remote"] | None = None
     location: ExtractLocation | None = None
     salary: ExtractSalary | None = None
@@ -234,9 +236,11 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
         )
     for raw_label in ctx.get("skills_raw") or []:
         label = str(raw_label)
-        if label.lower() in lowered and not any(
-            label.lower() == str(s.get("skill_key", "")).lower() for s in skills
-        ) and not any(str(s.get("raw_label", "")).lower() == label.lower() for s in skills):
+        if (
+            label.lower() in lowered
+            and not any(label.lower() == str(s.get("skill_key", "")).lower() for s in skills)
+            and not any(str(s.get("raw_label", "")).lower() == label.lower() for s in skills)
+        ):
             skills.append(
                 {
                     "raw_label": label,

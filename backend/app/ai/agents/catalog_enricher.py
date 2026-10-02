@@ -16,7 +16,12 @@ from app.models.enums import AITaskType
 class EnrichmentPatch(BaseModel):
     """v2-only proposal; absent = nothing proposed for that field."""
 
-    contract_type: Literal["permanent", "temporary", "contract", "freelance", "b2b", "internship", "apprenticeship"] | None = None
+    contract_type: (
+        Literal[
+            "permanent", "temporary", "contract", "freelance", "b2b", "internship", "apprenticeship"
+        ]
+        | None
+    ) = None
     work_hours: dict | None = Field(default=None)
     schedule_cues: list[Literal["shift_work", "on_call", "nights", "weekends", "flexible"]] = Field(
         default_factory=list, max_length=5
