@@ -163,7 +163,13 @@ def desktop_factory(monkeypatch):
 
 
 async def test_desktop_open_exchanges_the_implicit_owner(desktop_factory):
-    _application, client, secret = desktop_factory()
+    application, client, secret = desktop_factory()
+    assert application.state.auth.config.identity_mode == "desktop", (
+        "CAREER_IDENTITY_MODE rides the §16 map"
+    )
+    assert application.state.auth.config.require_shell_secret is True, (
+        "the computed §11 value must reach the kit config (S11)"
+    )
 
     # The gate is the per-boot shell secret (§11.1): no/wrong token ⇒ 403.
     assert (await client.get("/api/v1/auth/me")).status_code == 403
@@ -202,6 +208,9 @@ async def test_desktop_open_needs_no_login_routes_but_mints_local_boot(desktop_f
 
 async def test_desktop_authenticated_requires_login(desktop_factory):
     _application, client, secret = desktop_factory(auth_mode_env="authenticated")
+    assert _store().get("auth_mode") == "authenticated", (
+        "S13 — desktop + CAREER_AUTH_MODE=authenticated seeds authenticated"
+    )
 
     # DIM does not apply (§4.3) — the exchange endpoint answers 404 …
     exchange = await client.post("/api/v1/auth/desktop/exchange", headers={"X-Shell-Token": secret})
@@ -251,24 +260,53 @@ async def test_shell_secret_gates_every_api_request(desktop_factory):
     assert (await client.get("/health")).status_code == 200
 
 
-async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch):
+async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch, caplog):
     """ADR-0023: desktop identity WITHOUT an attached shell (`run-dev.sh`:
     uvicorn + vite — no CAREER_SHELL=1, no `?shell=` carrier) must not arm
-    the §11 gate, or the dev SPA could never authenticate."""
+    the §11 gate, or the dev SPA could never authenticate — and must say
+    so loudly (S11)."""
     from app.desktop import shell_token
     from app.main import create_app
 
     monkeypatch.delenv("CAREER_SHELL", raising=False)
+    monkeypatch.delenv("CAREER_REQUIRE_SHELL_SECRET", raising=False)
     monkeypatch.setattr(settings, "identity_mode", "desktop")
     monkeypatch.setattr(settings, "auth_mode", "")
     shell_token.reset()
     try:
-        application = create_app()
+        with caplog.at_level("WARNING"):
+            application = create_app()
+        assert application.state.auth.config.require_shell_secret is False
+        assert any(
+            "X-Shell-Token gate is DISARMED" in record.getMessage() for record in caplog.records
+        ), "a disarmed gate warns loudly (S11)"
         client = CleanJarClient(transport=ASGITransport(app=application), base_url="http://test")
         # No token is issued and the API answers without X-Shell-Token.
         assert shell_token.current() is None
         me = await client.get("/api/v1/auth/me")
         assert me.status_code != 403, "shell-less desktop dev must not gate the API"
+    finally:
+        shell_token.reset()
+
+
+async def test_env_require_shell_secret_never_arms_the_gate(monkeypatch):
+    """`CAREER_REQUIRE_SHELL_SECRET=1` must not arm a gate no shell can
+    answer: `require_shell_secret` is computed (`CAREER_SHELL=1`), never
+    env-set (S11)."""
+    from app.desktop import shell_token
+    from app.main import create_app
+
+    monkeypatch.delenv("CAREER_SHELL", raising=False)
+    monkeypatch.setenv("CAREER_REQUIRE_SHELL_SECRET", "1")
+    monkeypatch.setattr(settings, "identity_mode", "desktop")
+    monkeypatch.setattr(settings, "auth_mode", "")
+    shell_token.reset()
+    try:
+        application = create_app()
+        assert application.state.auth.config.require_shell_secret is False
+        client = CleanJarClient(transport=ASGITransport(app=application), base_url="http://test")
+        me = await client.get("/api/v1/auth/me")
+        assert me.status_code != 403, "an env flag must never arm the gate alone"
     finally:
         shell_token.reset()
 
