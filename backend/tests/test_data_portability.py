@@ -181,6 +181,39 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     assert rows == [("hello",)]
 
 
+def test_restore_migrates_the_restored_db(tmp_path, monkeypatch):
+    """F12 — restore is a declared ops action that migrates (D6 exception):
+    the swapped-in database is brought to head before the instance serves
+    it again (study's restore semantics)."""
+    from app import backups
+    from app.core.config import settings
+
+    data_dir = tmp_path
+    db_path = data_dir / "app.db"
+    # An "older release" database: valid SQLite, schema never migrated.
+    old_db = data_dir / "old-release.db"
+    sqlite3.connect(old_db).close()
+    archive = data_dir / "backup-old.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("app.db", old_db.read_bytes())
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
+
+    summary = backups.restore_backup(data_dir, archive)
+    assert summary["db"] is True
+
+    connection = sqlite3.connect(db_path)
+    try:
+        version = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+    finally:
+        connection.close()
+    assert version is not None, "restore must migrate the restored DB (F12)"
+    assert User.__tablename__ in tables
+
+
 def test_backup_prune_keeps_daily_and_weekly(tmp_path, monkeypatch):
     from datetime import datetime, timedelta
 

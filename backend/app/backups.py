@@ -193,7 +193,12 @@ def verify_or_repair_database(data_dir: Path) -> str:
 
 
 def restore_backup(data_dir: Path, archive: Path) -> dict:
-    """Replace the live db/uploads/keys with an archive's contents."""
+    """Replace the live db/uploads/keys with an archive's contents.
+
+    The swapped-in database is migrated to head before this returns —
+    restore is the declared D6 exception (reference-architecture §4): an
+    ops action that migrates, exactly like study's restore API (audit F12).
+    """
     restored = {"db": False, "uploads": 0, "keys": False, "secret": False}
     with zipfile.ZipFile(archive) as bundle:
         names = bundle.namelist()
@@ -222,4 +227,10 @@ def restore_backup(data_dir: Path, archive: Path) -> dict:
             if name.startswith("uploads/") and not name.endswith("/"):
                 bundle.extract(name, data_dir)
                 restored["uploads"] += 1
+    if restored["db"]:
+        # The one sanctioned runtime migration site (F12) — declared to
+        # the C3 gate; every other migration stays entrypoint/CLI-owned.
+        from app.local import run_migrations  # gate-allow: run_migrations (F12 restore)
+
+        run_migrations()  # gate-allow: run_migrations (F12 restore)
     return restored
