@@ -13,7 +13,13 @@ config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers=False`: migrations run IN-PROCESS
+    # (app/local.py run_migrations at startup, the F12 backup restore) and
+    # the stock template's fileConfig() default disables every logger that
+    # already exists — silently muting all app logging for the rest of the
+    # process (e.g. the §11 disarmed-gate warning). Alembic's own loggers
+    # still pick up the ini config.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
