@@ -13,11 +13,13 @@ and order-free.
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 
 import pytest
-from playwright.sync_api import Page
+from playwright.sync_api import APIResponse, Page
 
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8111")
 API = f"{BASE_URL}/api/v1"
@@ -139,25 +141,60 @@ def authed_context(context, e2e_session_cookies):
     return context
 
 
-def reset_workspace(page: Page) -> None:
+def _cleanup_request(
+    call: Callable[[], APIResponse], *, best_effort: bool
+) -> APIResponse | None:
+    """Run one workspace-cleanup request, retrying once on a dropped
+    connection (the documented plan-20 teardown flake:
+    `APIRequestContext.get: read ECONNRESET`). In best-effort mode a
+    request that still fails is swallowed — cleanup must never fail a
+    spec that already passed; strict mode re-raises after the retry."""
+    for attempt in (0, 1):
+        try:  # noqa: PERF203 — the retry loop lives here on purpose
+            return call()
+        except Exception:  # noqa: BLE001 — Playwright surfaces every transport failure as Error
+            if attempt == 0:
+                time.sleep(0.25)
+                continue
+            if not best_effort:
+                raise
+            return None
+    return None
+
+
+def reset_workspace(page: Page, *, best_effort: bool = False) -> None:
     """Delete every workspace artifact (CVs, synth variants, chat
     sessions, experience entries, pending HITL cards) so each spec
-    starts pristine."""
+    starts pristine.
+
+    The pre-test pass is strict (a spec that cannot start pristine must
+    say so instead of asserting against leftovers); the post-test pass is
+    pure cleanup and best-effort."""
     for path, key in _COLLECTIONS:
-        response = page.request.get(f"{API}{path}", headers=api_headers())
-        if not response.ok:
+        response = _cleanup_request(
+            lambda path=path: page.request.get(f"{API}{path}", headers=api_headers()),
+            best_effort=best_effort,
+        )
+        if response is None or not response.ok:
             continue
         payload = response.json()
         rows = payload[key] if key else payload
         for row in rows:
-            page.request.delete(f"{API}{path}/{row['id']}", headers=api_headers())
+            _cleanup_request(
+                lambda path=path, row=row: page.request.delete(
+                    f"{API}{path}/{row['id']}", headers=api_headers()
+                ),
+                best_effort=best_effort,
+            )
 
 
 @pytest.fixture(autouse=True)
 def clean_workspace(page: Page, authed_context):
     reset_workspace(page)
     yield
-    reset_workspace(page)
+    # Teardown is pure cleanup: a connection the server dropped mid-run
+    # must never fail a spec whose body already passed (plan 20 flake).
+    reset_workspace(page, best_effort=True)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
