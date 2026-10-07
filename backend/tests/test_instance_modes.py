@@ -5,12 +5,15 @@ flip immunity, `local-boot`/`demo` token rejection, the desktop exchange
 endpoint (open desktop only) and the per-boot shell-secret request gate.
 """
 
+from pathlib import Path
+
 import pytest
+from fastapi import FastAPI
 from httpx import ASGITransport
 from nx_auth.instance import initialize_instance
 
 from app.auth.stores import CareerInstanceStore
-from app.core.config import settings
+from app.core.config import Settings
 from app.core.database import AuthSessionLocal
 from tests.conftest import CleanJarClient, session_headers
 
@@ -23,6 +26,26 @@ pytestmark = pytest.mark.contract
 
 def _store() -> CareerInstanceStore:
     return CareerInstanceStore(AuthSessionLocal)
+
+
+def _boot_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **overrides: object) -> FastAPI:
+    """Build an app from an explicit, properly-typed Settings — the family
+    DI pattern (`create_app(settings=…)`, mirroring study's
+    test_identity_core): `identity_mode="desktop"` is parsed to
+    `IdentityMode.DESKTOP` by the Settings validator at construction, so
+    no raw string is ever monkeypatched into the module-level singleton.
+    `create_app` swaps `app.main.settings` for the DI'd object;
+    monkeypatch restores the singleton afterwards."""
+    import app.main as main_module
+
+    application_settings = Settings(
+        config_dir=tmp_path / "config",
+        data_dir=tmp_path,
+        spa_dist=str(tmp_path / "no-spa"),
+        **overrides,  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(main_module, "settings", application_settings)
+    return main_module.create_app(settings=application_settings)
 
 
 # ------------------------------------------------------------ initialization
@@ -140,19 +163,18 @@ async def test_exchange_absent_on_server_entrypoint(client):
 
 
 @pytest.fixture
-def desktop_factory(monkeypatch):
+def desktop_factory(monkeypatch, tmp_path):
     """Build desktop-mode apps (identity_mode=desktop + CAREER_SHELL=1,
     the shell.py attachment flag ⇒ shell secret + DIM exchange). Returns
     make(auth_mode_env) → (app, client, secret)."""
     from app.desktop import shell_token
-    from app.main import create_app
 
-    monkeypatch.setattr(settings, "identity_mode", "desktop")
     monkeypatch.setenv("CAREER_SHELL", "1")
 
     def make(auth_mode_env: str = "") -> tuple:
-        monkeypatch.setattr(settings, "auth_mode", auth_mode_env)
-        application = create_app()
+        application = _boot_app(
+            monkeypatch, tmp_path, identity_mode="desktop", auth_mode=auth_mode_env
+        )
         secret = shell_token.current()
         assert secret
         client = CleanJarClient(transport=ASGITransport(app=application), base_url="http://test")
@@ -260,22 +282,23 @@ async def test_shell_secret_gates_every_api_request(desktop_factory):
     assert (await client.get("/health")).status_code == 200
 
 
-async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch, caplog):
+async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch, caplog, tmp_path):
     """ADR-0023: desktop identity WITHOUT an attached shell (`run-dev.sh`:
     uvicorn + vite — no CAREER_SHELL=1, no `?shell=` carrier) must not arm
     the §11 gate, or the dev SPA could never authenticate — and must say
     so loudly (S11)."""
     from app.desktop import shell_token
-    from app.main import create_app
 
     monkeypatch.delenv("CAREER_SHELL", raising=False)
     monkeypatch.delenv("CAREER_REQUIRE_SHELL_SECRET", raising=False)
-    monkeypatch.setattr(settings, "identity_mode", "desktop")
-    monkeypatch.setattr(settings, "auth_mode", "")
     shell_token.reset()
     try:
         with caplog.at_level("WARNING"):
-            application = create_app()
+            application = _boot_app(monkeypatch, tmp_path, identity_mode="desktop")
+        # Prove the desktop identity actually reached the kit config: on a
+        # server identity the disarmed-gate asserts below would pass for
+        # the wrong reason (a server never arms the §11 gate at all).
+        assert application.state.auth.config.identity_mode == "desktop"
         assert application.state.auth.config.require_shell_secret is False
         assert any(
             "X-Shell-Token gate is DISARMED" in record.getMessage() for record in caplog.records
@@ -289,20 +312,19 @@ async def test_shell_less_desktop_dev_leaves_the_gate_open(monkeypatch, caplog):
         shell_token.reset()
 
 
-async def test_env_require_shell_secret_never_arms_the_gate(monkeypatch):
+async def test_env_require_shell_secret_never_arms_the_gate(monkeypatch, tmp_path):
     """`CAREER_REQUIRE_SHELL_SECRET=1` must not arm a gate no shell can
     answer: `require_shell_secret` is computed (`CAREER_SHELL=1`), never
     env-set (S11)."""
     from app.desktop import shell_token
-    from app.main import create_app
 
     monkeypatch.delenv("CAREER_SHELL", raising=False)
     monkeypatch.setenv("CAREER_REQUIRE_SHELL_SECRET", "1")
-    monkeypatch.setattr(settings, "identity_mode", "desktop")
-    monkeypatch.setattr(settings, "auth_mode", "")
     shell_token.reset()
     try:
-        application = create_app()
+        application = _boot_app(monkeypatch, tmp_path, identity_mode="desktop")
+        # Desktop identity proven (same wrong-reason guard as above).
+        assert application.state.auth.config.identity_mode == "desktop"
         assert application.state.auth.config.require_shell_secret is False
         client = CleanJarClient(transport=ASGITransport(app=application), base_url="http://test")
         me = await client.get("/api/v1/auth/me")
