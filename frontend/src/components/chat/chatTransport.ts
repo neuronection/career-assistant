@@ -63,11 +63,12 @@ export interface CareerChatTransport extends ChatStreamTransport {
 }
 
 /**
- * App-side adapter (family): maps career's SSE stream (legacy
- * status/delta/meta/done + family flow events) onto the library's
- * `ChatStreamEvent` vocabulary for `useChatStream`. Career's accumulated
- * deltas are diffed into incremental chunks; a mutable intent routes
- * `send` to the edit/regenerate endpoints (branching).
+ * App-side adapter (family): maps career's SSE stream (family flow
+ * events, `ai-features` §5) onto the library's `ChatStreamEvent`
+ * vocabulary for `useChatStream`; payload events (`builder_state`,
+ * `proposal`, `preview`) bypass the mapping into their stores. Career's
+ * accumulated deltas are diffed into incremental chunks; a mutable
+ * intent routes `send` to the edit/regenerate endpoints (branching).
  */
 export function createChatTransport(deps: ChatTransportDeps): CareerChatTransport {
   let onEvent: ((event: ChatStreamEvent) => void) | null = null;

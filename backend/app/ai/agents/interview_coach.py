@@ -416,8 +416,9 @@ async def interview_turn_events(
 ) -> AsyncIterator[tuple[str, dict]]:
     """Run one practice turn, yielding (event, payload) pairs.
 
-    Event vocabulary matches the chat SSE contract plus a terminal
-    `interview_state` (progress + status the UI re-syncs from).
+    Event vocabulary IS the chat SSE contract (ai-features §5 family
+    flow events + `delta`/`meta`); the turn state persists onto the
+    assistant message metadata.
     """
     from app.services.chat_service import ChatService
     from app.services.interview_service import InterviewService
@@ -527,7 +528,6 @@ async def interview_turn_events(
         },
     )
     yield "meta", {"message_id": str(message_row.id)}
-    yield "interview_state", state
     yield (
         "flow_finished",
         {

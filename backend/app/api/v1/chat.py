@@ -169,14 +169,16 @@ async def _interview_session(session, db):
 
 
 async def _run_turn_stream(session, history, content, user_message_id, user, db):
-    """Shared generation stream: family flow events + legacy contract,
-    persisted under `user_message_id` (send, edit-branch, regenerate).
+    """Shared generation stream: the family chat vocabulary
+    (ai-features §5 flow events + `delta`) with career's payload
+    events (`meta`/`proposal`/`builder_state`/`preview`), persisted
+    under `user_message_id` (send, edit-branch, regenerate).
 
     Sessions bound to a CV (`context.surface == "cv_builder"`)
     run the builder copilot loop instead of the generic chat flow — same
     endpoint, same SSE contract, plus a terminal `builder_state` event.
     Interview-bound sessions (`context.surface == "interview"`)
-    run the practice turn the same way, plus a terminal `interview_state`.
+    run the practice turn the same way.
     """
     interview = await _interview_session(session, db)
     if interview is not None:
@@ -341,7 +343,9 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             deps.emit(END_SENTINEL, {})
 
     async def events():
-        """Consumer: drain the graph emitter into SSE (legacy contract)."""
+        """Consumer: drain the graph emitter into SSE (the family
+        vocabulary is the wire contract — unknown events are ignored
+        additively by the client)."""
 
         async def _persist_abort() -> None:
             # Client aborted (stop button) or the stream self-cancelled:
@@ -431,7 +435,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
 
 
 async def _builder_stream_response(cv, session, history, content, user_message_id, user, db):
-    """Stream one builder copilot turn (legacy bound sessions AND the
+    """Stream one builder copilot turn (CV-bound sessions AND the
     plan-78 on-demand handoff share this path)."""
     from app.ai.agents.cv_builder_chat import builder_turn_events
 

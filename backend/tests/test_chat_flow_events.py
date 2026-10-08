@@ -1,8 +1,9 @@
-"""Chat SSE stream: family event vocabulary alongside legacy names.
+"""Chat SSE stream: the family event vocabulary IS the contract.
 
-additive only: legacy `status` stays first, legacy `done`
-stays last, `delta` is already the family name. The byte-identical parity
-tripwire in test_chat_streaming.py still guards the legacy contract.
+Emitted names stay inside the family core (ai-features §5:
+`flow_started`/`node_*`/`tool_call`/`delta`/`flow_finished`/`flow_failed`)
+plus career's documented payload events (`meta`, `proposal`,
+`builder_state`, `preview`) — anything else on the wire fails here.
 """
 
 import json
@@ -49,10 +50,24 @@ async def test_stream_emits_the_family_vocabulary(
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
 
-    # Legacy contract intact (parity with test_chat_streaming).
+    # Family vocabulary: flow_started opens the turn, flow_finished closes it.
     assert names[0] == "flow_started"
     assert names[-1] == "flow_finished"
     assert "delta" in names
+
+    # Vocabulary wall (plan 24 V1): the main-chat stream emits family
+    # core + career payload events only — no legacy names return.
+    assert set(names) <= {
+        "flow_started",
+        "node_started",
+        "node_finished",
+        "tool_call",
+        "delta",
+        "meta",
+        "proposal",
+        "flow_finished",
+        "flow_failed",
+    }
 
     # Family vocabulary present and well-ordered.
     assert "flow_started" in names

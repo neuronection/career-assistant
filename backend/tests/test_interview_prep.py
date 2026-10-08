@@ -318,11 +318,17 @@ async def test_practice_turn_stream_persists_rubric(
     assert names[0] == "flow_started"
     assert names[-1] == "flow_finished"
     assert "delta" in names
-    assert "interview_state" in names
-    state = dict(events)["interview_state"]
-    assert state["answered"] == 1
-    assert state["total"] == len(started["plan"])
-    assert state["status"] == "active"
+    # Vocabulary wall (plan 24 V1): the interview surface emits family
+    # core + `meta` only — no surface-specific event names.
+    assert set(names) <= {
+        "flow_started",
+        "node_started",
+        "node_finished",
+        "delta",
+        "meta",
+        "flow_finished",
+        "flow_failed",
+    }
 
     detail = (
         await client.get(

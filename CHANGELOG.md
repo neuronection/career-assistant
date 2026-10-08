@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (plan 24 V1)
+- **Chat SSE vocabulary audit (one family chat vocabulary):** every
+  emitted event name across both emitter patterns (`_sse(...)` literals
+  in `api/v1/chat.py`, `deps.emit(...)` in `ai/graphs/chat_turn.py`,
+  plus the interview-coach and CV-builder generators) audited against
+  the frontend consumers — the stream is family-native
+  (`flow_started`/`node_*`/`tool_call`/`delta`/`flow_finished`/
+  `flow_failed` + career payload events `meta`/`proposal`/
+  `builder_state`/`preview`). The one unconsumed event,
+  `interview_state` on the interview practice stream (no parser arm,
+  nothing read it), is deleted — the turn state stays persisted on the
+  assistant message metadata. Tests now pin the vocabulary wall
+  (emitted names ⊆ family core + payload events); stale "legacy
+  contract" docstrings in `api/v1/chat.py`, the flow-events test
+  module, and the frontend transport adapter now state the family
+  contract.
+
 ### Changed (plan 20 Phases 5–7)
 - **uv + pyproject packaging family-wide:** workspace root + uv.lock +
   backend pyproject (hatchling, dev group, extras `pdf`/`desktop`/
