@@ -19,11 +19,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH" \
-# Declared deferral (plan 23 D3 triage): SPA_DIST is a dead env var — the
-# code reads CAREER_SPA_DIST (env_prefix); the name fix is a deploy-
-# behavior change outside plan 23's scope, tracked as a follow-up.
-# gate-allow: SPA_DIST
-    SPA_DIST=/app/frontend/dist \
+    CAREER_SPA_DIST=/app/frontend/dist \
     CAREER_APP_ENV=production \
     CAREER_API_HOST=0.0.0.0
 
