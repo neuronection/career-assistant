@@ -13,7 +13,6 @@ from httpx import ASGITransport
 from nx_auth.instance import initialize_instance
 
 from app.auth.stores import CareerInstanceStore
-from app.core.config import Settings
 from app.core.database import AuthSessionLocal
 from tests.conftest import CleanJarClient, session_headers
 
@@ -37,12 +36,14 @@ def _boot_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **overrides: obje
     `create_app` swaps `app.main.settings` for the DI'd object;
     monkeypatch restores the singleton afterwards."""
     import app.main as main_module
+    from tests.settings_factory import settings_from_env_file
 
-    application_settings = Settings(
+    application_settings = settings_from_env_file(
+        None,
         config_dir=tmp_path / "config",
         data_dir=tmp_path,
         spa_dist=str(tmp_path / "no-spa"),
-        **overrides,  # type: ignore[arg-type]
+        **overrides,
     )
     monkeypatch.setattr(main_module, "settings", application_settings)
     return main_module.create_app(settings=application_settings)

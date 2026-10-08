@@ -29,13 +29,13 @@ _KNOB_ENV = (
 
 
 def _settings_from_env_text(monkeypatch, tmp_path, text: str):
-    from app.core.config import Settings
+    from tests.settings_factory import settings_from_env_file
 
     env_file = tmp_path / ".env"
     env_file.write_text(text)
     for var in _KNOB_ENV:
         monkeypatch.delenv(var, raising=False)
-    return Settings(_env_file=str(env_file))
+    return settings_from_env_file(str(env_file))
 
 
 async def test_sec16_matrix_reaches_kit_config_from_dotenv(monkeypatch, tmp_path):
@@ -83,10 +83,10 @@ async def test_sec16_env_beats_dotenv_file(monkeypatch, tmp_path):
     fresh = _settings_from_env_text(monkeypatch, tmp_path, "CAREER_AUTH_LOCKOUT_THRESHOLD=3\n")
     assert fresh.auth_lockout_threshold == 3, "file value resolves"
 
-    from app.core.config import Settings
+    from tests.settings_factory import settings_from_env_file
 
     monkeypatch.setenv("CAREER_AUTH_LOCKOUT_THRESHOLD", "9")
-    os_wins = Settings(_env_file=str(tmp_path / ".env"))
+    os_wins = settings_from_env_file(str(tmp_path / ".env"))
     assert os_wins.auth_lockout_threshold == 9, "environment beats the file"
 
 
@@ -158,9 +158,9 @@ async def test_sec16_matrix_reaches_kit_config_from_os_environ(monkeypatch):
     monkeypatch.setenv("CAREER_AUTH_ACCESS_TTL_MINUTES", "25")
     monkeypatch.setenv("CAREER_TRUSTED_PROXY_COUNT", "1")
 
-    from app.core.config import Settings
+    from tests.settings_factory import settings_from_env_file
 
-    fresh = Settings(_env_file=None)
+    fresh = settings_from_env_file(None)
 
     app = FastAPI()
     install_module.install_identity(app, fresh)

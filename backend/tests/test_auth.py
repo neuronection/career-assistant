@@ -113,12 +113,12 @@ async def test_registration_env_var_reaches_the_register_route(monkeypatch):
     from fastapi import FastAPI
 
     import app.auth.install as install_module
-    from app.core.config import Settings
+    from tests.settings_factory import settings_from_env_file
 
     monkeypatch.setenv("CAREER_REGISTRATION_ENABLED", "false")
 
     app = FastAPI()
-    install_module.install_identity(app, Settings())
+    install_module.install_identity(app, settings_from_env_file(None))
     assert app.state.auth.config.registration_enabled is False
 
     transport = httpx.ASGITransport(app=app)
@@ -137,14 +137,14 @@ async def test_registration_flag_reads_the_dotenv_file_too(monkeypatch, tmp_path
     from fastapi import FastAPI
 
     import app.auth.install as install_module
-    from app.core.config import Settings
+    from tests.settings_factory import settings_from_env_file
 
     env_file = tmp_path / ".env"
     env_file.write_text("CAREER_REGISTRATION_ENABLED=false\n")
     monkeypatch.delenv("CAREER_REGISTRATION_ENABLED", raising=False)
 
     app = FastAPI()
-    install_module.install_identity(app, Settings(_env_file=str(env_file)))
+    install_module.install_identity(app, settings_from_env_file(str(env_file)))
     assert app.state.auth.config.registration_enabled is False
 
 
