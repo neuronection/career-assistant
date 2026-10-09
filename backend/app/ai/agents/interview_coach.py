@@ -19,6 +19,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
+from app.ai.flow_events import delta_event, flow_started_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import (
     StructuredStream,
     ainvoke_structured,
@@ -429,7 +431,7 @@ async def interview_turn_events(
         {"id": "feedback", "label": "coaching the answer"},
         {"id": "record", "label": "recording the rubric"},
     ]
-    yield "flow_started", {"flow": "interview", "steps": steps}
+    yield sse_pair(flow_started_event(flow="interview", steps=steps))
 
     yield "node_started", {"id": "ground", "label": steps[0]["label"]}
     plan_items = list(interview.plan or [])
@@ -471,7 +473,7 @@ async def interview_turn_events(
     ):
         partial = partial_answer_text("".join(stream._raw))
         if len(partial) > sent:
-            yield "delta", {"text": partial[sent:]}
+            yield sse_pair(delta_event(partial[sent:]))
             sent = len(partial)
     if stream.reply is None:
         raise DomainError(stream.error or "AI produced no coaching")

@@ -31,6 +31,8 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.flow_events import delta_event, tool_call_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import (
     RunRef,
     StructuredStream,
@@ -256,16 +258,17 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
     # as completed.
     for index, tool in enumerate(tools):
         deps.emit(
-            "tool_call",
-            {
-                "id": f"{tool.get('name', 'tool')}-{index}",
-                "name": tool.get("name", "tool"),
-                "title": tool.get("title", tool.get("name", "tool")),
-                "status": "done",
-                "args": tool.get("args_summary", ""),
-                "result": tool.get("result_summary", ""),
-                "duration_ms": tool.get("duration_ms"),
-            },
+            *sse_pair(
+                tool_call_event(
+                    id=f"{tool.get('name', 'tool')}-{index}",
+                    name=tool.get("name", "tool"),
+                    title=tool.get("title", tool.get("name", "tool")),
+                    status="done",
+                    args=tool.get("args_summary", ""),
+                    result=tool.get("result_summary", ""),
+                    duration_ms=tool.get("duration_ms"),
+                )
+            )
         )
     return {
         "prompt": prompt,
@@ -327,16 +330,17 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
         new_tools = metadata_tools[len(old_metadata.get("tools", [])) :]
         for offset, tool in enumerate(new_tools):
             deps.emit(
-                "tool_call",
-                {
-                    "id": f"{tool.get('name', 'tool')}-fallback-{offset}",
-                    "name": tool.get("name", "tool"),
-                    "title": tool.get("title", tool.get("name", "tool")),
-                    "status": tool.get("status", "done"),
-                    "args": tool.get("args_summary", ""),
-                    "result": tool.get("result_summary", ""),
-                    "duration_ms": tool.get("duration_ms"),
-                },
+                *sse_pair(
+                    tool_call_event(
+                        id=f"{tool.get('name', 'tool')}-fallback-{offset}",
+                        name=tool.get("name", "tool"),
+                        title=tool.get("title", tool.get("name", "tool")),
+                        status=tool.get("status", "done"),
+                        args=tool.get("args_summary", ""),
+                        result=tool.get("result_summary", ""),
+                        duration_ms=tool.get("duration_ms"),
+                    )
+                )
             )
         tool_metadata = dict(old_metadata)
         tool_metadata["tools"] = metadata_tools
@@ -449,16 +453,17 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                                 },
                             )
         deps.emit(
-            "tool_call",
-            {
-                "id": f"{call['name']}-{deps.run_id.hex[:6]}-{executed}",
-                "name": call["name"],
-                "title": TOOL_TITLES.get(call["name"], call["name"]),
-                "status": "done",
-                "args": args_digest,
-                "result": result_digest,
-                "duration_ms": duration_ms,
-            },
+            *sse_pair(
+                tool_call_event(
+                    id=f"{call['name']}-{deps.run_id.hex[:6]}-{executed}",
+                    name=call["name"],
+                    title=TOOL_TITLES.get(call["name"], call["name"]),
+                    status="done",
+                    args=args_digest,
+                    result=result_digest,
+                    duration_ms=duration_ms,
+                )
+            )
         )
         metadata_tools.append(
             {
@@ -553,7 +558,7 @@ async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
             if not deps.generating:
                 deps.generating = True
                 deps.generate_started = _open_generate(deps)
-            deps.emit("delta", {"text": partial[sent:]})
+            deps.emit(*sse_pair(delta_event(partial[sent:])))
             sent = len(partial)
     if stream.reply is None:
         # Salvage: the streamed answer text reached the UI; a broken

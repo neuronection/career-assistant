@@ -11,6 +11,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import quick_assist
+from app.ai.flow_events import flow_failed_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import partial_answer_text
 from app.core.database import get_db
 from app.core.errors import (
@@ -198,8 +200,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
                     yield _sse(event, payload)
             except DomainError as exc:
                 yield _sse(
-                    "flow_failed",
-                    {"code": "ai_unavailable", "message": str(exc), "retryable": True},
+                    *sse_pair(flow_failed_event(True, code="ai_unavailable", message=str(exc)))
                 )
 
         return StreamingResponse(
@@ -305,22 +306,12 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             # Uniform chat error display: stable code + the settings
             # affordance in the SPA (family ADR-0014).
             detail = sanitize_error_detail(str(exc))
-            deps.emit(
-                "flow_failed",
-                {
-                    "code": "ai_not_configured",
-                    "message": detail,
-                    "retryable": True,
-                },
-            )
+            deps.emit(*sse_pair(flow_failed_event(True, code="ai_not_configured", message=detail)))
             await _persist_turn_failure("ai_not_configured", detail)
         except DomainError as exc:
             code = "ai_not_configured" if "not configured" in str(exc) else "ai_unavailable"
             detail = sanitize_error_detail(str(exc))
-            deps.emit(
-                "flow_failed",
-                {"code": code, "message": detail, "retryable": True},
-            )
+            deps.emit(*sse_pair(flow_failed_event(True, code=code, message=detail)))
             await _persist_turn_failure(code, detail)
         except Exception as exc:
             if is_cancellation(exc):
@@ -330,14 +321,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             else:
                 logger.exception("chat turn failed (session=%s)", session.id)
                 detail = sanitize_error_detail(f"AI error: {exc}")
-                deps.emit(
-                    "flow_failed",
-                    {
-                        "code": "ai_error",
-                        "message": detail,
-                        "retryable": True,
-                    },
-                )
+                deps.emit(*sse_pair(flow_failed_event(True, code="ai_error", message=detail)))
                 await _persist_turn_failure("ai_error", detail)
         finally:
             deps.emit(END_SENTINEL, {})
@@ -452,10 +436,7 @@ async def _builder_stream_response(cv, session, history, content, user_message_i
             ):
                 yield _sse(event, payload)
         except DomainError as exc:
-            yield _sse(
-                "flow_failed",
-                {"code": "ai_unavailable", "message": str(exc), "retryable": True},
-            )
+            yield _sse(*sse_pair(flow_failed_event(True, code="ai_unavailable", message=str(exc))))
 
     return StreamingResponse(
         builder_events(),

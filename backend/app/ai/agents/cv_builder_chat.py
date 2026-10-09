@@ -29,6 +29,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
+from app.ai.flow_events import delta_event, flow_failed_event, flow_started_event, tool_call_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import StructuredStream, partial_answer_text, register_mock_fixture
 from app.core.errors import DomainError, NotFoundError, ValidationError
 from app.models.enums import AITaskType, CvVersionCreator
@@ -232,41 +234,37 @@ def _cap(value, limit: int = _PROP_CAP):
     return value
 
 
-def _tool_event(tools: list[dict], **spec) -> dict:
+def _tool_event(tools: list[dict], **spec) -> tuple[str, dict]:
     """One tool_call: the SSE payload plus the persisted-trace entry.
 
     The SSE payload keys are snake_case (`duration_ms`) — the transport
     reads them as sent. Summaries are serialized-safe strings capped so
-    the persisted metadata stays small.
+    the persisted metadata stays small. The wire payload comes from the
+    vendored family builder (plan 25 A3); ``sse_pair`` lifts the event
+    name onto the SSE ``event:`` line.
     """
-    event_id = spec["id"]
-    name = spec["name"]
-    title = spec["title"]
-    status = spec["status"]
-    args = spec["args"]
-    result = spec["result"]
-    start_ms = spec["start_ms"]
-    duration_ms = spec.get("duration_ms")
     tools.append(
         {
-            "name": name,
-            "title": title,
-            "status": status,
-            "args_summary": args[:TRACE_SUMMARY_CAP],
-            "result_summary": result[:TRACE_SUMMARY_CAP],
-            "start_ms": start_ms,
-            "duration_ms": duration_ms,
+            "name": spec["name"],
+            "title": spec["title"],
+            "status": spec["status"],
+            "args_summary": spec["args"][:TRACE_SUMMARY_CAP],
+            "result_summary": spec["result"][:TRACE_SUMMARY_CAP],
+            "start_ms": spec["start_ms"],
+            "duration_ms": spec.get("duration_ms"),
         }
     )
-    return {
-        "id": event_id,
-        "name": name,
-        "title": title,
-        "status": status,
-        "args": args,
-        "result": result,
-        "duration_ms": duration_ms,
-    }
+    return sse_pair(
+        tool_call_event(
+            id=spec["id"],
+            name=spec["name"],
+            title=spec["title"],
+            status=spec["status"],
+            args=spec["args"],
+            result=spec["result"],
+            duration_ms=spec.get("duration_ms"),
+        )
+    )
 
 
 def _context_selection_context(cv, resolution, resolved_sources=None) -> dict:
@@ -1248,7 +1246,7 @@ async def builder_turn_events(
         {"id": "apply", "label": "applying changes"},
         {"id": "review", "label": "reviewing the preview"},
     ]
-    yield "flow_started", {"flow": "cv_builder", "steps": steps}
+    yield sse_pair(flow_started_event(flow="cv_builder", steps=steps))
 
     tools_trace: list[dict] = []
     nodes_trace: list[dict] = []
@@ -1292,41 +1290,35 @@ async def builder_turn_events(
             },
         )
         metrics = digest.get("metrics") or {}
-        yield (
-            "tool_call",
-            _tool_event(
-                tools_trace,
-                id="cv-read-state",
-                name="cv_read_state",
-                title=OP_TITLES["read_state"],
-                status="done",
-                args="templates, blocks, sources, metrics, lint",
-                result=(
-                    f"{len(digest.get('blocks') or [])} blocks · "
-                    f"{len(digest.get('sources') or {})} sources · "
-                    f"{metrics.get('estimated_pages')} page(s)"
-                ),
-                start_ms=ground["start_ms"] if ground else 0,
-                duration_ms=ground["duration_ms"] if ground else 0,
+        yield _tool_event(
+            tools_trace,
+            id="cv-read-state",
+            name="cv_read_state",
+            title=OP_TITLES["read_state"],
+            status="done",
+            args="templates, blocks, sources, metrics, lint",
+            result=(
+                f"{len(digest.get('blocks') or [])} blocks · "
+                f"{len(digest.get('sources') or {})} sources · "
+                f"{metrics.get('estimated_pages')} page(s)"
             ),
+            start_ms=ground["start_ms"] if ground else 0,
+            duration_ms=ground["duration_ms"] if ground else 0,
         )
         previews = await _template_previews(db, digest, message, user_id)
         if previews is not None:
             for entry in previews["entries"]:
                 yield "preview", entry
-            yield (
-                "tool_call",
-                _tool_event(
-                    tools_trace,
-                    id="template-previews",
-                    name="template_previews",
-                    title="Comparing template previews",
-                    status="done",
-                    args=f"{len(previews['entries'])} first-page render(s)",
-                    result=" · ".join(entry["title"] for entry in previews["entries"]),
-                    start_ms=int((time.monotonic() - turn_started) * 1000),
-                    duration_ms=previews["render_ms"],
-                ),
+            yield _tool_event(
+                tools_trace,
+                id="template-previews",
+                name="template_previews",
+                title="Comparing template previews",
+                status="done",
+                args=f"{len(previews['entries'])} first-page render(s)",
+                result=" · ".join(entry["title"] for entry in previews["entries"]),
+                start_ms=int((time.monotonic() - turn_started) * 1000),
+                duration_ms=previews["render_ms"],
             )
         for round_index in range(MAX_REFINE_ROUNDS):
             label = steps[1]["label"] if round_index == 0 else "refining changes"
@@ -1367,7 +1359,7 @@ async def builder_turn_events(
             ):
                 partial = partial_answer_text("".join(stream._raw))
                 if len(partial) > sent:
-                    yield "delta", {"text": partial[sent:]}
+                    yield sse_pair(delta_event(partial[sent:]))
                     sent = len(partial)
             if stream.reply is None:
                 raise DomainError(stream.error or "AI produced no valid plan")
@@ -1399,19 +1391,16 @@ async def builder_turn_events(
                         await db.refresh(session)
                     except Exception:
                         pass
-                yield (
-                    "tool_call",
-                    _tool_event(
-                        tools_trace,
-                        id=f"cv-{op.op}-{round_index}-{op_index}",
-                        name=f"cv_{op.op}",
-                        title=OP_TITLES.get(op.op, op.op),
-                        status="done" if result.ok else "failed",
-                        args=json.dumps(_op_args(op))[:TRACE_SUMMARY_CAP],
-                        result=result.detail,
-                        start_ms=int((started - turn_started) * 1000),
-                        duration_ms=int((time.monotonic() - started) * 1000),
-                    ),
+                yield _tool_event(
+                    tools_trace,
+                    id=f"cv-{op.op}-{round_index}-{op_index}",
+                    name=f"cv_{op.op}",
+                    title=OP_TITLES.get(op.op, op.op),
+                    status="done" if result.ok else "failed",
+                    args=json.dumps(_op_args(op))[:TRACE_SUMMARY_CAP],
+                    result=result.detail,
+                    start_ms=int((started - turn_started) * 1000),
+                    duration_ms=int((time.monotonic() - started) * 1000),
                 )
             apply = _note_node("apply")
             yield (
@@ -1436,19 +1425,16 @@ async def builder_turn_events(
                 lint=digest.get("lint") or {},
                 rendered=digest.get("rendered") or [],
             )
-            yield (
-                "tool_call",
-                _tool_event(
-                    tools_trace,
-                    id=f"cv-visual_review-{round_index}",
-                    name="cv_review_visual",
-                    title=OP_TITLES["visual_review"],
-                    status="done",
-                    args="rendered page screenshots",
-                    result=critique.summary if critique is not None else critique_note,
-                    start_ms=int((review_started - turn_started) * 1000),
-                    duration_ms=int((time.monotonic() - review_started) * 1000),
-                ),
+            yield _tool_event(
+                tools_trace,
+                id=f"cv-visual_review-{round_index}",
+                name="cv_review_visual",
+                title=OP_TITLES["visual_review"],
+                status="done",
+                args="rendered page screenshots",
+                result=critique.summary if critique is not None else critique_note,
+                start_ms=int((review_started - turn_started) * 1000),
+                duration_ms=int((time.monotonic() - review_started) * 1000),
             )
             review = _note_node("review")
             yield (
@@ -1536,7 +1522,7 @@ async def builder_turn_events(
                 with contextlib.suppress(Exception):
                     await db.refresh(session)
         code = "ai_unavailable" if "not configured" in str(exc).lower() else "ai_error"
-        yield "flow_failed", {"code": code, "message": str(exc), "retryable": True}
+        yield sse_pair(flow_failed_event(True, code=code, message=str(exc)))
 
 
 # ---------------------------------------------------------- mock fixture
