@@ -22,9 +22,8 @@ from app.core.errors import (
 )
 from app.middleware import (
     ProfileBindingMiddleware,
-    RateLimitMiddleware,
-    SecurityHeadersMiddleware,
     SpaStaticFiles,
+    mount_rate_limiting,
 )
 
 logger = logging.getLogger(__name__)
@@ -139,8 +138,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    application.add_middleware(RateLimitMiddleware)
-    application.add_middleware(SecurityHeadersMiddleware)
+    # Kit limiter + security headers (plan 21): same registration order
+    # as the product-local middlewares they replaced — headers wrap the
+    # limiter so a 429 still carries the hardened header set.
+    mount_rate_limiting(application)
 
     # §15 binding runs INSIDE session enforcement: the auth kit mounts
     # after this line, so its middleware wraps the binding one and the

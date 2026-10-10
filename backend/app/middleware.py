@@ -1,18 +1,26 @@
 """ASGI middleware for the career app (plan 20 Phase 4 split).
 
-Security headers (web/desktop CSP variants incl. the `?shell=` marker),
-per-IP sliding-window rate limiting, the X-Profile-Id ownership binding
-(identity-auth §15) and the SPA static fallback. `create_app` registers
-them in order — profile binding before the auth kit so session
-enforcement stays outermost.
+Rate limiting and security headers are the kit's (plan 21): one family
+limiter (`nx_auth.ratelimit` — in-memory counter, frozen buckets) and
+one `SecurityHeadersMiddleware` (`nx_auth.headers`) with career's
+policy; career owns only the bucket routing, the Settings-backed
+ceilings and the per-boot shell marker. The X-Profile-Id ownership
+binding (identity-auth §15) and the SPA static fallback stay local.
+`create_app` registers them in order — profile binding before the auth
+kit so session enforcement stays outermost.
 """
 
 import json
-from urllib.parse import parse_qs
+from typing import Any
 
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.datastructures import MutableHeaders
+from nx_auth.headers import HeaderPolicy, SecurityHeadersMiddleware, desktop_csp, web_csp
+from nx_auth.ratelimit import (
+    InMemoryCounter,
+    RateLimitPolicy,
+    client_ip,
+    mount_rate_limit,
+)
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
@@ -23,89 +31,81 @@ from app.core.profile_context import (
     set_active_user,
 )
 
-_X_CONTENT_TYPE = ("x-content-type-options", "nosniff")
-_X_FRAME = ("x-frame-options", "DENY")
-_REFERRER = ("referrer-policy", "strict-origin-when-cross-origin")
-_CSP_BODY = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
-    " script-src {script}; connect-src 'self'; font-src 'self' data:; object-src 'none';"
-    " frame-ancestors 'none'; base-uri 'self'"
+
+def ratelimit_ceiling(bucket: str) -> int:
+    """§16 ceiling for a family bucket, Settings-routed (D5): the
+    `<P>_RATELIMIT_*` fields (requests/minute; 0 disables the bucket)
+    resolve per request, so `.env` and OS env behave identically."""
+    return int(getattr(settings, f"ratelimit_{bucket.lower()}"))
+
+
+#: Career's mounted limiter state (plan 21): the in-memory counter is
+#: the single-process topology this product ships as; the policy is the
+#: app-wide singleton the gateway/MCP/tool throttles share with the
+#: middleware (one counter, one degrade-open rule).
+RATE_LIMIT_POLICY = RateLimitPolicy(
+    ceiling=ratelimit_ceiling,
+    enabled=lambda: settings.ratelimit_enabled,
+    counter=InMemoryCounter(),
+    trusted_proxy_count=settings.trusted_proxy_count,
 )
-# Web deployment: no eval, no inline scripts.
-WEB_CSP = _CSP_BODY.format(script="'self'")
-# Desktop shell only: pywebview's evaluate_js (the bridge push and
-# the toast-activation focus) runs through the page JS context, and
-# WebKitGTK/WebView2 apply the page CSP to it. Gated per request by the
-# per-boot shell token (app.desktop.shell_token) — browsers never see it.
-DESKTOP_CSP = _CSP_BODY.format(script="'self' 'unsafe-eval'")
+
+#: Career's header policy (D4): the family CSP template — web strict,
+#: desktop variant ONLY under the valid per-boot `?shell=` marker.
+HEADER_POLICY = HeaderPolicy(web_csp=web_csp(), desktop_csp=desktop_csp())
 
 
-class SecurityHeadersMiddleware:
-    """Attach hardened response headers to every HTTP response."""
+def client_identity(scope: dict[str, Any]) -> str:
+    """Client key for per-IP limits — trusted hops only (§7/§16).
 
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        from app.desktop.shell_token import QUERY_PARAM, matches
-
-        desktop_request = matches(
-            parse_qs(scope.get("query_string", b"").decode("latin-1")).get(QUERY_PARAM, [None])[0]
-        )
-        csp = DESKTOP_CSP if desktop_request else WEB_CSP
-        headers = (
-            _X_CONTENT_TYPE,
-            _X_FRAME,
-            _REFERRER,
-            ("content-security-policy", csp),
-        )
-
-        async def send_with_headers(message):
-            if message["type"] == "http.response.start":
-                response_headers = MutableHeaders(scope=message)
-                for name, value in headers:
-                    response_headers.append(name, value)
-            await send(message)
-
-        await self.app(scope, receive, send_with_headers)
+    `CAREER_TRUSTED_PROXY_COUNT` (default 0) says how many rightmost
+    `X-Forwarded-For` hops are believed; a client-supplied header is
+    trusted only as far as the proxy chain is explicitly trusted — with
+    0 no forwarded hop is used and the direct socket address keys the
+    bucket (set 1 behind the bundled nginx/Caddy). Same semantics as
+    the auth-kit's `nx_auth.ratelimit.client_ip`.
+    """
+    client = scope.get("client")
+    headers = scope.get("headers") or []
+    parsed = {k.decode().lower(): v.decode() for k, v in headers}
+    return client_ip(
+        client[0] if client else None,
+        parsed.get("x-forwarded-for", ""),
+        settings.trusted_proxy_count,
+    )
 
 
-class RateLimitMiddleware:
-    """Per-IP sliding-window limits on the API (see app.core.ratelimit)."""
+#: Login-shaped endpoints ride the AUTH bucket (career's rule; the
+#: kit's own auth limiters stay layered on top for the flows it owns).
+_AUTH_BUCKET_SUFFIXES = ("/auth/login", "/auth/register", "/admin/instance", "/me/password")
 
-    def __init__(self, app):
-        self.app = app
 
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or not settings.ratelimit_enabled:
-            await self.app(scope, receive, send)
-            return
-        path = scope.get("path", "")
-        if not path.startswith("/api/"):
-            await self.app(scope, receive, send)
-            return
-        from app.core.ratelimit import client_identity, limiter
+def api_bucket_for(scope: dict[str, Any]) -> str | None:
+    """Route an API request to its family bucket (None = untouched)."""
+    path = scope.get("path", "")
+    if not path.startswith("/api/"):
+        return None
+    if path.endswith(_AUTH_BUCKET_SUFFIXES):
+        return "AUTH"
+    return "DEFAULT"
 
-        identity = client_identity(scope)
-        bucket = (
-            "auth"
-            if path.endswith(("/auth/login", "/auth/register", "/admin/instance", "/me/password"))
-            else "default"
-        )
-        retry_after = limiter.check(bucket, identity)
-        if retry_after is not None:
-            response = JSONResponse(
-                status_code=429,
-                content={"detail": "Too many requests"},
-                headers={"Retry-After": str(retry_after)},
-            )
-            await response(scope, receive, send)
-            return
-        await self.app(scope, receive, send)
+
+def mount_rate_limiting(application) -> None:
+    """Mount the kit limiter + security headers (plan 21 adoption)."""
+    mount_rate_limit(application, policy=RATE_LIMIT_POLICY, bucket_for=api_bucket_for)
+    application.add_middleware(
+        SecurityHeadersMiddleware,
+        policy=HEADER_POLICY,
+        desktop_marker=_shell_marker,
+    )
+
+
+def _shell_marker(value: str | None) -> bool:
+    """The per-boot `?shell=` token (desktop CSP variant gating only —
+    the X-Shell-Token request gate is the kit's §11 middleware)."""
+    from app.desktop.shell_token import matches
+
+    return matches(value)
 
 
 # Profile-independent surfaces (identity-auth §15) — they must work

@@ -119,16 +119,33 @@ shared `neuronection-auth-kit` package is the implementation:
 
 ## Rate limiting
 
-`app/core/ratelimit.py` implements a sliding-window limiter with buckets:
-`auth`, `auth_email`, `ai`, `mcp`, `default`. Limits are configurable
-(`CAREER_RATELIMIT_AUTH`, `CAREER_RATELIMIT_AUTH_EMAIL`,
-`CAREER_RATELIMIT_AI`, `CAREER_RATELIMIT_MCP`, `CAREER_RATELIMIT_DEFAULT`;
-the unprefixed legacy names still work) and can be disabled with
-`CAREER_RATELIMIT_ENABLED=false` (dev/test only). Note the gateway's
-per-user AI limiter is keyed on the `ai` bucket, not on the enable flag.
-Client identity trusts only explicitly forwarded hops
-(`CAREER_TRUSTED_PROXY_COUNT`, default 0 — set 1 behind a reverse proxy;
-the kit's auth limiters use the same knob).
+The kit's family limiter (`nx_auth.ratelimit`, plan 21) with career's
+buckets: `AUTH`, `AUTH_EMAIL`, `AI`, `MCP`, `DEFAULT` (frozen family
+set; `AUTH`/`AUTH_EMAIL` also feed the kit's auth limiters). The
+in-memory counter matches this product's single-process topology —
+scaling out means moving to the kit's Redis counter. Limits are
+configurable per minute (`CAREER_RATELIMIT_AUTH`,
+`CAREER_RATELIMIT_AUTH_EMAIL`, `CAREER_RATELIMIT_AI`,
+`CAREER_RATELIMIT_MCP`, `CAREER_RATELIMIT_DEFAULT`; `0` disables a
+bucket) and everything stops with `CAREER_RATELIMIT_ENABLED=false`
+(dev/test only — the counter degrades open on backend failure by
+family rule). Note the gateway's per-user AI limiter is keyed on the
+`AI` bucket ceiling, not on the enable flag. Client identity trusts
+only explicitly forwarded hops (`CAREER_TRUSTED_PROXY_COUNT`, default 0
+— set 1 behind a reverse proxy; the kit's auth limiters use the same
+knob). Ceilings are read per request from Settings, so `.env` and OS
+env behave identically (plan 20 B2).
+
+## Security headers
+
+The kit's `SecurityHeadersMiddleware` (`nx_auth.headers`, plan 21) with
+career's policy: `nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin` on every response,
+plus the family CSP — web strict (`script-src 'self'`); the desktop
+shell document (loaded with the per-boot `?shell=` token) gets the
+variant adding `'unsafe-eval'` for the pywebview bridge. Browsers never
+see the token; web deployments keep the strict CSP. HSTS stays at the
+nginx layer (ADR-0005).
 
 ## Production boot guards
 

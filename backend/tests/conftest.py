@@ -265,9 +265,10 @@ async def clean_db(clean_identity) -> AsyncGenerator:
     snapshot (bridge commits invisible → stale assertions). Truncate
     before the test and run sessions in short (autocommit) transactions.
     """
-    from app.core.ratelimit import limiter
+    from app.middleware import RATE_LIMIT_POLICY
 
-    limiter.reset()
+    # Plan 21: the kit counter is the app-wide limiter state.
+    RATE_LIMIT_POLICY.counter.clear()
     if IS_SQLITE:
         async with _engine.connect() as conn:
             await _truncate_all(conn)

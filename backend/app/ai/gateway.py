@@ -436,9 +436,13 @@ async def ainvoke_structured[T: BaseModel](
 
     if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
-        from app.core.ratelimit import limiter
+        from app.middleware import RATE_LIMIT_POLICY
 
-        retry_after = limiter.check("ai", f"user:{user_id}")
+        # Raw keyed window (plan 21): the gateway limiter keys on the AI
+        # ceiling alone — RATelimit_ENABLED gates only the middleware.
+        retry_after = await RATE_LIMIT_POLICY.hit(
+            f"ai:user:{user_id}", limit=settings.ratelimit_ai
+        )
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -636,9 +640,13 @@ async def ainvoke_agent(
 
     if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
-        from app.core.ratelimit import limiter
+        from app.middleware import RATE_LIMIT_POLICY
 
-        retry_after = limiter.check("ai", f"user:{user_id}")
+        # Raw keyed window (plan 21): the gateway limiter keys on the AI
+        # ceiling alone — RATelimit_ENABLED gates only the middleware.
+        retry_after = await RATE_LIMIT_POLICY.hit(
+            f"ai:user:{user_id}", limit=settings.ratelimit_ai
+        )
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -842,9 +850,12 @@ class StructuredStream:
 
         if user_id is not None and settings.ratelimit_ai > 0:
             from app.core.errors import DomainError
-            from app.core.ratelimit import limiter
+            from app.middleware import RATE_LIMIT_POLICY
 
-            retry_after = limiter.check("ai", f"user:{user_id}")
+            # Raw keyed window (plan 21): keyed on the AI ceiling alone.
+            retry_after = await RATE_LIMIT_POLICY.hit(
+                f"ai:user:{user_id}", limit=settings.ratelimit_ai
+            )
             if retry_after is not None:
                 raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -1047,9 +1058,13 @@ async def embed_texts(
 
     if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
-        from app.core.ratelimit import limiter
+        from app.middleware import RATE_LIMIT_POLICY
 
-        retry_after = limiter.check("ai", f"user:{user_id}")
+        # Raw keyed window (plan 21): the gateway limiter keys on the AI
+        # ceiling alone — RATelimit_ENABLED gates only the middleware.
+        retry_after = await RATE_LIMIT_POLICY.hit(
+            f"ai:user:{user_id}", limit=settings.ratelimit_ai
+        )
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -1143,9 +1158,13 @@ async def transcribe_audio(
 
     if user_id is not None and settings.ratelimit_ai > 0:
         from app.core.errors import DomainError
-        from app.core.ratelimit import limiter
+        from app.middleware import RATE_LIMIT_POLICY
 
-        retry_after = limiter.check("ai", f"user:{user_id}")
+        # Raw keyed window (plan 21): the gateway limiter keys on the AI
+        # ceiling alone — RATelimit_ENABLED gates only the middleware.
+        retry_after = await RATE_LIMIT_POLICY.hit(
+            f"ai:user:{user_id}", limit=settings.ratelimit_ai
+        )
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 

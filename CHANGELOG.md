@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (plan 21)
+- **Rate limiting + security headers move to the auth-kit (v0.4.0,
+  same-commit delete):** `app/core/ratelimit.py`, the product-local
+  `RateLimitMiddleware`/`SecurityHeadersMiddleware` and the local web-tool
+  sliding window are gone — one family limiter (`nx_auth.ratelimit`,
+  in-memory counter, frozen five-bucket set) and one
+  `SecurityHeadersMiddleware` (`nx_auth.headers`) mount with career's
+  policy: Settings-routed `<P>_RATELIMIT_*` ceilings (read per request),
+  career's bucket routing (login-shaped endpoints → AUTH, other API →
+  DEFAULT), byte-identical CSP strings, and the per-boot `?shell=` marker
+  still gating the desktop `'unsafe-eval'` variant. The gateway/MCP/web-tool
+  throttles keep their exact semantics (keyed on their own ceilings, not
+  `RATELIMIT_ENABLED`) on the shared counter via the kit's `hit` primitive.
+  No behavior change on existing routes; `test_sec16_env.py` now pins the
+  rate-limit knobs end-to-end and the R/H matrix rows carry contract marks
+  (§18.19–22).
+
 ### Changed (plan 24 V1)
 - **Chat SSE vocabulary audit (one family chat vocabulary):** every
   emitted event name across both emitter patterns (`_sse(...)` literals

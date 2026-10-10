@@ -26,11 +26,12 @@ def _no_dns(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _clean_rate_hits():
-    from app.ai.tools.web import _rate_hits
+    """Isolate the web tools' spend on the shared kit counter (plan 21)."""
+    from app.middleware import RATE_LIMIT_POLICY
 
-    _rate_hits.clear()
+    RATE_LIMIT_POLICY.counter.clear()
     yield
-    _rate_hits.clear()
+    RATE_LIMIT_POLICY.counter.clear()
 
 
 @pytest.fixture

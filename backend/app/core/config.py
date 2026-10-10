@@ -173,7 +173,8 @@ class Settings(BaseSettings):
     # an empty list means built-ins only (in_app, desktop, browser).
     notification_channels_allowlist: list[str] = []
 
-    # Rate limiting (in-process sliding window; see app/core/ratelimit.py).
+    # Rate limiting (the kit's family limiter over the in-memory
+    # counter — plan 21; see docs/dev/security.md "Rate limiting").
     # Units: requests per minute. 0 disables a bucket (§16 names).
     ratelimit_enabled: bool = True
     ratelimit_auth: int = 10

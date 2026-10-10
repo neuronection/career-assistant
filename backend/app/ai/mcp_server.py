@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.core.ratelimit import limiter
+from app.middleware import RATE_LIMIT_POLICY
 
 
 class MCPTokenStore:
@@ -175,7 +175,11 @@ def _mcp_rate_limit_middleware(asgi_app):
             await asgi_app(scope, receive, send)
             return
         client = scope.get("client") or ("unknown", 0)
-        retry_after = limiter.check("mcp", str(client[0]))
+        # Raw keyed window (plan 21): the MCP gate keys on its own
+        # ceiling (ratelimit_mcp), independent of the middleware's flag.
+        retry_after = await RATE_LIMIT_POLICY.hit(
+            f"mcp:{client[0]}", limit=settings.ratelimit_mcp
+        )
         if retry_after is not None:
             body = json.dumps({"detail": f"rate limited; retry in {retry_after}s"}).encode()
             await send(

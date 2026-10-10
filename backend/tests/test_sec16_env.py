@@ -8,6 +8,9 @@ values land in the installed kit config and the app rate limiter. OS
 environment variables still win over the file.
 """
 
+import asyncio
+
+import pytest
 from fastapi import FastAPI
 
 _KNOB_ENV = (
@@ -90,10 +93,12 @@ async def test_sec16_env_beats_dotenv_file(monkeypatch, tmp_path):
     assert os_wins.auth_lockout_threshold == 9, "environment beats the file"
 
 
+@pytest.mark.contract  # §18.22 — <P>_RATELIMIT_* ceilings routable from .env (R7/D5)
 async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
-    """`CAREER_RATELIMIT_*` per-bucket ceilings reach the app limiter."""
+    """`CAREER_RATELIMIT_*` per-bucket ceilings reach the mounted kit
+    limiter (plan 21: Settings-routed ceilings, checked per request)."""
     from app.core.config import settings as global_settings
-    from app.core.ratelimit import SlidingWindowRateLimiter
+    from app.middleware import ratelimit_ceiling
 
     fresh = _settings_from_env_text(
         monkeypatch,
@@ -117,22 +122,47 @@ async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
     monkeypatch.setattr(global_settings, "ratelimit_default", fresh.ratelimit_default)
     monkeypatch.setattr(global_settings, "ratelimit_enabled", fresh.ratelimit_enabled)
 
-    limiter = SlidingWindowRateLimiter()
-    assert limiter._limits("auth") == (7, 60)
-    assert limiter._limits("auth_email") == (11, 60)
-    assert limiter._limits("ai") == (13, 60)
-    assert limiter._limits("mcp") == (17, 60)
-    assert limiter._limits("default") == (19, 60)
+    # The policy's ceiling callable resolves the Settings fields live.
+    assert ratelimit_ceiling("AUTH") == 7
+    assert ratelimit_ceiling("AUTH_EMAIL") == 11
+    assert ratelimit_ceiling("AI") == 13
+    assert ratelimit_ceiling("MCP") == 17
+    assert ratelimit_ceiling("DEFAULT") == 19
     assert fresh.ratelimit_enabled is False
     # §16 names resolve through the kit knob map.
     assert fresh.ratelimit_auth == 7
     assert fresh.ratelimit_ai == 13
 
+    # End-to-end over the mounted policy: 7 allowed, the 8th refused —
+    # .env-only ceilings are enforced (R7).
+    from app.middleware import RATE_LIMIT_POLICY
 
+    import threading
+
+    monkeypatch.setattr(global_settings, "ratelimit_enabled", True)
+    monkeypatch.setattr(global_settings, "ratelimit_default", 7)
+
+    def _tick() -> int | None:
+        outcome: dict[str, int | None] = {}
+
+        def _run() -> None:
+            outcome["retry"] = asyncio.run(RATE_LIMIT_POLICY.check("DEFAULT", "1.2.3.4"))
+
+        worker = threading.Thread(target=_run)
+        worker.start()
+        worker.join(timeout=10)
+        return outcome["retry"]
+
+    for _ in range(7):
+        assert _tick() is None
+    assert _tick() is not None
+
+
+@pytest.mark.contract  # §18.19 — trusted-proxy identity reaches the limiter (R2/R3)
 async def test_sec16_trusted_proxy_count_reaches_kit_and_client_identity(monkeypatch, tmp_path):
     import app.auth.install as install_module
     from app.core.config import settings as global_settings
-    from app.core.ratelimit import client_identity
+    from app.middleware import client_identity
 
     fresh = _settings_from_env_text(monkeypatch, tmp_path, "CAREER_TRUSTED_PROXY_COUNT=1\n")
     monkeypatch.setattr(global_settings, "trusted_proxy_count", fresh.trusted_proxy_count)
