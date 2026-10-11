@@ -440,9 +440,7 @@ async def ainvoke_structured[T: BaseModel](
 
         # Raw keyed window (plan 21): the gateway limiter keys on the AI
         # ceiling alone — RATelimit_ENABLED gates only the middleware.
-        retry_after = await RATE_LIMIT_POLICY.hit(
-            f"ai:user:{user_id}", limit=settings.ratelimit_ai
-        )
+        retry_after = await RATE_LIMIT_POLICY.hit(f"ai:user:{user_id}", limit=settings.ratelimit_ai)
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -644,9 +642,7 @@ async def ainvoke_agent(
 
         # Raw keyed window (plan 21): the gateway limiter keys on the AI
         # ceiling alone — RATelimit_ENABLED gates only the middleware.
-        retry_after = await RATE_LIMIT_POLICY.hit(
-            f"ai:user:{user_id}", limit=settings.ratelimit_ai
-        )
+        retry_after = await RATE_LIMIT_POLICY.hit(f"ai:user:{user_id}", limit=settings.ratelimit_ai)
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -1062,9 +1058,7 @@ async def embed_texts(
 
         # Raw keyed window (plan 21): the gateway limiter keys on the AI
         # ceiling alone — RATelimit_ENABLED gates only the middleware.
-        retry_after = await RATE_LIMIT_POLICY.hit(
-            f"ai:user:{user_id}", limit=settings.ratelimit_ai
-        )
+        retry_after = await RATE_LIMIT_POLICY.hit(f"ai:user:{user_id}", limit=settings.ratelimit_ai)
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
@@ -1162,9 +1156,7 @@ async def transcribe_audio(
 
         # Raw keyed window (plan 21): the gateway limiter keys on the AI
         # ceiling alone — RATelimit_ENABLED gates only the middleware.
-        retry_after = await RATE_LIMIT_POLICY.hit(
-            f"ai:user:{user_id}", limit=settings.ratelimit_ai
-        )
+        retry_after = await RATE_LIMIT_POLICY.hit(f"ai:user:{user_id}", limit=settings.ratelimit_ai)
         if retry_after is not None:
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 

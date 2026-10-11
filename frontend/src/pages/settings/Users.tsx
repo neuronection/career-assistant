@@ -34,6 +34,9 @@ export function Users() {
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<unknown>(null);
   const [authMode, setAuthMode] = useState<string>("authenticated");
+  // §4.5 (S14): a server entrypoint can never go open — the control
+  // needs the entrypoint mode to block "Remove login" up front.
+  const [serverIdentity, setServerIdentity] = useState(false);
   const [instanceError, setInstanceError] = useState<unknown>(null);
 
   const load = useCallback(async () => {
@@ -46,7 +49,9 @@ export function Users() {
       setLoading(false);
     }
     try {
-      setAuthMode((await getInstanceConfig()).auth_mode);
+      const config = await getInstanceConfig();
+      setAuthMode(config.auth_mode);
+      setServerIdentity(config.identity_mode === "server");
       setInstanceError(null);
     } catch (error) {
       setInstanceError(error);
@@ -117,6 +122,7 @@ export function Users() {
     <div data-testid="settings-users" className="space-y-6">
       <InstanceModeControl
         mode={authMode === "open" ? "open" : "authenticated"}
+        serverIdentity={serverIdentity}
         otherUserCount={Math.max(0, users.length - 1)}
         loading={loading}
         error={instanceError === null ? null : t("instance.errorGeneric")}

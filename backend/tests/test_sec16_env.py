@@ -135,9 +135,9 @@ async def test_sec16_ratelimit_bounded_from_dotenv(monkeypatch, tmp_path):
 
     # End-to-end over the mounted policy: 7 allowed, the 8th refused —
     # .env-only ceilings are enforced (R7).
-    from app.middleware import RATE_LIMIT_POLICY
-
     import threading
+
+    from app.middleware import RATE_LIMIT_POLICY
 
     monkeypatch.setattr(global_settings, "ratelimit_enabled", True)
     monkeypatch.setattr(global_settings, "ratelimit_default", 7)

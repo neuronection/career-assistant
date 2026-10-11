@@ -27,6 +27,7 @@ const mockedInstance = vi.mocked(instanceApi);
 const DEMO_CONFIG: instanceApi.InstanceConfig = {
   demo_mode: true,
   auth_mode: "authenticated",
+  identity_mode: "server",
   registration_enabled: false,
 };
 

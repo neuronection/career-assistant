@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (plan 20 S14 residual)
+- **The §4.5 control now knows the entrypoint mode:** the public
+  `GET /api/v1/instance/config` reports `identity_mode`, and the
+  settings Users page passes `serverIdentity` to
+  `InstanceModeControl` — "Remove login" is blocked with the server
+  reason on server instances instead of being offered and failing at
+  the API. New browser e2e `e2e/test_instance_mode.py` (S14): the
+  blocked reason renders, the transition stays disabled even with a
+  filled form, and a direct API flip to `open` with the correct
+  password still gets the §4.4 403.
+
 ### Changed (plan 21)
 - **Rate limiting + security headers move to the auth-kit (v0.4.0,
   same-commit delete):** `app/core/ratelimit.py`, the product-local

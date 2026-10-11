@@ -177,9 +177,7 @@ def _mcp_rate_limit_middleware(asgi_app):
         client = scope.get("client") or ("unknown", 0)
         # Raw keyed window (plan 21): the MCP gate keys on its own
         # ceiling (ratelimit_mcp), independent of the middleware's flag.
-        retry_after = await RATE_LIMIT_POLICY.hit(
-            f"mcp:{client[0]}", limit=settings.ratelimit_mcp
-        )
+        retry_after = await RATE_LIMIT_POLICY.hit(f"mcp:{client[0]}", limit=settings.ratelimit_mcp)
         if retry_after is not None:
             body = json.dumps({"detail": f"rate limited; retry in {retry_after}s"}).encode()
             await send(
