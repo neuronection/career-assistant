@@ -7353,6 +7353,10 @@
             "title": "Demo Mode",
             "type": "boolean"
           },
+          "identity_mode": {
+            "title": "Identity Mode",
+            "type": "string"
+          },
           "registration_enabled": {
             "title": "Registration Enabled",
             "type": "boolean"
@@ -7361,7 +7365,8 @@
         "required": [
           "demo_mode",
           "auth_mode",
-          "registration_enabled"
+          "registration_enabled",
+          "identity_mode"
         ],
         "title": "InstanceConfigOut",
         "type": "object"
