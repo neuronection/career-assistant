@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (embeddings defaults wave — the embeddings slot gap-fills at setup, 2026-10-13)
+- **Embeddings defaults join the setup flow:** the canonical presets gain
+  `embeddings_model` (docs-verified: openai `text-embedding-3-small`,
+  gemini `gemini-embedding-2`, mistral `mistral-embed`, ollama
+  `nomic-embed-text` — pull-required; honest nulls elsewhere; the ids
+  join openai/gemini curated lists so catalog curation keeps them), and
+  setup gap-fills the EMPTY `embeddings` assignment from it —
+  `bind_embeddings` joins the options body (D14's binds + embeddings;
+  snake_case wire name), `assigned_embeddings_model` rides the outcome,
+  and the never-clobbers rule holds (a live binding survives re-setup;
+  `bind_embeddings: false` binds nothing). Contract matrix cases
+  21/21b pin the gap-fill both ways; OpenAPI contract regenerated.
+
 ### Added (plan 26 follow-up wave B — capability chips on the setup tiles, 2026-10-13)
 - **The preset grid is self-explanatory:** the setup wizard derives
   per-tile capability chips from the API preset data — chat type → Chat

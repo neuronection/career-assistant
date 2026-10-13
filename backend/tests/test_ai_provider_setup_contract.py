@@ -229,6 +229,81 @@ async def test_case_1_happy_path_gemini_maps_wire_type(
     assert calls[0][0] == "google"
 
 
+async def test_case_21_embeddings_default_gapfills_empty_slot(
+    db, monkeypatch: pytest.MonkeyPatch, auth_headers
+) -> None:
+    """§15 follow-up: the preset's docs-verified embeddings default
+    gap-fills the empty `embeddings` slot (`bind_embeddings`, empty slots
+    only — never a live binding)."""
+    user = await _current_user(db, auth_headers)
+    install_catalog(monkeypatch, wire_catalog(["gpt-5.6-terra", "text-embedding-3-small"]))
+    outcome = await byok_setup.setup_provider_from_preset(db, user, "openai", "sk-key")
+
+    assert outcome.assigned_embeddings_model == "text-embedding-3-small"
+    row = (
+        (
+            await db.execute(
+                select(AITaskAssignment).where(
+                    AITaskAssignment.task_type == "embeddings",
+                    AITaskAssignment.user_id == user.id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert row is not None and row.model_id is not None
+    embeddings_model = (
+        (await db.execute(select(AIModel).where(AIModel.id == row.model_id))).scalars().first()
+    )
+    assert embeddings_model is not None
+    assert embeddings_model.model_name == "text-embedding-3-small"
+    assert embeddings_model.caps == ["embeddings"]
+
+    # never clobbers: a live embeddings binding survives re-setup
+    other = AIModel(
+        provider_id=outcome.provider_id,
+        name="my-embed",
+        model_name="my-embed",
+        caps=["embeddings"],
+        is_active=True,
+    )
+    db.add(other)
+    await db.flush()
+    row.model_id = other.id
+    await db.commit()
+    outcome_two = await byok_setup.setup_provider_from_preset(db, user, "openai", "sk-key")
+    assert outcome_two.assigned_embeddings_model is None
+    await db.refresh(row)
+    assert row.model_id == other.id
+
+
+async def test_case_21b_bind_embeddings_off_binds_nothing(
+    db, monkeypatch: pytest.MonkeyPatch, auth_headers
+) -> None:
+    user = await _current_user(db, auth_headers)
+    install_catalog(monkeypatch, wire_catalog(["gpt-5.6-terra", "text-embedding-3-small"]))
+    options = byok_setup.SetupOptions(bind_embeddings=False)
+    outcome = await byok_setup.setup_provider_from_preset(
+        db, user, "openai", "sk-key", options=options
+    )
+
+    assert outcome.assigned_embeddings_model is None
+    row = (
+        (
+            await db.execute(
+                select(AITaskAssignment).where(
+                    AITaskAssignment.task_type == "embeddings",
+                    AITaskAssignment.user_id == user.id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert row is None or row.model_id is None
+
+
 async def test_case_1_happy_path_ollama_keyless(
     db, monkeypatch: pytest.MonkeyPatch, auth_headers
 ) -> None:

@@ -117,12 +117,13 @@ class AssignmentSet(BaseModel):
 
 
 class SetupOptionsIn(BaseModel):
-    """§15 options body (snake_case wire names, D14 five binds)."""
+    """§15 options body (snake_case wire names, D14 binds + embeddings)."""
 
     curated_ids: list[str] | None = Field(default=None, max_length=100)
     bind_chat: bool = True
     bind_vision: bool = True
     bind_stt: bool = True
+    bind_embeddings: bool = True
     bind_decision: bool = True
 
 
@@ -141,6 +142,7 @@ class SetupOut(BaseModel):
     assigned_chat_model: str | None = None
     assigned_vision_model: str | None = None
     assigned_stt_model: str | None = None
+    assigned_embeddings_model: str | None = None
     assigned_decision_slots: dict[str, str] | None = None
 
 

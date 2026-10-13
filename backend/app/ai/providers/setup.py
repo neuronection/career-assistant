@@ -54,6 +54,7 @@ class SetupOptions:
     bind_chat: bool = True
     bind_vision: bool = True
     bind_stt: bool = True
+    bind_embeddings: bool = True
     bind_decision: bool = True
 
 
@@ -65,6 +66,7 @@ class SetupOutcome:
     assigned_chat_model: str | None = None
     assigned_vision_model: str | None = None
     assigned_stt_model: str | None = None
+    assigned_embeddings_model: str | None = None
     assigned_decision_slots: dict[str, str] | None = None
 
 
@@ -353,6 +355,7 @@ async def setup_provider_from_preset(
     assigned_chat: str | None = None
     assigned_vision: str | None = None
     assigned_stt: str | None = None
+    assigned_embeddings: str | None = None
 
     preferred = preset["preferred_model"]
     preferred_model_id = preferred["id"] if preferred else None
@@ -432,6 +435,32 @@ async def setup_provider_from_preset(
                 db, stt_row, "stt", scope, user_id, provider, by_wire_id[stt_resolved_id]
             )
 
+    embeddings_model_id = preset["embeddings_model"]
+    embeddings_resolved_id = None
+    if embeddings_model_id:
+        embeddings_resolved_id = next(
+            (
+                item.model_name
+                for item in persist_catalog
+                if item.model_name == embeddings_model_id
+                or _match_curated(item.model_name, curated) == embeddings_model_id
+            ),
+            None,
+        )
+    if options.bind_embeddings and embeddings_resolved_id:
+        embeddings_row, embeddings_model = await _slot_alive(db, "embeddings", scope, user_id)
+        if embeddings_model is None:
+            assigned_embeddings = embeddings_resolved_id
+            await _bind_slot(
+                db,
+                embeddings_row,
+                "embeddings",
+                scope,
+                user_id,
+                provider,
+                by_wire_id[embeddings_resolved_id],
+            )
+
     decision_rows: dict[str, AIModel] = {}
     if decision_specs:
         decision_rows = await _upsert_decision_models(db, provider, decision_specs)
@@ -462,6 +491,7 @@ async def setup_provider_from_preset(
         assigned_chat_model=assigned_chat,
         assigned_vision_model=assigned_vision,
         assigned_stt_model=assigned_stt,
+        assigned_embeddings_model=assigned_embeddings,
         assigned_decision_slots=assigned_decision or None,
     )
 

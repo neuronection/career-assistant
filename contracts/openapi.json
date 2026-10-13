@@ -12714,7 +12714,7 @@
         "type": "object"
       },
       "SetupOptionsIn": {
-        "description": "\u00a715 options body (snake_case wire names, D14 five binds).",
+        "description": "\u00a715 options body (snake_case wire names, D14 binds + embeddings).",
         "properties": {
           "bind_chat": {
             "default": true,
@@ -12724,6 +12724,11 @@
           "bind_decision": {
             "default": true,
             "title": "Bind Decision",
+            "type": "boolean"
+          },
+          "bind_embeddings": {
+            "default": true,
+            "title": "Bind Embeddings",
             "type": "boolean"
           },
           "bind_stt": {
@@ -12781,6 +12786,17 @@
               }
             ],
             "title": "Assigned Decision Slots"
+          },
+          "assigned_embeddings_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Embeddings Model"
           },
           "assigned_stt_model": {
             "anyOf": [

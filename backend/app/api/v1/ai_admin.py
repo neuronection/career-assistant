@@ -289,6 +289,7 @@ async def setup_preset_provider(
             bind_chat=data.options.bind_chat,
             bind_vision=data.options.bind_vision,
             bind_stt=data.options.bind_stt,
+            bind_embeddings=data.options.bind_embeddings,
             bind_decision=data.options.bind_decision,
         )
     try:
@@ -328,6 +329,7 @@ async def setup_preset_provider(
         assigned_chat_model=outcome.assigned_chat_model,
         assigned_vision_model=outcome.assigned_vision_model,
         assigned_stt_model=outcome.assigned_stt_model,
+        assigned_embeddings_model=outcome.assigned_embeddings_model,
         assigned_decision_slots=outcome.assigned_decision_slots,
     )
 
