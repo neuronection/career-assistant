@@ -14,7 +14,7 @@
     "lint": "eslint src --ext ts,tsx"
   },
   "dependencies": {
-    "@neuronection/assistant-ui": "^0.54.0",
+    "@neuronection/assistant-ui": "^0.55.0",
     "axios": "^1.18.1",
     "clsx": "^2.0.0",
     "date-fns": "^4.4.0",

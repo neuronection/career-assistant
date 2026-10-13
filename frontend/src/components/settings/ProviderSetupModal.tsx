@@ -33,6 +33,35 @@ const DECISION_SLOT_TASK_TYPES: Record<string, string> = {
   "decision:score": "decision_score",
 };
 
+/**
+ * Capability chips for a preset tile (plan 26 §13.3 follow-up): derived
+ * from the API preset data — chat type → chat (+ vision where the
+ * preferred model carries it, + stt where stt_model exists),
+ * decision_models → decision, keyless-local → local. Labels via i18n.
+ */
+function chipsForPreset(
+  preset: aiApi.ProviderPreset,
+  t: (key: string) => string,
+): { key: string; label: string }[] {
+  const chips: { key: string; label: string }[] = [];
+  if (preset.type !== "decision") {
+    chips.push({ key: "chat", label: t("aiSettings.setup.chipChat") });
+    if (preset.preferred_model?.caps.includes("vision")) {
+      chips.push({ key: "vision", label: t("aiSettings.setup.chipVision") });
+    }
+    if (preset.stt_model) {
+      chips.push({ key: "stt", label: t("aiSettings.setup.chipStt") });
+    }
+  }
+  if (preset.decision_models && preset.decision_models.length > 0) {
+    chips.push({ key: "decision", label: t("aiSettings.setup.chipDecision") });
+  }
+  if (preset.local) {
+    chips.push({ key: "local", label: t("aiSettings.setup.chipLocal") });
+  }
+  return chips;
+}
+
 type Phase = "tiles" | "form" | "done";
 
 function ModalShell({
@@ -476,11 +505,11 @@ export function ProviderSetupModal({
     >
       {phase === "tiles" ? (
         <ProviderSetupTiles
-          presets={order.map((key) => ({
-            key,
-            name: presets[key]?.name ?? key,
-            local: presets[key]?.local ?? false,
-          }))}
+          presets={order.map((key) => {
+            const presetTile = presets[key];
+            if (!presetTile) return { key, name: key };
+            return { key, name: presetTile.name, chips: chipsForPreset(presetTile, t) };
+          })}
           configured={configuredKeys}
           onSelect={openForm}
           label={t("aiSettings.setup.title")}

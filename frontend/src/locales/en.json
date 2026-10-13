@@ -997,7 +997,12 @@
         "fillDecision": "Fill empty decision slots",
         "decisionNow": "{{count}} of 4 slots filled",
         "apply": "Apply setup"
-      }
+      },
+      "chipChat": "Chat",
+      "chipVision": "Vision",
+      "chipStt": "Speech-to-text",
+      "chipDecision": "Decision",
+      "chipLocal": "Local"
     },
     "firstRun": {
       "title": "Connect an AI provider",
