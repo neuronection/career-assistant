@@ -103,12 +103,12 @@ def infer_caps(model_name: str) -> list[str]:
 def transport_decision_caps(decision_transport: str | None) -> frozenset[str]:
     """Decision capabilities a transport declares (D2b sparse matrix).
 
-    ``systemone`` serves the four live slots; an unknown or missing
-    transport declares nothing (the resolver rejects it for slots).
+    Delegates to the decide layer's matrix — the single source both the
+    assignment guard and the resolver route by.
     """
-    if decision_transport == "systemone":
-        return frozenset({"tool-dispatch", "boolean-gate", "choice", "score"})
-    return frozenset()
+    from app.ai.decide.types import transport_decision_caps as _matrix
+
+    return frozenset(cap.value for cap in _matrix(decision_transport))
 
 
 def decision_capability_of_task(task_type: str) -> str | None:
