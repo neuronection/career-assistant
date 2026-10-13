@@ -37,6 +37,35 @@ export { ConnectionTestRow } from "@neuronection/assistant-ui";
 export { ModelRegistry } from "./ModelRegistry";
 export { AiButton } from "@neuronection/assistant-ui";
 export {
+  ProviderSetupManualTile,
+  ProviderSetupTiles,
+  type ProviderSetupTileData,
+  type ProviderSetupTilesProps,
+} from "./provider-setup-tiles";
+export {
+  ProviderSetupForm,
+  SETUP_ERROR_CODES,
+  type ProviderSetupFormError,
+  type ProviderSetupFormPreset,
+  type ProviderSetupFormProps,
+  type ProviderSetupFormValue,
+  type SetupErrorCode,
+} from "./provider-setup-form";
+export {
+  SetupReview,
+  type SetupReviewModel,
+  type SetupReviewOptions,
+  type SetupReviewOptionsKey,
+  type SetupReviewProps,
+  type SetupReviewSlot,
+} from "./setup-review";
+export { SwitchRow, type SwitchRowProps } from "./switch-row";
+export { ProviderLogo, type ProviderLogoProps } from "./provider-logo";
+export {
+  SetupFirstRunCard,
+  type SetupFirstRunCardProps,
+} from "./setup-first-run-card";
+export {
   FlowStatusCard,
   type FlowError,
   type FlowStatusCardProps,

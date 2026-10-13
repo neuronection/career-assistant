@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Bot } from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
 import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
-import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
+import { SegmentedTabs, SetupFirstRunCard, Spinner } from "@/components/ui";
 import { ProvidersTab } from "@/components/settings/ProvidersTab";
 import { ModelsTab } from "@/components/settings/ModelsTab";
 import { TasksTab } from "@/components/settings/TasksTab";
 import { WebSettingsTab } from "@/components/settings/WebSettingsTab";
 import { ProviderModal } from "@/components/settings/ProviderModal";
+import { ProviderSetupModal } from "@/components/settings/ProviderSetupModal";
+import { ReRunSetupDialog } from "@/components/settings/ReRunSetupDialog";
 
 type AITab = "providers" | "models" | "tasks" | "web";
 const TABS: AITab[] = ["providers", "models", "tasks", "web"];
@@ -31,6 +32,8 @@ export function AIConfig() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editProvider, setEditProvider] = useState<AIProvider | "new" | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [rerunProvider, setRerunProvider] = useState<AIProvider | null>(null);
 
   useEffect(() => {
     if (tabFromUrl && TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
@@ -104,8 +107,9 @@ export function AIConfig() {
           providers={providers}
           canManageGlobal={canManageGlobal}
           onChanged={() => void refresh()}
-          onAdd={() => setEditProvider("new")}
+          onAdd={() => setSetupOpen(true)}
           onEdit={(p) => setEditProvider(p)}
+          onRerunSetup={(p) => setRerunProvider(p)}
         />
       )}
       {activeTab === "models" && (
@@ -119,6 +123,29 @@ export function AIConfig() {
         <TasksTab canManageGlobal={canManageGlobal} onChanged={() => void refresh()} />
       )}
       {activeTab === "web" && user?.is_admin && <WebSettingsTab />}
+
+      {setupOpen && (
+        <ProviderSetupModal
+          canUseSystemScope={Boolean(user?.is_admin)}
+          configuredKeys={providers
+            .map((p) => p.preset_key)
+            .filter((key): key is string => Boolean(key))}
+          onClose={() => setSetupOpen(false)}
+          onManual={() => {
+            setSetupOpen(false);
+            setEditProvider("new");
+          }}
+          onSaved={() => void refresh()}
+        />
+      )}
+
+      {rerunProvider && (
+        <ReRunSetupDialog
+          provider={rerunProvider}
+          onClose={() => setRerunProvider(null)}
+          onApplied={() => void refresh()}
+        />
+      )}
 
       {editProvider && (
         <ProviderModal
@@ -134,11 +161,12 @@ export function AIConfig() {
       )}
 
       {providers.length === 0 && !loading && activeTab === "providers" && (
-        <EmptyState
-          icon={Bot}
-          compact
-          title={t("aiSettings.nothingTitle")}
-          description={t("aiSettings.nothingBody")}
+        <SetupFirstRunCard
+          title={t("aiSettings.firstRun.title")}
+          body={t("aiSettings.firstRun.body")}
+          setupLabel={t("aiSettings.firstRun.cta")}
+          onSetup={() => setSetupOpen(true)}
+          data-testid="ai-first-run"
         />
       )}
     </div>

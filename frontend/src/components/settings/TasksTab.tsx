@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Anchor,
   Briefcase,
+  Braces,
+  Check,
   Crosshair,
+  Database,
+  Eye,
   FileSearch,
+  Gauge,
   Globe,
   GraduationCap,
   ListChecks,
   Map as MapIcon,
   MessageSquare,
+  Mic,
   Network,
   Route,
   Sparkles,
   Target,
   User,
   UserSearch,
+  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import * as aiApi from "@/api/ai";
@@ -31,10 +37,10 @@ const STRINGS = {
   title: "aiSettings.tasks.title",
   global: "aiSettings.tasks.global",
   personal: "aiSettings.tasks.personal",
-  fallbackSection: "aiSettings.tasks.fallbackSection",
-  fallbackSectionHint: "aiSettings.tasks.fallbackSectionHint",
-  fallbackRow: "aiSettings.tasks.fallbackRow",
-  fallbackInfo: "aiSettings.tasks.fallbackInfo",
+  defaultsSection: "aiSettings.tasks.defaultModelsTitle",
+  defaultsSectionHint: "aiSettings.tasks.defaultModelsHint",
+  decisionSection: "aiSettings.tasks.decisionGroupTitle",
+  decisionSectionHint: "aiSettings.tasks.decisionGroupPrivacy",
   tasksSection: "aiSettings.tasks.tasksSection",
   tasksSectionHint: "aiSettings.tasks.tasksSectionHint",
   unassignedMeta: "aiSettings.tasks.unassignedMeta",
@@ -43,14 +49,19 @@ const STRINGS = {
   nonAdminNote: "aiSettings.tasks.nonAdminNote",
 };
 
-const TASK_LABEL_KEYS: Record<string, string> = {
-  profile_analyze: "aiSettings.taskLabel.profile_analyze",
-  job_generate: "aiSettings.taskLabel.job_generate",
-  relation_suggest: "aiSettings.taskLabel.relation_suggest",
-  match_score: "aiSettings.taskLabel.match_score",
-  university_parse: "aiSettings.taskLabel.university_parse",
-  chat: "aiSettings.taskLabel.chat",
-  assist: "aiSettings.taskLabel.assist",
+const SLOT_ICONS: Record<string, LucideIcon> = {
+  text: ListChecks,
+  vision: Eye,
+  stt: Mic,
+  tts: Volume2,
+  embeddings: Database,
+};
+
+const DECISION_ICONS: Record<string, LucideIcon> = {
+  decision_tool_dispatch: Braces,
+  decision_boolean_gate: Check,
+  decision_choice: ListChecks,
+  decision_score: Gauge,
 };
 
 const TASK_ICONS: Record<string, LucideIcon> = {
@@ -66,8 +77,30 @@ const TASK_ICONS: Record<string, LucideIcon> = {
   posting_map: MapIcon,
   posting_extract: FileSearch,
   target_resolve: Crosshair,
-  default: Anchor,
+  cv_ocr: Eye,
+  cv_parse: ListChecks,
+  cv_template_design: ListChecks,
+  cv_template_review: Eye,
+  cv_template_pick: ListChecks,
+  cv_build_review: Eye,
+  cv_suggest: ListChecks,
+  cv_cover_letter: ListChecks,
+  cv_builder_chat: ListChecks,
+  cv_draft: ListChecks,
+  cv_synth: ListChecks,
+  catalog_enrich: Database,
+  chat_title: MessageSquare,
+  chat_ops: MessageSquare,
+  autopilot_run: Braces,
+  transcribe: Mic,
+  interview_plan: ListChecks,
+  interview_turn: MessageSquare,
+  interview_debrief: ListChecks,
+  embed: Database,
+  mcp_tool_call: Braces,
 };
+
+const DECISION_TASK_PREFIX = "decision_";
 
 type Scope = "system" | "user";
 
@@ -76,9 +109,10 @@ interface TasksTabProps {
   onChanged: () => void;
 }
 
-/** Task → model assignments on the family TaskAssignmentPicker:
- * the `default` task type is the scope's fallback model (fallback-only row),
- * every other task type gets its own assignment row. */
+/** Task → model assignments on the family TaskAssignmentPicker, §15
+ * defaults-first: capability-slot defaults (text/vision/stt/tts/
+ * embeddings) lead, the Decision group (decision:* slots, primary) is
+ * second, concrete tasks follow — every row a per-task override. */
 export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
@@ -151,30 +185,49 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
     assignments.find((a) => a.task_type === taskType && a.is_active);
 
   const value: Record<string, string | null> = {};
-  const secondaryValue: Record<string, string | null> = {};
   for (const task of taskRows) {
     value[task.value] = assignmentFor(task.value)?.model_id ?? null;
   }
-  secondaryValue.default = value.default;
 
   const sections: TaskAssignmentSection[] = useMemo(() => {
-    const fallbackTask = taskRows.find((t) => t.value === "default");
-    const rest = taskRows.filter((t) => t.value !== "default");
+    const slots = taskRows.filter((t) => t.is_slot);
+    const decisionTasks = taskRows.filter(
+      (t) => !t.is_slot && t.value.startsWith(DECISION_TASK_PREFIX)
+    );
+    const rest = taskRows.filter(
+      (t) => !t.is_slot && !t.value.startsWith(DECISION_TASK_PREFIX)
+    );
     return [
       {
-        id: "fallback",
-        label: t(STRINGS.fallbackSection),
-        description: t(STRINGS.fallbackSectionHint),
-        tasks: fallbackTask
-          ? [
-              {
-                id: fallbackTask.value,
-                label: t(STRINGS.fallbackRow),
-                secondaryOnly: true,
-                icon: TASK_ICONS.default,
-              },
-            ]
-          : [],
+        id: "defaults",
+        label: t(STRINGS.defaultsSection),
+        description: t(STRINGS.defaultsSectionHint),
+        secondary: true,
+        tasks: slots.map((slot) => ({
+          id: slot.value,
+          label: t(`aiSettings.caps.${slot.value}`, { defaultValue: slot.label }),
+          requires: slot.value,
+          icon: SLOT_ICONS[slot.value],
+          secondaryOnly: true,
+        })),
+      },
+      {
+        id: "decision",
+        label: t(STRINGS.decisionSection),
+        description: t(STRINGS.decisionSectionHint),
+        secondary: true,
+        tasks: decisionTasks.map((task) => ({
+          id: task.value,
+          label: t(`aiSettings.decisionSlots.${task.value.slice(DECISION_TASK_PREFIX.length)}`, {
+            defaultValue: beautifyId(task.value.replace(/_/g, " ")),
+          }),
+          description: t(
+            `aiSettings.decisionSlots.${task.value.slice(DECISION_TASK_PREFIX.length)}Description`
+          ),
+          requires: "decision",
+          icon: DECISION_ICONS[task.value],
+          secondaryOnly: true,
+        })),
       },
       {
         id: "tasks",
@@ -182,7 +235,7 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
         description: t(STRINGS.tasksSectionHint),
         tasks: rest.map((task) => ({
           id: task.value,
-          label: t(TASK_LABEL_KEYS[task.value] ?? "", {
+          label: t(`aiSettings.taskLabel.${task.value}`, {
             defaultValue: beautifyId(task.value.replace(/_/g, " ")),
           }),
           description: task.description,
@@ -226,15 +279,16 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
         sections={sections}
         providers={catalog}
         value={value}
-        secondaryValue={secondaryValue}
         onAssign={(taskType, modelId) => void assign(taskType, modelId)}
-        onAssignSecondary={(taskType, modelId) => void assign(taskType, modelId)}
-        fallbackInfo={t(STRINGS.fallbackInfo)}
         clearLabel={t(STRINGS.clearLabel)}
         disabled={busy}
         renderMeta={(task) =>
           task.id !== "default" && !value[task.id] ? (
-            <p className="text-[11px] text-slate-400">{t(STRINGS.unassignedMeta)}</p>
+            <p className="text-[11px] text-slate-400">
+              {task.id.startsWith(DECISION_TASK_PREFIX)
+                ? t("aiSettings.tasks.decisionUnassignedMeta")
+                : t(STRINGS.unassignedMeta)}
+            </p>
           ) : null
         }
       />

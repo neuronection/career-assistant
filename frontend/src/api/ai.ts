@@ -7,26 +7,102 @@ export interface AIProvider {
   name: string;
   scope: "system" | "user";
   user_id: string | null;
-  provider_type: "mock" | "openai" | "openai_compatible" | "google";
+  provider_type: "mock" | "openai" | "openai_compatible" | "google" | "decision";
   api_base: string;
   api_key: string | null;
   is_active: boolean;
   is_local: boolean | null;
   country: string | null;
+  preset_key: string | null;
   is_mine: boolean;
   created_at: string;
+}
+
+export interface PreferredModel {
+  id: string;
+  name: string;
+  caps: string[];
+}
+
+export interface DecisionModelData {
+  id: string;
+  name: string;
+  transport: string;
+  base_url_override?: string;
+  caps: string[];
+  provisional?: boolean;
 }
 
 export interface ProviderPreset {
   name: string;
   type: string;
   base_url: string;
+  fixed_base?: boolean;
   local: boolean;
+  key_url?: string | null;
+  preferred_model?: PreferredModel | null;
+  curated_models?: string[] | null;
+  stt_model?: string | null;
+  decision_models?: DecisionModelData[] | null;
+  decision_default?: string | null;
+  provisional?: boolean | null;
+  steps?: string[] | null;
+  free_tier_note?: string | null;
 }
 
 export async function fetchProviderPresets(): Promise<Record<string, ProviderPreset>> {
   const { data } = await api.get<Record<string, ProviderPreset>>("/ai/providers/presets");
   return data;
+}
+
+export interface ProviderSetupOptions {
+  curated_ids?: string[];
+  bind_chat: boolean;
+  bind_vision: boolean;
+  bind_stt: boolean;
+  bind_decision: boolean;
+}
+
+export interface ProviderSetupResult {
+  ok: boolean;
+  provider: AIProvider;
+  catalog_count: number;
+  curated_missed: boolean;
+  assigned_chat_model: string | null;
+  assigned_vision_model: string | null;
+  assigned_stt_model: string | null;
+  assigned_decision_slots: Record<string, string> | null;
+}
+
+export async function setupProviderPreset(
+  presetKey: string,
+  body: {
+    api_key: string | null;
+    name?: string | null;
+    scope?: "user" | "system";
+    options?: ProviderSetupOptions;
+  }
+): Promise<ProviderSetupResult> {
+  const { data } = await api.post<ProviderSetupResult>(`/ai/providers/${presetKey}/setup`, body);
+  return data;
+}
+
+/** §15 classified setup failure (the API's 422 detail shape). */
+export interface ProviderSetupErrorDetail {
+  code: string;
+  suspected_vendor: string | null;
+  detail: string;
+}
+
+export function setupErrorDetail(detail: unknown): ProviderSetupErrorDetail | null {
+  if (typeof detail !== "object" || detail === null) return null;
+  const candidate = detail as { code?: unknown; suspected_vendor?: unknown; detail?: unknown };
+  if (typeof candidate.code !== "string") return null;
+  return {
+    code: candidate.code,
+    suspected_vendor: typeof candidate.suspected_vendor === "string" ? candidate.suspected_vendor : null,
+    detail: typeof candidate.detail === "string" ? candidate.detail : "",
+  };
 }
 
 export interface AIModel {
@@ -39,6 +115,7 @@ export interface AIModel {
   max_tokens: number | null;
   reasoning_effort: string | null;
   caps: string[] | null;
+  decision_transport?: string | null;
 }
 
 export interface AITaskInfo {
@@ -47,6 +124,7 @@ export interface AITaskInfo {
   description?: string;
   requires?: string;
   tier?: string;
+  is_slot?: boolean;
 }
 
 export interface EffectiveAssignment {

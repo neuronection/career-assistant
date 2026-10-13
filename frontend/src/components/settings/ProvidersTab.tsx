@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { Pencil, Plus, Sparkles, Trash2, Zap } from "lucide-react";
 import { getCountryFlag } from "@neuronection/assistant-ui/countries";
 import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
-import { Button, ConfirmationModal, ConnectionTestRow, EmptyState } from "@/components/ui";
+import {
+  Button,
+  ConfirmationModal,
+  ConnectionTestRow,
+  EmptyState,
+  ProviderLogo,
+} from "@/components/ui";
 import type { ConnectionTestStatus } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 
@@ -27,6 +33,7 @@ interface ProvidersTabProps {
   onChanged: () => void;
   onAdd: () => void;
   onEdit: (provider: AIProvider) => void;
+  onRerunSetup: (provider: AIProvider) => void;
 }
 
 interface TestResult {
@@ -34,7 +41,14 @@ interface TestResult {
   error?: string;
 }
 
-export function ProvidersTab({ providers, canManageGlobal, onChanged, onAdd, onEdit }: ProvidersTabProps) {
+export function ProvidersTab({
+  providers,
+  canManageGlobal,
+  onChanged,
+  onAdd,
+  onEdit,
+  onRerunSetup,
+}: ProvidersTabProps) {
   const { t } = useTranslation();
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, aiApi.ProviderModelInfo[]>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -148,7 +162,7 @@ export function ProvidersTab({ providers, canManageGlobal, onChanged, onAdd, onE
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-primary-600 shrink-0" />
+                          <ProviderLogo preset={p.preset_key ?? ""} className="shrink-0" />
                           <span className="truncate">{p.name}</span>
                           <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
                             {p.provider_type}
@@ -197,6 +211,17 @@ export function ProvidersTab({ providers, canManageGlobal, onChanged, onAdd, onE
                       </div>
                       {editable && (
                         <div className="flex gap-1 shrink-0">
+                          {p.preset_key && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={t("aiSettings.providers.rerunAria", { name: p.name })}
+                              title={t("aiSettings.setup.automatically")}
+                              onClick={() => onRerunSetup(p)}
+                            >
+                              <Sparkles className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

@@ -368,23 +368,24 @@
     "baselinePlaceholder": "82.5"
   },
   "common": {
-    "loading": "Loading…",
-    "comingSoon": "Coming soon",
+    "add": "Add",
     "cancel": "Cancel",
     "close": "Close",
+    "comingSoon": "Coming soon",
+    "copy": "Copy",
+    "delete": "Delete",
+    "empty": "Empty",
+    "hide": "Hide",
+    "loading": "Loading…",
+    "noFilterMatches": "No entries match these filters.",
+    "reset": "Reset",
     "save": "Save",
     "saving": "Saving…",
-    "undo": "Undo",
-    "hide": "Hide",
-    "show": "Show",
-    "add": "Add",
-    "delete": "Delete",
+    "searchPlaceholder": "Search…",
     "selectAll": "Select all",
     "selectedCount": "{{count}} selected",
-    "noFilterMatches": "No entries match these filters.",
-    "searchPlaceholder": "Search…",
-    "reset": "Reset",
-    "empty": "Empty"
+    "show": "Show",
+    "undo": "Undo"
   },
   "validation": {
     "required": "{{field}} is required.",
@@ -820,8 +821,6 @@
       "tasks": "Tasks",
       "web": "Web"
     },
-    "nothingTitle": "Nothing configured yet",
-    "nothingBody": "Without providers the built-in env default (AI_PROVIDER=mock) serves every task.",
     "allTasks": "all tasks",
     "allStatuses": "all statuses",
     "noGenerations": "No AI generations recorded",
@@ -873,7 +872,8 @@
       "deleteAria": "Delete {{name}}",
       "deleteTitle": "Delete {{name}}?",
       "deleteDescription": "Its models and task assignments will be removed too.",
-      "deleteConfirm": "Delete"
+      "deleteConfirm": "Delete",
+      "rerunAria": "Set up {{name}} automatically"
     },
     "providerModal": {
       "editTitle": "Edit provider",
@@ -930,13 +930,14 @@
       "title": "Task Assignments",
       "global": "Global",
       "personal": "Personal",
-      "fallbackSection": "Fallback model",
-      "fallbackSectionHint": "Used by every task without its own assignment in this scope.",
-      "fallbackRow": "All tasks",
-      "fallbackInfo": "This model serves every task that has no assignment in this scope.",
+      "defaultModelsTitle": "Default models",
+      "defaultModelsHint": "One default per capability — tasks without their own assignment inherit it.",
+      "decisionGroupTitle": "Decision models",
+      "decisionGroupPrivacy": "Decision models run in the cloud: your prompt and the candidate tools for the step are sent to the assigned provider (e.g. TypeSafe or OpenRouter). Your API key stays on this device.",
       "tasksSection": "Per-task assignments",
       "tasksSectionHint": "Overrides the fallback model above for that task.",
-      "unassignedMeta": "Unassigned — falls back to the fallback model above.",
+      "unassignedMeta": "Unassigned — inherits the capability default until you pick a model.",
+      "decisionUnassignedMeta": "Unassigned — decision points fall through to the agent path.",
       "scopeEmpty": "No models are registered in this scope yet — add one on the Models tab, then assign it here.",
       "clearLabel": "Clear assignment",
       "nonAdminNote": "Global assignments are managed by an administrator; set personal overrides to customize your own AI models."
@@ -950,7 +951,69 @@
       "chat": "Career Assistant Chat",
       "assist": "Contextual Ask-AI Buttons"
     },
-    "tabsAria": "AI configuration sections"
+    "tabsAria": "AI configuration sections",
+    "setup": {
+      "title": "Set up a provider",
+      "hint": "Defaults were bound for empty slots only — existing assignments were never touched.",
+      "modalHint": "Pick a provider to set up automatically, or add one manually.",
+      "formTitle": "Set up {{name}}",
+      "local": "Runs locally — no key needed",
+      "custom": "Set up manually",
+      "getKey": "Get a key",
+      "connectionName": "Connection name",
+      "noKeyNeeded": "This provider runs locally — no API key required.",
+      "advanced": "Advanced",
+      "baseEditHint": "Only change this if your endpoint differs from the default.",
+      "automatically": "Set up automatically",
+      "chooseAnother": "Choose another provider",
+      "done": "{{name}} is ready.",
+      "modelsPersisted": "{{count}} models were registered from the provider catalog.",
+      "curatedMissed": "None of the recommended models were found in this provider's catalog — everything found was registered instead; assign defaults below.",
+      "noDefaults": "No models were registered for this provider — add models manually to assign defaults.",
+      "slot": {
+        "chat": "Chat default",
+        "vision": "Vision default",
+        "stt": "Transcription default"
+      },
+      "errors": {
+        "invalid_key": "That API key was rejected by the provider — check for typos or create a new key.",
+        "insufficient_credit": "This provider account has no credit or quota left — add billing or a payment method.",
+        "new_user_quota": "The provider rate-limited this key (new-account limits) — wait a moment and try again.",
+        "region_unavailable": "This provider is not available in your region.",
+        "timeout": "The provider did not respond in time — check your connection and try again.",
+        "local_not_running": "Could not reach the local server — make sure it is running and reachable at its URL.",
+        "unknown": "The provider could not be reached — check the base URL and your connection.",
+        "suspectedVendor": "This looks like a {{vendor}} key pasted into the wrong field."
+      },
+      "review": {
+        "keyNote": "Re-run setup for {{name}} using the stored key. Curated models and defaults are appended — nothing existing is ever removed.",
+        "modelsLabel": "Curated models",
+        "footnote": "Re-running setup never removes existing models or assignments.",
+        "now": "now: {{model}}",
+        "unset": "unset",
+        "fillText": "Fill the chat default if empty",
+        "fillVision": "Fill the vision default if empty",
+        "fillStt": "Fill the transcription default if empty",
+        "fillDecision": "Fill empty decision slots",
+        "decisionNow": "{{count}} of 4 slots filled",
+        "apply": "Apply setup"
+      }
+    },
+    "firstRun": {
+      "title": "Connect an AI provider",
+      "body": "Career Assistant uses your own AI provider key (BYOK). One-click setup validates the key, registers curated models and binds sensible defaults — in under a minute.",
+      "cta": "Set up a provider"
+    },
+    "decisionSlots": {
+      "tool_dispatch": "Tool dispatch",
+      "tool_dispatchDescription": "Picks which tool (if any) should run for a step.",
+      "boolean_gate": "Boolean gate",
+      "boolean_gateDescription": "Yes/no checks with bounded confidence.",
+      "choice": "Choice",
+      "choiceDescription": "Picks one option from a closed set.",
+      "score": "Score",
+      "scoreDescription": "Scores a candidate on a fixed scale."
+    }
   },
   "onboarding": {
     "heroTitleSide": "Find the work that fits you.",
