@@ -9011,6 +9011,18 @@
             ],
             "title": "Caps"
           },
+          "decision_transport": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Transport"
+          },
           "max_tokens": {
             "anyOf": [
               {
@@ -9199,6 +9211,18 @@
               }
             ],
             "title": "Caps"
+          },
+          "decision_transport": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Transport"
           },
           "is_active": {
             "anyOf": [
