@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
@@ -9,22 +9,29 @@ import { SegmentedTabs, SetupFirstRunCard, Spinner } from "@/components/ui";
 import { ProvidersTab } from "@/components/settings/ProvidersTab";
 import { ModelsTab } from "@/components/settings/ModelsTab";
 import { TasksTab } from "@/components/settings/TasksTab";
-import { WebSettingsTab } from "@/components/settings/WebSettingsTab";
 import { ProviderModal } from "@/components/settings/ProviderModal";
 import { ProviderSetupModal } from "@/components/settings/ProviderSetupModal";
 import { ReRunSetupDialog } from "@/components/settings/ReRunSetupDialog";
 
-type AITab = "providers" | "models" | "tasks" | "web";
-const TABS: AITab[] = ["providers", "models", "tasks", "web"];
+type AITab = "providers" | "models" | "tasks";
+
+// The AI tab hosts exactly ai.* domains (ADR-0033): providers, models and
+// task assignments. The former `web` tab moved to /settings/tools in plan 27
+// Phase 3; its deep link redirects there. Exported for the settings-map
+// conformance test.
+export const AI_TABS: readonly AITab[] = ["providers", "models", "tasks"];
 
 /** AI configuration with URL-synced tabs (?tab=providers|models|tasks). */
 export function AIConfig() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get("tab") as AITab | null;
+  const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<AITab>(
-    tabFromUrl && TABS.includes(tabFromUrl) ? tabFromUrl : "providers"
+    tabFromUrl && (AI_TABS as readonly string[]).includes(tabFromUrl)
+      ? (tabFromUrl as AITab)
+      : "providers"
   );
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [canManageGlobal, setCanManageGlobal] = useState(false);
@@ -36,8 +43,17 @@ export function AIConfig() {
   const [rerunProvider, setRerunProvider] = useState<AIProvider | null>(null);
 
   useEffect(() => {
-    if (tabFromUrl && TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
+    // Legacy deep link (INV-6): ?tab=web moved to the tools tab.
+    if (tabFromUrl === "web") {
+      navigate("/settings/tools", { replace: true });
+      return;
+    }
+    if (
+      tabFromUrl &&
+      (AI_TABS as readonly string[]).includes(tabFromUrl) &&
+      tabFromUrl !== activeTab
+    ) {
+      setActiveTab(tabFromUrl as AITab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabFromUrl]);
@@ -94,7 +110,7 @@ export function AIConfig() {
       <SegmentedTabs
         ariaLabel={t("aiSettings.tabsAria")}
         className="max-w-md"
-        items={TABS.filter((tab) => tab !== "web" || user?.is_admin).map((tab) => ({
+        items={AI_TABS.map((tab) => ({
           value: tab,
           label: t(`aiSettings.tab.${tab}`, { defaultValue: tab }),
         }))}
@@ -122,7 +138,6 @@ export function AIConfig() {
       {activeTab === "tasks" && (
         <TasksTab canManageGlobal={canManageGlobal} onChanged={() => void refresh()} />
       )}
-      {activeTab === "web" && user?.is_admin && <WebSettingsTab />}
 
       {setupOpen && (
         <ProviderSetupModal

@@ -7,6 +7,7 @@ import { Account } from "@/pages/settings/Account";
 import { AIConfig } from "@/pages/settings/AIConfig";
 import { AIAudit } from "@/pages/settings/AIAudit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
+import { ToolsConfig } from "@/pages/settings/ToolsConfig";
 import { Users } from "@/pages/settings/Users";
 import { SchedulerSettings } from "@/pages/settings/SchedulerSettings";
 import { Notifications } from "@/pages/settings/Notifications";
@@ -96,9 +97,12 @@ export function App() {
             <Route index element={<Navigate to="/settings/account" replace />} />
             <Route path="account" element={<Account />} />
             <Route path="ai" element={<AIConfig />} />
+            <Route path="tools" element={<ToolsConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
             <Route path="users" element={<Users />} />
-            <Route path="scheduler" element={<SchedulerSettings />} />
+            <Route path="automations" element={<SchedulerSettings />} />
+            {/* Legacy deep links (ADR-0033 INV-6): scheduler → automations */}
+            <Route path="scheduler" element={<Navigate to="/settings/automations" replace />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="audit" element={<AIAudit />} />
           </Route>

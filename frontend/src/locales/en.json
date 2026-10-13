@@ -818,8 +818,7 @@
     "tab": {
       "providers": "Providers",
       "models": "Models",
-      "tasks": "Tasks",
-      "web": "Web"
+      "tasks": "Tasks"
     },
     "allTasks": "all tasks",
     "allStatuses": "all statuses",
@@ -1023,6 +1022,15 @@
       "choiceDescription": "Picks one option from a closed set.",
       "score": "Score",
       "scoreDescription": "Scores a candidate on a fixed scale."
+    }
+  },
+  "toolsSettings": {
+    "title": "Tools",
+    "subtitle": "Web search and external connectors the assistant uses.",
+    "sectionsAria": "Tools sections",
+    "section": {
+      "web-search": "Web search",
+      "connectors": "Connectors"
     }
   },
   "onboarding": {

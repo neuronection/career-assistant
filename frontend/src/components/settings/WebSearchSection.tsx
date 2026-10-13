@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Globe, Save } from "lucide-react";
+import { Globe } from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { WebSettings } from "@/api/ai";
 import { apiDetail } from "@/api/client";
@@ -13,11 +13,14 @@ const PROBE_LABELS: Record<string, string> = {
   error: "Unexpected response",
 };
 
-/** Settings → AI: web tools (plan 80) — user-hosted SearXNG + GitHub token. */
-export function WebSettingsTab() {
+/**
+ * Tools → web search (ADR-0033, domain tools.web-search): user-hosted
+ * SearXNG instance behind the chat search/fetch tools. Split out of the
+ * former AI-config `web` tab in plan 27 Phase 3.
+ */
+export function WebSearchSection() {
   const [settings, setSettings] = useState<WebSettings | null>(null);
   const [searxngUrl, setSearxngUrl] = useState("");
-  const [githubToken, setGithubToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [savedNote, setSavedNote] = useState("");
@@ -32,10 +35,7 @@ export function WebSettingsTab() {
       .catch((err) => setError(apiDetail(err)));
   }, []);
 
-  const save = async (payload: {
-    searxng_url?: string;
-    github_token?: string;
-  }) => {
+  const save = async (payload: { searxng_url?: string }) => {
     setBusy(true);
     setError("");
     setSavedNote("");
@@ -43,7 +43,6 @@ export function WebSettingsTab() {
       const data = await aiApi.updateWebSettings(payload);
       setSettings(data);
       setSearxngUrl(data.searxng_url);
-      setGithubToken("");
       setSavedNote("Saved");
     } catch (err) {
       setError(apiDetail(err));
@@ -55,11 +54,10 @@ export function WebSettingsTab() {
   if (!settings && !error) return null;
 
   return (
-    <div className="space-y-6" data-testid="web-tab">
+    <div className="space-y-6" data-testid="web-search-section">
       <p className="text-sm text-slate-500">
         Optional web-reach config for chat tools: a SearXNG instance backs live
-        search (host it yourself and paste its URL — never bundled here), and a
-        GitHub API token raises the repository-lookup rate limit.
+        search — host it yourself and paste its URL (never bundled here).
       </p>
 
       {settings?.searxng_probe && (
@@ -99,33 +97,7 @@ export function WebSettingsTab() {
         data-testid="save-searxng"
         onClick={() => void save({ searxng_url: searxngUrl })}
       >
-        <Save className="w-4 h-4" />
         Save search config
-      </Button>
-
-      <div className="space-y-1" data-testid="github-token-field">
-        <label className="text-sm font-medium" htmlFor="github-token">
-          GitHub API token {settings?.github_token_set ? "(set)" : "(optional)"}
-        </label>
-        <input
-          id="github-token"
-          data-testid="github-token-input"
-          type="password"
-          value={githubToken}
-          onChange={(e) => setGithubToken(e.target.value)}
-          placeholder="gh_pat_…"
-          autoComplete="off"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-      </div>
-      <Button
-        size="sm"
-        disabled={busy || githubToken.length === 0}
-        data-testid="save-github-token"
-        onClick={() => void save({ github_token: githubToken })}
-      >
-        <Save className="w-4 h-4" />
-        Save token
       </Button>
 
       {savedNote && (

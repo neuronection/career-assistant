@@ -7,6 +7,7 @@ import {
   ListTree,
   ScrollText,
   Users,
+  Wrench,
 } from "lucide-react";
 
 export interface SettingsNavItem {
@@ -33,9 +34,16 @@ export const settingsNav: SettingsNavItem[] = [
     description: "Providers, models and task assignments",
   },
   {
-    to: "/settings/scheduler",
+    to: "/settings/tools",
+    icon: Wrench,
+    label: "Tools",
+    description: "Web search and external connectors",
+    adminOnly: true,
+  },
+  {
+    to: "/settings/automations",
     icon: CalendarClock,
-    label: "Scheduler",
+    label: "Automations",
     description: "Scheduled searches, digests and system rhythm",
   },
   {
