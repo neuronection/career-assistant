@@ -298,9 +298,7 @@ class AIProviderService:
             reasoning_effort=_validate_reasoning_effort(reasoning_effort),
             tier=_validate_tier(tier),
             caps=caps,
-            decision_transport=(
-                decision_transport or DecisionTransport.SYSTEMONE.value
-            )
+            decision_transport=(decision_transport or DecisionTransport.SYSTEMONE.value)
             if decision_cap
             else None,
         )
@@ -352,9 +350,7 @@ class AIProviderService:
             provider.provider_type == "decision"
         )
         if decision_kept:
-            model.decision_transport = (
-                decision_transport or DecisionTransport.SYSTEMONE.value
-            )
+            model.decision_transport = decision_transport or DecisionTransport.SYSTEMONE.value
         elif set_decision_transport or set_caps:
             # caps moved away from decision (or the transport was set
             # explicitly) — nothing to carry without the capability.
