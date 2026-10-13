@@ -1031,6 +1031,34 @@
     "section": {
       "web-search": "Web search",
       "connectors": "Connectors"
+    },
+    "webSearch": {
+      "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. Career serves search through its own hardened (SSRF-guarded) client.",
+      "add": "Add provider",
+      "empty": "No web search providers yet — add one to power the research tools.",
+      "name": "Name (optional)",
+      "type": "Provider type",
+      "baseUrl": "Base URL (optional)",
+      "baseUrlRequired": "Base URL (required)",
+      "key": "API key",
+      "keyOptional": "API key (optional)",
+      "keyStored": "API key stored",
+      "noKey": "no key",
+      "save": "Save provider",
+      "cancel": "Cancel",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "edit": "Edit provider",
+      "delete": "Delete provider",
+      "disabled": "disabled — skipped during search",
+      "enabledAria": "Enable {{name}}",
+      "test": "Test",
+      "probeOk": "Reachable",
+      "probeUnreachable": "Unreachable",
+      "probeAuth": "API key rejected",
+      "probeRateLimited": "Rate limited",
+      "probeJsonDisabled": "JSON format disabled on the instance",
+      "probeError": "Test failed"
     }
   },
   "onboarding": {

@@ -291,8 +291,6 @@ export function classifyDictationError(error: unknown): { kind: "unsupported" | 
 }
 
 export interface WebSettings {
-  searxng_url: string;
-  searxng_probe: { status: string; status_code?: number };
   github_token_set: boolean;
 }
 
@@ -301,9 +299,100 @@ export async function fetchWebSettings(): Promise<WebSettings> {
   return data;
 }
 
-export async function updateWebSettings(
-  payload: Partial<Pick<WebSettings, "searxng_url">> & { github_token?: string }
-): Promise<WebSettings> {
+export async function updateWebSettings(payload: { github_token?: string }): Promise<WebSettings> {
   const { data } = await api.put<WebSettings>("/ai/web", payload);
+  return data;
+}
+
+// ------------------------------------------------------------- web search
+// Family web-search contract (ADR-0035 / plan 28): an ordered multi-provider
+// list — the first enabled provider that answers wins. Career's guarded
+// searxng transport serves it; keyed POST providers join with guarded
+// adapters (plan 28 Phase 4 note).
+
+export interface SearchProvider {
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  base_url: string;
+  key_hint: string | null;
+  max_results: number;
+  key_set: boolean;
+}
+
+export interface SearchProviderCatalog {
+  providerOrder: string[];
+  providers: Record<
+    string,
+    {
+      label: string;
+      requiresKey: boolean;
+      keyUrl: string | null;
+      baseUrl: string | null;
+      baseUrlRequired: boolean;
+      baseUrlHint?: string | null;
+      notes?: string | null;
+    }
+  >;
+}
+
+export interface SearchProviderProbe {
+  status: string;
+  latency_ms: number;
+  result_count: number | null;
+  error: string | null;
+}
+
+export async function listSearchProviders(): Promise<SearchProvider[]> {
+  const { data } = await api.get<{ providers: SearchProvider[] }>("/ai/web/search-providers");
+  return data.providers;
+}
+
+export async function getSearchProviderCatalog(): Promise<SearchProviderCatalog> {
+  const { data } = await api.get<SearchProviderCatalog>("/ai/web/search-providers/catalog");
+  return data;
+}
+
+export async function createSearchProvider(body: {
+  type: string;
+  name?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
+}): Promise<SearchProvider> {
+  const { data } = await api.post<SearchProvider>("/ai/web/search-providers", body);
+  return data;
+}
+
+export async function updateSearchProvider(
+  providerId: string,
+  body: {
+    name?: string | null;
+    base_url?: string | null;
+    enabled?: boolean | null;
+    api_key?: string | null;
+  },
+): Promise<SearchProvider> {
+  const { data } = await api.put<SearchProvider>(`/ai/web/search-providers/${providerId}`, body);
+  return data;
+}
+
+export async function moveSearchProvider(
+  providerId: string,
+  direction: "up" | "down",
+): Promise<SearchProvider[]> {
+  const { data } = await api.post<{ providers: SearchProvider[] }>(
+    `/ai/web/search-providers/${providerId}/move`,
+    { direction },
+  );
+  return data.providers;
+}
+
+export async function deleteSearchProvider(providerId: string): Promise<void> {
+  await api.delete(`/ai/web/search-providers/${providerId}`);
+}
+
+export async function testSearchProvider(providerId: string): Promise<SearchProviderProbe> {
+  const { data } = await api.post<SearchProviderProbe>(`/ai/web/search-providers/${providerId}/test`);
   return data;
 }

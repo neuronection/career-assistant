@@ -12345,6 +12345,207 @@
         "title": "SearchOut",
         "type": "object"
       },
+      "SearchProviderIn": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "max_results": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Results"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "title": "SearchProviderIn",
+        "type": "object"
+      },
+      "SearchProviderMoveIn": {
+        "properties": {
+          "direction": {
+            "pattern": "^(up|down)$",
+            "title": "Direction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction"
+        ],
+        "title": "SearchProviderMoveIn",
+        "type": "object"
+      },
+      "SearchProviderOut": {
+        "properties": {
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Hint"
+          },
+          "key_set": {
+            "default": false,
+            "title": "Key Set",
+            "type": "boolean"
+          },
+          "max_results": {
+            "default": 5,
+            "title": "Max Results",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "enabled",
+          "base_url"
+        ],
+        "title": "SearchProviderOut",
+        "type": "object"
+      },
+      "SearchProviderProbeOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "result_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Count"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "latency_ms"
+        ],
+        "title": "SearchProviderProbeOut",
+        "type": "object"
+      },
+      "SearchProvidersOut": {
+        "properties": {
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/SearchProviderOut"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers"
+        ],
+        "title": "SearchProvidersOut",
+        "type": "object"
+      },
       "SearchRecordIn": {
         "properties": {
           "filters": {
@@ -14559,20 +14760,9 @@
           "github_token_set": {
             "title": "Github Token Set",
             "type": "boolean"
-          },
-          "searxng_probe": {
-            "additionalProperties": true,
-            "title": "Searxng Probe",
-            "type": "object"
-          },
-          "searxng_url": {
-            "title": "Searxng Url",
-            "type": "string"
           }
         },
         "required": [
-          "searxng_url",
-          "searxng_probe",
           "github_token_set"
         ],
         "title": "WebSettingsOut",
@@ -14591,18 +14781,6 @@
               }
             ],
             "title": "Github Token"
-          },
-          "searxng_url": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Searxng Url"
           }
         },
         "title": "WebSettingsUpdate",
@@ -18034,7 +18212,7 @@
     },
     "/api/v1/ai/web": {
       "get": {
-        "description": "SearXNG URL + probe status; GitHub token presence only (secret-safe).",
+        "description": "GitHub token presence only (secret-safe).\n\nWeb-search config moved to the family providers[] shape (plan 28 /\nADR-0035) \u2014 see /web/search-providers.",
         "operationId": "web_settings_api_v1_ai_web_get",
         "responses": {
           "200": {
@@ -18054,7 +18232,7 @@
         ]
       },
       "put": {
-        "description": "Set the web-tool config; the GitHub token lands Fernet-encrypted.\n\nAn empty ``searxng_url`` clears the search config; an empty\n``github_token`` clears the stored token.",
+        "description": "GitHub token lands Fernet-encrypted; an empty ``github_token`` clears\nthe stored token. Web-search providers use /web/search-providers.",
         "operationId": "update_web_settings_api_v1_ai_web_put",
         "requestBody": {
           "content": {
@@ -18089,6 +18267,271 @@
           }
         },
         "summary": "Update Web Settings",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/web/search-providers": {
+      "get": {
+        "description": "Ordered web-search providers \u2014 the first enabled one that answers wins.",
+        "operationId": "list_search_providers_api_v1_ai_web_search_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchProvidersOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Search Providers",
+        "tags": [
+          "ai-settings"
+        ]
+      },
+      "post": {
+        "operationId": "create_search_provider_api_v1_ai_web_search_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchProviderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Search Provider",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/web/search-providers/catalog": {
+      "get": {
+        "description": "The vendored family provider catalog (ADR-0035) \u2014 data-once.",
+        "operationId": "search_provider_catalog_api_v1_ai_web_search_providers_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Search Provider Catalog Api V1 Ai Web Search Providers Catalog Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Search Provider Catalog",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/web/search-providers/{provider_id}": {
+      "delete": {
+        "operationId": "remove_search_provider_api_v1_ai_web_search_providers__provider_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Search Provider",
+        "tags": [
+          "ai-settings"
+        ]
+      },
+      "put": {
+        "operationId": "update_search_provider_api_v1_ai_web_search_providers__provider_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchProviderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Search Provider",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/web/search-providers/{provider_id}/move": {
+      "post": {
+        "operationId": "reorder_search_provider_api_v1_ai_web_search_providers__provider_id__move_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchProviderMoveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchProvidersOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reorder Search Provider",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/web/search-providers/{provider_id}/test": {
+      "post": {
+        "description": "Probe one provider through career's guarded transport.",
+        "operationId": "test_search_provider_api_v1_ai_web_search_providers__provider_id__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchProviderProbeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Search Provider",
         "tags": [
           "ai-settings"
         ]

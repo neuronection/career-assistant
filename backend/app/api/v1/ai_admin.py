@@ -1,6 +1,9 @@
+import json
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -503,14 +506,11 @@ async def _put_web_setting(db: AsyncSession, key: str, value: dict) -> None:
 async def web_settings(
     user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ) -> WebSettingsOut:
-    """SearXNG URL + probe status; GitHub token presence only (secret-safe)."""
-    from app.services.webfetch import probe_searxng
+    """GitHub token presence only (secret-safe).
 
-    value = await _web_setting(db, "web.searxng_url")
-    url = (value or {}).get("url") or ""
+    Web-search config moved to the family providers[] shape (plan 28 /
+    ADR-0035) — see /web/search-providers."""
     return WebSettingsOut(
-        searxng_url=url,
-        searxng_probe=await probe_searxng(url),
         github_token_set=bool((await _web_setting(db, "web.github_token")).get("token")),
     )
 
@@ -521,29 +521,179 @@ async def update_web_settings(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> WebSettingsOut:
-    """Set the web-tool config; the GitHub token lands Fernet-encrypted.
-
-    An empty ``searxng_url`` clears the search config; an empty
-    ``github_token`` clears the stored token."""
+    """GitHub token lands Fernet-encrypted; an empty ``github_token`` clears
+    the stored token. Web-search providers use /web/search-providers."""
     from app.core.encryption import encrypt_secret
-    from app.services.webfetch import probe_searxng
 
-    if data.searxng_url is not None:
-        url = data.searxng_url.strip()
-        await _put_web_setting(db, "web.searxng_url", {"url": url})
     if data.github_token is not None:
         await _put_web_setting(
             db,
             "web.github_token",
             {"token": encrypt_secret(data.github_token) or ""},
         )
-    value = await _web_setting(db, "web.searxng_url")
-    url = (value or {}).get("url") or ""
     return WebSettingsOut(
-        searxng_url=url,
-        searxng_probe=await probe_searxng(url),
         github_token_set=bool((await _web_setting(db, "web.github_token")).get("token")),
     )
+
+
+# --------------------------------------------- web search providers (plan 28)
+
+
+class SearchProviderIn(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    type: str | None = None
+    base_url: str | None = Field(default=None, max_length=500)
+    enabled: bool | None = None
+    max_results: int | None = Field(default=None, ge=1, le=10)
+    api_key: str | None = Field(default=None, max_length=500)
+
+
+class SearchProviderOut(BaseModel):
+    id: str
+    name: str
+    type: str
+    enabled: bool
+    base_url: str
+    key_hint: str | None = None
+    max_results: int = 5
+    key_set: bool = False
+
+
+class SearchProvidersOut(BaseModel):
+    providers: list[SearchProviderOut]
+
+
+class SearchProviderMoveIn(BaseModel):
+    direction: str = Field(pattern="^(up|down)$")
+
+
+class SearchProviderProbeOut(BaseModel):
+    status: str
+    latency_ms: int
+    result_count: int | None = None
+    error: str | None = None
+
+
+def _provider_view(view: dict) -> SearchProviderOut:
+    return SearchProviderOut.model_validate(view)
+
+
+_CATALOG_PATH = Path(__file__).resolve().parents[4] / "contracts" / "search-providers.json"
+
+
+@router.get("/web/search-providers/catalog")
+async def search_provider_catalog(
+    user: User = Depends(require_admin),
+) -> dict:
+    """The vendored family provider catalog (ADR-0035) — data-once."""
+    return json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+
+
+@router.get("/web/search-providers", response_model=SearchProvidersOut)
+async def list_search_providers(
+    user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> SearchProvidersOut:
+    """Ordered web-search providers — the first enabled one that answers wins."""
+    from app.services.search_providers import list_providers
+
+    return SearchProvidersOut(
+        providers=[_provider_view(view) for view in await list_providers(db)]
+    )
+
+
+@router.post("/web/search-providers", response_model=SearchProviderOut, status_code=201)
+async def create_search_provider(
+    data: SearchProviderIn,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProviderOut:
+    from app.services.search_providers import SearchProviderError, upsert_provider
+
+    try:
+        view = await upsert_provider(db, data.model_dump())
+    except SearchProviderError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _provider_view(view)
+
+
+@router.put("/web/search-providers/{provider_id}", response_model=SearchProviderOut)
+async def update_search_provider(
+    provider_id: str,
+    data: SearchProviderIn,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProviderOut:
+    from app.services.search_providers import SearchProviderError, upsert_provider
+
+    try:
+        view = await upsert_provider(db, data.model_dump(), provider_id=provider_id)
+    except SearchProviderError as error:
+        status = 404 if "not found" in str(error) else 422
+        raise HTTPException(status_code=status, detail=str(error)) from error
+    return _provider_view(view)
+
+
+@router.post("/web/search-providers/{provider_id}/move", response_model=SearchProvidersOut)
+async def reorder_search_provider(
+    provider_id: str,
+    data: SearchProviderMoveIn,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProvidersOut:
+    from app.services.search_providers import SearchProviderError, move_provider
+
+    try:
+        views = await move_provider(db, provider_id, data.direction)
+    except SearchProviderError as error:
+        raise HTTPException(status_code=404 if "not found" in str(error) else 422, detail=str(error)) from error
+    return SearchProvidersOut(providers=[_provider_view(view) for view in views])
+
+
+@router.delete("/web/search-providers/{provider_id}", status_code=204)
+async def remove_search_provider(
+    provider_id: str,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    from app.services.search_providers import delete_provider
+
+    if not await delete_provider(db, provider_id):
+        raise HTTPException(status_code=404, detail="provider not found")
+
+
+@router.post(
+    "/web/search-providers/{provider_id}/test", response_model=SearchProviderProbeOut
+)
+async def test_search_provider(
+    provider_id: str,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProviderProbeOut:
+    """Probe one provider through career's guarded transport."""
+    import time
+
+    from app.services.search_providers import list_providers, provider_api_key
+    from app.services.webfetch import probe_searxng
+
+    provider = next(
+        (entry for entry in await list_providers(db) if entry["id"] == provider_id), None
+    )
+    if provider is None:
+        raise HTTPException(status_code=404, detail="provider not found")
+    started = time.monotonic()
+    if provider["type"] == "searxng":
+        probe = await probe_searxng(provider["base_url"])
+        status = probe.get("status", "error")
+        if status == "unconfigured":
+            status = "error"
+        return SearchProviderProbeOut(
+            status=status,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            result_count=probe.get("result_count"),
+            error=probe.get("detail") or probe.get("status"),
+        )
+    _ = await provider_api_key(db, provider_id)  # keyed transports land with guarded adapters
+    raise HTTPException(status_code=422, detail="no guarded adapter for this provider type yet")
 
 
 @router.post("/embeddings/recompute")
