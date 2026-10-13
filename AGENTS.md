@@ -36,8 +36,8 @@ pytest/vitest, ruff. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and
 ├── frontend/   # React SPA (src/)
 ├── docker/     # dev-db compose (:5433/:6380), prod + standalone (nginx) compose, Dockerfile, nginx confs
 ├── scripts/    # run-dev.sh, run-docker.sh, update-docker.sh, check-changelog.sh,
-│               # run-tests.sh, seed.sh, sync-brand.sh, sync-dev-lib.sh, lib-docker.sh
-│               # (shared bootstrap lib: scripts/lib/dev-common.sh)
+│               # run-tests.sh, seed.sh, sync-brand.sh, lib-docker.sh
+│               # (vendored bootstrap lib: scripts/lib/dev-common.sh — canonical in dev repo, ADR-0034)
 ├── assets/     # canonical brand assets (icon.svg, icon-light.svg)
 └── dev/        # local-only scratch notes (gitignored)
 ```
