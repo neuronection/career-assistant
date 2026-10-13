@@ -21,6 +21,7 @@ WIZARD_TILES = [
     "OpenAI",
     "Google Gemini",
     "OpenRouter",
+    "TypeSafe",
     "Groq",
     "Mistral",
     "DeepSeek",
@@ -43,13 +44,14 @@ def test_setup_wizard_tiles_and_form_shape(page) -> None:
     dialog = page.get_by_role("dialog")
     dialog.wait_for(state="visible")
 
-    # §15 exposure: the seven offered presets render as equal-weight
+    # §15 exposure: the eight offered presets render as equal-weight
     # tiles; Anthropic is withheld (career factory delta, plan 26 §14
-    # Phase 4) and TypeSafe is provisional — never on the tiles.
+    # Phase 4). TypeSafe is docs-verified and tiles normally (the §13.3
+    # exposure switch flipped 2026-10-13).
     for tile in WIZARD_TILES:
         dialog.get_by_text(tile, exact=True).wait_for(state="visible")
     assert dialog.get_by_text("Anthropic").count() == 0, "withheld preset leaked to tiles"
-    assert dialog.get_by_text("TypeSafe").count() == 0, "provisional preset leaked to tiles"
+    assert dialog.get_by_text("TypeSafe", exact=True).count() >= 1, "decision preset missing from tiles"
     dialog.get_by_text("Set up manually").wait_for(state="visible")
 
     # Tiles → guided form: preset name, vendor key link, the Advanced

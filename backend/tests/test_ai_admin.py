@@ -592,7 +592,7 @@ async def test_provider_presets_endpoint(client, auth_headers):
     assert presets["openrouter"]["base_url"] == "https://openrouter.ai/api/v1"
     assert presets["ollama"]["local"] is True
     assert presets["typesafe"]["type"] == "decision"
-    assert presets["typesafe"]["provisional"] is True
+    assert presets["typesafe"]["provisional"] is None
     assert "anthropic" not in presets, "career's factory cannot speak the anthropic wire"
     assert all("name" in preset and "type" in preset for preset in presets.values())
 

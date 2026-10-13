@@ -344,6 +344,79 @@ async def test_resolution_needs_key_then_scope_fallback_chain(db) -> None:
     assert fallback_gone.code == "needs-key"
 
 
+async def test_resolution_keyless_preset_uses_the_sentinel_key(db) -> None:
+    """§13.3 follow-up: local Ollama decision models resolve keylessly — the
+    official SDK requires a non-empty key (D9), so keyless presets (no
+    ``key_url`` in the canonical data) carry the explicit sentinel."""
+    from app.ai.decide.systemone.client import KEYLESS_SYSTEMONE_API_KEY
+
+    user = await _mk_user(db, "decide-keyless@example.com")
+    provider = AIProvider(
+        name="Ollama (local)",
+        scope="user",
+        user_id=user.id,
+        provider_type="openai_compatible",
+        api_base="http://localhost:11434/v1",
+        api_key_encrypted=encrypt_secret(None),
+        preset_key="ollama",
+    )
+    db.add(provider)
+    await db.flush()
+    model = AIModel(
+        provider_id=provider.id,
+        name="nimble",
+        model_name="nimble",
+        caps=["decision"],
+        decision_transport="systemone",
+        is_active=True,
+    )
+    db.add(model)
+    await db.flush()
+    await assign_slot(db, "decision:tool-dispatch", model.id, user=user)
+
+    deps = DecisionFunnelDeps(db=db, user=user)
+    resolution = await resolve_decision(DecisionCapability.TOOL_DISPATCH, db, deps)
+
+    assert isinstance(resolution, SystemOneResolution)
+    assert resolution.api_key == KEYLESS_SYSTEMONE_API_KEY
+    assert resolution.base_url == "http://localhost:11434"
+    assert resolution.model.model_name == "nimble"
+
+
+async def test_resolution_keyed_preset_without_key_still_needs_key(db) -> None:
+    """The keyless path is preset-data-driven (no ``key_url``), never a
+    local/key heuristic a keyed preset could ride."""
+    user = await _mk_user(db, "decide-keyed-preset@example.com")
+    provider = AIProvider(
+        name="OpenRouter",
+        scope="user",
+        user_id=user.id,
+        provider_type="openai_compatible",
+        api_base="https://openrouter.ai/api/v1",
+        api_key_encrypted=encrypt_secret(None),
+        preset_key="openrouter",
+    )
+    db.add(provider)
+    await db.flush()
+    model = AIModel(
+        provider_id=provider.id,
+        name="typesafe/jev-1.13",
+        model_name="typesafe/jev-1.13",
+        caps=["decision"],
+        decision_transport="systemone",
+        is_active=True,
+    )
+    db.add(model)
+    await db.flush()
+    await assign_slot(db, "decision:tool-dispatch", model.id, user=user)
+
+    deps = DecisionFunnelDeps(db=db, user=user)
+    resolution = await resolve_decision(DecisionCapability.TOOL_DISPATCH, db, deps)
+
+    assert isinstance(resolution, UnavailableResolution)
+    assert resolution.code == "needs-key"
+
+
 async def test_resolution_rejects_non_decision_models_in_slots(db) -> None:
     chat_provider = AIProvider(
         name="OpenAI",

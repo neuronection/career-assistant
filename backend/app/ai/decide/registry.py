@@ -18,7 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.user_model import User
 
-from .systemone.client import SystemOneClient, resolve_systemone_base_url
+from .systemone.client import (
+    KEYLESS_SYSTEMONE_API_KEY,
+    SystemOneClient,
+    preset_is_keyless,
+    resolve_systemone_base_url,
+)
 from .systemone.engine import SystemOneDecisionEngine, SystemOneEngineParams
 from .systemone.probe import DecisionProbeInput, DecisionProbeResult, probe_decision_provider
 from .types import (
@@ -107,11 +112,13 @@ def _resolve_systemone_candidate(
         return UnavailableResolution(reason="The provider base URL is missing or invalid.")
     api_key = deps.api_key_of(provider)
     if not api_key:
-        return UnavailableResolution(
-            reason="No API key is set for the decision provider.",
-            code="needs-key",
-            provider_id=provider.id,
-        )
+        if not preset_is_keyless(provider.preset_key):
+            return UnavailableResolution(
+                reason="No API key is set for the decision provider.",
+                code="needs-key",
+                provider_id=provider.id,
+            )
+        api_key = KEYLESS_SYSTEMONE_API_KEY
     return SystemOneResolution(provider=provider, model=model, api_key=api_key, base_url=base_url)
 
 

@@ -104,9 +104,10 @@ async def provider_presets(
 
     Every preset career's factory can serve, with the guided-setup
     metadata (key URL, steps, curated models, STT + decision catalogs).
-    Tiles order by ``presetOrder`` client-side; provisional presets
-    (``typesafe``) ride this map but not the order — the family exposure
-    switch. Must be declared before ``/providers/{provider_id}``.
+    Tiles order by ``presetOrder`` client-side; the docs-verified
+    ``typesafe`` preset rides the order like every preset (the §13.3
+    exposure switch flipped 2026-10-13). Must be declared before
+    ``/providers/{provider_id}``.
     """
     from app.ai.providers.presets import ALL_PRESETS
 

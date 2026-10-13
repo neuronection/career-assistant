@@ -12,8 +12,9 @@ it; this module is the sanctioned career-side adaptation layer:
   career's model factory speaks the OpenAI wire + native Gemini only, and
   adding a wire is its own family-reviewed change (factory branch +
   capability inference + connection test) — not a preset flip;
-- ``typesafe`` rides ``presets`` but not ``presetOrder`` (family exposure
-  switch — provisional until the live probe confirms it).
+- ``typesafe`` (wire type ``decision``) is docs-verified and rides
+  ``presetOrder`` like every preset — the §13.3 exposure switch flipped
+  2026-10-13 (a canonical edit, never a per-repo one).
 
 Pure metadata — no secrets; ``local`` only defaults the settings form's
 hosting toggle.

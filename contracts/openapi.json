@@ -17365,7 +17365,7 @@
     },
     "/api/v1/ai/providers/presets": {
       "get": {
-        "description": "The settings form's provider catalog (family \u00a715 canonical data).\n\nEvery preset career's factory can serve, with the guided-setup\nmetadata (key URL, steps, curated models, STT + decision catalogs).\nTiles order by ``presetOrder`` client-side; provisional presets\n(``typesafe``) ride this map but not the order \u2014 the family exposure\nswitch. Must be declared before ``/providers/{provider_id}``.",
+        "description": "The settings form's provider catalog (family \u00a715 canonical data).\n\nEvery preset career's factory can serve, with the guided-setup\nmetadata (key URL, steps, curated models, STT + decision catalogs).\nTiles order by ``presetOrder`` client-side; the docs-verified\n``typesafe`` preset rides the order like every preset (the \u00a713.3\nexposure switch flipped 2026-10-13). Must be declared before\n``/providers/{provider_id}``.",
         "operationId": "provider_presets_api_v1_ai_providers_presets_get",
         "responses": {
           "200": {

@@ -24,8 +24,8 @@ Case manifest (normative semantics, names indicative):
 17. probe timeout classifies `timeout`;
 18. probe is no oracle without a valid key (401/402/403 classification);
 19. slot separation enforced both directions + `open-args` never assignable;
-20. preset catalog decision data shape (provisional rides `presets`, not
-    `presetOrder`).
+20. preset catalog decision data shape (docs-verified decision presets
+    ride `presetOrder`; no provisional markers remain).
 
 Scope cases (health precedent — career is scope-aware):
 14b. USER-scope setup never clobbers SYSTEM or other users' rows;
@@ -140,7 +140,9 @@ def test_preset_metadata_uniformity() -> None:
         "ollama",
         "openai",
         "openrouter",
+        "typesafe",
     ]
+    assert PRESET_ORDER.index("typesafe") > PRESET_ORDER.index("openrouter")
     assert SETUP_PRESETS["ollama"]["local"] is True
     assert SETUP_PRESETS["gemini"]["type"] == "google"
     assert SETUP_PRESETS["gemini"]["base_url"] == "https://generativelanguage.googleapis.com"
@@ -730,5 +732,26 @@ def test_case_22b_probe_model_id_derives_from_canonical_data() -> None:
     assert decision_probe_model_id({"decision_models": [{"id": "custom-jev"}]}) == "custom-jev"
     assert decision_probe_model_id({"decision_default": "fallback-id"}) == "fallback-id"
     assert decision_probe_model_id(ALL_PRESETS["typesafe"]) == "jev-latest"
+    assert decision_probe_model_id(ALL_PRESETS["openrouter"]) == "typesafe/jev-1.13"
     with pytest.raises(ValueError, match="declares no decision models"):
         decision_probe_model_id({})
+    # §13.3 follow-up pins: corrected OpenRouter ids + override, Ollama
+    # decision data, no provisional markers on decision entries.
+    openrouter = ALL_PRESETS["openrouter"]
+    assert [entry["id"] for entry in openrouter["decision_models"]] == [
+        "typesafe/jev-1.13",
+        "~typesafe/jev-latest",
+    ]
+    assert all(
+        entry.get("base_url_override") == "https://openrouter.ai/api"
+        for entry in openrouter["decision_models"]
+    )
+    ollama = ALL_PRESETS["ollama"]
+    assert [entry["id"] for entry in ollama["decision_models"]] == [
+        "nimble",
+        "tev1",
+        "clef",
+        "clef-flash",
+    ]
+    assert ollama["decision_default"] == "nimble"
+    assert ollama["key_url"] is None

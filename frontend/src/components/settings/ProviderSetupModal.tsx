@@ -19,6 +19,7 @@ const TILE_ORDER = [
   "openai",
   "gemini",
   "openrouter",
+  "typesafe",
   "groq",
   "mistral",
   "deepseek",
