@@ -29,6 +29,7 @@ dependencies = [
     "langgraph>=1.2,<2",
     "langgraph-checkpoint-postgres>=3,<4",
     "langgraph-checkpoint-sqlite>=3,<4",
+    "typesafe-sdk>=0.7,<0.8",
     "pypdf>=6.18",
     "psycopg[binary,pool]>=3.3",
     "pypdfium2>=5.13",

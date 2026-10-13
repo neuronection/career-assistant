@@ -11,8 +11,9 @@ from app.ai.tools import list_tools
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import mask_secret
-from app.core.errors import DomainError
+from app.core.errors import DomainError, PermissionDeniedError
 from app.models.ai_model import AIBudget
+from app.models.ai_provider_model import AIProvider, AITaskAssignment
 from app.models.user_model import User
 from app.schemas.ai_admin import (
     AssignmentOut,
@@ -26,7 +27,10 @@ from app.schemas.ai_admin import (
     ModelUpdate,
     ProviderCreate,
     ProviderOut,
+    ProviderSetupIn,
     ProviderUpdate,
+    SetDefaultIn,
+    SetupOut,
     TestResult,
     UsageRollup,
     WebSettingsOut,
@@ -258,6 +262,123 @@ async def fetch_external_models(
         return await AIProviderService(db).fetch_external_models(provider_id, user)
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+@router.post("/providers/{preset_key}/setup", response_model=SetupOut)
+async def setup_preset_provider(
+    preset_key: str,
+    data: ProviderSetupIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SetupOut:
+    """One-click §15 setup: fetch-first validation, curated catalog,
+    append-union persistence, capability-aware gap-fill — all at the
+    caller's scope (system scope requires admin)."""
+    from app.ai.providers.setup import (
+        SetupError,
+        SetupOptions,
+        UnknownPresetError,
+        setup_provider_from_preset,
+    )
+
+    options = None
+    if data.options is not None:
+        options = SetupOptions(
+            curated_ids=data.options.curated_ids,
+            bind_chat=data.options.bind_chat,
+            bind_vision=data.options.bind_vision,
+            bind_stt=data.options.bind_stt,
+            bind_decision=data.options.bind_decision,
+        )
+    try:
+        outcome = await setup_provider_from_preset(
+            db,
+            user,
+            preset_key,
+            data.api_key,
+            name=data.name,
+            scope=data.scope,
+            options=options,
+        )
+    except UnknownPresetError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except SetupError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": exc.classified.code.value,
+                "suspected_vendor": exc.classified.suspected_vendor,
+                "detail": exc.vendor_message,
+            },
+        ) from exc
+    except DomainError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+    await db.commit()
+    rows = await db.execute(select(AIProvider).where(AIProvider.id == outcome.provider_id))
+    provider = rows.scalars().first()
+    assert provider is not None
+    return SetupOut(
+        ok=True,
+        provider=ProviderOut.model_validate(_provider_out(provider, user)),
+        catalog_count=outcome.catalog_count,
+        curated_missed=outcome.curated_missed,
+        assigned_chat_model=outcome.assigned_chat_model,
+        assigned_vision_model=outcome.assigned_vision_model,
+        assigned_stt_model=outcome.assigned_stt_model,
+        assigned_decision_slots=outcome.assigned_decision_slots,
+    )
+
+
+@router.put("/providers/{provider_id}/set-default", response_model=AssignmentOut)
+async def set_provider_default(
+    provider_id: UUID,
+    data: SetDefaultIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentOut:
+    """Bind one of a provider's models as a task default (scope-aware).
+
+    Capability guards reject cross-slot models (422); a model name that
+    belongs to another provider is a 409, never a silent duplicate.
+    """
+    from app.ai.providers.setup import (
+        CrossProviderModelError,
+        set_default_model,
+    )
+
+    try:
+        await set_default_model(
+            db,
+            user,
+            provider_id=provider_id,
+            model_name=data.model_name,
+            task=data.task,
+            scope=data.scope,
+        )
+    except CrossProviderModelError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except DomainError as exc:
+        await db.rollback()
+        status_code = (
+            status.HTTP_403_FORBIDDEN
+            if isinstance(exc, PermissionDeniedError)
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(status_code, str(exc)) from exc
+    user_id = user.id if data.scope == "user" else None
+    rows = await db.execute(
+        select(AITaskAssignment).where(
+            AITaskAssignment.task_type == data.task,
+            AITaskAssignment.scope == data.scope,
+            AITaskAssignment.user_id == user_id,
+        )
+    )
+    assignment = rows.scalars().first()
+    assert assignment is not None
+    return AssignmentOut.model_validate(assignment)
 
 
 @router.get("/models")

@@ -9096,6 +9096,17 @@
             ],
             "title": "Caps"
           },
+          "decision_transport": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Transport"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -11367,6 +11378,17 @@
             "title": "Name",
             "type": "string"
           },
+          "preset_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset Key"
+          },
           "provider_type": {
             "title": "Provider Type",
             "type": "string"
@@ -11397,6 +11419,51 @@
           "is_active"
         ],
         "title": "ProviderOut",
+        "type": "object"
+      },
+      "ProviderSetupIn": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SetupOptionsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "default": "user",
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "title": "ProviderSetupIn",
         "type": "object"
       },
       "ProviderUpdate": {
@@ -12488,6 +12555,32 @@
         "title": "SetContextOp",
         "type": "object"
       },
+      "SetDefaultIn": {
+        "properties": {
+          "model_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model Name",
+            "type": "string"
+          },
+          "scope": {
+            "default": "user",
+            "title": "Scope",
+            "type": "string"
+          },
+          "task": {
+            "default": "chat",
+            "maxLength": 50,
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_name"
+        ],
+        "title": "SetDefaultIn",
+        "type": "object"
+      },
       "SetDocOptionsOp": {
         "description": "Document-level options: title, page size, page budget, language.",
         "properties": {
@@ -12618,6 +12711,122 @@
           "template_id"
         ],
         "title": "SetTemplateOp",
+        "type": "object"
+      },
+      "SetupOptionsIn": {
+        "description": "\u00a715 options body (snake_case wire names, D14 five binds).",
+        "properties": {
+          "bind_chat": {
+            "default": true,
+            "title": "Bind Chat",
+            "type": "boolean"
+          },
+          "bind_decision": {
+            "default": true,
+            "title": "Bind Decision",
+            "type": "boolean"
+          },
+          "bind_stt": {
+            "default": true,
+            "title": "Bind Stt",
+            "type": "boolean"
+          },
+          "bind_vision": {
+            "default": true,
+            "title": "Bind Vision",
+            "type": "boolean"
+          },
+          "curated_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curated Ids"
+          }
+        },
+        "title": "SetupOptionsIn",
+        "type": "object"
+      },
+      "SetupOut": {
+        "properties": {
+          "assigned_chat_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Chat Model"
+          },
+          "assigned_decision_slots": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Decision Slots"
+          },
+          "assigned_stt_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Stt Model"
+          },
+          "assigned_vision_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Vision Model"
+          },
+          "catalog_count": {
+            "title": "Catalog Count",
+            "type": "integer"
+          },
+          "curated_missed": {
+            "title": "Curated Missed",
+            "type": "boolean"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderOut"
+          }
+        },
+        "required": [
+          "ok",
+          "provider",
+          "catalog_count",
+          "curated_missed"
+        ],
+        "title": "SetupOut",
         "type": "object"
       },
       "ShiftTolerance": {
@@ -17156,7 +17365,7 @@
     },
     "/api/v1/ai/providers/presets": {
       "get": {
-        "description": "The settings form's provider catalog (name/type/base URL/local).\n\nStatic metadata \u2014 the client never has to hardcode endpoint URLs;\n``local`` presets default the hosting toggle. Must be declared before\n``/providers/{provider_id}``.",
+        "description": "The settings form's provider catalog (family \u00a715 canonical data).\n\nEvery preset career's factory can serve, with the guided-setup\nmetadata (key URL, steps, curated models, STT + decision catalogs).\nTiles order by ``presetOrder`` client-side; provisional presets\n(``typesafe``) ride this map but not the order \u2014 the family exposure\nswitch. Must be declared before ``/providers/{provider_id}``.",
         "operationId": "provider_presets_api_v1_ai_providers_presets_get",
         "responses": {
           "200": {
@@ -17176,6 +17385,59 @@
           }
         },
         "summary": "Provider Presets",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/providers/{preset_key}/setup": {
+      "post": {
+        "description": "One-click \u00a715 setup: fetch-first validation, curated catalog,\nappend-union persistence, capability-aware gap-fill \u2014 all at the\ncaller's scope (system scope requires admin).",
+        "operationId": "setup_preset_provider_api_v1_ai_providers__preset_key__setup_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "preset_key",
+            "required": true,
+            "schema": {
+              "title": "Preset Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderSetupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Setup Preset Provider",
         "tags": [
           "ai-settings"
         ]
@@ -17414,6 +17676,60 @@
           }
         },
         "summary": "Add Model",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/providers/{provider_id}/set-default": {
+      "put": {
+        "description": "Bind one of a provider's models as a task default (scope-aware).\n\nCapability guards reject cross-slot models (422); a model name that\nbelongs to another provider is a 409, never a silent duplicate.",
+        "operationId": "set_provider_default_api_v1_ai_providers__provider_id__set_default_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDefaultIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Provider Default",
         "tags": [
           "ai-settings"
         ]

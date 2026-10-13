@@ -116,6 +116,40 @@ class AssignmentSet(BaseModel):
     tier: str | None = Field(default=None, pattern="^(fast|strong)$")
 
 
+class SetupOptionsIn(BaseModel):
+    """§15 options body (snake_case wire names, D14 five binds)."""
+
+    curated_ids: list[str] | None = Field(default=None, max_length=100)
+    bind_chat: bool = True
+    bind_vision: bool = True
+    bind_stt: bool = True
+    bind_decision: bool = True
+
+
+class ProviderSetupIn(BaseModel):
+    api_key: str | None = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, max_length=120)
+    scope: str = "user"
+    options: SetupOptionsIn | None = None
+
+
+class SetupOut(BaseModel):
+    ok: bool
+    provider: ProviderOut
+    catalog_count: int
+    curated_missed: bool
+    assigned_chat_model: str | None = None
+    assigned_vision_model: str | None = None
+    assigned_stt_model: str | None = None
+    assigned_decision_slots: dict[str, str] | None = None
+
+
+class SetDefaultIn(BaseModel):
+    model_name: str = Field(min_length=1, max_length=200)
+    task: str = Field(default="chat", max_length=50)
+    scope: str = "user"
+
+
 class EffectiveAssignment(BaseModel):
     task_type: str
     source: str
