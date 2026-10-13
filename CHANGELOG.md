@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (plan 26 Phase 6 closeout)
+- **E2E coverage for the AI-settings surface:** two network-free specs
+  on the real server — the setup wizard (tiles → guided form → back;
+  the seven offered presets; Anthropic stays withheld per the factory
+  delta, TypeSafe off the tiles per the provisional exposure switch)
+  and the TasksTab Decision group (title, the verbatim §13.5 privacy
+  notice, all four family slots). The real-key flows stay on the
+  owner's manual checklist by design.
+### Changed (plan 26 Phase 6 closeout)
+- **Ruff: the generated presets module rides the scoped family
+  accommodation** (lint E501 per-file-ignore + `[tool.ruff.format]`
+  exclude) — the `[tool.ruff]` `extend-exclude` is dropped: it sat
+  inside a family-convergence compared block and red-flagged the
+  family scan. Vendored gates re-synced (byok **R8**; alignment family
+  table lists career strict, matching its own CI; convergence `--self`
+  layout probe).
+
 ### Added (plan 26 Phase 4 — uniform AI settings: BYOK realignment + decision models)
 - **One-click BYOK setup, family-uniform (§15):** preset tiles → guided
   form → review, backed by `POST /ai/providers/{preset_key}/setup` —
