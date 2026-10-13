@@ -190,6 +190,7 @@ describe("AIConfig (settings > AI)", () => {
         max_tokens: null,
         reasoning_effort: null,
         caps: ["text"],
+        decision_transport: null,
       }),
     );
   });

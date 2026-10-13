@@ -205,6 +205,7 @@ async def add_model(
             reasoning_effort=data.reasoning_effort,
             tier=data.tier,
             caps=data.caps,
+            decision_transport=data.decision_transport,
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -229,10 +230,12 @@ async def update_model(
             temperature=data.temperature,
             max_tokens=data.max_tokens,
             caps=data.caps,
+            decision_transport=data.decision_transport,
             set_temperature="temperature" in data.model_fields_set,
             set_max_tokens="max_tokens" in data.model_fields_set,
             set_reasoning_effort="reasoning_effort" in data.model_fields_set,
             set_caps="caps" in data.model_fields_set,
+            set_decision_transport="decision_transport" in data.model_fields_set,
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

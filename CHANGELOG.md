@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (assistant-ui 0.57.0 — capability-kind model form, 2026-10-14)
+- **The models-tab add/edit form matches study's capability-kind UX:**
+  standalone capability kinds (decision/stt/tts/embeddings select
+  exclusively — chat caps combine), per-capability generation options,
+  the decision transport row (systemone, carried on create/update via
+  the new `decision_transport` API field — validated, stamped from the
+  payload or the default, cleared when caps move away from decision),
+  the provider context banner (configured name + base URL) and the
+  labelled ghost manual toggle with direction copy.
+- **Empty decision slots suggest the family's basic decision default**
+  (first canonical preset declaring `decision_default`) — display-only.
+
 ### Changed (embeddings defaults wave — the embeddings slot gap-fills at setup, 2026-10-13)
 - **Embeddings defaults join the setup flow:** the canonical presets gain
   `embeddings_model` (docs-verified: openai `text-embedding-3-small`,

@@ -5,6 +5,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import discover_google_models, token_cap_kwargs
+from app.ai.decide.types import DecisionTransport
 from app.core.config import settings
 from app.core.encryption import MASK_MARKER, encrypt_secret
 from app.core.errors import PermissionDeniedError, ValidationError
@@ -279,11 +280,15 @@ class AIProviderService:
         reasoning_effort: str | None = None,
         tier: str | None = None,
         caps: list[str] | None = None,
+        decision_transport: str | None = None,
     ) -> AIModel:
         """Add a model to a provider (tier declares which tier it serves)."""
         provider = await self.get_provider(provider_id, user)
         if provider.scope == "system" and not user.is_admin:
             raise ValidationError("Only admins can add models to global providers")
+        decision_cap = (caps is not None and "decision" in caps) or (
+            provider.provider_type == "decision"
+        )
         model = AIModel(
             provider_id=provider.id,
             name=name,
@@ -293,6 +298,11 @@ class AIProviderService:
             reasoning_effort=_validate_reasoning_effort(reasoning_effort),
             tier=_validate_tier(tier),
             caps=caps,
+            decision_transport=(
+                decision_transport or DecisionTransport.SYSTEMONE.value
+            )
+            if decision_cap
+            else None,
         )
         self.db.add(model)
         await self.db.commit()
@@ -310,10 +320,12 @@ class AIProviderService:
         temperature: float | None = None,
         max_tokens: int | None = None,
         caps: list[str] | None = None,
+        decision_transport: str | None = None,
         set_temperature: bool = False,
         set_max_tokens: bool = False,
         set_reasoning_effort: bool = False,
         set_caps: bool = False,
+        set_decision_transport: bool = False,
     ) -> AIModel:
         """Edit a registered model (``set_*`` flags clear optional caps)."""
         rows = await self.db.execute(select(AIModel).where(AIModel.id == model_id))
@@ -335,6 +347,18 @@ class AIProviderService:
             model.max_tokens = max_tokens
         if set_caps:
             model.caps = caps
+        effective_caps = caps if set_caps else model.caps
+        decision_kept = (effective_caps is not None and "decision" in effective_caps) or (
+            provider.provider_type == "decision"
+        )
+        if decision_kept:
+            model.decision_transport = (
+                decision_transport or DecisionTransport.SYSTEMONE.value
+            )
+        elif set_decision_transport or set_caps:
+            # caps moved away from decision (or the transport was set
+            # explicitly) — nothing to carry without the capability.
+            model.decision_transport = decision_transport
         self.db.add(model)
         await self.db.commit()
         await self.db.refresh(model)

@@ -924,7 +924,11 @@
       "providersEmptyLabel": "No providers configured yet — add one in the Providers tab first, then register its models here.",
       "deleteTitle": "Delete model {{name}}?",
       "deleteBody": "Tasks that used this model fall back to their scope default.",
-      "deleteConfirm": "Delete model"
+      "deleteConfirm": "Delete model",
+      "standaloneLabel": "Standalone",
+      "transportLabel": "Transport",
+      "useCatalogLabel": "Pick from the catalog",
+      "providerContextLabel": "Provider"
     },
     "tasks": {
       "title": "Task Assignments",
@@ -940,7 +944,8 @@
       "decisionUnassignedMeta": "Unassigned — decision points fall through to the agent path.",
       "scopeEmpty": "No models are registered in this scope yet — add one on the Models tab, then assign it here.",
       "clearLabel": "Clear assignment",
-      "nonAdminNote": "Global assignments are managed by an administrator; set personal overrides to customize your own AI models."
+      "nonAdminNote": "Global assignments are managed by an administrator; set personal overrides to customize your own AI models.",
+      "suggestedDecisionDefault": "Suggested: {{model}} ({{provider}})"
     },
     "taskLabel": {
       "profile_analyze": "Profile Analysis & Guidance",

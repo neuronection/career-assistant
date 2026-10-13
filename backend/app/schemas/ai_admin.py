@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.ai.decide.types import DecisionTransport
 from app.models.enums import AICapability
 
 ALLOWED_CAPS = frozenset(c.value for c in AICapability)
@@ -84,8 +85,17 @@ class ModelCreate(BaseModel):
     reasoning_effort: str | None = Field(default=None, max_length=20)
     tier: str | None = Field(default=None, pattern="^(fast|strong)$")
     caps: list[str] | None = None
+    decision_transport: str | None = Field(default=None, max_length=20)
 
     _validate_caps = field_validator("caps")(_validate_caps)
+
+    @field_validator("decision_transport")
+    @classmethod
+    def _validate_decision_transport(cls, value: str | None) -> str | None:
+        """The decision transport seam (D2): one shipping transport."""
+        if value is not None and value != DecisionTransport.SYSTEMONE.value:
+            raise ValueError(f"Unknown decision transport '{value}'")
+        return value
 
 
 class ModelUpdate(BaseModel):
@@ -95,8 +105,16 @@ class ModelUpdate(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1)
     caps: list[str] | None = None
+    decision_transport: str | None = Field(default=None, max_length=20)
 
     _validate_caps = field_validator("caps")(_validate_caps)
+
+    @field_validator("decision_transport")
+    @classmethod
+    def _validate_decision_transport(cls, value: str | None) -> str | None:
+        if value is not None and value != DecisionTransport.SYSTEMONE.value:
+            raise ValueError(f"Unknown decision transport '{value}'")
+        return value
 
 
 class AssignmentOut(BaseModel):

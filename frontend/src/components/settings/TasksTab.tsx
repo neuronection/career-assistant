@@ -120,6 +120,18 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
   const [taskRows, setTaskRows] = useState<aiApi.AITaskInfo[]>([]);
   const [allModels, setAllModels] = useState<ProviderModelInfo[]>([]);
   const [assignments, setAssignments] = useState<aiApi.StoredAssignment[]>([]);
+  const [presets, setPresets] = useState<Record<string, aiApi.ProviderPreset>>({});
+
+  /** The family's basic decision default: the first canonical preset
+   * declaring one — a display-level suggestion, never an assignment. */
+  const decisionSuggestion = (() => {
+    for (const preset of Object.values(presets)) {
+      if (preset.decision_default) {
+        return { model: preset.decision_default, provider: preset.name };
+      }
+    }
+    return null;
+  })();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -130,11 +142,13 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
   const refresh = async () => {
     setError("");
     try {
-      const [taskRows, modelRows, assignmentRows] = await Promise.all([
+      const [taskRows, modelRows, assignmentRows, presetRows] = await Promise.all([
         aiApi.fetchTasks(),
         aiApi.fetchAllModels(),
         aiApi.fetchAssignments(scope).catch(() => [] as aiApi.StoredAssignment[]),
+        aiApi.fetchProviderPresets().catch(() => ({})),
       ]);
+      setPresets(presetRows);
       setTaskRows(taskRows);
       setAllModels(modelRows);
       setAssignments(assignmentRows);
@@ -284,11 +298,20 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
         disabled={busy}
         renderMeta={(task) =>
           task.id !== "default" && !value[task.id] ? (
-            <p className="text-[11px] text-slate-400">
-              {task.id.startsWith(DECISION_TASK_PREFIX)
-                ? t("aiSettings.tasks.decisionUnassignedMeta")
-                : t(STRINGS.unassignedMeta)}
-            </p>
+            task.id.startsWith(DECISION_TASK_PREFIX) && decisionSuggestion ? (
+              <p className="text-[11px] text-slate-400">
+                {t("aiSettings.tasks.suggestedDecisionDefault", {
+                  model: decisionSuggestion.model,
+                  provider: decisionSuggestion.provider,
+                })}
+              </p>
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                {task.id.startsWith(DECISION_TASK_PREFIX)
+                  ? t("aiSettings.tasks.decisionUnassignedMeta")
+                  : t(STRINGS.unassignedMeta)}
+              </p>
+            )
           ) : null
         }
       />
