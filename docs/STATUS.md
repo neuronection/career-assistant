@@ -57,6 +57,7 @@ healthcheck. Standalone stack verified end-to-end. Suites: 1520.
 
 | Identity & auth (family `auth-kit`, ADR-0013/0028) | done | Cookie sessions + double-submit CSRF, key-separated token contract, DB-authoritative init-only instance modes (fail-closed), desktop DIM + shell-secret gate; user management is the kit's §12 surface with the shared `AdminUserTable` (Settings → Users) and account self-service (Settings → Account: sessions, password change, deletion). Plan 20 Phases 3–4: the §4 init + boot guards + §16 knob routing are the shared kit glue (`app/auth/install.py`, `nx_auth.boot`); S14 §4.5 transition cases; prefixed-only `CAREER_*` config with the data/config dir split, `main.py` split (238 ln), one app construction per process |
 | AI gateway (single structured-output path, DB-only config) | done | Audited in `ai_generations`; mock provider dev/test-only |
+| Uniform AI settings (§15 BYOK setup + decision models, plan 26 Phase 4) | done | Preset tiles → guided setup → defaults-first assignments on the assistant-ui kit; capability-slot defaults (`default` pseudo-task gone); decision funnel (`app/ai/decide/`) with the `systemone` transport, D2b routing + scope-chain fallback, audited in `ai_generations`; byok gate R1–R7 + alignment strict in CI |
 | Skill packs (versioned instruction data) | done | Tone/structure only; validators untouched |
 | Production self-host stack (prod + standalone nginx, TLS) | done | See [dev/deployment.md](dev/deployment.md) |
 | Backups (DB + uploads scripts) | done | Built-in backup/export UI planned |

@@ -94,8 +94,8 @@ stays referentially intact.
 |---|---|---|
 | `chat_sessions`, `chat_messages` | `chat_model.py` | Sessions, messages, turn metadata (tools/nodes traces) |
 | `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage) |
-| `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) |
-| `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models + per-task model assignments |
+| `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
+| `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
