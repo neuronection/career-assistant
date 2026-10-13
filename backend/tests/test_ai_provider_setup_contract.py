@@ -720,3 +720,15 @@ async def test_resolution_default_pseudo_task_is_gone(db, client, auth_headers) 
         headers=auth_headers,
     )
     assert rejected.status_code == 404
+
+
+def test_case_22b_probe_model_id_derives_from_canonical_data() -> None:
+    """§15 single-source: probe ids come from the synced preset data —
+    never a code literal (family closeout fix, 2026-10-13)."""
+    from app.ai.providers.presets import ALL_PRESETS, decision_probe_model_id
+
+    assert decision_probe_model_id({"decision_models": [{"id": "custom-jev"}]}) == "custom-jev"
+    assert decision_probe_model_id({"decision_default": "fallback-id"}) == "fallback-id"
+    assert decision_probe_model_id(ALL_PRESETS["typesafe"]) == "jev-latest"
+    with pytest.raises(ValueError, match="declares no decision models"):
+        decision_probe_model_id({})

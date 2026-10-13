@@ -24,7 +24,7 @@ from app.ai.decide.systemone.probe import (
 )
 from app.ai.decide.types import DECISION_SLOTS
 from app.ai.providers.errors import ClassifiedProviderError, classify_provider_error
-from app.ai.providers.presets import ALL_PRESETS
+from app.ai.providers.presets import ALL_PRESETS, decision_probe_model_id
 from app.ai.providers.service import infer_caps
 from app.core.encryption import encrypt_secret
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
@@ -289,10 +289,14 @@ async def setup_provider_from_preset(
     catalog: list[_PersistedModel] = []
     try:
         if decision_only:
+            # §15 single-source: the probe id derives from the synced
+            # canonical preset data (specs → decision_default), never a
+            # code literal.
+            probe_id = decision_probe_model_id(preset)
             probe_model = AIModel(
                 provider_id=provider.id,
-                name=decision_specs[0]["id"] if decision_specs else "jev-latest",
-                model_name=decision_specs[0]["id"] if decision_specs else "jev-latest",
+                name=probe_id,
+                model_name=probe_id,
                 caps=["decision"],
                 decision_transport="systemone",
             )

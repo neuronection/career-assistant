@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (plan 26 §13.8/§15 single-source sweep, 2026-10-13)
+- **No canonical model ids as code literals:** the decision probe's
+  model id derives from the synced preset data via
+  `decision_probe_model_id()` (specs → `decision_default`, raising on a
+  preset that declares neither — never an invented `jev-latest`).
+  Contract matrix gains the derivation pin (case 22b).
+
 ### Added (plan 26 Phase 6 closeout)
 - **E2E coverage for the AI-settings surface:** two network-free specs
   on the real server — the setup wizard (tiles → guided form → back;
