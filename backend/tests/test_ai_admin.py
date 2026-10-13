@@ -3,6 +3,7 @@ import json
 import pytest
 from nx_auth.passwords import hash_password
 
+from app.ai.decide.types import DecisionTransport
 from app.ai.providers.resolution import resolve_task_model
 from app.ai.providers.service import AIProviderService
 from app.core.encryption import (
@@ -440,6 +441,111 @@ async def test_model_caps_persist(db, client, auth_headers):
     )
     assert rejected.status_code == 422
     assert "telepathy" in str(rejected.json()["detail"])
+
+
+async def test_decision_transport_stamp_and_clear(db, client, auth_headers):
+    """The decision transport seam stamps and clears with the capability:
+    creating a decision-capable model stamps the shipping transport (the
+    payload value or the default), unknown transports are rejected at the
+    schema boundary, edits unrelated to the transport re-stamp the default,
+    moving caps away from decision clears it, and restoring the capability
+    stamps it again."""
+    created = await client.post(
+        "/api/v1/ai/providers",
+        json={"name": "Transport Co", "provider_type": "mock", "scope": "system"},
+        headers=auth_headers,
+    )
+    provider_id = created.json()["id"]
+    model = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={"name": "decider", "model_name": "dec-1", "caps": ["decision"]},
+        headers=auth_headers,
+    )
+    assert model.status_code == 201, model.text
+    body = model.json()
+    assert body["decision_transport"] == DecisionTransport.SYSTEMONE.value
+    model_id = body["id"]
+
+    rejected = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={
+            "name": "bogus",
+            "model_name": "dec-2",
+            "caps": ["decision"],
+            "decision_transport": "pigeon-post",
+        },
+        headers=auth_headers,
+    )
+    assert rejected.status_code == 422
+    assert "pigeon-post" in str(rejected.json()["detail"])
+
+    renamed = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"name": "decider (renamed)"},
+        headers=auth_headers,
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
+
+    demoted = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"caps": ["text"]},
+        headers=auth_headers,
+    )
+    assert demoted.status_code == 200, demoted.text
+    assert demoted.json()["caps"] == ["text"]
+    assert demoted.json()["decision_transport"] is None
+
+    restored = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"caps": ["decision"]},
+        headers=auth_headers,
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
+
+    explicit = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={
+            "name": "decider II",
+            "model_name": "dec-3",
+            "caps": ["decision"],
+            "decision_transport": DecisionTransport.SYSTEMONE.value,
+        },
+        headers=auth_headers,
+    )
+    assert explicit.status_code == 201, explicit.text
+    assert explicit.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
+
+
+async def test_decision_provider_type_stamps_transport_without_caps(db, client, auth_headers):
+    """A decision-typed provider implies the capability: a model registered
+    without declared caps still stamps the transport, and the stamp survives
+    an edit that leaves caps undeclared."""
+    created = await client.post(
+        "/api/v1/ai/providers",
+        json={"name": "Decision Native", "provider_type": "decision", "scope": "system"},
+        headers=auth_headers,
+    )
+    provider_id = created.json()["id"]
+    model = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={"name": "native", "model_name": "jev-latest"},
+        headers=auth_headers,
+    )
+    assert model.status_code == 201, model.text
+    body = model.json()
+    assert body["caps"] is None
+    assert body["decision_transport"] == DecisionTransport.SYSTEMONE.value
+    model_id = body["id"]
+
+    renamed = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"name": "native (renamed)"},
+        headers=auth_headers,
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
 
 
 async def test_all_models_listing_ships_the_declared_caps(client, auth_headers):
