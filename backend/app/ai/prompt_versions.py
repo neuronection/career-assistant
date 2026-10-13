@@ -45,6 +45,13 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.MCP_TOOL_CALL.value: 1,
     AITaskType.TRANSCRIBE.value: 1,
     AITaskType.CHAT_TITLE.value: 1,
+    # Decision slots resolve through the decision funnel, never the
+    # gateway's prompt path — pinned at 1 to keep the every-task
+    # coverage invariant intact.
+    AITaskType.DECISION_TOOL_DISPATCH.value: 1,
+    AITaskType.DECISION_BOOLEAN_GATE.value: 1,
+    AITaskType.DECISION_CHOICE.value: 1,
+    AITaskType.DECISION_SCORE.value: 1,
 }
 
 

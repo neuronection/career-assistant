@@ -847,7 +847,9 @@
       "vision": "Vision",
       "tools": "Tools",
       "embeddings": "Embeddings",
-      "audio": "Audio"
+      "stt": "Transcription",
+      "tts": "Speech",
+      "decision": "Decision"
     },
     "providers": {
       "hint": "A provider is an API endpoint (OpenAI, OpenRouter, Ollama, LM Studio…) holding the key and base URL.",

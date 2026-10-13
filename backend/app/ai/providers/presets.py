@@ -1,77 +1,122 @@
-"""Provider preset catalog: named endpoints
-the settings UI offers before "Custom". Career's model factory speaks the
-OpenAI wire (``openai`` / ``openai_compatible``) plus native Gemini
-(``google`` — ``chat_models.py``), so every preset maps onto those types.
-Pure metadata — no secrets; the ``local`` flag only defaults the settings
-form's hosting toggle."""
+"""Provider preset catalog — local overlay over the family canonical data.
+
+``presets_data.py`` is GENERATED from ``contracts/ai-presets.json`` (dev
+canonical, schema 2) by ``scripts/sync-ai-presets.mjs`` — never hand-edit
+it; this module is the sanctioned career-side adaptation layer:
+
+- canonical ``wireType`` → career's ``AIProviderType`` (career keeps a
+  dedicated ``openai`` type beside ``openai_compatible`` — its factory
+  branches on it, so the ``openai`` preset key maps to the stronger type
+  instead of the canonical's generic ``openai_compatible``);
+- ``anthropic`` stays in the canonical data but is NOT offered here:
+  career's model factory speaks the OpenAI wire + native Gemini only, and
+  adding a wire is its own family-reviewed change (factory branch +
+  capability inference + connection test) — not a preset flip;
+- ``typesafe`` rides ``presets`` but not ``presetOrder`` (family exposure
+  switch — provisional until the live probe confirms it).
+
+Pure metadata — no secrets; ``local`` only defaults the settings form's
+hosting toggle.
+"""
 
 from typing import Any
 
-PRESETS: dict[str, dict[str, Any]] = {
-    "openai": {
-        "name": "OpenAI",
-        "type": "openai",
-        "base_url": "https://api.openai.com/v1",
-        "local": False,
-    },
-    "gemini": {
-        "name": "Google Gemini",
-        "type": "google",
-        "base_url": "https://generativelanguage.googleapis.com",
-        "local": False,
-    },
-    "openrouter": {
-        "name": "OpenRouter",
-        "type": "openai_compatible",
-        "base_url": "https://openrouter.ai/api/v1",
-        "local": False,
-    },
-    "groq": {
-        "name": "Groq",
-        "type": "openai_compatible",
-        "base_url": "https://api.groq.com/openai/v1",
-        "local": False,
-    },
-    "mistral": {
-        "name": "Mistral",
-        "type": "openai_compatible",
-        "base_url": "https://api.mistral.ai/v1",
-        "local": False,
-    },
-    "deepseek": {
-        "name": "DeepSeek",
-        "type": "openai_compatible",
-        "base_url": "https://api.deepseek.com/v1",
-        "local": False,
-    },
-    "ollama": {
-        "name": "Ollama (local)",
-        "type": "openai_compatible",
-        "base_url": "http://localhost:11434/v1",
-        "local": True,
-    },
-    "llama_cpp": {
-        "name": "llama.cpp (local)",
-        "type": "openai_compatible",
-        "base_url": "http://localhost:8080/v1",
-        "local": True,
-    },
-    "lm_studio": {
-        "name": "LM Studio (local)",
-        "type": "openai_compatible",
-        "base_url": "http://localhost:1234/v1",
-        "local": True,
-    },
+from .presets_data import KEY_PREFIX_HINTS as _KEY_PREFIX_HINT_DATA
+from .presets_data import PRESET_ORDER as _PRESET_ORDER
+from .presets_data import PRESETS as _PRESET_DATA
+
+PRESET_ORDER: tuple[str, ...] = tuple(key for key in _PRESET_ORDER if key not in {"anthropic"})
+
+LOCAL_BASE_URL_OVERRIDES: dict[str, str] = {
+    "gemini": "https://generativelanguage.googleapis.com",
 }
 
-PRESET_ORDER: tuple[str, ...] = (
-    "openai",
-    "gemini",
-    "openrouter",
-    "groq",
-    "mistral",
-    "deepseek",
-    "ollama",
-    "llama_cpp",
-    "lm_studio",
+WIRE_TYPE_MAP: dict[str, str] = {
+    "openai_compatible": "openai_compatible",
+    "google": "google",
+    "decision": "decision",
+}
+
+_PRESET_TYPE_CARVE_OUT: dict[str, str] = {
+    "openai": "openai",
+}
+
+_PRESET_FIELDS = (
+    "name",
+    "wire_type",
+    "base_url",
+    "fixed_base",
+    "local",
+    "key_url",
+    "preferred_model",
+    "curated_models",
+    "stt_model",
+    "decision_models",
+    "decision_default",
+    "provisional",
+    "steps",
+    "free_tier_note",
 )
+
+
+def _career_type(key: str, row: dict[str, Any]) -> str | None:
+    if key in _PRESET_TYPE_CARVE_OUT:
+        return _PRESET_TYPE_CARVE_OUT[key]
+    return WIRE_TYPE_MAP.get(row["wire_type"])
+
+
+def _build(key: str, row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": row["name"],
+        "type": _career_type(key, row),
+        "base_url": LOCAL_BASE_URL_OVERRIDES.get(key, row["base_url"]),
+        "fixed_base": row["fixed_base"],
+        "local": row["local"],
+        "key_url": row["key_url"],
+        "preferred_model": row["preferred_model"],
+        "curated_models": row["curated_models"],
+        "stt_model": row["stt_model"],
+        "decision_models": row["decision_models"],
+        "decision_default": row["decision_default"],
+        "provisional": row["provisional"],
+        "steps": row["steps"],
+        "free_tier_note": row["free_tier_note"],
+    }
+
+
+ALL_PRESETS: dict[str, dict[str, Any]] = {
+    key: _build(key, row) for key, row in _PRESET_DATA.items() if _career_type(key, row) is not None
+}
+
+SETUP_PRESETS: dict[str, dict[str, Any]] = {
+    key: ALL_PRESETS[key] for key in PRESET_ORDER if key in ALL_PRESETS
+}
+
+PRESETS: dict[str, dict[str, Any]] = SETUP_PRESETS
+
+KEY_PREFIX_HINTS: tuple[dict[str, str], ...] = tuple(_KEY_PREFIX_HINT_DATA)
+
+
+def is_preset_key(key: str) -> bool:
+    return key in SETUP_PRESETS
+
+
+def is_any_preset_key(key: str) -> bool:
+    return key in ALL_PRESETS
+
+
+def guess_preset_for_key(api_key: str | None) -> str | None:
+    trimmed = (api_key or "").strip()
+    if not trimmed:
+        return None
+    for hint in KEY_PREFIX_HINTS:
+        if trimmed.startswith(hint["prefix"]):
+            return hint["preset"]
+    return None
+
+
+def decision_models_for_preset(key: str) -> list[dict[str, Any]]:
+    models = ALL_PRESETS.get(key, {}).get("decision_models")
+    if not models:
+        return []
+    return [dict(entry) for entry in models]

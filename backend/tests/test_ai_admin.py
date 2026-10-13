@@ -257,7 +257,10 @@ async def test_user_assignment_overrides_system(db, client, auth_headers, seeded
     assert resolved_other.source == "system:match_score"
 
 
-async def test_default_task_fallback(db, client, auth_headers):
+async def test_capability_slot_default_fallback(db, client, auth_headers):
+    """Plan 100: the text capability slot is the global fallback — tasks
+    without their own binding inherit it (the `default` pseudo-task is
+    gone)."""
     created = await client.post(
         "/api/v1/ai/providers",
         json={"name": "Fallback", "provider_type": "mock", "scope": "system"},
@@ -269,7 +272,7 @@ async def test_default_task_fallback(db, client, auth_headers):
         headers=auth_headers,
     )
     await client.put(
-        "/api/v1/ai/assignments/default",
+        "/api/v1/ai/assignments/text",
         json={"scope": "system", "model_id": model.json()["id"]},
         headers=auth_headers,
     )
@@ -281,7 +284,7 @@ async def test_default_task_fallback(db, client, auth_headers):
     user = (await db.execute(select(User).where(User.email == me["email"]))).scalars().first()
     resolved = await resolve_task_model(db, "chat", user.id)
     assert resolved.model_name == "fallback-model"
-    assert resolved.source == "system:default"
+    assert resolved.source == "system:text"
 
 
 async def test_invoke_uses_resolved_model(db, client, auth_headers, seeded_catalog):
@@ -407,11 +410,11 @@ async def test_model_caps_persist(db, client, auth_headers):
 
     updated = await client.put(
         f"/api/v1/ai/models/{model_id}",
-        json={"caps": ["text", "tools", "audio"]},
+        json={"caps": ["text", "tools", "stt"]},
         headers=auth_headers,
     )
     assert updated.status_code == 200, updated.text
-    assert updated.json()["caps"] == ["text", "tools", "audio"]
+    assert updated.json()["caps"] == ["text", "tools", "stt"]
 
     # Sparse update: omitted caps stay unchanged.
     untouched = await client.put(
@@ -419,7 +422,7 @@ async def test_model_caps_persist(db, client, auth_headers):
         json={"name": "renamed"},
         headers=auth_headers,
     )
-    assert untouched.json()["caps"] == ["text", "tools", "audio"]
+    assert untouched.json()["caps"] == ["text", "tools", "stt"]
 
     # Explicit null clears back to "not declared".
     cleared = await client.put(
@@ -588,7 +591,9 @@ async def test_provider_presets_endpoint(client, auth_headers):
     assert presets["gemini"]["base_url"] == ("https://generativelanguage.googleapis.com")
     assert presets["openrouter"]["base_url"] == "https://openrouter.ai/api/v1"
     assert presets["ollama"]["local"] is True
-    assert presets["lm_studio"]["base_url"] == "http://localhost:1234/v1"
+    assert presets["typesafe"]["type"] == "decision"
+    assert presets["typesafe"]["provisional"] is True
+    assert "anthropic" not in presets, "career's factory cannot speak the anthropic wire"
     assert all("name" in preset and "type" in preset for preset in presets.values())
 
 

@@ -31,6 +31,9 @@ class AIProvider(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # provider runs and which jurisdiction its data lands in.
     is_local: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     country: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # §15: the canonical preset this row was created from (manual rows
+    # that setup adopts get stamped here; NULL = genuinely custom).
+    preset_key: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
 
     models: Mapped[list["AIModel"]] = relationship(
         back_populates="provider", cascade="all, delete-orphan"
@@ -64,6 +67,10 @@ class AIModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tier: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # AICapability values; NULL means "not declared — clients may guess".
     caps: Mapped[list | None] = mapped_column(StructuredJSON, nullable=True)
+    # ADR-0032: the decision transport seam ('systemone') — set exactly
+    # for decision-capable models; the seam for future transports, never
+    # a caller-side branch.
+    decision_transport: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     provider: Mapped[AIProvider] = relationship(back_populates="models")
 

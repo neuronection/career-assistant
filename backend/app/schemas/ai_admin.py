@@ -33,6 +33,7 @@ class ProviderOut(BaseModel):
     is_active: bool
     is_local: bool | None = None
     country: str | None = None
+    preset_key: str | None = None
     is_mine: bool = False
     created_at: datetime | None = None
 
@@ -70,6 +71,7 @@ class ModelOut(BaseModel):
     reasoning_effort: str | None = None
     tier: str | None = None
     caps: list[str] | None = None
+    decision_transport: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -255,6 +255,10 @@ class AITaskType(StrEnum):
     INTERVIEW_DEBRIEF = "interview_debrief"
     EMBED = "embed"
     MCP_TOOL_CALL = "mcp_tool_call"
+    DECISION_TOOL_DISPATCH = "decision_tool_dispatch"
+    DECISION_BOOLEAN_GATE = "decision_boolean_gate"
+    DECISION_CHOICE = "decision_choice"
+    DECISION_SCORE = "decision_score"
 
 
 class AIScope(StrEnum):
@@ -267,6 +271,7 @@ class AIProviderType(StrEnum):
     OPENAI = "openai"
     OPENAI_COMPATIBLE = "openai_compatible"
     GOOGLE = "google"
+    DECISION = "decision"
 
 
 class AITaskTier(StrEnum):
@@ -280,14 +285,18 @@ class AICapability(StrEnum):
     """Capabilities a task requires from its assigned model.
 
     Also the allowed values of the persisted ``ai_models.caps`` list —
-    the vocabulary must stay in sync with the UI's capability toggles.
+    the vocabulary must stay in sync with the UI's capability toggles
+    and the family canonical (§15: ``stt``/``tts`` split, no ``audio``;
+    ``decision`` is explicit-only, never name-inferred).
     """
 
     TEXT = "text"
     VISION = "vision"
     TOOLS = "tools"
     EMBEDDINGS = "embeddings"
-    AUDIO = "audio"
+    STT = "stt"
+    TTS = "tts"
+    DECISION = "decision"
 
 
 class TagSource(StrEnum):

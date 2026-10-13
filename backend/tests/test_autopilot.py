@@ -526,11 +526,11 @@ async def test_chat_tools_registered():
     assert tools["run_autopilot"]["requires_user"] is True
 
 
-async def test_migration_head_is_0039():
+async def test_migration_head_is_linear():
     """Guard: the revision chain stays linear on a single head."""
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["0044"]
+    assert script.get_heads() == ["0045"]

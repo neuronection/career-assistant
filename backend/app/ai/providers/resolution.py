@@ -1,7 +1,19 @@
-"""Task→model resolution: USER assignment > SYSTEM assignment (task) >
-'default' assignment (same scope order). AI configuration lives exclusively
+"""Task→model resolution: per-task explicit binding (user > system) >
+per-task tier > capability-slot default for the task's ``requires``
+(same scope order) > slot tier. AI configuration lives exclusively
 in the database (managed via Settings → AI Configuration) — there are no
 env-var AI settings.
+
+Capability-slot defaults (plan 100): plain active assignments keyed on
+the slot capability itself (``text`` / ``vision`` / ``stt`` / ``tts``) —
+the rows setup's gap-fill fills and the settings UI leads with. The
+global ``default`` pseudo-task is gone; per-task assignments override
+their slot, derived tasks inherit it. The ``tts`` slot stays empty until
+career ships a TTS task (no invented rows).
+
+Decision slots (``decision_*`` task types) resolve through the decision
+funnel (``app/ai/decide/``), not this module — ``decision`` is not a
+slot capability here, so gateway resolution for them returns ``None``.
 
 The built-in mock provider is strictly opt-in via ``MOCK_AI=1`` (infra
 knob, dev/test only): when enabled, a system-scope mock provider is
@@ -24,7 +36,15 @@ from app.models.enums import AITaskType
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TASK = "default"
+SLOT_TASK_TYPES: tuple[str, ...] = ("text", "vision", "stt", "tts", "embeddings")
+
+SLOT_LABELS: dict[str, str] = {
+    "text": "default (text models)",
+    "vision": "default (vision models)",
+    "stt": "default (transcription models)",
+    "tts": "default (speech models)",
+    "embeddings": "default (embedding models)",
+}
 
 MOCK_PROVIDER_NAME = "Built-in Mock (dev only)"
 
@@ -158,14 +178,23 @@ async def ensure_dev_bootstrap(db: AsyncSession) -> None:
         db.add(model)
         await db.flush()
         models[model_name] = model
-    db.add(
-        AITaskAssignment(
-            task_type=DEFAULT_TASK,
-            scope="system",
-            provider_id=provider.id,
-            model_id=models["mock-large"].id,
+    # Slot defaults replace the retired `default` pseudo-task: the mock
+    # serves every slot the dev/test suite exercises (dictation +
+    # embeddings included); `tts` stays empty — career has no TTS task.
+    for slot, model_name in (
+        ("text", "mock-large"),
+        ("vision", "mock-large"),
+        ("stt", "mock-small"),
+        ("embeddings", "mock-small"),
+    ):
+        db.add(
+            AITaskAssignment(
+                task_type=slot,
+                scope="system",
+                provider_id=provider.id,
+                model_id=models[model_name].id,
+            )
         )
-    )
     await db.commit()
     logger.info("Dev bootstrap: seeded system mock provider (mock-large/mock-small).")
 
@@ -173,12 +202,23 @@ async def ensure_dev_bootstrap(db: AsyncSession) -> None:
 async def _resolve_scanned(
     db: AsyncSession, task_type: str, user_id: UUID | None, source_suffix: str = ""
 ) -> ResolvedModel | None:
-    """Scan task-specific then default assignments, user scope before system.
+    """Scan per-task then capability-slot assignments, user scope before system.
 
-    Explicit model bindings win over tier bindings; within one binding
-    kind the scan order is identical (task first, user scope first).
+    Explicit model bindings win over tier bindings; the task's own rows
+    win over its capability slot's. Slots only apply to slot capabilities
+    (``text``/``vision``/``stt``/``tts``) — never to decision tasks, whose
+    resolution lives in the decision funnel.
     """
-    for task in (task_type, DEFAULT_TASK):
+    from app.ai.tasks import task_capability
+
+    try:
+        requires = task_capability(task_type)
+    except KeyError:
+        requires = task_type if task_type in SLOT_TASK_TYPES else ""
+    scan_tasks = [task_type]
+    if requires in SLOT_TASK_TYPES and requires != task_type:
+        scan_tasks.append(requires)
+    for task in scan_tasks:
         for scope in ("user", "system"):
             found = await _find_assignment(db, task, scope, user_id)
             if found:
@@ -194,7 +234,7 @@ async def _resolve_scanned(
                     reasoning_effort=model.reasoning_effort,
                     tier=model.tier,
                 )
-    for task in (task_type, DEFAULT_TASK):
+    for task in scan_tasks:
         for scope in ("user", "system"):
             tier = await _find_tier_assignment(db, task, scope, user_id)
             if tier is None:
@@ -235,10 +275,17 @@ async def resolve_task_model(
 
 
 def known_task_types() -> list[dict]:
-    """Task types available for assignment (for the settings UI)."""
+    """Task types available for assignment (for the settings UI).
+
+    Capability-slot defaults first (the settings UI's Default models
+    group), then the concrete tasks. The legacy ``default`` pseudo-task
+    is gone — a slot row is the fallback, keyed on capability.
+    """
     from app.ai.tasks import TASKS_BY_NAME
 
-    tasks = []
+    tasks = [
+        {"value": slot, "label": SLOT_LABELS[slot], "is_slot": True} for slot in SLOT_TASK_TYPES
+    ]
     for t in AITaskType:
         task_def = TASKS_BY_NAME[t.value]
         tasks.append(
@@ -250,5 +297,4 @@ def known_task_types() -> list[dict]:
                 "description": task_def.description,
             }
         )
-    tasks.append({"value": DEFAULT_TASK, "label": "default (all tasks)"})
     return tasks

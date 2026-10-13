@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AudioLines, Database, Eye, FileText, Wrench } from "lucide-react";
+import { AudioLines, Crosshair, Database, Eye, FileText, Wrench } from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
 import { apiDetail } from "@/api/client";
@@ -30,7 +30,9 @@ const CAP_ICONS = {
   vision: Eye,
   tools: Wrench,
   embeddings: Database,
-  audio: AudioLines,
+  stt: AudioLines,
+  tts: AudioLines,
+  decision: Crosshair,
 } as const;
 
 const ADD_BATCH = 10;

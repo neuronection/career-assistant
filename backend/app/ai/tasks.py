@@ -196,7 +196,7 @@ TASK_DEFS: list[TaskDef] = [
     TaskDef(
         AITaskType.TRANSCRIBE.value,
         "Dictation audio transcription",
-        AICapability.TEXT.value,
+        AICapability.STT.value,
         AITaskTier.FAST.value,
     ),
     TaskDef(
@@ -227,6 +227,30 @@ TASK_DEFS: list[TaskDef] = [
         AITaskType.MCP_TOOL_CALL.value,
         "External MCP bridge tool execution",
         AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_TOOL_DISPATCH.value,
+        "Decision model slot: tool dispatch",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_BOOLEAN_GATE.value,
+        "Decision model slot: boolean gate",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_CHOICE.value,
+        "Decision model slot: choice",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_SCORE.value,
+        "Decision model slot: score",
+        AICapability.DECISION.value,
         AITaskTier.FAST.value,
     ),
 ]

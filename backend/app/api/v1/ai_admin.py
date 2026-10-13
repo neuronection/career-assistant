@@ -5,7 +5,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.budgets import usage_rollups as usage_rollups_view
-from app.ai.providers.presets import PRESET_ORDER, PRESETS
 from app.ai.providers.resolution import known_task_types, resolve_task_model
 from app.ai.providers.service import AIProviderService
 from app.ai.tools import list_tools
@@ -51,6 +50,7 @@ def _provider_out(provider, user: User) -> dict:
         "is_active": provider.is_active,
         "is_local": provider.is_local,
         "country": provider.country,
+        "preset_key": provider.preset_key,
         "is_mine": provider.scope == "system" or provider.user_id == user.id,
         "created_at": provider.created_at,
     }
@@ -96,13 +96,17 @@ async def list_providers(
 async def provider_presets(
     user: User = Depends(get_current_user),
 ) -> dict[str, dict]:
-    """The settings form's provider catalog (name/type/base URL/local).
+    """The settings form's provider catalog (family §15 canonical data).
 
-    Static metadata — the client never has to hardcode endpoint URLs;
-    ``local`` presets default the hosting toggle. Must be declared before
-    ``/providers/{provider_id}``.
+    Every preset career's factory can serve, with the guided-setup
+    metadata (key URL, steps, curated models, STT + decision catalogs).
+    Tiles order by ``presetOrder`` client-side; provisional presets
+    (``typesafe``) ride this map but not the order — the family exposure
+    switch. Must be declared before ``/providers/{provider_id}``.
     """
-    return {key: dict(PRESETS[key]) for key in PRESET_ORDER}
+    from app.ai.providers.presets import ALL_PRESETS
+
+    return {key: dict(row) for key, row in ALL_PRESETS.items()}
 
 
 @router.post("/providers", response_model=ProviderOut, status_code=201)
@@ -273,6 +277,7 @@ async def list_all_models(
             # what the per-model edit dialog declares — not on the
             # client's model-name guesses.
             "caps": list(model.caps or []),
+            "decision_transport": model.decision_transport,
             "provider_name": provider.name,
             "provider_scope": provider.scope,
             "provider_type": provider.provider_type,

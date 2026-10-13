@@ -112,7 +112,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0044"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0045"], (
         "revision chain stays linear on one head"
     )
 
@@ -1168,3 +1168,146 @@ def test_0044_data_key_family_wipe_and_drain(monkeypatch):
                 await engine.dispose()
 
         asyncio.run(cleanup())
+
+
+def test_0045_byok_uniform_realignment_roundtrip():
+    """Plan 26 Phase 4 / plan 100 batch A: preset_key + decision_transport
+    columns, audio→stt caps remap, default→text slot remap — all one-shot,
+    reversible to the pre-wave shape."""
+    import json as _json
+
+    import sqlalchemy as sa
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    _json_type = JSONB().with_variant(sa.JSON(), "sqlite")
+    _uuid_type = sa.Uuid()
+    _models = sa.table(
+        "ai_models",
+        sa.column("id", _uuid_type),
+        sa.column("provider_id", _uuid_type),
+        sa.column("name", sa.String),
+        sa.column("model_name", sa.String),
+        sa.column("is_active", sa.Boolean),
+        sa.column("caps", _json_type),
+    )
+    _assignments = sa.table(
+        "ai_task_assignments",
+        sa.column("id", _uuid_type),
+        sa.column("task_type", sa.String),
+        sa.column("scope", sa.String),
+        sa.column("provider_id", _uuid_type),
+        sa.column("is_active", sa.Boolean),
+    )
+    _providers = sa.table(
+        "ai_providers",
+        sa.column("id", _uuid_type),
+        sa.column("name", sa.String),
+        sa.column("scope", sa.String),
+        sa.column("provider_type", sa.String),
+        sa.column("api_base", sa.String),
+        sa.column("is_active", sa.Boolean),
+    )
+
+    async def run(statements):
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for statement in statements:
+                    await conn.execute(statement)
+        finally:
+            await engine.dispose()
+
+    async def scalar(query):
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                return (await conn.execute(query)).scalar_one()
+        finally:
+            await engine.dispose()
+
+    async def read_caps():
+        raw = await scalar(text(f"SELECT caps FROM ai_models WHERE id = '{model_id}'"))
+        return _json.loads(raw) if isinstance(raw, str) else raw
+
+    config = _configured()
+    provider_id = "5eed0a45-0000-4000-8000-000000000001"
+    model_id = "5eed0a45-0000-4000-8000-000000000002"
+    assignment_id = "5eed0a45-0000-4000-8000-000000000003"
+    try:
+        command.downgrade(config, "0044")
+        asyncio.run(
+            run(
+                [
+                    _providers.insert().values(
+                        id=provider_id,
+                        name="t-0045",
+                        scope="system",
+                        provider_type="openai_compatible",
+                        api_base="https://api.openai.com/v1",
+                        is_active=True,
+                    ),
+                    _models.insert().values(
+                        id=model_id,
+                        provider_id=provider_id,
+                        name="whisper-x",
+                        model_name="whisper-x",
+                        is_active=True,
+                        caps=["audio"],
+                    ),
+                    _assignments.insert().values(
+                        id=assignment_id,
+                        task_type="default",
+                        scope="system",
+                        provider_id=provider_id,
+                        is_active=True,
+                    ),
+                ]
+            )
+        )
+
+        command.upgrade(config, "0045")
+        assert _column_present("ai_providers", "preset_key"), "preset_key exists at 0045"
+        assert _column_present("ai_models", "decision_transport"), (
+            "decision_transport exists at 0045"
+        )
+        assert asyncio.run(read_caps()) == ["stt"], "audio remapped to stt"
+        assert (
+            asyncio.run(
+                scalar(
+                    text(f"SELECT task_type FROM ai_task_assignments WHERE id = '{assignment_id}'")
+                )
+            )
+            == "text"
+        ), "default remapped to the text slot"
+
+        command.downgrade(config, "0044")
+        assert asyncio.run(read_caps()) == ["audio"], "stt remapped back to audio"
+        assert (
+            asyncio.run(
+                scalar(
+                    text(
+                        "SELECT count(*) FROM ai_task_assignments "
+                        "WHERE task_type IN ('text','vision','stt','tts')"
+                    )
+                )
+            )
+            == 0
+        ), "slot-vocabulary rows dropped on downgrade"
+        assert not _column_present("ai_providers", "preset_key"), "downgrade drops preset_key"
+        assert not _column_present("ai_models", "decision_transport"), (
+            "downgrade drops decision_transport"
+        )
+    finally:
+        command.upgrade(config, "head")
+        asyncio.run(
+            run(
+                [
+                    sa.text(f"DELETE FROM ai_models WHERE id = '{model_id}'"),
+                    sa.text(f"DELETE FROM ai_providers WHERE id = '{provider_id}'"),
+                ]
+            )
+        )
