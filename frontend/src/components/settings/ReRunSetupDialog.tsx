@@ -11,7 +11,7 @@ import { SetupErrorPanel } from "./setupErrors";
 // `decision`); kind slots inherit.
 const DECISION_DEFAULT_TASK_TYPE = "decision";
 
-const CAP_ICONS = {
+export const CAP_ICONS = {
   text: Type,
   vision: Eye,
   tools: Wrench,
@@ -20,7 +20,7 @@ const CAP_ICONS = {
   tts: Volume2,
 } as const;
 
-function guessCaps(externalId: string): string[] {
+export function guessCaps(externalId: string): string[] {
   const id = externalId.toLowerCase();
   if (id.includes("embedding") || id.includes("bge")) return ["embeddings"];
   if (/(whisper|transcribe|stt)/.test(id)) return ["stt"];

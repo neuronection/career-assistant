@@ -370,6 +370,7 @@
   "common": {
     "add": "Add",
     "cancel": "Cancel",
+    "back": "Back",
     "close": "Close",
     "comingSoon": "Coming soon",
     "copy": "Copy",
@@ -959,6 +960,11 @@
     "tabsAria": "AI configuration sections",
     "setup": {
       "title": "Set up a provider",
+      "step": {
+        "progress": "Setup progress",
+        "connect": "Connect provider",
+        "defaults": "Choose defaults"
+      },
       "hint": "Defaults were bound for empty slots only — existing assignments were never touched.",
       "modalHint": "Pick a provider to set up automatically, or add one manually.",
       "formTitle": "Set up {{name}}",
@@ -991,6 +997,14 @@
         "suspectedVendor": "This looks like a {{vendor}} key pasted into the wrong field."
       },
       "review": {
+        "intro": "{{name}} connected — {{count}} models found. Register models, then choose which empty defaults they fill.",
+        "modelsTitle": "Models to add",
+        "modelsHint": "Selected models are registered and become assignable everywhere.",
+        "modelsFootnote": "Only the selected models are registered — you can add more anytime.",
+        "assignmentsTitle": "Default assignments",
+        "assignmentsHint": "Each switch fills that empty default with the shown model — existing assignments are never touched.",
+        "fills": "fills: {{model}}",
+        "noCandidate": "no model selected",
         "keyNote": "Re-run setup for {{name}} using the stored key. Curated models and defaults are appended — nothing existing is ever removed.",
         "modelsLabel": "Curated models",
         "footnote": "Re-running setup never removes existing models or assignments.",

@@ -59,6 +59,16 @@ export {
   type SetupReviewProps,
   type SetupReviewSlot,
 } from "./setup-review";
+export {
+  SetupSteps,
+  type SetupStep,
+  type SetupStepsProps,
+} from "./setup-steps";
+export {
+  SetupAssignments,
+  type SetupAssignmentRow,
+  type SetupAssignmentsProps,
+} from "./setup-assignments";
 export { SwitchRow, type SwitchRowProps } from "./switch-row";
 export { ProviderLogo, type ProviderLogoProps } from "./provider-logo";
 export {

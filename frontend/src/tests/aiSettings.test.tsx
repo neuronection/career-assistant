@@ -489,14 +489,95 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
     const keyInput = await within(dialog).findByLabelText(/API key/i);
     fireEvent.change(keyInput, { target: { value: "sk-live-key" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /Set up automatically/i }));
+    // connect is bind-less — the review step decides what registers/binds
     await waitFor(() =>
       expect(mocked.setupProviderPreset).toHaveBeenCalledWith("openai", {
         api_key: "sk-live-key",
         name: null,
         scope: "user",
+        options: { bind_chat: false, bind_vision: false, bind_stt: false, bind_decision: false },
       })
     );
+    // step 2 is explicit: the wizard header names it, and the assignment
+    // rows carry now/fills context per task type
+    expect(await within(dialog).findByText("Choose defaults")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Default assignments")).toBeInTheDocument();
+    // terra serves both chat and vision — both rows name it
+    expect(
+      await within(dialog).findAllByText(/fills: gpt-5.6-terra/)
+    ).toHaveLength(2);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenCalledWith(
+        "openai",
+        expect.objectContaining({
+          api_key: "sk-live-key",
+          options: expect.objectContaining({ bind_chat: true, bind_decision: false }),
+        })
+      )
+    );
     expect(await within(dialog).findByText(/is ready/)).toBeInTheDocument();
+  });
+
+  it("setup: review offers the decision default for decision-capable presets", async () => {
+    mocked.setupProviderPreset.mockResolvedValue({
+      ok: true,
+      provider: { ...provider, preset_key: "openrouter" },
+      catalog_count: 4,
+      curated_missed: false,
+      assigned_chat_model: null,
+      assigned_vision_model: null,
+      assigned_stt_model: null,
+      assigned_decision_slots: null,
+    });
+    // decision specs ride the preset (openrouter) and register at connect —
+    // they must surface in the done panel's default-decision picker
+    mocked.fetchAllModels.mockResolvedValue([
+      {
+        ...model,
+        model_name: "openrouter/auto",
+        name: "Auto (best match)",
+        provider_name: "OpenRouter",
+        provider_scope: "system",
+        provider_type: "openai_compatible",
+      },
+      {
+        ...model,
+        id: "m2",
+        model_name: "typesafe/jev-1.13",
+        name: "Jev 1.13 via OpenRouter (pinned)",
+        caps: ["decision"],
+        decision_transport: "systemone",
+        provider_name: "OpenRouter",
+        provider_scope: "system",
+        provider_type: "openai_compatible",
+      },
+    ]);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByText("OpenRouter"));
+    const keyInput = await within(dialog).findByLabelText(/API key/i);
+    fireEvent.change(keyInput, { target: { value: "sk-or-v1-key" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Set up automatically/i }));
+    // review: the decision default row names the model it would bind
+    // (openrouter declares decision models; the Jev card never rides the
+    // curated list, so the sub-line is where it must surface)
+    expect(await within(dialog).findByText("Default decision model")).toBeInTheDocument();
+    expect(
+      (await within(dialog).findAllByText(/fills: Jev via OpenRouter \(latest\)/)).length
+    ).toBeGreaterThan(0);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenLastCalledWith(
+        "openrouter",
+        expect.objectContaining({
+          options: expect.objectContaining({ bind_decision: true }),
+        })
+      )
+    );
+    // done: the registered decision model feeds the default-decision picker
+    expect(await within(dialog).findByText("Default decision model")).toBeInTheDocument();
   });
 
   it("setup: classified failure renders the vendor hint, not a stack trace", async () => {
