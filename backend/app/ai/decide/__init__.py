@@ -29,6 +29,7 @@ from .registry import (
     engine_readiness,
     get_decision_transport_registration,
     resolve_decision,
+    resolve_decision_inherit,
 )
 from .systemone.client import (
     SystemOneCallParams,
@@ -140,6 +141,7 @@ __all__ = [
     "probe_decision_provider",
     "resolution_transport",
     "resolve_decision",
+    "resolve_decision_inherit",
     "resolve_systemone_base_url",
     "run_decision",
     "sanitize_confidence",

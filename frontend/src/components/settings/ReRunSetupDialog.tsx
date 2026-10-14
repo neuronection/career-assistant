@@ -7,12 +7,9 @@ import { Button, SetupReview, type SetupReviewOptions } from "@/components/ui";
 import { apiDetail } from "@/api/client";
 import { SetupErrorPanel } from "./setupErrors";
 
-const DECISION_SLOT_TASK_TYPES: Record<string, string> = {
-  "decision:tool-dispatch": "decision_tool_dispatch",
-  "decision:boolean-gate": "decision_boolean_gate",
-  "decision:choice": "decision_choice",
-  "decision:score": "decision_score",
-};
+// ADR-0036 §3: setup binds the decision DEFAULT slot only (task id
+// `decision`); kind slots inherit.
+const DECISION_DEFAULT_TASK_TYPE = "decision";
 
 const CAP_ICONS = {
   text: Type,
@@ -97,9 +94,6 @@ export function ReRunSetupDialog({
       .catch(() => setLabels({}));
   }, []);
 
-  const decisionFilled = Object.values(DECISION_SLOT_TASK_TYPES).filter(
-    (taskType) => assignmentFor(taskType)?.model_id != null
-  ).length;
   const decisionDeclared = (preset?.decision_models?.length ?? 0) > 0;
   const bindDecision = decisionDeclared && options.bindDecision;
   const nowLabel = (taskType: string) => {
@@ -141,7 +135,7 @@ export function ReRunSetupDialog({
             id: "decision",
             label: t("aiSettings.setup.review.fillDecision"),
             bind: bindDecision,
-            currentValue: t("aiSettings.setup.review.decisionNow", { count: decisionFilled }),
+            currentValue: nowLabel(DECISION_DEFAULT_TASK_TYPE),
             optionsKey: "bindDecision" as const,
           },
         ]

@@ -155,6 +155,16 @@ async def _check_assignment_capability(
         if slot_cap not in transport_decision_caps(model.decision_transport):
             raise CapabilityMismatchError(f"the model's transport does not serve '{task_type}'")
         return
+    if task_type == "decision":
+        # ADR-0036: the decision default slot — decision-capable models
+        # only (per-kind serviceability stays the resolver's check).
+        if "decision" not in caps:
+            raise CapabilityMismatchError(
+                "decision slots require a model with the 'decision' capability"
+            )
+        if not transport_decision_caps(model.decision_transport):
+            raise CapabilityMismatchError("the model's transport declares no decision capabilities")
+        return
     if "decision" in caps:
         raise CapabilityMismatchError("decision models are assigned to decision slots only")
     if capability and capability not in caps and model.caps is not None:

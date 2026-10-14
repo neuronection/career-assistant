@@ -26,12 +26,8 @@ const TILE_ORDER = [
   "ollama",
 ] as const;
 
-const DECISION_SLOT_TASK_TYPES: Record<string, string> = {
-  "decision:tool-dispatch": "decision_tool_dispatch",
-  "decision:boolean-gate": "decision_boolean_gate",
-  "decision:choice": "decision_choice",
-  "decision:score": "decision_score",
-};
+// ADR-0036: the decision default slot (task id `decision`).
+const DECISION_DEFAULT_TASK_TYPE = "decision";
 
 /**
  * Capability chips for a preset tile (plan 26 §13.3 follow-up): derived
@@ -283,12 +279,16 @@ function SuccessDefaults({
         ]
       : []),
   ];
+  // ADR-0036 §3: setup binds the `decision` default slot only — one
+  // assignment, one review row; the kind slots inherit.
   const decisionRows = decisionModels.length > 0
-    ? Object.entries(DECISION_SLOT_TASK_TYPES).map(([slot, taskType]) => ({
-        taskType,
-        labelKey: `aiSettings.decisionSlots.${slot.slice("decision:".length)}`,
-        assigned: result.assigned_decision_slots?.[slot] ?? null,
-      }))
+    ? [
+        {
+          taskType: DECISION_DEFAULT_TASK_TYPE,
+          labelKey: 'aiSettings.decisionDefaultLabel',
+          assigned: result.assigned_decision_slots?.[DECISION_DEFAULT_TASK_TYPE] ?? null,
+        },
+      ]
     : [];
 
   if (models.length === 0) {

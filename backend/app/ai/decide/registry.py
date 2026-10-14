@@ -191,12 +191,40 @@ DECISION_TASK_TYPES: tuple[str, ...] = (
     "decision_score",
 )
 
+# ADR-0036 §1: the decision default task id joins the assignment
+# vocabulary beside the kind ids — a single DefaultTaskAssignment-analog
+# row (per scope) every empty kind inherits from.
+DECISION_DEFAULT_TASK_TYPE = "decision"
+
+
+async def _decision_default_row(db: AsyncSession, user_id: UUID | None) -> AITaskAssignment | None:
+    """The `decision` default slot's row, user scope before system
+    (ADR-0036 §2 inheritance source)."""
+    rows = await db.execute(
+        select(AITaskAssignment)
+        .where(
+            AITaskAssignment.task_type == DECISION_DEFAULT_TASK_TYPE,
+            AITaskAssignment.is_active.is_(True),
+            AITaskAssignment.model_id.is_not(None),
+        )
+        .order_by(AITaskAssignment.created_at)
+    )
+    all_rows = list(rows.scalars())
+    for row in all_rows:
+        if user_id is not None and row.scope == "user" and row.user_id == user_id:
+            return row
+    for row in all_rows:
+        if row.scope == "system":
+            return row
+    return None
+
 
 async def _assigned_candidates(
     db: AsyncSession, capability: DecisionCapability, user_id: UUID | None
 ) -> list[AITaskAssignment]:
-    """The slot's rows, primary (the caller's own) before the system row —
-    the scope chain is the fallback chain."""
+    """ADR-0036 §2 resolution order: the kind override's rows when it has
+    any (user before system), else the `decision` default slot's — never
+    a third hop. The default is single-slot (ADR-0037)."""
     wanted = [
         task
         for task in DECISION_TASK_TYPES
@@ -226,15 +254,21 @@ async def _assigned_candidates(
             continue
         seen.add(row.id)
         candidates.append(row)
-    return candidates
+    if candidates:
+        return candidates
+    # Empty kind slot → inherit the `decision` default row.
+    default_row = await _decision_default_row(db, user_id)
+    return [default_row] if default_row is not None else []
 
 
 async def default_config_revision(db: AsyncSession) -> str:
     """Stateless fingerprint of the decision slot rows + referenced
     models/providers — survives multi-process web mode (study's
-    adaptation of desktop's per-config counter)."""
+    adaptation of desktop's per-config counter). The `decision` default
+    row participates: every kind's resolution chain reads it."""
     parts: list[str] = []
-    for task_type in DECISION_TASK_TYPES:
+    fingerprint_tasks = (DECISION_DEFAULT_TASK_TYPE, *DECISION_TASK_TYPES)
+    for task_type in fingerprint_tasks:
         slot = decision_slot_for_task(task_type) or task_type
         rows = await db.execute(
             select(AITaskAssignment).where(AITaskAssignment.task_type == task_type)
@@ -285,6 +319,15 @@ async def _compute_resolution(
     candidates = await _assigned_candidates(db, capability, user_id)
     if not candidates:
         return OffResolution()
+    return await _resolve_candidates(candidates, capability, db, deps)
+
+
+async def _resolve_candidates(
+    candidates: list[AITaskAssignment],
+    capability: DecisionCapability,
+    db: AsyncSession,
+    deps: DecisionEngineDeps,
+) -> DecisionResolution:
     rejections: list[str] = []
     last_index = len(candidates) - 1
     for index, row in enumerate(candidates):
@@ -336,6 +379,30 @@ async def resolve_decision(
         return cached[1]
     resolution = await _compute_resolution(capability, db, deps)
     _RESOLUTION_CACHE[capability.value] = (revision, resolution)
+    return resolution
+
+
+async def resolve_decision_inherit(
+    capability: DecisionCapability,
+    db: AsyncSession,
+    deps: DecisionEngineDeps | None = None,
+) -> DecisionResolution:
+    """The inherit view of a kind (ADR-0036 §4): what the `decision`
+    default slot alone serves — the model the pickers' labeled null
+    option names; ``off`` when the inherit state resolves to nothing."""
+    deps = deps or DecisionEngineDeps(db=db)
+    revision_source = deps.config_revision or default_config_revision
+    revision = await revision_source(db)
+    cache_key = f"inherit:{capability.value}"
+    cached = _RESOLUTION_CACHE.get(cache_key)
+    if cached is not None and cached[0] == revision:
+        return cached[1]
+    row = await _decision_default_row(db, deps.user.id if deps.user is not None else None)
+    if row is None:
+        resolution: DecisionResolution = OffResolution()
+    else:
+        resolution = await _resolve_candidates([row], capability, db, deps)
+    _RESOLUTION_CACHE[cache_key] = (revision, resolution)
     return resolution
 
 

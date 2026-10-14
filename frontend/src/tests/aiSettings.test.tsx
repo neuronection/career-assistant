@@ -301,6 +301,7 @@ describe("AIConfig (settings > AI)", () => {
     mocked.fetchTasks.mockResolvedValue([
       { value: "text", label: "default (text models)", is_slot: true },
       { value: "vision", label: "default (vision models)", is_slot: true },
+      { value: "decision", label: "decision", requires: "decision" },
       { value: "decision_tool_dispatch", label: "decision tool dispatch", requires: "decision" },
       {
         value: "match_score",
@@ -317,7 +318,8 @@ describe("AIConfig (settings > AI)", () => {
     ]);
     renderPage(["/settings/ai?tab=tasks"]);
     await waitFor(() => expect(screen.getByText("Default models")).toBeInTheDocument());
-    expect(screen.getByText("Decision models")).toBeInTheDocument();
+    expect(screen.getByText("Decision kinds")).toBeInTheDocument();
+    expect(screen.getByText("Default decision model")).toBeInTheDocument();
     expect(screen.getByText("Tool dispatch")).toBeInTheDocument();
     expect(await screen.findByRole("combobox", { name: "Text" })).toHaveTextContent("GPT 4o Mini");
     expect(screen.getByText("Job Match Scoring")).toBeInTheDocument();
@@ -540,7 +542,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
     );
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText(/stored key/i)).toBeInTheDocument();
-    expect(within(dialog).getByText("Fill empty decision slots")).toBeInTheDocument();
+    expect(within(dialog).getByText("Set the default decision model")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
     await waitFor(() =>
       expect(mocked.setupProviderPreset).toHaveBeenCalledWith(
@@ -577,7 +579,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
     );
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => within(dialog).getByRole("button", { name: "Apply setup" }));
-    expect(within(dialog).queryByText("Fill empty decision slots")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Set the default decision model")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
     await waitFor(() =>
       expect(mocked.setupProviderPreset).toHaveBeenCalledWith(

@@ -17,12 +17,12 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.decide.registry import DECISION_DEFAULT_TASK_TYPE
 from app.ai.decide.systemone.probe import (
     DecisionProbeInput,
     DecisionProbeResult,
     probe_decision_provider,
 )
-from app.ai.decide.types import DECISION_SLOTS
 from app.ai.providers.errors import ClassifiedProviderError, classify_provider_error
 from app.ai.providers.presets import ALL_PRESETS, decision_probe_model_id
 from app.ai.providers.service import infer_caps
@@ -177,13 +177,6 @@ def _match_curated(model_name: str, curated: list[str]) -> str | None:
         if model_name == curated_id or model_name.startswith(f"{curated_id}-"):
             return curated_id
     return None
-
-
-def _decision_slot_task_types() -> dict[str, str]:
-    """Family slot name (``decision:tool-dispatch``) → career task type."""
-    from app.ai.decide.types import DECISION_SLOT_TASK_TYPES
-
-    return {slot: task for task, slot in DECISION_SLOT_TASK_TYPES.items()}
 
 
 def _decision_model_specs(preset: dict[str, Any]) -> list[dict[str, Any]]:
@@ -472,15 +465,14 @@ async def setup_provider_from_preset(
         candidate = decision_rows.get(str(decision_default))
         if candidate is None:
             candidate = next(iter(decision_rows.values()))
-        slot_tasks = _decision_slot_task_types()
-        for slot in DECISION_SLOTS:
-            task_type = slot_tasks.get(slot)
-            if task_type is None:
-                continue
-            row, live_model = await _slot_alive(db, task_type, scope, user_id)
-            if live_model is None:
-                assigned_decision[slot] = candidate.model_name
-                await _bind_slot(db, row, task_type, scope, user_id, provider, candidate)
+        # ADR-0036 §3: setup binds the `decision` default slot only — one
+        # assignment, one review row; kind slots inherit.
+        row, live_model = await _slot_alive(db, DECISION_DEFAULT_TASK_TYPE, scope, user_id)
+        if live_model is None:
+            assigned_decision[DECISION_DEFAULT_TASK_TYPE] = candidate.model_name
+            await _bind_slot(
+                db, row, DECISION_DEFAULT_TASK_TYPE, scope, user_id, provider, candidate
+            )
         if assigned_decision:
             await db.flush()
 

@@ -253,6 +253,14 @@ TASK_DEFS: list[TaskDef] = [
         AICapability.DECISION.value,
         AITaskTier.FAST.value,
     ),
+    # ADR-0036: the decision default slot — one model serving all kinds
+    # unless a kind overrides it.
+    TaskDef(
+        AITaskType.DECISION.value,
+        "One decision model serving every decision kind.",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
 ]
 
 TASKS_BY_NAME: dict[str, TaskDef] = {t.task: t for t in TASK_DEFS}

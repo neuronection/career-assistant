@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Briefcase,
@@ -22,13 +22,14 @@ import {
   User,
   UserSearch,
   Volume2,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { ProviderModelInfo } from "@/api/ai";
 import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
-import { TaskAssignmentPicker } from "@/components/ui";
+import { ModelPicker, TaskAssignmentPicker } from "@/components/ui";
 import type { ModelPickerProvider, TaskAssignmentSection } from "@neuronection/assistant-ui";
 import { beautifyId } from "@neuronection/assistant-ui/fuzzy";
 import { guessCaps } from "@/lib/aiCaps";
@@ -39,8 +40,15 @@ const STRINGS = {
   personal: "aiSettings.tasks.personal",
   defaultsSection: "aiSettings.tasks.defaultModelsTitle",
   defaultsSectionHint: "aiSettings.tasks.defaultModelsHint",
-  decisionSection: "aiSettings.tasks.decisionGroupTitle",
-  decisionSectionHint: "aiSettings.tasks.decisionGroupPrivacy",
+  kindsSection: "aiSettings.tasks.decisionKindsTitle",
+  kindsSectionHint: "aiSettings.tasks.decisionGroupPrivacy",
+  decisionDefaultLabel: "aiSettings.decisionDefaultLabel",
+  inheritsLabel: "aiSettings.decisionInheritsLabel",
+  inheritsEmpty: "aiSettings.decisionInheritsEmpty",
+  defaultsEmptyHint: "aiSettings.decisionDefaultsEmptyHint",
+  inheritsWithModel: "aiSettings.decisionInheritsLabel",
+  simplify: "aiSettings.decisionSimplifyUseAsDefault",
+  suggestedDecisionDefault: "aiSettings.tasks.suggestedDecisionDefault",
   tasksSection: "aiSettings.tasks.tasksSection",
   tasksSectionHint: "aiSettings.tasks.tasksSectionHint",
   unassignedMeta: "aiSettings.tasks.unassignedMeta",
@@ -57,12 +65,83 @@ const SLOT_ICONS: Record<string, LucideIcon> = {
   embeddings: Database,
 };
 
-const DECISION_ICONS: Record<string, LucideIcon> = {
-  decision_tool_dispatch: Braces,
-  decision_boolean_gate: Check,
-  decision_choice: ListChecks,
-  decision_score: Gauge,
+const DECISION_DEFAULT_TASK_TYPE = "decision"; // ADR-0036: the decision default slot
+const DECISION_KIND_META: Record<string, { id: string; icon: LucideIcon }> = {
+  decision_tool_dispatch: { id: "tool-dispatch", icon: Braces },
+  decision_boolean_gate: { id: "boolean-gate", icon: Check },
+  decision_choice: { id: "choice", icon: ListChecks },
+  decision_score: { id: "score", icon: Gauge },
 };
+
+/** One Decision kinds group row (plan 29 / ADR-0036 D4, uniform ruling):
+ * composed app-side from the library `ModelPicker` — its option list
+ * LEADS with the labeled null entry ("Inherits — {resolved default
+ * model}") and choosing it assigns null, which *is* the inherit state.
+ * `TaskAssignmentPicker` untouched. Career kind rows are single-picker
+ * (career has no per-assignment fallback concept — ADR-0037 natively).
+ */
+function DecisionKindRow({
+  label,
+  description,
+  icon: Icon,
+  catalog,
+  modelValue,
+  inheritLabel,
+  clearLabel,
+  disabled,
+  meta,
+  onAssign,
+}: {
+  label: string
+  description: string
+  icon: LucideIcon
+  catalog: ModelPickerProvider[]
+  modelValue: string | null
+  inheritLabel: string
+  clearLabel: string
+  disabled: boolean
+  meta?: ReactNode
+  onAssign: (modelId: string | null) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--as-radius)] bg-[var(--as-muted)] text-[var(--as-muted-fg)]">
+          <Icon className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-[var(--as-fg)]">{label}</p>
+          <p className="truncate text-xs text-[var(--as-muted-fg)]">{description}</p>
+          {meta ?? null}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 self-center">
+        <ModelPicker
+          providers={catalog}
+          value={modelValue ?? ''}
+          nullOption={{ label: inheritLabel }}
+          onChange={(modelId: string | null) => onAssign(modelId)}
+          disabled={disabled}
+          clearable={false}
+          label={label}
+          hideLabel
+          className="w-56"
+        />
+        {modelValue ? (
+          <button
+            type="button"
+            aria-label={`${clearLabel} — ${label}`}
+            disabled={disabled}
+            onClick={() => onAssign(null)}
+            className="cursor-pointer rounded-[var(--as-radius-sm)] p-1.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--as-focus-ring)] disabled:pointer-events-none disabled:opacity-50"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 const TASK_ICONS: Record<string, LucideIcon> = {
   assessment_generate: ListChecks,
@@ -203,45 +282,124 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
     value[task.value] = assignmentFor(task.value)?.model_id ?? null;
   }
 
+  // ADR-0036 §4: what a kind's labeled null option names — the `decision`
+  // default row's model (career's kind rows are single-picker; the
+  // transport declares all four kinds).
+  const decisionKindRows = taskRows.filter(
+    (t) => !t.is_slot && t.value.startsWith(DECISION_TASK_PREFIX),
+  );
+  const modelLabelOf = (modelId: string | null): string | null => {
+    if (!modelId) return null;
+    return (
+      allModels.find((m) => m.id === modelId)?.name ??
+      allModels.find((m) => m.id === modelId)?.model_name ??
+      null
+    );
+  };
+  const decisionDefaultId = value[DECISION_DEFAULT_TASK_TYPE] ?? null;
+  const decisionDefaultLabel = modelLabelOf(decisionDefaultId);
+  const inheritLabel = decisionDefaultLabel
+    ? t(STRINGS.inheritsLabel, { model: decisionDefaultLabel })
+    : t(STRINGS.inheritsEmpty);
+
+  // D7 "Simplify": only when all four kinds resolve to one model and the
+  // default is empty — a suggestion, never automatic.
+  let simplifyModelId: string | null = null;
+  if (!decisionDefaultId) {
+    let resolved: string | null = null;
+    let uniform = true;
+    for (const row of decisionKindRows) {
+      const kindModel = value[row.value] ?? null;
+      if (!kindModel) {
+        uniform = false;
+        break;
+      }
+      if (resolved === null) {
+        resolved = kindModel;
+      } else if (resolved !== kindModel) {
+        uniform = false;
+        break;
+      }
+    }
+    if (uniform && resolved !== null) {
+      simplifyModelId = resolved;
+    }
+  }
+
+  const kindsGroup = (
+    <div className="flex flex-col gap-2">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          {t(STRINGS.kindsSection)}
+        </p>
+        <p className="mt-0.5 text-xs text-slate-500">{t(STRINGS.kindsSectionHint)}</p>
+      </div>
+      {decisionKindRows.map((row) => {
+        const meta = DECISION_KIND_META[row.value];
+        return (
+          <DecisionKindRow
+            key={row.value}
+            label={t(`aiSettings.decisionSlots.${row.value.slice(DECISION_TASK_PREFIX.length)}`, {
+              defaultValue: beautifyId(row.value.replace(/_/g, " ")),
+            })}
+            description={t(
+              `aiSettings.decisionSlots.${row.value.slice(DECISION_TASK_PREFIX.length)}Description`
+            )}
+            icon={meta?.icon ?? Sparkles}
+            catalog={catalog}
+            modelValue={value[row.value] ?? null}
+            inheritLabel={inheritLabel}
+            clearLabel={t(STRINGS.clearLabel)}
+            disabled={busy}
+            meta={
+              !value[row.value] && decisionSuggestion && !decisionDefaultId ? (
+                <p className="text-[11px] text-slate-400">
+                  {t("aiSettings.tasks.suggestedDecisionDefault", {
+                    model: decisionSuggestion.model,
+                    provider: decisionSuggestion.provider,
+                  })}
+                </p>
+              ) : null
+            }
+            onAssign={(modelId) => void assign(row.value, modelId)}
+          />
+        );
+      })}
+    </div>
+  );
+
   const sections: TaskAssignmentSection[] = useMemo(() => {
     const slots = taskRows.filter((t) => t.is_slot);
-    const decisionTasks = taskRows.filter(
-      (t) => !t.is_slot && t.value.startsWith(DECISION_TASK_PREFIX)
-    );
+    const decisionDefaultRow = taskRows.find((t) => t.value === DECISION_DEFAULT_TASK_TYPE);
     const rest = taskRows.filter(
-      (t) => !t.is_slot && !t.value.startsWith(DECISION_TASK_PREFIX)
+      (t) => !t.is_slot && !t.value.startsWith(DECISION_TASK_PREFIX) && t.value !== DECISION_DEFAULT_TASK_TYPE,
     );
+    // Uniform shape (plan 29 owner ruling + ADR-0037): the decision
+    // default row rides the "Default models" section like every other
+    // default; the four kind rows leave the picker for the quiet
+    // "Decision kinds" group below.
+    const defaultsTasks: TaskAssignmentSection["tasks"] = slots.map((slot) => ({
+      id: slot.value,
+      label: t(`aiSettings.caps.${slot.value}`, { defaultValue: slot.label }),
+      requires: slot.value,
+      icon: SLOT_ICONS[slot.value],
+      secondaryOnly: true,
+    }));
+    if (decisionDefaultRow) {
+      defaultsTasks.push({
+        id: decisionDefaultRow.value,
+        label: t(STRINGS.decisionDefaultLabel),
+        requires: "decision",
+        icon: Sparkles,
+        secondaryOnly: true,
+      });
+    }
     return [
       {
         id: "defaults",
         label: t(STRINGS.defaultsSection),
         description: t(STRINGS.defaultsSectionHint),
-        secondary: true,
-        tasks: slots.map((slot) => ({
-          id: slot.value,
-          label: t(`aiSettings.caps.${slot.value}`, { defaultValue: slot.label }),
-          requires: slot.value,
-          icon: SLOT_ICONS[slot.value],
-          secondaryOnly: true,
-        })),
-      },
-      {
-        id: "decision",
-        label: t(STRINGS.decisionSection),
-        description: t(STRINGS.decisionSectionHint),
-        secondary: true,
-        tasks: decisionTasks.map((task) => ({
-          id: task.value,
-          label: t(`aiSettings.decisionSlots.${task.value.slice(DECISION_TASK_PREFIX.length)}`, {
-            defaultValue: beautifyId(task.value.replace(/_/g, " ")),
-          }),
-          description: t(
-            `aiSettings.decisionSlots.${task.value.slice(DECISION_TASK_PREFIX.length)}Description`
-          ),
-          requires: "decision",
-          icon: DECISION_ICONS[task.value],
-          secondaryOnly: true,
-        })),
+        tasks: defaultsTasks,
       },
       {
         id: "tasks",
@@ -297,24 +455,44 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
         clearLabel={t(STRINGS.clearLabel)}
         disabled={busy}
         renderMeta={(task) =>
-          task.id !== "default" && !value[task.id] ? (
-            task.id.startsWith(DECISION_TASK_PREFIX) && decisionSuggestion ? (
-              <p className="text-[11px] text-slate-400">
-                {t("aiSettings.tasks.suggestedDecisionDefault", {
-                  model: decisionSuggestion.model,
-                  provider: decisionSuggestion.provider,
-                })}
-              </p>
-            ) : (
-              <p className="text-[11px] text-slate-400">
-                {task.id.startsWith(DECISION_TASK_PREFIX)
-                  ? t("aiSettings.tasks.decisionUnassignedMeta")
-                  : t(STRINGS.unassignedMeta)}
-              </p>
-            )
+          task.id === DECISION_DEFAULT_TASK_TYPE && !value[task.id] ? (
+            <div className="space-y-1">
+              <p className="text-[11px] text-slate-400">{t(STRINGS.defaultsEmptyHint)}</p>
+              {decisionSuggestion ? (
+                <p className="text-[11px] text-slate-400">
+                  {t("aiSettings.tasks.suggestedDecisionDefault", {
+                    model: decisionSuggestion.model,
+                    provider: decisionSuggestion.provider,
+                  })}
+                </p>
+              ) : null}
+              {simplifyModelId ? (
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+                  disabled={busy}
+                  onClick={() => void assign(DECISION_DEFAULT_TASK_TYPE, simplifyModelId)}
+                >
+                  {t(STRINGS.simplify, {
+                    model: modelLabelOf(simplifyModelId) ?? simplifyModelId,
+                  })}
+                </button>
+              ) : null}
+            </div>
+          ) : task.id.startsWith(DECISION_TASK_PREFIX) && !value[task.id] ? (
+            <p className="text-[11px] text-slate-400">
+              {t("aiSettings.tasks.decisionUnassignedMeta")}
+            </p>
+          ) : !value[task.id] ? (
+            <p className="text-[11px] text-slate-400">{t(STRINGS.unassignedMeta)}</p>
           ) : null
         }
       />
+
+      {/* Decision kinds group (plan 29 / ADR-0036 uniform ruling): the
+          four kind rows with the labeled inherit entry; the privacy
+          notice (§13.5) is the section description. */}
+      {kindsGroup}
 
       {!user?.is_admin && (
         <p className="text-xs text-slate-400">{t(STRINGS.nonAdminNote)}</p>

@@ -55,6 +55,7 @@ SLOT_TASK_TYPES: dict[str, str] = {
     "decision:boolean-gate": "decision_boolean_gate",
     "decision:choice": "decision_choice",
     "decision:score": "decision_score",
+    "decision": "decision",  # ADR-0036: the decision default slot
 }
 
 
@@ -462,6 +463,91 @@ async def test_resolution_open_args_is_never_assignable(db) -> None:
     resolution = await resolve_decision(DecisionCapability.OPEN_ARGS, db)
 
     assert resolution.kind == "off"
+
+
+async def test_resolution_default_serves_all_kinds(db) -> None:
+    """ADR-0036 matrix 1: a `decision` default alone serves all four
+    kinds — the kind slots stay empty and inherit."""
+    _provider, model = await decision_provider(db)
+    await assign_slot(db, "decision", model.id)
+    clear_decision_resolution_cache()
+
+    for capability in (
+        DecisionCapability.TOOL_DISPATCH,
+        DecisionCapability.BOOLEAN_GATE,
+        DecisionCapability.CHOICE,
+        DecisionCapability.SCORE,
+    ):
+        resolution = await resolve_decision(capability, db)
+        assert isinstance(resolution, SystemOneResolution)
+        assert resolution.model.model_name == "jev-latest"
+        kind_rows = await db.execute(
+            select(AITaskAssignment).where(
+                AITaskAssignment.task_type == "decision_tool_dispatch",
+            )
+        )
+        assert list(kind_rows.scalars()) == []
+
+
+async def test_resolution_kind_override_wins_only_for_its_kind(db) -> None:
+    """ADR-0036 matrix 2: the override serves its kind; the other kinds
+    keep inheriting the default."""
+    _default_provider, default_model = await decision_provider(
+        db, with_key=True, model_name="default-jev"
+    )
+    _override_provider, override_model = await decision_provider(
+        db, with_key=True, model_name="override-jev"
+    )
+    await assign_slot(db, "decision", default_model.id)
+    await assign_slot(db, "decision:tool-dispatch", override_model.id)
+    clear_decision_resolution_cache()
+
+    dispatched = await resolve_decision(DecisionCapability.TOOL_DISPATCH, db)
+    assert isinstance(dispatched, SystemOneResolution)
+    assert dispatched.model.model_name == "override-jev"
+
+    gated = await resolve_decision(DecisionCapability.BOOLEAN_GATE, db)
+    assert isinstance(gated, SystemOneResolution)
+    assert gated.model.model_name == "default-jev"
+
+    scored = await resolve_decision(DecisionCapability.SCORE, db)
+    assert isinstance(scored, SystemOneResolution)
+    assert scored.model.model_name == "default-jev"
+
+
+async def test_resolution_override_never_hops_to_the_default_when_unusable(db) -> None:
+    """ADR-0036 §2, 'never a third hop': a kind override owns its kind —
+    an override that exists but cannot serve the kind reports honestly
+    unavailable, it never silently substitutes the default."""
+    _default_provider, default_model = await decision_provider(
+        db, with_key=True, model_name="default-jev"
+    )
+    await assign_slot(db, "decision", default_model.id)
+    # A text model assigned to the kind slot — exists but unusable.
+    text_provider = AIProvider(
+        name="OpenAI-text",
+        scope="system",
+        provider_type="openai_compatible",
+        api_base="https://api.openai.com/v1",
+    )
+    db.add(text_provider)
+    await db.flush()
+    text_model = AIModel(
+        provider_id=text_provider.id,
+        name="gpt-x",
+        model_name="gpt-x",
+        caps=["text"],
+        is_active=True,
+    )
+    db.add(text_model)
+    await db.flush()
+    await assign_slot(db, "decision:tool-dispatch", text_model.id)
+    clear_decision_resolution_cache()
+
+    resolution = await resolve_decision(DecisionCapability.TOOL_DISPATCH, db)
+
+    assert isinstance(resolution, UnconfiguredResolution)
+    assert "not a decision model" in resolution.reason
 
 
 async def test_resolution_caches_per_revision(db) -> None:

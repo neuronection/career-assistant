@@ -16,7 +16,8 @@ Case manifest (normative semantics, names indicative):
 11. capability inference split (whisper-1 → stt; tts-* → tts);
 12. set-default: task-scoped binding with capability guards + cross-provider
     rejection.
-13. bind_decision capability-aware gap-fill (declared slots, never live);
+13. bind_decision gap-fills the empty `decision` default slot (one
+    assignment, one review row; kind slots inherit — ADR-0036/plan 29);
 14. bind_decision=false binds nothing;
 15. live decision slots never clobbered (fill empty only);
 16. decision-only preset (wire type `decision`) validates via the decision
@@ -157,6 +158,23 @@ def test_preset_metadata_uniformity() -> None:
     assert _guess_preset_for_key("gsk_abc") == "groq"
     assert _guess_preset_for_key("totally-random") is None
     assert _guess_preset_for_key("") is None
+
+
+async def test_case_13b_bind_decision_binds_the_default_slot_only(
+    db, monkeypatch: pytest.MonkeyPatch, auth_headers
+) -> None:
+    """ADR-0036 §3 / plan 29: setup binds the `decision` default slot
+    only — one assignment, one review row; the kind slots inherit."""
+    install_catalog(monkeypatch, wire_catalog(["openrouter/auto"]))
+    user = await _current_user(db, auth_headers)
+    outcome = await byok_setup.setup_provider_from_preset(db, user, "openrouter", "sk-or-key")
+
+    assert outcome.assigned_decision_slots == {"decision": "typesafe/jev-1.13"}
+    rows = await db.execute(select(AITaskAssignment))
+    decision_rows = [row for row in rows.scalars() if row.task_type.startswith("decision")]
+    assert len(decision_rows) == 1
+    assert decision_rows[0].task_type == "decision"
+    assert decision_rows[0].model_id is not None
 
 
 async def test_case_1_happy_path_openai_binds_chat_vision_and_stt(

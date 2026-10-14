@@ -48,6 +48,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     # Decision slots resolve through the decision funnel, never the
     # gateway's prompt path — pinned at 1 to keep the every-task
     # coverage invariant intact.
+    AITaskType.DECISION.value: 1,
     AITaskType.DECISION_TOOL_DISPATCH.value: 1,
     AITaskType.DECISION_BOOLEAN_GATE.value: 1,
     AITaskType.DECISION_CHOICE.value: 1,

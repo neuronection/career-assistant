@@ -944,7 +944,8 @@
       "scopeEmpty": "No models are registered in this scope yet — add one on the Models tab, then assign it here.",
       "clearLabel": "Clear assignment",
       "nonAdminNote": "Global assignments are managed by an administrator; set personal overrides to customize your own AI models.",
-      "suggestedDecisionDefault": "Suggested: {{model}} ({{provider}})"
+      "suggestedDecisionDefault": "Suggested: {{model}} ({{provider}})",
+      "decisionKindsTitle": "Decision kinds"
     },
     "taskLabel": {
       "profile_analyze": "Profile Analysis & Guidance",
@@ -998,8 +999,7 @@
         "fillText": "Fill the chat default if empty",
         "fillVision": "Fill the vision default if empty",
         "fillStt": "Fill the transcription default if empty",
-        "fillDecision": "Fill empty decision slots",
-        "decisionNow": "{{count}} of 4 slots filled",
+        "fillDecision": "Set the default decision model",
         "apply": "Apply setup"
       },
       "chipChat": "Chat",
@@ -1022,7 +1022,12 @@
       "choiceDescription": "Picks one option from a closed set.",
       "score": "Score",
       "scoreDescription": "Scores a candidate on a fixed scale."
-    }
+    },
+    "decisionDefaultLabel": "Default decision model",
+    "decisionInheritsLabel": "Inherits — {{model}}",
+    "decisionInheritsEmpty": "Inherits",
+    "decisionDefaultsEmptyHint": "Assign one decision model to power all four decision kinds — override a kind only when it needs a different model.",
+    "decisionSimplifyUseAsDefault": "Simplify: use {{model}} as default"
   },
   "toolsSettings": {
     "title": "Tools",
