@@ -113,7 +113,11 @@ async def test_search_providers_crud_roundtrip(client, db, client_admin_headers)
     created = await client.post(
         "/api/v1/ai/web/search-providers",
         headers=headers,
-        json={"type": "searxng", "name": "Campus SearXNG", "base_url": "https://searx.example.org/"},
+        json={
+            "type": "searxng",
+            "name": "Campus SearXNG",
+            "base_url": "https://searx.example.org/",
+        },
     )
     assert created.status_code == 201, created.text
     provider = created.json()
@@ -133,7 +137,11 @@ async def test_search_providers_crud_roundtrip(client, db, client_admin_headers)
     second = await client.post(
         "/api/v1/ai/web/search-providers",
         headers=headers,
-        json={"type": "searxng", "name": "Backup SearXNG", "base_url": "https://backup.example.org"},
+        json={
+            "type": "searxng",
+            "name": "Backup SearXNG",
+            "base_url": "https://backup.example.org",
+        },
     )
     assert second.status_code == 201, second.text
     second_id = second.json()["id"]
@@ -146,9 +154,7 @@ async def test_search_providers_crud_roundtrip(client, db, client_admin_headers)
     assert moved.status_code == 200, moved.text
     assert [entry["id"] for entry in moved.json()["providers"]] == [second_id, provider["id"]]
 
-    removed = await client.delete(
-        f"/api/v1/ai/web/search-providers/{second_id}", headers=headers
-    )
+    removed = await client.delete(f"/api/v1/ai/web/search-providers/{second_id}", headers=headers)
     assert removed.status_code == 204
     remaining = (await _providers(client, headers)).json()["providers"]
     assert [entry["id"] for entry in remaining] == [provider["id"]]

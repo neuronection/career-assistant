@@ -596,9 +596,7 @@ async def list_search_providers(
     """Ordered web-search providers — the first enabled one that answers wins."""
     from app.services.search_providers import list_providers
 
-    return SearchProvidersOut(
-        providers=[_provider_view(view) for view in await list_providers(db)]
-    )
+    return SearchProvidersOut(providers=[_provider_view(view) for view in await list_providers(db)])
 
 
 @router.post("/web/search-providers", response_model=SearchProviderOut, status_code=201)
@@ -645,7 +643,9 @@ async def reorder_search_provider(
     try:
         views = await move_provider(db, provider_id, data.direction)
     except SearchProviderError as error:
-        raise HTTPException(status_code=404 if "not found" in str(error) else 422, detail=str(error)) from error
+        raise HTTPException(
+            status_code=404 if "not found" in str(error) else 422, detail=str(error)
+        ) from error
     return SearchProvidersOut(providers=[_provider_view(view) for view in views])
 
 
@@ -661,9 +661,7 @@ async def remove_search_provider(
         raise HTTPException(status_code=404, detail="provider not found")
 
 
-@router.post(
-    "/web/search-providers/{provider_id}/test", response_model=SearchProviderProbeOut
-)
+@router.post("/web/search-providers/{provider_id}/test", response_model=SearchProviderProbeOut)
 async def test_search_provider(
     provider_id: str,
     user: User = Depends(require_admin),

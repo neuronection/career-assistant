@@ -15,7 +15,6 @@ for the POST-style providers; the vendored catalog gates the UI.
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +48,14 @@ def provider_key_hint(api_key: str) -> str:
 async def _setting(db: AsyncSession, key: str) -> dict:
     row = (await db.execute(select(AppSetting).where(AppSetting.key == key))).scalars().first()
     return row.value if row is not None else {}
+
+
+def _provider_rows(raw_list: object) -> list[dict]:
+    return (
+        [entry for entry in raw_list if isinstance(entry, dict)]
+        if isinstance(raw_list, list)
+        else []
+    )
 
 
 async def _put_setting(db: AsyncSession, key: str, value: dict) -> None:
@@ -94,7 +101,7 @@ def _normalize(raw: dict) -> dict:
 async def list_providers(db: AsyncSession) -> list[dict]:
     """Normalized provider views (no key material), with lazy migration."""
     raw_list = (await _setting(db, SETTING_KEY)).get("providers")
-    providers = [entry for entry in raw_list if isinstance(entry, dict)] if isinstance(raw_list, list) else []
+    providers = _provider_rows(raw_list)
 
     legacy = (await _setting(db, LEGACY_SETTING_KEY)).get("url")
     if not providers and legacy:
@@ -127,11 +134,9 @@ async def _write_providers(db: AsyncSession, providers: list[dict]) -> None:
     await _put_setting(db, SETTING_KEY, {"providers": providers})
 
 
-async def upsert_provider(
-    db: AsyncSession, body: dict, *, provider_id: str | None = None
-) -> dict:
+async def upsert_provider(db: AsyncSession, body: dict, *, provider_id: str | None = None) -> dict:
     raw_list = (await _setting(db, SETTING_KEY)).get("providers")
-    providers = [entry for entry in raw_list if isinstance(entry, dict)] if isinstance(raw_list, list) else []
+    providers = _provider_rows(raw_list)
 
     api_key = body.get("api_key")
     if provider_id is None:
@@ -139,12 +144,17 @@ async def upsert_provider(
         target: dict = {"id": provider_id}
         providers.append(target)
     else:
-        index = next((i for i, entry in enumerate(providers) if entry.get("id") == provider_id), None)
+        index = next(
+            (i for i, entry in enumerate(providers) if entry.get("id") == provider_id), None
+        )
         if index is None:
             raise SearchProviderError("bad_request", f"provider '{provider_id}' not found")
         target = providers[index]
 
-    merged = {**target, **{key: value for key, value in body.items() if key != "api_key" and value is not None}}
+    merged = {
+        **target,
+        **{key: value for key, value in body.items() if key != "api_key" and value is not None},
+    }
     merged["id"] = provider_id
 
     if api_key is not None:
@@ -165,7 +175,7 @@ async def upsert_provider(
 
 async def delete_provider(db: AsyncSession, provider_id: str) -> bool:
     raw_list = (await _setting(db, SETTING_KEY)).get("providers")
-    providers = [entry for entry in raw_list if isinstance(entry, dict)] if isinstance(raw_list, list) else []
+    providers = _provider_rows(raw_list)
     remaining = [entry for entry in providers if entry.get("id") != provider_id]
     if len(remaining) == len(providers):
         return False
@@ -189,7 +199,7 @@ async def move_provider(db: AsyncSession, provider_id: str, direction: str) -> l
 
 async def provider_api_key(db: AsyncSession, provider_id: str) -> str:
     raw_list = (await _setting(db, SETTING_KEY)).get("providers")
-    providers = [entry for entry in raw_list if isinstance(entry, dict)] if isinstance(raw_list, list) else []
+    providers = _provider_rows(raw_list)
     entry = next((entry for entry in providers if entry.get("id") == provider_id), None)
     if entry is None or not entry.get("api_key_enc"):
         return ""
