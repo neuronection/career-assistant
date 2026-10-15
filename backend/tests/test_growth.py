@@ -7,13 +7,13 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from app.connectors.base import (
+from app.extensions.registry import register_connector, reset_registry
+from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorResult,
     PostingConnector,
     RawPosting,
 )
-from app.connectors.registry import register_connector, reset_registry
 from app.models.job_model import Job
 from app.models.posting_model import JobPosting
 from app.models.taxonomy_model import Skill
@@ -41,7 +41,7 @@ class SyntheticConnector(PostingConnector):
     capabilities = ConnectorCapabilities(supports_incremental=True)
 
     def config_model(self):
-        from app.connectors.base import EmptyConfig
+        from app.extensions.sdk import EmptyConfig
 
         return EmptyConfig
 

@@ -116,7 +116,7 @@ regenerating a baseline, drop+recreate instead).
   gateway self-registers the deterministic fixtures (`ensure_mock_registry`
   in `app/ai/gateway.py`; builders live in `app/ai/mock_chat.py`).
 - **Extension points are registries**: posting sources only via the
-  connector SDK (`app/connectors/`, entry-point group
+  connector SDK (`app/extensions/`, entry-point group
   `career_assistant.connectors`, admin allowlist for plugins); periodic
   work only via the scheduler (`app/services/scheduler/`, triggers via
   `career_assistant.scheduler_triggers`) — the scheduler decides WHEN and

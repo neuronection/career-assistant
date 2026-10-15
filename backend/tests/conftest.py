@@ -10,15 +10,15 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.connectors.base import (
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
+from app.extensions.registry import register_connector, reset_registry
+from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorResult,
     PostingConnector,
     RawPosting,
 )
-from app.connectors.registry import register_connector, reset_registry
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
 from app.main import app
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 
@@ -630,7 +630,7 @@ class SyntheticConnector(PostingConnector):
     counter = 0
 
     def config_model(self):
-        from app.connectors.base import EmptyConfig
+        from app.extensions.sdk import EmptyConfig
 
         return EmptyConfig
 

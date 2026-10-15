@@ -10,16 +10,16 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.connectors.base import (
-    RawPosting,
-)
-from app.connectors.registry import (
+from app.extensions.registry import (
     get_connector,
     list_connectors,
     register_connector,
     reset_registry,
 )
-from app.connectors.testing import ConnectorContractTests
+from app.extensions.sdk import (
+    RawPosting,
+)
+from app.extensions.testing import ConnectorContractTests
 from app.models.posting_model import JobPosting
 from app.services.postings_service import (
     expire_stale,

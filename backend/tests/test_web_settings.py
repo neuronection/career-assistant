@@ -194,8 +194,8 @@ async def test_search_providers_reject_bad_input(client, client_admin_headers):
 async def test_legacy_searxng_url_migrates_to_providers(client, db, client_admin_headers):
     from sqlalchemy import select
 
+    from app.extensions.search_providers import list_providers
     from app.models.settings_model import AppSetting
-    from app.services.search_providers import list_providers
 
     db.add(
         AppSetting(

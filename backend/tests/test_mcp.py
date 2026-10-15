@@ -12,9 +12,9 @@ from sqlalchemy import select
 
 from app.ai.mcp_server import MCPTokenStore, build_mcp_asgi_app, build_mcp_server
 from app.ai.tools.base import ToolScope
+from app.extensions.mcp_bridge import MCPBridgeService
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
-from app.services.mcp_bridge_service import MCPBridgeService
 from tests.conftest import _uid
 
 

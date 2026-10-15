@@ -91,7 +91,7 @@ def _unavailable(status: SearxngProbeStatus, detail: str = "") -> dict:
 async def _web_search(db, ctx: ToolContext, args: WebSearchInput):
     if await _rate_limited("web_search", ctx.user_id or "anon"):
         return {"available": False, "reason": "rate limit reached — try again shortly"}
-    from app.services.search_providers import search_with_fallback
+    from app.extensions.search_providers import search_with_fallback
 
     result = await search_with_fallback(db, args.query, args.n)
     if result is None:

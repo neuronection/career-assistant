@@ -15,8 +15,8 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors import registry
 from app.core.errors import ValidationError
+from app.extensions import registry
 from app.models.enums import (
     MappingMethod,
     NotificationRuleKind,

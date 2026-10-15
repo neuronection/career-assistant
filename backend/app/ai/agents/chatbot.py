@@ -386,7 +386,7 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
     )
     connector_title = source.connector_key if source else ""
     if source is not None:
-        from app.connectors import registry
+        from app.extensions import registry
 
         try:
             connector_title = registry.get_connector(source.connector_key).title

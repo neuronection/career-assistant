@@ -38,7 +38,7 @@ them.
 
 ## Add a connector
 
-1. Subclass `PostingConnector` in `app/connectors/builtin/` (or a plugin
+1. Subclass `PostingConnector` in `app/extensions/builtin/` (or a plugin
    package) with a unique `key` and a `config_model()`.
 2. Implement `fetch(config, state, *, transport)` emitting `RawPosting`s;
    never open sockets yourself.

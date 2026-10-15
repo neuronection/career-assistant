@@ -10,7 +10,7 @@ other.
 
 ```
 ├── backend/
-│   ├── app/            # FastAPI: api/, services/, models, ai/, connectors/
+│   ├── app/            # FastAPI: api/, services/, models, ai/, extensions/
 │   ├── alembic/        # migrations (dialect-aware)
 │   ├── careerassistant/  # desktop entrypoint (python -m careerassistant)
 │   ├── tests/          # pytest (async; neuronection_career_test DB)
@@ -32,7 +32,7 @@ flowchart LR
     subgraph Server["One process: API + SPA (same origin)"]
         API["FastAPI REST · family auth sessions<br/>(cookie + CSRF; desktop DIM or login)"]
         BG[Background tasks<br/>PDF parsing · AI generation]
-        REG[Registries<br/>connectors · scheduler triggers<br/>chat tools · skill packs]
+        REG[Registries<br/>extensions · scheduler triggers<br/>chat tools · skill packs]
         MCP[MCP server<br/>/mcp · read-scope tools]
         EMB[Embeddings<br/>ai_embeddings · hybrid retrieval]
     end
@@ -64,7 +64,7 @@ There is no side door around it.
 
 ## Extension points are registries
 
-- **Posting sources** only via the connector SDK (`app/connectors/`,
+- **Posting sources** only via the connector SDK (`app/extensions/`,
   entry-point group `career_assistant.connectors`, admin allowlist).
 - **Periodic work** only via the scheduler (`app/services/scheduler/`;
   triggers via `career_assistant.scheduler_triggers`). The scheduler decides
@@ -287,7 +287,7 @@ There is no side door around it.
   only** over Streamable HTTP at `/mcp` (FastMCP; token persisted in
   the data dir, live admin rotation `POST /ai/mcp/token`; per-host
   rate limiting via `CAREER_RATELIMIT_MCP`). The client bridge
-  (`app/services/mcp_bridge_service.py` + `ai_mcp_servers`) keeps
+  (`app/extensions/mcp_bridge.py` + `ai_mcp_servers`) keeps
   registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py` (alignment R2). Bridge invocations are audited
   + budgeted as `mcp_tool_call`.

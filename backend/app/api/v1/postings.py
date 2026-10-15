@@ -279,7 +279,7 @@ async def posting_detail(
     )
     connector_title = source.connector_key if source else ""
     if source is not None:
-        from app.connectors import registry
+        from app.extensions import registry
 
         try:
             connector_title = registry.get_connector(source.connector_key).title

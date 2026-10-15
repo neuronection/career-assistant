@@ -594,7 +594,7 @@ async def list_search_providers(
     user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ) -> SearchProvidersOut:
     """Ordered web-search providers — the first enabled one that answers wins."""
-    from app.services.search_providers import list_providers
+    from app.extensions.search_providers import list_providers
 
     return SearchProvidersOut(providers=[_provider_view(view) for view in await list_providers(db)])
 
@@ -605,7 +605,7 @@ async def create_search_provider(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SearchProviderOut:
-    from app.services.search_providers import SearchProviderError, upsert_provider
+    from app.extensions.search_providers import SearchProviderError, upsert_provider
 
     try:
         view = await upsert_provider(db, data.model_dump())
@@ -621,7 +621,7 @@ async def update_search_provider(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SearchProviderOut:
-    from app.services.search_providers import SearchProviderError, upsert_provider
+    from app.extensions.search_providers import SearchProviderError, upsert_provider
 
     try:
         view = await upsert_provider(db, data.model_dump(), provider_id=provider_id)
@@ -638,7 +638,7 @@ async def reorder_search_provider(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SearchProvidersOut:
-    from app.services.search_providers import SearchProviderError, move_provider
+    from app.extensions.search_providers import SearchProviderError, move_provider
 
     try:
         views = await move_provider(db, provider_id, data.direction)
@@ -655,7 +655,7 @@ async def remove_search_provider(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    from app.services.search_providers import delete_provider
+    from app.extensions.search_providers import delete_provider
 
     if not await delete_provider(db, provider_id):
         raise HTTPException(status_code=404, detail="provider not found")
@@ -670,7 +670,7 @@ async def test_search_provider(
     """Probe one provider through career's guarded transport."""
     import time
 
-    from app.services.search_providers import list_providers, provider_api_key
+    from app.extensions.search_providers import list_providers, provider_api_key
     from app.services.webfetch import probe_searxng
 
     provider = next(
@@ -754,7 +754,7 @@ async def list_mcp_servers(
     user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ) -> list[dict]:
     """Registered external MCP servers."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     rows = await MCPBridgeService(db).list_servers()
     return [
@@ -781,7 +781,7 @@ async def register_mcp_server(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Register an external MCP server (disabled by default)."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     row = await MCPBridgeService(db).register(
         name=str(payload.get("name") or ""),
@@ -801,7 +801,7 @@ async def refresh_mcp_server(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Re-discover the server's tools (new tools start disabled)."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     row = await MCPBridgeService(db).refresh(server_id)
     return {
@@ -821,7 +821,7 @@ async def set_mcp_tool_enabled(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Enable/disable one namespaced tool (explicit allowlist)."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     row = await MCPBridgeService(db).set_tool_enabled(
         server_id, tool_name, bool(payload.get("enabled"))
@@ -838,7 +838,7 @@ async def invoke_mcp_tool(
 ) -> dict:
     """Execute one enabled tool on an external MCP server — audited and
     budgeted through the ``mcp_tool_call`` task."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     result = await MCPBridgeService(db).invoke(
         server_id,

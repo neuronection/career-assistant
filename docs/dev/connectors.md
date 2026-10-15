@@ -7,7 +7,7 @@ alerts) is connector-agnostic.
 
 ## The contract
 
-`app/connectors/base.py` defines the whole surface:
+`app/extensions/base.py` defines the whole surface:
 
 - **`RawPosting`** — the only type a connector may emit. It is normalized and
   **pre-taxonomy**: `skills_raw` are free-text mentions that core maps to the
@@ -34,7 +34,7 @@ enforces it.
 
 ## Built-in engines
 
-`app/connectors/builtin/__init__.py` ships first-party connectors:
+`app/extensions/builtin/__init__.py` ships first-party connectors:
 
 | Key | Engine |
 |---|---|
@@ -46,7 +46,7 @@ enforces it.
 
 ## The plugin registry
 
-`app/connectors/registry.py`:
+`app/extensions/registry.py`:
 
 - Built-ins auto-register at import.
 - Third-party plugins arrive via the **entry-point group
@@ -69,7 +69,7 @@ A plugin that is not allowlisted is simply not registered.
 
 ## Testing
 
-`app/connectors/testing.py` provides `ConnectorContractTests` — a reusable
+`app/extensions/testing.py` provides `ConnectorContractTests` — a reusable
 contract suite every connector should pass (normalization, idempotency,
 `next_state` round-trips, partial errors). Run it against your
 `fixture_payload` so connector tests never hit the network.

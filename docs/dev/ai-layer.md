@@ -175,7 +175,7 @@ run-linked audit rows. Budgets live in `app/ai/budgets.py` / `ai_budgets`.
   only** over Streamable HTTP at `/mcp` (FastMCP). The token is persisted in
   the data dir, with live admin rotation (`POST /ai/mcp/token`) and per-host
   rate limiting (`CAREER_RATELIMIT_MCP`).
-- **Client bridge:** `app/services/mcp_bridge_service.py` + `ai_mcp_servers`
+- **Client bridge:** `app/extensions/mcp_bridge.py` + `ai_mcp_servers`
   handle registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py`. Bridge invocations are audited and budgeted as
   `mcp_tool_call`.

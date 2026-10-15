@@ -235,7 +235,7 @@ async def reject_path(
 @router.get("/postings/connectors", response_model=list[dict])
 async def posting_connectors(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Registered connector engines (built-ins + allowlisted plugins)."""
-    from app.connectors.registry import list_connectors
+    from app.extensions.registry import list_connectors
 
     return list_connectors()
 
@@ -410,7 +410,7 @@ async def posting_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
 @router.post("/postings/sources", status_code=201)
 async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
     """Enable a source: connector key + config validated against the engine."""
-    from app.connectors.registry import get_connector
+    from app.extensions.registry import get_connector
     from app.models.posting_model import JobSource
 
     key = str(payload.get("key") or "").strip()
@@ -442,7 +442,7 @@ async def update_posting_source(
     source_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Edit config/enable state (config re-validated against the connector)."""
-    from app.connectors.registry import get_connector
+    from app.extensions.registry import get_connector
     from app.models.posting_model import JobSource
 
     source = (
