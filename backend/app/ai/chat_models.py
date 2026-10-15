@@ -21,6 +21,7 @@ from app.ai.wire_params import (
     CompatibleChatOpenAI,
     is_openai_endpoint,
     is_openai_wire,
+    resolve_chat_transport,
     token_cap_kwargs,
 )
 
@@ -131,9 +132,12 @@ def build_chat_model(
 ) -> BaseChatModel:
     """Build the LangChain chat model for a resolved provider/model.
 
-    OpenAI-wire types always use Chat Completions (never the Responses API)
-    with JSON-object mode, matching the wire contract the gateway funnel has
-    always sent; ``google`` uses the native Gemini API semantics.
+    OpenAI-wire types ride Chat Completions by default (``auto``) with
+    JSON-object mode, matching the wire contract the gateway funnel has
+    always sent; a row opts into the Responses API with
+    ``chat_transport='responses'`` (honored only on OpenAI's endpoint,
+    always store-less — ADR-0039) — the remedy for model families that
+    reject function tools + ``reasoning_effort`` on completions (gpt-6).
     ``json_mode=False`` drops the forced JSON response format — required
     for native tool rounds (ADR-0016), where a JSON-only reply would
     suppress tool calls; the google branch ignores the flag (no JSON mode
@@ -156,11 +160,21 @@ def build_chat_model(
         # reasoning models reject any non-default value.
         "temperature": resolved.temperature,
         "max_retries": 0,
-        "use_responses_api": False,
         "stream_usage": True,
     }
     if json_mode:
         kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
+    # ADR-0039: completions by default (the funnel's pinned contract); a
+    # row opts into the Responses API with chat_transport='responses' —
+    # honored only on OpenAI's endpoint, always store-less. The SDK
+    # converts the json-object response_format to the responses
+    # text.format, so the JSON contract survives the wire change.
+    kwargs["use_responses_api"] = (
+        resolve_chat_transport(resolved.provider_type, resolved.base_url, resolved.chat_transport)
+        == "responses"
+    )
+    if kwargs["use_responses_api"]:
+        kwargs["store"] = False
     if resolved.max_tokens is not None:
         # The provider-type split lives here: OpenAI wants the modern
         # parameter name, compatible endpoints the classic one.

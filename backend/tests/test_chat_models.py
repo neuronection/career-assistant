@@ -85,6 +85,33 @@ def test_build_chat_model_openai_endpoint_overrides_compatible_type():
     assert model.temperature == 0.2
 
 
+def test_build_chat_model_responses_transport_opts_a_row_in():
+    """ADR-0039: chat_transport='responses' rides /responses store-less —
+    the remedy for gpt-6-family models that reject function tools +
+    reasoning_effort on chat completions. json_object mode converts to the
+    responses text.format in the SDK."""
+    model = build_chat_model(
+        _resolved(
+            "openai",
+            base_url="https://api.openai.com/v1",
+            max_tokens=512,
+            reasoning_effort="high",
+            chat_transport="responses",
+        )
+    )
+    assert model.use_responses_api is True
+    assert model.store is False
+    assert model.reasoning_effort == "high"
+
+
+def test_build_chat_model_responses_transport_ignored_off_openai():
+    """The knob is endpoint-gated: compatible servers don't implement
+    /responses, so a proxied/local row keeps the completions wire."""
+    model = build_chat_model(_resolved("openai", chat_transport="responses"), json_mode=False)
+    assert isinstance(model, CompatibleChatOpenAI)
+    assert model.use_responses_api is False
+
+
 def test_build_chat_model_temperature_omitted_when_unset():
     model = build_chat_model(_resolved("openai", max_tokens=512))
     assert "temperature" not in model._default_params

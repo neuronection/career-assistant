@@ -71,6 +71,10 @@ class AIModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # for decision-capable models; the seam for future transports, never
     # a caller-side branch.
     decision_transport: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # ADR-0039: the OpenAI API surface seam ('responses' | 'completions';
+    # NULL/anything else = auto = chat completions). Honored only when the
+    # base URL rides OpenAI's own API.
+    chat_transport: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     provider: Mapped[AIProvider] = relationship(back_populates="models")
 

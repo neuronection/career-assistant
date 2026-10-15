@@ -61,6 +61,7 @@ class ResolvedModel:
     temperature: float | None = None
     max_tokens: int | None = None
     reasoning_effort: str | None = None
+    chat_transport: str | None = None
     tier: str | None = None
 
 
@@ -232,6 +233,7 @@ async def _resolve_scanned(
                     temperature=model.temperature,
                     max_tokens=model.max_tokens,
                     reasoning_effort=model.reasoning_effort,
+                    chat_transport=model.chat_transport,
                     tier=model.tier,
                 )
     for task in scan_tasks:
@@ -251,6 +253,7 @@ async def _resolve_scanned(
                     temperature=model.temperature,
                     max_tokens=model.max_tokens,
                     reasoning_effort=model.reasoning_effort,
+                    chat_transport=model.chat_transport,
                     tier=tier,
                 )
     return None
