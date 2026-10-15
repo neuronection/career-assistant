@@ -905,6 +905,7 @@
       "intro": "Register the models each provider serves — add them from the provider's live catalog or by typing the model id.",
       "capsLabel": "Capabilities",
       "capsHint": "Guessed from the model id — toggle what the model can do.",
+      "modifiersLabel": "Also supports",
       "addLabel": "Add model",
       "addAllLabel": "Add all",
       "addTitle": "Add model",

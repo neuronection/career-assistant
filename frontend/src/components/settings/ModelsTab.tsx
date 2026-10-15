@@ -233,6 +233,10 @@ export function ModelsTab({ providers, canManageGlobal, onChanged }: ModelsTabPr
         standaloneCaps={["embeddings", "stt", "tts", "decision"]}
         standaloneLabel={t("aiSettings.models.standaloneLabel")}
         capImplications={{ vision: ["text"], tools: ["text"] }}
+        defaultCaps={(provider) =>
+          provider.type === "decision" ? ["decision"] : ["text", "vision", "tools"]
+        }
+        modifiersLabel={t("aiSettings.models.modifiersLabel")}
         decisionTransport="systemone"
         decisionTransportLabel={t("aiSettings.models.transportLabel")}
         useCatalogLabel={t("aiSettings.models.useCatalogLabel")}

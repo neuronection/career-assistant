@@ -53,6 +53,7 @@ _VISION_HINTS = (
     "gpt-4.1",
     "gpt-4-turbo",
     "gpt-5",
+    "gpt-6",
     "claude-3",
     "claude-4",
     "claude-sonnet",
@@ -68,6 +69,7 @@ _VISION_HINTS = (
 _TOOL_HINTS = (
     "gpt-4",
     "gpt-5",
+    "gpt-6",
     "o3",
     "o4",
     "claude",
