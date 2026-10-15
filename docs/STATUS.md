@@ -25,6 +25,7 @@ schema surfaces may still change.
 | Universities (PDF intake → reviewable draft, job pathways) | done | Manual-review by design; never writes unreviewed |
 | Career paths as data | done | Curated + AI-drafted routes over relation edges |
 | Posting connectors (ATS API, JSON-LD, RSS, CSV, paste-a-URL, MCP scripts) | done | Polite runtime live (SSRF guard, robots, rate caps — plan 32 Phase 1); connector SDK + admin-opt-in T1 plugin registry; sealed secret slots; T3 script tier (mcp connector, external MCP servers, app-side row validation + audit — Phase 2) |
+| Extension sources & the import layer (git import, consent, pins, GitOps) | done | Plan 32 Phase 3 / ADR-0040 D13+D22: https git sources + gated dev/test `local` variant; consent-gated digest-pinned installs (T3 managed spawn from the cloned content); no auto-apply path at all; GitOps desired-state reconcile (boot + hourly) moves pins only; private-repo credentials as sealed secret slots |
 | Deep posting extraction (skills/salary/benefits with evidence) | done | Extraction v2; low-confidence fields suppressed, never guessed |
 | Explore page (facet filters, saved searches, cursor pagination) | done | Live counts; per-posting match score |
 | Semantic search (embeddings + hybrid RRF retrieval) | done | pgvector optional; semantic is a ranking signal, never a filter gate |

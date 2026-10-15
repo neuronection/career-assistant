@@ -4,6 +4,47 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (extension sources & the import layer — plan 32 Phase 3 / ADR-0040 D13+D22)
+- **Import connectors from git sources.** Admins add git sources
+  (Settings → Tools → Connectors, the new CLI
+  `python -m app.extensions.cli source …`, or the GitOps desired-state
+  document), review the discovered extensions with their consent
+  payloads, and install with explicit per-extension consent. Production
+  descriptors are https-only by schema structure; a dev/test `local`
+  file-path variant (the sibling template repo, dogfood checkouts) is
+  gated off in production boots (fail-closed) and confined to
+  `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS` allowlisted roots.
+- **Digest-pinned, consent-gated installs.** Every install records the
+  sha256 content digest, the pinned ref, provenance (author/license/
+  repository verbatim) and the consent event (who/when/what-digest),
+  and lands content-addressed under `data_dir/extensions/<id>/<digest>/`
+  — data on disk, never importable into the process. The install mints
+  a **disabled** `mcp` job source that spawns `server.py` from the
+  cloned content (T3 managed spawn); enabling is a separate explicit
+  act.
+- **No auto-apply path at all.** Updates are ref-move + digest-change +
+  manifest-diff offers: capability growth or tier change re-consents,
+  identical-content ref moves just move the pin, and digest drift on a
+  pinned ref (tag force-move) is a loud failure — pins untouched, never
+  a silent refetch. T0 data auto-apply exists only for byte-identical
+  manifests.
+- **GitOps reconcile** (boot + hourly `extension_reconcile` job + on
+  demand) reads the admin-owned `extensions.desired_state` document:
+  installs and moves pins only for the extensions it names, never
+  auto-enables, never deletes data (structurally inexpressible);
+  removal from the list parks installs disabled + tombstone-able;
+  manual installs are never re-pinned (drift reported as status);
+  failed fetches leave pins untouched and mark the source failing.
+- **Private-repo sources** reference credential secret slots — values
+  atrest-sealed, resolved host-side into the git environment (never
+  argv, never logs); an inline token is structurally invalid at the
+  schema seam.
+- Admin API surface `/admin/extensions/*` (sources, installs, desired
+  state, reconcile); the source-management UI extends
+  Settings → Tools → Connectors with origin-class chips (`imported`
+  never renders as official), consent disclosures (T3 perimeter copy
+  verbatim) and update/park/tombstone affordances.
+
 ### Added (the script tier — plan 32 Phase 2 / ADR-0040 D9+D22, 2026-10-16)
 - **External scripts can feed postings.** A new `mcp` connector (T3
   script tier) maps an external MCP server — local stdio subprocess or
