@@ -16,7 +16,12 @@ All notable changes to **Career Assistant** are documented here.
   `reasoning_effort='none'` remains the zero-config alternative. The
   json-object response format converts to the responses `text.format`
   in the SDK, so the JSON contract survives the wire change. The
-  shared fixture table pins the resolution matrix.
+  shared fixture table pins the resolution matrix. **Field learning,
+  same day:** gpt-6 rejects tool tasks on completions even with
+  reasoning_effort omitted — so `auto` now routes by endpoint
+  (api.openai.com → responses store-less, else completions;
+  `chat_transport='completions'` pins the legacy wire the funnel
+  built on).
 
 ### Changed (wire policy converges onto the vendored family module, 2026-10-15)- **The wire-parameter rules moved to the canonical shared module:**
   `CompatibleChatOpenAI`, `is_openai_endpoint`, `is_openai_wire`,
