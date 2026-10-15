@@ -16071,7 +16071,7 @@
     },
     "/api/v1/admin/postings/sources": {
       "get": {
-        "description": "Enabled posting sources with their sync health.",
+        "description": "Posting sources with their sync health (secret-safe views).",
         "operationId": "posting_sources_api_v1_admin_postings_sources_get",
         "responses": {
           "200": {
@@ -16096,7 +16096,7 @@
         ]
       },
       "post": {
-        "description": "Enable a source: connector key + config validated against the engine.",
+        "description": "Enable a source: connector key + config validated against the engine.\n\nSecret values ride the ``secrets`` payload and are sealed at write \u2014\na plaintext secret inside ``config`` is a 400 (the x-secret law).",
         "operationId": "create_posting_source_api_v1_admin_postings_sources_post",
         "requestBody": {
           "content": {
@@ -16142,7 +16142,7 @@
     },
     "/api/v1/admin/postings/sources/{source_id}": {
       "put": {
-        "description": "Edit config/enable state (config re-validated against the connector).",
+        "description": "Edit config/secrets/enable state (config re-validated against the\nconnector; ``***`` preserves a stored secret, empty string clears it).",
         "operationId": "update_posting_source_api_v1_admin_postings_sources__source_id__put",
         "parameters": [
           {
@@ -16193,6 +16193,52 @@
           }
         },
         "summary": "Update Posting Source",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/sources/{source_id}/probe": {
+      "post": {
+        "description": "One live guarded fetch through the polite runtime \u2014 the source\nmanagement UI's Test button. Typed outcome, never a raw error string;\nneeds-secret reports the missing slot instead of fetching.",
+        "operationId": "probe_posting_source_api_v1_admin_postings_sources__source_id__probe_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Probe Posting Source Api V1 Admin Postings Sources  Source Id  Probe Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Probe Posting Source",
         "tags": [
           "admin"
         ]

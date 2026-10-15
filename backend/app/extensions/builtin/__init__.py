@@ -417,7 +417,6 @@ class RssConnector(PostingConnector):
 class AtsApiConfig(BaseModel):
     provider: str = Field(pattern="^(greenhouse|lever|ashby)$")
     org: str = Field(min_length=1, max_length=120)
-    api_token: str = Field(default="", max_length=300)
 
 
 GREENHOUSE_URL = "https://boards-api.greenhouse.io/v1/boards/{org}/jobs?content=true"
@@ -523,6 +522,7 @@ ATS_CONFIG_SCHEMA = {
             "type": "string",
             "title": "Partner API token (optional)",
             "maxLength": 300,
+            "x-secret": True,
         },
     },
     "required": ["provider", "org"],
@@ -553,7 +553,7 @@ class AtsApiConnector(PostingConnector):
             description="Public applicant-tracking job boards through the polite runtime, "
             "scoped to the three ATS API domains.",
             config_schema=ATS_CONFIG_SCHEMA,
-            capabilities=["net", "sync"],
+            capabilities=["net", "sync", "secrets"],
             domains=list(ATS_NETWORK_SCOPES),
             supports_incremental=True,
         )
@@ -562,7 +562,7 @@ class AtsApiConnector(PostingConnector):
         cfg = self.config_model().model_validate(config)
         if transport is None:
             return _not_ready()
-        token = (secrets or {}).get("api_token") or cfg.api_token
+        token = (secrets or {}).get("api_token")
         urls = {
             "greenhouse": GREENHOUSE_URL.format(org=cfg.org),
             "lever": LEVER_URL.format(org=cfg.org),

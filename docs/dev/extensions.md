@@ -105,6 +105,25 @@ included — is checked against that scope.
 
 A plugin that is not allowlisted is simply not registered.
 
+## Secrets (the x-secret law)
+
+Connector credentials never live in `job_sources.config`. Fields marked
+`"x-secret": true` in a connector's manifest `configSchema` (plus the
+manifest `secrets` list) declare **secret slots**; values ride the
+source's `secrets` payload and land **atrest-sealed** in
+`job_sources.secrets` (the `ai_providers.api_key_encrypted` discipline —
+settings-map INV-4). A plaintext secret inside `config` is a
+**registration-time throw** (HTTP 400 from the admin API, `ValidationError`
+from `validate_config`) — never stored, never echoed. The admin API
+returns slot presence and a `…last4` key hint, never the sealed value and
+never plaintext; `***` in an update preserves the stored secret, an empty
+string clears it. At sync time the host decrypts the slots host-side and
+injects them into `fetch(config, state, transport, secrets)`; a
+credentials-required connector with a missing slot surfaces the typed
+`needs-secret` error (sync + probe), never a silent empty fetch.
+Migration `0047` moved the one legacy plaintext credential (ats
+`api_token`) into the sealed store and stripped it from config.
+
 ## Writing a connector
 
 1. Subclass `PostingConnector` with a unique `key`.

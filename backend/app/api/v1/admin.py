@@ -384,32 +384,76 @@ async def reject_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return {"id": str(job.id), "applied": False}
 
 
+def _source_view(source) -> dict:
+    """Secret-safe source view: config WITHOUT any x-secret field values
+    (they cannot be stored there — belt and braces for legacy rows), plus
+    slot presence and key hints. Never the sealed values, never plaintext."""
+    from app.core.encryption import decrypt_secret
+    from app.extensions.registry import get_connector
+
+    config = dict(source.config or {})
+    secret_hints: dict[str, dict] = {}
+    try:
+        slots = get_connector(source.connector_key).secret_slots()
+    except Exception:
+        slots = {}
+    for slot in slots:
+        sealed = (source.secrets or {}).get(slot)
+        value = decrypt_secret(sealed) if isinstance(sealed, str) else None
+        config.pop(slot, None)
+        secret_hints[slot] = {
+            "set": bool(value),
+            "hint": (f"…{value[-4:]}" if value and len(value) >= 8 else ("set" if value else None)),
+        }
+    return {
+        "id": str(source.id),
+        "key": source.key,
+        "connector_key": source.connector_key,
+        "config": config,
+        "secret_hints": secret_hints,
+        "enabled": source.enabled,
+        "last_run_at": source.last_run_at.isoformat() if source.last_run_at else None,
+        "sync_state": source.sync_state,
+        "error": source.error,
+    }
+
+
+def _seal_source_secrets(source, secrets_payload: dict) -> None:
+    """Merge a secrets payload into the sealed slot map: plaintext values
+    are sealed at write; the ``***`` mask marker preserves the stored
+    value; an empty string clears it (INV-4 — plaintext never lands in
+    storage)."""
+    from app.core.encryption import MASK_MARKER, encrypt_secret
+
+    sealed = dict(source.secrets or {})
+    for slot, value in (secrets_payload or {}).items():
+        if value == MASK_MARKER:
+            continue
+        if value:
+            sealed[slot] = encrypt_secret(str(value))
+        else:
+            sealed.pop(slot, None)
+    source.secrets = sealed
+
+
 @router.get("/postings/sources", response_model=list[dict])
 async def posting_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
-    """Enabled posting sources with their sync health."""
+    """Posting sources with their sync health (secret-safe views)."""
     from app.models.posting_model import JobSource
 
     rows = (
         (await db.execute(select(JobSource).order_by(JobSource.created_at.desc()))).scalars().all()
     )
-    return [
-        {
-            "id": str(s.id),
-            "key": s.key,
-            "connector_key": s.connector_key,
-            "config": s.config,
-            "enabled": s.enabled,
-            "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
-            "sync_state": s.sync_state,
-            "error": s.error,
-        }
-        for s in rows
-    ]
+    return [_source_view(s) for s in rows]
 
 
 @router.post("/postings/sources", status_code=201)
 async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
-    """Enable a source: connector key + config validated against the engine."""
+    """Enable a source: connector key + config validated against the engine.
+
+    Secret values ride the ``secrets`` payload and are sealed at write —
+    a plaintext secret inside ``config`` is a 400 (the x-secret law)."""
+    from app.core.encryption import encrypt_secret
     from app.extensions.registry import get_connector
     from app.models.posting_model import JobSource
 
@@ -425,6 +469,11 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
         key=key,
         connector_key=connector_key,
         config=validated,
+        secrets={
+            slot: encrypt_secret(str(value))
+            for slot, value in (payload.get("secrets") or {}).items()
+            if value
+        },
         enabled=bool(payload.get("enabled", True)),
     )
     db.add(source)
@@ -441,7 +490,8 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
 async def update_posting_source(
     source_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Edit config/enable state (config re-validated against the connector)."""
+    """Edit config/secrets/enable state (config re-validated against the
+    connector; ``***`` preserves a stored secret, empty string clears it)."""
     from app.extensions.registry import get_connector
     from app.models.posting_model import JobSource
 
@@ -456,10 +506,12 @@ async def update_posting_source(
             source.config = connector.validate_config(payload["config"])
         except DomainError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    if "secrets" in payload and payload["secrets"] is not None:
+        _seal_source_secrets(source, payload["secrets"])
     if "enabled" in payload and payload["enabled"] is not None:
         source.enabled = bool(payload["enabled"])
     await db.commit()
-    return {"id": str(source.id), "enabled": source.enabled}
+    return _source_view(source)
 
 
 @router.post("/postings/sources/{source_id}/sync")
@@ -478,6 +530,76 @@ async def sync_posting_source(
         user_id=user.id,
     )
     return {"job_id": str(job.id), "status": job.status}
+
+
+@router.post("/postings/sources/{source_id}/probe")
+async def probe_posting_source(
+    source_id: uuid.UUID,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One live guarded fetch through the polite runtime — the source
+    management UI's Test button. Typed outcome, never a raw error string;
+    needs-secret reports the missing slot instead of fetching."""
+    import time as _time
+
+    from app.extensions.polite_http import PoliteHttpError
+    from app.extensions.registry import get_connector
+    from app.extensions.runtime.http import build_transport
+    from app.extensions.sdk import ConnectorError
+    from app.models.posting_model import JobSource
+    from app.services.postings_service import resolve_source_secrets
+
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
+    )
+    if source is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    connector = get_connector(source.connector_key)
+    secrets = resolve_source_secrets(source)
+    missing = [
+        slot
+        for slot in connector.secret_slots()
+        if connector.capabilities.requires_credentials and not secrets.get(slot)
+    ]
+    if missing:
+        error = ConnectorError.needs_secret(f"missing secret slot(s): {', '.join(sorted(missing))}")
+        return {"ok": False, "error": error.model_dump(mode="json")}
+    started = _time.monotonic()
+    try:
+        result = await connector.fetch(
+            source.config,
+            {},
+            transport=build_transport(
+                domains=frozenset(connector.capabilities.network_scopes or []),
+                requests_per_minute=connector.capabilities.max_requests_per_minute,
+            ),
+            secrets=secrets,
+        )
+    except PoliteHttpError as exc:
+        error = ConnectorError.from_polite(exc)
+        return {
+            "ok": False,
+            "error": error.model_dump(mode="json"),
+            "latency_ms": int((_time.monotonic() - started) * 1000),
+        }
+    except Exception as exc:
+        error = ConnectorError(code="provider", detail=str(exc)[:500], retryable="yes")
+        return {
+            "ok": False,
+            "error": error.model_dump(mode="json"),
+            "latency_ms": int((_time.monotonic() - started) * 1000),
+        }
+    ok = not result.partial_errors
+    first_error = (
+        result.partial_errors[0].model_dump(mode="json") if result.partial_errors else None
+    )
+    return {
+        "ok": ok,
+        "items": len(result.items),
+        "error": first_error,
+        "latency_ms": int((_time.monotonic() - started) * 1000),
+    }
 
 
 @router.post("/postings/{posting_id}/map")

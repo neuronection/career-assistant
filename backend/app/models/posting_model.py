@@ -58,6 +58,9 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     connector_key: Mapped[str] = mapped_column(String(80), nullable=False)
     config: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    # Secret slots (D19/INV-4): slot id -> atrest-sealed value; never
+    # plaintext, never returned by APIs (mask/hint only).
+    secrets: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Connector sync state: etag / last_modified / cursor / watermark.

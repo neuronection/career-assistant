@@ -112,7 +112,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0046"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0047"], (
         "revision chain stays linear on one head"
     )
 
@@ -1311,3 +1311,95 @@ def test_0045_byok_uniform_realignment_roundtrip():
                 ]
             )
         )
+
+
+def test_0047_job_source_secrets_roundtrip():
+    """Plan 32 Phase 1 / ADR-0040 D19: the secrets column lands and the one
+    legacy plaintext credential (ats ``config.api_token``) is MOVED — sealed
+    into the slot, stripped from config."""
+    import sqlalchemy as sa
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+    from app.core.encryption import ENCRYPTED_PREFIX, decrypt_secret
+
+    _json_type = JSONB().with_variant(sa.JSON(), "sqlite")
+    _uuid_type = sa.Uuid()
+    _sources = sa.table(
+        "job_sources",
+        sa.column("id", _uuid_type),
+        sa.column("key", sa.String),
+        sa.column("connector_key", sa.String),
+        sa.column("config", _json_type),
+        sa.column("sync_state", _json_type),
+        sa.column("error", sa.String),
+        sa.column("enabled", sa.Boolean),
+    )
+
+    source_id = "5eed0a45-0000-4000-8000-000000000047"
+
+    async def run(statements):
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for statement in statements:
+                    await conn.execute(statement)
+        finally:
+            await engine.dispose()
+
+    async def read_row():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                row = (
+                    await conn.execute(
+                        text(f"SELECT config, secrets FROM job_sources WHERE id = '{source_id}'")
+                    )
+                ).first()
+                import json as _json
+
+                def _load(value):
+                    return _json.loads(value) if isinstance(value, str) else value
+
+                return (_load(row[0]), _load(row[1])) if row else (None, None)
+        finally:
+            await engine.dispose()
+
+    config = _configured()
+    try:
+        command.downgrade(config, "0046")
+        asyncio.run(
+            run(
+                [
+                    _sources.insert().values(
+                        id=source_id,
+                        key="t-0047",
+                        connector_key="ats_api",
+                        config={
+                            "provider": "greenhouse",
+                            "org": "acme",
+                            "api_token": "ghp-plaintext-token-1234",
+                        },
+                        sync_state={},
+                        error="",
+                        enabled=True,
+                    ),
+                ]
+            )
+        )
+
+        command.upgrade(config, "0047")
+        assert _column_present("job_sources", "secrets"), "secrets column exists at 0047"
+        stored_config, secrets = asyncio.run(read_row())
+        assert "api_token" not in stored_config, "plaintext token stripped from config"
+        sealed = secrets.get("api_token", "")
+        assert sealed.startswith(ENCRYPTED_PREFIX), "token sealed at rest"
+        assert decrypt_secret(sealed) == "ghp-plaintext-token-1234", "sealed value round-trips"
+
+        command.downgrade(config, "0046")
+        assert not _column_present("job_sources", "secrets"), "downgrade drops secrets"
+    finally:
+        command.upgrade(config, "head")
+        asyncio.run(run([sa.text(f"DELETE FROM job_sources WHERE id = '{source_id}'")]))

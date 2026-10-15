@@ -416,3 +416,173 @@ async def test_interaction_state_round_trip(
     )
     hidden_gone = (await client.get("/api/v1/postings", headers=auth_headers)).json()
     assert hidden_gone["total"] == 0
+
+
+# --------------------------------------------- secrets (plan 32 Phase 1 / D19)
+
+
+async def test_plaintext_secret_in_config_throws_at_registration(
+    client, auth_headers, seeded_catalog, db, profile_ready
+):
+    """The x-secret law: a secret VALUE inside config is a 400, never
+    stored — it rides the secrets payload and lands atrest-sealed."""
+    await _admin(client, auth_headers, db)
+    response = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "leaky",
+            "connector_key": "ats_api",
+            "config": {"provider": "greenhouse", "org": "acme", "api_token": "ghp-supersecret"},
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "never lives in config" in response.json()["detail"]
+
+
+async def test_source_secrets_seal_at_write_and_never_return(
+    client, auth_headers, seeded_catalog, db, profile_ready
+):
+    from sqlalchemy import select
+
+    from app.core.encryption import ENCRYPTED_PREFIX, decrypt_secret
+    from app.models.posting_model import JobSource
+
+    await _admin(client, auth_headers, db)
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "partner-board",
+            "connector_key": "ats_api",
+            "config": {"provider": "greenhouse", "org": "acme"},
+            "secrets": {"api_token": "ghp-partner-token-9876"},
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    source_id = created.json()["id"]
+
+    row = (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().one()
+    sealed = row.secrets["api_token"]
+    assert sealed.startswith(ENCRYPTED_PREFIX)
+    assert decrypt_secret(sealed) == "ghp-partner-token-9876"
+    assert "api_token" not in row.config
+
+    listed = await client.get("/api/v1/admin/postings/sources", headers=auth_headers)
+    entry = next(s for s in listed.json() if s["id"] == source_id)
+    assert "api_token" not in entry["config"]
+    assert ENCRYPTED_PREFIX not in str(entry)
+    assert "ghp-partner-token-9876" not in str(entry)
+    assert entry["secret_hints"]["api_token"]["set"] is True
+    assert entry["secret_hints"]["api_token"]["hint"].endswith("9876")
+
+    # *** preserves the stored secret; empty string clears it.
+    updated = await client.put(
+        f"/api/v1/admin/postings/sources/{source_id}",
+        json={"secrets": {"api_token": "***"}},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    await db.refresh(row)
+    assert decrypt_secret(row.secrets["api_token"]) == "ghp-partner-token-9876"
+    await client.put(
+        f"/api/v1/admin/postings/sources/{source_id}",
+        json={"secrets": {"api_token": ""}},
+        headers=auth_headers,
+    )
+    await db.refresh(row)
+    assert "api_token" not in (row.secrets or {})
+
+
+async def test_needs_secret_typed_error_end_to_end(
+    client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
+):
+    """A credentials-required connector without its slot surfaces the typed
+    needs-secret error on sync AND on probe — never a silent empty fetch."""
+    from app.extensions.sdk import (
+        ConnectorCapabilities,
+        ConnectorResult,
+        connector_manifest,
+    )
+    from app.extensions.sdk import (
+        PostingConnector as Base,
+    )
+    from app.extensions.sdk import (
+        RawPosting as Raw,
+    )
+
+    class TokenedConnector(Base):
+        key = "tokened"
+        title = "Tokened"
+        capabilities = ConnectorCapabilities(requires_credentials=True)
+
+        def config_model(self):
+            from app.extensions.sdk import EmptyConfig
+
+            return EmptyConfig
+
+        def manifest(self):
+            return connector_manifest(
+                manifest_id="career-tokened",
+                title="Tokened",
+                config_schema={
+                    "type": "object",
+                    "properties": {
+                        "board": {"type": "string"},
+                        "token": {"type": "string", "x-secret": True},
+                    },
+                    "required": ["board"],
+                },
+                capabilities=["sync"],
+                supports_incremental=False,
+            )
+
+        async def fetch(self, config, state, *, transport=None, secrets=None, **_kw):
+            return ConnectorResult(items=[Raw(external_id="t-1", title="Tokened role")])
+
+    register_connector(TokenedConnector())
+    await _admin(client, auth_headers, db)
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={"key": "tokened-src", "connector_key": "tokened", "config": {"board": "acme"}},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    source_id = created.json()["id"]
+
+    probed = await client.post(
+        f"/api/v1/admin/postings/sources/{source_id}/probe", headers=auth_headers
+    )
+    assert probed.status_code == 200
+    assert probed.json()["ok"] is False
+    assert probed.json()["error"]["code"] == "needs-secret"
+
+    from app.models.posting_model import JobSource
+
+    source = (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().one()
+    result = await sync_source(db, source)
+    assert result["synced"] == 0
+    assert result["errors"][0]["code"] == "needs-secret"
+    assert source.error.startswith("needs-secret:")
+    reset_registry()
+
+
+async def test_probe_reports_typed_runtime_outcome(
+    client, auth_headers, profile_ready, seeded_catalog, db, source, monkeypatch
+):
+    from app.extensions.polite_http import PoliteResponse
+
+    async def fake_transport(url, headers):
+        return PoliteResponse(status=200, body="[]", etag=None)
+
+    def fake_build(**_kw):
+        return fake_transport
+
+    monkeypatch.setattr("app.extensions.runtime.http.build_transport", fake_build)
+    await _admin(client, auth_headers, db)
+    probed = await client.post(
+        f"/api/v1/admin/postings/sources/{source.id}/probe", headers=auth_headers
+    )
+    assert probed.status_code == 200
+    assert probed.json()["ok"] is True
+    assert probed.json()["latency_ms"] >= 0

@@ -32,6 +32,21 @@ All notable changes to **Career Assistant** are documented here.
   private-range policy, pinning, robots, rate/size/time ceilings) and
   default to the closed posture.
 
+### Added (connector secrets sealed — plan 32 Phase 1 / ADR-0040 D19)
+- **Connector credentials move out of plaintext `job_sources.config`**
+  into atrest-sealed slots (migration `0047`; the `x-secret` law):
+  fields declared `x-secret` in the connector's manifest configSchema
+  are a registration-time throw when a value appears in config, land
+  sealed in `job_sources.secrets`, and are injected into fetches
+  host-side. `GET /admin/postings/sources` stops returning `config`
+  verbatim — secret fields are stripped, slot presence + `…last4` key
+  hints are returned instead; `***` preserves a stored secret on
+  update, empty clears it.
+- New `POST /admin/postings/sources/{id}/probe` — one live guarded
+  fetch through the polite runtime with a typed outcome (the source
+  UI's Test button), reporting `needs-secret` instead of fetching when
+  a required slot is missing.
+
 ### Added (model transport knob — reasoning + function tools on gpt-6 via the Responses API, 2026-10-15)
 - **Model rows can set `chat_transport='responses'`** (nullable column,
   migration 0046) to ride the Responses API — honored only when the

@@ -58,6 +58,19 @@ def _norm(token: str) -> str:
 # ------------------------------------------------------------------- sync
 
 
+def resolve_source_secrets(source: JobSource) -> dict[str, str]:
+    """Decrypt the source's sealed secret slots (D19/INV-4) — values exist
+    only here, host-side, for the duration of one fetch."""
+    from app.core.encryption import decrypt_secret
+
+    resolved: dict[str, str] = {}
+    for slot, sealed in (source.secrets or {}).items():
+        value = decrypt_secret(sealed) if isinstance(sealed, str) else None
+        if value:
+            resolved[str(slot)] = value
+    return resolved
+
+
 async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
     """Fetch via the connector through the polite runtime, upsert postings,
     map, alert.
@@ -76,13 +89,24 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
         source.error = str(exc)
         await db.commit()
         return {"synced": 0, "error": str(exc)}
+    secrets = resolve_source_secrets(source)
+    missing = [
+        slot
+        for slot in connector.secret_slots()
+        if connector.capabilities.requires_credentials and not secrets.get(slot)
+    ]
+    if missing:
+        error = ConnectorError.needs_secret(f"missing secret slot(s): {', '.join(sorted(missing))}")
+        source.error = f"{error.code}: {error.detail}"
+        await db.commit()
+        return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
     runtime_transport = transport or build_transport(
         domains=frozenset(connector.capabilities.network_scopes or []),
         requests_per_minute=connector.capabilities.max_requests_per_minute,
     )
     try:
         result = await connector.fetch(
-            source.config, source.sync_state or {}, transport=runtime_transport
+            source.config, source.sync_state or {}, transport=runtime_transport, secrets=secrets
         )
     except PoliteHttpError as exc:
         error = ConnectorError.from_polite(exc)

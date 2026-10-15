@@ -249,8 +249,34 @@ class PostingConnector:
     ) -> ConnectorResult:
         raise NotImplementedError
 
+    def secret_slots(self) -> dict[str, str]:
+        """Declared secret slots (D19): manifest ``configSchema`` fields
+        marked ``x-secret: true`` plus the manifest ``secrets`` list —
+        slot id → purpose. Values live only in the atrest-sealed
+        ``job_sources.secrets`` store (INV-4), never in config."""
+        from app.extensions.contract import secret_fields
+
+        manifest = self.manifest()
+        slots = dict.fromkeys(secret_fields(manifest.get("configSchema")), "")
+        for slot in manifest.get("secrets") or []:
+            if isinstance(slot, dict) and slot.get("id"):
+                slots[slot["id"]] = slot.get("purpose") or ""
+        return slots
+
     def validate_config(self, config: dict) -> dict:
-        """Config round-trip: validated JSONB for `job_sources.config`."""
+        """Config round-trip: validated JSONB for `job_sources.config`.
+
+        The x-secret law (ADR-0040 clause 18): a value present for any
+        declared secret slot is a registration-time THROW — secrets never
+        live in stored config."""
+        from app.core.errors import ValidationError
+
+        for field in self.secret_slots():
+            if config.get(field):
+                raise ValidationError(
+                    f"Secret {field!r} never lives in config — "
+                    "send it via the source's secrets payload"
+                )
         return self.config_model().model_validate(config).model_dump(mode="json")
 
 
