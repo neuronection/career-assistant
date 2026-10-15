@@ -113,7 +113,7 @@ const model: AIModel = {
   temperature: null,
   max_tokens: null,
   reasoning_effort: null,
-  caps: null,
+  caps: ["text", "vision", "tools"],
 };
 
 function renderPage(initialEntries = ["/settings/ai"]) {
@@ -180,6 +180,8 @@ describe("AIConfig (settings > AI)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
     const dialog = await screen.findByRole("dialog");
+    // step 1 — the LLM kind; the catalog pick infers the chat family
+    fireEvent.click(within(dialog).getByRole("button", { name: "Text" }));
     fireEvent.keyDown(within(dialog).getByRole("combobox", { name: "Model" }), { key: "ArrowDown" });
     fireEvent.click(await screen.findByRole("option", { name: /gpt-4o-mini/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Add model" }));
@@ -190,7 +192,7 @@ describe("AIConfig (settings > AI)", () => {
         temperature: null,
         max_tokens: null,
         reasoning_effort: null,
-        caps: ["text"],
+        caps: ["text", "vision", "tools"],
         decision_transport: null,
       }),
     );
@@ -216,7 +218,7 @@ describe("AIConfig (settings > AI)", () => {
         expect.objectContaining({
           reasoning_effort: "high",
           max_tokens: 2048,
-          caps: ["text"],
+          caps: ["text", "vision", "tools"],
         }),
       ),
     );
@@ -227,6 +229,7 @@ describe("AIConfig (settings > AI)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
     const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Text" }));
     fireEvent.click(within(dialog).getByRole("button", { name: /manual/i }));
     const idInput = within(dialog).getByLabelText("Model");
     fireEvent.change(idInput, { target: { value: "custom-model" } });
@@ -745,6 +748,9 @@ describe("AIConfig models: native Gemini catalog", () => {
     renderPage(["/settings/ai?tab=models"]);
     fireEvent.click(await screen.findByRole("button", { name: /Native Gemini/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Text" })
+    );
     await waitFor(() =>
       expect(mocked.fetchExternalModels).toHaveBeenCalledWith("p-g")
     );
