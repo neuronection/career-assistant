@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { AIConfig } from "@/pages/settings/AIConfig";
 import { useAuthStore } from "@/stores/authStore";
@@ -269,28 +270,61 @@ describe("AIConfig (settings > AI)", () => {
   });
 
   it("providers tab: tests a connection through the first active model", async () => {
+    const user = userEvent.setup();
     mocked.fetchAllModels.mockResolvedValue([
+      // a decision model must be skipped — pinging it over
+      // chat/completions 400s on mixed providers (e.g. OpenRouter)
+      {
+        ...model,
+        id: "m2",
+        model_name: "typesafe/jev-1.13",
+        name: "Jev 1.13 via OpenRouter (pinned)",
+        caps: ["decision"],
+        decision_transport: "systemone",
+        provider_name: "Org OpenAI",
+        provider_scope: "system",
+        provider_type: "openai",
+      },
       { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
     ]);
     mocked.testConnection.mockResolvedValue({ ok: true, reply: "OK" });
     renderPage();
     await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText("1 models")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Test" }));
-    await waitFor(() => expect(mocked.testConnection).toHaveBeenCalledWith("p1", "m1"));
+    await waitFor(() =>
+      expect(screen.getByText(/2 models/)).toBeInTheDocument(),
+    );
+    // a configured key is implied — the warning chip only appears when absent
+    expect(screen.queryByTestId("provider-key-p1")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Test" }));
+    await waitFor(() =>
+      expect(mocked.testConnection).toHaveBeenCalledWith("p1", "m1"),
+    );
     expect(await screen.findByText("Connected")).toBeInTheDocument();
   });
 
   it("providers tab: connection test is unavailable without a registered model", async () => {
+    const user = userEvent.setup();
     renderPage();
     await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
     expect(screen.getByText(/Register a model first/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Test" })).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    // no testable model → the Test action is omitted entirely
+    expect(await screen.findByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Test" })).toBeNull();
   });
 
   it("providers tab: deletes a provider through a confirm dialog", async () => {
+    const user = userEvent.setup();
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Org OpenAI" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Delete Org OpenAI?")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
@@ -618,9 +652,11 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
     mocked.fetchProviderPresets.mockResolvedValue(presets);
     mocked.fetchProviders.mockResolvedValue([{ ...provider, preset_key: "openrouter" }]);
     renderPage();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Set up Org OpenAI automatically" })
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Actions for Org OpenAI" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set up automatically" }));
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText(/stored key/i)).toBeInTheDocument();
     expect(within(dialog).getByText("Set the default decision model")).toBeInTheDocument();
@@ -655,9 +691,11 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
     });
     mocked.fetchProviderPresets.mockResolvedValue(presets);
     renderPage();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Set up Org OpenAI automatically" })
+    const secondUser = userEvent.setup();
+    await secondUser.click(
+      await screen.findByRole("button", { name: "Actions for Org OpenAI" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set up automatically" }));
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => within(dialog).getByRole("button", { name: "Apply setup" }));
     expect(within(dialog).queryByText("Set the default decision model")).not.toBeInTheDocument();

@@ -69,7 +69,23 @@ export {
   type SetupAssignmentRow,
   type SetupAssignmentsProps,
 } from "./setup-assignments";
+export {
+  ActionMenu,
+  type ActionMenuItem,
+  type ActionMenuProps,
+  Menu,
+  MenuTrigger,
+  MenuContent,
+  MenuItem,
+  type MenuItemProps,
+} from "./menu";
 export { SwitchRow, type SwitchRowProps } from "./switch-row";
+export {
+  ProviderCard,
+  type ProviderCardAction,
+  type ProviderCardBadge,
+  type ProviderCardProps,
+} from "./provider-card";
 export { ProviderLogo, type ProviderLogoProps } from "./provider-logo";
 export {
   SetupFirstRunCard,

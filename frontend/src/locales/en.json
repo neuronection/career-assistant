@@ -862,6 +862,8 @@
       "hostingLocal": "local",
       "hostingCloud": "cloud",
       "keyNotSet": "key: not set",
+      "noKey": "no key",
+      "keySet": "key set",
       "connection": "Connection",
       "test": "Test",
       "testOk": "Connected",
@@ -873,6 +875,8 @@
       "deleteTitle": "Delete {{name}}?",
       "deleteDescription": "Its models and task assignments will be removed too.",
       "deleteConfirm": "Delete",
+      "actionsAria": "Actions for {{name}}",
+      "edit": "Edit",
       "rerunAria": "Set up {{name}} automatically"
     },
     "providerModal": {
@@ -1040,6 +1044,8 @@
     "decisionDefaultLabel": "Default decision model",
     "decisionInheritsLabel": "Inherits — {{model}}",
     "decisionInheritsEmpty": "Inherits",
+    "decisionInherited": "Inherited",
+    "decisionDefaultsTo": "Defaults to {{model}}",
     "decisionDefaultsEmptyHint": "Assign one decision model to power all four decision kinds — override a kind only when it needs a different model.",
     "decisionSimplifyUseAsDefault": "Simplify: use {{model}} as default"
   },

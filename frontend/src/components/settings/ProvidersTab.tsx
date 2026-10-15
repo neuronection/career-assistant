@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, Sparkles, Trash2, Zap } from "lucide-react";
+import { Pencil, PlugZap, Plus, Sparkles, Trash2, Zap } from "lucide-react";
 import { getCountryFlag } from "@neuronection/assistant-ui/countries";
 import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
 import {
   Button,
   ConfirmationModal,
-  ConnectionTestRow,
   EmptyState,
-  ProviderLogo,
+  ProviderCard,
 } from "@/components/ui";
 import type { ConnectionTestStatus } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
@@ -76,8 +75,19 @@ export function ProvidersTab({
     };
   }, []);
 
-  const testModelFor = (providerId: string): aiApi.ProviderModelInfo | null =>
-    modelsByProvider[providerId]?.[0] ?? null;
+  const testModelFor = (providerId: string): aiApi.ProviderModelInfo | null => {
+    const rows = modelsByProvider[providerId] ?? [];
+    // Chat-capable first: a decision model on a mixed provider would ping
+    // the wrong endpoint (the vendor 400s). Decision-only providers fall
+    // back to their first model — the backend probes those correctly.
+    return (
+      rows.find(
+        (m) => !m.decision_transport && !(m.caps ?? []).includes("decision"),
+      ) ??
+      rows[0] ??
+      null
+    );
+  };
 
   const runTest = async (provider: AIProvider) => {
     const model = testModelFor(provider.id);
@@ -157,91 +167,113 @@ export function ProvidersTab({
                 const editable = scope === "user" || canManageGlobal;
                 const testModel = testModelFor(p.id);
                 const activeCount = modelsByProvider[p.id]?.length ?? 0;
+                const testing = testingId === p.id;
+                const actions = [
+                  ...(editable && p.preset_key
+                    ? [
+                        {
+                          key: "setup",
+                          label: t("aiSettings.setup.automatically"),
+                          icon: Sparkles,
+                          onSelect: () => onRerunSetup(p),
+                        },
+                      ]
+                    : []),
+                  ...(editable
+                    ? [
+                        {
+                          key: "edit",
+                          label: t("aiSettings.providers.edit"),
+                          icon: Pencil,
+                          onSelect: () => onEdit(p),
+                        },
+                      ]
+                    : []),
+                  ...(testModel
+                    ? [
+                        {
+                          key: "test",
+                          label: t("aiSettings.providers.test"),
+                          icon: PlugZap,
+                          disabled: testing,
+                          pending: testing,
+                          onSelect: () => void runTest(p),
+                        },
+                      ]
+                    : []),
+                  ...(editable
+                    ? [
+                        {
+                          key: "delete",
+                          label: t("aiSettings.providers.deleteConfirm"),
+                          icon: Trash2,
+                          danger: true,
+                          onSelect: () => setDeleting(p),
+                        },
+                      ]
+                    : []),
+                ];
                 return (
-                  <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium flex items-center gap-2">
-                          <ProviderLogo preset={p.preset_key ?? ""} className="shrink-0" />
-                          <span className="truncate">{p.name}</span>
-                          <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
-                            {p.provider_type}
-                          </span>
-                          {p.is_local != null && (
-                            <span
-                              className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0"
-                              data-testid={`provider-hosting-${p.id}`}
-                            >
-                              {p.is_local
+                  <ProviderCard
+                    key={p.id}
+                    name={p.name}
+                    logoPreset={p.preset_key ?? undefined}
+                    subtitle={p.api_base}
+                    status={statusFor(p)}
+                    okLabel={t("aiSettings.providers.testOk")}
+                    failLabel={t("aiSettings.providers.testFail")}
+                    errorMessage={results[p.id]?.error ?? null}
+                    meta={
+                      activeCount > 0
+                        ? t("aiSettings.providers.modelsCount", { count: activeCount })
+                        : t("aiSettings.providers.noModelsHint")
+                    }
+                    badges={[
+                      { key: "type", label: p.provider_type },
+                      ...(p.is_local != null
+                        ? [
+                            {
+                              key: "hosting",
+                              label: p.is_local
                                 ? t("aiSettings.providers.hostingLocal")
-                                : t("aiSettings.providers.hostingCloud")}
-                            </span>
-                          )}
-                          {p.country && (
-                            <span
-                              className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0"
-                              title={p.country}
-                              data-testid={`provider-country-${p.id}`}
-                            >
-                              {getCountryFlag(p.country)} {p.country}
-                            </span>
-                          )}
-                          {!p.is_active && <span className="text-xs text-rose-600">{t("aiSettings.providers.inactive")}</span>}
-                        </p>
-                        <p className="text-xs text-slate-400 font-mono truncate mt-0.5">
-                          {p.api_base} · {p.api_key ?? t("aiSettings.providers.keyNotSet")}
-                        </p>
-                        <ConnectionTestRow
-                          variant="inline"
-                          className="mt-1.5"
-                          label={t("aiSettings.providers.connection")}
-                          status={statusFor(p)}
-                          errorMessage={results[p.id]?.error ?? null}
-                          meta={
-                            activeCount > 0
-                              ? t("aiSettings.providers.modelsCount", { count: activeCount })
-                              : t("aiSettings.providers.noModelsHint")
-                          }
-                          testLabel={t("aiSettings.providers.test")}
-                          okLabel={t("aiSettings.providers.testOk")}
-                          failLabel={t("aiSettings.providers.testFail")}
-                          onTest={testModel ? () => void runTest(p) : undefined}
-                          disabled={testingId === p.id}
-                        />
-                      </div>
-                      {editable && (
-                        <div className="flex gap-1 shrink-0">
-                          {p.preset_key && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={t("aiSettings.providers.rerunAria", { name: p.name })}
-                              title={t("aiSettings.setup.automatically")}
-                              onClick={() => onRerunSetup(p)}
-                            >
-                              <Sparkles className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={t("aiSettings.providers.editAria", { name: p.name })}
-                            onClick={() => onEdit(p)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={t("aiSettings.providers.deleteAria", { name: p.name })}
-                            onClick={() => setDeleting(p)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                                : t("aiSettings.providers.hostingCloud"),
+                              testId: `provider-hosting-${p.id}`,
+                            },
+                          ]
+                        : []),
+                      ...(p.country
+                        ? [
+                            {
+                              key: "country",
+                              label: `${getCountryFlag(p.country)} ${p.country}`,
+                              title: p.country,
+                              testId: `provider-country-${p.id}`,
+                            },
+                          ]
+                        : []),
+                      ...(!p.api_key
+                        ? [
+                            {
+                              key: "key",
+                              label: t("aiSettings.providers.noKey"),
+                              danger: true,
+                              testId: `provider-key-${p.id}`,
+                            },
+                          ]
+                        : []),
+                      ...(!p.is_active
+                        ? [
+                            {
+                              key: "inactive",
+                              label: t("aiSettings.providers.inactive"),
+                              danger: true,
+                            },
+                          ]
+                        : []),
+                    ]}
+                    actions={actions}
+                    actionsLabel={t("aiSettings.providers.actionsAria", { name: p.name })}
+                  />
                 );
               })}
             </div>

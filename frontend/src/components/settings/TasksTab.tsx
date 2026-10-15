@@ -74,9 +74,10 @@ const DECISION_KIND_META: Record<string, { id: string; icon: LucideIcon }> = {
 };
 
 /** One Decision kinds group row (plan 29 / ADR-0036 D4, uniform ruling):
- * composed app-side from the library `ModelPicker` — its option list
- * LEADS with the labeled null entry ("Inherits — {resolved default
- * model}") and choosing it assigns null, which *is* the inherit state.
+ * composed app-side from the library `ModelPicker` — single picker, no
+ * explicit inherit option: an unset kind simply *is* the inherit state.
+ * The trigger reads a short muted "Inherited"; the meta line carries the
+ * detail (what it defaults to). Clearing (X) returns the kind to inherit.
  * `TaskAssignmentPicker` untouched. Career kind rows are single-picker
  * (career has no per-assignment fallback concept — ADR-0037 natively).
  */
@@ -86,7 +87,7 @@ function DecisionKindRow({
   icon: Icon,
   catalog,
   modelValue,
-  inheritLabel,
+  placeholder,
   clearLabel,
   disabled,
   meta,
@@ -97,7 +98,7 @@ function DecisionKindRow({
   icon: LucideIcon
   catalog: ModelPickerProvider[]
   modelValue: string | null
-  inheritLabel: string
+  placeholder: string
   clearLabel: string
   disabled: boolean
   meta?: ReactNode
@@ -119,7 +120,7 @@ function DecisionKindRow({
         <ModelPicker
           providers={catalog}
           value={modelValue ?? ''}
-          nullOption={{ label: inheritLabel }}
+          placeholder={placeholder}
           onChange={(modelId: string | null) => onAssign(modelId)}
           disabled={disabled}
           clearable={false}
@@ -298,9 +299,6 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
   };
   const decisionDefaultId = value[DECISION_DEFAULT_TASK_TYPE] ?? null;
   const decisionDefaultLabel = modelLabelOf(decisionDefaultId);
-  const inheritLabel = decisionDefaultLabel
-    ? t(STRINGS.inheritsLabel, { model: decisionDefaultLabel })
-    : t(STRINGS.inheritsEmpty);
 
   // D7 "Simplify": only when all four kinds resolve to one model and the
   // default is empty — a suggestion, never automatic.
@@ -348,18 +346,27 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
             icon={meta?.icon ?? Sparkles}
             catalog={catalog}
             modelValue={value[row.value] ?? null}
-            inheritLabel={inheritLabel}
+            placeholder={t("aiSettings.decisionInherited")}
             clearLabel={t(STRINGS.clearLabel)}
             disabled={busy}
             meta={
-              !value[row.value] && decisionSuggestion && !decisionDefaultId ? (
-                <p className="text-[11px] text-slate-400">
-                  {t("aiSettings.tasks.suggestedDecisionDefault", {
-                    model: decisionSuggestion.model,
-                    provider: decisionSuggestion.provider,
-                  })}
-                </p>
-              ) : null
+              <>
+                {decisionDefaultId && decisionDefaultLabel ? (
+                  <p className="text-[11px] text-slate-400">
+                    {t("aiSettings.decisionDefaultsTo", {
+                      model: decisionDefaultLabel,
+                    })}
+                  </p>
+                ) : null}
+                {!value[row.value] && decisionSuggestion && !decisionDefaultId ? (
+                  <p className="text-[11px] text-slate-400">
+                    {t("aiSettings.tasks.suggestedDecisionDefault", {
+                      model: decisionSuggestion.model,
+                      provider: decisionSuggestion.provider,
+                    })}
+                  </p>
+                ) : null}
+              </>
             }
             onAssign={(modelId) => void assign(row.value, modelId)}
           />
