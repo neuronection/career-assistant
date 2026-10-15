@@ -416,6 +416,7 @@
   "sources": {
     "refStrategies": ["release-tag", "tag-pattern", "branch", "commit-pin"],
     "digest": "sha256 (hex, 64 chars) over the discovered extension content — the pin-record digest and the consent-surface digest are the same value (D13/D15).",
+    "localDevVariant": "extension-sources.schema.json $defs.localSourceDescriptor is the dev/test file-path variant (local.path replaces url; structurally distinct — it NEVER validates against the production root, which stays https-only). Hosts gate it off in production boots (fail-closed) and confine paths to allowlisted roots; anything needing a credential is an https source (plan 32 Phase 3 local-source ruling).",
     "importableSet": "The manifest schema's importable capability enum is DERIVED from this charter: ids whose tiers intersect {0, 2}. In v1 that excludes ui:custom-code, fs-write-mutate (reserved), push and the inbound-* family (T1-only) — scripts/check-extension-contract.py re-derives it and fails on drift."
   },
   "hostProfiles": {

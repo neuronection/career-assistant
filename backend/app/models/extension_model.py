@@ -1,0 +1,127 @@
+"""Extension sources & installs (plan 32 Phase 3 / ADR-0040 D13+D22).
+
+The import layer's persistence: git sources (https production descriptors
++ the dev/test ``local`` variant) and the extensions installed from them —
+digest-pinned, consent-tracked, never auto-enabled. Imported content is
+data on disk (``data_dir/extensions/<id>/<digest>/``), never code in the
+process (D2's gate point); the runnable surface is the existing ``mcp``
+connector (T3 managed spawn from the cloned content).
+
+Status rides the family status vocabulary (``ok | degraded | failing |
+stale`` with ``last_success_at`` / ``consecutive_failures``, D21). Consent
+records ride the install row (``instance.consentRecord``, D19) and survive
+tombstoning (lifecycle law: digest + origin + consent retained).
+"""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import (
+    Base,
+    StructuredJSON,
+    TimestampMixin,
+    TZDateTime,
+    UUIDPrimaryKeyMixin,
+)
+
+SOURCE_STATUSES = ("ok", "degraded", "failing", "stale")
+INSTALL_STATES = ("installed", "disabled", "self-disabled", "removed")
+INSTALL_TIERS = ("T0", "T3")
+
+
+class ExtensionSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One git source added by an admin (manual) or provisioned by GitOps.
+
+    ``origin`` is the https URL (kind ``git``) or the absolute local path
+    (kind ``local`` — dev/test only, gated off in production boots).
+    ``descriptor`` is the validated source descriptor verbatim; ``secrets``
+    holds atrest-sealed private-repo credential slots (secret-slot
+    references resolve here — an inline token is structurally invalid at
+    the schema seam, D22). ``candidates`` is the last discovery result:
+    what the source currently offers, digests and compat reasons.
+    """
+
+    __tablename__ = "extension_sources"
+    __table_args__ = (
+        UniqueConstraint("origin", name="uq_extension_sources_origin"),
+        CheckConstraint("kind IN ('git', 'local')", name="source_kind_allowed"),
+        CheckConstraint(
+            "status IN ('ok', 'degraded', 'failing', 'stale')",
+            name="source_status_allowed",
+        ),
+        CheckConstraint("consecutive_failures >= 0", name="source_failures_nonneg"),
+    )
+
+    origin: Mapped[str] = mapped_column(String(600), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="git")
+    descriptor: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    candidates: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    secrets: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="ok")
+    last_success_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    consecutive_failures: Mapped[int] = mapped_column(nullable=False, default=0)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class ExtensionInstall(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One imported extension installed from a source — the pinned artifact.
+
+    Digest + origin pinned at install (D7); every consent event appends to
+    ``consents`` (who/when/what-digest — verifiable against the digest);
+    ``pin_history`` records ref/digest moves. ``enabled`` mirrors the minted
+    job source's enable flag and is ONLY ever flipped by an explicit admin
+    act — installs, updates and reconcile never auto-enable (D22).
+    ``state`` rides the lifecycle vocabulary; ``parked`` marks the GitOps
+    parking state (removed from the desired list ⇒ disabled, data intact,
+    tombstone-able). Tombstoned rows keep everything — consent records
+    included — so a re-import never silently re-enables.
+    """
+
+    __tablename__ = "extension_installs"
+    __table_args__ = (
+        UniqueConstraint("extension_id", name="uq_extension_installs_extension"),
+        CheckConstraint(
+            "state IN ('installed', 'disabled', 'self-disabled', 'removed')",
+            name="install_state_allowed",
+        ),
+        CheckConstraint("managed_by IN ('manual', 'gitops')", name="install_managed_by_allowed"),
+        CheckConstraint("tier IN ('T0', 'T3')", name="install_tier_allowed"),
+        Index("ix_extension_installs_source", "source_id"),
+    )
+
+    extension_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("extension_sources.id", ondelete="SET NULL"), nullable=True
+    )
+    version: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    manifest: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    pin_ref: Mapped[str] = mapped_column(String(200), nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_path: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
+    tier: Mapped[str] = mapped_column(String(4), nullable=False, default="T3")
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="installed")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    managed_by: Mapped[str] = mapped_column(String(10), nullable=False, default="manual")
+    source_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    consents: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    pin_history: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    update: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    parked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    installed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    installed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tombstoned_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)

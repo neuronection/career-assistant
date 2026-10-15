@@ -40,6 +40,8 @@ if IS_SQLITE:
     _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
+    "extension_installs",
+    "extension_sources",
     "cv_versions",
     "cv_documents",
     "cv_templates",

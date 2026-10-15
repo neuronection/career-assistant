@@ -78,6 +78,29 @@ stays referentially intact.
 | `market_snapshots` | `market_model.py` | Aggregated market data |
 | `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs and explainable findings |
 
+## Extensions (import layer)
+
+| Table(s) | Model | Holds |
+|---|---|---|
+| `extension_sources` | `extension_model.py` | Git sources (https production + dev/test `local` variant): validated descriptor, sealed credential slots, discovery candidates, family status vocabulary |
+| `extension_installs` | `extension_model.py` | Digest-pinned imported extensions: manifest, pin ref + history, consent records (who/when/what-digest), update state, lifecycle state, the minted `job_sources` key |
+
+Imported content itself is data on disk — content-addressed under
+`data_dir/extensions/<id>/<digest>/` — never a table row, never
+importlib'd (D2). The GitOps desired-state document lives in
+`app_settings` under `extensions.desired_state` (admin-owned; validated
+against the vendored `desiredStateDocument` schema, which cannot express
+deletion).
+
+### Migration notes
+
+- **0048** — `extension_sources` + `extension_installs` (plan 32 Phase 3 /
+  ADR-0040 D13+D22); widens the `schedules.kind`/`task` CHECKs for the
+  `system_extension_reconcile` slot (`extension_reconcile` job, hourly ±
+  jitter; boot reconcile rides the app lifespan). Downgrade drops both
+  tables and the schedule rows — consent records are install-row data,
+  deleted with them, never leaked back.
+
 ## CV Studio
 
 | Table(s) | Model | Holds |

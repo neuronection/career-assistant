@@ -566,6 +566,7 @@ class BackgroundJobType(StrEnum):
     MARKET_HISTORY_CAPTURE = "market_history_capture"
     PROPOSAL_SWEEP = "proposal_sweep"
     CHECKPOINT_PRUNE = "checkpoint_prune"
+    EXTENSION_RECONCILE = "extension_reconcile"
 
 
 class ScheduleKind(StrEnum):
@@ -578,6 +579,7 @@ class ScheduleKind(StrEnum):
     SYSTEM_MARKET_HISTORY = "system_market_history"
     SYSTEM_PROPOSAL_SWEEP = "system_proposal_sweep"
     SYSTEM_CHECKPOINT_PRUNE = "system_checkpoint_prune"
+    SYSTEM_EXTENSION_RECONCILE = "system_extension_reconcile"
     USER_SAVED_SEARCH = "user_saved_search"
     USER_CHECKIN = "user_checkin"
     USER_AUTOPILOT = "user_autopilot"

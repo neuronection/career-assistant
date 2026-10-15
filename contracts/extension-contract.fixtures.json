@@ -711,7 +711,7 @@
     ]
   },
   "sources": {
-    "against": "extension-sources.schema.json (root descriptor; desiredState against $defs.desiredStateDocument)",
+    "against": "extension-sources.schema.json (root descriptor; desiredState against $defs.desiredStateDocument; localSource against $defs.localSourceDescriptor — dev/test only, hosts gate it off in production)",
     "valid": [
       {
         "name": "release-tag-source",
@@ -741,6 +741,38 @@
             "ref": "v1.2.0",
             "digest": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
           }
+        }
+      },
+      {
+        "name": "local-source-descriptor",
+        "against": "localSource",
+        "doc": {
+          "local": {
+            "path": "/home/dev/src/career-connector-template"
+          },
+          "ref": {
+            "strategy": "branch",
+            "value": "main"
+          }
+        }
+      },
+      {
+        "name": "local-source-with-pin",
+        "against": "localSource",
+        "doc": {
+          "local": {
+            "path": "/opt/dogfood/connectors"
+          },
+          "ref": {
+            "strategy": "commit-pin",
+            "value": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+          },
+          "subpath": "fetchers/greenhouse",
+          "pin": {
+            "ref": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+            "digest": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+          },
+          "notes": "dogfood checkout"
         }
       },
       {
@@ -836,6 +868,47 @@
             "strategy": "release-tag"
           },
           "subpath": "../../etc/passwd"
+        }
+      },
+      {
+        "name": "local-path-traversal",
+        "against": "localSource",
+        "because": "local paths are absolute and '..'-segment-free structurally — traversal is rejected at the seam, never filtered",
+        "doc": {
+          "local": {
+            "path": "../outside/career-connector-template"
+          },
+          "ref": {
+            "strategy": "branch",
+            "value": "main"
+          }
+        }
+      },
+      {
+        "name": "local-path-relative",
+        "against": "localSource",
+        "because": "a local path must be absolute — a bare relative name is structurally invalid",
+        "doc": {
+          "local": {
+            "path": "career-connector-template"
+          },
+          "ref": {
+            "strategy": "branch",
+            "value": "main"
+          }
+        }
+      },
+      {
+        "name": "root-rejects-local-source",
+        "because": "production descriptors are https-only: the root requires `url` and has no `local` property — a local-kind document never validates against the production root",
+        "doc": {
+          "local": {
+            "path": "/home/dev/src/career-connector-template"
+          },
+          "ref": {
+            "strategy": "branch",
+            "value": "main"
+          }
         }
       },
       {

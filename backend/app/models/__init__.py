@@ -35,6 +35,7 @@ from app.models.experience_model import (
     Organization,
     SkillEvidence,
 )
+from app.models.extension_model import ExtensionInstall, ExtensionSource
 from app.models.growth_model import (
     GrowthPlan,
     GrowthPlanStep,
@@ -107,6 +108,8 @@ __all__ = [
     "ExperienceAchievement",
     "ExperienceItem",
     "ExperienceSkill",
+    "ExtensionInstall",
+    "ExtensionSource",
     "GrowthPlan",
     "GrowthPlanStep",
     "InterestTag",

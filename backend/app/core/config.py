@@ -179,6 +179,15 @@ class Settings(BaseSettings):
     connector_read_timeout_seconds: float = 15.0
     connector_max_retries: int = 3
 
+    # Extension sources (plan 32 Phase 3 / ADR-0040 D13): the dev/test
+    # `local` file-path variant is gated OFF in production boots
+    # (fail-closed) AND confined to these allowlisted parent roots — the
+    # clone root must resolve under one (net_guard-style path discipline).
+    # Empty list = no local sources anywhere, even in dev.
+    extension_local_source_roots: list[str] = []
+    # Bound for one git resolve/fetch subprocess (seconds).
+    extension_fetch_timeout_seconds: float = 60.0
+
     # Entry-point AI tool plugins are admin-opt-in: an empty
     # list means built-ins only.
     tool_plugins_allowlist: list[str] = []
