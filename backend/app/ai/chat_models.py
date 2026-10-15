@@ -8,7 +8,6 @@ inject an ``httpx`` transport instead of touching the network.
 """
 
 from typing import TYPE_CHECKING, Any, cast
-from urllib.parse import urlsplit
 
 import httpx
 from google.genai import types as google_types
@@ -18,6 +17,19 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from app.core.config import settings
+from app.ai.wire_params import (
+    CompatibleChatOpenAI,
+    is_openai_endpoint,
+    is_openai_wire,
+    token_cap_kwargs,
+)
+
+__all__ = [
+    "CompatibleChatOpenAI",
+    "is_openai_endpoint",
+    "is_openai_wire",
+    "token_cap_kwargs",
+]
 
 if TYPE_CHECKING:
     from app.ai.providers.resolution import ResolvedModel
@@ -25,55 +37,6 @@ if TYPE_CHECKING:
 _KEYLESS_API_KEY = "missing"
 GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com"
 _GOOGLE_REASONING_EFFORT_LEVELS = frozenset({"minimal", "low", "medium", "high"})
-
-
-class CompatibleChatOpenAI(ChatOpenAI):
-    """ChatOpenAI that keeps ``max_tokens`` on the wire.
-
-    ``ChatOpenAI`` renames the ``max_tokens`` parameter to
-    ``max_completion_tokens`` in the request payload — fine for OpenAI
-    itself, but OpenAI-compatible endpoints (Ollama, LM Studio, OpenRouter,
-    llama.cpp…) reject the newer name. Skipping the rename restores the
-    wire contract these providers always had.
-    """
-
-    @property
-    def _default_params(self) -> dict[str, Any]:
-        # Skip ChatOpenAI's override; BaseChatOpenAI leaves the name alone.
-        return super(ChatOpenAI, self)._default_params
-
-
-def is_openai_endpoint(base_url: str | None) -> bool:
-    """True when the base URL points at OpenAI's own API.
-
-    Providers are sometimes registered as ``openai_compatible`` with
-    ``https://api.openai.com/v1`` — the wire contract of OpenAI itself
-    (``max_completion_tokens``) must win over the declared type.
-    """
-    try:
-        return urlsplit(base_url or "").hostname == "api.openai.com"
-    except ValueError:
-        return False
-
-
-def is_openai_wire(provider_type: str, base_url: str | None) -> bool:
-    """Should payloads use OpenAI's modern wire contract?"""
-    return provider_type == "openai" or (
-        provider_type == "openai_compatible" and is_openai_endpoint(base_url)
-    )
-
-
-def token_cap_kwargs(provider_type: str, cap: int, base_url: str | None = None) -> dict[str, int]:
-    """Token-cap params for a plain REST chat payload, per provider type.
-
-    Modern OpenAI models reject ``max_tokens`` while OpenAI-compatible
-    endpoints don't know ``max_completion_tokens`` — the cap adapts per
-    provider type (used by the httpx connection ping; ``build_chat_model``
-    applies the same split through ChatOpenAI's own mechanics).
-    """
-    if is_openai_wire(provider_type, base_url):
-        return {"max_completion_tokens": cap}
-    return {"max_tokens": cap}
 
 
 def _google_model(

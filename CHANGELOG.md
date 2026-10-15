@@ -4,6 +4,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (wire policy converges onto the vendored family module, 2026-10-15)
+- **The wire-parameter rules moved to the canonical shared module:**
+  `CompatibleChatOpenAI`, `is_openai_endpoint`, `is_openai_wire`,
+  `token_cap_kwargs` and the endpoint-routed token-cap resolution now
+  live in the vendored `app/ai/wire_params.py` (byte-identical across
+  the family; this repo was the reference and its logic is unchanged
+  except one ratified tightening: a provider declared `openai` with a
+  non-OpenAI base URL now rides the compatible wire — the endpoint
+  decides, only an empty base URL counts as OpenAI's default).
+  Temperature stays omit-unless-configured (unchanged — this repo
+  never manufactured a default). The shared fixture table
+  (`tests/fixtures/wire_params.fixtures.json`) is the cross-language
+  acceptance wall, run by the new tests/test_wire_params_contract.py,
+  and alignment rules R6/R7 keep wire construction in the AI layer and
+  temperature defaults out of app code.
+
 ### Changed (assistant-ui 0.57.0 — capability-kind model form, 2026-10-14)
 - **The models-tab add/edit form matches study's capability-kind UX:**
   standalone capability kinds (decision/stt/tts/embeddings select

@@ -626,7 +626,10 @@ async def test_test_connection_endpoint(client, auth_headers):
         "expected_param",
     ),
     [
-        ("openai", "https://api.example.com/v1", "max_completion_tokens"),
+        # Endpoint decides (ADR-0038): a declared `openai` type with a
+        # non-OpenAI base URL rides the compatible wire; only an empty
+        # base URL counts as OpenAI's default endpoint.
+        ("openai", "https://api.example.com/v1", "max_tokens"),
         ("openai_compatible", "https://api.example.com/v1", "max_tokens"),
         ("openai_compatible", "https://api.openai.com/v1", "max_completion_tokens"),
     ],
@@ -686,6 +689,54 @@ async def test_run_test_reports_http_error(db):
     assert result["ok"] is False
     assert "Error code: 401" in result["error"]
     assert "bad key" in result["error"]
+
+
+async def test_run_test_routes_decision_models_to_the_decision_probe(db, monkeypatch):
+    """A decision-capable model on a MIXED provider (openai_compatible,
+    e.g. OpenRouter) must never hit chat/completions — the vendor 400s
+    ('is a decisions model…'). The probe validates the decision transport
+    instead, honoring the model's base_url_override."""
+    import httpx
+
+    from app.ai.decide.systemone.probe import DecisionProbeResult
+
+    user = await _mk_user(db, "testconn-decision@example.com")
+    provider, model = await _mk_provider_with_model(
+        db,
+        user,
+        "user",
+        "typesafe/jev-1.13",
+        provider_type="openai_compatible",
+        api_base="https://openrouter.ai/api/v1",
+    )
+    model.decision_transport = "systemone"
+    model.caps = ["decision"]
+    await db.commit()
+
+    probed: dict = {}
+
+    async def fake_probe(probe_input):
+        probed["model_name"] = probe_input.model.model_name
+        return DecisionProbeResult(
+            ok=True, latency_ms=3, resolved_model="typesafe/jev-1.13"
+        )
+
+    monkeypatch.setattr(
+        "app.ai.decide.systemone.probe.probe_decision_provider", fake_probe
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("chat/completions must not be called for a decision model")
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(handler),
+    )
+    assert result["ok"] is True
+    assert "decision endpoint OK" in result["reply"]
+    assert probed["model_name"] == "typesafe/jev-1.13"
 
 
 async def test_provider_presets_endpoint(client, auth_headers):

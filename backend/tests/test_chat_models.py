@@ -60,7 +60,9 @@ def test_build_chat_model_temperature_and_max_tokens_split():
     assert compatible._default_params["max_tokens"] == 512
     assert "max_completion_tokens" not in compatible._default_params
 
-    openai_model = build_chat_model(_resolved("openai", max_tokens=512))
+    openai_model = build_chat_model(
+        _resolved("openai", base_url="https://api.openai.com/v1", max_tokens=512)
+    )
     assert openai_model._default_params["max_completion_tokens"] == 512
     assert "max_tokens" not in openai_model._default_params
     assert openai_model.model_kwargs["response_format"] == {"type": "json_object"}
