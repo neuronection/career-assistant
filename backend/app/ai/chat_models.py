@@ -16,7 +16,6 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from app.core.config import settings
 from app.ai.wire_params import (
     CompatibleChatOpenAI,
     is_openai_endpoint,
@@ -24,6 +23,7 @@ from app.ai.wire_params import (
     resolve_chat_transport,
     token_cap_kwargs,
 )
+from app.core.config import settings
 
 __all__ = [
     "CompatibleChatOpenAI",

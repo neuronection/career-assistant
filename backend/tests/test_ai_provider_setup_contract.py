@@ -181,9 +181,7 @@ async def test_case_1_happy_path_openai_binds_chat_vision_and_stt(
     db, monkeypatch: pytest.MonkeyPatch, auth_headers
 ) -> None:
     user = await _current_user(db, auth_headers)
-    calls = install_catalog(
-        monkeypatch, wire_catalog(["gpt-6.1-sol", "gpt-6-luna", "whisper-1"])
-    )
+    calls = install_catalog(monkeypatch, wire_catalog(["gpt-6.1-sol", "gpt-6-luna", "whisper-1"]))
     outcome = await byok_setup.setup_provider_from_preset(db, user, "openai", "  sk-live-key  ")
 
     assert outcome.catalog_count == 3

@@ -717,13 +717,9 @@ async def test_run_test_routes_decision_models_to_the_decision_probe(db, monkeyp
 
     async def fake_probe(probe_input):
         probed["model_name"] = probe_input.model.model_name
-        return DecisionProbeResult(
-            ok=True, latency_ms=3, resolved_model="typesafe/jev-1.13"
-        )
+        return DecisionProbeResult(ok=True, latency_ms=3, resolved_model="typesafe/jev-1.13")
 
-    monkeypatch.setattr(
-        "app.ai.decide.systemone.probe.probe_decision_provider", fake_probe
-    )
+    monkeypatch.setattr("app.ai.decide.systemone.probe.probe_decision_provider", fake_probe)
 
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("chat/completions must not be called for a decision model")
