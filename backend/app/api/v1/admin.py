@@ -613,6 +613,182 @@ async def probe_posting_source(
     }
 
 
+# ---------------------------------------------------- extension sources
+# The import layer (plan 32 Phase 3 / ADR-0040 D13+D22): git sources,
+# consent-gated installs, digest pins and GitOps desired state.
+
+
+def _lifecycle_error(exc) -> HTTPException:
+    status_code = (
+        status.HTTP_404_NOT_FOUND if exc.code == "not-found" else status.HTTP_400_BAD_REQUEST
+    )
+    return HTTPException(status_code, f"{exc.code}: {exc.detail}")
+
+
+@router.get("/extensions/sources", response_model=list[dict])
+async def extension_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Sources with their discovered candidates and installs (secret-safe:
+    sealed credential slots surface as presence only)."""
+    from app.extensions.lifecycle import list_sources
+
+    return await list_sources(db)
+
+
+@router.post("/extensions/sources", status_code=201)
+async def add_extension_source(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Add a git source (https production descriptor, or the dev/test
+    `local` variant — gated off in production boots, confined to
+    allowlisted roots). Private-repo credentials ride the ``secrets``
+    payload as sealed slot values, never inline in the descriptor."""
+    from app.extensions.lifecycle import LifecycleError, add_source
+
+    try:
+        return await add_source(db, payload.get("descriptor") or {}, secrets=payload.get("secrets"))
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.delete("/extensions/sources/{source_id}")
+async def remove_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a source: installs park (disabled, data intact, tombstone-
+    able) — removal never deletes data."""
+    from app.extensions.lifecycle import LifecycleError, remove_source
+
+    try:
+        return await remove_source(db, source_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/sources/{source_id}/sync")
+async def sync_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Fetch + discover + validate + update-check. A failed fetch leaves
+    pins untouched and marks the source failing (typed error body)."""
+    from app.extensions.lifecycle import LifecycleError, sync_source
+
+    try:
+        return await sync_source(db, source_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/sources/{source_id}/install", status_code=201)
+async def install_from_source(
+    source_id: uuid.UUID,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Consent-gated install (D7): ``{"extension_id": ..., "consent": true}``
+    — the consent payload (capabilities, tier, provenance verbatim, digest,
+    the T3 perimeter disclosure verbatim) was shown from the source's
+    candidates BEFORE this call. Installs are DISABLED; enabling is a
+    separate explicit act."""
+    from app.extensions.lifecycle import LifecycleError, install_extension
+
+    if not payload.get("extension_id"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "extension_id is required")
+    try:
+        return await install_extension(
+            db,
+            source_id,
+            str(payload["extension_id"]),
+            consent=bool(payload.get("consent")),
+            actor_id=user.id,
+        )
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/apply")
+async def apply_extension_update(
+    install_id: uuid.UUID,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The only apply path: an explicit re-consent to a recorded available
+    update (no signing service exists — there is no auto-apply at all)."""
+    from app.extensions.lifecycle import LifecycleError, apply_update
+
+    try:
+        return await apply_update(
+            db, install_id, consent=bool(payload.get("consent")), actor_id=user.id
+        )
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/enabled")
+async def set_extension_enabled(
+    install_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The ONLY enable path — an explicit admin act. Installs, updates and
+    reconcile never auto-enable (D22)."""
+    from app.extensions.lifecycle import LifecycleError, set_install_enabled
+
+    try:
+        return await set_install_enabled(db, install_id, bool(payload.get("enabled")))
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/park")
+async def park_extension_install(install_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Park: disabled + flagged, data intact, tombstone-able."""
+    from app.extensions.lifecycle import LifecycleError, park_install
+
+    try:
+        return await park_install(db, install_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/tombstone")
+async def tombstone_extension_install(
+    install_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Tombstone (lifecycle `removed`): instance disabled, install + consent
+    records retained — re-import surfaces history, never silent re-enable."""
+    from app.extensions.lifecycle import LifecycleError, tombstone_install
+
+    try:
+        return await tombstone_install(db, install_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.get("/extensions/desired-state", response_model=dict)
+async def get_extension_desired_state(db: AsyncSession = Depends(get_db)) -> dict:
+    """The GitOps desired-state document (admin-owned; the model never
+    authors it — ADR-0011 §7)."""
+    from app.extensions.lifecycle import get_desired_state
+
+    return await get_desired_state(db)
+
+
+@router.put("/extensions/desired-state")
+async def put_extension_desired_state(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Set the desired-state document (validated against the vendored
+    desiredStateDocument schema — deletion is structurally inexpressible)."""
+    from app.extensions.lifecycle import LifecycleError, put_desired_state
+
+    try:
+        return await put_desired_state(db, payload)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/reconcile")
+async def reconcile_extensions(db: AsyncSession = Depends(get_db)) -> dict:
+    """Run the GitOps reconcile now (the scheduler runs it hourly; boot
+    runs it once at startup). Installs and moves pins only — never
+    enables, never deletes data; the report is the drift surface."""
+    from app.extensions.lifecycle import reconcile
+
+    return await reconcile(db)
+
+
 @router.post("/postings/{posting_id}/map")
 async def manual_map_posting(
     posting_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)

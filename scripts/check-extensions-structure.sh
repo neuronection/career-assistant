@@ -13,7 +13,10 @@
 #    subsystem holds machinery)
 #  2 no importlib of data-dir artifacts and no importlib under
 #    app/extensions (D2's gate point: imported code never enters the
-#    process)
+#    process) — extended Phase 3: no sys.path mutation under the
+#    subsystem either (data_dir/extensions/<id>/<digest>/ content is
+#    DATA: spawned, never imported), and lifecycle.py (the D24 home for
+#    sources/consent/pins/GitOps) must exist
 #  3 AI-layer MCP adapters stay in app/ai (ADR-0012 alignment gate R2):
 #    fastmcp/mcp imports appear only under backend/app/ai/
 #  4 vendored family contract modules exist at their ledgered paths
@@ -54,13 +57,28 @@ fi
 
 # 2 — no dynamic code loading under the subsystem home (D2's gate point:
 # imported artifacts are data, never importlib'd into the process; stdlib
-# `importlib.metadata` entry-point discovery is NOT dynamic loading)
+# `importlib.metadata` entry-point discovery is NOT dynamic loading).
+# Phase 3 extension: sys.path mutations are equally banned — landing
+# data_dir/extensions/<id>/<digest>/ on sys.path would make the
+# content-addressed clone importable, the exact hole D2 closes.
 importlib_hits="$(grep -rn -E "importlib\.(import_module|machinery|util|reload)|SourceFileLoader|exec_module" "$ROOT/backend/app/extensions" 2>/dev/null | grep -v __pycache__ || true)"
 if [ -n "$importlib_hits" ]; then
   note "importlib usage under app/extensions (imported code is never importlib'd — D2):"
   echo "$importlib_hits" | sed 's/^/      /'
 else
   ok "no importlib under app/extensions (D2 gate point)"
+fi
+syspath_hits="$(grep -rn -E "sys\.path\.(append|insert)|PYTHONPATH" "$ROOT/backend/app/extensions" 2>/dev/null | grep -v __pycache__ || true)"
+if [ -n "$syspath_hits" ]; then
+  note "sys.path/PYTHONPATH mutation under app/extensions (data-dir content is spawned, never importable — D2):"
+  echo "$syspath_hits" | sed 's/^/      /'
+else
+  ok "no sys.path mutation under app/extensions (imported content is data, never a module path)"
+fi
+if [ -f "$ROOT/backend/app/extensions/lifecycle.py" ]; then
+  ok "lifecycle.py present (D24 home: sources, consent, pins, GitOps reconcile)"
+else
+  note "backend/app/extensions/lifecycle.py missing — the import layer lives there (D13/D22)"
 fi
 
 # 3 — fastmcp/mcp imports only under backend/app/ai/
