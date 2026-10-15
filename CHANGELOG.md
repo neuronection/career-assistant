@@ -46,6 +46,12 @@ All notable changes to **Career Assistant** are documented here.
   fetch through the polite runtime with a typed outcome (the source
   UI's Test button), reporting `needs-secret` instead of fetching when
   a required slot is missing.
+- **Admin source management ships** (Settings → Tools → Connectors, the
+  broadened `tools.connectors` row): catalog-driven add/edit forms from
+  the extension registry (manifest configSchema, password fields for
+  `x-secret` slots that only ever show `…last4` hints), per-source
+  enable/sync/test — probes ride the new runtime and surface typed
+  outcomes incl. the needs-secret badge.
 
 ### Added (model transport knob — reasoning + function tools on gpt-6 via the Responses API, 2026-10-15)
 - **Model rows can set `chat_transport='responses'`** (nullable column,

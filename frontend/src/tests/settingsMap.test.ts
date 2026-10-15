@@ -17,6 +17,11 @@ const map = JSON.parse(
     "utf8",
   ),
 ) as {
+  domains?: {
+    id: string;
+    definition: string;
+    adopters?: Record<string, string>;
+  }[];
   products: Record<
     string,
     {
@@ -81,6 +86,16 @@ describe("settings-map contract", () => {
         expect(domain.startsWith("tools.")).toBe(true);
       }
     }
+  });
+
+  // plan 32 Phase 1 (D17): the tools.connectors row broadened to job-source
+  // connectors — the nav conformance pins the broadening so the row can
+  // never silently shrink back to MCP-only.
+  it("tools.connectors is defined as covering job-source connectors", () => {
+    const domain = (map.domains ?? []).find((entry) => entry.id === "tools.connectors");
+    expect(domain).toBeDefined();
+    expect(domain!.definition).toMatch(/job-source connector/i);
+    expect(domain!.adopters?.["career-assistant"]).toMatch(/job-source/);
   });
 
   it("automations is declared in the automations group", () => {

@@ -1085,6 +1085,36 @@
       "probeRateLimited": "Rate limited",
       "probeJsonDisabled": "JSON format disabled on the instance",
       "probeError": "Test failed"
+    },
+    "connectors": {
+      "mcpTitle": "MCP connectors",
+      "mcpHint": "Credentials for external services the assistant's tools call. The GitHub API token raises the repository-lookup rate limit.",
+      "githubToken": "GitHub API token",
+      "tokenSet": "set",
+      "tokenOptional": "optional",
+      "saveToken": "Save token",
+      "saved": "Saved",
+      "sources": {
+        "title": "Job source connectors",
+        "hint": "Posting ingestion sources through the polite runtime — SSRF-guarded fetches, robots.txt and per-host rate caps enforced. Credentials are sealed at rest and shown as hints only.",
+        "empty": "No job sources configured yet.",
+        "add": "Add source",
+        "connector": "Connector",
+        "key": "Source key (unique)",
+        "secret": "{{name}} (secret — leave empty to keep)",
+        "secretSet": "{{slot}}: {{hint}}",
+        "secretMissing": "{{slot}}: not set",
+        "needsSecret": "needs secret",
+        "enabledAria": "Toggle source {{key}}",
+        "test": "Test",
+        "sync": "Sync now",
+        "syncQueued": "Sync queued for {{key}}",
+        "edit": "Edit",
+        "save": "Save source",
+        "cancel": "Cancel",
+        "probeOk": "OK · {{items}} item(s) · {{latency}} ms",
+        "probeError": "{{code}}: {{detail}}"
+      }
     }
   },
   "onboarding": {
