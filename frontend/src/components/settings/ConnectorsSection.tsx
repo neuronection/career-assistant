@@ -7,6 +7,7 @@ import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
 import { Button } from "@/components/ui";
+import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 
 /**
  * Tools → connectors (ADR-0033, domain tools.connectors — broadened by
@@ -103,6 +104,7 @@ export function ConnectorsSection() {
       ) : null}
 
       <JobSourceConnectors />
+      <ExtensionSourcesSection />
     </div>
   );
 }
