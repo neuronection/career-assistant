@@ -4,6 +4,34 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (the script tier — plan 32 Phase 2 / ADR-0040 D9+D22, 2026-10-16)
+- **External scripts can feed postings.** A new `mcp` connector (T3
+  script tier) maps an external MCP server — local stdio subprocess or
+  http endpoint — to a posting source: one allowlisted
+  `fetch_postings(config, state)` tool returning the family envelope.
+  Admin-opt-in (`CAREER_CONNECTOR_PLUGINS_ALLOWLIST` naming `mcp`);
+  allowlist-off means the connector is invisible (structural). The
+  script process runs outside the app's network perimeter by design —
+  the consent/manifest copy says so verbatim (ADR-0040 clause 21) and
+  the manifest declares no `net` domains — while the host governs the
+  output: every row is validated against RawPosting app-side (required
+  fields, http(s) URLs, char caps, 300-item cap, 8 KB raw/next_state
+  caps) before anything persists. Per-source tool allowlist, 5–120 s
+  per-call timeout (a timed-out tool fails its own source with a typed
+  error, never the sync path), optional sealed `token` slot (http
+  Bearer; secrets never cross to the script), and one audit row per
+  tool call through the existing `mcp_tool_call` funnel.
+- `career-connector-template` (sibling repo): the reference fetcher +
+  envelope-conformant manifest + authoring guide — the first git
+  source for the Phase-3 import layer. Its server ships byte-identical
+  as a CI-safe test fixture (drift-checked when the sibling checkout
+  exists).
+- Connector config violations now surface as the app's `ValidationError`
+  (HTTP 400 from the admin API) instead of a raw pydantic dump.
+- Release smoke tests gain one stdio MCP source sync in the frozen
+  build (PATH-preserved sanitized spawn env — the study packaging
+  lesson, recorded in the desktop-packaging checklist).
+
 ### Added (connector runtime live — plan 32 Phase 1 / ADR-0040, 2026-10-15)
 - **Networked posting sources actually fetch now.** The polite transport
   runtime is built and injected into every sync: SSRF guard with

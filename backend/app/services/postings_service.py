@@ -104,9 +104,18 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
         domains=frozenset(connector.capabilities.network_scopes or []),
         requests_per_minute=connector.capabilities.max_requests_per_minute,
     )
+    audit = None
+    if getattr(connector, "audits_effects", False):
+        from app.extensions.runtime.mcp import mcp_effect_auditor
+
+        audit = mcp_effect_auditor(db, source.key)
     try:
         result = await connector.fetch(
-            source.config, source.sync_state or {}, transport=runtime_transport, secrets=secrets
+            source.config,
+            source.sync_state or {},
+            transport=runtime_transport,
+            secrets=secrets,
+            audit=audit,
         )
     except PoliteHttpError as exc:
         error = ConnectorError.from_polite(exc)

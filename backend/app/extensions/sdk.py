@@ -32,10 +32,12 @@ from app.models.base import StructuredJSON  # noqa: F401 — re-export convenien
 
 __all__ = [
     "RAW_POSTING_ITEM_SCHEMA",
+    "AuditFn",
     "ConnectorCapabilities",
     "ConnectorError",
     "ConnectorResult",
     "EmptyConfig",
+    "ExternalEffect",
     "HttpTransport",
     "LocationSpec",
     "PostingConnector",
@@ -157,6 +159,26 @@ class ConnectorResult(BaseModel):
 # guard, robots, rate caps and size caps stay in one place.
 HttpTransport = Callable[[str, dict], Awaitable[PoliteResponse]]
 
+
+class ExternalEffect(BaseModel):
+    """One observable external interaction of a fetch (charter lifecycle
+    law: one audit row per external effect). Connectors with effects
+    outside the injected transport — the T3 script tier's MCP tool calls
+    — report each one through the injected ``audit`` callback; the host
+    maps it onto the audit funnel. ``arguments``/``meta`` must already
+    be secret-free."""
+
+    kind: Literal["mcp_tool_call"]
+    ref: str = Field(max_length=300)
+    arguments: dict = Field(default_factory=dict)
+    meta: dict = Field(default_factory=dict)
+    ok: bool = True
+    error: str = Field(default="", max_length=1000)
+    latency_ms: float = Field(default=0.0, ge=0)
+
+
+AuditFn = Callable[[ExternalEffect], Awaitable[None]]
+
 FetchFn = Callable[..., Awaitable[ConnectorResult]]
 
 RAW_POSTING_ITEM_SCHEMA: dict = {
@@ -218,6 +240,10 @@ class PostingConnector:
     docs_url: str = ""
     capabilities: ConnectorCapabilities = ConnectorCapabilities()
     fixture_payload: str | bytes = ""
+    # Connectors that cause effects outside the injected transport (the
+    # T3 script tier) set this: sync/probe then inject the ``audit``
+    # callback so every external effect lands on the audit funnel.
+    audits_effects: bool = False
 
     def config_model(self) -> type[BaseModel]:
         raise NotImplementedError
@@ -246,6 +272,7 @@ class PostingConnector:
         *,
         transport: HttpTransport | None = None,
         secrets: dict | None = None,
+        audit: AuditFn | None = None,
     ) -> ConnectorResult:
         raise NotImplementedError
 
@@ -268,7 +295,9 @@ class PostingConnector:
 
         The x-secret law (ADR-0040 clause 18): a value present for any
         declared secret slot is a registration-time THROW — secrets never
-        live in stored config."""
+        live in stored config. Model violations surface as the app's
+        ValidationError (HTTP 400 at the admin API), never a raw
+        pydantic dump."""
         from app.core.errors import ValidationError
 
         for field in self.secret_slots():
@@ -277,7 +306,12 @@ class PostingConnector:
                     f"Secret {field!r} never lives in config — "
                     "send it via the source's secrets payload"
                 )
-        return self.config_model().model_validate(config).model_dump(mode="json")
+        from pydantic import ValidationError as PydanticValidationError
+
+        try:
+            return self.config_model().model_validate(config).model_dump(mode="json")
+        except PydanticValidationError as exc:
+            raise ValidationError(str(exc)) from exc
 
 
 def _field_type(annotation: object) -> str:

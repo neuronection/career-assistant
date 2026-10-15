@@ -80,12 +80,66 @@ environment reads — and default to the closed posture. The hostile wall
 | `rss` | Job feeds | `sync` |
 | `csv` | Exported spreadsheets | `sync` |
 | `manual_url` | A single posting you point at | `sync` |
+| `mcp` | The T3 script tier (external MCP servers) — [below](#the-script-tier-t3--external-mcp-servers) | `sync` + `secrets`, **no `net`** (T3 perimeter) |
 
 Connectors that fetch **user-configured** URLs declare `sync` only: their
 network scope is the validated instance config, and the host-side guard
 (fail-closed, robots, caps) applies per fetch. Connectors with statically
 known endpoints declare `net` + `domains` and every hop — redirects
 included — is checked against that scope.
+
+## The script tier (T3 — external MCP servers)
+
+External authors ship **scripts**, not plugins: an MCP server whose
+`fetch_postings(config, state)` tool returns the family result envelope
+(`{items, next_state}`). The `mcp` builtin connector maps such a server
+to a posting source — ADR-0040 D9, MCP-first. Reference authoring repo:
+`career-connector-template` (the family sibling template — clone, edit
+`_rows()`, register). Client construction stays in `app/ai/mcp_client.py`
+(ADR-0012; the structure probe pins fastmcp to the AI layer).
+
+**Off by default.** The connector registers only when
+`CAREER_CONNECTOR_PLUGINS_ALLOWLIST` names `mcp` — allowlist-off means
+it is invisible in the catalog and unknown to the registry (structural,
+tested). One source = one server + ONE tool: `transport` (`stdio`
+command line or `http(s)` url), `tool` (default `fetch_postings`),
+`allowed_tools` (per-tool allowlist, comma-separated — the configured
+tool must be in it), `timeout_seconds` (5–120, default 30) and an
+optional `token` (x-secret slot; the http transport's Bearer header).
+
+**The T3 perimeter (consent copy, verbatim — ADR-0040 clause 21):**
+
+> This extension runs as a separate process outside the app's network
+> perimeter. It opens its own network connections, with no SSRF guard,
+> robots.txt check or rate limiting by the app. The app governs only
+> what it returns: outputs are validated and capped.
+
+That is why the connector's manifest declares **no `net` domains** —
+the script's own sockets are not a host-side capability — and why the
+host governs only the output: every returned row is validated app-side
+against `RawPosting` (required `external_id`/`title`, http(s) `url`s,
+char caps, a 300-item cap, an 8 KB `raw`/`next_state` size cap) before
+anything persists; malformed rows become typed `invalid` partial errors,
+envelope violations typed `protocol` errors, and every tool call lands
+on the audit funnel as one `mcp_tool_call` row (through the injected
+`audit` callback — the same `ai_generations` funnel the MCP bridge
+uses). Secrets never cross to the script: the optional token is
+resolved host-side for the transport, and the config handed to the tool
+is stripped of declared secret slots. A tool that outlives its timeout
+fails its own source with a typed `unreachable` error — the sync path
+and other sources keep running.
+
+**The model never authors this tier** (ADR-0011 §7 / ADR-0030 §6): no
+model output may register, enable or schedule a script source; source
+registration is an admin act against the catalog UI. Phase 3 adds
+git-link import on top (the template repo is the first git source).
+
+**Frozen builds (desktop packaging):** stdio spawns ride the mcp SDK's
+`get_default_environment()` through fastmcp — PATH is preserved while
+the rest of the environment is sanitized, so spawned scripts resolve
+their interpreters inside PyInstaller bundles. The release smoke tests
+include one stdio MCP source sync in the frozen app (see
+[desktop-packaging](desktop-packaging.md)).
 
 ## The plugin registry
 

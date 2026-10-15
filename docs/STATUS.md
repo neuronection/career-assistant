@@ -24,7 +24,7 @@ schema surfaces may still change.
 | Express start & target mode | done | Target dashboard, completeness ring |
 | Universities (PDF intake → reviewable draft, job pathways) | done | Manual-review by design; never writes unreviewed |
 | Career paths as data | done | Curated + AI-drafted routes over relation edges |
-| Posting connectors (ATS API, JSON-LD, RSS, CSV, paste-a-URL) | done | Polite runtime live (SSRF guard, robots, rate caps — plan 32 Phase 1); connector SDK + admin-opt-in T1 plugin registry; sealed secret slots |
+| Posting connectors (ATS API, JSON-LD, RSS, CSV, paste-a-URL, MCP scripts) | done | Polite runtime live (SSRF guard, robots, rate caps — plan 32 Phase 1); connector SDK + admin-opt-in T1 plugin registry; sealed secret slots; T3 script tier (mcp connector, external MCP servers, app-side row validation + audit — Phase 2) |
 | Deep posting extraction (skills/salary/benefits with evidence) | done | Extraction v2; low-confidence fields suppressed, never guessed |
 | Explore page (facet filters, saved searches, cursor pagination) | done | Live counts; per-posting match score |
 | Semantic search (embeddings + hybrid RRF retrieval) | done | pgvector optional; semantic is a ranking signal, never a filter gate |

@@ -67,6 +67,11 @@ Probe a frozen install with `careerassistant enginecheck`.
    desktop launch under xvfb), upload artifacts and publish the GitHub
    Release. Stable-name download aliases are created
    (`CareerAssistant-x86_64.AppImage`, `careerassistant_amd64.deb`).
+   The smoke includes one **stdio MCP source sync** (script tier, plan
+   32 Phase 2): spawn a local FastMCP server from the frozen app and
+   sync one source — pinning the frozen-build PATH lesson (stdio spawns
+   ride the mcp SDK's sanitized env with PATH preserved; a broken spawn
+   path must fail the release, not surface as a silent sync error).
 3. **Windows job** (`windows-latest`): build the one-file exe, smoke-test
    headless web mode, rename and upload.
 

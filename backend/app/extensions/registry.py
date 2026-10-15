@@ -3,7 +3,9 @@
 Built-ins auto-register at import with an extension manifest
 (``extension/v1`` connector kind, ADR-0040) validated at REGISTRATION
 against the vendored envelope schema — capability gating happens there,
-never mid-run. Third-party code arrives via the
+never mid-run. The T3 script-tier builtin (``mcp``) is allowlist-gated:
+invisible until ``connector_plugins_allowlist`` names it. Third-party
+code arrives via the
 ``career_assistant.connectors`` entry-point group, admin-opt-in through
 the ``connector_plugins_allowlist`` setting: that path is **T1 bundled
 only** — entry-point plugins are code shipped in the deployment image
@@ -31,6 +33,7 @@ from app.extensions.builtin import (
     ManualUrlConnector,
     RssConnector,
 )
+from app.extensions.builtin.mcp import McpConnector
 from app.extensions.sdk import PostingConnector
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,7 @@ _BUILTINS: list[PostingConnector] = [
     RssConnector(),
     CsvConnector(),
     ManualUrlConnector(),
+    McpConnector(),
 ]
 
 _registry: dict[str, PostingConnector] = {}
@@ -99,6 +103,13 @@ def _load_plugins() -> None:
         return
     _plugins_loaded = True
     for connector in _BUILTINS:
+        # Allowlist-gated builtins (the T3 script tier) are invisible
+        # until the admin opts in — off by default, structurally; a
+        # removed allowlist entry unregisters on the next load.
+        if getattr(connector, "allowlist_gated", False) and not plugin_allowed(connector.key):
+            _registry.pop(connector.key, None)
+            continue
+        validate_manifest(connector)
         _registry[connector.key] = connector
     try:
         eps = metadata.entry_points(group=ENTRY_POINT_GROUP)

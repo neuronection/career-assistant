@@ -566,6 +566,11 @@ async def probe_posting_source(
         error = ConnectorError.needs_secret(f"missing secret slot(s): {', '.join(sorted(missing))}")
         return {"ok": False, "error": error.model_dump(mode="json")}
     started = _time.monotonic()
+    audit = None
+    if getattr(connector, "audits_effects", False):
+        from app.extensions.runtime.mcp import mcp_effect_auditor
+
+        audit = mcp_effect_auditor(db, source.key)
     try:
         result = await connector.fetch(
             source.config,
@@ -575,6 +580,7 @@ async def probe_posting_source(
                 requests_per_minute=connector.capabilities.max_requests_per_minute,
             ),
             secrets=secrets,
+            audit=audit,
         )
     except PoliteHttpError as exc:
         error = ConnectorError.from_polite(exc)
@@ -590,6 +596,11 @@ async def probe_posting_source(
             "error": error.model_dump(mode="json"),
             "latency_ms": int((_time.monotonic() - started) * 1000),
         }
+    if audit is not None:
+        # Effect-auditing connectors wrote audit rows on the request
+        # session — commit them or they vanish at session close (the
+        # sync path commits with the source run; the probe must too).
+        await db.commit()
     ok = not result.partial_errors
     first_error = (
         result.partial_errors[0].model_dump(mode="json") if result.partial_errors else None
