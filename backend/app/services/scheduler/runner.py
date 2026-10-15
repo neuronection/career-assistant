@@ -36,6 +36,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_CATALOG_ENRICH.value: BackgroundJobType.CATALOG_ENRICH.value,
     ScheduleKind.SYSTEM_FOLLOWUPS.value: BackgroundJobType.FOLLOWUP_SWEEP.value,
     ScheduleKind.SYSTEM_MARKET_HISTORY.value: (BackgroundJobType.MARKET_HISTORY_CAPTURE.value),
+    ScheduleKind.SYSTEM_EXTENSION_RECONCILE.value: BackgroundJobType.EXTENSION_RECONCILE.value,
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
     ScheduleKind.USER_AUTOPILOT.value: BackgroundJobType.AUTOPILOT_RUN.value,
     ScheduleKind.USER_CHECKIN.value: None,
@@ -120,6 +121,16 @@ class SchedulerService:
                 {
                     "type": "interval",
                     "params": {"every_minutes": 60 * 24, "jitter_minutes": 60},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_EXTENSION_RECONCILE,
+                BackgroundJobType.EXTENSION_RECONCILE.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60, "jitter_minutes": 10},
                 },
                 {},
                 MisfirePolicy.SKIP.value,

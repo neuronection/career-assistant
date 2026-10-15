@@ -141,6 +141,125 @@ their interpreters inside PyInstaller bundles. The release smoke tests
 include one stdio MCP source sync in the frozen app (see
 [desktop-packaging](desktop-packaging.md)).
 
+## Extension sources & the import layer (T3 from git)
+
+`app/extensions/lifecycle.py` is the D24 home for sources, consent,
+pins and GitOps (ADR-0040 D13/D15/D22). One pipeline, two modes:
+
+- **manual** — an admin adds a source in Settings → Tools → Connectors
+  (or via the CLI below), reviews the discovered extensions and
+  consents per extension;
+- **GitOps** — an admin-owned desired-state document (the
+  `extensions.desired_state` AppSetting, validated against the vendored
+  `desiredStateDocument` schema) reconciled at boot and hourly
+  (`system_extension_reconcile` → `extension_reconcile` job).
+
+### The pipeline
+
+`resolve → shallow fetch → discover manifests (subpath + one level) →
+schema-validate against the vendored envelope → host-profile compat →
+per-extension consent → pinned install`. Concretely:
+
+- **Descriptors** validate against the vendored
+  `extension-sources.schema.json`: production descriptors are **https
+  git URLs only** (ssh/`file://`/userinfo are structurally
+  inexpressible). The dev/test **`local`** variant
+  (`$defs.localSourceDescriptor`, `local.path` replacing `url`) serves
+  the sibling template repo and dogfood checkouts: absolute paths only,
+  no `..` segments at the seam, **gated off in production boots**
+  (fail-closed: `CAREER_APP_ENV=production` rejects local sources with
+  `path-denied`) and **confined to `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS`**
+  — the clone root must resolve under an allowlisted parent
+  (net_guard-style path discipline).
+- **Host profile (career)**: connector-kind imports only (mini-app
+  surfaces arrive with Phase 4; bridge is server-class), `extension/v1`
+  with `kindVersion ≤ 1`, capabilities ⊆ `{sync, secrets}` — an
+  imported T3 script's own sockets are consent-disclosed, never granted
+  as `net` (D22). The runnable entry is `server.py` beside the manifest
+  (the template shape); no entry ⇒ typed `unsupported`.
+- **Digest + pin**: sha256 over the extension dir (deterministic file
+  walk, regular files only, adversarial caps). Content lands
+  content-addressed under `data_dir/extensions/<id>/<digest>/` — DATA,
+  never importlib'd, never on `sys.path` (the structure probe enforces
+  both).
+- **The install mints a disabled `mcp` job source** whose stdio command
+  spawns `<interpreter> <content>/server.py` — the managed spawn from
+  the cloned content (D13). Enabling is a separate explicit act.
+
+### Consent (what every import shows)
+
+Per-extension consent BEFORE any install, naming: **capabilities**,
+**tier + import class**, **provenance** (`author`/`license`/
+`repository`/`description` verbatim from the manifest), the pinned
+**digest**, and the T3 perimeter disclosure **verbatim** (see the copy
+in the script-tier section above — it renders from the vendored charter,
+never paraphrased). Consent records persist on the install (who/when/
+what-digest) and survive tombstoning. **Capability growth or tier change
+on update re-consents** (the browser-permission model).
+
+### Updates — no signatures, no auto-apply
+
+An install records its source ref + content digest. Update check = ref
+move + digest change + manifest diff:
+
+- identical digest at a moved ref ⇒ the pin moves (nothing consented
+  changed);
+- digest change ⇒ an update is *offered* (`state: available`,
+  `requiresReconsent`) — applying it is an explicit re-consent call,
+  always. **There is no auto-apply path at all** (no signing service
+  exists); T0 data diffs would auto-apply only on a byte-identical
+  manifest (capabilities + configSchema unchanged);
+- **digest drift on a pinned ref** (the same tag/commit now yields
+  different content — the supply-chain attack signal) ⇒ LOUD failure:
+  the install flags `digest-drift`, the source degrades, pins stay
+  untouched; never a silent refetch.
+
+### GitOps reconcile — pins only, never data
+
+Reconcile (boot + hourly + on demand) reads the desired-state document
+and:
+
+- moves pins **only for the extensions the list names** — manual
+  installs are never re-pinned or removed (drift is reported as status);
+- never auto-enables — the entries' `enabled` field is acknowledged and
+  ignored (consent is the gate, the list is only a pin-mover);
+- never deletes data — deletion is structurally inexpressible in the
+  desired-state schema; removal from the list parks gitops-managed
+  installs **disabled + tombstone-able**, content and consent records
+  intact;
+- installs an entry only when a consent record already exists at that
+  exact digest (e.g. a tombstoned install) — otherwise it reports
+  `needsConsent`;
+- leaves pins untouched on a failed fetch and marks the source
+  `failing` (the family status vocabulary with
+  `last_success_at`/`consecutive_failures`).
+
+Private-repo credentials are **secret-slot references** — the sealed
+value resolves host-side into the git subprocess environment
+(`GIT_CONFIG_*`, never argv, never logs); an inline token is
+structurally invalid at the schema seam.
+
+### The CLI
+
+```bash
+cd backend
+uv run python -m app.extensions.cli source add descriptor.json
+uv run python -m app.extensions.cli source list
+uv run python -m app.extensions.cli source sync <origin-or-id>
+uv run python -m app.extensions.cli source install <origin> <extension-id> --consent
+uv run python -m app.extensions.cli source pin <extension-id> --consent   # apply a recorded update
+uv run python -m app.extensions.cli source remove <origin-or-id>
+uv run python -m app.extensions.cli source validate <path-or-url> [--ref branch=main] [--subpath dir]
+uv run python -m app.extensions.cli desired-state get | put <doc.json>
+uv run python -m app.extensions.cli reconcile
+```
+
+`source validate` is the authoring helper: it runs the descriptor +
+manifest + host-profile checks read-only (fetching local paths), so a
+repository owner can verify their extension imports cleanly before
+sharing the git URL. Secrets never cross the command line — supply
+credential slot values through the admin API or the settings UI.
+
 ## The plugin registry
 
 `app/extensions/registry.py`:

@@ -1,0 +1,45 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "example-posting-fetcher",
+  "version": "1.0.0",
+  "description": "Reference posting fetcher for career-assistant: an external MCP server (T3 script tier) whose fetch_postings tool returns validated RawPosting rows. The script process runs outside the app's network perimeter by design (ADR-0040 clause 21).",
+  "author": "Neuronection",
+  "license": "MIT",
+  "repository": "https://example.com/your-fork/career-connector-template",
+  "categories": ["data"],
+  "capabilities": ["sync"],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "board": {
+        "type": "string",
+        "title": "Board slug",
+        "description": "Which board this source fetches (handed to fetch_postings as config.board)",
+        "maxLength": 120
+      }
+    },
+    "required": ["board"]
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": { "type": "string", "title": "External id" },
+      "title": { "type": "string", "title": "Title" },
+      "org": { "type": "string", "title": "Organization" },
+      "url": { "type": "string", "title": "URL" }
+    },
+    "required": ["external_id", "title"]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Reference posting fetcher",
+        "summary": "An external MCP script that feeds postings to career-assistant."
+      }
+    }
+  }
+}

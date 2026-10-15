@@ -53,6 +53,10 @@ def _find_spa_dist() -> Path | None:
 async def lifespan(app: FastAPI):
     """Configure logging, then serve (boot guards run in create_app)."""
     configure_logging()
+    # GitOps desired-state reconcile at boot (plan 32 Phase 3 / ADR-0040
+    # D13) — best-effort, never fatal: reconcile installs and moves pins
+    # only; a failed fetch leaves pins untouched.
+    from app.extensions.lifecycle import reconcile_boot
     from app.services.job_worker import drain_queue, start_workers
 
     # Warm VAPID keys before any dispatch can run: generating them lazily
@@ -60,6 +64,11 @@ async def lifespan(app: FastAPI):
     # the caller's transaction holds the SQLite write lock.
     from app.services.notification_channels import get_channel
     from app.services.scheduler.runner import start_scheduler
+
+    try:
+        await reconcile_boot()
+    except Exception:
+        logger.warning("extension desired-state reconcile failed at boot", exc_info=True)
 
     channel = get_channel("browser")
     if channel is not None and channel.available():

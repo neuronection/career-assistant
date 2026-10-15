@@ -48,6 +48,8 @@ SOURCES_SCHEMA = json.loads(
 def _schema_for(group: str, case: dict[str, Any]) -> Any:
     if group == "sources" and case.get("against") == "desiredState":
         return SOURCES_SCHEMA["$defs"]["desiredStateDocument"], SOURCES_SCHEMA
+    if group == "sources" and case.get("against") == "localSource":
+        return SOURCES_SCHEMA["$defs"]["localSourceDescriptor"], SOURCES_SCHEMA
     if group == "bundled":
         return MANIFEST_SCHEMA["$defs"]["bundledManifest"], MANIFEST_SCHEMA
     if group == "sources":

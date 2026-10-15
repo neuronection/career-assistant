@@ -538,6 +538,15 @@ async def _run_checkpoint_prune(db: AsyncSession, job: BackgroundJob, **_kw) -> 
     return {"pruned": pruned}
 
 
+async def _run_extension_reconcile(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """GitOps desired-state reconcile (plan 32 Phase 3 / ADR-0040 D13):
+    installs and moves pins only — never enables, never deletes data."""
+    from app.extensions.lifecycle import reconcile
+
+    report = await reconcile(db)
+    return {"report": {key: len(items) for key, items in report.items()}}
+
+
 async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """A scheduled saved search: evaluate filters, notify on new matches."""
     from app.services.digest_service import run_saved_search
@@ -813,6 +822,7 @@ HANDLERS: dict[str, Handler] = {
     "market_history_capture": _run_market_history_capture,
     "proposal_sweep": _run_proposal_sweep,
     "checkpoint_prune": _run_checkpoint_prune,
+    "extension_reconcile": _run_extension_reconcile,
     "saved_search_run": _run_saved_search,
     "cv_extract_text": _run_cv_extract_text,
     "cv_ocr": _run_cv_ocr,
