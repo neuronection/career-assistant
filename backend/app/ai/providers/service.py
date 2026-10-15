@@ -531,8 +531,11 @@ class AIProviderService:
     ) -> dict:
         """Ping a provider/model with a minimal completion (plain httpx).
 
-        Decision-only providers validate through the decision probe (one
-        typed question under the abort timeout — never a chat completion).
+        Decision-capable models validate through the decision probe (one
+        typed question under the abort timeout — never a chat
+        completion), even on mixed providers: a decision model on an
+        openai-compatible provider (e.g. OpenRouter) 400s on
+        chat/completions.
         """
         provider = await self.get_provider(provider_id, user)
         rows = await self.db.execute(select(AIModel).where(AIModel.id == model_id))
@@ -543,7 +546,11 @@ class AIProviderService:
             if not settings.is_dev:
                 raise ValidationError("The mock provider is only available in development.")
             return {"ok": True, "reply": "mock provider: always OK"}
-        if provider.provider_type == "decision":
+        if (
+            provider.provider_type == "decision"
+            or model.decision_transport
+            or "decision" in (model.caps or [])
+        ):
             from app.ai.decide.systemone.probe import DecisionProbeInput, probe_decision_provider
 
             result = await probe_decision_provider(
