@@ -49,7 +49,7 @@ class SyntheticConnector(PostingConnector):
         if state and state.get("etag"):
             return ConnectorResult(next_state=state)
         return ConnectorResult(
-            postings=[
+            items=[
                 RawPosting(
                     external_id="syn-1",
                     title="QA Automation Engineer",

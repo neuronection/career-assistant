@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
+from app.extensions.conformance import ConnectorConformanceTests
 from app.extensions.registry import (
     get_connector,
     list_connectors,
@@ -19,7 +20,6 @@ from app.extensions.registry import (
 from app.extensions.sdk import (
     RawPosting,
 )
-from app.extensions.testing import ConnectorContractTests
 from app.models.posting_model import JobPosting
 from app.services.postings_service import (
     expire_stale,
@@ -80,37 +80,37 @@ GREENHOUSE_BODY = json.dumps(
 )
 
 
-class TestCsvConnector(ConnectorContractTests):
+class TestCsvConnector(ConnectorConformanceTests):
     connector = get_connector("csv")
     config = {"url": "https://jobs.example/feed.csv"}  # noqa: RUF012 -- test fixture data
     body = CSV_BODY
 
 
-class TestJsonLdConnector(ConnectorContractTests):
+class TestJsonLdConnector(ConnectorConformanceTests):
     connector = get_connector("jsonld")
     config = {"url": "https://jobs.example/careers"}  # noqa: RUF012 -- test fixture data
     body = JSONLD_BODY
 
 
-class TestRssConnector(ConnectorContractTests):
+class TestRssConnector(ConnectorConformanceTests):
     connector = get_connector("rss")
     config = {"url": "https://jobs.example/feed.xml"}  # noqa: RUF012 -- test fixture data
     body = RSS_BODY
 
 
-class TestAtsApiConnector(ConnectorContractTests):
+class TestAtsApiConnector(ConnectorConformanceTests):
     connector = get_connector("ats_api")
     config = {"provider": "greenhouse", "org": "acme"}  # noqa: RUF012 -- test fixture data
     body = GREENHOUSE_BODY
 
 
-class TestManualUrlConnector(ConnectorContractTests):
+class TestManualUrlConnector(ConnectorConformanceTests):
     connector = get_connector("manual_url")
     config = {"url": "https://jobs.example/posting/9"}  # noqa: RUF012 -- test fixture data
     body = JSONLD_BODY
 
 
-class TestSyntheticConnector(ConnectorContractTests):
+class TestSyntheticConnector(ConnectorConformanceTests):
     connector = SyntheticConnector()
     config = {}  # noqa: RUF012 -- test fixture data
     body = ""
@@ -123,8 +123,8 @@ class TestSyntheticConnector(ConnectorContractTests):
             return first, second
 
         first, second = asyncio.run(_run())
-        assert first.postings
-        assert second.postings == []
+        assert first.items
+        assert second.items == []
 
 
 # ------------------------------------------------------- registry/plugins
@@ -167,6 +167,25 @@ def test_builtin_connectors_are_listed():
         assert entry["builtin"] == (
             entry["key"] in {"ats_api", "jsonld", "rss", "csv", "manual_url"}
         )
+
+
+def test_builtin_manifests_conform_to_the_envelope():
+    """Registration-time gate (ADR-0040 clause 5): every registered
+    connector's manifest validates against the vendored envelope schema —
+    and the ats connector declares net WITH its domain scope."""
+    from app.extensions.registry import get_connector, validate_manifest
+
+    for entry in list_connectors():
+        manifest = validate_manifest(get_connector(entry["key"]))
+        assert manifest["kind"] == "connector"
+        assert manifest["apiVersion"] == "extension/v1"
+        assert "sync" in manifest["capabilities"]
+        if "net" in manifest["capabilities"]:
+            assert manifest.get("domains"), "net requires the declared-domain scope"
+
+    ats = validate_manifest(get_connector("ats_api"))
+    assert "boards-api.greenhouse.io" in ats["domains"]
+    assert "api.lever.co" in ats["domains"]
 
 
 # --------------------------------------------------------- sync + dedup

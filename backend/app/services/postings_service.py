@@ -58,28 +58,46 @@ def _norm(token: str) -> str:
 # ------------------------------------------------------------------- sync
 
 
-async def sync_source(db: AsyncSession, source: JobSource) -> dict:
-    """Fetch via the connector (isolated), upsert postings, map, alert.
+async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
+    """Fetch via the connector through the polite runtime, upsert postings,
+    map, alert.
 
     A failing connector errors its own source row — never the queue or
-    other sources."""
+    other sources. The transport is the SSRF-guarded polite runtime
+    (robots, per-host caps, conditional GET); tests may inject a
+    MockTransport-backed one."""
+    from app.extensions.polite_http import PoliteHttpError
+    from app.extensions.runtime.http import build_transport
+    from app.extensions.sdk import ConnectorError
+
     try:
         connector = registry.get_connector(source.connector_key)
     except ValidationError as exc:
         source.error = str(exc)
         await db.commit()
         return {"synced": 0, "error": str(exc)}
+    runtime_transport = transport or build_transport(
+        domains=frozenset(connector.capabilities.network_scopes or []),
+        requests_per_minute=connector.capabilities.max_requests_per_minute,
+    )
     try:
-        result = await connector.fetch(source.config, source.sync_state or {})
-    except Exception as exc:
-        source.error = f"connector failure: {exc}"
+        result = await connector.fetch(
+            source.config, source.sync_state or {}, transport=runtime_transport
+        )
+    except PoliteHttpError as exc:
+        error = ConnectorError.from_polite(exc)
+        source.error = f"{error.code}: {error.detail}"
         await db.commit()
-        return {"synced": 0, "error": str(exc)}
+        return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
+    except Exception as exc:
+        source.error = f"connector failure: {exc}"[:2000]
+        await db.commit()
+        return {"synced": 0, "error": source.error}
 
     synced = 0
-    errors = list(result.partial_errors)
+    errors = [error.model_dump(mode="json") for error in result.partial_errors]
     fresh: list[tuple[JobPosting, bool]] = []
-    for raw in result.postings:
+    for raw in result.items:
         try:
             posting = await upsert_posting(db, source, raw)
             if posting is not None:
@@ -90,10 +108,16 @@ async def sync_source(db: AsyncSession, source: JobSource) -> dict:
                     demand = bool(recipients)
                 fresh.append((posting, demand))
         except ValidationError as exc:
-            errors.append(f"{raw.external_id}: {exc}")
+            errors.append(
+                ConnectorError(
+                    code="invalid",
+                    detail=f"{raw.external_id}: {exc}"[:500],
+                    retryable="no",
+                ).model_dump(mode="json")
+            )
     source.sync_state = result.next_state or {}
     source.last_run_at = _utcnow()
-    source.error = "; ".join(errors)[:2000]
+    source.error = "; ".join(f"{error['code']}: {error['detail']}" for error in errors)[:2000]
     await db.commit()
     # Deep extraction is queued, never blocking the sync path;
     # demand-matched postings enqueue first (oldest-first claim order).

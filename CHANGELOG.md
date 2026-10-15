@@ -4,6 +4,34 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (connector runtime live — plan 32 Phase 1 / ADR-0040, 2026-10-15)
+- **Networked posting sources actually fetch now.** The polite transport
+  runtime is built and injected into every sync: SSRF guard with
+  resolve-then-connect pinning (re-validated on every redirect hop —
+  closes the 2026-09-11 audit's connector-URL finding), robots.txt
+  respected and cached per host (5xx denies, fail-closed), per-host
+  token-bucket rate caps sized by each connector's declared limit,
+  conditional GET through the sync cursor, full-jitter retries with
+  RFC 7231 Retry-After (both forms) and response size caps. Previously
+  every networked built-in silently returned zero postings.
+- Connectors converge to the family extension charter (D18, destructive):
+  the result envelope is `{items, next_state, partial_errors}` with
+  **typed** charter errors (15 closed codes, never strings), and every
+  connector registers a connector-kind manifest (`extension/v1`)
+  validated against the vendored envelope schema at registration.
+- `app/connectors/` relocates to `app/extensions/` (the D24 subsystem
+  home) with the guarded web-search adapters and the MCP-bridge
+  lifecycle; a warning-level structure probe (`scripts/check-extensions-structure.sh`)
+  lands with it.
+- Vendored family contract set under `contracts/` + `app/extensions/`
+  (byte-identical, sync-and-gate), with the D23 hostile fixture wall
+  (redirect-to-internal, DNS rebinding, IP-literal obfuscations,
+  robots 5xx, Retry-After forms, domain scope vs CDN hops) runnable
+  offline from `backend/tests/test_extensions_contract.py`.
+- Escape hatches are `CAREER_CONNECTOR_*` settings (allowed hosts,
+  private-range policy, pinning, robots, rate/size/time ceilings) and
+  default to the closed posture.
+
 ### Added (model transport knob — reasoning + function tools on gpt-6 via the Responses API, 2026-10-15)
 - **Model rows can set `chat_transport='responses'`** (nullable column,
   migration 0046) to ride the Responses API — honored only when the

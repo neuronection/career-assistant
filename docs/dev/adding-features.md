@@ -39,13 +39,16 @@ them.
 ## Add a connector
 
 1. Subclass `PostingConnector` in `app/extensions/builtin/` (or a plugin
-   package) with a unique `key` and a `config_model()`.
-2. Implement `fetch(config, state, *, transport)` emitting `RawPosting`s;
-   never open sockets yourself.
-3. Provide a `fixture_payload` and pass `ConnectorContractTests`.
+   package) with a unique `key`, a `config_model()` and a truthful
+   `manifest()`.
+2. Implement `fetch(config, state, *, transport, secrets)` emitting
+   `RawPosting`s; never open sockets yourself — the injected polite
+   transport owns SSRF guarding, robots, rate caps and conditional GET.
+3. Provide a `fixture_payload` and pass `ConnectorConformanceTests`; mark
+   credential fields `x-secret` in the manifest configSchema.
 4. For a plugin, ship the `career_assistant.connectors` entry point; it is
-   admin-opt-in via `CONNECTOR_PLUGINS_ALLOWLIST`.
-5. Docs in [connectors.md](connectors.md).
+   admin-opt-in via `CONNECTOR_PLUGINS_ALLOWLIST` and T1-bundled only.
+5. Docs in [extensions.md](extensions.md).
 
 ## Add a scheduler trigger or job type
 

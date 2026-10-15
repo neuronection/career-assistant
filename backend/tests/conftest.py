@@ -647,7 +647,7 @@ class SyntheticConnector(PostingConnector):
             skills_raw=["programming", "problem-solving"],
             raw={"description": "We need programming and problem-solving."},
         )
-        return ConnectorResult(postings=[posting], next_state={"etag": '"syn-etag"'})
+        return ConnectorResult(items=[posting], next_state={"etag": '"syn-etag"'})
 
 
 @pytest.fixture

@@ -1,18 +1,29 @@
-"""Connector registry (Phase 26): data, not code.
+"""Connector registry (Phase 26 / plan 32 Phase 1): data, not code.
 
-Built-ins auto-register at import; plugins arrive via the
-`career_assistant.connectors` entry-point group and are **admin-opt-in**
-through the `connector_plugins_allowlist` setting (they run in-process).
-Enabling a source = a `job_sources` row with `connector_key` + validated
-config; installing a plugin never needs a migration.
+Built-ins auto-register at import with an extension manifest
+(``extension/v1`` connector kind, ADR-0040) validated at REGISTRATION
+against the vendored envelope schema — capability gating happens there,
+never mid-run. Third-party code arrives via the
+``career_assistant.connectors`` entry-point group, admin-opt-in through
+the ``connector_plugins_allowlist`` setting: that path is **T1 bundled
+only** — entry-point plugins are code shipped in the deployment image
+(reviewed, in-process by definition, ADR-0040 clause 2). External
+authors write T3 MCP connectors (the Phase-2 script tier), never
+in-process plugins. Enabling a source = a ``job_sources`` row with
+``connector_key`` + validated config; installing a plugin never needs a
+migration.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import sys
 from importlib import metadata
+from pathlib import Path
 
 from app.core.errors import ValidationError
+from app.extensions import contract
 from app.extensions.builtin import (
     AtsApiConnector,
     CsvConnector,
@@ -34,8 +45,38 @@ _BUILTINS: list[PostingConnector] = [
     ManualUrlConnector(),
 ]
 
-_registry: dict[str, PostingConnector] = {c.key: c for c in _BUILTINS}
+_registry: dict[str, PostingConnector] = {}
 _plugins_loaded = False
+
+
+def _schema_path() -> Path:
+    """The vendored envelope schema — repo-root contracts/ in dev/web,
+    the frozen bundle's top-level contracts/ dir when packaged."""
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        return base / "contracts" / "extension-manifest.schema.json"
+    return Path(__file__).resolve().parents[3] / "contracts" / "extension-manifest.schema.json"
+
+
+def _bundled_manifest_schema() -> dict:
+    try:
+        return json.loads(_schema_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"extension manifest schema unavailable at {_schema_path()}: {exc} — "
+            "registration fails closed (vendored contract set incomplete)"
+        ) from exc
+
+
+def validate_manifest(connector: PostingConnector) -> dict:
+    """Validate a connector's manifest against the vendored envelope
+    (bundled form) — the registration-time capability gate."""
+    manifest = connector.manifest()
+    schema = _bundled_manifest_schema()
+    err = contract.validate(manifest, schema["$defs"]["bundledManifest"], schema)
+    if err is not None:
+        raise ValidationError(f"Connector {connector.key} manifest invalid: {err}")
+    return manifest
 
 
 def allowlist_enabled() -> bool:
@@ -52,11 +93,13 @@ def plugin_allowed(key: str) -> bool:
 
 
 def _load_plugins() -> None:
-    """Entry-point discovery — plugin keys are opt-in via the allowlist."""
+    """Entry-point discovery — T1 bundled plugins, opt-in via the allowlist."""
     global _plugins_loaded
     if _plugins_loaded:
         return
     _plugins_loaded = True
+    for connector in _BUILTINS:
+        _registry[connector.key] = connector
     try:
         eps = metadata.entry_points(group=ENTRY_POINT_GROUP)
     except TypeError:
@@ -76,6 +119,11 @@ def _load_plugins() -> None:
                 connector.key,
             )
             continue
+        try:
+            validate_manifest(connector)
+        except ValidationError as exc:
+            logger.warning("Connector plugin %s rejected at registration: %s", ep.name, exc)
+            continue
         _registry.setdefault(connector.key, connector)
 
 
@@ -89,9 +137,13 @@ def reset_registry() -> None:
 
 
 def register_connector(connector: PostingConnector, *, allow: bool = True) -> None:
-    """Registration used by tests and by allowlisted plugins at runtime."""
+    """Registration used by tests and by allowlisted plugins at runtime.
+
+    The manifest gate runs for EVERY registration: an envelope-invalid
+    connector never enters the registry (throws here, never mid-run)."""
     if not allow and not plugin_allowed(connector.key):
         raise ValidationError(f"Connector plugin not allowlisted: {connector.key}")
+    validate_manifest(connector)
     _registry[connector.key] = connector
 
 
@@ -113,6 +165,8 @@ def list_connectors() -> list[dict]:
             "capabilities": c.capabilities.model_dump(mode="json"),
             "builtin": c.key in {b.key for b in _BUILTINS},
             "config_schema": c.config_model().model_json_schema(),
+            "manifest": c.manifest(),
+            "secret_fields": contract.secret_fields(c.manifest().get("configSchema")),
         }
         for c in _registry.values()
     ]

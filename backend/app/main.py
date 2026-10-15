@@ -110,6 +110,12 @@ async def lifespan(app: FastAPI):
             await shutdown_engine()
         except Exception:
             logger.warning("PDF engine shutdown failed", exc_info=True)
+        try:
+            from app.extensions.runtime.http import close_connector_client
+
+            await close_connector_client()
+        except Exception:
+            logger.warning("Connector client shutdown failed", exc_info=True)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

@@ -28,10 +28,18 @@ import pytest
 from app.extensions import contract, polite_http
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "contracts"
-MANIFEST_FIXTURES = json.loads((CONTRACTS_DIR / "extension-contract.fixtures.json").read_text(encoding="utf-8"))
-POLITE_FIXTURES = json.loads((CONTRACTS_DIR / "polite_http.fixtures.json").read_text(encoding="utf-8"))
-MANIFEST_SCHEMA = json.loads((CONTRACTS_DIR / "extension-manifest.schema.json").read_text(encoding="utf-8"))
-SOURCES_SCHEMA = json.loads((CONTRACTS_DIR / "extension-sources.schema.json").read_text(encoding="utf-8"))
+MANIFEST_FIXTURES = json.loads(
+    (CONTRACTS_DIR / "extension-contract.fixtures.json").read_text(encoding="utf-8")
+)
+POLITE_FIXTURES = json.loads(
+    (CONTRACTS_DIR / "polite_http.fixtures.json").read_text(encoding="utf-8")
+)
+MANIFEST_SCHEMA = json.loads(
+    (CONTRACTS_DIR / "extension-manifest.schema.json").read_text(encoding="utf-8")
+)
+SOURCES_SCHEMA = json.loads(
+    (CONTRACTS_DIR / "extension-sources.schema.json").read_text(encoding="utf-8")
+)
 
 
 # ------------------------------------------------ structural: the Phase 0 wall
@@ -177,7 +185,7 @@ class _Transport:
 
 def _assert_sleep(expected: list[Any], slept: list[float], where: str) -> None:
     assert len(slept) == len(expected), f"{where}: slept {slept}, expected {expected}"
-    for want, got in zip(expected, slept):
+    for want, got in zip(expected, slept, strict=True):
         if isinstance(want, list):
             assert want[0] <= got <= want[1], f"{where}: sleep {got} outside [{want[0]}, {want[1]}]"
         else:
@@ -259,6 +267,8 @@ async def test_polite_http_fixture_wall(case: dict[str, Any]) -> None:
             if "sni" in expect:
                 assert transport.last["sni"] == expect["sni"], case["name"]
             if "seenPaths" in expect:
-                assert [entry["path"] for entry in transport.seen] == expect["seenPaths"], case["name"]
+                assert [entry["path"] for entry in transport.seen] == expect["seenPaths"], case[
+                    "name"
+                ]
     finally:
         await client.aclose()

@@ -16,31 +16,36 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
+from app.extensions.polite_http import conditional_headers, merge_cache_state
 from app.extensions.sdk import (
     ConnectorCapabilities,
+    ConnectorError,
     ConnectorResult,
     PostingConnector,
     RawPosting,
     SalarySpec,
+    connector_manifest,
 )
 
 
-def _merge_state(state: dict, etag: str | None, last_modified: str | None) -> dict:
-    next_state = dict(state or {})
-    if etag:
-        next_state["etag"] = etag
-    if last_modified:
-        next_state["last_modified"] = last_modified
-    return next_state
+def _not_ready() -> ConnectorResult:
+    """No transport injected: the runtime (or a test) always provides one —
+    never a silent empty fetch (fail closed)."""
+    return ConnectorResult(
+        partial_errors=[
+            ConnectorError(
+                code="not-ready", detail="no transport injected", retryable="after-config-change"
+            )
+        ]
+    )
 
 
-def _conditional_headers(state: dict) -> dict:
-    headers = {}
-    if state and state.get("etag"):
-        headers["If-None-Match"] = state["etag"]
-    if state and state.get("last_modified"):
-        headers["If-Modified-Since"] = state["last_modified"]
-    return headers
+def _provider_error(detail: str) -> ConnectorError:
+    return ConnectorError(code="provider", detail=detail[:500], retryable="yes")
+
+
+def _protocol_error(detail: str) -> ConnectorError:
+    return ConnectorError(code="protocol", detail=detail[:500], retryable="after-config-change")
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -116,6 +121,16 @@ def parse_csv_payload(body: str) -> list[RawPosting]:
     return postings
 
 
+CSV_CONFIG_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "url": {"type": "string", "title": "CSV URL", "minLength": 1, "maxLength": 1000},
+        "delimiter": {"type": "string", "title": "Delimiter", "default": ","},
+    },
+    "required": ["url"],
+}
+
+
 class CsvConnector(PostingConnector):
     key = "csv"
     title = "CSV file"
@@ -126,30 +141,41 @@ class CsvConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return CsvConfig
 
-    async def fetch(self, config, state, *, transport=None, **_kw) -> ConnectorResult:
+    def manifest(self) -> dict:
+        return connector_manifest(
+            manifest_id="career-csv",
+            title="CSV file",
+            description="Postings from an exported CSV spreadsheet "
+            "(conditional GET, robots and rate caps via the polite runtime).",
+            config_schema=CSV_CONFIG_SCHEMA,
+            capabilities=["sync"],
+            supports_incremental=True,
+        )
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = self.config_model().model_validate(config)
-        errors: list[str] = []
-        postings: list[RawPosting] = []
-        next_state = dict(state or {})
-        if transport is not None:
-            status, body, etag, last_modified = await transport(
-                str(cfg.url), _conditional_headers(state or {})
+        if transport is None:
+            return _not_ready()
+        errors: list[ConnectorError] = []
+        items: list[RawPosting] = []
+        resp = await transport(str(cfg.url), conditional_headers(state or {}))
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
             )
-            if status == 304:
-                return ConnectorResult(
-                    postings=[], next_state=_merge_state(state, etag, last_modified)
-                )
-            if status != 200:
-                return ConnectorResult(
-                    partial_errors=[f"csv fetch failed with status {status}"],
-                    next_state=next_state,
-                )
-            try:
-                postings = parse_csv_payload(body)
-            except (csv.Error, ValueError) as exc:
-                errors.append(f"csv parse error: {exc}")
-            next_state = _merge_state(state, etag, last_modified)
-        return ConnectorResult(postings=postings, next_state=next_state, partial_errors=errors)
+        if resp.status != 200:
+            return ConnectorResult(
+                partial_errors=[_provider_error(f"csv fetch failed with status {resp.status}")]
+            )
+        try:
+            items = parse_csv_payload(resp.body)
+        except (csv.Error, ValueError) as exc:
+            errors.append(_protocol_error(f"csv parse error: {exc}"))
+        return ConnectorResult(
+            items=items,
+            next_state=merge_cache_state(state, resp.etag, resp.last_modified),
+            partial_errors=errors,
+        )
 
 
 JSONLD_SCRIPT = re.compile(
@@ -251,20 +277,43 @@ class JsonLdConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return JsonLdConfig
 
-    async def fetch(self, config, state, *, transport=None, **_kw) -> ConnectorResult:
+    def manifest(self) -> dict:
+        return connector_manifest(
+            manifest_id="career-jsonld",
+            title="schema.org JobPosting page",
+            description="Postings extracted from schema.org/JobPosting JSON-LD structured data.",
+            config_schema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "title": "Page URL",
+                        "minLength": 1,
+                        "maxLength": 1000,
+                    }
+                },
+                "required": ["url"],
+            },
+            capabilities=["sync"],
+            supports_incremental=True,
+        )
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = self.config_model().model_validate(config)
         if transport is None:
-            return ConnectorResult()
-        status, body, etag, last_modified = await transport(
-            str(cfg.url), _conditional_headers(state or {})
-        )
-        if status == 304:
-            return ConnectorResult(next_state=_merge_state(state, etag, last_modified))
-        if status != 200:
-            return ConnectorResult(partial_errors=[f"jsonld fetch failed with status {status}"])
-        postings = parse_jsonld_payload(body)
+            return _not_ready()
+        resp = await transport(str(cfg.url), conditional_headers(state or {}))
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
+            )
+        if resp.status != 200:
+            return ConnectorResult(
+                partial_errors=[_provider_error(f"jsonld fetch failed with status {resp.status}")]
+            )
+        items = parse_jsonld_payload(resp.body)
         return ConnectorResult(
-            postings=postings, next_state=_merge_state(state, etag, last_modified)
+            items=items, next_state=merge_cache_state(state, resp.etag, resp.last_modified)
         )
 
 
@@ -322,23 +371,46 @@ class RssConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return RssConfig
 
-    async def fetch(self, config, state, *, transport=None, **_kw) -> ConnectorResult:
+    def manifest(self) -> dict:
+        return connector_manifest(
+            manifest_id="career-rss",
+            title="RSS / Atom feed",
+            description="Postings from an RSS 2.0 or Atom job feed.",
+            config_schema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "title": "Feed URL",
+                        "minLength": 1,
+                        "maxLength": 1000,
+                    }
+                },
+                "required": ["url"],
+            },
+            capabilities=["sync"],
+            supports_incremental=True,
+        )
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = self.config_model().model_validate(config)
         if transport is None:
-            return ConnectorResult()
-        status, body, etag, last_modified = await transport(
-            str(cfg.url), _conditional_headers(state or {})
-        )
-        if status == 304:
-            return ConnectorResult(next_state=_merge_state(state, etag, last_modified))
-        if status != 200:
-            return ConnectorResult(partial_errors=[f"rss fetch failed with status {status}"])
+            return _not_ready()
+        resp = await transport(str(cfg.url), conditional_headers(state or {}))
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
+            )
+        if resp.status != 200:
+            return ConnectorResult(
+                partial_errors=[_provider_error(f"rss fetch failed with status {resp.status}")]
+            )
         try:
-            postings = parse_rss_payload(body)
+            items = parse_rss_payload(resp.body)
         except ET.ParseError as exc:
-            return ConnectorResult(partial_errors=[f"rss parse error: {exc}"])
+            return ConnectorResult(partial_errors=[_protocol_error(f"rss parse error: {exc}")])
         return ConnectorResult(
-            postings=postings, next_state=_merge_state(state, etag, last_modified)
+            items=items, next_state=merge_cache_state(state, resp.etag, resp.last_modified)
         )
 
 
@@ -435,39 +507,82 @@ def parse_ashby_payload(body: str) -> list[RawPosting]:
     return postings
 
 
+ATS_PROVIDERS = ("greenhouse", "lever", "ashby")
+ATS_NETWORK_SCOPES = ("boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com")
+
+ATS_CONFIG_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "provider": {
+            "type": "string",
+            "title": "ATS provider",
+            "enum": list(ATS_PROVIDERS),
+        },
+        "org": {"type": "string", "title": "Board org slug", "minLength": 1, "maxLength": 120},
+        "api_token": {
+            "type": "string",
+            "title": "Partner API token (optional)",
+            "maxLength": 300,
+        },
+    },
+    "required": ["provider", "org"],
+}
+
+
 class AtsApiConnector(PostingConnector):
     """Public ATS board APIs (Greenhouse/Lever/Ashby) — legal, free, no auth
-    for public boards; token optional for partner tiers."""
+    for public boards; token optional for partner tiers (secret slot)."""
 
     key = "ats_api"
     title = "ATS public API (Greenhouse / Lever / Ashby)"
     docs_url = "https://docs.career-assistant.local/connectors/ats"
-    capabilities = ConnectorCapabilities(supports_incremental=True, max_requests_per_minute=20)
+    capabilities = ConnectorCapabilities(
+        network_scopes=list(ATS_NETWORK_SCOPES),
+        supports_incremental=True,
+        max_requests_per_minute=20,
+    )
     fixture_payload = ""
 
     def config_model(self) -> type[BaseModel]:
         return AtsApiConfig
 
-    async def fetch(self, config, state, *, transport=None, **_kw) -> ConnectorResult:
+    def manifest(self) -> dict:
+        return connector_manifest(
+            manifest_id="career-ats-api",
+            title="ATS public API (Greenhouse / Lever / Ashby)",
+            description="Public applicant-tracking job boards through the polite runtime, "
+            "scoped to the three ATS API domains.",
+            config_schema=ATS_CONFIG_SCHEMA,
+            capabilities=["net", "sync"],
+            domains=list(ATS_NETWORK_SCOPES),
+            supports_incremental=True,
+        )
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = self.config_model().model_validate(config)
+        if transport is None:
+            return _not_ready()
+        token = (secrets or {}).get("api_token") or cfg.api_token
         urls = {
             "greenhouse": GREENHOUSE_URL.format(org=cfg.org),
             "lever": LEVER_URL.format(org=cfg.org),
             "ashby": ASHBY_URL.format(org=cfg.org),
         }
         url = urls[cfg.provider]
-        if transport is None:
-            return ConnectorResult()
-        headers = _conditional_headers(state or {})
-        if cfg.api_token:
-            headers["Authorization"] = f"Bearer {cfg.api_token}"
-        status, body, etag, last_modified = await transport(url, headers)
-        if status == 304:
-            return ConnectorResult(next_state=_merge_state(state, etag, last_modified))
-        if status != 200:
+        headers = conditional_headers(state or {})
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        resp = await transport(url, headers)
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
+            )
+        if resp.status != 200:
             return ConnectorResult(
                 partial_errors=[
-                    f"ats fetch failed with status {status} for {cfg.provider}/{cfg.org}"
+                    _provider_error(
+                        f"ats fetch failed with status {resp.status} for {cfg.provider}/{cfg.org}"
+                    )
                 ]
             )
         parsers = {
@@ -476,11 +591,11 @@ class AtsApiConnector(PostingConnector):
             "ashby": parse_ashby_payload,
         }
         try:
-            postings = parsers[cfg.provider](body)
+            items = parsers[cfg.provider](resp.body)
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-            return ConnectorResult(partial_errors=[f"ats parse error: {exc}"])
+            return ConnectorResult(partial_errors=[_protocol_error(f"ats parse error: {exc}")])
         return ConnectorResult(
-            postings=postings, next_state=_merge_state(state, etag, last_modified)
+            items=items, next_state=merge_cache_state(state, resp.etag, resp.last_modified)
         )
 
 
@@ -499,20 +614,44 @@ class ManualUrlConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return ManualUrlConfig
 
-    async def fetch(self, config, state, *, transport=None, **_kw) -> ConnectorResult:
+    def manifest(self) -> dict:
+        return connector_manifest(
+            manifest_id="career-manual-url",
+            title="Paste a posting URL",
+            description="One posting fetched from a pasted URL "
+            "(JSON-LD extraction with an HTML title fallback).",
+            config_schema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "title": "Posting URL",
+                        "minLength": 1,
+                        "maxLength": 1000,
+                    }
+                },
+                "required": ["url"],
+            },
+            capabilities=["sync"],
+            supports_incremental=False,
+        )
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = self.config_model().model_validate(config)
         if transport is None:
-            return ConnectorResult()
-        status, body, etag, last_modified = await transport(
-            str(cfg.url), _conditional_headers(state or {})
-        )
-        if status != 200:
-            return ConnectorResult(partial_errors=[f"manual fetch failed with status {status}"])
-        postings = parse_jsonld_payload(body)
-        if not postings:
-            title_match = re.search(r"<title>(.*?)</title>", body or "", re.DOTALL | re.IGNORECASE)
+            return _not_ready()
+        resp = await transport(str(cfg.url), conditional_headers(state or {}))
+        if resp.status != 200:
+            return ConnectorResult(
+                partial_errors=[_provider_error(f"manual fetch failed with status {resp.status}")]
+            )
+        items = parse_jsonld_payload(resp.body)
+        if not items:
+            title_match = re.search(
+                r"<title>(.*?)</title>", resp.body or "", re.DOTALL | re.IGNORECASE
+            )
             if title_match:
-                postings.append(
+                items.append(
                     RawPosting(
                         external_id=cfg.url[:300],
                         title=title_match.group(1).strip()[:300],
@@ -520,5 +659,5 @@ class ManualUrlConnector(PostingConnector):
                     )
                 )
         return ConnectorResult(
-            postings=postings, next_state=_merge_state(state, etag, last_modified)
+            items=items, next_state=merge_cache_state(state, resp.etag, resp.last_modified)
         )

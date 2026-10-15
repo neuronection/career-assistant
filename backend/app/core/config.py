@@ -165,6 +165,20 @@ class Settings(BaseSettings):
     # an empty list means built-ins only (desktop ships this default).
     connector_plugins_allowlist: list[str] = []
 
+    # Connector transport runtime (plan 32 Phase 1 / ADR-0040 D5): escape
+    # hatches for the polite SSRF guard, routed through Settings (never raw
+    # os.environ). Defaults fail closed: private ranges blocked, DNS-rebind
+    # pinning on, robots respected.
+    connector_allowed_hosts: list[str] = []
+    connector_allow_private_hosts: bool = False
+    connector_block_private_ranges: bool = True
+    connector_pin_addresses: bool = True
+    connector_respect_robots: bool = True
+    connector_requests_per_minute: int = 30
+    connector_max_response_mb: int = 4
+    connector_read_timeout_seconds: float = 15.0
+    connector_max_retries: int = 3
+
     # Entry-point AI tool plugins are admin-opt-in: an empty
     # list means built-ins only.
     tool_plugins_allowlist: list[str] = []

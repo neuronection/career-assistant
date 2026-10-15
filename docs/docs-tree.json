@@ -282,10 +282,10 @@
               "description": "The gateway-only invocation path, tasks and capabilities, agents, LangGraph flows, tools, skill packs, embeddings and MCP."
             },
             {
-              "id": "connectors",
-              "file": "dev/connectors.md",
-              "title": "Connector SDK",
-              "description": "Building posting connectors: the base contract, built-in engines, the entry-point plugin registry and the contract tests."
+              "id": "extensions",
+              "file": "dev/extensions.md",
+              "title": "Extensions (connector SDK)",
+              "description": "The D24 extension home: connector SDK, the polite transport runtime (SSRF guard, robots, rate caps, conditional GET), manifests and the conformance kit."
             },
             {
               "id": "scheduler-and-jobs",
