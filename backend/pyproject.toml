@@ -130,8 +130,9 @@ exclude = [
 [tool.mypy]
 # The type gate grows by ratchet: packages join `files` only when clean,
 # and never leave. app/services is the next candidate (110 errors at
-# adoption, 2026-09-09); fix in sub-slices, then add it.
-files = ["app/ai", "app/schemas", "app/models"]
+# adoption, 2026-09-09); app/extensions joined clean (plan 32 Phase 4).
+# Fix in sub-slices, then add it.
+files = ["app/ai", "app/schemas", "app/models", "app/extensions"]
 ignore_missing_imports = true
 follow_imports = "silent"
 

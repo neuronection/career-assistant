@@ -2,6 +2,7 @@
 back to the previous shape and upgrade again on the suite's test DB."""
 
 import asyncio
+import contextlib
 import os
 from datetime import UTC
 
@@ -15,9 +16,23 @@ from alembic import command
 def _restore_head_after_migration_test():
     """Data-migration tests run ON a pinned revision — the suite's schema
     must come back to head after each one (the identity fixtures wipe
-    tables that only exist at head)."""
+    tables that only exist at head). The 0044 replay also drains the
+    suite's COMMITTED sealed rows under a fake legacy key (the JWT_SECRET
+    monkeypatch is active at the teardown upgrade) — clearing the VAPID
+    pair's private key that the session warm-up provisioned — so the
+    provisioning state is repaired here, committedly, before the next
+    test reads it."""
     yield
     command.upgrade(_configured(), "head")
+
+    async def _repair_vapid_provisioning():
+        from app.services import webpush_service
+
+        webpush_service._keys_cache = None
+        with contextlib.suppress(Exception):
+            await webpush_service.get_or_create_vapid_keys()
+
+    asyncio.run(_repair_vapid_provisioning())
 
 
 def _configured() -> Config:

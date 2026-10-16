@@ -221,7 +221,7 @@ def _default_resolver(host: str) -> list[str]:
     infos = socket.getaddrinfo(host, None)
     seen: list[str] = []
     for *_, sockaddr in infos:
-        addr = sockaddr[0]
+        addr = str(sockaddr[0])
         if addr not in seen:
             seen.append(addr)
     return seen
@@ -715,7 +715,9 @@ async def polite_get(
         if wait > 0:
             await sleep(wait)
 
-        request_url, extra_headers, extensions = (current, {}, {})
+        request_url = current
+        extra_headers: dict[str, str] = {}
+        extensions: dict[str, object] = {}
         if cfg.pin_resolved_address:
             request_url, extra_headers, extensions = _pinned_request_parts(current, resolved)
 
