@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # check-extensions-structure — the D24 structure probe (ADR-0040 / plan 32
-# Phase 1). WARNING-LEVEL by design: findings print as WARN and exit 0;
-# pass --strict to fail on any finding (Phase 9 escalates this probe to a
-# blocking family gate). Styled after the vendored check-family-convergence
-# gate (patterns as data, loud output, self-describing).
+# Phase 1; BLOCKING since the Phase 9 closeout). Findings print as WARN;
+# pass --strict to fail on any finding — the family-convergence workflow
+# runs this probe with --strict, so a finding fails CI. Styled after the
+# vendored check-family-convergence gate (patterns as data, loud output,
+# self-describing).
 #
 # Probes:
 #  1 scoped engine code only in the subsystem home — the pre-D24 paths are
@@ -117,7 +118,7 @@ if [ "$findings" -gt 0 ]; then
   if [ "$STRICT" -eq 1 ]; then
     exit 1
   fi
-  echo "warning-level probe (plan 32 Phase 1): non-blocking; --strict fails"
+  echo "warning-level run (plan 32 Phase 9: CI invokes this probe --strict)"
   exit 0
 fi
 echo "extensions structure: OK"
