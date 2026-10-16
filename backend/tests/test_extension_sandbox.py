@@ -888,3 +888,57 @@ def test_seam_rejects_unknown_methods():
     doc = {"v": 1, "type": "call", "id": 1, "method": "cap.fs.read", "params": {}}
     with pytest.raises(FramingError):
         validate_message(json.dumps(doc))
+
+
+# ------------------------------------------------------- frozen-packaging runtime check
+
+
+async def test_connector_rides_kill_switch_on_unavailable_runtime(db, t2_env, monkeypatch):
+    """The frozen-packaging capability check (plan 32 Phase 5 follow-up):
+    a host with no spawnable interpreter/child assets (the PyInstaller
+    case — mocked here, the detection logic has its own suite in
+    tests/test_extension_sandbox_runtime.py) self-disables the T2
+    instance with the surfaced remedy and a typed ``unsupported``
+    partial error — the Phase-5 kill-switch path, host unaffected."""
+    from app.extensions.runtime.sandbox import SandboxRuntimeUnavailable
+    from app.extensions.runtime.sandbox import runtime as sandbox_runtime
+    from app.extensions.runtime.sandbox.connector import SandboxConnector
+    from app.models.extension_model import ExtensionInstall
+
+    install = ExtensionInstall(
+        extension_id="runtime-less",
+        manifest={
+            "capabilities": [],
+            "i18n": {"locales": {"en": {"title": "Runtime-less"}}},
+        },
+        pin_ref="main",
+        digest="0" * 64,
+        content_path=str(t2_env),
+        tier="T2",
+        state="installed",
+        enabled=True,
+    )
+    db.add(install)
+    await db.flush()
+
+    def unavailable(*_a: object, **_kw: object) -> None:
+        raise SandboxRuntimeUnavailable(sandbox_runtime._REMEDY)
+
+    monkeypatch.setattr(sandbox_runtime, "check_sandbox_runtime", unavailable)
+
+    disabled: list[str] = []
+
+    async def fake_self_disable(self, reason: str) -> None:
+        disabled.append(reason)
+
+    monkeypatch.setattr(SandboxConnector, "_self_disable", fake_self_disable)
+
+    connector = SandboxConnector(db, install)
+    result = await connector.fetch({}, {})
+    [error] = result.partial_errors
+    assert error.code == "unsupported"
+    assert "run-dev.sh" in error.detail, "the remedy crosses to the admin surface"
+    assert disabled and disabled[0].startswith("unsupported: "), (
+        "the lifecycle reason carries the surfaced remedy"
+    )
+    assert result.items == []

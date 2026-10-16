@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (the T2 frozen-packaging capability check — plan 32 Phase 5 follow-up)
+- **T2 imports on frozen builds self-disable honestly instead of
+  crashing at spawn.** The sandbox child spawns
+  `<interpreter> -I -B child.py`, and a PyInstaller-frozen install has
+  no real interpreter behind `sys.executable` — a spawn attempt could
+  only fail opaquely. A capability check now runs before any spawn
+  (enginecheck precedent): the child bootstrap must exist as a real
+  file (the spec ships it as data at
+  `_internal/app/extensions/runtime/sandbox/child.py`) and the
+  interpreter must answer an isolated `-I -B` probe (cached per
+  process); absent ⇒ the extension self-disables with a surfaced reason
+  naming the remedy (run from source, or ship a bundled runtime at
+  `<bundle>/runtime/python`). Detection logic pinned by mocked-lookup
+  tests — no frozen build required.
+
 ### Added (the T2 sandbox runner — plan 32 Phase 5 / ADR-0030 Python port)
 - **Imported code packs run sandboxed, behind the capability RPC.** An
   imported connector whose artifact is an `extension.py` module installs

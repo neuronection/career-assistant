@@ -28,6 +28,7 @@ from app.extensions.runtime.sandbox import (
     SandboxDied,
     SandboxIdentityError,
     SandboxInvokeError,
+    SandboxRuntimeUnavailable,
 )
 from app.extensions.runtime.sandbox import (
     host as sandbox_host,
@@ -135,6 +136,13 @@ class SandboxConnector(PostingConnector):
                 secrets=secrets,
                 audit=audit,
             )
+        except SandboxRuntimeUnavailable as exc:
+            # Frozen-build capability check (enginecheck precedent): no
+            # interpreter/child assets on this install — the Phase-5
+            # kill-switch path, with the surfaced remedy naming how to
+            # get a working T2 host.
+            await self._self_disable(f"unsupported: {exc}")
+            return self._result([_error("unsupported", str(exc)[:500], "after-config-change")])
         except SandboxIdentityError as exc:
             await self._self_disable(f"unsupported: {exc.reason}")
             return self._result([_error("unsupported", exc.reason[:500], "after-config-change")])

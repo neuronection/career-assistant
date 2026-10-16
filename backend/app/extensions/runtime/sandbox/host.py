@@ -156,8 +156,11 @@ class SandboxRunResult:
 
 def child_entry() -> Path:
     """The self-contained child bootstrap (stdlib-only, no package
-    imports) — spawned directly, ``-I`` isolated."""
-    return Path(__file__).resolve().parent / "child.py"
+    imports) — spawned directly, ``-I`` isolated. Frozen builds read the
+    spec-declared datas copy (see :mod:`.runtime` for the layout)."""
+    from app.extensions.runtime.sandbox import runtime as sandbox_runtime
+
+    return sandbox_runtime.child_asset()
 
 
 def _child_env(workdir: Path) -> dict[str, str]:
@@ -238,8 +241,11 @@ async def _run_fetch_locked(
     from app.extensions.runtime.sandbox.capabilities import CapabilityProvider
 
     workdir = _workdir(install.extension_id)
+    from app.extensions.runtime.sandbox import runtime as sandbox_runtime
+
+    interpreter = sandbox_runtime.check_sandbox_runtime()[0]
     argv = [
-        sys.executable,
+        *interpreter,
         "-I",
         "-B",
         str(child_entry()),

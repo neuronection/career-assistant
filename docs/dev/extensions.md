@@ -198,6 +198,20 @@ One subprocess per extension (`app/extensions/runtime/sandbox/`):
   close as `interrupted` — a host restart is never extension failure).
 * **`connector.py`** — the `PostingConnector` adapter the registry hands
   out for T2 instance keys; T1 builtins are untouched.
+* **`runtime.py`** — the frozen-packaging capability check: the child
+  spawns as `<interpreter> -I -B child.py`, and a PyInstaller-frozen
+  build has no real interpreter behind `sys.executable` (it is the app
+  bundle itself). Before any spawn the host verifies the child assets
+  and probes the interpreter isolated (`-I -B -c`, time-boxed, cached
+  per process); absent ⇒ typed `SandboxRuntimeUnavailable` with the
+  surfaced remedy, and the connector rides the kill-switch path
+  (self-disable, `unsupported` partial error) — the enginecheck
+  precedent: capability detection, never a hard dependency. Frozen
+  layout: the spec ships the bootstrap as data at
+  `sys._MEIPASS/app/extensions/runtime/sandbox/child.py`; frozen builds
+  bundle no interpreter (a future package may drop one at
+  `<bundle>/runtime/python`), so T2 installs on frozen builds honestly
+  self-disable until the host runs from source.
 
 **The frozen module surface** (ADR-0030 clause 2): sandboxed code may
 import ONLY the vendored `capability` client (net_fetch / state_get /

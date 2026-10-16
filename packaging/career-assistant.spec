@@ -60,6 +60,17 @@ datas = [
     # registry validates manifests against the envelope schema at
     # registration — frozen builds read it from the bundle's contracts/.
     (os.path.join(ROOT, "contracts"), "contracts"),
+    # T2 sandbox child bootstrap (plan 32 Phase 5 follow-up): spawned as
+    # `<interpreter> -I -B child.py`, so it must ship as a REAL FILE, not
+    # a compiled module — the frozen layout is
+    # `sys._MEIPASS/app/extensions/runtime/sandbox/child.py` (the
+    # capability check in app/extensions/runtime/sandbox/runtime.py
+    # probes exactly this path and self-disables T2 with the remedy when
+    # the interpreter half is missing — frozen builds bundle none).
+    (
+        os.path.join(ROOT, "backend", "app", "extensions", "runtime", "sandbox", "child.py"),
+        os.path.join("app", "extensions", "runtime", "sandbox"),
+    ),
 ]
 datas += collect_data_files("webview")
 

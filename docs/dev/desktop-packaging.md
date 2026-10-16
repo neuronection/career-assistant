@@ -57,6 +57,25 @@ Without an engine, export answers `503` (print-view fallback) and page counts
 are flagged `unverified` — capability detection, never a hard dependency.
 Probe a frozen install with `careerassistant enginecheck`.
 
+## The T2 sandbox child assets
+
+The extension sandbox spawns its child as
+`<interpreter> -I -B child.py` (plan 32 Phase 5). The spec ships the
+bootstrap as **data** so it exists as a real file in the frozen layout:
+
+```
+<bundle>/_internal/app/extensions/runtime/sandbox/child.py
+```
+
+Frozen builds bundle **no interpreter** (`sys.executable` is the app
+bundle itself) — the capability check in
+`app/extensions/runtime/sandbox/runtime.py` probes both halves at spawn
+and T2 imports honestly self-disable with the remedy on frozen installs
+(a future package may drop a runtime at
+`<bundle>/_internal/runtime/python` without code changes). Detection
+logic is pinned by `tests/test_extension_sandbox_runtime.py` (mocked
+lookups — no frozen build required).
+
 ## Releases
 
 `.github/workflows/release.yml` triggers on `v*` tags:

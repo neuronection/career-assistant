@@ -10,6 +10,8 @@ Layout (the trust boundary reads top-down):
   (net/state/items/secrets/events), quota-checked and audited;
 * :mod:`.host` — one subprocess per extension: spawn, handshake,
   watchdogs, quotas, run records, boot reconciliation;
+* :mod:`.runtime` — the frozen-build capability check (interpreter +
+  child assets) that gates the spawn;
 * :mod:`.connector` — the :class:`~app.extensions.sdk.PostingConnector`
   adapter that routes a T2 instance's fetch through the sandbox.
 """
@@ -25,6 +27,7 @@ from app.extensions.runtime.sandbox.host import (
     run_fetch,
     sandbox_capability_auditor,
 )
+from app.extensions.runtime.sandbox.runtime import SandboxRuntimeUnavailable
 
 __all__ = [
     "SandboxBusy",
@@ -33,6 +36,7 @@ __all__ = [
     "SandboxInvokeError",
     "SandboxLimits",
     "SandboxRunResult",
+    "SandboxRuntimeUnavailable",
     "interrupt_orphans",
     "run_fetch",
     "sandbox_capability_auditor",

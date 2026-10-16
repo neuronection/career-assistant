@@ -91,10 +91,32 @@ async def test_emit_fans_out_recipients_and_delivery_log(db, kinds, desktop_chan
     )
     await db.commit()
     assert event is not None
-    recipients = (await db.execute(select(NotificationRecipient))).scalars().all()
+    recipients = (
+        (
+            await db.execute(
+                select(NotificationRecipient).where(
+                    NotificationRecipient.notification_id == event.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert {r.user_id for r in recipients} == {user.id, other.id}
     assert all(r.status == "unread" for r in recipients)
-    deliveries = (await db.execute(select(NotificationDelivery))).scalars().all()
+    # This event's delivery log only — the worker DB may hold earlier
+    # events' rows, and the assertion is about THIS emit's fanout.
+    deliveries = (
+        (
+            await db.execute(
+                select(NotificationDelivery).where(
+                    NotificationDelivery.notification_id == event.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     in_app = [d for d in deliveries if d.channel == "in_app"]
     desktop = [d for d in deliveries if d.channel == "desktop"]
     assert len(in_app) == 2 and len(desktop) == 2
