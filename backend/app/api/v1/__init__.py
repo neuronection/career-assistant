@@ -15,6 +15,7 @@ from app.api.v1 import (
     documents,
     engagement,
     experience,
+    extensions,
     growth,
     instance,
     interview,
@@ -72,3 +73,4 @@ api_router.include_router(background_jobs.router)
 api_router.include_router(ai.router)
 api_router.include_router(ai_admin.router)
 api_router.include_router(admin.router)
+api_router.include_router(extensions.router)

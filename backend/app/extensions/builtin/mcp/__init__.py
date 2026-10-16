@@ -196,7 +196,7 @@ class McpConnector(PostingConnector):
         audit=None,
         **_kw,
     ) -> ConnectorResult:
-        cfg = self.config_model().model_validate(config)
+        cfg = McpConfig.model_validate(config)
         secret_slots = self.secret_slots()
         safe_config = {k: v for k, v in dict(config).items() if k not in secret_slots}
         arguments = {"config": safe_config, "state": dict(state or {})}

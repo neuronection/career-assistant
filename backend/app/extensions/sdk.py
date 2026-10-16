@@ -36,13 +36,16 @@ __all__ = [
     "ConnectorCapabilities",
     "ConnectorError",
     "ConnectorResult",
+    "EmploymentType",
     "EmptyConfig",
     "ExternalEffect",
     "HttpTransport",
     "LocationSpec",
+    "OnsitePolicy",
     "PostingConnector",
     "RawPosting",
     "SalarySpec",
+    "SeniorityLevel",
     "connector_manifest",
 ]
 
@@ -101,6 +104,11 @@ class SalarySpec(BaseModel):
     period: Literal["hour", "day", "week", "month", "year"] = "year"
 
 
+SeniorityLevel = Literal["intern", "junior", "mid", "senior", "lead", "principal"]
+EmploymentType = Literal["full_time", "part_time", "contract", "temporary", "internship"]
+OnsitePolicy = Literal["onsite", "hybrid", "remote"]
+
+
 class LocationSpec(BaseModel):
     city: str | None = None
     country: str | None = None
@@ -118,12 +126,10 @@ class RawPosting(BaseModel):
     posted_at: datetime | None = None
     expires_at: datetime | None = None
     salary: SalarySpec | None = None
-    seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
-    employment_type: (
-        Literal["full_time", "part_time", "contract", "temporary", "internship"] | None
-    ) = None
+    seniority: SeniorityLevel | None = None
+    employment_type: EmploymentType | None = None
     contract_type: str | None = Field(default=None, max_length=60)
-    onsite_policy: Literal["onsite", "hybrid", "remote"] | None = None
+    onsite_policy: OnsitePolicy | None = None
     work_hours: str | None = Field(default=None, max_length=60)
     hours_per_week_min: float | None = Field(default=None, ge=0)
     hours_per_week_max: float | None = Field(default=None, ge=0)

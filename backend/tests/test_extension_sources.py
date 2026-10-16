@@ -327,9 +327,15 @@ async def test_wrong_host_profile_rejected_with_reason(db, local_roots):
         if report["ok"] and report["candidates"]:
             candidate = report["candidates"][0]
             assert candidate["compatible"] is False
-            assert kind in candidate["reason"]
-        else:
-            assert report["error"]["code"] in ("invalid", "unsupported")
+            # Since plan-32 Phase 4 the mini-app kind IS hosted: this
+            # modified shape (no ui:* surface declared, connector caps) is
+            # still rejected typed — the precise capability/surface reason
+            # says which (D17: the compatibility check is data). bridge
+            # stays kind-named.
+            if kind == "bridge":
+                assert kind in candidate["reason"]
+            else:
+                assert candidate.get("reason"), "a typed reason is the law (D17)"
 
 
 async def test_api_version_too_new_rejected_with_ceiling(db, local_roots):

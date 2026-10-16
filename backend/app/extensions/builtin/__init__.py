@@ -13,6 +13,7 @@ import json
 import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
+from typing import cast
 
 from pydantic import BaseModel, Field
 
@@ -21,9 +22,13 @@ from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorError,
     ConnectorResult,
+    EmploymentType,
+    LocationSpec,
+    OnsitePolicy,
     PostingConnector,
     RawPosting,
     SalarySpec,
+    SeniorityLevel,
     connector_manifest,
 )
 
@@ -102,18 +107,18 @@ def parse_csv_payload(body: str) -> list[RawPosting]:
                 external_id=row["external_id"][:300],
                 title=row["title"][:300],
                 org=row.get("org") or "",
-                location={
-                    "city": row.get("city") or None,
-                    "country": row.get("country") or None,
-                    "remote": (row.get("remote") or "").lower() in {"1", "true", "yes"},
-                },
+                location=LocationSpec(
+                    city=row.get("city") or None,
+                    country=row.get("country") or None,
+                    remote=(row.get("remote") or "").lower() in {"1", "true", "yes"},
+                ),
                 url=row.get("url") or "",
                 posted_at=_parse_dt(row.get("posted_at")),
                 expires_at=_parse_dt(row.get("expires_at")),
                 salary=salary,
-                seniority=row.get("seniority") or None,
-                employment_type=row.get("employment_type") or None,
-                onsite_policy=row.get("onsite_policy") or None,
+                seniority=cast(SeniorityLevel, row.get("seniority") or None),
+                employment_type=cast(EmploymentType, row.get("employment_type") or None),
+                onsite_policy=cast(OnsitePolicy, row.get("onsite_policy") or None),
                 skills_raw=skills,
                 raw=raw,
             )
@@ -153,7 +158,7 @@ class CsvConnector(PostingConnector):
         )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
-        cfg = self.config_model().model_validate(config)
+        cfg = CsvConfig.model_validate(config)
         if transport is None:
             return _not_ready()
         errors: list[ConnectorError] = []
@@ -247,16 +252,21 @@ def parse_jsonld_payload(body: str) -> list[RawPosting]:
                     posted_at=_parse_dt(node.get("datePosted")),
                     expires_at=_parse_dt(node.get("validThrough")),
                     employment_type=(
-                        str(employment_type).split(".")[-1].lower() if employment_type else None
+                        cast(
+                            EmploymentType,
+                            str(employment_type).split(".")[-1].lower()
+                            if employment_type
+                            else None,
+                        )
                     ),
                     education_level=_text(node.get("educationRequirements")) or None,
                     skills_raw=skills[:60],
                     raw={"description": str(node.get("description") or "")[:8000]},
-                    location={
-                        "city": _text(address.get("addressLocality")) or None,
-                        "country": _text(address.get("addressCountry")) or None,
-                        "remote": "remote" in str(node.get("jobLocationType", "")).lower(),
-                    },
+                    location=LocationSpec(
+                        city=_text(address.get("addressLocality")) or None,
+                        country=_text(address.get("addressCountry")) or None,
+                        remote="remote" in str(node.get("jobLocationType", "")).lower(),
+                    ),
                     salary=salary,
                 )
             )
@@ -299,7 +309,7 @@ class JsonLdConnector(PostingConnector):
         )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
-        cfg = self.config_model().model_validate(config)
+        cfg = JsonLdConfig.model_validate(config)
         if transport is None:
             return _not_ready()
         resp = await transport(str(cfg.url), conditional_headers(state or {}))
@@ -393,7 +403,7 @@ class RssConnector(PostingConnector):
         )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
-        cfg = self.config_model().model_validate(config)
+        cfg = RssConfig.model_validate(config)
         if transport is None:
             return _not_ready()
         resp = await transport(str(cfg.url), conditional_headers(state or {}))
@@ -440,10 +450,10 @@ def parse_greenhouse_payload(body: str) -> list[RawPosting]:
                 org=str(data.get("metadata", {}).get("title") or job.get("absolute_url") or ""),
                 url=str(job.get("absolute_url") or ""),
                 posted_at=_parse_dt(job.get("updated_at") or job.get("first_published")),
-                location={
-                    "city": (job.get("location") or {}).get("name") or None,
-                    "remote": "remote" in str((job.get("location") or {}).get("name", "")).lower(),
-                },
+                location=LocationSpec(
+                    city=(job.get("location") or {}).get("name") or None,
+                    remote="remote" in str((job.get("location") or {}).get("name", "")).lower(),
+                ),
                 raw={"description": str(description)[:8000]},
             )
         )
@@ -465,10 +475,10 @@ def parse_lever_payload(body: str) -> list[RawPosting]:
                 )
                 if job.get("createdAt")
                 else None,
-                location={
-                    "city": categories.get("location") or None,
-                    "remote": "remote" in str(categories.get("location") or "").lower(),
-                },
+                location=LocationSpec(
+                    city=categories.get("location") or None,
+                    remote="remote" in str(categories.get("location") or "").lower(),
+                ),
                 employment_type=(categories.get("commitment") or None),
                 skills_raw=list(job.get("skills") or [])[:60],
                 raw={"description": str(job.get("description") or "")[:8000]},
@@ -481,6 +491,7 @@ def parse_ashby_payload(body: str) -> list[RawPosting]:
     data = json.loads(body)
     postings = []
     for job in data.get("jobs") or []:
+        loc = job.get("location")
         postings.append(
             RawPosting(
                 external_id=str(job.get("id") or "")[:300],
@@ -488,12 +499,10 @@ def parse_ashby_payload(body: str) -> list[RawPosting]:
                 org=str(job.get("organization") or ""),
                 url=str(job.get("jobUrl") or ""),
                 posted_at=_parse_dt(job.get("publishedAt") or job.get("updatedAt")),
-                location={
-                    "city": (job.get("location") or "").get("city")
-                    if isinstance(job.get("location"), dict)
-                    else None,
-                    "remote": bool(job.get("isRemote") if "isRemote" in job else False),
-                },
+                location=LocationSpec(
+                    city=loc.get("city") if isinstance(loc, dict) else None,
+                    remote=bool(job.get("isRemote") if "isRemote" in job else False),
+                ),
                 employment_type=(job.get("employmentType") or None),
                 seniority=(job.get("seniority") or None),
                 raw={
@@ -559,7 +568,7 @@ class AtsApiConnector(PostingConnector):
         )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
-        cfg = self.config_model().model_validate(config)
+        cfg = AtsApiConfig.model_validate(config)
         if transport is None:
             return _not_ready()
         token = (secrets or {}).get("api_token")
@@ -637,7 +646,7 @@ class ManualUrlConnector(PostingConnector):
         )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
-        cfg = self.config_model().model_validate(config)
+        cfg = ManualUrlConfig.model_validate(config)
         if transport is None:
             return _not_ready()
         resp = await transport(str(cfg.url), conditional_headers(state or {}))

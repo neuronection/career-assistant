@@ -64,14 +64,25 @@ MANIFEST_MAX_BYTES = 524_288
 TREE_MAX_FILES = 4096
 TREE_MAX_BYTES = 128 * 1024 * 1024
 
-# Host profile (career, ADR-0040 D8): connector-kind imports only today
-# (mini-app surfaces arrive with plan 32 Phase 4; bridge is server-class).
-# Imported connectors run T3 (external MCP process) — the host grants no
-# `net` at this tier (the script's own sockets are consent-disclosed, D22),
-# so the honored capability set for imports is exactly what the bundled
-# `mcp` connector declares.
-IMPORTED_KINDS = ("connector",)
-IMPORTED_HONORED_CAPABILITIES = frozenset({"sync", "secrets"})
+# Host profile (career, ADR-0040 D8 / plan 32 Phases 1-4): connector-kind
+# imports T3 (external MCP process) and — since Phase 4 — mini-app T0.
+# The surface host honors page + panel (window degrades to page, D17);
+# the honored capability set per kind below is the registration gate
+# (data, never code).
+IMPORTED_KINDS = ("connector", "mini-app")
+CONNECTOR_HONORED_CAPABILITIES = frozenset({"sync", "secrets"})
+MINIAPP_HONORED_CAPABILITIES = frozenset({"report", "run"})
+MINIAPP_API_VERSION = 1
+
+# Degradable ui:* surfaces (the charter degrade law, D17/D25): an
+# unhonored surface follows its chain to the first honored target —
+# window → page → panel on the web host (window Hosting declined).
+SURFACES_DEGRADE_CHAINS = {
+    "page": ("page", "panel"),
+    "panel": ("panel",),
+    "window": ("page", "panel"),
+}
+
 TIER_FOR_IMPORT = "T3"
 
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
@@ -130,6 +141,42 @@ def _charter() -> dict:
 def t3_perimeter_disclosure() -> str:
     """The T3 perimeter copy, VERBATIM from the vendored charter (D22)."""
     return str(_charter()["consent"]["t3PerimeterDisclosure"])
+
+
+def _t0_declarative_disclosure() -> str:
+    """The T0 declarative copy, VERBATIM from the vendored charter (D22)."""
+    return str(_charter()["consent"]["t0DeclarativeDisclosure"])
+
+
+def _validate_miniapp_surfaces(manifest: dict) -> None:
+    """Registration-time gate for a mini-app's declarative surfaces: the
+    career profile (page + panel honored, window degrades) applies, every
+    declared surface's nodes validate against the closed vocabulary, and
+    the T0 data block is structurally sound — an invalid surface rejects
+    the install (D17: the compatibility check is data, never code)."""
+    from app.core.errors import ValidationError
+    from app.extensions import surfaces as surface_law
+
+    try:
+        surface_law.surface_capabilities(manifest)
+    except ValidationError as exc:
+        raise LifecycleError("unsupported", str(exc)) from exc
+    declared = manifest.get("surfaces") or {}
+    if not isinstance(declared, dict) or not declared:
+        raise LifecycleError(
+            "invalid",
+            "mini-app declares no surface schema (surfaces.{page,panel,window})",
+        )
+    for kind, schema in declared.items():
+        if not isinstance(schema, dict):
+            raise LifecycleError("invalid", f"surface {kind!r} schema must be an object")
+        try:
+            nodes = schema.get("nodes")
+            if nodes is not None:
+                surface_law.validate_surface_nodes(nodes, kind=kind)
+            surface_law.validate_data(manifest)
+        except ValidationError as exc:
+            raise LifecycleError("invalid", str(exc)) from exc
 
 
 # ------------------------------------------------------- descriptor shape
@@ -470,22 +517,38 @@ def check_host_profile(manifest: dict) -> str | None:
     kind = manifest.get("kind")
     if kind not in IMPORTED_KINDS:
         return (
-            f"kind {kind!r} is not hosted for import (career hosts connector-kind "
-            "imports; mini-app surfaces arrive with plan 32 Phase 4, bridge is server-class)"
+            f"kind {kind!r} is not hosted for import (career hosts connector "
+            "and mini-app imports; bridge is server-class)"
         )
-    api_version = manifest.get("apiVersion")
-    if api_version != contract.ENVELOPE_API_VERSION:
-        return f"apiVersion {api_version!r} is not {contract.ENVELOPE_API_VERSION}"
-    kind_version = manifest.get("kindVersion")
-    if not isinstance(kind_version, int) or kind_version > contract.CONNECTOR_KIND_VERSION:
-        return (
-            f"requires host connector refinement >= {kind_version} "
-            f"(host has {contract.CONNECTOR_KIND_VERSION}) — self-disable"
-        )
-    caps = set(manifest.get("capabilities") or [])
-    unhonored = sorted(caps - IMPORTED_HONORED_CAPABILITIES)
-    if unhonored:
-        return f"capabilities not honored by this host: {', '.join(unhonored)}"
+    if kind == "mini-app":
+        # the mini-app kind keeps the ADR-0029 INT apiVersion lineage —
+        # the integer IS the per-kind refinement (no kindVersion field)
+        api_version = manifest.get("apiVersion")
+        if api_version != MINIAPP_API_VERSION:
+            return (
+                f"apiVersion {api_version!r} is not {MINIAPP_API_VERSION} (the mini-app refinement)"
+            )
+        caps = set(manifest.get("capabilities") or [])
+        honored = MINIAPP_HONORED_CAPABILITIES | {f"ui:{k}" for k in SURFACES_DEGRADE_CHAINS}
+        unhonored = sorted(caps - honored) if caps else ["(none declared)"]
+        if unhonored:
+            return f"capabilities not honored by this host: {', '.join(unhonored)}"
+        if not any(c.startswith("ui:") for c in caps):
+            return "mini-app imports must declare at least one ui:* surface capability"
+    else:
+        api_version = manifest.get("apiVersion")
+        if api_version != contract.ENVELOPE_API_VERSION:
+            return f"apiVersion {api_version!r} is not {contract.ENVELOPE_API_VERSION}"
+        kind_version = manifest.get("kindVersion")
+        if not isinstance(kind_version, int) or kind_version > contract.CONNECTOR_KIND_VERSION:
+            return (
+                f"requires host connector refinement >= {kind_version} "
+                f"(host has {contract.CONNECTOR_KIND_VERSION}) — self-disable"
+            )
+        caps = set(manifest.get("capabilities") or [])
+        unhonored = sorted(caps - CONNECTOR_HONORED_CAPABILITIES)
+        if unhonored:
+            return f"capabilities not honored by this host: {', '.join(unhonored)}"
     return None
 
 
@@ -496,13 +559,19 @@ def _entry_dir(tree: Path, subpath: str) -> Path:
 def consent_payload(manifest: dict, digest: str, *, subpath: str = "") -> dict:
     """What a consent surface MUST show (charter consent law): capabilities,
     tier + import class, provenance verbatim from the manifest, the pinned
-    digest, and the T3 perimeter disclosure VERBATIM."""
+    digest, and the tier's disclosure VERBATIM (T3 perimeter / T0
+    declarative)."""
+    tier = "T0" if manifest.get("kind") == "mini-app" else TIER_FOR_IMPORT
+    if tier == "T0":
+        disclosure, disclosure_key = _t0_declarative_disclosure(), "t0DeclarativeDisclosure"
+    else:
+        disclosure, disclosure_key = t3_perimeter_disclosure(), "t3PerimeterDisclosure"
     return {
         "extensionId": manifest.get("id"),
         "version": manifest.get("version"),
         "subpath": subpath,
         "digest": digest,
-        "tier": TIER_FOR_IMPORT,
+        "tier": tier,
         "importClass": "imported",
         "capabilities": list(manifest.get("capabilities") or []),
         "provenance": {
@@ -511,8 +580,8 @@ def consent_payload(manifest: dict, digest: str, *, subpath: str = "") -> dict:
             "repository": manifest.get("repository"),
             "description": manifest.get("description"),
         },
-        "disclosureKey": "t3PerimeterDisclosure",
-        "disclosure": t3_perimeter_disclosure(),
+        "disclosureKey": disclosure_key,
+        "disclosure": disclosure,
     }
 
 
@@ -831,9 +900,11 @@ async def install_extension(
         reason = check_host_profile(manifest)
         if reason is not None:
             raise LifecycleError("unsupported", reason)
+        if manifest.get("kind") == "mini-app":
+            _validate_miniapp_surfaces(manifest)
         sub = candidate["subpath"]
         entry_dir = _entry_dir(tree, sub)
-        if not (entry_dir / ENTRY_FILE).is_file():
+        if manifest.get("kind") == "connector" and not (entry_dir / ENTRY_FILE).is_file():
             raise LifecycleError(
                 "unsupported",
                 f"no runnable entry ({ENTRY_FILE}) beside the manifest — career imports "
@@ -893,31 +964,35 @@ async def _land_install(
     content_dir = _content_root(data_dir) / extension_id / digest
     if not (content_dir / MANIFEST_FILE).exists():
         _copy_tree(content_src, content_dir)
-    command = f'"{sys.executable}" "{content_dir / ENTRY_FILE}"'
     source_key = extension_id
-    clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
-    existing_row = clash.scalars().first()
-    if existing_row is None:
-        job_source = JobSource(
-            key=source_key,
-            connector_key="mcp",
-            config={
-                "transport": "stdio",
-                "command": command,
-                "tool": "fetch_postings",
-                "timeout_seconds": 30,
-            },
-            enabled=False,
-        )
-        db.add(job_source)
-        _validate_mcp_config(job_source)
-    else:
-        if existing_row.connector_key != "mcp":
-            raise LifecycleError(
-                "invalid", f"a non-imported job source already owns the key {source_key!r}"
+    kind = manifest.get("kind")
+    if kind == "connector":
+        # connector imports are T3: the instance is a managed-spawn job
+        # source (external MCP process, Phase 2/3 shape).
+        command = f'"{sys.executable}" "{content_dir / ENTRY_FILE}"'
+        clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
+        existing_row = clash.scalars().first()
+        if existing_row is None:
+            job_source = JobSource(
+                key=source_key,
+                connector_key="mcp",
+                config={
+                    "transport": "stdio",
+                    "command": command,
+                    "tool": "fetch_postings",
+                    "timeout_seconds": 30,
+                },
+                enabled=False,
             )
-        existing_row.config = {**existing_row.config, "command": command}
-        existing_row.enabled = False
+            db.add(job_source)
+            _validate_mcp_config(job_source)
+        else:
+            if existing_row.connector_key != "mcp":
+                raise LifecycleError(
+                    "invalid", f"a non-imported job source already owns the key {source_key!r}"
+                )
+            existing_row.config = {**existing_row.config, "command": command}
+            existing_row.enabled = False
     payload = consent_payload(manifest, digest, subpath=subpath)
     record = {
         **payload,
@@ -954,7 +1029,7 @@ async def _land_install(
         pin_ref=ref,
         digest=digest,
         content_path=str(content_dir),
-        tier=TIER_FOR_IMPORT,
+        tier="T0" if kind == "mini-app" else TIER_FOR_IMPORT,
         state="installed",
         enabled=False,
         managed_by=managed_by,
@@ -1088,9 +1163,11 @@ async def apply_update(
         reason = check_host_profile(manifest)
         if reason is not None:
             raise LifecycleError("unsupported", f"the update is not hostable: {reason}")
+        if manifest.get("kind") == "mini-app":
+            _validate_miniapp_surfaces(manifest)
         sub = candidate["subpath"]
         entry_dir = _entry_dir(tree, sub)
-        if not (entry_dir / ENTRY_FILE).is_file():
+        if manifest.get("kind") == "connector" and not (entry_dir / ENTRY_FILE).is_file():
             raise LifecycleError(
                 "unsupported", f"the update lost its runnable entry ({ENTRY_FILE})"
             )
@@ -1121,15 +1198,16 @@ async def apply_update(
         install.digest = digest
         install.content_path = str(content_dir)
         install.update = {}
-        from app.models.posting_model import JobSource
+        if manifest.get("kind") == "connector":
+            from app.models.posting_model import JobSource
 
-        row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
-        job_source = row.scalars().first()
-        if job_source is not None:
-            job_source.config = {
-                **job_source.config,
-                "command": f'"{sys.executable}" "{content_dir / ENTRY_FILE}"',
-            }
+            row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+            job_source = row.scalars().first()
+            if job_source is not None:
+                job_source.config = {
+                    **job_source.config,
+                    "command": f'"{sys.executable}" "{content_dir / ENTRY_FILE}"',
+                }
     await db.commit()
     return _install_view(install)
 
@@ -1155,7 +1233,10 @@ async def _park(db: AsyncSession, install: ExtensionInstall, *, note: str) -> No
 
 async def set_install_enabled(db: AsyncSession, install_id: uuid.UUID, enabled: bool) -> dict:
     """The ONLY enable path — an explicit admin act (installs, updates and
-    reconcile never auto-enable, D22)."""
+    reconcile never auto-enable, D22). Connector-kind installs mirror the
+    state onto the minted job source; mini-app (T0 declarative) installs
+    have no job source — the enable act is the kill switch for their
+    surface routes."""
     from app.models.posting_model import JobSource
 
     install = await db.get(ExtensionInstall, install_id)
@@ -1168,12 +1249,16 @@ async def set_install_enabled(db: AsyncSession, install_id: uuid.UUID, enabled: 
     if enabled:
         install.state = "installed" if install.state == "disabled" else install.state
         install.parked = False
+    install.enabled = enabled
+    kind = (install.manifest or {}).get("kind")
+    if kind == "mini-app":
+        await db.commit()
+        return _install_view(install)
     row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
     job_source = row.scalars().first()
     if job_source is None:
         raise LifecycleError("not-found", "the minted job source is gone — re-import")
     job_source.enabled = enabled
-    install.enabled = enabled
     await db.commit()
     return _install_view(install)
 
