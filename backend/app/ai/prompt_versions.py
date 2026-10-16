@@ -43,6 +43,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.INTERVIEW_DEBRIEF.value: 1,
     AITaskType.EMBED.value: 1,
     AITaskType.MCP_TOOL_CALL.value: 1,
+    AITaskType.SANDBOX_CAPABILITY_CALL.value: 1,
     AITaskType.TRANSCRIBE.value: 1,
     AITaskType.CHAT_TITLE.value: 1,
     # Decision slots resolve through the decision funnel, never the

@@ -5,7 +5,10 @@ artifacts (implementations may differ, outputs may not):
 
 * ``contracts/extension-contract.fixtures.json`` — structural: valid
   manifests/sources accepted, invalid ones rejected, via the vendored
-  validator (``app.extensions.contract``) against the vendored schemas.
+  validator (``app.extensions.contract``) against the vendored schemas;
+  the ``rpc`` section runs the capability-RPC message fixtures against
+  the T2 seam's structural gate (plan 32 Phase 5 — the same vendored
+  schema the sandbox host validates every framed line with);
 * ``contracts/polite_http.fixtures.json`` — behavioral: the D23 hostile
   list (per-hop redirect revalidation, DNS-rebind pinning, IP-literal
   obfuscations, Retry-After both forms, robots 5xx ⇒ deny, declared-domain
@@ -26,6 +29,7 @@ import httpx
 import pytest
 
 from app.extensions import contract, polite_http
+from app.extensions.runtime.sandbox import protocol as rpc_protocol
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "contracts"
 MANIFEST_FIXTURES = json.loads(
@@ -82,6 +86,29 @@ def test_structural_fixtures_reject(group: str, case: dict[str, Any]) -> None:
     target, root = _schema_for(group, case)
     err = contract.validate(target, case["doc"], root)
     assert err is not None, f"invalid case {case['name']} was accepted"
+
+
+# ------------------------------------- the capability-RPC seam (Phase 5 wall)
+
+
+@pytest.mark.parametrize(
+    "case", MANIFEST_FIXTURES["rpc"]["valid"], ids=lambda case: f"rpc:{case['name']}"
+)
+def test_rpc_fixtures_accept(case: dict[str, Any]) -> None:
+    """Valid capability-rpc/1 messages pass the seam's structural gate —
+    the SAME gate the sandbox host applies to every framed line."""
+    doc = rpc_protocol.validate_message(json.dumps(case["doc"]))
+    assert doc["v"] == 1
+
+
+@pytest.mark.parametrize(
+    "case", MANIFEST_FIXTURES["rpc"]["invalid"], ids=lambda case: f"rpc:{case['name']}"
+)
+def test_rpc_fixtures_reject(case: dict[str, Any]) -> None:
+    """Invalid messages (unknown method, off-enum error codes, capability
+    methods as events, missing params, over-cap detail) fail typed."""
+    with pytest.raises(rpc_protocol.FramingError):
+        rpc_protocol.validate_message(json.dumps(case["doc"]))
 
 
 # ------------------------------------------------ behavioral: the D23 wall

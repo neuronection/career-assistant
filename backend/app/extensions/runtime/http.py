@@ -95,6 +95,7 @@ def build_transport(
     client: httpx.AsyncClient | None = None,
     config: polite_http.PoliteHttpConfig | None = None,
     resolver: polite_http.Resolver | None = None,
+    max_response_bytes: int | None = None,
 ) -> HttpTransport:
     """Build the polite HttpTransport for one connector.
 
@@ -102,14 +103,32 @@ def build_transport(
     scopes (manifest ``domains`` — the charter ``net`` law); url-shaped
     connectors without static scopes pass None and rely on the SSRF guard
     alone. ``requests_per_minute`` takes the connector's declared cap
-    when lower than the global ceiling. ``client`` and ``resolver`` are
-    the test seams (``httpx.MockTransport`` + a fake resolver — no
-    network in unit tests).
+    when lower than the global ceiling. ``max_response_bytes`` tightens
+    the response cap below the global ceiling (the T2 seam's per-call
+    ``maxBytes``). ``client`` and ``resolver`` are the test seams
+    (``httpx.MockTransport`` + a fake resolver — no network in unit
+    tests).
     """
     global _robots
     cfg = config or _base_config()
     rpm = min(int(requests_per_minute or cfg.requests_per_minute), cfg.requests_per_minute)
     rpm = max(1, rpm)
+    if max_response_bytes is not None:
+        max_response_bytes = max(1, int(max_response_bytes))
+        if max_response_bytes < cfg.max_response_bytes:
+            cfg = polite_http.PoliteHttpConfig(
+                guard=cfg.guard,
+                domains=cfg.domains,
+                requests_per_minute=cfg.requests_per_minute,
+                max_response_bytes=max_response_bytes,
+                connect_timeout=cfg.connect_timeout,
+                read_timeout=cfg.read_timeout,
+                max_retries=cfg.max_retries,
+                max_redirects=cfg.max_redirects,
+                user_agent=cfg.user_agent,
+                respect_robots=cfg.respect_robots,
+                pin_resolved_address=cfg.pin_resolved_address,
+            )
     if _robots is None:
         _robots = polite_http.RobotsCache()
     http = client or _http_client()

@@ -255,6 +255,7 @@ class AITaskType(StrEnum):
     INTERVIEW_DEBRIEF = "interview_debrief"
     EMBED = "embed"
     MCP_TOOL_CALL = "mcp_tool_call"
+    SANDBOX_CAPABILITY_CALL = "sandbox_capability_call"
     DECISION = "decision"  # ADR-0036: the decision default slot beside the kind overrides
     DECISION_TOOL_DISPATCH = "decision_tool_dispatch"
     DECISION_BOOLEAN_GATE = "decision_boolean_gate"

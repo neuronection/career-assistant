@@ -76,15 +76,16 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
     map, alert.
 
     A failing connector errors its own source row — never the queue or
-    other sources. The transport is the SSRF-guarded polite runtime
-    (robots, per-host caps, conditional GET); tests may inject a
-    MockTransport-backed one."""
+    other sources. T1 built-ins get the injected polite transport; T2
+    imports resolve through the registry onto the sandbox runner (their
+    net rides the seam, not this transport)."""
     from app.extensions.polite_http import PoliteHttpError
     from app.extensions.runtime.http import build_transport
+    from app.extensions.runtime.sandbox.connector import SandboxConnector
     from app.extensions.sdk import ConnectorError
 
     try:
-        connector = registry.get_connector(source.connector_key)
+        connector = await registry.resolve_connector(db, source.connector_key)
     except ValidationError as exc:
         source.error = str(exc)
         await db.commit()
@@ -105,7 +106,11 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
         requests_per_minute=connector.capabilities.max_requests_per_minute,
     )
     audit = None
-    if getattr(connector, "audits_effects", False):
+    if isinstance(connector, SandboxConnector):
+        from app.extensions.runtime.sandbox import sandbox_capability_auditor
+
+        audit = sandbox_capability_auditor(db, source.key)
+    elif getattr(connector, "audits_effects", False):
         from app.extensions.runtime.mcp import mcp_effect_auditor
 
         audit = mcp_effect_auditor(db, source.key)

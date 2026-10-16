@@ -230,6 +230,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.SANDBOX_CAPABILITY_CALL.value,
+        "T2 sandbox capability call audit (one row per capability call)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.DECISION_TOOL_DISPATCH.value,
         "Decision model slot: tool dispatch",
         AICapability.DECISION.value,

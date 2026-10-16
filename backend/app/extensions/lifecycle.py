@@ -64,15 +64,23 @@ MANIFEST_MAX_BYTES = 524_288
 TREE_MAX_FILES = 4096
 TREE_MAX_BYTES = 128 * 1024 * 1024
 
-# Host profile (career, ADR-0040 D8 / plan 32 Phases 1-4): connector-kind
-# imports T3 (external MCP process) and — since Phase 4 — mini-app T0.
-# The surface host honors page + panel (window degrades to page, D17);
-# the honored capability set per kind below is the registration gate
-# (data, never code).
+# Host profile (career, ADR-0040 D8 / plan 32 Phases 1-5): connector-kind
+# imports arrive as T3 (external MCP process) or — since Phase 5 — T2
+# (the capability-RPC sandbox, ADR-0030's Python port); mini-app imports
+# are T0 declarative. Tier is PROVENANCE AT INSTALL (D2): the artifact
+# shape decides (an ``extension.py`` capability-RPC module = T2; a
+# ``server.py`` MCP entry = T3; both or neither = rejected). The surface
+# host honors page + panel (window degrades to page, D17); the honored
+# capability set per kind x tier below is the registration gate (data,
+# never code).
 IMPORTED_KINDS = ("connector", "mini-app")
 CONNECTOR_HONORED_CAPABILITIES = frozenset({"sync", "secrets"})
+# The T2 seam's honored set (plan 32 Phase 5): net/state/secrets ride the
+# capability RPC host-side; nothing else is hosted for imported connectors.
+T2_CONNECTOR_HONORED_CAPABILITIES = frozenset({"sync", "net", "state", "secrets"})
 MINIAPP_HONORED_CAPABILITIES = frozenset({"report", "run"})
 MINIAPP_API_VERSION = 1
+T2_ENTRY_FILE = "extension.py"
 
 # Degradable ui:* surfaces (the charter degrade law, D17/D25): an
 # unhonored surface follows its chain to the first honored target —
@@ -82,8 +90,6 @@ SURFACES_DEGRADE_CHAINS = {
     "panel": ("panel",),
     "window": ("page", "panel"),
 }
-
-TIER_FOR_IMPORT = "T3"
 
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
@@ -141,6 +147,12 @@ def _charter() -> dict:
 def t3_perimeter_disclosure() -> str:
     """The T3 perimeter copy, VERBATIM from the vendored charter (D22)."""
     return str(_charter()["consent"]["t3PerimeterDisclosure"])
+
+
+def t2_sandbox_disclosure() -> str:
+    """The T2 sandbox copy, VERBATIM from the vendored charter (ADR-0030
+    clause 2: 'runs sandboxed, not reviewed' — containment is not trust)."""
+    return str(_charter()["consent"]["t2SandboxDisclosure"])
 
 
 def _t0_declarative_disclosure() -> str:
@@ -510,10 +522,35 @@ def discover_manifests(tree: Path, subpath: str) -> list[dict]:
     return found
 
 
-def check_host_profile(manifest: dict) -> str | None:
+def detect_connector_tier(entry_dir: Path) -> str:
+    """Tier is provenance at install (D2): the artifact shape decides.
+    An ``extension.py`` capability-RPC module imports as T2 (the sandbox);
+    a ``server.py`` MCP entry as T3 (external process); both is ambiguous
+    (rejected), neither is not runnable."""
+    has_t2 = (entry_dir / T2_ENTRY_FILE).is_file()
+    has_t3 = (entry_dir / ENTRY_FILE).is_file()
+    if has_t2 and has_t3:
+        raise LifecycleError(
+            "invalid",
+            f"ambiguous artifact: both {T2_ENTRY_FILE} (T2 sandbox) and {ENTRY_FILE} "
+            "(T3 MCP) present — ship exactly one entry shape",
+        )
+    if has_t2:
+        return "T2"
+    if has_t3:
+        return "T3"
+    raise LifecycleError(
+        "unsupported",
+        f"no runnable entry beside the manifest (expected {T2_ENTRY_FILE} for the T2 "
+        f"sandbox tier or {ENTRY_FILE} for the T3 MCP tier)",
+    )
+
+
+def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
     """Host-profile compatibility (data, never code): kind hosted? tier
     runnable? apiVersion current? capabilities honored? Returns the
-    self-disable reason, or None when compatible."""
+    self-disable reason, or None when compatible. ``tier`` refines the
+    connector-kind honored set (T2 rides the capability-RPC seam)."""
     kind = manifest.get("kind")
     if kind not in IMPORTED_KINDS:
         return (
@@ -545,10 +582,16 @@ def check_host_profile(manifest: dict) -> str | None:
                 f"requires host connector refinement >= {kind_version} "
                 f"(host has {contract.CONNECTOR_KIND_VERSION}) — self-disable"
             )
-        caps = set(manifest.get("capabilities") or [])
-        unhonored = sorted(caps - CONNECTOR_HONORED_CAPABILITIES)
-        if unhonored:
-            return f"capabilities not honored by this host: {', '.join(unhonored)}"
+        honored_tier = (
+            T2_CONNECTOR_HONORED_CAPABILITIES
+            if tier == "T2"
+            else (CONNECTOR_HONORED_CAPABILITIES if tier == "T3" else None)
+        )
+        if honored_tier is not None:
+            caps = set(manifest.get("capabilities") or [])
+            unhonored = sorted(caps - honored_tier)
+            if unhonored:
+                return f"capabilities not honored for a {tier} import: {', '.join(unhonored)}"
     return None
 
 
@@ -556,14 +599,19 @@ def _entry_dir(tree: Path, subpath: str) -> Path:
     return (tree / subpath).resolve() if subpath else tree.resolve()
 
 
-def consent_payload(manifest: dict, digest: str, *, subpath: str = "") -> dict:
+def consent_payload(
+    manifest: dict, digest: str, *, subpath: str = "", tier: str | None = None
+) -> dict:
     """What a consent surface MUST show (charter consent law): capabilities,
     tier + import class, provenance verbatim from the manifest, the pinned
-    digest, and the tier's disclosure VERBATIM (T3 perimeter / T0
-    declarative)."""
-    tier = "T0" if manifest.get("kind") == "mini-app" else TIER_FOR_IMPORT
+    digest, and the tier's disclosure VERBATIM (T2 sandbox / T3 perimeter /
+    T0 declarative)."""
+    if tier is None:
+        tier = "T0" if manifest.get("kind") == "mini-app" else "T3"
     if tier == "T0":
         disclosure, disclosure_key = _t0_declarative_disclosure(), "t0DeclarativeDisclosure"
+    elif tier == "T2":
+        disclosure, disclosure_key = t2_sandbox_disclosure(), "t2SandboxDisclosure"
     else:
         disclosure, disclosure_key = t3_perimeter_disclosure(), "t3PerimeterDisclosure"
     return {
@@ -796,9 +844,29 @@ async def sync_source(
                 tree, str((source.descriptor or {}).get("subpath") or "")
             ):
                 manifest = found["manifest"]
-                reason = check_host_profile(manifest)
                 sub = found["subpath"]
                 entry_dir = _entry_dir(tree, sub)
+                tier = None
+                if manifest.get("kind") == "connector":
+                    try:
+                        tier = detect_connector_tier(entry_dir)
+                    except LifecycleError as exc:
+                        # An unusable artifact shape is the compat reason,
+                        # never a source failure (discovery keeps scanning).
+                        candidates.append(
+                            {
+                                "extensionId": found["extensionId"],
+                                "subpath": sub,
+                                "digest": digest_tree(entry_dir),
+                                "ref": resolved.ref,
+                                "manifest": manifest,
+                                "compatible": False,
+                                "reason": exc.detail,
+                                "hasEntry": False,
+                            }
+                        )
+                        continue
+                reason = check_host_profile(manifest, tier)
                 digest = digest_tree(entry_dir)
                 candidates.append(
                     {
@@ -809,7 +877,8 @@ async def sync_source(
                         "manifest": manifest,
                         "compatible": reason is None,
                         "reason": reason,
-                        "hasEntry": (entry_dir / ENTRY_FILE).is_file(),
+                        "hasEntry": (entry_dir / ENTRY_FILE).is_file()
+                        or (entry_dir / T2_ENTRY_FILE).is_file(),
                     }
                 )
             if not candidates:
@@ -897,19 +966,16 @@ async def install_extension(
                 "not-found", f"extension {extension_id!r} not offered by this source"
             )
         manifest = candidate["manifest"]
-        reason = check_host_profile(manifest)
+        sub = candidate["subpath"]
+        tier = None
+        if manifest.get("kind") == "connector":
+            tier = detect_connector_tier(_entry_dir(tree, sub))
+        reason = check_host_profile(manifest, tier)
         if reason is not None:
             raise LifecycleError("unsupported", reason)
         if manifest.get("kind") == "mini-app":
             _validate_miniapp_surfaces(manifest)
-        sub = candidate["subpath"]
         entry_dir = _entry_dir(tree, sub)
-        if manifest.get("kind") == "connector" and not (entry_dir / ENTRY_FILE).is_file():
-            raise LifecycleError(
-                "unsupported",
-                f"no runnable entry ({ENTRY_FILE}) beside the manifest — career imports "
-                "connectors as T3 MCP servers (the template repo shape)",
-            )
         digest = digest_tree(entry_dir)
         install = await _land_install(
             db,
@@ -924,6 +990,7 @@ async def install_extension(
             content_src=entry_dir,
             data_dir=data_dir,
             prior_install=prior_install,
+            tier=tier or "T0",
         )
     await db.commit()
     return _install_view(install)
@@ -955,6 +1022,7 @@ async def _land_install(
     content_src: Path,
     data_dir: Path | None,
     prior_install: ExtensionInstall | None = None,
+    tier: str | None = None,
 ) -> ExtensionInstall:
     """The one place content lands + consent is recorded + the instance is
     minted — shared by install and re-consented apply. A tombstoned
@@ -966,8 +1034,10 @@ async def _land_install(
         _copy_tree(content_src, content_dir)
     source_key = extension_id
     kind = manifest.get("kind")
-    if kind == "connector":
-        # connector imports are T3: the instance is a managed-spawn job
+    if tier is None:
+        tier = "T0" if kind == "mini-app" else "T3"
+    if kind == "connector" and tier == "T3":
+        # T3 connector imports: the instance is a managed-spawn job
         # source (external MCP process, Phase 2/3 shape).
         command = f'"{sys.executable}" "{content_dir / ENTRY_FILE}"'
         clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
@@ -993,7 +1063,31 @@ async def _land_install(
                 )
             existing_row.config = {**existing_row.config, "command": command}
             existing_row.enabled = False
-    payload = consent_payload(manifest, digest, subpath=subpath)
+    elif kind == "connector" and tier == "T2":
+        # T2 connector imports (plan 32 Phase 5): the instance is a job
+        # source whose connector_key is the extension id — the registry
+        # routes it through the sandbox runner (never in-process). Config
+        # starts from the manifest defaults, validated against the
+        # manifest's own configSchema; enable stays an explicit act (D22).
+        config = _default_config(manifest)
+        job_source = JobSource(
+            key=source_key,
+            connector_key=source_key,
+            config=config,
+            enabled=False,
+        )
+        clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
+        existing_row = clash.scalars().first()
+        if existing_row is None:
+            db.add(job_source)
+        else:
+            if existing_row.connector_key != source_key:
+                raise LifecycleError(
+                    "invalid", f"a non-imported job source already owns the key {source_key!r}"
+                )
+            existing_row.config = config
+            existing_row.enabled = False
+    payload = consent_payload(manifest, digest, subpath=subpath, tier=tier)
     record = {
         **payload,
         "actor": str(actor_id) if actor_id else None,
@@ -1029,7 +1123,7 @@ async def _land_install(
         pin_ref=ref,
         digest=digest,
         content_path=str(content_dir),
-        tier="T0" if kind == "mini-app" else TIER_FOR_IMPORT,
+        tier=tier,
         state="installed",
         enabled=False,
         managed_by=managed_by,
@@ -1160,17 +1254,16 @@ async def apply_update(
         if candidate is None:
             raise LifecycleError("not-found", "the update disappeared from the source")
         manifest = candidate["manifest"]
-        reason = check_host_profile(manifest)
+        sub = candidate["subpath"]
+        entry_dir = _entry_dir(tree, sub)
+        tier = install.tier
+        if manifest.get("kind") == "connector":
+            tier = detect_connector_tier(entry_dir)
+        reason = check_host_profile(manifest, tier)
         if reason is not None:
             raise LifecycleError("unsupported", f"the update is not hostable: {reason}")
         if manifest.get("kind") == "mini-app":
             _validate_miniapp_surfaces(manifest)
-        sub = candidate["subpath"]
-        entry_dir = _entry_dir(tree, sub)
-        if manifest.get("kind") == "connector" and not (entry_dir / ENTRY_FILE).is_file():
-            raise LifecycleError(
-                "unsupported", f"the update lost its runnable entry ({ENTRY_FILE})"
-            )
         digest = digest_tree(entry_dir)
         if digest != update.get("digest"):
             raise LifecycleError(
@@ -1180,7 +1273,7 @@ async def apply_update(
         content_dir = _content_root(data_dir) / install.extension_id / digest
         if not (content_dir / MANIFEST_FILE).exists():
             _copy_tree(entry_dir, content_dir)
-        payload = consent_payload(manifest, digest, subpath=sub)
+        payload = consent_payload(manifest, digest, subpath=sub, tier=tier)
         record = {
             **payload,
             "actor": str(actor_id) if actor_id else None,
@@ -1197,8 +1290,9 @@ async def apply_update(
         install.pin_ref = str(update.get("ref") or install.pin_ref)
         install.digest = digest
         install.content_path = str(content_dir)
+        install.tier = tier or install.tier
         install.update = {}
-        if manifest.get("kind") == "connector":
+        if manifest.get("kind") == "connector" and (tier or install.tier) == "T3":
             from app.models.posting_model import JobSource
 
             row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
@@ -1208,11 +1302,73 @@ async def apply_update(
                     **job_source.config,
                     "command": f'"{sys.executable}" "{content_dir / ENTRY_FILE}"',
                 }
+        # T2 updates need no instance mutation: the sandbox runner reads
+        # the install row's content_path + manifest at every spawn.
     await db.commit()
     return _install_view(install)
 
 
 # ------------------------------------------------------- instance controls
+
+
+async def self_disable(db: AsyncSession, *, install: ExtensionInstall, reason: str) -> None:
+    """The sandbox-death landing (ADR-0030 clause 1, ported): sandbox
+    death is EXTENSION failure, never host failure — the install flips to
+    the lifecycle `self-disabled` state with the surfaced reason on the
+    minted instance, and nothing else is affected. An explicit re-enable
+    is the only way back (see :func:`set_install_enabled`)."""
+    from app.models.posting_model import JobSource
+
+    install.state = "self-disabled"
+    install.enabled = False
+    logger.warning("extension self-disabled (%s): %s", install.extension_id, reason[:200])
+    if install.source_key:
+        row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+        job_source = row.scalars().first()
+        if job_source is not None:
+            job_source.enabled = False
+            job_source.error = f"self-disabled: {reason}"[:2000]
+
+
+async def t2_install(db: AsyncSession, key: str) -> ExtensionInstall:
+    """Resolve an enabled, installed T2 import by its instance key — the
+    registry's routing table for connector keys that are not builtins.
+    Anything else is ``Unknown connector`` (fail-closed: self-disabled and
+    disabled installs never resolve)."""
+    from app.core.errors import ValidationError
+
+    row = await db.execute(
+        select(ExtensionInstall).where(
+            ExtensionInstall.source_key == key,
+            ExtensionInstall.tier == "T2",
+            ExtensionInstall.state == "installed",
+        )
+    )
+    install = row.scalars().first()
+    if install is None or not install.enabled:
+        raise ValidationError(f"Unknown connector: {key}")
+    return install
+
+
+def _default_config(manifest: dict) -> dict:
+    """The T2 instance's starting config: the manifest ``defaults``,
+    validated against the manifest's own configSchema (an invalid default
+    rejects the install — never half-configured)."""
+    defaults = manifest.get("defaults") or {}
+    schema = manifest.get("configSchema")
+    if schema:
+        err = contract.validate(schema, defaults, schema)
+        if err is not None:
+            raise LifecycleError("invalid", f"manifest defaults fail their configSchema: {err}")
+    required = (schema or {}).get("required") or []
+    for field_name in required:
+        if field_name not in defaults:
+            raise LifecycleError(
+                "invalid",
+                f"configSchema requires {field_name!r} but manifest defaults omit it — "
+                "the instance would install unconfigurable",
+            )
+    return defaults
 
 
 async def _park(db: AsyncSession, install: ExtensionInstall, *, note: str) -> None:
@@ -1247,7 +1403,11 @@ async def set_install_enabled(db: AsyncSession, install_id: uuid.UUID, enabled: 
             "invalid", "a tombstoned extension is never re-enabled on its own — re-import"
         )
     if enabled:
-        install.state = "installed" if install.state == "disabled" else install.state
+        # An explicit re-enable is the ONLY way out of a self-disable
+        # (ADR-0030's AppService boot pattern: the surfaced reason is the
+        # admin's to accept) — the state returns to `installed`.
+        if install.state in ("disabled", "self-disabled"):
+            install.state = "installed"
         install.parked = False
     install.enabled = enabled
     kind = (install.manifest or {}).get("kind")
@@ -1448,7 +1608,10 @@ async def _reconcile_missing_install(
             if found is None:
                 raise LifecycleError("not-found", f"{extension_id!r} not offered by the source")
             manifest = found["manifest"]
-            reason = check_host_profile(manifest)
+            tier = None
+            if manifest.get("kind") == "connector":
+                tier = detect_connector_tier(_entry_dir(tree, found["subpath"]))
+            reason = check_host_profile(manifest, tier)
             if reason is not None:
                 raise LifecycleError("unsupported", reason)
             digest = digest_tree(_entry_dir(tree, found["subpath"]))
@@ -1552,11 +1715,20 @@ async def _reconcile_pin(
 
 
 async def reconcile_boot() -> None:
-    """Boot-time reconcile (D13) — best-effort, never fatal to the boot."""
+    """Boot-time reconcile (D13) — best-effort, never fatal to the boot.
+    Also closes orphaned sandbox runs as ``interrupted`` (a host restart
+    is never an extension failure — ADR-0030's AppService boot pattern,
+    ported with the Phase-5 runner)."""
     from app.core.database import AsyncSessionLocal
 
     try:
         async with AsyncSessionLocal() as db:
             await reconcile(db)
+            from app.extensions.runtime.sandbox import interrupt_orphans
+
+            interrupted = await interrupt_orphans(db)
+            if interrupted:
+                await db.commit()
+                logger.info("boot reconcile: %s orphaned sandbox run(s) interrupted", interrupted)
     except Exception:
         logger.warning("boot-time extension reconcile failed", exc_info=True)

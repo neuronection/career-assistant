@@ -94,6 +94,18 @@ deletion).
 
 ### Migration notes
 
+- **0049** — the T2 sandbox runner's store (plan 32 Phase 5 /
+  ADR-0030 Python port): widens `extension_installs.tier` to carry `T2`
+  (tier is provenance at install — an `extension.py` capability-RPC
+  artifact), adds `extension_installs.extension_state` (the T2
+  `state.*` seam home — extension-owned KV, quota'd by
+  `limits.stateMaxBytes`, distinct from sync cursors) and creates
+  `extension_sandbox_runs` (one row per spawned sandbox; outcome +
+  capped reason; boot reconciliation closes host-restart orphans as
+  `interrupted`). Downgrade drops the table + column and restores the
+  two-tier CHECK — T2 installs cannot exist below 0049 (tier is
+  check-constrained).
+
 - **0048** — `extension_sources` + `extension_installs` (plan 32 Phase 3 /
   ADR-0040 D13+D22); widens the `schedules.kind`/`task` CHECKs for the
   `system_extension_reconcile` slot (`extension_reconcile` job, hourly ±

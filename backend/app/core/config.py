@@ -188,6 +188,22 @@ class Settings(BaseSettings):
     # Bound for one git resolve/fetch subprocess (seconds).
     extension_fetch_timeout_seconds: float = 60.0
 
+    # T2 sandbox runner (plan 32 Phase 5 / ADR-0030 port). The charter
+    # defaults hold unless tightened: wall-clock watchdog 30 s per call
+    # (capability-rpc.md §7), memory cap via RLIMIT_AS on POSIX (Windows:
+    # NOT enforced — documented degraded posture, the wall-clock watchdog
+    # and quotas still bound damage), quotas per extension per run.
+    extension_sandbox_enabled: bool = True
+    extension_sandbox_call_timeout_seconds: float = 30.0
+    extension_sandbox_spawn_timeout_seconds: float = 15.0
+    extension_sandbox_dispose_timeout_seconds: float = 5.0
+    extension_sandbox_memory_mb: int = 512
+    extension_sandbox_max_concurrent: int = 2
+    extension_sandbox_calls_per_minute: int = 120
+    extension_sandbox_max_calls_per_run: int = 600
+    extension_sandbox_bytes_per_day: int = 64 * 1024 * 1024
+    extension_sandbox_events_per_run: int = 120
+
     # Entry-point AI tool plugins are admin-opt-in: an empty
     # list means built-ins only.
     tool_plugins_allowlist: list[str] = []

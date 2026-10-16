@@ -107,6 +107,7 @@ Career Assistant is a student tool today, but the foundation is the same one the
 - **Career paths as data** — curated and AI-drafted routes to each job, computed over the typed relation edges.
 - **Career stages, not just students** — one stage switch retunes suggested fit weights, assessment scenarios and path ordering; presets are suggestions, never hidden scoring branches.
 - **Registries as extension points** — posting sources plug in via the connector SDK, periodic work only via the scheduler, AI only via the structured-output gateway — there is no side door.
+- **Imported extensions never run in-process** — git-imported connectors execute as external MCP scripts (T3) or in a sandboxed subprocess behind the capability RPC (T2: audited, watchdogged, memory-capped, network only through the host's polite runtime, secrets never crossing the seam) — sandboxing limits blast radius; it is not a review of intent.
 - **Dialect-aware, portable schema** — PostgreSQL (web/self-host) and SQLite (desktop) verified against one migration chain.
 - **Family-compatible conventions** — same stack, settings architecture and AI configuration patterns as the other assistant-family apps.
 

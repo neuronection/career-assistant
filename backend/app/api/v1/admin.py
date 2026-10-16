@@ -384,17 +384,18 @@ async def reject_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return {"id": str(job.id), "applied": False}
 
 
-def _source_view(source) -> dict:
+async def _source_view(db: AsyncSession, source) -> dict:
     """Secret-safe source view: config WITHOUT any x-secret field values
     (they cannot be stored there — belt and braces for legacy rows), plus
     slot presence and key hints. Never the sealed values, never plaintext."""
     from app.core.encryption import decrypt_secret
-    from app.extensions.registry import get_connector
+    from app.extensions.registry import resolve_connector
 
     config = dict(source.config or {})
     secret_hints: dict[str, dict] = {}
     try:
-        slots = get_connector(source.connector_key).secret_slots()
+        connector = await resolve_connector(db, source.connector_key)
+        slots = connector.secret_slots()
     except Exception:
         slots = {}
     for slot in slots:
@@ -444,7 +445,7 @@ async def posting_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
     rows = (
         (await db.execute(select(JobSource).order_by(JobSource.created_at.desc()))).scalars().all()
     )
-    return [_source_view(s) for s in rows]
+    return [await _source_view(db, s) for s in rows]
 
 
 @router.post("/postings/sources", status_code=201)
@@ -492,7 +493,6 @@ async def update_posting_source(
 ) -> dict:
     """Edit config/secrets/enable state (config re-validated against the
     connector; ``***`` preserves a stored secret, empty string clears it)."""
-    from app.extensions.registry import get_connector
     from app.models.posting_model import JobSource
 
     source = (
@@ -502,7 +502,9 @@ async def update_posting_source(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
     if "config" in payload and payload["config"] is not None:
         try:
-            connector = get_connector(source.connector_key)
+            from app.extensions.registry import resolve_connector
+
+            connector = await resolve_connector(db, source.connector_key)
             source.config = connector.validate_config(payload["config"])
         except DomainError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -511,7 +513,7 @@ async def update_posting_source(
     if "enabled" in payload and payload["enabled"] is not None:
         source.enabled = bool(payload["enabled"])
     await db.commit()
-    return _source_view(source)
+    return await _source_view(db, source)
 
 
 @router.post("/postings/sources/{source_id}/sync")

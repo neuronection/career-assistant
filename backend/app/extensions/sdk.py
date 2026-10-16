@@ -170,11 +170,11 @@ class ExternalEffect(BaseModel):
     """One observable external interaction of a fetch (charter lifecycle
     law: one audit row per external effect). Connectors with effects
     outside the injected transport — the T3 script tier's MCP tool calls
-    — report each one through the injected ``audit`` callback; the host
-    maps it onto the audit funnel. ``arguments``/``meta`` must already
-    be secret-free."""
+    and the T2 sandbox's capability calls — report each one through the
+    injected ``audit`` callback; the host maps it onto the audit funnel.
+    ``arguments``/``meta`` must already be secret-free."""
 
-    kind: Literal["mcp_tool_call"]
+    kind: Literal["mcp_tool_call", "sandbox_capability_call"]
     ref: str = Field(max_length=300)
     arguments: dict = Field(default_factory=dict)
     meta: dict = Field(default_factory=dict)

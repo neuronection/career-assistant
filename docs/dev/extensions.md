@@ -141,7 +141,148 @@ their interpreters inside PyInstaller bundles. The release smoke tests
 include one stdio MCP source sync in the frozen app (see
 [desktop-packaging](desktop-packaging.md)).
 
-## Extension sources & the import layer (T3 from git)
+## The sandbox tier (T2 — imported code behind the capability RPC)
+
+Plan 32 Phase 5 / ADR-0030 ported to Python. An imported connector whose
+artifact is an `extension.py` module (beside `manifest.json`) is
+**provenance-at-install T2**: the import layer detects the entry shape
+(`extension.py` ⇒ T2 sandbox, `server.py` ⇒ T3 MCP process, both or
+neither ⇒ rejected), records the tier on the install row, and the consent
+surface renders the charter's sandbox disclosure **verbatim**:
+
+> This extension's code runs sandboxed, not reviewed. Sandboxing limits
+> the blast radius of this code; it is not a review of its intent. The
+> import is pinned to this exact content digest.
+
+**Gate override (owner, 2026-10-16):** Phase 5's original gate (desktop
+Tier 2 reaching S2 first) was overridden by the owner — the Python runner
+proceeds with protocol parity pinned by the shared contract artifacts +
+fixtures (`capability-rpc.md` / `.schema.json` + the `rpc` fixture
+section) instead of a proven desktop implementation. ADR-0030's shape is
+accepted law (2026-10-15); this section implements it.
+
+### Architecture — the host is the perimeter
+
+One subprocess per extension (`app/extensions/runtime/sandbox/`):
+
+* **`child.py`** — a self-contained, stdlib-only sandbox entry spawned
+  `<python> -I -B child.py --content-dir … --entry extension.py --digest
+  <sha256>` with a scrubbed minimal environment (`PATH` + `HOME` only;
+  `-I` structurally ignores PYTHON* variables) and cwd inside the
+  extension's sandbox workdir. Before any extension byte executes it
+  re-derives the content digest (mirroring the install layer's tree
+  hash) and refuses unpinned content.
+* **`protocol.py`** — the seam: line-delimited JSON framing
+  (`limits.rpcLineMaxBytes`), every line validated against the vendored
+  `capability-rpc.schema.json` through the vendored validator, typed
+  error envelopes (the charter 15-code enum). The `rpc` fixture section
+  runs against exactly this gate.
+* **`capabilities.py`** — the host-side capability implementations:
+  `cap.net.fetch` through the vendored polite runtime scoped to the
+  manifest's DECLARED DOMAINS on every hop (this host serves GET only in
+  v1 — a legal tightening); `cap.state.get/set` on the install row
+  (quota `limits.stateMaxBytes` per instance, key-pattern-checked);
+  `cap.items.emit` schema-validated against the manifest `itemSchema`
+  (invalid batches are rejected whole and count against the error
+  budget); `cap.secrets.need` returns resolution STATUS — the placeholder
+  `{{secret:<slot>}}` the host substitutes host-side into the next
+  fetch's headers/URL. The secret VALUE is structurally unable to cross
+  the seam (there is no message shape that can carry it — charter
+  secretLaw/D14). `evt.progress`/`evt.log` are rate-capped observations,
+  never instructions.
+* **`host.py`** — spawn, handshake (`ext.invoke hello` — identity/digest
+  verified against the install; a protocol-version mismatch terminates
+  and self-disables with `unsupported`), the per-call wall-clock
+  watchdog, the concurrent-sandbox cap, run records
+  (`extension_sandbox_runs`), and boot reconciliation (orphaned runs
+  close as `interrupted` — a host restart is never extension failure).
+* **`connector.py`** — the `PostingConnector` adapter the registry hands
+  out for T2 instance keys; T1 builtins are untouched.
+
+**The frozen module surface** (ADR-0030 clause 2): sandboxed code may
+import ONLY the vendored `capability` client (net_fetch / state_get /
+state_set / items_emit / secrets_need / progress / log + pure helpers:
+json, re, math, decimal, statistics, datetime, itertools, functools,
+collections, heapq, bisect, string, textwrap, unicodedata, random).
+Enforcement is a `sys.addaudithook` wall denying: every non-allowlisted
+`import`; the `open`/`os.listdir`/`os.scandir`/fs-mutation family
+(`path-denied` — no fs capability exists at this seam); the
+`socket.__new__`/`connect`/`getaddrinfo` + `subprocess.Popen` +
+`os.system`/`exec`/`fork`/`spawn` family (`net-denied` — connectors
+never open sockets, D14); `os.putenv`/`os.unsetenv` (`invalid` — host
+env never crosses); and the `exec`/`compile`/`input`/`breakpoint` family
+(`unsupported`). On top: the extension namespace gets restricted
+builtins (no `open`/`eval`/`exec`/`compile`/`input`/`breakpoint`) and
+`sys.stdout`/`stderr` are redirected to sinks before load — extension
+prints can never corrupt the protocol framing. Disclosed residual
+(ADR-0030, containment is not trust): CPython raises no audit event for
+`os.stat`/`os.lstat`, so metadata probing of guessed paths is not
+denyable here — content access is, which is the exfiltration-relevant
+surface; modules already loaded at interpreter startup (`os`, `sys`)
+never fire the import event, so the capability-event wall above is the
+enforcement layer for them.
+
+**Watchdogs, quotas, audit:**
+
+| Knob (Settings) | Default | Meaning |
+|---|---|---|
+| `CAREER_EXTENSION_SANDBOX_ENABLED` | `true` | master kill switch (off ⇒ T2 imports self-disable at spawn) |
+| `CAREER_EXTENSION_SANDBOX_CALL_TIMEOUT_SECONDS` | 30 | wall-clock watchdog per call (charter default) — expiry SIGKILLs the child; kill = crash = self-disable |
+| `CAREER_EXTENSION_SANDBOX_SPAWN_TIMEOUT_SECONDS` | 15 | handshake watchdog |
+| `CAREER_EXTENSION_SANDBOX_DISPOSE_TIMEOUT_SECONDS` | 5 | graceful dispose deadline, then SIGKILL |
+| `CAREER_EXTENSION_SANDBOX_MEMORY_MB` | 512 | address-space cap via `RLIMIT_AS` (POSIX) |
+| `CAREER_EXTENSION_SANDBOX_MAX_CONCURRENT` | 2 | concurrent live sandboxes (over ⇒ typed `budget`) |
+| `CAREER_EXTENSION_SANDBOX_CALLS_PER_MINUTE` | 120 | per-extension call rate |
+| `CAREER_EXTENSION_SANDBOX_MAX_CALLS_PER_RUN` | 600 | per-run call count |
+| `CAREER_EXTENSION_SANDBOX_BYTES_PER_DAY` | 64 MiB | net + items + state bytes/day (process-lifetime bucket — resets on host restart; disclosed) |
+| `CAREER_EXTENSION_SANDBOX_EVENTS_PER_RUN` | 120 | progress/log event budget (beyond: dropped, counted) |
+
+One audit row per capability call lands on the existing
+`ai_generations` funnel (`sandbox_capability_call` task, provider
+`sandbox`, args hash + outcome + duration + extension id/digest) — the
+same funnel the MCP bridge rides. One `extension_sandbox_runs` row per
+spawn closes with its outcome (`completed` / `crashed` / `watchdog` /
+`protocol-violation` / `interrupted`).
+
+**Death semantics** (ADR-0030 clause 1): sandbox death is extension
+failure, never host failure. A crash or watchdog kill flips the install
+to the lifecycle `self-disabled` state with the surfaced reason on the
+minted instance; an explicit re-enable is the only way back. Protocol
+violations (garbage lines, three strikes) recycle the CHILD — typed
+`protocol` error, the extension survives, the next run spawns a fresh
+child. A version mismatch at the handshake self-disables with
+`unsupported` — never half-runs.
+
+**Windows memory posture (honest):** POSIX enforces the address-space
+cap in the child's pre-exec (`resource.setrlimit(RLIMIT_AS)`) —
+kernel-enforced. Windows has no pre-exec hook: the memory cap is **not
+enforced there in v1**; the wall-clock watchdog plus the call/byte
+quotas bound damage, and the residual is disclosed, not mitigated
+(ADR-0030: containment is not trust).
+
+**The authoring story** — `backend/tests/fixtures/t2_reference_extension/`
+is the ~30-line reference (fetch through `net_fetch`, dedupe against
+`state_get`/`state_set`, emit typed rows via `items_emit`): manifest
+(`capabilities: ["sync", "net", "state"]`, `domains`, `configSchema`,
+`itemSchema`) + `extension.py` with `def fetch(config, state) -> dict`.
+Import path: git source → discovery → consent (T2 disclosure verbatim) →
+digest-pinned install (the minted instance's `connector_key` is the
+extension id; the registry routes it through the sandbox) → enable →
+postings sync. Capability growth on update re-consents (D15); there is
+no auto-apply path at all (D22).
+
+**Escape matrix** (`tests/test_extension_sandbox.py` — all green, real
+children): infinite loop ⇒ watchdog kill + self-disable, host green ·
+memory bomb ⇒ cap enforced, contained · path wander ⇒ typed
+`path-denied` · secret sniffing ⇒ env scrubbed + fs denied, values
+cross host-side only (placeholder in, substituted into the upstream
+request) · socket attempt ⇒ audit-hook denial · undeclared-domain fetch
+⇒ `net-denied` incl. redirect hops · quota exhaustion ⇒ typed `budget`,
+run ends cleanly · child crash (`os._exit`) ⇒ self-disable, others
+unaffected · protocol violations ⇒ typed `protocol`, child recycled ·
+version mismatch ⇒ `unsupported`.
+
+## Extension sources & the import layer (T2/T3 from git)
 
 `app/extensions/lifecycle.py` is the D24 home for sources, consent,
 pins and GitOps (ADR-0040 D13/D15/D22). One pipeline, two modes:

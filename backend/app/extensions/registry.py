@@ -166,6 +166,21 @@ def get_connector(key: str) -> PostingConnector:
     return connector
 
 
+async def resolve_connector(db, key: str) -> PostingConnector:
+    """The sync-time routing table: built-ins (T1, in-process, unchanged)
+    first; any other key resolves as an imported T2 instance and executes
+    through the sandbox runner (plan 32 Phase 5 — imported third-party
+    code never runs in-process, D2)."""
+    _load_plugins()
+    connector = _registry.get(key)
+    if connector is not None:
+        return connector
+    from app.extensions.lifecycle import t2_install
+    from app.extensions.runtime.sandbox.connector import SandboxConnector
+
+    return SandboxConnector(db, await t2_install(db, key))
+
+
 def list_connectors() -> list[dict]:
     _load_plugins()
     return [

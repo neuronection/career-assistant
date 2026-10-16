@@ -4,6 +4,38 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (the T2 sandbox runner — plan 32 Phase 5 / ADR-0030 Python port)
+- **Imported code packs run sandboxed, behind the capability RPC.** An
+  imported connector whose artifact is an `extension.py` module installs
+  as tier **T2** (provenance-at-install; the consent surface renders the
+  charter's "runs sandboxed, not reviewed" disclosure verbatim) and
+  executes in one dedicated subprocess speaking `capability-rpc/1`
+  (line-JSON over stdio per the vendored contract): `cap.net.fetch`
+  through the polite runtime scoped to the manifest's declared domains
+  on every hop, `cap.state.get/set` on the install row (charter state
+  quota), `cap.items.emit` schema-validated against the manifest
+  itemSchema, `cap.secrets.need` returning resolution status only —
+  values cross host-side into the next fetch via `{{secret:<slot>}}`
+  substitution, structurally never toward the sandbox. Frozen module
+  surface enforced by a `sys.addaudithook` wall (no sockets, no
+  subprocess, no filesystem, no env, no eval-family; imports limited to
+  the vendored `capability` client + pure helpers), a per-call
+  wall-clock watchdog (default 30 s, SIGKILL), a POSIX `RLIMIT_AS`
+  memory cap, per-extension quotas (typed `budget`), one audit row per
+  capability call on the `ai_generations` funnel, and
+  `extension_sandbox_runs` records with boot reconciliation (host
+  restarts close as `interrupted` — never extension failure). Sandbox
+  death self-disables the extension with a surfaced reason; protocol
+  violations recycle the child (typed `protocol`); version mismatch ⇒
+  `unsupported`. Windows: the memory cap is NOT enforced in v1 (no
+  pre-exec hook) — disclosed residual, the watchdog + quotas still
+  bound. Owner gate-override recorded (2026-10-16): protocol parity is
+  pinned by the shared capability-rpc artifacts + fixtures instead of a
+  proven desktop implementation; the escape matrix
+  (`tests/test_extension_sandbox.py`) and the rpc fixture wall are the
+  acceptance criteria. Knobs: `CAREER_EXTENSION_SANDBOX_*` (see
+  docs/dev/extensions.md).
+
 ### Added (declaration surfaces — plan 32 Phase 4 / ADR-0040 clause 16)
 - **Career is now a declarative extension surface host.** Installed
   mini-app extensions (the `mini-app` kind, T0 — declarative data, no

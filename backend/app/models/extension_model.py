@@ -14,7 +14,7 @@ tombstoning (lifecycle law: digest + origin + consent retained).
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
@@ -38,7 +38,21 @@ from app.models.base import (
 
 SOURCE_STATUSES = ("ok", "degraded", "failing", "stale")
 INSTALL_STATES = ("installed", "disabled", "self-disabled", "removed")
-INSTALL_TIERS = ("T0", "T3")
+INSTALL_TIERS = ("T0", "T2", "T3")
+# Sandbox run outcomes (plan 32 Phase 5): one row per spawned sandbox.
+# ``interrupted`` is written by boot reconciliation for runs orphaned by a
+# host restart (host death is NOT extension failure — the extension
+# survives, the next run re-spawns); ``crashed``/``watchdog`` self-disable
+# the extension (ADR-0030: sandbox death is extension failure).
+SANDBOX_OUTCOMES = (
+    "running",
+    "completed",
+    "disposed",
+    "crashed",
+    "watchdog",
+    "protocol-violation",
+    "interrupted",
+)
 
 
 class ExtensionSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -98,7 +112,7 @@ class ExtensionInstall(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="install_state_allowed",
         ),
         CheckConstraint("managed_by IN ('manual', 'gitops')", name="install_managed_by_allowed"),
-        CheckConstraint("tier IN ('T0', 'T3')", name="install_tier_allowed"),
+        CheckConstraint("tier IN ('T0', 'T2', 'T3')", name="install_tier_allowed"),
         Index("ix_extension_installs_source", "source_id"),
     )
 
@@ -114,6 +128,12 @@ class ExtensionInstall(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tier: Mapped[str] = mapped_column(String(4), nullable=False, default="T3")
     state: Mapped[str] = mapped_column(String(20), nullable=False, default="installed")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # The T2 state.* seam home (plan 32 Phase 5 / charter `state`
+    # capability): extension-owned persistent key/values, host-quota'd by
+    # the charter ``limits.stateMaxBytes`` per instance and evictable —
+    # distinct from sync cursors (``job_sources.sync_state``), which never
+    # cross the sandbox seam (capability-rpc.md §4).
+    extension_state: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     managed_by: Mapped[str] = mapped_column(String(10), nullable=False, default="manual")
     source_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
     consents: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
@@ -125,3 +145,39 @@ class ExtensionInstall(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     installed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     tombstoned_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+
+
+class ExtensionSandboxRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One spawned T2 sandbox process (plan 32 Phase 5).
+
+    The operational record behind the sandbox lifecycle law: a run row is
+    inserted when the child spawns (outcome ``running``) and closed with
+    its outcome + capped reason. ``crashed``/``watchdog``/``protocol-
+    violation`` mean sandbox death — the host self-disables the extension
+    with the surfaced reason (ADR-0030 clause 1). Boot reconciliation
+    closes still-open rows as ``interrupted`` — a host restart orphaned
+    them, which is never an extension failure (ADR-0030's AppService boot
+    pattern, ported)."""
+
+    __tablename__ = "extension_sandbox_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('running', 'completed', 'disposed', 'crashed', 'watchdog', "
+            "'protocol-violation', 'interrupted')",
+            name="sandbox_run_outcome_allowed",
+        ),
+        Index("ix_extension_sandbox_runs_install", "install_id"),
+    )
+
+    install_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("extension_installs.id", ondelete="CASCADE"), nullable=False
+    )
+    extension_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    pid: Mapped[int | None] = mapped_column(nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        TZDateTime(), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
