@@ -27,6 +27,11 @@ export CAREER_MOCK_AI=1
 # hit the cap and the turn 429s with "retry in 23s").
 export CAREER_RATELIMIT_ENABLED=false
 export CAREER_RATELIMIT_AI=0
+# The extension-surface spec (plan 32 Phase 4) imports the reference
+# mini-app through the local-git-source variant, confined (net_guard-style)
+# to the sibling template repo when it is checked out.
+DEFAULT_LOCAL_ROOT="$(printf '["%s"]' "$ROOT/../career-connector-template")"
+export CAREER_EXTENSION_LOCAL_SOURCE_ROOTS="${CAREER_EXTENSION_LOCAL_SOURCE_ROOTS:-$DEFAULT_LOCAL_ROOT}"
 
 cd "$ROOT"
 
@@ -72,4 +77,5 @@ done
 curl -fsS "$E2E_BASE_URL/health" > /dev/null || { echo "server never became healthy"; exit 1; }
 
 echo ">>> running e2e specs"
-"${PYTEST_BIN[@]}" e2e -q
+# All specs by default; a subset passes through (E2E_SPECS="e2e/test_x.py").
+"${PYTEST_BIN[@]}" ${E2E_SPECS:-e2e} -q

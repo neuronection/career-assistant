@@ -4,6 +4,36 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (declaration surfaces — plan 32 Phase 4 / ADR-0040 clause 16)
+- **Career is now a declarative extension surface host.** Installed
+  mini-app extensions (the `mini-app` kind, T0 — declarative data, no
+  code) can declare `ui:page` / `ui:panel` surfaces whose nodes ride the
+  charter's closed component vocabulary (stat/table/cards/filter-bar/
+  select/badge/progress/actions/evidence) plus a declared T0 `data`
+  block. `app/extensions/surfaces.py` validates every node at
+  registration (unknown types/actions rejected, the evidence law
+  enforced); `ui:window` degrades to the page on the web host; the run
+  capability is honored as the typed-action funnel (run:export). The
+  routed page lives at `/extensions/<extensionId>` (one nav row per
+  enabled install; the kill switch removes both), rendered through the
+  family SurfaceRenderer — never extension markup.
+- **The reference CV-utility mini-app**: `cv-gallery/` in the sibling
+  career-connector-template — a declarative CV theme/format gallery
+  (layout cards with recommendation badges + mandatory evidence, a
+  publish sheet, language/section-order/density facets from the
+  configSchema), imported through the same consent-gated git-source
+  pipeline (T0 declarative disclosure verbatim).
+- **Shared renderer fixture wall**: both hosts' renderers satisfy
+  `dev/contracts/surface-renderer.fixtures.json` (12 cases — every
+  component, degrade paths, the no-raw-markup law). Backend tests join
+  the wall (vendored fixtures against career's surface gate); frontend
+  tests render the same fixtures through SurfaceRenderer; the e2e suite
+  imports the gallery and asserts the live DOM render end-to-end.
+- The mypy ratchet grew to `app/extensions` (clean at adoption) and the
+  latent order-dependent VAPID flake (the 0044 migration replay drained
+  the suite's warmed keys) is fixed at its source: the migration-suite
+  teardown regenerates the VAPID provisioning committedly.
+
 ### Added (extension sources & the import layer — plan 32 Phase 3 / ADR-0040 D13+D22)
 - **Import connectors from git sources.** Admins add git sources
   (Settings → Tools → Connectors, the new CLI

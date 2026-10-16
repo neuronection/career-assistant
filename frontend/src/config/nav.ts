@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Puzzle,
+
   Bot,
   Briefcase,
   GraduationCap,
@@ -87,4 +89,28 @@ export function resolveActiveId(
     .filter((item) => item.to !== "/" && pathname.startsWith(matchPath(item)))
     .sort((a, b) => matchPath(b).length - matchPath(a).length)[0];
   return prefix?.to ?? null;
+}
+
+/**
+ * Dynamic nav top-up (plan 32 Phase 4): installed + ENABLED mini-app
+ * extensions contribute one nav row per page surface — the kill switch
+ * hides the route because the registry only lists enabled installs.
+ */
+export interface ExtensionNavItem {
+  extensionId: string;
+  title: string;
+}
+
+export function extensionNavItems(
+  cards: { extensionId: string; title: string; routes: string | null }[],
+  t: (key: string) => string,
+): Extract<ReturnType<typeof toNavItem>, { id: string }>[] {
+  return cards
+    .filter((card) => card.routes)
+    .map((card) => ({
+      id: card.routes as string,
+      label: card.title || card.extensionId,
+      icon: Puzzle,
+      section: t("nav.sectionExtensions"),
+    }));
 }

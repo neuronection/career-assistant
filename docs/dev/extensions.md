@@ -171,12 +171,16 @@ per-extension consent → pinned install`. Concretely:
   `path-denied`) and **confined to `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS`**
   — the clone root must resolve under an allowlisted parent
   (net_guard-style path discipline).
-- **Host profile (career)**: connector-kind imports only (mini-app
-  surfaces arrive with Phase 4; bridge is server-class), `extension/v1`
+- **Host profile (career)**: connector-kind imports (T3 MCP) AND mini-app
+  T0 declarative packs (plan 32 Phase 4 — see the surfaces section
+  below); bridge is server-class. Connector imports: `extension/v1`
   with `kindVersion ≤ 1`, capabilities ⊆ `{sync, secrets}` — an
   imported T3 script's own sockets are consent-disclosed, never granted
   as `net` (D22). The runnable entry is `server.py` beside the manifest
-  (the template shape); no entry ⇒ typed `unsupported`.
+  (the template shape); no entry ⇒ typed `unsupported`. Mini-app
+  imports: the ADR-0029 integer `apiVersion == 1`, `packKind`, at least
+  one honored `ui:*` capability, T0 tier, and NO runnable entry (the
+  artifact is validated data, no `server.py`).
 - **Digest + pin**: sha256 over the extension dir (deterministic file
   walk, regular files only, adversarial caps). Content lands
   content-addressed under `data_dir/extensions/<id>/<digest>/` — DATA,
@@ -296,6 +300,52 @@ credentials-required connector with a missing slot surfaces the typed
 `needs-secret` error (sync + probe), never a silent empty fetch.
 Migration `0047` moved the one legacy plaintext credential (ats
 `api_token`) into the sealed store and stripped it from config.
+
+## Surfaces — the mini-app surface host (Phase 4)
+
+Career is the family's second surface host (the first is desktop's
+report renderer): installed mini-app extensions declare `ui:page` /
+`ui:panel` surfaces whose nodes ride the charter's closed component
+vocabulary (`stat, table, cards, filter-bar, select, badge, progress,
+actions, evidence`) — and the host renders them; raw HTML/JS from an
+extension is never rendered at any tier, unknown node or action ids
+never render (D17).
+
+- **The gate** (registration time, `app/extensions/surfaces.py`): nodes
+  validate against the closed vocabulary with precise typed rejections
+  (unknown type, duplicate/unpatterned ids, empty columns/options,
+  unknown action ids, and the evidence law — a table/cards component
+  renders recommendations, so the `evidence` node is mandatory). The
+  declared `data` block is capped (24 keys, ≤300 rows/key; cells and
+  strings capped).
+- **The profile**: career honors `page` + `panel`; a declared
+  `ui:window` DEGRADES to the page (the charter degrade rules,
+  window→page→panel — the compat check is data, never code).
+  `run` is honored as the typed-action funnel (`run:export` aggregates
+  the page deck as JSON); the pipeline-bearing run bridge stays with
+  plan 32 Phase 5.
+- **The views** (`GET /api/v1/extensions/surfaces[/{id}][/export]`):
+  enabled installs only — a disabled (killed) mini-app vanishes from
+  the registry and its route 404s (the kill switch is the data
+  boundary). Each view = nodes + RESOLVED labels (the manifest's i18n
+  locales, Accept-Language-clamped) + rows/values/groups assembled from
+  the declared data + facet definitions derived from `configSchema`
+  enum properties (D17: forms ride configSchema). Missing labels are
+  REPORTED (`placeholders`), never silently assumed.
+- **The frontend** renders through `@neuronection/assistant-ui`'s
+  SurfaceRenderer (family tokens, controlled facets, typed actions to
+  the host binding: `run:export` → JSON download, `item:open` → the CV
+  Studio). The route is `/extensions/<extensionId>`; enabled installs
+  contribute one sidebar nav row each (`nav.sectionExtensions`).
+- **The reference app**: `cv-gallery/` in the sibling
+  `career-connector-template` — a T0 declarative CV theme/format
+  gallery (layout cards with recommendation badges + evidence, a
+  publish sheet table, config facets language/section-order/density,
+  no code). Imported through the same Phase-3 pipeline, consented under
+  the T0 declarative disclosure, and pinned by digest like every
+  import. Both hosts' renderers satisfy the shared fixture wall
+  (`dev/contracts/surface-renderer.fixtures.json` — implementations may
+  differ, outputs may not).
 
 ## Writing a connector
 

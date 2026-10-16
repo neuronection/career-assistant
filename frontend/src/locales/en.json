@@ -22,7 +22,9 @@
     "settings": "Settings",
     "sectionJobHunt": "Job hunt",
     "sectionPrepare": "Prepare",
-    "sectionAccount": "Account"
+    "sectionAccount": "Account",
+    "extensions": "Extensions",
+    "sectionExtensions": "Extensions"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -2788,5 +2790,15 @@
     "auditNote": "This change is recorded in the audit log.",
     "errorGeneric": "Something went wrong — try again.",
     "errorForbidden": "Not allowed."
+  },
+  "extensions": {
+    "page": {
+      "missingTitle": "This extension page is unavailable",
+      "missingDescription": "The extension may have been disabled or uninstalled.",
+      "backToTools": "Open extensions settings",
+      "degraded": "{{surface}} surface degrades to this page on this device",
+      "degradedHint": "The extension asked for a surface kind this device does not host; the charter degrade rules rendered this page instead.",
+      "navHint": "Installed extension pages live here"
+    }
   }
 }

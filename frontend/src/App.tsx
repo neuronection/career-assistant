@@ -26,6 +26,7 @@ import { Generate } from "@/pages/Generate";
 import { JobDetail } from "@/pages/JobDetail";
 import { Onboarding } from "@/pages/Onboarding";
 import { ExpressOnboarding } from "@/pages/ExpressOnboarding";
+import { ExtensionSurfacePage } from "@/pages/ExtensionSurface";
 import { Growth } from "@/pages/Growth";
 import { Interviews } from "@/pages/Interviews";
 import { ProfileEdit } from "@/pages/ProfileEdit";
@@ -77,6 +78,7 @@ export function App() {
           <Route path="/autopilot" element={<Autopilot />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/growth" element={<Growth />} />
+          <Route path="/extensions/:extensionId" element={<ExtensionSurfacePage />} />
           <Route path="/profile" element={<ProfileEdit />} />
           <Route path="/profile/import" element={<ProfileImport />} />
           <Route path="/profile/import/:documentId" element={<ProfileImport />} />

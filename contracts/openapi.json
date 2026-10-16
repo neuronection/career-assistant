@@ -24448,6 +24448,123 @@
         ]
       }
     },
+    "/api/v1/extensions/surfaces": {
+      "get": {
+        "description": "One registry view (D25): installed + enabled mini-apps with their\nsurface capability view (honored page/panel, recorded window degrades)\n(origin chips) \u2014 consumed by the nav's Extensions section.",
+        "operationId": "list_extension_surfaces_api_v1_extensions_surfaces_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Extension Surfaces Api V1 Extensions Surfaces Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Extension Surfaces",
+        "tags": [
+          "extensions"
+        ]
+      }
+    },
+    "/api/v1/extensions/surfaces/{extension_id}": {
+      "get": {
+        "description": "One mini-app's render view for the routed page surface. A disabled\nor missing install is 404 \u2014 the page route is the kill switch's\ndata-driven boundary.",
+        "operationId": "extension_surface_api_v1_extensions_surfaces__extension_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extension_id",
+            "required": true,
+            "schema": {
+              "title": "Extension Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Extension Surface Api V1 Extensions Surfaces  Extension Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Extension Surface",
+        "tags": [
+          "extensions"
+        ]
+      }
+    },
+    "/api/v1/extensions/surfaces/{extension_id}/export": {
+      "get": {
+        "description": "The ``run:export`` typed action's funnel for surface pages (the run\ncapability honored as the typed-action funnel in the Phase-4 profile):\nthe same bounded view the page renders, as a JSON deck.",
+        "operationId": "export_extension_surface_api_v1_extensions_surfaces__extension_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extension_id",
+            "required": true,
+            "schema": {
+              "title": "Extension Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Export Extension Surface Api V1 Extensions Surfaces  Extension Id  Export Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Extension Surface",
+        "tags": [
+          "extensions"
+        ]
+      }
+    },
     "/api/v1/feed": {
       "get": {
         "description": "Discovery feed: unseen-first, fit-sorted, with the exploration slot.",

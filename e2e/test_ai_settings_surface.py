@@ -79,10 +79,11 @@ def test_tasks_tab_decision_group_renders(page) -> None:
     page.wait_for_selector('[data-testid="tasks-tab"]')
     tab = page.locator('[data-testid="tasks-tab"]')
 
-    # The Decision models group: title, the verbatim §13.5 privacy
-    # notice as the group description, and all four family slots
+    # The quiet "Decision kinds" group (retitled by the ADR-0037 uniform
+    # shape): the verbatim decision privacy notice rides as the group
+    # hint, and all four family slots render
     # (open-args is reserved vocabulary and must never render).
-    tab.get_by_text("Decision models", exact=True).wait_for(state="visible")
+    tab.get_by_text("Decision kinds", exact=True).wait_for(state="visible")
     tab.get_by_text(PRIVACY_NOTICE).wait_for(state="visible")
     for slot in DECISION_SLOTS:
         tab.get_by_text(slot, exact=True).wait_for(state="visible")

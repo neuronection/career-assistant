@@ -15,7 +15,13 @@ import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
 import { CompareTray } from "@/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
-import { NAV, resolveActiveId, toNavItem } from "@/config/nav";
+import {
+  extensionNavItems,
+  NAV,
+  resolveActiveId,
+  toNavItem,
+} from "@/config/nav";
+import { useExtensionSurfacesStore } from "@/stores/extensionSurfacesStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useProfilesStore } from "@/stores/profilesStore";
 import { useDevModeStore } from "@/stores/devModeStore";
@@ -72,9 +78,11 @@ export function Layout() {
     void useProfileProposalsStore.getState().hydrate();
   }, []);
 
-  const items = NAV.filter(enabled).map((item) =>
-    toNavItem(item, t, pendingProposals),
-  );
+  const surfaceCards = useExtensionSurfacesStore((state) => state.cards);
+  const items = [
+    ...NAV.filter(enabled).map((item) => toNavItem(item, t, pendingProposals)),
+    ...extensionNavItems(surfaceCards, t),
+  ];
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">

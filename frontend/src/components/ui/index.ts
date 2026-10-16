@@ -110,3 +110,23 @@ export {
   type FlowTelemetryStripProps,
   type FlowTraceToolOp,
 } from "./FlowTrace";
+export {
+  SurfaceRenderer,
+  SURFACE_NODE_TYPES,
+  SURFACE_NODE_ORDER,
+  SURFACE_RUN_ACTION_IDS,
+  SURFACE_ITEM_ACTION_IDS,
+  SURFACE_PAGE_SIZE,
+  surfaceActionId,
+  surfaceProgressPercent,
+  type SurfaceAction,
+  type SurfaceActionId,
+  type SurfaceFilter,
+  type SurfaceFilterOption,
+  type SurfaceLabels,
+  type SurfaceNode,
+  type SurfaceNodeType,
+  type SurfaceRendererProps,
+  type SurfaceRow,
+  type SurfaceView,
+} from "./SurfaceRenderer";
