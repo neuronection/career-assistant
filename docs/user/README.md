@@ -25,6 +25,7 @@ the tour below. For the exhaustive list of everything the app does, see the
 | [Universities and pathways](universities.md) | Admission-PDF intake, reviewable drafts, degree-to-job pathways |
 | [Assessment and metrics](assessment.md) | The JobTypeMatch assessment, the metric model, career stages |
 | [Postings and search](postings-and-search.md) | Connectors, live postings, deep extraction, the Explore page |
+| [Add a job source](add-a-job-source.md) | Enable the zero-config job boards and the other bundled engines |
 | [Career Autopilot](career-autopilot.md) | Goal-driven agent searches with budgets and explainable shortlists |
 | [Growth toolkit](growth.md) | Roadmaps, near-miss radar, market snapshots, check-ins |
 | [CV Studio overview](cv-studio.md) | Three ways to a CV, the builder, context, versions and exports |
@@ -32,12 +33,16 @@ the tour below. For the exhaustive list of everything the app does, see the
 | [Variant library](cv-variants.md) | AI and manual item variants, bullets, staleness and pins |
 | [Cover letters](cover-letters.md) | Per-posting cover letters and their evidence trail |
 | [Chat and proposals](assistant-chat.md) | The assistant, review-card profile edits, the builder copilot, MCP |
+| [Chat tools, risk badges and approval](chat-tools-and-approval.md) | Why some tools run freely, some need enablement, destructive ones always card |
 | [Interview prep](interviews.md) | Posting-grounded mock interviews and coached practice |
 | [Notifications and scheduler](notifications-and-scheduler.md) | Alerts, digests, quiet hours and the periodic engine |
 | [Desktop app](desktop-app.md) | The window, the tray, background scheduling and auto-start |
 | [Settings reference](settings.md) | Every settings page explained |
+| [Import extensions from git](import-extensions-from-git.md) | Consent-gated, digest-pinned extension imports and their updates |
+| [Consent, explained](extension-consent.md) | What the import dialog shows: tiers, capabilities, the digest pin |
 | [Privacy and security](privacy-and-security.md) | Where your data lives and how it is protected |
 | [Troubleshooting](troubleshooting.md) | Common problems and fixes |
+| [Extension troubleshooting](extension-troubleshooting.md) | Source sync errors and extension problems decoded |
 | [Visual tour](../SCREENSHOTS.md) | The screenshot gallery — every main screen, generated from the demo instance |
 
 ## The five-minute version

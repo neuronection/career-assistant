@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "project": "career-connector-sdk",
+  "title": "Career Assistant connector SDK",
+  "description": "Authoring and operating posting connectors: bundled engines, imported sandboxed (T2) and MCP-script (T3) connectors, sources, consent and GitOps over one family contract.",
+  "chapters": [
+    "overview",
+    "quickstart",
+    "core-concepts",
+    "installation-and-modes",
+    "authoring-and-configuration",
+    "examples-and-use-cases",
+    "security-and-gotchas",
+    "reference",
+    "versioning-and-migration",
+    "troubleshooting-and-faq"
+  ],
+  "roots": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "description": "What the connector SDK is, the trust-tier ladder, and when to write an extension instead of a builtin feature.",
+      "audience": "dev",
+      "file": "overview.md"
+    },
+    {
+      "id": "quickstart",
+      "title": "Quickstart",
+      "description": "Clone the connector template repo, import it as a local source, consent, enable and sync — postings land in about ten minutes.",
+      "audience": "dev",
+      "file": "quickstart.md"
+    },
+    {
+      "id": "core-concepts",
+      "title": "Core Concepts",
+      "description": "The load-bearing nouns: extension, kind, tier, capability, instance, source, consent, digest — and how they connect.",
+      "audience": "dev",
+      "file": "core-concepts.md"
+    },
+    {
+      "id": "installation-and-modes",
+      "title": "Installation & Modes",
+      "description": "Adding job sources in the app: the zero-config bundled boards, and importing extensions from git with consent.",
+      "audience": "user",
+      "file": "../../user/import-extensions-from-git.md",
+      "children": [
+        {
+          "id": "add-a-job-source",
+          "title": "Add a job source",
+          "description": "Enable the bundled job boards and other engines in a running app — zero config, no credentials.",
+          "audience": "user",
+          "file": "../../user/add-a-job-source.md"
+        },
+        {
+          "id": "installation-internals",
+          "title": "Install lifecycle internals",
+          "description": "Bundled vs imported, source descriptors, the on-disk content-addressed layout, dual-mode notes.",
+          "audience": "dev",
+          "file": "installation-and-modes.md"
+        }
+      ]
+    },
+    {
+      "id": "authoring-and-configuration",
+      "title": "Authoring & Configuration",
+      "description": "The manifest reference, configSchema and x-secret, the declared-domains honesty rule, RawPosting mapping, and the three real job boards as worked T1 examples.",
+      "audience": "dev",
+      "file": "authoring-and-configuration.md"
+    },
+    {
+      "id": "examples-and-use-cases",
+      "title": "Examples & Use Cases",
+      "description": "Five complete recipes: a bundled T1 connector, a T3 MCP script, a T2 sandboxed connector, git-source distribution, and a GitOps fleet.",
+      "audience": "dev",
+      "file": "examples-and-use-cases.md"
+    },
+    {
+      "id": "security-and-gotchas",
+      "title": "Security & Gotchas",
+      "description": "What consent means when you import an extension: the disclosures verbatim, what each tier can and cannot do.",
+      "audience": "user",
+      "file": "../../user/extension-consent.md",
+      "children": [
+        {
+          "id": "chat-tools-and-approval",
+          "title": "Chat tools, risk badges and approval",
+          "description": "Why some assistant tools run freely, some need your enablement, and some become approval cards.",
+          "audience": "user",
+          "file": "../../user/chat-tools-and-approval.md"
+        },
+        {
+          "id": "security-gotchas-dev",
+          "title": "Security & gotchas (authoring)",
+          "description": "Trust tiers, the secrets law, politeness and SSRF, the sandbox residual disclosures, the destructive-confirm funnel.",
+          "audience": "dev",
+          "file": "security-and-gotchas.md"
+        }
+      ]
+    },
+    {
+      "id": "reference",
+      "title": "Reference",
+      "description": "The 15 error codes, the capability-RPC protocol, the CLI, audit and status vocabularies, API endpoints and host knobs.",
+      "audience": "dev",
+      "file": "reference.md"
+    },
+    {
+      "id": "versioning-and-migration",
+      "title": "Versioning & Migration",
+      "description": "extension/v1 policy, per-kind versions, append-only vocabularies, the no-shims doctrine, breaking-change rules.",
+      "audience": "dev",
+      "file": "versioning-and-migration.md"
+    },
+    {
+      "id": "troubleshooting-and-faq",
+      "title": "Troubleshooting & FAQ",
+      "description": "Connector and extension problems decoded: sync errors, sources, consent, disabled instances.",
+      "audience": "user",
+      "file": "../../user/extension-troubleshooting.md",
+      "children": [
+        {
+          "id": "troubleshooting-dev",
+          "title": "Developer diagnostics & FAQ",
+          "description": "Every wall-tested failure mode decoded, plus the sandbox escape matrix and the real FAQ.",
+          "audience": "dev",
+          "file": "troubleshooting-and-faq.md"
+        }
+      ]
+    }
+  ]
+}

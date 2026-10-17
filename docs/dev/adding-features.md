@@ -47,8 +47,9 @@ them.
 3. Provide a `fixture_payload` and pass `ConnectorConformanceTests`; mark
    credential fields `x-secret` in the manifest configSchema.
 4. For a plugin, ship the `career_assistant.connectors` entry point; it is
-   admin-opt-in via `CONNECTOR_PLUGINS_ALLOWLIST` and T1-bundled only.
-5. Docs in [extensions.md](extensions.md).
+   admin-opt-in via `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` and T1-bundled only.
+5. Docs in the [Connector SDK docs](sdk/overview.md) — authoring guide
+   and the T1 recipe walk a complete connector.
 
 ## Add a scheduler trigger or job type
 

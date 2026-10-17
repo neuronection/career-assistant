@@ -89,6 +89,12 @@
               "description": "Connector engines, the live postings feed, deep extraction into skills and benefits, and the Explore page's filters and saved searches."
             },
             {
+              "id": "add-a-job-source",
+              "file": "user/add-a-job-source.md",
+              "title": "Add a job source",
+              "description": "Enable the zero-config job boards (Arbeitnow, Remotive, Jobicy) and the ATS, JSON-LD, RSS and CSV engines — including the honest Remotive robots caveat."
+            },
+            {
               "id": "career-autopilot",
               "file": "user/career-autopilot.md",
               "title": "Career Autopilot",
@@ -145,6 +151,12 @@
               "description": "Chat grounded in your catalog and postings, profile edits as review cards with previews and revert, the builder copilot and MCP access."
             },
             {
+              "id": "chat-tools-and-approval",
+              "file": "user/chat-tools-and-approval.md",
+              "title": "Chat tools, risk badges and approval",
+              "description": "Why some assistant tools run freely, some need your enablement, and destructive ones always become two-step approval cards."
+            },
+            {
               "id": "interviews",
               "file": "user/interviews.md",
               "title": "Interview prep",
@@ -174,6 +186,24 @@
               "file": "user/settings.md",
               "title": "Settings reference",
               "description": "Every settings page explained: AI configuration, models and tasks, taxonomy, users, scheduler, notifications and the AI audit."
+            },
+            {
+              "id": "import-extensions-from-git",
+              "file": "user/import-extensions-from-git.md",
+              "title": "Import extensions from git",
+              "description": "Add connectors and mini-apps from git sources: consent-gated, digest-pinned installs that never update without your explicit re-consent."
+            },
+            {
+              "id": "extension-consent",
+              "file": "user/extension-consent.md",
+              "title": "Consent, explained",
+              "description": "What the import consent dialog shows and means: provenance, capabilities, the three trust tiers and their disclosures, the digest pin."
+            },
+            {
+              "id": "extension-troubleshooting",
+              "file": "user/extension-troubleshooting.md",
+              "title": "Extension troubleshooting",
+              "description": "Source sync errors and extension problems decoded: net-denied, rate limits, missing secrets, re-consent, digest drift, self-disabled instances."
             },
             {
               "id": "privacy-and-security",
@@ -282,12 +312,6 @@
               "description": "The gateway-only invocation path, tasks and capabilities, agents, LangGraph flows, tools, skill packs, embeddings and MCP."
             },
             {
-              "id": "extensions",
-              "file": "dev/extensions.md",
-              "title": "Extensions (connector SDK)",
-              "description": "The D24 extension home: connector SDK, the polite transport runtime (SSRF guard, robots, rate caps, conditional GET), manifests and the conformance kit."
-            },
-            {
               "id": "scheduler-and-jobs",
               "file": "dev/scheduler-and-jobs.md",
               "title": "Scheduler and jobs",
@@ -304,6 +328,73 @@
               "file": "dev/migrations.md",
               "title": "Migrations",
               "description": "Alembic discipline: sequential revision ids, dialect-aware migrations, data migrations and testing both dialects."
+            }
+          ]
+        },
+        {
+          "id": "sdk",
+          "title": "Connector SDK",
+          "icon": "Puzzle",
+          "items": [
+            {
+              "id": "sdk",
+              "file": "dev/sdk/overview.md",
+              "title": "Connector SDK: overview",
+              "description": "What a posting connector is, the trust-tier ladder, and when to write an extension instead of a builtin feature — the entry of the ten-chapter SDK doc set."
+            },
+            {
+              "id": "sdk-quickstart",
+              "file": "dev/sdk/quickstart.md",
+              "title": "Connector SDK: quickstart",
+              "description": "Clone the connector template repo, import it as a local source, consent, enable, sync — postings land in about ten minutes, with real transcripts."
+            },
+            {
+              "id": "sdk-core-concepts",
+              "file": "dev/sdk/core-concepts.md",
+              "title": "Connector SDK: core concepts",
+              "description": "Extension, kind, tier, capability, instance, source, consent, digest — the load-bearing nouns and how they connect."
+            },
+            {
+              "id": "sdk-installation",
+              "file": "dev/sdk/installation-and-modes.md",
+              "title": "Connector SDK: install lifecycle internals",
+              "description": "Bundled vs imported, the source pipeline and ref strategies, the content-addressed on-disk layout, dual-mode notes."
+            },
+            {
+              "id": "sdk-authoring",
+              "file": "dev/sdk/authoring-and-configuration.md",
+              "title": "Connector SDK: authoring & configuration",
+              "description": "The manifest reference, configSchema and x-secret, declared-domains honesty, RawPosting mapping, the three real job boards as worked T1 examples."
+            },
+            {
+              "id": "sdk-examples",
+              "file": "dev/sdk/examples-and-use-cases.md",
+              "title": "Connector SDK: examples & use cases",
+              "description": "Five complete recipes: a bundled T1 connector, a T3 MCP script, a T2 sandboxed connector, git-source distribution, a GitOps fleet."
+            },
+            {
+              "id": "sdk-security",
+              "file": "dev/sdk/security-and-gotchas.md",
+              "title": "Connector SDK: security & gotchas",
+              "description": "Trust tiers, the secrets law, politeness and SSRF, the sandbox residuals, the destructive-confirm funnel, the consent disclosures verbatim."
+            },
+            {
+              "id": "sdk-reference",
+              "file": "dev/sdk/reference.md",
+              "title": "Connector SDK: reference",
+              "description": "The 15 error codes, capability-RPC methods, the CLI, admin API, audit and status vocabularies, sandbox and transport knobs, content caps."
+            },
+            {
+              "id": "sdk-versioning",
+              "file": "dev/sdk/versioning-and-migration.md",
+              "title": "Connector SDK: versioning & migration",
+              "description": "extension/v1 and per-kind versions, append-only vocabularies, the no-shims doctrine, what happens to installs on a major bump."
+            },
+            {
+              "id": "sdk-troubleshooting",
+              "file": "dev/sdk/troubleshooting-and-faq.md",
+              "title": "Connector SDK: developer diagnostics & FAQ",
+              "description": "Every wall-tested failure mode decoded — imports, sync, the script tier, the sandbox — plus the real FAQ."
             }
           ]
         },

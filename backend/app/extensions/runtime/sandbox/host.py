@@ -173,7 +173,8 @@ def _child_env(workdir: Path) -> dict[str, str]:
 def _preexec(memory_mb: int) -> Any:
     """POSIX pre-exec: the kernel-enforced address-space cap (the memory
     watchdog). Windows has no pre-exec hook — the degraded posture is
-    documented in the module docstring and docs/dev/extensions.md."""
+    documented in the module docstring and the Connector SDK docs
+    (docs/dev/sdk/security-and-gotchas.md)."""
     if sys.platform == "win32":  # pragma: no cover — platform guard
         return None
 

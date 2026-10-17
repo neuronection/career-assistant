@@ -4,6 +4,28 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (the connector SDK documentation set — plan 34 wave 2)
+- **The connector SDK docs are now a ten-chapter, SDK-grade doc set at
+  `docs/dev/sdk/`** (overview, quickstart, core concepts, installation,
+  authoring, five recipes, security, reference, versioning,
+  troubleshooting) following the family's extension-docs taxonomy —
+  replacing the single `docs/dev/extensions.md` page. The quickstart is
+  real: clone the connector template repo, import it as a local source,
+  consent, enable, sync — verified end-to-end, with the transcript in
+  the doc and the same pipeline pinned by the e2e walls.
+- **New user guides**: [Add a job source](docs/user/add-a-job-source.md)
+  (the zero-config boards, with the honest Remotive robots caveat),
+  [Import extensions from git](docs/user/import-extensions-from-git.md),
+  [Consent, explained](docs/user/extension-consent.md) (the tier
+  disclosures verbatim), [Chat tools, risk badges and
+  approval](docs/user/chat-tools-and-approval.md), and [Extension
+  troubleshooting](docs/user/extension-troubleshooting.md).
+- **The doc set's navigation tree validates as a contract**: the
+  family's `docs-tree.schema.json` + fixtures are vendored into
+  `contracts/` (byte-identical via the dev sync), and a new backend
+  test walls `docs/dev/sdk/docs-tree.json` — schema + fixture suite +
+  unique ids, resolvable files and chapter conformance.
+
 ### Added (the first real content — bundled job-board connectors, ADR-0040 T1)
 - **Three real job boards are live, zero-config: Arbeitnow, Remotive,
   Jobicy.** New bundled T1 connectors over free, no-auth public JSON
