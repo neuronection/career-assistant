@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, RefreshCw, Save } from "lucide-react";
+import { Loader2, RefreshCw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
 import type { WebSettings } from "@/api/ai";
@@ -7,22 +7,33 @@ import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
 import { Button } from "@/components/ui";
+import {
+  IntegrationConfigForm,
+  IntegrationInstancesList,
+  parseIntegrationConfigSchema,
+} from "@/components/ui/integrations";
+import type {
+  IntegrationConfigSchema,
+  IntegrationConfigValues,
+  IntegrationExtensionGroupView,
+} from "@/components/ui/integrations";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 
 /**
  * Tools → connectors (ADR-0033, domain tools.connectors — broadened by
  * plan 32 Phase 1 to job-source connectors): external-service credentials
  * for the chat tools (MCP GitHub token) AND posting-source connector
- * instances — catalog-driven forms from the extension registry, sealed
- * x-secret slots (never echoed; hint only), per-source probes through the
- * polite runtime.
+ * instances. Plan 33 Phase B: the rows render through the family kit
+ * (IntegrationInstancesList — probe/sync stay app-owned domain actions)
+ * and the catalog-driven form is IntegrationConfigForm (sealed x-secret
+ * slots, never echoed; values out, the host validates at save).
  */
+
 type SourceDraft = {
   id: string | null;
   key: string;
   connector_key: string;
-  config: Record<string, string>;
-  secrets: Record<string, string>;
+  config: IntegrationConfigValues;
 };
 
 export function ConnectorsSection() {
@@ -137,37 +148,26 @@ function JobSourceConnectors() {
     [catalog],
   );
 
-  const save = async (form: SourceDraft) => {
+  const save = async (form: SourceDraft, secrets: Record<string, string>) => {
     setBusy(true);
     setNotice("");
     try {
-      const secrets = Object.fromEntries(
-        Object.entries(form.secrets).filter(([, value]) => value.trim() !== ""),
-      );
       const payload = {
         key: form.key.trim(),
         connector_key: form.connector_key,
-        config: form.config,
+        config: Object.fromEntries(
+          Object.entries(form.config)
+            .filter(([, value]) => value !== null && value !== undefined && value !== "")
+            .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+        ) as Record<string, string | number | boolean>,
         secrets,
       };
       if (form.id) {
-        await sourcesApi.updateSource(form.id, { config: form.config, secrets });
+        await sourcesApi.updateSource(form.id, { config: payload.config, secrets });
       } else {
         await sourcesApi.createSource(payload);
       }
       setDraft(null);
-      await refresh();
-    } catch (err) {
-      setNotice(apiDetail(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggle = async (source: PostingSource) => {
-    setBusy(true);
-    try {
-      await sourcesApi.updateSource(source.id, { enabled: !source.enabled });
       await refresh();
     } catch (err) {
       setNotice(apiDetail(err));
@@ -203,94 +203,132 @@ function JobSourceConnectors() {
     }
   };
 
-  const entry = draft ? catalogByKey[draft.connector_key] : undefined;
-  const secretFields = entry?.secret_fields ?? [];
-  const required = new Set(entry?.config_schema.required ?? []);
-  const configFields = Object.entries(entry?.config_schema.properties ?? {}).filter(
-    ([name]) => !secretFields.includes(name),
+  const groups = useMemo<IntegrationExtensionGroupView[]>(
+    () => [
+      {
+        extension: {
+          id: "job-sources",
+          name: t("toolsSettings.connectors.sources.title"),
+          originClass: "bundled",
+          tier: "T1",
+          categories: ["data"],
+        },
+        instances: sources.map((source) => {
+          const connector = catalogByKey[source.connector_key];
+          const needsSecret = Object.entries(source.secret_hints).some(
+            ([slot, hint]) => connector?.secret_fields.includes(slot) && !hint.set,
+          );
+          return {
+            id: source.id,
+            extensionId: source.connector_key,
+            name: source.key,
+            enabled: source.enabled,
+            status: source.error ? ("failing" as const) : ("ok" as const),
+            conditions: needsSecret ? (["needs-secret"] as const) : [],
+            originClass: "bundled" as const,
+            tier: "T1" as const,
+            digest: null,
+            update: null,
+          };
+        }),
+      },
+    ],
+    [sources, catalogByKey, t],
   );
-  const missingRequired = draft
-    ? [...required].some(
-        (name) => !secretFields.includes(name) && !(draft.config[name] ?? "").trim(),
-      ) || draft.key.trim() === ""
-    : false;
+
+  const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
+  const draftFields = useMemo(
+    () =>
+      draftEntry
+        ? parseIntegrationConfigSchema(
+            draftEntry.config_schema as IntegrationConfigSchema,
+          )
+        : [],
+    [draftEntry],
+  );
+
+  const draftSecretSlots = useMemo(() => {
+    if (!draft?.id) return {};
+    const source = sources.find((row) => row.id === draft.id);
+    if (!source) return {};
+    return Object.fromEntries(
+      Object.entries(source.secret_hints).map(([slot, hint]) => [
+        slot,
+        { set: hint.set, hint: hint.hint ?? null },
+      ]),
+    );
+  }, [draft, sources]);
 
   return (
     <div className="space-y-3" data-testid="job-sources-block">
       <h3 className="text-sm font-semibold">{t("toolsSettings.connectors.sources.title")}</h3>
       <p className="text-sm text-slate-500">{t("toolsSettings.connectors.sources.hint")}</p>
 
-      {sources.map((source) => {
-        const result = probes[source.id];
-        const connector = catalogByKey[source.connector_key];
-        const needsSecret = Object.entries(source.secret_hints).some(
-          ([slot, hint]) => connector?.secret_fields.includes(slot) && !hint.set,
-        );
-        return (
-          <div
-            key={source.id}
-            className="border-slate-300 space-y-1 rounded-md border p-3"
-            data-testid={`job-source-${source.key}`}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  checked={source.enabled}
-                  aria-label={t("toolsSettings.connectors.sources.enabledAria", {
-                    key: source.key,
-                  })}
-                  onChange={() => void toggle(source)}
-                />
-                {source.key}
-              </label>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                {connector?.title ?? source.connector_key}
-              </span>
-              {Object.entries(source.secret_hints).map(([slot, hint]) => (
+      <IntegrationInstancesList
+        groups={groups}
+        busy={busy || probingId !== null}
+        labels={{
+          emptyLabel: t("toolsSettings.connectors.sources.empty"),
+          enableAriaLabel: t("toolsSettings.connectors.sources.enabledAria"),
+          configureLabel: t("toolsSettings.connectors.sources.edit"),
+          conditionLabels: {
+            "needs-config": t("toolsSettings.connectors.sources.needsConfig"),
+            "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
+          },
+        }}
+        onToggleEnabled={(instance, enabled) => {
+          const source = sources.find((row) => row.id === instance.id);
+          if (source) {
+            void (async () => {
+              setBusy(true);
+              try {
+                await sourcesApi.updateSource(source.id, { enabled });
+                await refresh();
+              } catch (err) {
+                setNotice(apiDetail(err));
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }
+        }}
+        onConfigure={(instance) => {
+          const source = sources.find((row) => row.id === instance.id);
+          if (source) {
+            setDraft({
+              id: source.id,
+              key: source.key,
+              connector_key: source.connector_key,
+              config: Object.fromEntries(
+                Object.entries(source.config).map(([key, value]) => [key, String(value)]),
+              ),
+            });
+          }
+        }}
+        renderInstanceActions={(instance) => {
+          const source = sources.find((row) => row.id === instance.id);
+          if (!source) return null;
+          const result = probes[source.id];
+          return (
+            <span className="flex flex-wrap items-center gap-2">
+              {result ? (
                 <span
-                  key={slot}
-                  className="text-xs text-slate-500"
-                  data-testid={`secret-hint-${source.key}-${slot}`}
+                  className={
+                    result.ok ? "text-xs text-emerald-600" : "text-xs text-amber-600"
+                  }
+                  data-testid={`job-source-probe-${source.key}`}
                 >
-                  {hint.set
-                    ? t("toolsSettings.connectors.sources.secretSet", {
-                        slot,
-                        hint: hint.hint ?? "",
+                  {result.ok
+                    ? t("toolsSettings.connectors.sources.probeOk", {
+                        items: result.items ?? 0,
+                        latency: result.latency_ms ?? 0,
                       })
-                    : t("toolsSettings.connectors.sources.secretMissing", { slot })}
-                </span>
-              ))}
-              {needsSecret ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700">
-                  {t("toolsSettings.connectors.sources.needsSecret")}
+                    : t("toolsSettings.connectors.sources.probeError", {
+                        code: result.error?.code ?? "error",
+                        detail: result.error?.detail ?? "",
+                      })}
                 </span>
               ) : null}
-            </div>
-            {source.error ? (
-              <p className="text-xs text-red-600" data-testid={`job-source-error-${source.key}`}>
-                {source.error}
-              </p>
-            ) : null}
-            {result ? (
-              <p
-                className={
-                  result.ok ? "text-xs text-emerald-600" : "text-xs text-amber-600"
-                }
-                data-testid={`job-source-probe-${source.key}`}
-              >
-                {result.ok
-                  ? t("toolsSettings.connectors.sources.probeOk", {
-                      items: result.items ?? 0,
-                      latency: result.latency_ms ?? 0,
-                    })
-                  : t("toolsSettings.connectors.sources.probeError", {
-                      code: result.error?.code ?? "error",
-                      detail: result.error?.detail ?? "",
-                    })}
-              </p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -311,33 +349,10 @@ function JobSourceConnectors() {
                 <RefreshCw className="w-4 h-4" />
                 {t("toolsSettings.connectors.sources.sync")}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  setDraft({
-                    id: source.id,
-                    key: source.key,
-                    connector_key: source.connector_key,
-                    config: Object.fromEntries(
-                      Object.entries(source.config).map(([k, v]) => [k, String(v)]),
-                    ),
-                    secrets: {},
-                  })
-                }
-              >
-                {t("toolsSettings.connectors.sources.edit")}
-              </Button>
-            </div>
-          </div>
-        );
-      })}
-
-      {sources.length === 0 && draft === null ? (
-        <p className="py-4 text-center text-sm text-slate-400">
-          {t("toolsSettings.connectors.sources.empty")}
-        </p>
-      ) : null}
+            </span>
+          );
+        }}
+      />
 
       {draft === null ? (
         <Button
@@ -349,24 +364,16 @@ function JobSourceConnectors() {
               key: "",
               connector_key: catalog[0]?.key ?? "",
               config: {},
-              secrets: {},
             })
           }
           data-testid="add-job-source"
         >
-          <Plus className="w-4 h-4" />
           {t("toolsSettings.connectors.sources.add")}
         </Button>
-      ) : null}
-
-      {draft !== null && entry ? (
-        <form
-          className="border-slate-300 space-y-2 rounded-md border p-3"
+      ) : (
+        <div
+          className="space-y-2 rounded-md border border-slate-300 p-3"
           data-testid="job-source-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save(draft);
-          }}
         >
           <div className="flex flex-wrap gap-2">
             <select
@@ -375,7 +382,7 @@ function JobSourceConnectors() {
               disabled={draft.id !== null}
               aria-label={t("toolsSettings.connectors.sources.connector")}
               onChange={(event) =>
-                setDraft({ ...draft, connector_key: event.target.value, config: {}, secrets: {} })
+                setDraft({ ...draft, connector_key: event.target.value, config: {} })
               }
             >
               {catalog.map((connector) => (
@@ -392,49 +399,26 @@ function JobSourceConnectors() {
               onChange={(event) => setDraft({ ...draft, key: event.target.value })}
             />
           </div>
-          {configFields.map(([name, field]) => (
-            <input
-              key={name}
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={`${field.title ?? name}${required.has(name) ? " *" : ""}`}
-              list={field.enum ? `job-source-enum-${name}` : undefined}
-              value={draft.config[name] ?? ""}
-              onChange={(event) =>
-                setDraft({ ...draft, config: { ...draft.config, [name]: event.target.value } })
-              }
-            />
-          ))}
-          {secretFields.map((name) => (
-            <input
-              key={name}
-              type="password"
-              autoComplete="off"
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={t("toolsSettings.connectors.sources.secret", {
-                name: entry.config_schema.properties[name]?.title ?? name,
-              })}
-              value={draft.secrets[name] ?? ""}
-              onChange={(event) =>
-                setDraft({ ...draft, secrets: { ...draft.secrets, [name]: event.target.value } })
-              }
-            />
-          ))}
-          {notice ? (
-            <p className="text-xs text-red-600" data-testid="job-source-form-error">
-              {notice}
-            </p>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <Button size="sm" type="submit" disabled={busy || missingRequired}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {t("toolsSettings.connectors.sources.save")}
-            </Button>
-            <Button size="sm" variant="ghost" type="button" onClick={() => setDraft(null)}>
-              {t("toolsSettings.connectors.sources.cancel")}
-            </Button>
-          </div>
-        </form>
-      ) : null}
+          <IntegrationConfigForm
+            fields={draftFields}
+            values={draft.config}
+            onValuesChange={(values) => setDraft({ ...draft, config: values })}
+            onSave={({ secrets }) => void save(draft, secrets)}
+            busy={busy}
+            error={notice || null}
+            secretSlots={draftSecretSlots}
+            conditions={[]}
+            labels={{
+              submitLabel: t("toolsSettings.connectors.sources.save"),
+              cancelLabel: t("toolsSettings.connectors.sources.cancel"),
+              secretSetLabel: t("toolsSettings.connectors.sources.secretSetShort"),
+              secretHintLabel: t("toolsSettings.connectors.sources.secretMissingShort"),
+              enumPlaceholder: t("toolsSettings.connectors.sources.select"),
+            }}
+            onCancel={() => setDraft(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }

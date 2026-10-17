@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as extApi from "@/api/extensionSources";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 
+// plan 33 Phase B: the sources surface renders through the family kit
+// (IntegrationSourcesList + AddIntegrationSourceDialog + ConsentDialog) —
+// these tests pin the app glue: api mapping, the VERBATIM consent payload
+// hand-off, and every mutation as an explicit api call.
+
 vi.mock("@/api/extensionSources", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/extensionSources")>();
   return {
@@ -95,28 +100,50 @@ function renderSection() {
   return render(<ExtensionSourcesSection />);
 }
 
-describe("ExtensionSourcesSection", () => {
+describe("ExtensionSourcesSection (kit surfaces)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.fetchExtensionSources.mockResolvedValue([]);
   });
 
-  it("renders an empty state and the add form affordance", async () => {
+  it("renders the empty kit list and the add-source affordance", async () => {
     renderSection();
     await waitFor(() => expect(mocked.fetchExtensionSources).toHaveBeenCalled());
     expect(screen.getByTestId("extension-sources-block")).toBeTruthy();
+    expect(screen.getByTestId("integration-sources-empty")).toBeTruthy();
     expect(screen.getByTestId("add-extension-source")).toBeTruthy();
   });
 
-  it("renders a candidate with the VERBATIM consent disclosure", async () => {
+  it("renders a candidate whose consent opens with the VERBATIM disclosure", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
     mocked.fetchExtensionSources.mockResolvedValue([SOURCE]);
     renderSection();
-    const disclosure = await screen.findByTestId("consent-disclosure");
-    expect(disclosure.textContent).toContain(T3_DISCLOSURE);
-    expect(screen.getByTestId("consent-digest").textContent).toBe(CANDIDATE.digest);
-    expect(disclosure.textContent).toContain("Neuronection");
-    expect(disclosure.textContent).toContain("MIT");
-    expect(screen.getByTestId("consent-install-example-posting-fetcher")).toBeTruthy();
+    fireEvent.click(await screen.findByTestId("integration-candidate-example-posting-fetcher"));
+    const install = screen.getByRole("button", { name: "Install with consent…" });
+    await userEvent.click(install);
+    const dialog = await screen.findByTestId("integration-consent");
+    expect(screen.getByTestId("integration-consent-disclosure").textContent).toBe(T3_DISCLOSURE);
+    expect(screen.getByTestId("integration-consent-digest").textContent).toBe(CANDIDATE.digest);
+    expect(dialog.textContent).toContain("Neuronection");
+    expect(dialog.textContent).toContain("MIT");
+  });
+
+  it("installs only through the explicit consent confirmation", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    mocked.fetchExtensionSources.mockResolvedValue([SOURCE]);
+    mocked.installExtension.mockResolvedValue(INSTALL);
+    renderSection();
+    fireEvent.click(await screen.findByTestId("integration-candidate-example-posting-fetcher"));
+    await userEvent.click(await screen.findByRole("button", { name: "Install with consent…" }));
+    expect(mocked.installExtension).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("button", { name: "I consent — install" }));
+    await waitFor(() =>
+      expect(mocked.installExtension).toHaveBeenCalledWith(
+        "src-1",
+        "example-posting-fetcher",
+        true,
+      ),
+    );
   });
 
   it("marks incompatible candidates with the reason, no install affordance", async () => {
@@ -127,28 +154,13 @@ describe("ExtensionSourcesSection", () => {
       },
     ]);
     renderSection();
-    await screen.findByTestId("extension-candidate-example-posting-fetcher");
-    expect(screen.queryByTestId("consent-install-example-posting-fetcher")).toBeNull();
-  });
-
-  it("installs only through the explicit consent confirmation", async () => {
-    mocked.fetchExtensionSources.mockResolvedValue([SOURCE]);
-    mocked.installExtension.mockResolvedValue(INSTALL);
-    renderSection();
-    fireEvent.click(await screen.findByTestId("consent-install-example-posting-fetcher"));
-    expect(mocked.installExtension).not.toHaveBeenCalled();
-    expect(screen.getByTestId("consent-confirm")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("confirm-consent"));
-    await waitFor(() =>
-      expect(mocked.installExtension).toHaveBeenCalledWith(
-        "src-1",
-        "example-posting-fetcher",
-        true,
-      ),
-    );
+    const row = await screen.findByTestId("integration-candidate-example-posting-fetcher");
+    expect(row.textContent).toContain("kind 'mini-app' is not hosted");
+    expect(screen.queryByRole("button", { name: "Install with consent…" })).toBeNull();
   });
 
   it("renders installs with the imported origin chip and update affordances", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
     mocked.fetchExtensionSources.mockResolvedValue([
       {
         ...SOURCE,
@@ -170,17 +182,18 @@ describe("ExtensionSourcesSection", () => {
         ],
       },
     ]);
+    mocked.applyExtensionUpdate.mockResolvedValue(INSTALL);
     renderSection();
-    const row = await screen.findByTestId("extension-install-example-posting-fetcher");
-    expect(row.querySelector('[data-testid="origin-chip"]')?.textContent).toBe("imported");
-    expect(screen.getByTestId("update-available").textContent).toContain("1.1.0");
-    expect(screen.getByTestId("update-available").textContent).toContain(
+    const row = await screen.findByTestId("integration-instance-inst-1");
+    expect(row.querySelector('[data-origin-class="imported"]')?.textContent).toBe("imported");
+    expect(screen.getByTestId("integration-update-inst-1").textContent).toContain("1.1.0");
+    expect(screen.getByTestId("integration-update-inst-1").textContent).toContain(
       "re-consent required",
     );
-    expect(screen.getByTestId("apply-update-example-posting-fetcher")).toBeTruthy();
-
-    fireEvent.click(screen.getByTestId("apply-update-example-posting-fetcher"));
-    await waitFor(() => expect(mocked.applyExtensionUpdate).toHaveBeenCalledWith("inst-1", true));
+    await userEvent.click(screen.getByRole("button", { name: /Apply update/ }));
+    await waitFor(() =>
+      expect(mocked.applyExtensionUpdate).toHaveBeenCalledWith("inst-1", true),
+    );
   });
 
   it("surfaces digest drift loudly", async () => {
@@ -201,42 +214,50 @@ describe("ExtensionSourcesSection", () => {
       },
     ]);
     renderSection();
-    expect(await screen.findByTestId("digest-drift")).toBeTruthy();
+    expect(await screen.findByTestId("integration-drift-inst-1")).toBeTruthy();
   });
 
   it("parks an install without deleting anything", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
     mocked.fetchExtensionSources.mockResolvedValue([
       { ...SOURCE, candidates: [], installs: [INSTALL] },
     ]);
     mocked.parkExtensionInstall.mockResolvedValue({ ...INSTALL, parked: true });
     renderSection();
-    fireEvent.click(await screen.findByTestId("park-example-posting-fetcher"));
+    await userEvent.click(await screen.findByRole("button", { name: "Park" }));
     await waitFor(() => expect(mocked.parkExtensionInstall).toHaveBeenCalledWith("inst-1"));
   });
 
   it("adds an https source with a tag-pattern ref and syncs it", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
     mocked.fetchExtensionSources.mockResolvedValue([]);
     mocked.addExtensionSource.mockResolvedValue(SOURCE);
     mocked.syncExtensionSource.mockResolvedValue({ ok: true });
     renderSection();
-    fireEvent.click(await screen.findByTestId("add-extension-source"));
-    fireEvent.change(screen.getByLabelText("https git URL"), {
-      target: { value: "https://git.example.com/ext/repo" },
-    });
-    fireEvent.change(screen.getByLabelText("Ref strategy"), {
-      target: { value: "tag-pattern" },
-    });
-    fireEvent.change(
+    await userEvent.click(await screen.findByTestId("add-extension-source"));
+    await userEvent.type(await screen.findByLabelText("https git URL"), "https://git.example.com/ext/repo");
+    await userEvent.selectOptions(screen.getByLabelText("Ref strategy"), "tag-pattern");
+    await userEvent.type(
       screen.getByLabelText("Tag pattern / branch / commit sha"),
-      { target: { value: "v*" } },
+      "v*",
     );
-    fireEvent.submit(screen.getByTestId("extension-source-form"));
+    await userEvent.click(screen.getByRole("button", { name: "Add source" }));
     await waitFor(() => expect(mocked.addExtensionSource).toHaveBeenCalled());
-    const payload = mocked.addExtensionSource.mock.calls[0][0];
+    const payload = mocked.addExtensionSource.mock.calls[0]![0];
     expect(payload.descriptor).toEqual({
       url: "https://git.example.com/ext/repo",
       ref: { strategy: "tag-pattern", value: "v*" },
     });
     await waitFor(() => expect(mocked.syncExtensionSource).toHaveBeenCalledWith("src-1"));
+  });
+
+  it("passes source errors through as alerts", async () => {
+    mocked.fetchExtensionSources.mockResolvedValue([
+      { ...SOURCE, candidates: [], installs: [], error: "sync failed: unreachable" },
+    ]);
+    renderSection();
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "sync failed: unreachable",
+    );
   });
 });

@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (the integrations UI swap — plan 33 Phase B / ADR-0040 D25)
+- **The connectors settings surfaces render through the family kit.**
+  `@neuronection/assistant-ui` grows the plan-33 integrations UI kit
+  (contract-generated vocabularies + presentational modules), and this
+  app's local-first implementations swap onto it in the same commit:
+  the extension-sources surface (sources list with pinned refs, gitops
+  indicators, verbatim-reason candidates, grouped installs) now renders
+  through `IntegrationSourcesList`, the add-from-git flow through
+  `AddIntegrationSourceDialog`, the two-step consent through
+  `ConsentDialog` (the T3 perimeter disclosure still renders VERBATIM
+  from the backend payload — law text as data), the job-source rows
+  through `IntegrationInstancesList` (probe/sync stay app-owned domain
+  actions), and the catalog-driven config form through
+  `IntegrationConfigForm` (sealed x-secret slots, async probe shape).
+  The local `ConsentDisclosure` + `InstallRow` copies and the hand-rolled
+  forms are deleted. The library pin moves to ^0.67.0 (the owner's next
+  publish wave — surface-renderer + the kit, one Version-Packages run).
+
 ### Added (the D20 destructive-confirm runtime funnel — plan 32 follow-up / ADR-0011 / ADR-0015)
 - **Destructive chat tools confirm every call, through a card.** Every
   chat tool now carries its ADR-0011 risk class (`read-only |

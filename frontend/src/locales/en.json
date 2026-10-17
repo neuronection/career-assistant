@@ -1115,7 +1115,11 @@
         "save": "Save source",
         "cancel": "Cancel",
         "probeOk": "OK · {{items}} item(s) · {{latency}} ms",
-        "probeError": "{{code}}: {{detail}}"
+        "probeError": "{{code}}: {{detail}}",
+        "needsConfig": "needs config",
+        "secretSetShort": "set — leave empty to keep",
+        "secretMissingShort": "not set",
+        "select": "Select…"
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -1147,7 +1151,20 @@
         "updateAvailable": "Update available ({{version}})",
         "needsReconsent": "re-consent required",
         "applyUpdate": "Apply update (re-consent)",
-        "digestDrift": "Digest drift on pinned ref {{ref}} — refused, verify the source"
+        "digestDrift": "Digest drift on pinned ref {{ref}} — refused, verify the source",
+        "listed": "listed",
+        "gitops": "gitops",
+        "incompatible": "incompatible",
+        "enableAria": "Enable imported extension",
+        "restore": "Restore",
+        "updateAvailableShort": "Update available",
+        "digestDriftShort": "Digest drift — refused",
+        "needsConfig": "needs config",
+        "capabilities": "Capabilities",
+        "decline": "Decline",
+        "close": "Close",
+        "submitting": "Fetching and validating…",
+        "addTitle": "Add extension source"
       }
     }
   },

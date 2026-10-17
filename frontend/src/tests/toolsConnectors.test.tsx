@@ -34,6 +34,12 @@ vi.mock("react-i18next", () => ({
         "toolsSettings.connectors.sources.probeError": "{{code}}: {{detail}}",
         "toolsSettings.connectors.sources.test": "Test",
         "toolsSettings.connectors.sources.secret": "{{name}} (secret — leave empty to keep)",
+        "toolsSettings.connectors.sources.save": "Save source",
+        "toolsSettings.connectors.sources.cancel": "Cancel",
+        "toolsSettings.connectors.sources.select": "Select…",
+        "toolsSettings.connectors.sources.secretSetShort": "set — leave empty to keep",
+        "toolsSettings.connectors.sources.secretMissingShort": "not set",
+        "toolsSettings.connectors.sources.needsConfig": "needs config",
       };
       let out = templates[key] ?? key;
       for (const [name, value] of Object.entries(params ?? {})) {
@@ -98,23 +104,17 @@ function renderSection() {
 }
 
 describe("ConnectorsSection job sources", () => {
-  it("lists sources with sealed-secret hints, never values", async () => {
+  it("lists sources as kit instance rows with the sealed-secret condition badge, never values", async () => {
     vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
     vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
     renderSection();
 
-    const hint = await screen.findByTestId("secret-hint-acme-board-api_token");
-    expect(hint.textContent).toContain("…9876");
+    expect(await screen.findByTestId("integration-instance-src-1")).toBeTruthy();
+    expect(
+      screen.getByTestId("integration-condition-src-2-needs-secret").textContent,
+    ).toContain("needs secret");
     expect(screen.queryByText(/enc::/)).toBeNull();
     expect(screen.getByTestId("job-sources-block")).toBeTruthy();
-  });
-
-  it("flags a missing required secret slot with the needs-secret badge", async () => {
-    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
-    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
-    renderSection();
-
-    expect(await screen.findByText("needs secret")).toBeTruthy();
   });
 
   it("runs a typed probe and renders the outcome", async () => {
@@ -139,7 +139,7 @@ describe("ConnectorsSection job sources", () => {
     expect(sourcesApi.probeSource).toHaveBeenCalledWith("src-1");
   });
 
-  it("opens a catalog-driven form with a password field for x-secret slots", async () => {
+  it("opens a kit config form with a password field for x-secret slots", async () => {
     vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([] as never);
     vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
     vi.mocked(aiApi.fetchWebSettings).mockResolvedValue({ github_token_set: false });
@@ -148,10 +148,28 @@ describe("ConnectorsSection job sources", () => {
 
     const add = await screen.findByTestId("add-job-source");
     await userEvent.click(add);
-    const form = await screen.findByTestId("job-source-form");
+    const form = await screen.findByTestId("integration-config-form");
     expect(form).toBeTruthy();
     const secretInput = form.querySelector("input[type='password']");
     expect(secretInput).toBeTruthy();
-    expect(secretInput!.getAttribute("placeholder")).toContain("secret");
+    expect(secretInput!.getAttribute("autocomplete")).toBe("off");
+  });
+
+  it("emits values and secrets separately at save", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([] as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    vi.mocked(sourcesApi.createSource).mockResolvedValue(sources[0] as never);
+    vi.mocked(aiApi.fetchWebSettings).mockResolvedValue({ github_token_set: false });
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    await userEvent.click(await screen.findByTestId("add-job-source"));
+    const form = await screen.findByTestId("integration-config-form");
+    await userEvent.type(form.querySelector("input[type='password']")!, "tok");
+    await userEvent.click(screen.getByRole("button", { name: "Save source" }));
+    await waitFor(() => expect(sourcesApi.createSource).toHaveBeenCalled());
+    const payload = vi.mocked(sourcesApi.createSource).mock.calls[0]![0];
+    expect(payload.secrets).toEqual({ api_token: "tok" });
+    expect(JSON.stringify(payload.config)).not.toContain("tok");
   });
 });
