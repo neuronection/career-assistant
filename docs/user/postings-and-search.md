@@ -6,10 +6,24 @@ saved, alerts — and your deterministic fit score carries over.
 
 ## Connectors
 
-A connector SDK ships first-party engines for what is free and legal:
+A connector SDK ships first-party engines for what is free and legal.
+
+**Three real job boards work zero-config today** — add a source, sync,
+done: **Arbeitnow** (German/European board), **Remotive** and
+**Jobicy** (remote-jobs boards). All three are free public APIs that
+need no account or key, cap themselves to polite request budgets, and
+carry a link back to the original posting (the boards' terms ask for
+exactly that credit). Two notes from reality: Arbeitnow's board rotates
+fresh listings hourly, and Remotive's site-level robots policy means
+some self-hosted setups need the admin's explicit go-ahead before that
+board syncs — the app surfaces it as a clear, typed error rather than
+fetching silently.
 
 | Engine | What it reads |
 |---|---|
+| **Arbeitnow** | The live Arbeitnow job board (zero config) |
+| **Remotive** | Remotive remote jobs (zero config) |
+| **Jobicy** | Jobicy remote jobs, API v2 (zero config) |
 | **ATS API** | Public applicant-tracking-system job APIs |
 | **JSON-LD** | `schema.org/JobPosting` structured data |
 | **RSS** | Job feeds |

@@ -76,6 +76,9 @@ environment reads — and default to the closed posture. The hostile wall
 | Key | Engine | Manifest declares |
 |---|---|---|
 | `ats_api` | Public applicant-tracking-system job APIs (Greenhouse / Lever / Ashby) | `net` scoped to the three ATS API domains |
+| `arbeitnow` | The Arbeitnow job board (live public JSON API) | `net` scoped to `www.arbeitnow.com` |
+| `remotive` | Remotive remote jobs (live public JSON API) | `net` scoped to `remotive.com` |
+| `jobicy` | Jobicy remote jobs, API v2 (live public JSON API) | `net` scoped to `jobicy.com` |
 | `jsonld` | `schema.org/JobPosting` structured data | `sync` (instance-scoped guard) |
 | `rss` | Job feeds | `sync` |
 | `csv` | Exported spreadsheets | `sync` |
@@ -87,6 +90,55 @@ network scope is the validated instance config, and the host-side guard
 (fail-closed, robots, caps) applies per fetch. Connectors with statically
 known endpoints declare `net` + `domains` and every hop — redirects
 included — is checked against that scope.
+
+## The real job boards (bundled T1, first real content)
+
+`builtin/job_boards.py` ships the three real-content connectors —
+**Arbeitnow, Remotive, Jobicy** — free, no-auth, public JSON job APIs
+verified against live captures (2026-10-17; the captured payloads in
+`backend/tests/fixtures/connectors/` are the wire truth, never
+invented):
+
+- **Zero config, zero credentials.** `{}` validates on every one (the
+  manifests declare no secret slots *by absence* — that is the
+  statement); `tags`/`category`/`tag` filters and `max_items` caps
+  (50–200 polite defaults) are optional.
+- **Incremental by watermark.** `supportsIncremental` is real: each
+  fetch stamps the oldest returned posting's date into `next_state
+  .watermark` and drops at-or-below items next sync (conditional-GET
+  validators ride the same state; changed content still dedups
+  downstream by `content_hash`).
+- **Honest mapping.** `slug`/`id` → `external_id` (stable); free-text
+  `job_types` map onto the employment enum only where unambiguous
+  (freelance → contract; Werkstudent → part_time; German indefinite
+  contracts stay unmapped); Remotive salary *strings* parse into
+  `SalarySpec` where honest (`"$170k - $200k"`, `"$50-$75 /hour"`,
+  `"$35,3k- $52k"` — a `k` suffix makes commas decimals), Jobicy ships
+  structured salary+period; both remote-jobs boards set `remote=True`
+  with the geo restriction preserved (`raw.location_note` /
+  `location.country`); malformed rows are typed `invalid` partial
+  errors and never persist.
+- **Wire drift, captured.** Arbeitnow's documented `/api/job-board` now
+  302s to the homepage — the connector fetches the live
+  `/api/job-board-api` (300 rows/page, unix `created_at`); Jobicy v2
+  grew `nextCursor`/`hasMore` cursor paging (walked, max three pages
+  per sync); Remotive wraps `jobs` with a `0-legal-notice` asking for
+  attribution and link-back — the posting URLs ARE remotive.com URLs,
+  so attribution rides the data.
+- **Remotive + robots (recorded deviation).** `remotive.com/robots.txt`
+  carries `Disallow: /api/*`, and the charter's fail-closed robots law
+  means the polite runtime denies live remotive fetches under the
+  default posture — surfaced as a typed `net-denied` (the fixture wall
+  pins exactly this against the captured robots body). An operator who
+  judges their use consistent with Remotive's API terms (which
+  explicitly welcome API consumers) can lift it per deployment via the
+  `connector_respect_robots` escape hatch — a deliberate admin
+  decision, never a connector-side bypass.
+
+The same manifests ship as adoption data in the sibling
+`career-connector-template` repo (`connectors/` — the bundle is the
+contract: other hosts can adopt them where career already bundles the
+T1 implementations).
 
 ## The script tier (T3 — external MCP servers)
 

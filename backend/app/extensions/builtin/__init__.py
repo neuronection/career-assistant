@@ -1,8 +1,9 @@
 """First-party built-in connectors (Phase 26): ATS APIs, JSON-LD, RSS, CSV,
-manual URL. All legal-and-free sources; anything else ships as a plugin
-over the same SDK. Parsers are pure functions of fixture payloads; the
-injected transport keeps politeness (conditional GET, robots, caps) in
-the runtime, not in connector code.
+manual URL — plus the real-content job boards (Arbeitnow, Remotive,
+Jobicy — live public JSON APIs, bundled T1). All legal-and-free sources;
+anything else ships as a plugin over the same SDK. Parsers are pure
+functions of fixture payloads; the injected transport keeps politeness
+(conditional GET, robots, caps) in the runtime, not in connector code.
 """
 
 from __future__ import annotations
@@ -17,6 +18,15 @@ from typing import cast
 
 from pydantic import BaseModel, Field
 
+from app.extensions.builtin.job_boards import (
+    ArbeitnowConnector as ArbeitnowConnector,
+)
+from app.extensions.builtin.job_boards import (
+    JobicyConnector as JobicyConnector,
+)
+from app.extensions.builtin.job_boards import (
+    RemotiveConnector as RemotiveConnector,
+)
 from app.extensions.polite_http import conditional_headers, merge_cache_state
 from app.extensions.sdk import (
     ConnectorCapabilities,

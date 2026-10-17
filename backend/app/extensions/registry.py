@@ -33,6 +33,11 @@ from app.extensions.builtin import (
     ManualUrlConnector,
     RssConnector,
 )
+from app.extensions.builtin.job_boards import (
+    ArbeitnowConnector,
+    JobicyConnector,
+    RemotiveConnector,
+)
 from app.extensions.builtin.mcp import McpConnector
 from app.extensions.sdk import PostingConnector
 
@@ -46,6 +51,9 @@ _BUILTINS: list[PostingConnector] = [
     RssConnector(),
     CsvConnector(),
     ManualUrlConnector(),
+    ArbeitnowConnector(),
+    RemotiveConnector(),
+    JobicyConnector(),
     McpConnector(),
 ]
 

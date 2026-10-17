@@ -163,7 +163,18 @@ async def test_plugin_allowlist_gates_registration(
 def test_builtin_connectors_are_listed():
     keys = {c["key"] for c in list_connectors()}
     assert {"ats_api", "jsonld", "rss", "csv", "manual_url"} <= keys
-    builtin_keys = {"ats_api", "jsonld", "rss", "csv", "manual_url", "mcp"}
+    assert {"arbeitnow", "remotive", "jobicy"} <= keys, "the real job boards are bundled"
+    builtin_keys = {
+        "ats_api",
+        "jsonld",
+        "rss",
+        "csv",
+        "manual_url",
+        "arbeitnow",
+        "remotive",
+        "jobicy",
+        "mcp",
+    }
     for entry in list_connectors():
         assert entry["builtin"] == (entry["key"] in builtin_keys)
 

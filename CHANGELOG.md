@@ -4,6 +4,37 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (the first real content — bundled job-board connectors, ADR-0040 T1)
+- **Three real job boards are live, zero-config: Arbeitnow, Remotive,
+  Jobicy.** New bundled T1 connectors over free, no-auth public JSON
+  job APIs — no credentials by design (the manifests declare no secret
+  slots by absence), network scoped per-board to the real API hosts
+  (`net` + `sync`), polite per-host request budgets, and watermark
+  incremental sync (`posted_at` boundaries in `next_state`, plus the
+  runtime's conditional-GET validators; unchanged content dedups by
+  content hash). Optional config only: tag/category filters and
+  max-items caps with sane defaults, so an empty config is a working
+  source. Mapping stays honest — slug/id external ids, free-text job
+  types mapped only where unambiguous, Remotive salary strings parsed
+  into structured ranges where parseable, Jobicy's structured salary
+  and job levels carried through, malformed rows surfacing as typed
+  `invalid` errors that never persist. Wire shapes were captured from
+  the live APIs (2026-10-17), which surfaced real drift: Arbeitnow's
+  documented endpoint now redirects home (the connector targets the
+  live `/api/job-board-api`) and Jobicy v2 grew cursor paging (walked,
+  bounded). One recorded deviation: Remotive's robots.txt disallows
+  `/api/*`, so the fail-closed robots law denies its live syncs under
+  the default posture (typed `net-denied`, pinned by a fixture built
+  from the captured robots body); the documented
+  `CAREER_CONNECTOR_RESPECT_ROBOTS` escape hatch is the operator's
+  explicit decision. The same manifests ship as adoption data in the
+  sibling `career-connector-template` repo (`connectors/`) for hosts
+  that don't bundle them. Tests: per-connector fixture walls from the
+  captured payloads through the real runtime stack (dedup, watermark
+  increments, malformed rows, 429, robots denial, domain-drift
+  redirects) plus the vendored conformance kit — no network in unit
+  tests.
+
 ### Changed (the integrations UI swap — plan 33 Phase B / ADR-0040 D25)
 - **The connectors settings surfaces render through the family kit.**
   `@neuronection/assistant-ui` grows the plan-33 integrations UI kit
