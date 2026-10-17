@@ -291,8 +291,10 @@ async def test_bullets_clamped_and_extra_forbidden(db, auth_headers):
 
 async def test_read_items_and_set_bullets_tools(db, auth_headers):
     from app.ai.tools import run_tool
+    from tests.conftest import grant_tool
 
     user = await _auth_user(db)
+    await grant_tool(db, user, "cv_set_bullets")
     cv = await _cv(db, user)
     item = await _experience(db, user)
     listed = await run_tool(db, "read_cv_items", user.id, {"cv_id": str(cv.id)})

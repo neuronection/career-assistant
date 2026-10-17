@@ -236,6 +236,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.TOOL_RUN.value,
+        "D20 confirmed destructive tool execution audit (one row per approved call)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.DECISION_TOOL_DISPATCH.value,
         "Decision model slot: tool dispatch",
         AICapability.DECISION.value,

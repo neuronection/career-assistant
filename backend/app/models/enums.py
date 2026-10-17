@@ -256,6 +256,7 @@ class AITaskType(StrEnum):
     EMBED = "embed"
     MCP_TOOL_CALL = "mcp_tool_call"
     SANDBOX_CAPABILITY_CALL = "sandbox_capability_call"
+    TOOL_RUN = "tool_run"  # D20: one audit row per confirmed tool execution
     DECISION = "decision"  # ADR-0036: the decision default slot beside the kind overrides
     DECISION_TOOL_DISPATCH = "decision_tool_dispatch"
     DECISION_BOOLEAN_GATE = "decision_boolean_gate"
@@ -767,6 +768,7 @@ class ProposalKind(StrEnum):
     CV_SYNTH = "cv_synth"
     CV_SET_BULLETS = "cv_set_bullets"
     CV_CHOICE = "cv_choice"
+    TOOL_EXECUTION = "tool_execution"  # D20: one destructive tool call, confirmed
 
 
 class ProposalAction(StrEnum):

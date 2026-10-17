@@ -457,6 +457,7 @@ async def tools(
     include_capabilities: bool = False,
     bindable_only: bool = False,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Registered AI tools (callable only, unless capabilities are opted in).
 
@@ -465,7 +466,9 @@ async def tools(
     the callable-only default. ``bindable_only=true`` narrows to the
     subset the main chat's LLM actually binds (the chat-audience
     allowlist) — the chat's "tools the assistant can use" dialog shows
-    THAT, not the whole copilot/admin registry."""
+    THAT, not the whole copilot/admin registry. Every row carries its
+    ADR-0011 risk class (D20) plus the caller's grant state for
+    state-changing tools (the catalog toggle)."""
     listed = list_tools()
     if not include_capabilities:
         listed = [t for t in listed if t.get("kind") == "tool"]
@@ -478,7 +481,42 @@ async def tools(
             for t in listed
             if t.get("key") in bindable or (t.get("hitl") and include_capabilities)
         ]
-    return listed
+    from app.ai.tools.grants import granted_keys
+
+    granted = await granted_keys(db, user.id)
+    return [
+        {**t, "granted": (t["risk_class"] == "state-changing" and t["key"] in granted)}
+        for t in listed
+    ]
+
+
+@router.put("/tools/{key}/grant")
+async def grant_tool(
+    key: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The tools-catalog toggle ON: per-user enablement of one
+    state-changing tool (D20 per-grant law). Destructive tools are
+    rejected here by construction — they confirm every call and are
+    never grant-bypassable; read-only tools need no grant."""
+    from app.ai.tools.grants import grant
+
+    await grant(db, user.id, key)
+    return {"key": key, "granted": True}
+
+
+@router.delete("/tools/{key}/grant")
+async def revoke_tool_grant(
+    key: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The tools-catalog toggle OFF."""
+    from app.ai.tools.grants import revoke
+
+    removed = await revoke(db, user.id, key)
+    return {"key": key, "granted": False, "removed": removed}
 
 
 # --------------------------------------------------- web tools config (plan 80)

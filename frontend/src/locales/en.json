@@ -2127,7 +2127,12 @@
   "toolsDialog": {
     "title": "Tools the assistant can use",
     "loadError": "Could not load the tool catalog. Try again later.",
-    "hitlAction": "HITL action"
+    "hitlAction": "HITL action",
+    "riskStateChanging": "Changes data",
+    "riskDestructive": "Destructive",
+    "grantsTitle": "Needs your enablement",
+    "grantsHint": "These tools change your data. They stay off until you enable them here; the assistant is told when a tool is off. Destructive tools always ask for a separate confirmation per call — they never ride this toggle.",
+    "grantHintLine": "runs only while enabled"
   },
   "chatView": {
     "sidePanel": "Side panel",

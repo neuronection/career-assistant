@@ -27,6 +27,7 @@ ProposalKindLiteral = Literal[
     "cv_synth",
     "cv_set_bullets",
     "cv_choice",
+    "tool_execution",
 ]
 
 PROFILE_SECTIONS: tuple[str, ...] = (
@@ -181,6 +182,20 @@ class CvChoiceOption(BaseModel):
     description: str = Field(default="", max_length=400)
     entity_id: UUID | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolExecutionPayload(BaseModel):
+    """One confirmed destructive tool call (the D20 card's body).
+
+    ``tool`` is the registry key (extension contributions carry the
+    charter's ``<extensionId>:<id>`` namespacing); ``args`` is the exact
+    model-provided argument dict for THIS call — the card approves this
+    call, never the tool in general; ``summary`` is the server-computed
+    human line rendered on the card."""
+
+    tool: str = Field(min_length=1, max_length=200)
+    args: dict[str, Any] = Field(default_factory=dict)
+    summary: str = Field(default="", max_length=300)
 
 
 class CvChoiceOpPayload(BaseModel):

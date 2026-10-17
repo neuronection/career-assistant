@@ -10995,7 +10995,8 @@
               "profile_section",
               "cv_synth",
               "cv_set_bullets",
-              "cv_choice"
+              "cv_choice",
+              "tool_execution"
             ],
             "title": "Kind",
             "type": "string"
@@ -18630,7 +18631,7 @@
     },
     "/api/v1/ai/tools": {
       "get": {
-        "description": "Registered AI tools (callable only, unless capabilities are opted in).\n\n``include_capabilities=true`` adds the non-callable HITL capability\nrows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep\nthe callable-only default. ``bindable_only=true`` narrows to the\nsubset the main chat's LLM actually binds (the chat-audience\nallowlist) \u2014 the chat's \"tools the assistant can use\" dialog shows\nTHAT, not the whole copilot/admin registry.",
+        "description": "Registered AI tools (callable only, unless capabilities are opted in).\n\n``include_capabilities=true`` adds the non-callable HITL capability\nrows (ADR-0015) for the chat tools dialog; admin/MCP surfaces keep\nthe callable-only default. ``bindable_only=true`` narrows to the\nsubset the main chat's LLM actually binds (the chat-audience\nallowlist) \u2014 the chat's \"tools the assistant can use\" dialog shows\nTHAT, not the whole copilot/admin registry. Every row carries its\nADR-0011 risk class (D20) plus the caller's grant state for\nstate-changing tools (the catalog toggle).",
         "operationId": "tools_api_v1_ai_tools_get",
         "parameters": [
           {
@@ -18682,6 +18683,94 @@
           }
         },
         "summary": "Tools",
+        "tags": [
+          "ai-settings"
+        ]
+      }
+    },
+    "/api/v1/ai/tools/{key}/grant": {
+      "delete": {
+        "description": "The tools-catalog toggle OFF.",
+        "operationId": "revoke_tool_grant_api_v1_ai_tools__key__grant_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revoke Tool Grant Api V1 Ai Tools  Key  Grant Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Tool Grant",
+        "tags": [
+          "ai-settings"
+        ]
+      },
+      "put": {
+        "description": "The tools-catalog toggle ON: per-user enablement of one\nstate-changing tool (D20 per-grant law). Destructive tools are\nrejected here by construction \u2014 they confirm every call and are\nnever grant-bypassable; read-only tools need no grant.",
+        "operationId": "grant_tool_api_v1_ai_tools__key__grant_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Grant Tool Api V1 Ai Tools  Key  Grant Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Grant Tool",
         "tags": [
           "ai-settings"
         ]

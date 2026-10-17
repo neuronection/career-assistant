@@ -4,6 +4,26 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (the D20 destructive-confirm runtime funnel — plan 32 follow-up / ADR-0011 / ADR-0015)
+- **Destructive chat tools confirm every call, through a card.** Every
+  chat tool now carries its ADR-0011 risk class (`read-only |
+  state-changing | destructive`, registration-gated against scope). A
+  destructive call can no longer execute directly: it becomes an
+  ADR-0015 Class-B proposal card on the existing HITL machinery
+  (idempotent resolve, notification fanout, cross-session inbox, live
+  chat card with two-step confirm) and runs exactly once on that card's
+  approval — re-validated server-side, never from model output (the
+  model sees only an awaiting-approval reference; feeding it back emits
+  another card at most), never grant-bypassable. State-changing tools
+  ride per-grant enablement: the tools catalog dialog gains a "Needs
+  your enablement" section (`PUT/DELETE /ai/tools/{key}/grant`) — off
+  by default, with a typed model-visible error while off. Read-only
+  tools are unchanged. Bundled connectors can contribute chat tools by
+  declaring `chat-tools` + a `tools` list in their manifest (riskClass
+  required) and implementing `chat_tools()`; the registration bridge
+  throws on any manifest/code disagreement. Both halves are audited:
+  the card row and one `tool_run` audit row per execution.
+
 ### Fixed (the T2 frozen-packaging capability check — plan 32 Phase 5 follow-up)
 - **T2 imports on frozen builds self-disable honestly instead of
   crashing at spawn.** The sandbox child spawns

@@ -109,9 +109,7 @@ async def test_emit_fans_out_recipients_and_delivery_log(db, kinds, desktop_chan
     deliveries = (
         (
             await db.execute(
-                select(NotificationDelivery).where(
-                    NotificationDelivery.notification_id == event.id
-                )
+                select(NotificationDelivery).where(NotificationDelivery.notification_id == event.id)
             )
         )
         .scalars()
@@ -120,7 +118,8 @@ async def test_emit_fans_out_recipients_and_delivery_log(db, kinds, desktop_chan
     in_app = [d for d in deliveries if d.channel == "in_app"]
     desktop = [d for d in deliveries if d.channel == "desktop"]
     assert len(in_app) == 2 and len(desktop) == 2
-    assert all(d.status == "delivered" for d in deliveries)
+    statuses = [(d.channel, d.status, d.error) for d in [*in_app, *desktop]]
+    assert all(d.status == "delivered" for d in [*in_app, *desktop]), f"delivery log: {statuses}"
     assert len(desktop_channel.calls) == 2
     assert desktop_channel.calls[0].payload["job_id"]
 

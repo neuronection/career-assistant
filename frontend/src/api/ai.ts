@@ -161,6 +161,10 @@ export interface AiToolInfo {
   title: string;
   description: string;
   scope: string;
+  /** ADR-0011 risk class (D20): read-only | state-changing | destructive. */
+  risk_class?: string;
+  /** The caller's catalog grant (state-changing tools only). */
+  granted?: boolean;
   audiences: string[];
   cost_hint: string | null;
   requires_user: boolean;
@@ -186,6 +190,18 @@ export async function fetchAiTools(options?: {
     },
   });
   return data;
+}
+
+/** The tools-catalog toggle ON: per-user enablement of one state-changing
+ * tool (D20 per-grant law — destructive tools confirm every call and are
+ * never grantable; the backend rejects those keys). */
+export async function grantAiTool(key: string): Promise<void> {
+  await api.put(`/ai/tools/${encodeURIComponent(key)}/grant`);
+}
+
+/** The tools-catalog toggle OFF. */
+export async function revokeAiToolGrant(key: string): Promise<void> {
+  await api.delete(`/ai/tools/${encodeURIComponent(key)}/grant`);
 }
 
 export async function fetchConfigSummary(): Promise<ConfigSummary> {

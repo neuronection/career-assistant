@@ -58,6 +58,7 @@ from app.schemas.profile_proposal import (
     CvSynthOpPayload,
     ProfileSectionPatchIn,
     TextEdit,
+    ToolExecutionPayload,
     UserSkillAddIn,
     UserSkillPatchIn,
 )
@@ -448,6 +449,13 @@ KIND_SPECS: dict[str, KindSpec] = {
         update_model=None,
         fields=(),
     ),
+    ProposalKind.TOOL_EXECUTION.value: KindSpec(
+        label="destructive tool call",
+        model=None,
+        create_model=None,
+        update_model=None,
+        fields=(),
+    ),
 }
 
 
@@ -681,6 +689,9 @@ def _edit_summary_rows(edit_ops: dict | None) -> list[dict]:
 
 def proposal_title(proposal: ProfileProposal) -> str:
     """Card title: "Update experience · Siemens internship"."""
+    if proposal.kind == ProposalKind.TOOL_EXECUTION.value:
+        tool = str((proposal.payload_json or {}).get("tool") or proposal.entity_label)
+        return f"Run destructive tool · {tool}"
     spec = KIND_SPECS.get(proposal.kind)
     noun = spec.label if spec is not None else proposal.kind
     verb = ACTION_VERBS.get(proposal.action, proposal.action.title())
@@ -699,7 +710,10 @@ def proposal_event(proposal: ProfileProposal) -> dict:
         "entity_id": str(proposal.entity_id) if proposal.entity_id else None,
         "entity_label": proposal.entity_label,
         "diff": proposal.diff_json or [],
-        "destructive": proposal.action == ProposalAction.DELETE.value,
+        "destructive": (
+            proposal.action == ProposalAction.DELETE.value
+            or proposal.kind == ProposalKind.TOOL_EXECUTION.value
+        ),
         "source": proposal.source,
         "chat_session_id": (str(proposal.chat_session_id) if proposal.chat_session_id else None),
         "created_at": proposal.created_at.isoformat(),
@@ -987,13 +1001,36 @@ async def notify_proposals(db, user_id, proposals, session_id) -> None:
     """ADR-0015 fanout: proposal cards outlive the chat window.
 
     Best-effort — a notification failure never breaks the chat turn.
-    """
+    Kind-aware copy: destructive-tool confirmations name the tool and
+    land on the chat surface, profile edits on the profile inbox."""
     import logging
 
     logger = logging.getLogger(__name__)
     try:
         from app.services.notification_service import NotificationService
 
+        tool_cards = [p for p in proposals if p.kind == ProposalKind.TOOL_EXECUTION.value]
+        if tool_cards and len(tool_cards) == len(proposals):
+            plural = "s" if len(proposals) > 1 else ""
+            summary = ", ".join(
+                str(p.payload_json.get("tool") or p.entity_label) for p in proposals[:3]
+            )
+            if len(proposals) > 3:
+                summary = f"{summary} +{len(proposals) - 3} more"
+            await NotificationService(db).emit(
+                "profile_proposal",
+                [user_id],
+                title=f"Destructive tool call{plural} waiting for confirmation",
+                body=f"{summary} — nothing ran until you approve",
+                payload={
+                    "link": "/chat",
+                    "proposal_ids": [str(p.id) for p in proposals],
+                    "chat_session_id": str(session_id) if session_id else None,
+                },
+                source_ref={"chat_session_id": str(session_id)} if session_id else None,
+                dedup_key=f"profile-proposal:{proposals[0].id}",
+            )
+            return
         titles = [p.entity_label or p.kind for p in proposals[:3]]
         summary = ", ".join(titles)
         if len(proposals) > 3:
@@ -1261,6 +1298,11 @@ class ProfileProposalService:
                 raise ValidationError("CV choice ops support create only")
             if entity_id is not None:
                 raise ValidationError("cv_choice ops carry no entity_id")
+        elif kind == ProposalKind.TOOL_EXECUTION.value:
+            if action != ProposalAction.CREATE.value:
+                raise ValidationError("tool_execution ops support create only")
+            if entity_id is not None:
+                raise ValidationError("tool_execution ops carry no entity_id")
         elif action == ProposalAction.CREATE.value:
             if entity_id is not None:
                 raise ValidationError("create ops carry no entity_id")
@@ -1349,6 +1391,21 @@ class ProfileProposalService:
             stored_payload = choice_payload.model_dump(mode="json")
             label = _cv_choice_label(stored_payload)
             diff = _cv_choice_diff(stored_payload)
+        elif kind == ProposalKind.TOOL_EXECUTION.value:
+            op_payload = ToolExecutionPayload.model_validate(payload)
+            stored_payload = op_payload.model_dump(mode="json")
+            label = op_payload.summary or op_payload.tool
+            diff = [
+                {"field": "tool", "label": "Tool", "after": op_payload.tool},
+                *(
+                    {
+                        "field": name,
+                        "label": name.replace("_", " ").title(),
+                        "after": value,
+                    }
+                    for name, value in op_payload.args.items()
+                ),
+            ]
         elif action == ProposalAction.CREATE.value:
             model = spec.create_model
             assert model is not None
@@ -1811,6 +1868,12 @@ class ProfileProposalService:
         terminal_first = proposal.kind in (
             ProposalKind.CV_SYNTH.value,
             ProposalKind.CV_CHOICE.value,
+            # A destructive tool execution runs AT MOST once: the card
+            # reaches its terminal state BEFORE the handler runs, so a
+            # crash mid-apply leaves an approved card with a
+            # resolve_error — never a retryable pending card (a retry
+            # would re-execute the confirmed call).
+            ProposalKind.TOOL_EXECUTION.value,
         )
         if terminal_first:
             proposal.status = ProposalStatus.APPROVED.value
@@ -1999,6 +2062,13 @@ class ProfileProposalService:
                 proposal.resolved_at = datetime.now(UTC)
                 await self.db.commit()
                 raise ConflictError("Changed since it was proposed — review the updated diff")
+        if kind == ProposalKind.TOOL_EXECUTION.value:
+            # The confirmed destructive call: re-validated + executed with
+            # an audit row inside the confirm funnel (the card is already
+            # terminal — terminal-first in approve()).
+            from app.ai.tools.confirm import apply_tool_execution
+
+            return await apply_tool_execution(self.db, proposal)
         return await self._apply(kind, proposal.action, proposal.entity_id, payload, user_id)
 
     def _patch_fields(self, kind: str, payload: dict) -> dict:

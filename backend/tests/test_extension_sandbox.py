@@ -268,6 +268,10 @@ async def test_escape_memory_bomb_capped(db, t2_env, monkeypatch, mock_net):
     healthy = await install_t2(
         db, t2_env, "memory-after", reference_manifest(), None, ext_id="memory-after"
     )
+    # The bomb ran under the tightened CI watchdog; the healthy follow-up
+    # gets a realistic budget — a loaded parallel box must not turn the
+    # isolation assertion into a spawn-latency race.
+    monkeypatch.setattr(settings, "extension_sandbox_call_timeout_seconds", 12.0)
     assert (await enable_and_sync(db, healthy))["synced"] == len(SAMPLE_ROWS), (
         "the host and other extensions are unaffected"
     )

@@ -22,8 +22,9 @@ enforces them.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -33,6 +34,7 @@ from app.models.base import StructuredJSON  # noqa: F401 — re-export convenien
 __all__ = [
     "RAW_POSTING_ITEM_SCHEMA",
     "AuditFn",
+    "ChatToolContribution",
     "ConnectorCapabilities",
     "ConnectorError",
     "ConnectorResult",
@@ -166,6 +168,47 @@ class ConnectorResult(BaseModel):
 HttpTransport = Callable[[str, dict], Awaitable[PoliteResponse]]
 
 
+@dataclass(frozen=True)
+class ChatToolContribution:
+    """One chat tool a bundled connector contributes (D20).
+
+    The MANIFEST carries the law (``tools`` entries with the riskClass);
+    the code side carries the implementation. The tool registry bridges
+    the two at registration and throws on any disagreement (undeclared
+    implementation, declared-but-missing implementation, risk-class
+    drift). ``risk_class`` must be the charter vocabulary verbatim —
+    the host namespaces the registry key as ``<extensionId>:<id>``."""
+
+    id: str
+    title: str
+    description: str
+    risk_class: str
+    input_model: type[BaseModel]
+    handler: Callable[[Any, Any, Any], Awaitable[Any]]
+
+    def as_tool(self, namespaced_key: str) -> Any:
+        """Project onto the host's chat tool metadata (a late import keeps
+        the SDK free of host AI-layer imports)."""
+        from app.ai.tools.base import AITool, ToolScope
+
+        return AITool(
+            key=namespaced_key,
+            title=self.title,
+            description=self.description,
+            input_model=self.input_model,
+            handler=self.handler,
+            scope=ToolScope.WRITE,
+            risk_class=_risk_class(self.risk_class),
+            audiences=frozenset({"chat"}),
+        )
+
+
+def _risk_class(value: str) -> Any:
+    from app.ai.tools.base import ToolRiskClass
+
+    return ToolRiskClass(value)
+
+
 class ExternalEffect(BaseModel):
     """One observable external interaction of a fetch (charter lifecycle
     law: one audit row per external effect). Connectors with effects
@@ -208,12 +251,15 @@ def connector_manifest(
     domains: list[str] | None = None,
     version: str = "1.0.0",
     description: str = "",
+    tools: list[dict] | None = None,
 ) -> dict:
     """Build a connector-kind extension manifest (envelope ``extension/v1``,
     ADR-0040 clause 5) for a bundled connector. ``capabilities`` declares
     the charter truth — ``net`` requires ``domains`` (the polite runtime's
     declared-domain scope); bundled connectors that fetch user-configured
-    URLs declare ``sync`` only and get the host-side guard per instance."""
+    URLs declare ``sync`` only and get the host-side guard per instance.
+    ``chat-tools`` requires its ``tools`` contribution list (every entry's
+    ``riskClass`` is schema-required — the D20 wall)."""
 
     manifest: dict = {
         "apiVersion": "extension/v1",
@@ -235,6 +281,8 @@ def connector_manifest(
     }
     if domains:
         manifest["domains"] = domains
+    if tools:
+        manifest["tools"] = tools
     return manifest
 
 
@@ -250,6 +298,13 @@ class PostingConnector:
     # T3 script tier) set this: sync/probe then inject the ``audit``
     # callback so every external effect lands on the audit funnel.
     audits_effects: bool = False
+
+    def chat_tools(self) -> list[ChatToolContribution]:
+        """Chat tool contributions (D20) — default none. A connector
+        declaring ``chat-tools`` in its manifest MUST implement this
+        consistently with the manifest's ``tools`` list (the registration
+        bridge cross-checks both directions)."""
+        return []
 
     def config_model(self) -> type[BaseModel]:
         raise NotImplementedError

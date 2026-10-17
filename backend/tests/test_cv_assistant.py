@@ -525,6 +525,9 @@ async def test_template_switch_grounded_on_layout_facts(client, db, auth_headers
     two-column template creates room beside the narrative" can only
     follow the actual design."""
     await _seed_bank(db)
+    from tests.conftest import grant_tool
+
+    await grant_tool(db, await _user_id(db), "cv_set_template")
     _cv, created = await _owned_cv(db, client, auth_headers)
     user_id = await _user_id(db)
     state = await run_tool(db, "cv_read_state", user_id, {"cv_id": created["id"]})

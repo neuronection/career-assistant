@@ -91,6 +91,7 @@ TABLES = [
     "ai_models",
     "ai_providers",
     "profile_proposals",
+    "user_tool_grants",
     "chat_messages",
     "chat_sessions",
     "ai_skill_packs",
@@ -778,3 +779,15 @@ def _chat_agent_mock():
     gateway_module.register_agent_mock(AITaskType.CHAT.value, _chat_agent_script)
     yield
     gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
+
+
+async def grant_tool(db, user, key: str) -> None:
+    """D20 test helper: the catalog grant a state-changing tool needs
+    before the registry funnel lets its write run. Accepts a User row or
+    a bare user id."""
+    from uuid import UUID
+
+    from app.ai.tools.grants import grant
+
+    user_id = user if isinstance(user, UUID) else user.id
+    await grant(db, user_id, key)

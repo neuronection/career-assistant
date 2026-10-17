@@ -58,14 +58,19 @@ def main_chat_tool_keys() -> list[str]:
 
 
 def tool_spec(key: str) -> dict | None:
-    """One registry tool as an OpenAI function-format spec, or None."""
+    """One registry tool as an OpenAI function-format spec, or None.
+
+    Extension contributions carry the charter-namespaced registry key
+    ``<extensionId>:<id>``; OpenAI function names take no colons, so the
+    bind name projects ``:`` → ``__`` (bijective — kebab-case ids cannot
+    contain underscores; the registry resolves the alias back)."""
     for entry in list_tools():
         if entry["key"] != key or entry.get("kind") != "tool":
             continue
         return {
             "type": "function",
             "function": {
-                "name": entry["key"],
+                "name": key.replace(":", "__"),
                 "description": entry["description"],
                 "parameters": entry["input_schema"],
             },

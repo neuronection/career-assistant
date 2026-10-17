@@ -67,6 +67,7 @@ from app.models.schedule_model import Schedule
 from app.models.settings_model import AppSetting
 from app.models.skill_pack_model import AISkillPack  # noqa: F401
 from app.models.taxonomy_model import InterestTag, Skill
+from app.models.tool_grant_model import UserToolGrant
 from app.models.university_model import (
     Department,
     DepartmentAdmission,
@@ -149,4 +150,5 @@ __all__ = [
     "UserInterest",
     "UserMetricProfile",
     "UserSkill",
+    "UserToolGrant",
 ]

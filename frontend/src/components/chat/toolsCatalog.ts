@@ -14,18 +14,24 @@ export function toolArguments(tool: AiToolInfo): AiToolArgument[] {
 
 export function toolCatalogEntry(
   tool: AiToolInfo,
-  labels?: { hitlAction?: string },
+  labels?: { hitlAction?: string; riskLabels?: Record<string, string> },
 ): ChatToolCatalogEntry {
   const isCapability = tool.kind === "capability";
+  const riskBadge =
+    !isCapability && tool.risk_class && tool.risk_class !== "read-only"
+      ? {
+          label: labels?.riskLabels?.[tool.risk_class] ?? tool.risk_class,
+          tone: "warning" as const,
+        }
+      : null;
   return {
     name: tool.key,
     title: tool.title,
     description: tool.description,
     arguments: isCapability ? [] : toolArguments(tool),
     scope: isCapability ? null : tool.scope,
-    badge:
-      isCapability && tool.hitl && labels?.hitlAction
-        ? { label: labels.hitlAction, tone: "warning" }
-        : null,
+    badge: riskBadge ?? (isCapability && tool.hitl && labels?.hitlAction
+      ? { label: labels.hitlAction, tone: "warning" }
+      : null),
   };
 }

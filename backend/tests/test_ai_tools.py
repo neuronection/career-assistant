@@ -262,6 +262,12 @@ async def test_notification_write_flow_through_registry(db, kinds):
     await db.commit()
     await db.refresh(user)
 
+    # D20: muting a notification pref is state-changing — the registry
+    # funnel requires the user's catalog grant before the write runs.
+    from app.ai.tools.grants import grant
+
+    await grant(db, user.id, "my_notifications")
+
     result = await run_tool(
         db,
         "my_notifications",

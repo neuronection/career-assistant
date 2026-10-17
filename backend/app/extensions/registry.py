@@ -181,6 +181,13 @@ async def resolve_connector(db, key: str) -> PostingConnector:
     return SandboxConnector(db, await t2_install(db, key))
 
 
+def iter_connectors() -> list[PostingConnector]:
+    """Registered connector instances (the chat-tools bridge reads their
+    manifests) — triggers the lazy load like every other accessor."""
+    _load_plugins()
+    return list(_registry.values())
+
+
 def list_connectors() -> list[dict]:
     _load_plugins()
     return [

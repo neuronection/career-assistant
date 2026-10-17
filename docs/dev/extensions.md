@@ -437,6 +437,52 @@ credential slot values through the admin API or the settings UI.
 
 A plugin that is not allowlisted is simply not registered.
 
+## Chat tools & the risk-class funnel (D20)
+
+Every chat tool carries exactly one ADR-0011 risk class — `read-only |
+state-changing | destructive` — declared in the tool registry
+(`app/ai/tools/`; the classes cohere with the tool's scope, enforced at
+registration). Bundled connectors contribute chat tools through their
+manifest: declaring `chat-tools` requires the manifest `tools` list
+(every entry's `riskClass` is schema-required), the connector implements
+`chat_tools()` in code, and the bridge (`app/ai/tools/registry.py`
+`_extension_chat_tools`) cross-checks BOTH directions at registration —
+an undeclared implementation, a declared-but-missing one, or a
+risk-class disagreement is a throw ("the manifest is the law"). The
+registry key is the charter namespacing `<extensionId>:<id>`; the
+model-facing bind name projects `:` → `__` (kebab ids make it
+bijective) and the registry resolves the alias back.
+
+The invocation-time funnel is `run_tool` (the one executor):
+
+- **read-only** — unchanged (auto-runs).
+- **state-changing** — rides per-grant enablement: the user's catalog
+  toggle (`user_tool_grants`, `PUT/DELETE /ai/tools/{key}/grant`,
+  surfaced in the chat tools dialog under "Needs your enablement").
+  Without the grant the call fails with a typed, model-visible error —
+  inert by default, never silently skipped.
+- **destructive** — CANNOT execute through `run_tool` at all. The call
+  becomes an ADR-0015 Class-B card (proposal kind `tool_execution` on
+  the existing HITL machinery: idempotent resolve, notification fanout,
+  cross-session inbox, chat-message lineage) and returns the minimal
+  awaiting-approval reference to the model. Approval runs through the
+  card only (`/me/profile-proposals/{id}/approve`): terminal-first
+  commit (a crash mid-apply leaves an approved card with a
+  `resolve_error`, never a retryable pending one — the handler runs at
+  most once), re-validation of tool/args at apply time, and the card
+  approves THAT call's stored args, never the tool in general. Nothing
+  in the model-facing result can arm execution — feeding the result
+  back as tool args emits another card at most. Grants never bypass it
+  (the grant endpoint refuses destructive keys, and even a forced grant
+  row changes nothing). Audit rows cover both halves: the card row
+  (proposal side) and one `ai_generations` row (`tool_run` task) per
+  execution.
+
+Chat turn integration: the confirmation cards ride the turn's proposal
+events (live `proposal` SSE + persisted `metadata_json.proposals`), so
+the destructive call renders as a card with a two-step confirm — the
+same surface profile edits use.
+
 ## Secrets (the x-secret law)
 
 Connector credentials never live in `job_sources.config`. Fields marked

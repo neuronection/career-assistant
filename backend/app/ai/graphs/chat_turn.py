@@ -114,6 +114,8 @@ class ChatTurnState(TypedDict, total=False):
     proposals_dropped: int
     dropped_reasons: list[dict]
     overflow: int
+    #: D20 — destructive calls that became confirmation cards this turn
+    tool_confirmations: list[dict]
     #: plan 98 phase 3 — tool rounds
     pending_calls: list[dict]
     tool_results_extra: dict
@@ -369,6 +371,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     extra: dict = {}
     metadata_tools = list((state.get("tool_metadata") or {}).get("tools", []))
     dropped: list[dict] = []
+    confirmations: list[dict] = []
     executed_total = state.get("tools_executed", 0)
     executed = 0
     read_keys = list(state.get("read_keys") or [])
@@ -384,10 +387,29 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
             continue
         started = time.monotonic()
         try:
-            result = await run_tool(deps.db, call["name"], deps.user.id, call["args"])
+            result = await run_tool(
+                deps.db,
+                call["name"],
+                deps.user.id,
+                call["args"],
+                chat_session_id=deps.session.id,
+            )
         except Exception as exc:
             result = {"error": str(exc)}
         executed += 1
+        if isinstance(result, dict) and result.get("status") == "awaiting_approval":
+            # D20: a destructive call became a confirmation card — the
+            # card rides the turn's proposal events (the model's tool
+            # result stays the minimal awaiting-approval reference).
+            from app.services.profile_proposal_service import (
+                ProfileProposalService,
+                proposal_event,
+            )
+
+            proposal = await ProfileProposalService(deps.db).get(
+                deps.user.id, uuid.UUID(str(result["proposal_id"]))
+            )
+            confirmations.append(proposal_event(proposal))
         # Trace honesty (plan 109 follow-up): a registry tool's trace row
         # carries what actually ran and returned — a bare tool name hid
         # the grounding the reply was built on.
@@ -510,6 +532,10 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         "read_results": read_results,
         "tool_metadata": tool_metadata,
         "prompt": prompt,
+        "tool_confirmations": [
+            *(state.get("tool_confirmations") or []),
+            *confirmations,
+        ],
     }
 
 
@@ -826,8 +852,10 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
         tool_metadata["tokens_in"] = state["tokens_in"]
     if state.get("tokens_out") is not None:
         tool_metadata["tokens_out"] = state["tokens_out"]
-    if deps.created_proposals:
-        tool_metadata["proposals"] = list(state.get("proposals") or [])
+    confirmation_events = list(state.get("tool_confirmations") or [])
+    proposal_events = [*confirmation_events, *(state.get("proposals") or [])]
+    if proposal_events:
+        tool_metadata["proposals"] = proposal_events
     dropped = state.get("proposals_dropped") or 0
     if dropped:
         tool_metadata["proposals_dropped"] = dropped
@@ -854,6 +882,8 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
             "proposals_dropped_reasons": tool_metadata.get("proposals_dropped_reasons"),
         },
     )
+    for payload in confirmation_events:
+        deps.emit("proposal", payload)
     for payload in state.get("proposals") or []:
         deps.emit("proposal", payload)
     deps.emit(
