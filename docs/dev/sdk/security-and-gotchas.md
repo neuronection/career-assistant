@@ -71,7 +71,11 @@ sides:
   credentials-required connector surfaces typed `needs-secret`;
 - in T2, the secret value is **structurally unable to cross the seam**
   (no message shape can carry it — the host substitutes
-  `{{secret:<slot>}}` placeholders into the next fetch host-side);
+  `{{secret:<slot>}}` placeholders into the next fetch's **headers**
+  host-side; URL placeholders are refused typed `invalid`, and the
+  response envelope's `finalUrl` plus every error detail cross back
+  scrubbed of resolved values — the 2026-10-18 evaluation's H1 policy:
+  secrets ride headers only);
 - in T3, the config handed to the tool is stripped of declared secret
   slots; the optional transport token resolves host-side.
 

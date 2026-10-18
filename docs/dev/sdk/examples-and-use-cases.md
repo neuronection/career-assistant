@@ -470,7 +470,10 @@ registry routes every sync through the sandbox runner.
   `protocol`) without disabling.
 - **Secrets never cross the seam**: `cap.secrets.need` returns STATUS;
   the host substitutes `{{secret:<slot>}}` placeholders into your next
-  fetch host-side. There is no message shape that can carry a value.
+  fetch's **headers** host-side — a placeholder in a URL is refused
+  typed `invalid` (URLs leak via logs, redirects, Referer and error
+  paths). There is no message shape that can carry a value: the
+  response's `finalUrl` and every error detail cross back scrubbed.
 - **Frozen builds**: a PyInstaller-frozen host has no interpreter to
   spawn — T2 installs self-disable typed `unsupported` there
   (capability detection, never a hard dependency; probe with

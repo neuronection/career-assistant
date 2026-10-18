@@ -9,10 +9,15 @@ per capability call — the caller injects the audit funnel callback):
   runtime, scoped to the manifest's DECLARED DOMAINS on every hop
   (polite_http re-validates each redirect target); this host serves GET
   only in v1 (a legal charter tightening — hosts may tighten, never
-  loosen); declared secret slots resolve host-side into header values or
-  the URL via the ``{{secret:<slot>}}`` placeholder the extension
-  received from ``cap.secrets.need`` — the value itself is structurally
-  unable to cross the seam (it never appears in a message payload);
+  loosen); declared secret slots resolve host-side into HEADER values
+  via the ``{{secret:<slot>}}`` placeholder the extension received from
+  ``cap.secrets.need`` — OWNER POLICY (2026-10-18 evaluation, H1):
+  secrets ride headers ONLY; a placeholder in a URL is a typed
+  ``invalid`` (URLs leak via logs, redirects, Referer and error paths —
+  URL substitution was exfiltration by design). The value itself is
+  structurally unable to cross the seam (it never appears in a message
+  payload): the response envelope's ``finalUrl`` and every error detail
+  are scrubbed of any resolved value before crossing back;
 * ``cap.state.get`` / ``cap.state.set`` — extension-owned state on the
   install row (``extension_state``), quota'd by the charter's
   ``limits.stateMaxBytes`` per instance, key-pattern-checked;
@@ -35,6 +40,7 @@ import time
 from collections import deque
 from datetime import UTC, datetime
 from typing import Any, ClassVar
+from urllib.parse import quote
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -262,7 +268,22 @@ class CapabilityProvider:
                 "unsupported", _detail({"reason": "net.fetch bodies are not served on this host"})
             )
         headers = self._validated_headers(params.get("headers") or {})
-        url = self._inject_secrets(url)
+        if SECRET_REF_PATTERN.search(url):
+            # OWNER POLICY (2026-10-18 evaluation, H1c): secrets ride
+            # HEADERS only — URL substitution is removed. A placeholder in
+            # a URL to any declared domain exfiltrated by design (URLs
+            # leak via logs, redirects, Referer and error paths).
+            raise SeamError(
+                "invalid",
+                _detail(
+                    {
+                        "field": "url",
+                        "reason": (
+                            "secret placeholders are not served in URLs — pass secrets via headers"
+                        ),
+                    }
+                ),
+            )
         headers = {name: self._inject_secrets(value) for name, value in headers.items()}
         max_bytes = params.get("maxBytes")
         if max_bytes is not None and (
@@ -286,9 +307,12 @@ class CapabilityProvider:
         except polite_http.PoliteHttpError as exc:
             # net-denied (guard / robots / domain scope — every hop) and
             # friends cross as the SAME typed codes (identity mapping).
+            # The detail is scrubbed of any resolved secret value before
+            # it crosses back (H1b — the guard redacts URLs it embeds;
+            # the seam scrub is belt-and-braces over every error kind).
             raise SeamError(
                 exc.code,
-                _detail({"net": exc.detail}),
+                _detail({"net": self._scrub_secrets(exc.detail)}),
                 retryable=exc.retryable,
                 retry_after_ms=exc.retry_after_ms,
             ) from exc
@@ -297,7 +321,11 @@ class CapabilityProvider:
             "status": response.status,
             "headers": dict(list(response.headers.items())[:32]),
             "body": response.body,
-            "finalUrl": response.url or url,
+            # finalUrl NEVER carries a secret (H1a): the pre-substitution
+            # form crossed back — with URL substitution removed the only
+            # way a value lands here is an upstream reflection, which the
+            # scrub re-substitutes to the placeholder form.
+            "finalUrl": self._scrub_secrets(response.url or url),
         }
 
     def _validated_headers(self, raw: Any) -> dict[str, str]:
@@ -409,8 +437,10 @@ class CapabilityProvider:
     def _inject_secrets(self, text: str) -> str:
         """Host-side substitution of ``{{secret:<slot>}}`` placeholders —
         the ONLY path a secret value may travel (host → upstream, inside
-        the request; never host → sandbox). Undeclared slots are invalid;
-        declared-but-unresolved slots fail needs-secret."""
+        a request HEADER; never host → sandbox, and never a URL — the
+        seam rejects URL placeholders typed, the 2026-10-18 evaluation's
+        H1 policy). Undeclared slots are invalid; declared-but-unresolved
+        slots fail needs-secret."""
         for slot in SECRET_REF_PATTERN.findall(text):
             if slot not in self._declared_slots:
                 raise SeamError("invalid", _detail({"reason": "slot not declared"}))
@@ -423,6 +453,25 @@ class CapabilityProvider:
             return str(self._secrets.get(match.group(1)) or "")
 
         return SECRET_REF_PATTERN.sub(sub, text)
+
+    def _scrub_secrets(self, text: str) -> str:
+        """Strip resolved secret values from anything crossing BACK to
+        the sandbox (2026-10-18 evaluation, H1a/H1b): every resolved
+        value — and its URL-quoted form — re-substitutes to the
+        placeholder. The primary walls are the URL-placeholder rejection
+        and the guard's redacted details; this catches upstream
+        reflections (a redirect Location or error echoing a received
+        credential) in the response envelope and error details."""
+        for slot, value in self._secrets.items():
+            if not value:
+                continue
+            placeholder = SECRET_PLACEHOLDER % slot
+            if value in text:
+                text = text.replace(value, placeholder)
+            quoted = quote(value, safe="")
+            if quoted != value and quoted in text:
+                text = text.replace(quoted, placeholder)
+        return text
 
     # -- events ---------------------------------------------------------------------
 

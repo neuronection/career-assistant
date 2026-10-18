@@ -4,6 +4,30 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (security — the 2026-10-18 extension-platform evaluation, H1)
+- **T2 secrets now ride headers only — URL substitution removed, and
+  everything crossing back over the seam is scrubbed.** The evaluation
+  found three leak channels in the sandbox's "structurally impossible"
+  secret seam: (a) `cap.net.fetch`'s `finalUrl` returned the
+  post-substitution URL (secret in the query) to the sandbox; (b)
+  `polite_http` guard denials embedded the full substituted URL
+  (`credentials in URL are not allowed: 'https://u:SECRET@…'`) in the
+  error detail that crosses back; (c) the host substituted
+  `{{secret:<slot>}}` into URLs at all — exfiltration by design to any
+  domain the manifest declared at consent (URLs leak via logs,
+  redirects, Referer and error paths). Owner policy: **secrets ride
+  HEADERS only** — a placeholder in a fetch URL is a typed `invalid`
+  at the seam; `finalUrl` and every error detail are scrubbed of
+  resolved values before crossing back (upstream reflections of a
+  received credential re-substitute to the placeholder); the vendored
+  guard now redacts userinfo/query from any URL it embeds in a denial
+  (dev-canonical change, re-synced family-wide). New back-crossing
+  walls: the audit's two one-liners (query-secret URL, userinfo-secret
+  URL) are refused typed; a reflecting redirect cannot leak the token
+  through `finalUrl` or the credentials-in-URL denial; an end-to-end
+  child probe confirms the typed refusal and a clean envelope while
+  header substitution keeps working.
+
 ### Added (the connector SDK documentation set — plan 34 wave 2)
 - **The connector SDK docs are now a ten-chapter, SDK-grade doc set at
   `docs/dev/sdk/`** (overview, quickstart, core concepts, installation,

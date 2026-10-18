@@ -264,6 +264,14 @@ async def test_polite_http_fixture_wall(case: dict[str, Any]) -> None:
                     assert exc.retryable == error["retryable"], case["name"]
                 if "retryAfterMs" in error:
                     assert exc.retry_after_ms == error["retryAfterMs"], case["name"]
+                if "detailContains" in expect:
+                    assert expect["detailContains"] in exc.detail, (
+                        f"{case['name']}: detail {exc.detail!r} lacks {expect['detailContains']!r}"
+                    )
+                for banned in expect.get("detailNotContains", []):
+                    assert banned not in exc.detail, (
+                        f"{case['name']}: detail {exc.detail!r} leaks {banned!r}"
+                    )
             else:
                 expected_response = expect.get("response")
                 assert expected_response is not None, (

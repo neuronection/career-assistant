@@ -43,7 +43,7 @@ at `contracts/capability-rpc.md`. The closed method vocabulary:
 | `cap.net.fetch` | ext → host | the only network path: GET/HEAD, headers ≤ 16, scoped to declared domains every hop, response capped |
 | `cap.state.get` / `cap.state.set` | ext → host | extension-owned persisted state (quota `stateMaxBytes` per instance, key-pattern-checked) |
 | `cap.items.emit` | ext → host | result rows, schema-validated against the manifest `itemSchema`; invalid batches rejected whole and counted against the error budget |
-| `cap.secrets.need` | ext → host | secret resolution **status** — the host substitutes the `{{secret:<slot>}}` placeholder into the next fetch; the value never crosses |
+| `cap.secrets.need` | ext → host | secret resolution **status** — the host substitutes the `{{secret:<slot>}}` placeholder into the next fetch's HEADERS only (URL placeholders are refused typed `invalid`); the value never crosses in any direction — result envelopes and error details are scrubbed of resolved values |
 | `evt.progress` | ext → host (event) | `{percent?, messageKey?, payloadBytes?}` — observation, never instruction; rate-capped |
 | `evt.log` | ext → host (event) | `{level, message ≤ 500}` — same |
 

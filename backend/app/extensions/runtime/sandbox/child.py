@@ -304,9 +304,10 @@ class CapabilityClient:
 
     def secrets_need(self, slot: str) -> str:
         """Resolution status, never a value (D14): returns the placeholder
-        the host substitutes host-side into the next ``net.fetch`` header
-        or body — the secret value itself is structurally unable to cross
-        this seam."""
+        the host substitutes host-side into the next ``net.fetch`` HEADER
+        (URL placeholders are refused typed at the seam — secrets ride
+        headers only) — the secret value itself is structurally unable to
+        cross this seam."""
         return str(self._call("cap.secrets.need", {"slot": slot}).get("injectedAs") or "")
 
     def progress(self, *, percent: int | None = None, message_key: str | None = None) -> None:

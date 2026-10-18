@@ -89,6 +89,25 @@ async def mock_net(monkeypatch):
             return httpx.Response(404, text="no robots")
         if path == "/redir-evil":
             return httpx.Response(302, headers={"Location": "https://evil.example.jobs/x"})
+        if path == "/leak":
+            # an upstream that reflects the bearer token back into the
+            # landing URL (it saw the Authorization header) — H1(a)
+            return httpx.Response(
+                302, headers={"Location": "https://example.jobs/leaked?tok=super-secret-value-99"}
+            )
+        if path == "/leaked":
+            return httpx.Response(200, json=[])
+        if path == "/cred":
+            # an upstream redirect embedding the token as URL userinfo —
+            # the net_guard credentials-in-URL denial, H1(b)
+            return httpx.Response(
+                302,
+                headers={"Location": "https://u:super-secret-value-99@example.jobs/cred-target"},
+            )
+        if path == "/down":
+            raise httpx.ConnectError("simulated connection failure")
+        if path == "/auth401":
+            return httpx.Response(401, json={"error": "no"})
         if path in ("/postings.json", "/secret.json"):
             return httpx.Response(200, json=SAMPLE_ROWS)
         return httpx.Response(404, text="nope")
@@ -946,3 +965,129 @@ async def test_connector_rides_kill_switch_on_unavailable_runtime(db, t2_env, mo
         "the lifecycle reason carries the surfaced remedy"
     )
     assert result.items == []
+
+
+# ------------------------------------------ the back-crossing walls (audit H1)
+#
+# OWNER POLICY (2026-10-18 evaluation, H1): secrets ride HEADERS only —
+# URL substitution is REMOVED. These walls assert what crosses BACK over
+# the seam (the direction the escape matrix never checked): the response
+# envelope's finalUrl and every error detail are secret-free, and a
+# {{secret:...}} placeholder in a URL is a typed invalid — never a fetch.
+
+
+async def _secrets_provider(db, t2_env, name: str):
+    """A provider for a manifest declaring net+secrets with the slot
+    resolved (the value the walls must never see cross back)."""
+    manifest = reference_manifest()
+    manifest["capabilities"] = ["sync", "net", "state", "secrets"]
+    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    install = await install_t2(db, t2_env, name, manifest, None)
+    return cap_mod.CapabilityProvider(
+        db=db, install=install, secrets={"api-token": "super-secret-value-99"}
+    )
+
+
+async def test_net_fetch_url_secret_placeholders_rejected_typed(db, t2_env, mock_net):
+    """A {{secret:...}} placeholder anywhere in a fetch URL is a typed
+    ``invalid`` at the seam (query string, userinfo — both audit
+    one-liners). The URL substitution channel exfiltrated by design: a
+    pack routing a user secret into a URL to its own consented domain
+    leaked via logs/redirects/Referer/error paths."""
+    from app.extensions.runtime.sandbox.capabilities import SeamError
+
+    provider = await _secrets_provider(db, t2_env, "url-secret")
+    for url in (
+        "https://example.jobs/postings.json?t={{secret:api-token}}",
+        "https://u:{{secret:api-token}}@example.jobs/x",
+    ):
+        with pytest.raises(SeamError) as excinfo:
+            await provider.handle("cap.net.fetch", {"url": url})
+        assert excinfo.value.code == "invalid", url
+        assert "super-secret-value-99" not in json.dumps(excinfo.value.envelope), url
+
+
+async def test_net_fetch_final_url_never_carries_secrets(db, t2_env, mock_net):
+    """H1(a): finalUrl crossing back never carries a secret value — an
+    upstream redirect reflecting the bearer token into the landing URL is
+    re-substituted to the placeholder form (the child knows what it asked
+    for; it must never learn the value)."""
+    provider = await _secrets_provider(db, t2_env, "final-url")
+    result = await provider.handle("cap.net.fetch", {"url": "https://example.jobs/leak"})
+    assert result["status"] == 200
+    assert "super-secret-value-99" not in result["finalUrl"]
+    assert result["finalUrl"].endswith("tok={{secret:api-token}}"), result["finalUrl"]
+
+
+async def test_net_fetch_error_details_secret_free_every_kind(db, t2_env, mock_net, monkeypatch):
+    """H1(b): error details crossing back are secret-free under every
+    error kind — including the net_guard credentials-in-URL denial where
+    an upstream redirect embeds the token as URL userinfo (userinfo
+    redacted at the guard, value scrubbed at the seam)."""
+    from app.extensions.runtime.sandbox.capabilities import SeamError
+
+    provider = await _secrets_provider(db, t2_env, "err-details")
+    monkeypatch.setattr(settings, "connector_max_retries", 1)
+
+    with pytest.raises(SeamError) as excinfo:
+        await provider.handle("cap.net.fetch", {"url": "https://example.jobs/cred"})
+    assert excinfo.value.code == "net-denied"
+    detail = excinfo.value.envelope["detail"]
+    assert "super-secret-value-99" not in detail
+    assert "***@" in detail, "userinfo is redacted in the guard's detail"
+
+    with pytest.raises(SeamError) as excinfo:
+        await provider.handle("cap.net.fetch", {"url": "https://example.jobs/down"})
+    assert excinfo.value.code == "unreachable"
+    assert "super-secret-value-99" not in excinfo.value.envelope["detail"]
+
+    with pytest.raises(SeamError) as excinfo:
+        await provider.handle("cap.net.fetch", {"url": "https://example.jobs/auth401"})
+    assert excinfo.value.code == "auth"
+    assert "super-secret-value-99" not in excinfo.value.envelope["detail"]
+
+
+async def test_escape_url_secret_exfil_channel_closed(db, t2_env, mock_net):
+    """The URL-substitution channel is closed END-TO-END through the real
+    child: a pack embedding the placeholder in a URL receives the typed
+    ``invalid`` (detail without the value); headers remain the only
+    secret path; the response envelope's finalUrl crosses back clean."""
+    manifest = reference_manifest()
+    manifest["capabilities"] = ["sync", "net", "state", "secrets"]
+    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    entry = "\n".join(
+        [
+            "from capability import items_emit, net_fetch, secrets_need",
+            "def fetch(config, state):",
+            "    placeholder = secrets_need('api-token')",
+            "    findings = []",
+            "    try:",
+            "        net_fetch('https://example.jobs/postings.json?t=' + placeholder)",
+            "        findings.append('url-secret:ALLOWED')",
+            "    except Exception as exc:",
+            "        findings.append('url-secret:' + str(getattr(exc, 'code', 'x')))",
+            "        findings.append('url-detail:' + str(getattr(exc, 'detail', ''))[:200])",
+            "    response = net_fetch(",
+            "        config['url'], headers={'Authorization': 'Bearer ' + placeholder},",
+            "    )",
+            "    findings.append('finalUrl:' + str(response.get('finalUrl')))",
+            "    items_emit([{'external_id': f, 'title': 'probe'} for f in findings])",
+            "    return {}",
+        ]
+    )
+    install = await install_t2(db, t2_env, "url-exfil", manifest, entry)
+    report = await enable_and_sync(db, install, **{"api-token": "super-secret-value-99"})
+    assert report["synced"] == 3, report
+    probes = await _posted_external_ids(db, install)
+    assert "url-secret:invalid" in probes, (
+        "a {{secret:...}} placeholder in a URL is refused typed at the seam"
+    )
+    assert not any("super-secret-value-99" in p for p in probes), (
+        "the resolved value never crosses back (result envelope or error detail)"
+    )
+    assert any(p.startswith("finalUrl:") and "example.jobs" in p for p in probes)
+    authorized = [r for r in mock_net if r.headers.get("authorization")]
+    assert authorized, "the header-authenticated fetch happened"
+    assert authorized[0].headers["authorization"] == "Bearer super-secret-value-99", (
+        "headers remain the substitution path host-side"
+    )
