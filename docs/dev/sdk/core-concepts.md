@@ -96,7 +96,7 @@ attack signal.
                                       │
    ┌──────────────────────────────────┼──────────────────────────────────┐
    │  bundled (T1)                    ▼              imported (T0/T2/T3) │
-   │  builtin/*.py ──manifest()──► registry ◄── resolve_connector ── sync │
+   │  builtin/<key>/manifest.json ──► registry ◄── resolve_connector ── sync │
    │                                   │                                │
    │                     in-process    │      source ─► discovery ─► consent
    │                                   │        (git/local)  │           │

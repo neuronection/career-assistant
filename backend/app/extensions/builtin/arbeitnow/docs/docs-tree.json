@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "What the Arbeitnow job board connector is, what it fetches, and when to use it.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "usage",
+      "items": [
+        {
+          "id": "usage",
+          "file": "usage.md",
+          "title": "Usage",
+          "description": "Adding the source, tag filtering, sync behavior, and the attribution the API's terms ask for.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "troubleshooting",
+      "items": [
+        {
+          "id": "troubleshooting",
+          "file": "troubleshooting.md",
+          "title": "Troubleshooting",
+          "description": "Symptom → cause → fix for empty syncs, rate limits, and stale results.",
+          "audience": "user"
+        }
+      ]
+    }
+  ]
+}

@@ -17,6 +17,7 @@ path an imported contribution takes once a host routes it here.
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -27,7 +28,7 @@ from sqlalchemy import select
 from app.ai.tools import AITool, register_tool, reset_registry, run_tool
 from app.ai.tools.base import ToolRiskClass, ToolScope
 from app.core.errors import DomainError, ValidationError
-from app.extensions.sdk import ChatToolContribution, connector_manifest
+from app.extensions.sdk import ChatToolContribution
 from app.models.enums import AITaskType, ProposalStatus
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User
@@ -92,6 +93,32 @@ def destructive_registered():
     register_tool(destructive_tool())
 
 
+def _envelope_manifest(manifest_id: str, title: str, *, tools: list[dict]) -> dict:
+    """Minimal bundled-envelope manifest for inline demo connectors (the
+    file form is production law; tests build the same shape in memory)."""
+    from app.extensions.sdk import RAW_POSTING_ITEM_SCHEMA
+
+    return {
+        "apiVersion": "extension/v1",
+        "kindVersion": 1,
+        "kind": "connector",
+        "id": manifest_id,
+        "version": "1.0.0",
+        "description": "test fixture",
+        "author": "Neuronection",
+        "license": "Apache-2.0",
+        "capabilities": ["chat-tools", "sync"],
+        "configSchema": {"type": "object", "properties": {}},
+        "itemSchema": json.loads(json.dumps(RAW_POSTING_ITEM_SCHEMA)),
+        "supportsIncremental": False,
+        "tools": tools,
+        "i18n": {
+            "defaultLocale": "en",
+            "locales": {"en": {"title": title, "summary": "test fixture"}},
+        },
+    }
+
+
 @pytest.fixture
 def _clean_connectors():
     """The bridge fixtures register test connectors — the connector
@@ -121,19 +148,14 @@ def demo_connector(_clean_connectors):
             return Config
 
         def manifest(self):
-            return connector_manifest(
-                manifest_id="career-demo-wipe",
-                title="Demo wipe",
-                config_schema={"type": "object", "properties": {}},
-                capabilities=["chat-tools"],
-                supports_incremental=False,
-                description="test fixture",
+            return _envelope_manifest(
+                "career-demo-wipe",
+                "Demo wipe",
                 tools=[
                     {
                         "id": "purge-source",
                         "riskClass": "destructive",
                         "titleKey": "demo.purge.title",
-                        "descriptionKey": "demo.purge.desc",
                     }
                 ],
             )
@@ -225,12 +247,9 @@ def test_extension_bridge_throws_on_risk_class_drift(_clean_connectors):
             return Config
 
         def manifest(self):
-            return connector_manifest(
-                manifest_id="career-demo-drift",
-                title="Drift",
-                config_schema={"type": "object", "properties": {}},
-                capabilities=["chat-tools"],
-                supports_incremental=False,
+            return _envelope_manifest(
+                "career-demo-drift",
+                "Drift",
                 tools=[{"id": "purge-source", "riskClass": "read-only"}],
             )
 
@@ -265,13 +284,10 @@ def test_extension_bridge_throws_on_undeclared_contribution(_clean_connectors):
             return Config
 
         def manifest(self):
-            return connector_manifest(
-                manifest_id="career-demo-undecl",
-                title="Undecl",
-                config_schema={"type": "object", "properties": {}},
-                capabilities=["chat-tools"],
-                supports_incremental=False,
-                tools=[],
+            return _envelope_manifest(
+                "career-demo-undecl",
+                "Undecl",
+                tools=[{"id": "fetch-postings", "riskClass": "read-only"}],
             )
 
         def chat_tools(self):

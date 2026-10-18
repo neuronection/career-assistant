@@ -1,0 +1,62 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-manual-url",
+  "version": "1.0.0",
+  "description": "One posting fetched from a pasted URL (JSON-LD extraction with an HTML title fallback).",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "capabilities": [
+    "sync"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "Posting URL",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    },
+    "required": [
+      "url"
+    ]
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": false,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Paste a posting URL",
+        "summary": "One posting fetched from a pasted URL (JSON-LD extraction with an HTML title fallback)."
+      }
+    }
+  },
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "search"
+  ]
+}

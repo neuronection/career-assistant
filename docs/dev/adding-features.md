@@ -39,8 +39,9 @@ them.
 ## Add a connector
 
 1. Subclass `PostingConnector` in `app/extensions/builtin/` (or a plugin
-   package) with a unique `key`, a `config_model()` and a truthful
-   `manifest()`.
+   package) with a unique `key` and a `config_model()`; author the
+   bundle's `manifest.json` at `builtin/<key>/manifest.json` (a FILE —
+   the family form, never code-declared).
 2. Implement `fetch(config, state, *, transport, secrets)` emitting
    `RawPosting`s; never open sockets yourself — the injected polite
    transport owns SSRF guarding, robots, rate caps and conditional GET.

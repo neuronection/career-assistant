@@ -38,7 +38,6 @@ from app.extensions.sdk import (
     PostingConnector,
     RawPosting,
     SalarySpec,
-    connector_manifest,
 )
 
 WATERMARK_KEY = "watermark"
@@ -304,28 +303,6 @@ def parse_arbeitnow_payload(body: str) -> tuple[list[RawPosting], list[Connector
     return items, errors
 
 
-ARBEITNOW_CONFIG_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "tags": {
-            "type": "array",
-            "title": "Tag filter",
-            "description": "Only keep rows carrying at least one of these tags (empty = all)",
-            "maxItems": 16,
-            "items": {"type": "string"},
-            "default": [],
-        },
-        "max_items": {
-            "type": "number",
-            "title": "Max items per sync",
-            "default": 100,
-            "minimum": 1,
-            "maximum": 300,
-        },
-    },
-}
-
-
 class ArbeitnowConnector(PostingConnector):
     """Arbeitnow public job-board API — free, no auth. The endpoint drift
     (`/api/job-board` now redirects home) is captured: this is the live
@@ -344,18 +321,6 @@ class ArbeitnowConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return ArbeitnowConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-arbeitnow",
-            title="Arbeitnow job board",
-            description="Live German/European job board through the public job-board-api "
-            "(free, no credentials — no secret slots by design).",
-            config_schema=ARBEITNOW_CONFIG_SCHEMA,
-            capabilities=["net", "sync"],
-            domains=list(ARBEITNOW_DOMAINS),
-            supports_incremental=True,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = ArbeitnowConfig.model_validate(config)
@@ -447,26 +412,6 @@ def parse_remotive_payload(body: str) -> tuple[list[RawPosting], list[ConnectorE
     return items, errors
 
 
-REMOTIVE_CONFIG_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "category": {
-            "type": "string",
-            "title": "Category slug",
-            "description": "Board category filter, e.g. software-dev (empty = all)",
-            "maxLength": 60,
-        },
-        "max_items": {
-            "type": "number",
-            "title": "Max items per sync",
-            "default": 100,
-            "minimum": 1,
-            "maximum": 500,
-        },
-    },
-}
-
-
 class RemotiveConnector(PostingConnector):
     """Remotive public remote-jobs API — free, no auth. Remote-jobs board:
     every row is remote, the geo restriction rides ``raw.location_note``.
@@ -485,18 +430,6 @@ class RemotiveConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return RemotiveConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-remotive",
-            title="Remotive remote jobs",
-            description="Remote-jobs feed from remotive.com's public API "
-            "(free, no credentials — no secret slots by design).",
-            config_schema=REMOTIVE_CONFIG_SCHEMA,
-            capabilities=["net", "sync"],
-            domains=list(REMOTIVE_DOMAINS),
-            supports_incremental=True,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = RemotiveConfig.model_validate(config)
@@ -605,26 +538,6 @@ def parse_jobicy_payload(body: str) -> tuple[list[RawPosting], list[ConnectorErr
     return items, errors
 
 
-JOBICY_CONFIG_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "tag": {
-            "type": "string",
-            "title": "Tag filter",
-            "description": "Server-side tag filter, e.g. developer (empty = all)",
-            "maxLength": 60,
-        },
-        "max_items": {
-            "type": "number",
-            "title": "Max items per sync",
-            "default": 50,
-            "minimum": 1,
-            "maximum": 200,
-        },
-    },
-}
-
-
 class JobicyConnector(PostingConnector):
     """Jobicy public remote-jobs API v2 — free, no auth. Remote-jobs feed:
     every row is remote, the geo restriction rides ``location.country``
@@ -645,18 +558,6 @@ class JobicyConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return JobicyConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-jobicy",
-            title="Jobicy remote jobs",
-            description="Remote-jobs feed from jobicy.com's public API v2 "
-            "(free, no credentials — no secret slots by design).",
-            config_schema=JOBICY_CONFIG_SCHEMA,
-            capabilities=["net", "sync"],
-            domains=list(JOBICY_DOMAINS),
-            supports_incremental=True,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = JobicyConfig.model_validate(config)

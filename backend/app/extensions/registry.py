@@ -25,7 +25,7 @@ from importlib import metadata
 from pathlib import Path
 
 from app.core.errors import ValidationError
-from app.extensions import contract
+from app.extensions import contract, sdk
 from app.extensions.builtin import (
     AtsApiConnector,
     CsvConnector,
@@ -70,6 +70,13 @@ def _schema_path() -> Path:
     return Path(__file__).resolve().parents[3] / "contracts" / "extension-manifest.schema.json"
 
 
+def _docs_tree_schema_path() -> Path:
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        return base / "contracts" / "docs-tree.schema.json"
+    return Path(__file__).resolve().parents[3] / "contracts" / "docs-tree.schema.json"
+
+
 def _bundled_manifest_schema() -> dict:
     try:
         return json.loads(_schema_path().read_text(encoding="utf-8"))
@@ -80,14 +87,58 @@ def _bundled_manifest_schema() -> dict:
         ) from exc
 
 
+def _docs_tree_schema() -> dict:
+    try:
+        return json.loads(_docs_tree_schema_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"docs-tree schema unavailable at {_docs_tree_schema_path()}: {exc} — "
+            "registration fails closed (vendored contract set incomplete)"
+        ) from exc
+
+
+def _validate_docs_binding(connector: PostingConnector, manifest: dict) -> None:
+    """Per-extension docs binding (plan 34 §10.5): a manifest carrying
+    the ``docs`` pointer promises a tree that exists beside it and
+    validates — a broken promise self-disables exactly like an invalid
+    manifest (the extension never half-runs)."""
+    pointer = manifest.get("docs")
+    if pointer is None:
+        return
+    if pointer != contract.DOCS_POINTER:
+        raise ValidationError(
+            f"Connector {connector.key} docs pointer must be "
+            f"{contract.DOCS_POINTER!r}, got {pointer!r}"
+        )
+    docs_dir = sdk.manifest_path(connector).parent / "docs"
+    tree_path = docs_dir / "docs-tree.json"
+    try:
+        tree = json.loads(tree_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValidationError(
+            f"Connector {connector.key} points at {contract.DOCS_POINTER} "
+            f"but the tree is unreadable ({exc})"
+        ) from exc
+    schema = _docs_tree_schema()
+    err = contract.validate(schema["$defs"]["extensionDocsTree"], tree, schema)
+    if err is not None:
+        raise ValidationError(f"Connector {connector.key} docs tree invalid: {err}")
+    problems = contract.docs_tree_semantics(tree, exists=lambda ref: (docs_dir / ref).is_file())
+    if problems:
+        raise ValidationError(f"Connector {connector.key} docs tree invalid: {'; '.join(problems)}")
+
+
 def validate_manifest(connector: PostingConnector) -> dict:
     """Validate a connector's manifest against the vendored envelope
-    (bundled form) — the registration-time capability gate."""
+    (bundled form) — the registration-time capability gate. The manifest
+    itself is a FILE at the bundle root (``builtin/<key>/manifest.json``,
+    the family form) — never code-declared."""
     manifest = connector.manifest()
     schema = _bundled_manifest_schema()
-    err = contract.validate(manifest, schema["$defs"]["bundledManifest"], schema)
+    err = contract.validate(schema["$defs"]["bundledManifest"], manifest, schema)
     if err is not None:
         raise ValidationError(f"Connector {connector.key} manifest invalid: {err}")
+    _validate_docs_binding(connector, manifest)
     return manifest
 
 

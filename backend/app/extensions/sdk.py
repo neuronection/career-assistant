@@ -21,9 +21,13 @@ enforces them.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -48,7 +52,7 @@ __all__ = [
     "RawPosting",
     "SalarySpec",
     "SeniorityLevel",
-    "connector_manifest",
+    "manifest_path",
 ]
 
 ErrorCode = Literal[
@@ -241,49 +245,34 @@ RAW_POSTING_ITEM_SCHEMA: dict = {
 }
 
 
-def connector_manifest(
-    *,
-    manifest_id: str,
-    title: str,
-    config_schema: dict,
-    capabilities: list[str],
-    supports_incremental: bool,
-    domains: list[str] | None = None,
-    version: str = "1.0.0",
-    description: str = "",
-    tools: list[dict] | None = None,
-) -> dict:
-    """Build a connector-kind extension manifest (envelope ``extension/v1``,
-    ADR-0040 clause 5) for a bundled connector. ``capabilities`` declares
-    the charter truth — ``net`` requires ``domains`` (the polite runtime's
-    declared-domain scope); bundled connectors that fetch user-configured
-    URLs declare ``sync`` only and get the host-side guard per instance.
-    ``chat-tools`` requires its ``tools`` contribution list (every entry's
-    ``riskClass`` is schema-required — the D20 wall)."""
+BUILTIN_MANIFEST_ROOT = Path(__file__).resolve().parent / "builtin"
 
-    manifest: dict = {
-        "apiVersion": "extension/v1",
-        "kindVersion": 1,
-        "kind": "connector",
-        "id": manifest_id,
-        "version": version,
-        "description": description[:400],
-        "author": "Neuronection",
-        "license": "MIT",
-        "capabilities": capabilities,
-        "configSchema": config_schema,
-        "itemSchema": RAW_POSTING_ITEM_SCHEMA,
-        "supportsIncremental": supports_incremental,
-        "i18n": {
-            "defaultLocale": "en",
-            "locales": {"en": {"title": title, "summary": description[:200]}},
-        },
-    }
-    if domains:
-        manifest["domains"] = domains
-    if tools:
-        manifest["tools"] = tools
-    return manifest
+
+def manifest_path(connector: PostingConnector) -> Path:
+    """Where a connector's manifest file lives: the bundle root's
+    ``manifest.json`` — ``builtin/<key>/manifest.json`` for in-repo
+    builtins, or the connector's ``manifest_file`` override for
+    out-of-tree T1 entry-point plugins (their package ships the file
+    beside its code). One filename, one form, family-wide."""
+    if connector.manifest_file:
+        return Path(connector.manifest_file).resolve()
+    return BUILTIN_MANIFEST_ROOT / connector.key / "manifest.json"
+
+
+@lru_cache(maxsize=64)
+def _load_manifest_json(path: str) -> dict:
+    from app.core.errors import ValidationError
+
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValidationError(
+            f"manifest file unavailable at {path}: {exc} — registration "
+            "fails closed (every extension bundle carries manifest.json)"
+        ) from exc
+    if not isinstance(doc, dict):
+        raise ValidationError(f"manifest file at {path} is not a JSON object")
+    return doc
 
 
 class PostingConnector:
@@ -298,6 +287,11 @@ class PostingConnector:
     # T3 script tier) set this: sync/probe then inject the ``audit``
     # callback so every external effect lands on the audit funnel.
     audits_effects: bool = False
+    # Out-of-tree T1 entry-point plugins override this with the path of
+    # their shipped manifest.json (absolute, or relative to their own
+    # package). In-repo builtins leave it None — the loader resolves
+    # builtin/<key>/manifest.json by convention.
+    manifest_file: str | Path | None = None
 
     def chat_tools(self) -> list[ChatToolContribution]:
         """Chat tool contributions (D20) — default none. A connector
@@ -310,21 +304,11 @@ class PostingConnector:
         raise NotImplementedError
 
     def manifest(self) -> dict:
-        """The connector-kind extension manifest — validated against the
-        vendored envelope schema at registration (data, not code)."""
-        return connector_manifest(
-            manifest_id=f"career-{self.key.replace('_', '-')}",
-            title=self.title or self.key,
-            config_schema={
-                "type": "object",
-                "properties": {
-                    name: {"type": _field_type(annotation)}
-                    for name, annotation in self.config_model().model_fields.items()
-                },
-            },
-            capabilities=["sync"],
-            supports_incremental=self.capabilities.supports_incremental,
-        )
+        """The connector-kind extension manifest — a FILE at the bundle
+        root (``manifest.json``, the family form — never code-declared),
+        loaded here and validated against the vendored envelope schema
+        at registration (data, not code)."""
+        return deepcopy(_load_manifest_json(str(manifest_path(self))))
 
     async def fetch(
         self,
@@ -373,28 +357,6 @@ class PostingConnector:
             return self.config_model().model_validate(config).model_dump(mode="json")
         except PydanticValidationError as exc:
             raise ValidationError(str(exc)) from exc
-
-
-def _field_type(annotation: object) -> str:
-    """Rough JSON-schema type for the default manifest's configSchema."""
-    import types
-    import typing
-
-    origin = typing.get_origin(annotation)
-    if origin is types.UnionType or origin is typing.Union:
-        args = [a for a in typing.get_args(annotation) if a is not type(None)]
-        return _field_type(args[0]) if args else "string"
-    if annotation is bool:
-        return "boolean"
-    if annotation is int:
-        return "number"
-    if annotation is float:
-        return "number"
-    if isinstance(annotation, type) and issubclass(annotation, str):
-        return "string"
-    if origin in (list, dict):
-        return "array" if origin is list else "string"
-    return "string"
 
 
 class EmptyConfig(BaseModel):

@@ -6,6 +6,7 @@ import asyncio
 import json
 import uuid as uuid_mod
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -512,7 +513,6 @@ async def test_needs_secret_typed_error_end_to_end(
     from app.extensions.sdk import (
         ConnectorCapabilities,
         ConnectorResult,
-        connector_manifest,
     )
     from app.extensions.sdk import (
         PostingConnector as Base,
@@ -525,27 +525,12 @@ async def test_needs_secret_typed_error_end_to_end(
         key = "tokened"
         title = "Tokened"
         capabilities = ConnectorCapabilities(requires_credentials=True)
+        manifest_file = Path(__file__).resolve().parent / "fixtures" / "tokened-connector.json"
 
         def config_model(self):
             from app.extensions.sdk import EmptyConfig
 
             return EmptyConfig
-
-        def manifest(self):
-            return connector_manifest(
-                manifest_id="career-tokened",
-                title="Tokened",
-                config_schema={
-                    "type": "object",
-                    "properties": {
-                        "board": {"type": "string"},
-                        "token": {"type": "string", "x-secret": True},
-                    },
-                    "required": ["board"],
-                },
-                capabilities=["sync"],
-                supports_incremental=False,
-            )
 
         async def fetch(self, config, state, *, transport=None, secrets=None, **_kw):
             return ConnectorResult(items=[Raw(external_id="t-1", title="Tokened role")])

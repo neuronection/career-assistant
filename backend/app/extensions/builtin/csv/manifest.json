@@ -1,0 +1,67 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-csv",
+  "version": "1.0.0",
+  "description": "Postings from an exported CSV spreadsheet (conditional GET, robots and rate caps via the polite runtime).",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "capabilities": [
+    "sync"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "CSV URL",
+        "minLength": 1,
+        "maxLength": 1000
+      },
+      "delimiter": {
+        "type": "string",
+        "title": "Delimiter",
+        "default": ","
+      }
+    },
+    "required": [
+      "url"
+    ]
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "CSV file",
+        "summary": "Postings from an exported CSV spreadsheet (conditional GET, robots and rate caps via the polite runtime)."
+      }
+    }
+  },
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "data"
+  ]
+}

@@ -5,6 +5,7 @@
   "id": "example-posting-fetcher",
   "version": "1.0.0",
   "description": "Reference posting fetcher for career-assistant: an external MCP server (T3 script tier) whose fetch_postings tool returns validated RawPosting rows. The script process runs outside the app's network perimeter by design (ADR-0040 clause 21).",
+  "docs": "docs/docs-tree.json",
   "author": "Neuronection",
   "license": "MIT",
   "repository": "https://example.com/your-fork/career-connector-template",

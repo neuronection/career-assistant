@@ -39,7 +39,6 @@ from app.extensions.sdk import (
     RawPosting,
     SalarySpec,
     SeniorityLevel,
-    connector_manifest,
 )
 
 
@@ -136,16 +135,6 @@ def parse_csv_payload(body: str) -> list[RawPosting]:
     return postings
 
 
-CSV_CONFIG_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "url": {"type": "string", "title": "CSV URL", "minLength": 1, "maxLength": 1000},
-        "delimiter": {"type": "string", "title": "Delimiter", "default": ","},
-    },
-    "required": ["url"],
-}
-
-
 class CsvConnector(PostingConnector):
     key = "csv"
     title = "CSV file"
@@ -155,17 +144,6 @@ class CsvConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return CsvConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-csv",
-            title="CSV file",
-            description="Postings from an exported CSV spreadsheet "
-            "(conditional GET, robots and rate caps via the polite runtime).",
-            config_schema=CSV_CONFIG_SCHEMA,
-            capabilities=["sync"],
-            supports_incremental=True,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = CsvConfig.model_validate(config)
@@ -297,27 +275,6 @@ class JsonLdConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return JsonLdConfig
 
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-jsonld",
-            title="schema.org JobPosting page",
-            description="Postings extracted from schema.org/JobPosting JSON-LD structured data.",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "title": "Page URL",
-                        "minLength": 1,
-                        "maxLength": 1000,
-                    }
-                },
-                "required": ["url"],
-            },
-            capabilities=["sync"],
-            supports_incremental=True,
-        )
-
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = JsonLdConfig.model_validate(config)
         if transport is None:
@@ -390,27 +347,6 @@ class RssConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return RssConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-rss",
-            title="RSS / Atom feed",
-            description="Postings from an RSS 2.0 or Atom job feed.",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "title": "Feed URL",
-                        "minLength": 1,
-                        "maxLength": 1000,
-                    }
-                },
-                "required": ["url"],
-            },
-            capabilities=["sync"],
-            supports_incremental=True,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = RssConfig.model_validate(config)
@@ -528,25 +464,6 @@ def parse_ashby_payload(body: str) -> list[RawPosting]:
 ATS_PROVIDERS = ("greenhouse", "lever", "ashby")
 ATS_NETWORK_SCOPES = ("boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com")
 
-ATS_CONFIG_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "provider": {
-            "type": "string",
-            "title": "ATS provider",
-            "enum": list(ATS_PROVIDERS),
-        },
-        "org": {"type": "string", "title": "Board org slug", "minLength": 1, "maxLength": 120},
-        "api_token": {
-            "type": "string",
-            "title": "Partner API token (optional)",
-            "maxLength": 300,
-            "x-secret": True,
-        },
-    },
-    "required": ["provider", "org"],
-}
-
 
 class AtsApiConnector(PostingConnector):
     """Public ATS board APIs (Greenhouse/Lever/Ashby) — legal, free, no auth
@@ -564,18 +481,6 @@ class AtsApiConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return AtsApiConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-ats-api",
-            title="ATS public API (Greenhouse / Lever / Ashby)",
-            description="Public applicant-tracking job boards through the polite runtime, "
-            "scoped to the three ATS API domains.",
-            config_schema=ATS_CONFIG_SCHEMA,
-            capabilities=["net", "sync", "secrets"],
-            domains=list(ATS_NETWORK_SCOPES),
-            supports_incremental=True,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = AtsApiConfig.model_validate(config)
@@ -632,28 +537,6 @@ class ManualUrlConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return ManualUrlConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-manual-url",
-            title="Paste a posting URL",
-            description="One posting fetched from a pasted URL "
-            "(JSON-LD extraction with an HTML title fallback).",
-            config_schema={
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "title": "Posting URL",
-                        "minLength": 1,
-                        "maxLength": 1000,
-                    }
-                },
-                "required": ["url"],
-            },
-            capabilities=["sync"],
-            supports_incremental=False,
-        )
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = ManualUrlConfig.model_validate(config)

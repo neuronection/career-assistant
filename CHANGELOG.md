@@ -4,6 +4,42 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (manifest unification, 2026-10-19)
+- **Every builtin connector's manifest is now a FILE at the bundle
+  root — `builtin/<key>/manifest.json` — never code-declared** (the
+  family-wide one filename/one form law; D18 clean break, no dual
+  path). All nine builtins (csv, jsonld, rss, ats_api, manual_url,
+  arbeitnow, remotive, jobicy, mcp) extracted with identical content,
+  plus the envelope-shared fields filled honestly: license corrected
+  to the repo's Apache-2.0 (the old code default said MIT),
+  `repository` added, closed-vocabulary `categories` (job boards →
+  `search`, csv → `data`, mcp → `developer`). The `connector_manifest`
+  helper is deleted; `PostingConnector.manifest()` is now the
+  file-loader (`builtin/<key>/manifest.json` by convention,
+  `manifest_file` override for out-of-tree T1 entry-point plugins).
+  Registration semantics unchanged: same envelope validation, same
+  self-disable reasons — a missing or corrupt `manifest.json` fails
+  registration exactly like an invalid manifest.
+- **Registration now validates the per-extension docs binding (plan 34
+  §10.5)**: a manifest carrying the `docs` pointer must ship a
+  `docs/docs-tree.json` that exists and validates (extensionDocsTree
+  form + wall semantics) — a broken promise self-disables like an
+  invalid manifest. The three real job boards + the T3 `mcp` builtin
+  ship real docs trees (the mcp one carries the charter's T3 perimeter
+  disclosure verbatim).
+- **Fixed (found by the wave's red-checks): the registration-time
+  envelope gate had swapped `contract.validate` arguments** (manifest
+  passed as the schema, the bundled def as the instance) — the gate
+  was inert and never rejected an envelope-invalid manifest. The
+  arguments are now in the correct order and the new
+  `test_builtin_manifests.py` pins both directions. (Health's registry
+  carries the same latent swapped call — surfaced to the owner,
+  out of this repo's scope.)
+- Rider: `tests/fixtures/mcp_template_manifest.json` refreshed to the
+  current `career-connector-template/manifest.json` (the template
+  gained its docs pointer in plan 34 wave 7; the fidelity test was red
+  on main).
+
 ### Fixed (security — the 2026-10-18 extension-platform evaluation, H1)
 - **T2 secrets now ride headers only — URL substitution removed, and
   everything crossing back over the seam is scrubbed.** The evaluation

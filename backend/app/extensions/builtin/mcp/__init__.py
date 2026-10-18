@@ -42,7 +42,6 @@ from app.extensions.sdk import (
     ExternalEffect,
     PostingConnector,
     RawPosting,
-    connector_manifest,
 )
 
 MAX_ITEMS = 300
@@ -81,49 +80,6 @@ class McpConfig(BaseModel):
         return self
 
 
-MCP_CONFIG_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "transport": {
-            "type": "string",
-            "title": "Transport",
-            "enum": ["stdio", "http"],
-            "default": "stdio",
-        },
-        "command": {
-            "type": "string",
-            "title": "Stdio command line (e.g. python /path/to/server.py)",
-            "maxLength": 1000,
-        },
-        "url": {"type": "string", "title": "HTTP server URL", "maxLength": 1000},
-        "tool": {
-            "type": "string",
-            "title": "Fetch tool",
-            "default": "fetch_postings",
-            "maxLength": 120,
-        },
-        "allowed_tools": {
-            "type": "string",
-            "title": "Tool allowlist (comma-separated; empty = just the fetch tool)",
-            "maxLength": 1000,
-        },
-        "timeout_seconds": {
-            "type": "number",
-            "title": "Tool timeout (seconds)",
-            "minimum": 5,
-            "maximum": 120,
-            "default": 30,
-        },
-        "token": {
-            "type": "string",
-            "title": "Bearer token (optional, http transport)",
-            "maxLength": 500,
-            "x-secret": True,
-        },
-    },
-}
-
-
 def _invalid(detail: str) -> ConnectorError:
     return ConnectorError(code="invalid", detail=detail[:500], retryable="no")
 
@@ -155,23 +111,6 @@ class McpConnector(PostingConnector):
 
     def config_model(self) -> type[BaseModel]:
         return McpConfig
-
-    def manifest(self) -> dict:
-        # No `net`/domains by design: the script process's own sockets
-        # are outside the host perimeter (D22) — disclosed honestly in
-        # the description instead of smuggled in as a capability.
-        return connector_manifest(
-            manifest_id="career-mcp",
-            title="MCP script (external process)",
-            description="Runs an external MCP server in its own process — it opens "
-            "its own network connections outside the app's SSRF/robots/rate "
-            "perimeter — and ingests the postings it returns. The app governs "
-            "only what comes back: rows are validated and capped. "
-            "Admin-allowlisted; per-source tool allowlist and timeout.",
-            config_schema=MCP_CONFIG_SCHEMA,
-            capabilities=["sync", "secrets"],
-            supports_incremental=True,
-        )
 
     def _client_for(self, cfg: McpConfig, token: str):
         """Delegate client construction to the AI layer (fastmcp imports

@@ -1,0 +1,98 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-mcp",
+  "version": "1.0.0",
+  "description": "Runs an external MCP server in its own process \u2014 it opens its own network connections outside the app's SSRF/robots/rate perimeter \u2014 and ingests the postings it returns. The app governs only what comes back: rows are validated and capped. Admin-allowlisted; per-source tool allowlist and timeout.",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "capabilities": [
+    "sync",
+    "secrets"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "transport": {
+        "type": "string",
+        "title": "Transport",
+        "enum": [
+          "stdio",
+          "http"
+        ],
+        "default": "stdio"
+      },
+      "command": {
+        "type": "string",
+        "title": "Stdio command line (e.g. python /path/to/server.py)",
+        "maxLength": 1000
+      },
+      "url": {
+        "type": "string",
+        "title": "HTTP server URL",
+        "maxLength": 1000
+      },
+      "tool": {
+        "type": "string",
+        "title": "Fetch tool",
+        "default": "fetch_postings",
+        "maxLength": 120
+      },
+      "allowed_tools": {
+        "type": "string",
+        "title": "Tool allowlist (comma-separated; empty = just the fetch tool)",
+        "maxLength": 1000
+      },
+      "timeout_seconds": {
+        "type": "number",
+        "title": "Tool timeout (seconds)",
+        "minimum": 5,
+        "maximum": 120,
+        "default": 30
+      },
+      "token": {
+        "type": "string",
+        "title": "Bearer token (optional, http transport)",
+        "maxLength": 500,
+        "x-secret": true
+      }
+    }
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "MCP script (external process)",
+        "summary": "Runs an external MCP server in its own process \u2014 it opens its own network connections outside the app's SSRF/robots/rate perimeter \u2014 and ingests the postings it returns. The app governs only what come"
+      }
+    }
+  },
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "developer"
+  ],
+  "docs": "docs/docs-tree.json"
+}

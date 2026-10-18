@@ -35,150 +35,59 @@ it in the same file — `_apply_watermark`, `_stamp_watermark`,
 `_sort_and_cap`, `_not_ready`, `_provider_error`, `_protocol_error`,
 `_rate_limited`):
 
-```python
-class ArbeitnowConfig(BaseModel):
-    tags: list[str] = Field(default_factory=list, max_length=16)
-    max_items: int = Field(default=100, ge=1, le=300)
-
-
-ARBEITNOW_URL = "https://www.arbeitnow.com/api/job-board-api"
-ARBEITNOW_DOMAINS = ("www.arbeitnow.com",)
-
-
-def parse_arbeitnow_payload(body: str) -> tuple[list[RawPosting], list[ConnectorError]]:
-    """``{data: [{slug, company_name, title, description (HTML-escaped),
-    remote, url, tags, job_types, location, created_at (unix)}], meta}``."""
-    data = json.loads(body)
-    rows = data.get("data")
-    if not isinstance(rows, list):
-        raise ValueError("payload 'data' is not a list")
-    items: list[RawPosting] = []
-    errors: list[ConnectorError] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            errors.append(_invalid_row("arbeitnow row is not an object"))
-            continue
-        external_id = str(row.get("slug") or "").strip()
-        title = str(row.get("title") or "").strip()
-        if not external_id or not title:
-            errors.append(_invalid_row(f"arbeitnow row missing slug/title (slug={external_id!r})"))
-            continue
-        location = str(row.get("location") or "").strip()
-        posted_at = None
-        try:
-            posted_at = datetime.fromtimestamp(int(row["created_at"]), tz=UTC)
-        except (KeyError, TypeError, ValueError, OSError):
-            posted_at = None
-        items.append(
-            RawPosting(
-                external_id=external_id[:300],
-                title=title[:300],
-                org=str(row.get("company_name") or "")[:200],
-                location=LocationSpec(
-                    city=location or None,
-                    remote=_coerce_bool(row.get("remote")) or "remote" in location.lower(),
-                ),
-                url=str(row.get("url") or "")[:1000],
-                posted_at=posted_at,
-                employment_type=_employment_type(row.get("job_types")),
-                skills_raw=[str(tag) for tag in (row.get("tags") or [])][:60],
-                raw={
-                    "description": html.unescape(str(row.get("description") or ""))[:8000],
-                    "job_types": [str(t) for t in (row.get("job_types") or [])][:16],
-                    "location": location,
-                },
-            )
-        )
-    return items, errors
-
-
-ARBEITNOW_CONFIG_SCHEMA = {
+```json
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-arbeitnow",
+  "version": "1.0.0",
+  "description": "Live German/European job board through the public job-board-api (free, no credentials — no secret slots by design).",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": ["search"],
+  "docs": "docs/docs-tree.json",
+  "capabilities": ["net", "sync"],
+  "domains": ["www.arbeitnow.com"],
+  "configSchema": {
     "type": "object",
     "properties": {
-        "tags": {
-            "type": "array",
-            "title": "Tag filter",
-            "description": "Only keep rows carrying at least one of these tags (empty = all)",
-            "maxItems": 16,
-            "items": {"type": "string"},
-            "default": [],
-        },
-        "max_items": {
-            "type": "number",
-            "title": "Max items per sync",
-            "default": 100,
-            "minimum": 1,
-            "maximum": 300,
-        },
-    },
+      "tags": {
+        "type": "array",
+        "title": "Tag filter",
+        "description": "Only keep rows carrying at least one of these tags (empty = all)",
+        "maxItems": 16,
+        "items": { "type": "string" },
+        "default": []
+      },
+      "max_items": {
+        "type": "number",
+        "title": "Max items per sync",
+        "default": 100,
+        "minimum": 1,
+        "maximum": 300
+      }
+    }
+  },
+  "itemSchema": { "type": "object" },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Arbeitnow job board",
+        "summary": "Live German/European job board through the public job-board-api."
+      }
+    }
+  }
 }
-
-
-class ArbeitnowConnector(PostingConnector):
-    """Arbeitnow public job-board API — free, no auth. The endpoint drift
-    (`/api/job-board` now redirects home) is captured: this is the live
-    `/api/job-board-api` shape."""
-
-    key = "arbeitnow"
-    title = "Arbeitnow job board"
-    capabilities = ConnectorCapabilities(
-        network_scopes=list(ARBEITNOW_DOMAINS),
-        supports_incremental=True,
-        max_requests_per_minute=10,
-    )
-    fixture_payload = ""
-
-    def config_model(self) -> type[BaseModel]:
-        return ArbeitnowConfig
-
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-arbeitnow",
-            title="Arbeitnow job board",
-            description="Live German/European job board through the public job-board-api "
-            "(free, no credentials — no secret slots by design).",
-            config_schema=ARBEITNOW_CONFIG_SCHEMA,
-            capabilities=["net", "sync"],
-            domains=list(ARBEITNOW_DOMAINS),
-            supports_incremental=True,
-        )
-
-    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
-        cfg = ArbeitnowConfig.model_validate(config)
-        if transport is None:
-            return _not_ready()
-        resp = await transport(ARBEITNOW_URL, conditional_headers(state or {}))
-        if resp.status == 304:
-            return ConnectorResult(
-                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
-            )
-        if resp.status == 429:
-            return ConnectorResult(partial_errors=[_rate_limited("arbeitnow", resp.headers)])
-        if resp.status != 200:
-            return ConnectorResult(
-                partial_errors=[
-                    _provider_error(f"arbeitnow fetch failed with status {resp.status}")
-                ]
-            )
-        try:
-            items, row_errors = parse_arbeitnow_payload(resp.body)
-        except (json.JSONDecodeError, ValueError) as exc:
-            return ConnectorResult(partial_errors=[_protocol_error(f"arbeitnow parse: {exc}")])
-        if cfg.tags:
-            wanted = {_normalize_token(tag) for tag in cfg.tags}
-            items = [
-                item
-                for item in items
-                if any(_normalize_token(tag) in wanted for tag in item.skills_raw)
-            ]
-        items = _apply_watermark(items, state or {})
-        items = _sort_and_cap(items, cfg.max_items)
-        return ConnectorResult(
-            items=items,
-            next_state=_stamp_watermark(state or {}, items, resp.etag, resp.last_modified),
-            partial_errors=row_errors,
-        )
 ```
+
+Abridged — the real file lives at
+`backend/app/extensions/builtin/arbeitnow/manifest.json` with its docs
+tree in `builtin/arbeitnow/docs/`; `itemSchema` there is the full
+postings contract.
 
 Registration is one list entry in `backend/app/extensions/registry.py`
 (`_BUILTINS`); the conformance suite subclasses the vendored kit:

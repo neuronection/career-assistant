@@ -220,17 +220,8 @@ class ArbeitnowConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return ArbeitnowConfig
 
-    def manifest(self) -> dict:
-        return connector_manifest(
-            manifest_id="career-arbeitnow",
-            title="Arbeitnow job board",
-            description="Live German/European job board through the public job-board-api "
-            "(free, no credentials — no secret slots by design).",
-            config_schema=ARBEITNOW_CONFIG_SCHEMA,
-            capabilities=["net", "sync"],
-            domains=list(ARBEITNOW_DOMAINS),
-            supports_incremental=True,
-        )
+    # The manifest lives in builtin/arbeitnow/manifest.json — a FILE at
+    # the bundle root (the family form, never code-declared):
 
     async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
         cfg = ArbeitnowConfig.model_validate(config)
@@ -289,11 +280,18 @@ implementations).
    `configSchema` with `"x-secret": true`; values arrive via the
    `secrets` mapping, never through stored config.
 4. Provide a `fixture_payload` so the contract tests run offline.
-5. Declare a truthful `manifest()` (capabilities, `domains` when `net`,
-   `supportsIncremental` matching reality).
+5. Author the bundle's `manifest.json` at
+   `backend/app/extensions/builtin/<key>/manifest.json` — a FILE (the
+   family form, never code-declared), validated at registration:
+   truthful capabilities, `domains` when `net`, `supportsIncremental`
+   matching reality, and the envelope-shared display fields
+   (`author`/`license`/`repository` provenance, closed-vocabulary
+   `categories`, the optional `docs` pointer with a validating
+   `docs/docs-tree.json` beside it).
 6. Register it (built-in) or ship it as a deployment-image entry point
-   (plugin, admin allowlist). External distribution is T2/T3 — see the
-   [recipes](examples-and-use-cases.md).
+   (plugin, admin allowlist — an out-of-tree plugin sets
+   `manifest_file` to its shipped manifest path). External distribution
+   is T2/T3 — see the [recipes](examples-and-use-cases.md).
 
 Test with the vendored conformance kit
 (`app/extensions/conformance.py`, `ConnectorConformanceTests`): config

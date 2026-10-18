@@ -2,6 +2,7 @@
 
 import uuid as uuid_mod
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
@@ -32,6 +33,7 @@ async def kinds(db):
 
 class SyntheticConnector(PostingConnector):
     key = "synthetic"
+    manifest_file = Path(__file__).resolve().parent / "fixtures" / "synthetic-connector.json"
     title = "Synthetic"
     capabilities = ConnectorCapabilities(supports_incremental=True)
 

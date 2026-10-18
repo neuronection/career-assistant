@@ -2,6 +2,7 @@ import contextlib
 import secrets
 from collections.abc import AsyncGenerator, Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import UUID
 
 import httpx
@@ -629,6 +630,7 @@ class SyntheticConnector(PostingConnector):
 
     key = "synthetic"
     title = "Synthetic test connector"
+    manifest_file = Path(__file__).resolve().parent / "fixtures" / "synthetic-connector.json"
     docs_url = "https://docs.example/synthetic"
     capabilities = ConnectorCapabilities(supports_incremental=True)
     counter = 0

@@ -1,0 +1,71 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-jobicy",
+  "version": "1.0.0",
+  "description": "Remote-jobs feed from jobicy.com's public API v2 (free, no credentials \u2014 no secret slots by design).",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "capabilities": [
+    "net",
+    "sync"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "tag": {
+        "type": "string",
+        "title": "Tag filter",
+        "description": "Server-side tag filter, e.g. developer (empty = all)",
+        "maxLength": 60
+      },
+      "max_items": {
+        "type": "number",
+        "title": "Max items per sync",
+        "default": 50,
+        "minimum": 1,
+        "maximum": 200
+      }
+    }
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Jobicy remote jobs",
+        "summary": "Remote-jobs feed from jobicy.com's public API v2 (free, no credentials \u2014 no secret slots by design)."
+      }
+    }
+  },
+  "domains": [
+    "jobicy.com"
+  ],
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "search"
+  ],
+  "docs": "docs/docs-tree.json"
+}

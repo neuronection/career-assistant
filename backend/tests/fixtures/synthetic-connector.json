@@ -1,0 +1,34 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-synthetic",
+  "version": "1.0.0",
+  "description": "Deterministic one-posting test connector with etag-based increments.",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "capabilities": ["sync"],
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {"type": "string", "title": "External id"},
+      "title": {"type": "string", "title": "Title"},
+      "url": {"type": "string", "title": "URL"}
+    },
+    "required": ["external_id", "title"]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Synthetic test connector",
+        "summary": "Deterministic one-posting test connector."
+      }
+    }
+  }
+}

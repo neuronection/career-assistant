@@ -1,0 +1,85 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-ats-api",
+  "version": "1.0.0",
+  "description": "Public applicant-tracking job boards through the polite runtime, scoped to the three ATS API domains.",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "capabilities": [
+    "net",
+    "sync",
+    "secrets"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "type": "string",
+        "title": "ATS provider",
+        "enum": [
+          "greenhouse",
+          "lever",
+          "ashby"
+        ]
+      },
+      "org": {
+        "type": "string",
+        "title": "Board org slug",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "api_token": {
+        "type": "string",
+        "title": "Partner API token (optional)",
+        "maxLength": 300,
+        "x-secret": true
+      }
+    },
+    "required": [
+      "provider",
+      "org"
+    ]
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "ATS public API (Greenhouse / Lever / Ashby)",
+        "summary": "Public applicant-tracking job boards through the polite runtime, scoped to the three ATS API domains."
+      }
+    }
+  },
+  "domains": [
+    "boards-api.greenhouse.io",
+    "api.lever.co",
+    "api.ashbyhq.com"
+  ],
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "search"
+  ]
+}

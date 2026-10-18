@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "What the Jobicy connector is, what it fetches, and when to use it.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "usage",
+      "items": [
+        {
+          "id": "usage",
+          "file": "usage.md",
+          "title": "Usage",
+          "description": "Adding the source, tag filtering, cursor pagination, and caps.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "troubleshooting",
+      "items": [
+        {
+          "id": "troubleshooting",
+          "file": "troubleshooting.md",
+          "title": "Troubleshooting",
+          "description": "Symptom → cause → fix for the failures a Jobicy sync can hit.",
+          "audience": "user"
+        }
+      ]
+    }
+  ]
+}
