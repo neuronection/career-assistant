@@ -51,12 +51,13 @@
     "locales": {
       "en": {
         "title": "Paste a posting URL",
-        "summary": "One posting fetched from a pasted URL (JSON-LD extraction with an HTML title fallback)."
+        "summary": "One posting fetched from a URL you paste — JSON-LD structured data first, page title as the honest fallback."
       }
     }
   },
   "repository": "https://github.com/neuronection/career-assistant",
   "categories": [
     "search"
-  ]
+  ],
+  "docs": "docs/docs-tree.json"
 }

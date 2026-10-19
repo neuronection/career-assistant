@@ -69,7 +69,7 @@
     "locales": {
       "en": {
         "title": "ATS public API (Greenhouse / Lever / Ashby)",
-        "summary": "Public applicant-tracking job boards through the polite runtime, scoped to the three ATS API domains."
+        "summary": "Public job boards on Greenhouse, Lever and Ashby — one board per source, optional partner token."
       }
     }
   },
@@ -81,5 +81,6 @@
   "repository": "https://github.com/neuronection/career-assistant",
   "categories": [
     "search"
-  ]
+  ],
+  "docs": "docs/docs-tree.json"
 }

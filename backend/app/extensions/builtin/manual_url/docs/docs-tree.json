@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "What the paste-a-URL connector does — one posting from a URL, JSON-LD first, honest title fallback.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "usage",
+      "items": [
+        {
+          "id": "usage",
+          "file": "usage.md",
+          "title": "Usage",
+          "description": "Adding the source, what a sync fetches, and why one source is one posting.",
+          "audience": "user"
+        }
+      ]
+    }
+  ]
+}

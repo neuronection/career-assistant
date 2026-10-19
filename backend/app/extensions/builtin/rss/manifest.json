@@ -51,12 +51,13 @@
     "locales": {
       "en": {
         "title": "RSS / Atom feed",
-        "summary": "Postings from an RSS 2.0 or Atom job feed."
+        "summary": "Job postings from any RSS 2.0 or Atom feed."
       }
     }
   },
   "repository": "https://github.com/neuronection/career-assistant",
   "categories": [
     "search"
-  ]
+  ],
+  "docs": "docs/docs-tree.json"
 }
