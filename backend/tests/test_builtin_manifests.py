@@ -2,12 +2,16 @@
 form — manifest.json, never code-declared). These tests pin the wall:
 
 - every builtin ships ``builtin/<key>/manifest.json`` and it validates
-  against the vendored bundled envelope at registration;
-- the four documented builtins (the three real job boards + mcp) carry
-  the plan-34 docs pointer, and their trees exist + validate;
-- a missing or corrupt manifest file, and a broken docs promise,
-  self-disable exactly like an invalid manifest did (the registration
-  gate throws the same ``ValidationError``).
+  against the vendored bundled envelope at registration — including the
+  tightened i18n map (plan 35 wave B: a default-locale title is
+  REQUIRED, declared 1..80; summaries <= 200);
+- the seven documented builtins (the three real job boards + mcp, and
+  the three configure-me bundles ats_api/manual_url/rss from plan 35
+  wave B) carry the plan-34 docs pointer, and their trees exist +
+  validate;
+- a missing or corrupt manifest file, a titleless i18n map, and a
+  broken docs promise self-disable exactly like an invalid manifest
+  did (the registration gate throws the same ``ValidationError``).
 """
 
 from __future__ import annotations
@@ -49,7 +53,17 @@ BUILTINS = [
     McpConnector(),
 ]
 
-DOCUMENTED = {"arbeitnow", "remotive", "jobicy", "mcp"}
+DOCUMENTED = {
+    "arbeitnow",
+    "remotive",
+    "jobicy",
+    "mcp",
+    # plan 35 wave B (Part 4): the three bundles users actually configure
+    # carry real docs trees, grounded in the connector code.
+    "ats_api",
+    "manual_url",
+    "rss",
+}
 
 
 def test_every_builtin_manifest_is_a_file_that_validates():
@@ -139,3 +153,29 @@ def test_docs_tree_files_resolve_beside_the_tree():
             tree, exists=lambda ref, d=docs_dir: (d / ref).is_file()
         )
         assert problems == [], f"{key}: {problems}"
+
+
+def test_i18n_semantics_accept_every_shipped_manifest():
+    """The plan-35 wave-B tightening: every shipped manifest's i18n map
+    passes the vendored cross-key semantics (default-locale title,
+    declared caps)."""
+    for connector in BUILTINS:
+        manifest = connector.manifest()
+        problems = contract.manifest_i18n_semantics(manifest)
+        assert problems == [], f"{connector.key}: {problems}"
+
+
+def test_titleless_default_locale_disables_registration(tmp_path):
+    manifest = json.loads((BUILTIN_ROOT / "rss" / "manifest.json").read_text())
+    del manifest["i18n"]["locales"]["en"]["title"]
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValidationError, match="missing 'title'"):
+        validate_manifest(_stub("rss", manifest_file=tmp_path / "manifest.json"))
+
+
+def test_over_length_title_disables_registration(tmp_path):
+    manifest = json.loads((BUILTIN_ROOT / "rss" / "manifest.json").read_text())
+    manifest["i18n"]["locales"]["en"]["title"] = "R" * 81  # schema maxLength 80
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValidationError, match="manifest invalid"):
+        validate_manifest(_stub("rss", manifest_file=tmp_path / "manifest.json"))

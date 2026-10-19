@@ -61,6 +61,10 @@ def _schema_for(group: str, case: dict[str, Any]) -> Any:
     return MANIFEST_SCHEMA, MANIFEST_SCHEMA
 
 
+def _is_manifest_group(group: str) -> bool:
+    return group in ("manifest", "bundled")
+
+
 @pytest.mark.parametrize(
     "group,case",
     [
@@ -72,6 +76,10 @@ def _schema_for(group: str, case: dict[str, Any]) -> Any:
 def test_structural_fixtures_accept(group: str, case: dict[str, Any]) -> None:
     target, root = _schema_for(group, case)
     assert contract.validate(target, case["doc"], root) is None, case["name"]
+    if _is_manifest_group(group):
+        # the plan-35 wave-B cross-key i18n semantics ride the same cases
+        # (dev wall 2/3: valid = schema AND semantics clean)
+        assert contract.manifest_i18n_semantics(case["doc"]) == [], case["name"]
 
 
 @pytest.mark.parametrize(
@@ -85,7 +93,8 @@ def test_structural_fixtures_accept(group: str, case: dict[str, Any]) -> None:
 def test_structural_fixtures_reject(group: str, case: dict[str, Any]) -> None:
     target, root = _schema_for(group, case)
     err = contract.validate(target, case["doc"], root)
-    assert err is not None, f"invalid case {case['name']} was accepted"
+    sem = contract.manifest_i18n_semantics(case["doc"]) if _is_manifest_group(group) else []
+    assert err is not None or sem, f"invalid case {case['name']} was accepted"
 
 
 # ------------------------------------- the capability-RPC seam (Phase 5 wall)

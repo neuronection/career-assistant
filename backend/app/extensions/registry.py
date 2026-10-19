@@ -138,6 +138,9 @@ def validate_manifest(connector: PostingConnector) -> dict:
     err = contract.validate(schema["$defs"]["bundledManifest"], manifest, schema)
     if err is not None:
         raise ValidationError(f"Connector {connector.key} manifest invalid: {err}")
+    problems = contract.manifest_i18n_semantics(manifest)
+    if problems:
+        raise ValidationError(f"Connector {connector.key} manifest invalid: {'; '.join(problems)}")
     _validate_docs_binding(connector, manifest)
     return manifest
 
