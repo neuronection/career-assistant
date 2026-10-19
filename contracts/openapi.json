@@ -16569,7 +16569,7 @@
     },
     "/api/v1/admin/postings/connectors/{key}/documentation": {
       "get": {
-        "description": "The per-extension documentation surface (plan 34 wave 8 \u2014 the\nextensionDocsTree form): tree + markdown, opening on the landing\npage (\u00a710.4). Only registry-known connectors serve; the requested\nfile must be a docs-tree-listed page (basename-checked, resolved\ninside the bundle's docs/ dir); raw HTML is neutralized fence-aware\n(\u00a710.7). Connectors without a tree answer with an honest absence\npage \u2014 the catalog's manifest pointer drives the affordance.",
+        "description": "The per-extension documentation surface (plan 34 wave 8 \u2014 the\nextensionDocsTree form): tree + markdown, opening on the landing\npage (\u00a710.4). Only registry-known connectors serve; the requested\nfile must be a docs-tree-listed page (basename-checked, resolved\ninside the bundle's docs/ dir); raw HTML is neutralized fence-aware\n(\u00a710.7). The optional ``locale`` rides the \u00a710.9 page-locale\nconvention: a noted ``<page>.<locale>.md`` sibling is served when\nit exists, else the default page \u2014 ``served_file``/``served_locale``\nstate what was actually served (honest fallback). Connectors\nwithout a tree answer with an honest absence page \u2014 the catalog's\nmanifest pointer drives the affordance.",
         "operationId": "posting_connector_documentation_api_v1_admin_postings_connectors__key__documentation_get",
         "parameters": [
           {
@@ -16595,6 +16595,22 @@
                 }
               ],
               "title": "File"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Locale"
             }
           }
         ],

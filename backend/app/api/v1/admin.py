@@ -241,14 +241,22 @@ async def posting_connectors(db: AsyncSession = Depends(get_db)) -> list[dict]:
 
 
 @router.get("/postings/connectors/{key}/documentation", response_model=dict)
-async def posting_connector_documentation(key: str, file: str | None = None) -> dict:
+async def posting_connector_documentation(
+    key: str,
+    file: str | None = None,
+    locale: str | None = None,
+) -> dict:
     """The per-extension documentation surface (plan 34 wave 8 — the
     extensionDocsTree form): tree + markdown, opening on the landing
     page (§10.4). Only registry-known connectors serve; the requested
     file must be a docs-tree-listed page (basename-checked, resolved
     inside the bundle's docs/ dir); raw HTML is neutralized fence-aware
-    (§10.7). Connectors without a tree answer with an honest absence
-    page — the catalog's manifest pointer drives the affordance."""
+    (§10.7). The optional ``locale`` rides the §10.9 page-locale
+    convention: a noted ``<page>.<locale>.md`` sibling is served when
+    it exists, else the default page — ``served_file``/``served_locale``
+    state what was actually served (honest fallback). Connectors
+    without a tree answer with an honest absence page — the catalog's
+    manifest pointer drives the affordance."""
     import os
 
     from app.extensions import docs as ext_docs
@@ -264,26 +272,25 @@ async def posting_connector_documentation(key: str, file: str | None = None) -> 
     tree = ext_docs.load_tree(docs_dir)
     if tree is None:
         return {
-            "markdown": (
-                f"# {connector.title}\n\nNo documentation provided for this connector."
-            ),
+            "markdown": (f"# {connector.title}\n\nNo documentation provided for this connector."),
             "tree": None,
         }
 
-    target_file = file or ext_docs.landing_file(tree)
+    served_file, served_locale = ext_docs.resolve_page(docs_dir, tree, file, locale)
     markdown_content = ""
-    if target_file:
-        target_file = os.path.basename(target_file)
+    if served_file:
+        target_file = os.path.basename(served_file)
         target_file_path = docs_dir / target_file
         if target_file_path.is_file():
-            markdown_content = ext_docs.strip_raw_html(
-                target_file_path.read_text(encoding="utf-8")
-            )
+            markdown_content = ext_docs.strip_raw_html(target_file_path.read_text(encoding="utf-8"))
         else:
-            markdown_content = (
-                f"# Error\n\nCould not find file {target_file} in docs folder."
-            )
-    return {"markdown": markdown_content, "tree": tree}
+            markdown_content = f"# Error\n\nCould not find file {target_file} in docs folder."
+    return {
+        "markdown": markdown_content,
+        "tree": tree,
+        "served_file": served_file,
+        "served_locale": served_locale,
+    }
 
 
 @router.get("/postings/feature-map", response_model=dict)
