@@ -4,7 +4,7 @@
   "kind": "connector",
   "id": "career-arbeitnow",
   "version": "1.0.0",
-  "description": "Live German/European job board through the public job-board-api (free, no credentials \u2014 no secret slots by design).",
+  "description": "Live German/European job board through the public job-board-api (free, no credentials — no secret slots by design).",
   "author": "Neuronection",
   "license": "Apache-2.0",
   "capabilities": [
@@ -60,7 +60,7 @@
     "locales": {
       "en": {
         "title": "Arbeitnow job board",
-        "summary": "Live German/European job board through the public job-board-api (free, no credentials \u2014 no secret slots by design)."
+        "summary": "German and European job listings from Arbeitnow's public API — free, no credentials, no secret slots."
       }
     }
   },

@@ -56,7 +56,7 @@
     "locales": {
       "en": {
         "title": "CSV file",
-        "summary": "Postings from an exported CSV spreadsheet (conditional GET, robots and rate caps via the polite runtime)."
+        "summary": "Job postings from an exported CSV spreadsheet."
       }
     }
   },

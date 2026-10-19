@@ -51,7 +51,7 @@
     "locales": {
       "en": {
         "title": "schema.org JobPosting page",
-        "summary": "Postings extracted from schema.org/JobPosting JSON-LD structured data."
+        "summary": "Job postings parsed from a page's schema.org JobPosting structured data."
       }
     }
   },

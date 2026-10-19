@@ -4,7 +4,7 @@
   "kind": "connector",
   "id": "career-remotive",
   "version": "1.0.0",
-  "description": "Remote-jobs feed from remotive.com's public API (free, no credentials \u2014 no secret slots by design).",
+  "description": "Remote-jobs feed from remotive.com's public API (free, no credentials — no secret slots by design).",
   "author": "Neuronection",
   "license": "Apache-2.0",
   "capabilities": [
@@ -56,7 +56,7 @@
     "locales": {
       "en": {
         "title": "Remotive remote jobs",
-        "summary": "Remote-jobs feed from remotive.com's public API (free, no credentials \u2014 no secret slots by design)."
+        "summary": "Remote job listings from Remotive's public API — free, no credentials, no secret slots."
       }
     }
   },
