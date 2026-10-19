@@ -30,6 +30,7 @@ __all__ = [
     "DOCS_POINTER",
     "RESERVED_ID_PREFIXES",
     "docs_tree_semantics",
+    "manifest_i18n_semantics",
     "secret_fields",
     "validate",
     "validate_manifest",
@@ -252,8 +253,7 @@ def secret_fields(config_schema: Mapping[str, Any] | None) -> list[str]:
     return fields
 
 
-def docs_tree_semantics(
-    tree: Any,
+def docs_tree_semantics(    tree: Any,
     exists: Any = None,
 ) -> list[str]:
     """Wall-equivalent semantics for a docs-tree document beyond its
@@ -319,4 +319,71 @@ def docs_tree_semantics(
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     if dupes:
         problems.append(f"duplicate node ids {dupes}")
+    return problems
+
+
+#: The i18n field caps the envelope schema declares structurally
+#: (mirrors extension-charter.json limits — hosts may tighten, never
+#: loosen). The default-locale title REQUIREMENT is cross-key and lives
+#: in the semantics below, not in JSON Schema.
+I18N_TITLE_MAX_CHARS = 80
+I18N_SUMMARY_MAX_CHARS = 200
+
+
+def manifest_i18n_semantics(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    """Wall-equivalent semantics for a manifest's ``i18n`` block beyond
+    its schema (owner decision 2026-10-19, plan 35 wave B — every host
+    validating a manifest runs these beside the schema):
+
+    - the DEFAULT-LOCALE entry carries a ``title`` (1..80 chars) — the
+      rule that makes a hub's title-fallback-to-id unreachable for
+      valid manifests; other locales may omit it;
+    - a ``title`` present in ANY entry is 1..80 chars;
+    - a ``summary`` present in any entry is <= 200 chars (the schema's
+      structural cap, mirrored here so a semantics-only caller stays
+      exact).
+
+    Returns a list of problems (empty = clean). Structure (types,
+    lengths of undeclared keys, locale syntax) is the schema's job —
+    this check is only the cross-key rule plus the declared caps.
+    """
+    problems: list[str] = []
+    i18n = manifest.get("i18n")
+    if not isinstance(i18n, dict):
+        return ["i18n is not an object (the schema rejects it before semantics)"]
+    default_locale = i18n.get("defaultLocale")
+    locales = i18n.get("locales")
+    if not isinstance(default_locale, str) or not isinstance(locales, dict):
+        return ["i18n.defaultLocale/locales malformed (the schema rejects it before semantics)"]
+    default_entry = locales.get(default_locale)
+    if not isinstance(default_entry, dict):
+        problems.append(f"i18n.locales carries no entry for the default locale {default_locale!r}")
+        return problems
+    title = default_entry.get("title")
+    if title is None:
+        problems.append(
+            f"i18n.locales[{default_locale!r}]: missing 'title' — the default-locale "
+            "title is REQUIRED (cards render it verbatim; there is no honest id fallback)"
+        )
+    elif not isinstance(title, str):
+        problems.append(f"i18n.locales[{default_locale!r}].title: not a string")
+    elif not 1 <= len(title) <= I18N_TITLE_MAX_CHARS:
+        problems.append(
+            f"i18n.locales[{default_locale!r}].title: length {len(title)} outside 1..{I18N_TITLE_MAX_CHARS}"
+        )
+    for locale, entry in sorted(locales.items()):
+        if not isinstance(entry, dict):
+            continue
+        loc_title = entry.get("title")
+        if isinstance(loc_title, str) and not 1 <= len(loc_title) <= I18N_TITLE_MAX_CHARS:
+            problems.append(
+                f"i18n.locales[{locale!r}].title: length {len(loc_title)} outside 1..{I18N_TITLE_MAX_CHARS}"
+            )
+        summary = entry.get("summary")
+        if isinstance(summary, str) and len(summary) > I18N_SUMMARY_MAX_CHARS:
+            problems.append(
+                f"i18n.locales[{locale!r}].summary: length {len(summary)} > {I18N_SUMMARY_MAX_CHARS}"
+            )
     return problems
