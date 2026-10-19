@@ -266,7 +266,11 @@ def docs_tree_semantics(    tree: Any,
       true`` on at most one item — the landing rule's override
       (extensionDocsTree form);
     - every ``file`` reference exists (when ``exists`` — a callable
-      taking the ref — is provided).
+      taking the ref — is provided);
+    - every item-noted ``locales`` entry (§10.9 page-locale convention,
+      plan 35 wave B) has its ``<page>.<locale>.md`` sibling beside the
+      tree (same ``exists`` discipline — a noted locale without its
+      sibling is a broken promise, exactly like a missing ``file``).
 
     Returns a list of problems (empty = clean). A tree that is neither
     form (no ``roots`` and no ``categories``) is itself a problem — the
@@ -305,6 +309,16 @@ def docs_tree_semantics(    tree: Any,
                     index_claims.append(str(item.get("id")))
                 if exists is not None and item.get("file") and not exists(item["file"]):
                     problems.append(f"item {item.get('id')!r}: file {item['file']!r} does not resolve")
+                # §10.9 (plan 35 wave B): a noted locale needs its sibling
+                if exists is not None and isinstance(item.get("locales"), list) and isinstance(item.get("file"), str):
+                    base = item["file"][:-3] if item["file"].endswith(".md") else item["file"]
+                    for locale in item["locales"]:
+                        sibling = f"{base}.{locale}.md"
+                        if not exists(sibling):
+                            problems.append(
+                                f"item {item.get('id')!r}: notes locale {locale!r} "
+                                f"but the sibling {sibling!r} does not resolve"
+                            )
         dup_slugs = sorted({s for s in slugs if slugs.count(s) > 1})
         if dup_slugs:
             problems.append(
