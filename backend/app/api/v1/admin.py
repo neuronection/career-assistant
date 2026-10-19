@@ -240,6 +240,52 @@ async def posting_connectors(db: AsyncSession = Depends(get_db)) -> list[dict]:
     return list_connectors()
 
 
+@router.get("/postings/connectors/{key}/documentation", response_model=dict)
+async def posting_connector_documentation(key: str, file: str | None = None) -> dict:
+    """The per-extension documentation surface (plan 34 wave 8 — the
+    extensionDocsTree form): tree + markdown, opening on the landing
+    page (§10.4). Only registry-known connectors serve; the requested
+    file must be a docs-tree-listed page (basename-checked, resolved
+    inside the bundle's docs/ dir); raw HTML is neutralized fence-aware
+    (§10.7). Connectors without a tree answer with an honest absence
+    page — the catalog's manifest pointer drives the affordance."""
+    import os
+
+    from app.extensions import docs as ext_docs
+    from app.extensions.registry import get_connector
+    from app.extensions.sdk import manifest_path
+
+    try:
+        connector = get_connector(key)
+    except ValidationError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "connector not found") from None
+
+    docs_dir = manifest_path(connector).parent / "docs"
+    tree = ext_docs.load_tree(docs_dir)
+    if tree is None:
+        return {
+            "markdown": (
+                f"# {connector.title}\n\nNo documentation provided for this connector."
+            ),
+            "tree": None,
+        }
+
+    target_file = file or ext_docs.landing_file(tree)
+    markdown_content = ""
+    if target_file:
+        target_file = os.path.basename(target_file)
+        target_file_path = docs_dir / target_file
+        if target_file_path.is_file():
+            markdown_content = ext_docs.strip_raw_html(
+                target_file_path.read_text(encoding="utf-8")
+            )
+        else:
+            markdown_content = (
+                f"# Error\n\nCould not find file {target_file} in docs folder."
+            )
+    return {"markdown": markdown_content, "tree": tree}
+
+
 @router.get("/postings/feature-map", response_model=dict)
 async def posting_feature_map() -> dict:
     """The extraction feature map (39.3): feature → consumers, declared

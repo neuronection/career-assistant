@@ -2,10 +2,7 @@
 
 ## The perimeter, stated plainly
 
-This extension runs as a separate process outside the app's network
-perimeter. It opens its own network connections, with no SSRF guard,
-robots.txt check or rate limiting by the app. The app governs only
-what it returns: outputs are validated and capped.
+> This extension runs as a separate process outside the app's network perimeter. It opens its own network connections, with no SSRF guard, robots.txt check or rate limiting by the app. The app governs only what it returns: outputs are validated and capped.
 
 That is the family's Tier-3 disclosure, rendered verbatim from the
 extension charter — read it before adding a source, and again whenever

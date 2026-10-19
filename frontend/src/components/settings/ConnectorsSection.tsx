@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, Save } from "lucide-react";
+import { BookOpen, Loader2, RefreshCw, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
 import type { WebSettings } from "@/api/ai";
@@ -17,6 +17,7 @@ import type {
   IntegrationConfigValues,
   IntegrationExtensionGroupView,
 } from "@/components/ui/integrations";
+import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 
 /**
@@ -129,6 +130,7 @@ function JobSourceConnectors() {
   const [busy, setBusy] = useState(false);
   const [probingId, setProbingId] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, SourceProbe>>({});
+  const [docsKey, setDocsKey] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -349,10 +351,25 @@ function JobSourceConnectors() {
                 <RefreshCw className="w-4 h-4" />
                 {t("toolsSettings.connectors.sources.sync")}
               </Button>
+              {catalogByKey[source.connector_key]?.manifest?.docs ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid={`connector-docs-${source.connector_key}`}
+                  onClick={() => setDocsKey(source.connector_key)}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {t("toolsSettings.connectors.docs.open", "Docs")}
+                </Button>
+              ) : null}
             </span>
           );
         }}
       />
+
+      {docsKey !== null ? (
+        <ConnectorDocsDialog connectorKey={docsKey} onClose={() => setDocsKey(null)} />
+      ) : null}
 
       {draft === null ? (
         <Button

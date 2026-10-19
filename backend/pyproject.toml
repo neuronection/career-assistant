@@ -132,7 +132,14 @@ exclude = [
 # and never leave. app/services is the next candidate (110 errors at
 # adoption, 2026-09-09); app/extensions joined clean (plan 32 Phase 4).
 # Fix in sub-slices, then add it.
+#
+# The vendored extension-contract canonical (app/extensions/contract.py)
+# is byte-identical to dev/contracts/contract.py — never edited in-repo,
+# and mypy-strict compliance is the dev canonical's duty (the
+# unification wave's sync introduced strict-mode findings here; study
+# carries the same exclusion).
 files = ["app/ai", "app/schemas", "app/models", "app/extensions"]
+exclude = ["app/extensions/contract.py"]
 ignore_missing_imports = true
 follow_imports = "silent"
 

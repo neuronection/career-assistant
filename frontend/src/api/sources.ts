@@ -35,6 +35,7 @@ export type ConnectorCatalogEntry = {
     capabilities: string[];
     domains?: string[];
     supportsIncremental: boolean;
+    docs?: string;
   };
 };
 
@@ -62,6 +63,40 @@ export async function fetchAdminSources(): Promise<PostingSource[]> {
 
 export async function fetchConnectorCatalog(): Promise<ConnectorCatalogEntry[]> {
   const response = await api.get<ConnectorCatalogEntry[]>("/admin/postings/connectors");
+  return response.data;
+}
+
+export type ConnectorDocs = {
+  markdown: string;
+  tree: {
+    version: number;
+    categories: {
+      category: string;
+      title?: string;
+      items: {
+        id: string;
+        file?: string;
+        title?: string;
+        description?: string;
+        index?: boolean;
+        audience?: "user" | "dev";
+      }[];
+    }[];
+    i18n?: {
+      defaultLocale?: string;
+      locales?: Record<string, Record<string, string>>;
+    };
+  } | null;
+};
+
+export async function fetchConnectorDocs(
+  key: string,
+  file?: string,
+): Promise<ConnectorDocs> {
+  const params = file ? `?file=${encodeURIComponent(file)}` : "";
+  const response = await api.get<ConnectorDocs>(
+    `/admin/postings/connectors/${encodeURIComponent(key)}/documentation${params}`,
+  );
   return response.data;
 }
 

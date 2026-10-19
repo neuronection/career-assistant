@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (per-extension docs surface, 2026-10-19)
+- **Connector documentation is now served in-app** (plan 34 wave 8):
+  `GET /api/v1/admin/postings/connectors/{key}/documentation` returns the
+  bundle's `extensionDocsTree` + markdown (opens on the landing page,
+  traversal-safe, fence-aware raw-HTML neutralization); the Tools →
+  Connectors source rows gain a **Docs** action for connectors whose
+  manifest carries the docs pointer (the documented set: the three job
+  boards + mcp — absent pointer, no affordance). The connector's own
+  `security.md` now embeds the T3 perimeter disclosure as a verbatim
+  blockquote (byte-checked by the suite). The vendored
+  `app/extensions/contract.py` joins the mypy exclude (study's precedent —
+  strict-mode findings in a byte-identical canonical are the dev
+  canonical's; the gate is green again after the unification wave's sync).
+
 ### Changed (manifest unification, 2026-10-19)
 - **Every builtin connector's manifest is now a FILE at the bundle
   root — `builtin/<key>/manifest.json` — never code-declared** (the

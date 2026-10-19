@@ -4,6 +4,12 @@ export {
   type AddIntegrationSourceDialogProps,
 } from "@neuronection/assistant-ui/add-integration-source-dialog";
 export {
+  DocsDialog,
+  type DocsDialogLabels,
+  type DocsDialogProps,
+  type IntegrationDocsNode,
+} from "@neuronection/assistant-ui/integration-docs-dialog";
+export {
   ConsentDialog,
   type ConsentDialogLabels,
   type ConsentDialogProps,

@@ -1165,6 +1165,18 @@
         "close": "Close",
         "submitting": "Fetching and validating…",
         "addTitle": "Add extension source"
+      },
+      "docs": {
+        "open": "Docs",
+        "title": "Documentation",
+        "tree": "Documentation",
+        "empty": "No documentation provided.",
+        "loading": "Loading…",
+        "error": "Failed to load documentation.",
+        "audience": {
+          "user": "For users",
+          "dev": "For developers"
+        }
       }
     }
   },
