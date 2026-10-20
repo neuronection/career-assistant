@@ -41,6 +41,15 @@ if IS_SQLITE:
     _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
+    "application_events",
+    "applications",
+    "user_path_flags",
+    "label_overrides",
+    "mcp_tokens",
+    "user_feed_tokens",
+    "followup_rules",
+    "user_channel_configs",
+    "webhook_endpoints",
     "extension_sandbox_runs",
     "extension_installs",
     "extension_sources",
