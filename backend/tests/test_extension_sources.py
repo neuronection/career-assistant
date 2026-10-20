@@ -422,7 +422,7 @@ async def test_bad_manifest_schema_is_rejected_typed(db, local_roots):
     report = await sync_source(db, source.id)
     assert report["ok"] is False
     assert report["error"]["code"] == "invalid"
-    assert "manifest invalid" in report["error"]["detail"]
+    assert "manifest invalid" in report["error"]["detail"]["message"]
 
 
 async def test_wrong_host_profile_rejected_with_reason(db, local_roots):
@@ -460,7 +460,7 @@ async def test_api_version_too_new_rejected_with_ceiling(db, local_roots):
     report = await sync_source(db, source.id)
     assert report["ok"] is False
     assert report["error"]["code"] == "invalid"
-    assert "kindVersion" in report["error"]["detail"], "the error names the ceiling precisely"
+    assert "kindVersion" in report["error"]["detail"]["message"], "the error names the ceiling precisely"
 
 
 async def test_unhonored_capability_rejected(db, local_roots):
@@ -485,7 +485,7 @@ async def test_malformed_repo_no_manifests_typed_error(db, local_roots):
     report = await sync_source(db, source.id)
     assert report["ok"] is False
     assert report["error"]["code"] == "invalid"
-    assert "no extension manifests" in report["error"]["detail"]
+    assert "no extension manifests" in report["error"]["detail"]["message"]
     assert source.status == "failing"
 
 
@@ -1124,3 +1124,63 @@ async def test_e2e_import_runs_against_the_canonical_template_too(
     assert first["synced"] == 3
     second = await sync_job_source(db, minted)
     assert second["synced"] == 0, "etag cursor honored from the imported spawn"
+
+
+async def test_code_bearing_miniapp_is_not_tiered_t0(db, local_roots):
+    """Plan 37 7A-1 / evaluation H4: career never executes mini-app code, so
+    an entry-carrying mini-app must not be consented as declarative T0. The
+    uniform outcome shape: the candidate self-disables with a typed reason at
+    sync (never a source failure), and install refuses typed."""
+    manifest = template_manifest()
+    manifest["kind"] = "mini-app"
+    manifest["packKind"] = "surface"
+    manifest["apiVersion"] = 1
+    manifest.pop("kindVersion", None)
+    manifest.pop("itemSchema", None)
+    manifest.pop("supportsIncremental", None)
+    manifest["entry"] = "extension.py"
+    repo = make_repo(local_roots, manifest=manifest, tag=None)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    candidate = next(c for c in report["candidates"] if c["extensionId"] == manifest["id"])
+    assert candidate["compatible"] is False
+    assert "code-bearing mini-app" in candidate["reason"]
+
+
+async def test_surfaceless_miniapp_self_disables_typed(db, local_roots):
+    """Plan 38 W5: "surfaces required" is HOST PROFILE policy
+    (miniAppRendering), not a manifest law — a surface-less mini-app is a
+    different profile, not a bad bundle: typed self-disable with a reason."""
+    manifest = template_manifest()
+    manifest["kind"] = "mini-app"
+    manifest["packKind"] = "surface"
+    manifest["apiVersion"] = 1
+    manifest.pop("kindVersion", None)
+    manifest.pop("itemSchema", None)
+    manifest.pop("supportsIncremental", None)
+    manifest.pop("surfaces", None)
+    manifest["capabilities"] = ["ui:page"]
+    repo = make_repo(local_roots, manifest=manifest, tag=None)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    candidate = next(c for c in report["candidates"] if c["extensionId"] == manifest["id"])
+    assert candidate["compatible"] is False
+    assert "miniAppRendering" in candidate["reason"]
+
+
+async def test_forged_echo_version_is_refused(db, local_roots):
+    """Plan 38 W6: the echo is host-derived and version-bound — a forged
+    version is refused typed and nothing half-lands."""
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    echo = await _echo_for(db, source.id)
+    forged = dict(echo)
+    forged["version"] = "9.9.9-forged"
+    with pytest.raises(LifecycleError) as exc:
+        await install_extension(db, source.id, "example-posting-fetcher", consent=forged)
+    assert exc.value.code == "invalid"
+    assert "version" in exc.value.detail
+    assert (await db.execute(select(ExtensionInstall))).scalars().first() is None

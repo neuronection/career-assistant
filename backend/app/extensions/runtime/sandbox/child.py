@@ -45,6 +45,49 @@ VERSION = 1
 RPC_LINE_MAX_BYTES = 1_048_576
 MANIFEST_MAX_BYTES = 524_288
 ERROR_DETAIL_MAX_CHARS = 500
+#: The closed error-detail vocabulary (plan 37 7E) — the child keeps its
+#: own frozen copy like ERROR_CODES/RETRYABLE (trusted bootstrap, minimal
+#: imports); `contract.cap_error_detail` is canonical and the rpc fixtures
+#: pin the wire shape identically in every copy.
+_ERROR_DETAIL_CAPS = {
+    "message": 400, "path": 256, "field": 64, "id": 128, "packId": 128,
+    "runId": 128, "slot": 128, "host": 253, "method": 128, "op": 64,
+    "stage": 64, "engine": 64, "expected": 128, "actual": 128,
+}
+
+
+def _bounded_detail(detail: Any) -> dict[str, Any]:
+    """The bounded error-detail object (7E): declared keys only, `message`
+    capped at 400, serialized cap ERROR_DETAIL_MAX_CHARS (truncate
+    `message` first, then drop non-`message` keys). A plain string becomes
+    `{"message": ...}` at construction — the wire never carries it."""
+    if isinstance(detail, str):
+        detail = {"message": detail}
+    if not isinstance(detail, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key, cap in _ERROR_DETAIL_CAPS.items():
+        value = detail.get(key)
+        if isinstance(value, str):
+            out[key] = value[:cap]
+    for key in ("hop", "limit", "used"):
+        value = detail.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            out[key] = value
+
+    def _size() -> int:
+        return len(json.dumps(out, separators=(",", ":"), ensure_ascii=False))
+
+    while _size() > ERROR_DETAIL_MAX_CHARS:
+        message = out.get("message")
+        if message:
+            out["message"] = message[: max(0, len(message) - (_size() - ERROR_DETAIL_MAX_CHARS))]
+            continue
+        droppable = next((k for k in out if k != "message"), None)
+        if droppable is None:
+            break
+        del out[droppable]
+    return out
 INPUT_MAX_BYTES = 256 * 1024
 
 # The closed method vocabulary (extension-charter.json rpc).
@@ -550,7 +593,7 @@ def extension_error(exc: BaseException) -> dict[str, Any]:
     if isinstance(exc, CapabilityError):
         envelope: dict[str, Any] = {
             "code": exc.code if exc.code in ERROR_CODES else "provider",
-            "detail": json.dumps({"error": exc.detail})[:ERROR_DETAIL_MAX_CHARS],
+            "detail": _bounded_detail(exc.detail),
             "retryable": exc.retryable if exc.retryable in RETRYABLE else "no",
         }
         if exc.retry_after_ms is not None:
@@ -559,12 +602,12 @@ def extension_error(exc: BaseException) -> dict[str, Any]:
     if isinstance(exc, SandboxViolation):
         return {
             "code": exc.code,
-            "detail": json.dumps({"denied": exc.detail})[:ERROR_DETAIL_MAX_CHARS],
+            "detail": _bounded_detail({"message": exc.detail}),
             "retryable": "no",
         }
     return {
         "code": "provider",
-        "detail": json.dumps({"exceptionType": type(exc).__name__})[:ERROR_DETAIL_MAX_CHARS],
+        "detail": _bounded_detail({"engine": type(exc).__name__}),
         "retryable": "no",
     }
 
@@ -610,13 +653,13 @@ def load_extension(
     except SandboxViolation as exc:
         return {}, {
             "code": exc.code,
-            "detail": json.dumps({"denied": exc.detail})[:ERROR_DETAIL_MAX_CHARS],
+            "detail": _bounded_detail({"message": exc.detail}),
             "retryable": "no",
         }
     except Exception:
         return {}, {
             "code": "invalid",
-            "detail": json.dumps({"stage": "load"})[:ERROR_DETAIL_MAX_CHARS],
+            "detail": _bounded_detail({"stage": "load"}),
             "retryable": "no",
         }
     identity = {
@@ -690,7 +733,7 @@ def run(content_dir: str, entry: str, digest: str) -> int:
                     "method": method,
                     "error": {
                         "code": "unsupported",
-                        "detail": json.dumps({"op": op[:64]})[:ERROR_DETAIL_MAX_CHARS],
+                        "detail": _bounded_detail({"op": op[:64]}),
                         "retryable": "no",
                     },
                 }

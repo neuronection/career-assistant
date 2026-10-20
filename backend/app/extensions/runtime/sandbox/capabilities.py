@@ -66,21 +66,21 @@ PROGRESS_KEY_MAX_CHARS = 120
 _ERRORS_PER_RUN_MAX = 100
 
 
-def _detail(data: Any) -> str:
-    """Capped JSON detail — data, never a raw exception string."""
-    try:
-        return json.dumps(data, separators=(",", ":"), default=str)[:500]
-    except (TypeError, ValueError):
-        return "{}"
+def _detail(data: Any) -> dict[str, Any]:
+    """The bounded error-detail object (plan 37 7E) — the canonical
+    construction (`contract.cap_error_detail`): declared keys only,
+    capped; a plain string becomes ``{"message": ...}``. The wire never
+    carries the old JSON-encoded-string form."""
+    return contract.cap_error_detail(data)
 
 
 class QuotaExhausted(Exception):
     """Typed ``budget`` (retryable after-config-change) — never a silent
     drop."""
 
-    def __init__(self, detail: str):
+    def __init__(self, detail: Any):
         super().__init__(detail)
-        self.detail = detail[:500]
+        self.detail = detail[:500] if isinstance(detail, str) else detail
 
 
 class _SecretScopedClient:
@@ -140,12 +140,12 @@ class SeamError(Exception):
     def __init__(
         self,
         code: str,
-        detail: str,
+        detail: Any,
         *,
         retryable: str | None = None,
         retry_after_ms: int | None = None,
     ):
-        super().__init__(detail)
+        super().__init__(detail if isinstance(detail, str) else json.dumps(detail, default=str))
         self.code = code
         self.envelope = error_envelope(
             code, detail, retryable=retryable, retry_after_ms=retry_after_ms
@@ -306,18 +306,18 @@ class CapabilityProvider:
 
     async def _net_fetch(self, params: dict[str, Any]) -> dict[str, Any]:
         if not self._net_declared:
-            raise SeamError("unsupported", _detail({"reason": "net not declared in the manifest"}))
+            raise SeamError("unsupported", _detail({"message": "net not declared in the manifest"}))
         url = params.get("url")
         if not isinstance(url, str) or not url or len(url) > URL_MAX_CHARS:
             raise SeamError("invalid", _detail({"field": "url"}))
         method = params.get("method", "GET")
         if method != "GET":
             raise SeamError(
-                "unsupported", _detail({"reason": "this host serves GET net.fetch only in v1"})
+                "unsupported", _detail({"message": "this host serves GET net.fetch only in v1"})
             )
         if params.get("body") is not None:
             raise SeamError(
-                "unsupported", _detail({"reason": "net.fetch bodies are not served on this host"})
+                "unsupported", _detail({"message": "net.fetch bodies are not served on this host"})
             )
         headers = self._validated_headers(params.get("headers") or {})
         if SECRET_REF_PATTERN.search(url):
@@ -330,7 +330,7 @@ class CapabilityProvider:
                 _detail(
                     {
                         "field": "url",
-                        "reason": (
+                        "message": (
                             "secret placeholders are not served in URLs — pass secrets via headers"
                         ),
                     }
@@ -381,7 +381,7 @@ class CapabilityProvider:
             # the seam scrub is belt-and-braces over every error kind).
             raise SeamError(
                 exc.code,
-                _detail({"net": self._scrub_secrets(exc.detail)}),
+                _detail({"message": self._scrub_secrets(exc.detail)}),
                 retryable=exc.retryable,
                 retry_after_ms=exc.retry_after_ms,
             ) from exc
@@ -424,14 +424,14 @@ class CapabilityProvider:
     def _state_get(self, params: dict[str, Any]) -> dict[str, Any]:
         if not self._state_declared:
             raise SeamError(
-                "unsupported", _detail({"reason": "state not declared in the manifest"})
+                "unsupported", _detail({"message": "state not declared in the manifest"})
             )
         return {"value": self._state().get(self._state_key(params))}
 
     def _state_set(self, params: dict[str, Any]) -> dict[str, Any]:
         if not self._state_declared:
             raise SeamError(
-                "unsupported", _detail({"reason": "state not declared in the manifest"})
+                "unsupported", _detail({"message": "state not declared in the manifest"})
             )
         key = self._state_key(params)
         if "value" not in params:
@@ -442,7 +442,7 @@ class CapabilityProvider:
         serialized = len(json.dumps(state, default=str).encode("utf-8"))
         if serialized > STATE_MAX_BYTES:
             raise SeamError(
-                "budget", _detail({"reason": "state exceeds stateMaxBytes", "bytes": serialized})
+                "budget", _detail({"message": "state exceeds stateMaxBytes", "used": serialized})
             )
         self._install.extension_state = state
         from sqlalchemy.orm.attributes import flag_modified
@@ -459,7 +459,7 @@ class CapabilityProvider:
             raise SeamError("invalid", _detail({"field": "items"}))
         if len(self.items) + len(raw_items) > ITEMS_PER_RUN_MAX:
             raise SeamError(
-                "budget", _detail({"reason": "item cap per run", "cap": ITEMS_PER_RUN_MAX})
+                "budget", _detail({"message": "item cap per run", "limit": ITEMS_PER_RUN_MAX})
             )
         accepted: list[dict[str, Any]] = []
         for item in raw_items:
@@ -482,7 +482,7 @@ class CapabilityProvider:
     def _reject_batch(self, reason: str) -> None:
         """Invalid batches are rejected WHOLE (atomic), typed, and count
         against the run's error budget (charter items law)."""
-        detail = _detail({"items": reason})
+        detail = _detail({"field": "items", "message": reason})
         if len(self.errors) < _ERRORS_PER_RUN_MAX:
             self.errors.append({"code": "invalid", "detail": detail, "retryable": "no"})
         raise SeamError("invalid", detail)
@@ -494,7 +494,7 @@ class CapabilityProvider:
         if not isinstance(slot, str) or not slot or len(slot) > 128:
             raise SeamError("invalid", _detail({"field": "slot"}))
         if slot not in self._declared_slots:
-            raise SeamError("invalid", _detail({"reason": "slot not declared in the manifest"}))
+            raise SeamError("invalid", _detail({"message": "slot not declared in the manifest"}))
         if not self._secrets.get(slot):
             raise SeamError(
                 "needs-secret", _detail({"slot": slot}), retryable="after-config-change"
@@ -513,7 +513,7 @@ class CapabilityProvider:
         target host matches that slot's declared ``domains`` (H1c)."""
         for slot in SECRET_REF_PATTERN.findall(text):
             if slot not in self._declared_slots:
-                raise SeamError("invalid", _detail({"reason": "slot not declared"}))
+                raise SeamError("invalid", _detail({"message": "slot not declared"}))
             if not self._secrets.get(slot):
                 raise SeamError(
                     "needs-secret", _detail({"slot": slot}), retryable="after-config-change"
@@ -524,7 +524,7 @@ class CapabilityProvider:
                     "invalid",
                     _detail(
                         {
-                            "reason": "secret slot declares no destination domains",
+                            "message": "secret slot declares no destination domains",
                             "slot": slot,
                         }
                     ),
@@ -534,7 +534,7 @@ class CapabilityProvider:
                     "net-denied",
                     _detail(
                         {
-                            "reason": "secret slot is not declared for this host",
+                            "message": "secret slot is not declared for this host",
                             "slot": slot,
                             "host": host,
                         }

@@ -879,7 +879,7 @@ def test_child_load_failure_typed_over_hello(tmp_path):
     reply = json.loads(proc.stdout.decode().splitlines()[0])
     assert reply["type"] == "error"
     assert reply["error"]["code"] == "invalid"
-    assert reply["error"]["detail"] == '{"stage": "load"}'
+    assert reply["error"]["detail"] == {"stage": "load"}
 
 
 def test_child_top_level_escape_is_typed_over_hello(tmp_path):
@@ -1065,13 +1065,14 @@ async def test_net_fetch_error_details_secret_free_every_kind(db, t2_env, mock_n
         await provider.handle("cap.net.fetch", {"url": "https://example.jobs/cred"})
     assert excinfo.value.code == "net-denied"
     detail = excinfo.value.envelope["detail"]
-    assert "super-secret-value-99" not in detail
-    assert "***@" in detail, "userinfo is redacted in the guard's detail"
+    detail_text = json.dumps(detail)
+    assert "super-secret-value-99" not in detail_text
+    assert "***@" in detail_text, "userinfo is redacted in the guard's detail"
 
     with pytest.raises(SeamError) as excinfo:
         await provider.handle("cap.net.fetch", {"url": "https://example.jobs/down"})
     assert excinfo.value.code == "unreachable"
-    assert "super-secret-value-99" not in excinfo.value.envelope["detail"]
+    assert "super-secret-value-99" not in json.dumps(excinfo.value.envelope["detail"])
 
     with pytest.raises(SeamError) as excinfo:
         await provider.handle("cap.net.fetch", {"url": "https://example.jobs/auth401"})
@@ -1166,7 +1167,10 @@ async def test_secret_slot_is_refused_before_any_request_to_an_undeclared_host(
             },
         )
     assert excinfo.value.code == "net-denied"
-    assert "not declared for this host" in excinfo.value.envelope["detail"]
+    secret_detail = excinfo.value.envelope["detail"]
+    assert "not declared for this host" in secret_detail["message"]
+    assert secret_detail["slot"] == "api-token"
+    assert secret_detail["host"] == "api.example.org"
     assert len(mock_net) == before, "refused before any request (robots included)"
     assert "super-secret-value-99" not in json.dumps(excinfo.value.envelope)
 

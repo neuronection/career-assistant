@@ -200,7 +200,13 @@ def _validate_miniapp_surfaces(manifest: dict) -> None:
     career profile (page + panel honored, window degrades) applies, every
     declared surface's nodes validate against the closed vocabulary, and
     the T0 data block is structurally sound — an invalid surface rejects
-    the install (D17: the compatibility check is data, never code)."""
+    the install (D17: the compatibility check is data, never code).
+
+    Plan 38 W5: the "surfaces required" rule is HOST PROFILE policy
+    (``miniAppRendering``), so a surface-less mini-app self-disables typed
+    (``unsupported``) instead of being an ``invalid`` manifest — the same
+    bundle on a pack-report host is a different profile, not a bad bundle.
+    """
     from app.core.errors import ValidationError
     from app.extensions import surfaces as surface_law
 
@@ -210,9 +216,12 @@ def _validate_miniapp_surfaces(manifest: dict) -> None:
         raise LifecycleError("unsupported", str(exc)) from exc
     declared = manifest.get("surfaces") or {}
     if not isinstance(declared, dict) or not declared:
+        rendering = (_profile() or {}).get("miniAppRendering") or "surfaces"
         raise LifecycleError(
-            "invalid",
-            "mini-app declares no surface schema (surfaces.{page,panel,window})",
+            "unsupported",
+            "mini-app declares no surface schema (surfaces.{page,panel,window}) — "
+            f"this host renders {rendering} per its host profile (miniAppRendering); "
+            "self-disable rather than render a different surface",
         )
     for kind, schema in declared.items():
         if not isinstance(schema, dict):
@@ -713,6 +722,27 @@ def _registration_gate(manifest: dict, entry_dir: Path, tier: str) -> None:
         raise LifecycleError("invalid", "manifest rejected at registration: " + "; ".join(problems))
 
 
+def _miniapp_compat_reason(manifest: dict) -> str | None:
+    """Mini-app hosting policy as compat DATA (plan 38 W5/H4): code-bearing
+    mini-apps and surface-less mini-apps self-disable with a typed reason —
+    the same outcome shape at sync and at install, like every other
+    incompatibility (never a source failure, never a silent re-tier)."""
+    if manifest.get("entry"):
+        return (
+            "code-bearing mini-apps (entry) are not hosted by career — "
+            "remove entry or install on a T2 mini-app host"
+        )
+    declared = manifest.get("surfaces") or {}
+    if not isinstance(declared, dict) or not declared:
+        rendering = (_profile() or {}).get("miniAppRendering") or "surfaces"
+        return (
+            "mini-app declares no surface schema (surfaces.{page,panel,window}) — "
+            f"this host renders {rendering} per its host profile (miniAppRendering); "
+            "self-disable rather than render a different surface"
+        )
+    return None
+
+
 def _evaluate_candidate(source: ExtensionSource, found: dict, tree: Path) -> _Candidate:
     """Registration + host-profile + digest for one discovered manifest —
     the same sequence install, apply and preview run (one pipeline, no
@@ -721,6 +751,13 @@ def _evaluate_candidate(source: ExtensionSource, found: dict, tree: Path) -> _Ca
     subpath = str(found.get("subpath") or "")
     entry_dir = _entry_dir(tree, subpath)
     kind = manifest.get("kind")
+    if kind == "mini-app":
+        # Career hosts declarative mini-apps; it never executes mini-app code.
+        # Tier is provenance (plan 38 W3): an entry-carrying mini-app is a T2
+        # artifact and must not be consented as declarative T0.
+        compat = _miniapp_compat_reason(manifest)
+        if compat is not None:
+            raise LifecycleError("unsupported", compat)
     tier = "T0" if kind == "mini-app" else detect_connector_tier(entry_dir)
     _registration_gate(manifest, entry_dir, tier)
     reason = check_host_profile(manifest, tier if kind == "connector" else None)
@@ -1121,7 +1158,14 @@ async def _sync_source_locked(
                             }
                         )
                         continue
-                reason = check_host_profile(manifest, tier)
+                reason = None
+                if manifest.get("kind") == "mini-app":
+                    # Artifact class first (plan 38 W3/W5): entry/tier law and
+                    # the surface policy precede capability honors — the same
+                    # order the desktop projection enforces.
+                    reason = _miniapp_compat_reason(manifest)
+                if reason is None:
+                    reason = check_host_profile(manifest, tier)
                 digest = digest_tree(entry_dir)
                 candidates.append(
                     {
@@ -1145,7 +1189,7 @@ async def _sync_source_locked(
         source.consecutive_failures += 1
         source.error = f"{exc.code}: {exc.detail}"
         source.last_checked_at = _utcnow()
-        report = {"ok": False, "error": {"code": exc.code, "detail": exc.detail}}
+        report = {"ok": False, "error": {"code": exc.code, "detail": contract.cap_error_detail(exc.detail)}}
         await _check_installs_after_failed_fetch(db, source)
         await db.commit()
         return report

@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from collections.abc import Mapping
 
 from app.extensions import contract
 from app.extensions.polite_http import DEFAULT_RETRYABLE, ERROR_CODES, ERROR_DETAIL_MAX_CHARS
@@ -118,18 +119,21 @@ def encode_line(message: dict[str, Any]) -> bytes:
 
 def error_envelope(
     code: str,
-    detail: str,
+    detail: str | Mapping[str, Any],
     *,
     retryable: str | None = None,
     retry_after_ms: int | None = None,
 ) -> dict[str, Any]:
     """The charter error envelope (protocol §8) — one vocabulary across
-    the seam, the result envelopes and every product surface."""
+    the seam, the result envelopes and every product surface. ``detail``
+    is the bounded object (7E): declared keys only, capped — a plain
+    string becomes ``{"message": ...}`` at construction; the wire never
+    carries the string form (the schema rejects it)."""
     if code not in ERROR_CODES:
         raise ValueError(f"unknown charter error code: {code!r}")
     envelope: dict[str, Any] = {
         "code": code,
-        "detail": detail[:ERROR_DETAIL_MAX_CHARS],
+        "detail": contract.cap_error_detail(detail),
         "retryable": retryable or DEFAULT_RETRYABLE[code],
     }
     if retry_after_ms is not None:

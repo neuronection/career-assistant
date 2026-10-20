@@ -52,7 +52,7 @@ export type ConfigFieldSchema = {
 export type SourceProbe = {
   ok: boolean;
   items?: number;
-  error?: { code: string; detail: string; retryable: string } | null;
+  error?: { code: string; detail: { message?: string }; retryable: string } | null;
   latency_ms?: number;
 };
 
