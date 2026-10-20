@@ -193,7 +193,13 @@ export function ExtensionSourcesSection() {
   const install = async () => {
     if (!consentTarget) return;
     const { sourceId, candidate } = consentTarget;
-    await run(() => extApi.installExtension(sourceId, candidate.extensionId, true));
+    // Re-derive the echo host-side at the moment of consent: drift between
+    // the shown payload and the source refuses typed instead of installing
+    // something the admin did not see.
+    await run(async () => {
+      const preview = await extApi.fetchInstallPreview(sourceId, candidate.extensionId);
+      await extApi.installExtension(sourceId, candidate.extensionId, preview.echo);
+    });
     setConsentTarget(null);
   };
 
@@ -268,7 +274,10 @@ export function ExtensionSourcesSection() {
           void run(() => extApi.setExtensionEnabled(instance.id, enabled))
         }
         onApplyUpdate={(_sourceId, instance) =>
-          void run(() => extApi.applyExtensionUpdate(instance.id, true))
+          void run(async () => {
+            const preview = await extApi.fetchUpdatePreview(instance.id);
+            await extApi.applyExtensionUpdate(instance.id, preview.echo);
+          })
         }
         onPark={(_sourceId, instance) => void run(() => extApi.parkExtensionInstall(instance.id))}
         onTombstone={(_sourceId, instance) =>

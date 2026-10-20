@@ -17,6 +17,8 @@ vi.mock("@/api/extensionSources", async (importOriginal) => {
     addExtensionSource: vi.fn(),
     syncExtensionSource: vi.fn(),
     removeExtensionSource: vi.fn(),
+    fetchInstallPreview: vi.fn(),
+    fetchUpdatePreview: vi.fn(),
     installExtension: vi.fn(),
     applyExtensionUpdate: vi.fn(),
     setExtensionEnabled: vi.fn(),
@@ -76,6 +78,24 @@ const SOURCE = {
   installs: [],
 };
 
+const ECHO = {
+  digest: CANDIDATE.digest,
+  capabilities: ["sync"],
+  version: "1.0.0",
+};
+
+const PREVIEW = {
+  extensionId: CANDIDATE.extensionId,
+  version: "1.0.0",
+  subpath: ".",
+  digest: CANDIDATE.digest,
+  tier: "T3",
+  capabilities: ["sync"],
+  ref: CANDIDATE.ref,
+  consent: CANDIDATE.consent,
+  echo: ECHO,
+};
+
 const INSTALL = {
   id: "inst-1",
   extensionId: "example-posting-fetcher",
@@ -104,6 +124,8 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.fetchExtensionSources.mockResolvedValue([]);
+    mocked.fetchInstallPreview.mockResolvedValue(PREVIEW);
+    mocked.fetchUpdatePreview.mockResolvedValue(PREVIEW);
   });
 
   it("renders the empty kit list and the add-source affordance", async () => {
@@ -141,7 +163,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
       expect(mocked.installExtension).toHaveBeenCalledWith(
         "src-1",
         "example-posting-fetcher",
-        true,
+        ECHO,
       ),
     );
   });
@@ -192,7 +214,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /Apply update/ }));
     await waitFor(() =>
-      expect(mocked.applyExtensionUpdate).toHaveBeenCalledWith("inst-1", true),
+      expect(mocked.applyExtensionUpdate).toHaveBeenCalledWith("inst-1", ECHO),
     );
   });
 

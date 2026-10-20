@@ -727,6 +727,36 @@ async def sync_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends
         raise _lifecycle_error(exc) from exc
 
 
+@router.get("/extensions/sources/{source_id}/preview/{extension_id}")
+async def preview_extension_install(
+    source_id: uuid.UUID, extension_id: str, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The host-derived install preview (plan 37 Phase 3.1): re-fetch +
+    re-discover + register + digest, returning the consent payload and the
+    exact echo ``{digest, capabilities, version}`` the install call must
+    hand back. The UI never fabricates a digest."""
+    from app.extensions.lifecycle import LifecycleError, preview_install
+
+    try:
+        return await preview_install(db, source_id, extension_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.get("/extensions/installs/{install_id}/preview")
+async def preview_extension_update(
+    install_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The host-derived update preview: the exact echo an explicit
+    re-consent (apply) hands back."""
+    from app.extensions.lifecycle import LifecycleError, preview_update
+
+    try:
+        return await preview_update(db, install_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
 @router.post("/extensions/sources/{source_id}/install", status_code=201)
 async def install_from_source(
     source_id: uuid.UUID,
@@ -734,11 +764,12 @@ async def install_from_source(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Consent-gated install (D7): ``{"extension_id": ..., "consent": true}``
-    — the consent payload (capabilities, tier, provenance verbatim, digest,
-    the T3 perimeter disclosure verbatim) was shown from the source's
-    candidates BEFORE this call. Installs are DISABLED; enabling is a
-    separate explicit act."""
+    """Consent-gated install (D7): ``{"extension_id": ..., "consent":
+    {digest, capabilities, version}}`` — the echo from the preview endpoint
+    (capabilities, tier, provenance, digest and the T3 perimeter disclosure
+    were shown BEFORE this call). The host re-derives the values and
+    refuses drift typed. Installs are DISABLED; enabling is a separate
+    explicit act."""
     from app.extensions.lifecycle import LifecycleError, install_extension
 
     if not payload.get("extension_id"):
@@ -748,7 +779,7 @@ async def install_from_source(
             db,
             source_id,
             str(payload["extension_id"]),
-            consent=bool(payload.get("consent")),
+            consent=payload.get("consent"),
             actor_id=user.id,
         )
     except LifecycleError as exc:
@@ -763,13 +794,12 @@ async def apply_extension_update(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """The only apply path: an explicit re-consent to a recorded available
-    update (no signing service exists — there is no auto-apply at all)."""
+    update, as the host-derived echo from ``GET .../installs/{id}/preview``
+    (no signing service exists — there is no auto-apply at all)."""
     from app.extensions.lifecycle import LifecycleError, apply_update
 
     try:
-        return await apply_update(
-            db, install_id, consent=bool(payload.get("consent")), actor_id=user.id
-        )
+        return await apply_update(db, install_id, consent=payload.get("consent"), actor_id=user.id)
     except LifecycleError as exc:
         raise _lifecycle_error(exc) from exc
 

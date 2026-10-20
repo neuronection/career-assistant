@@ -264,3 +264,27 @@ def list_connectors() -> list[dict]:
         }
         for c in _registry.values()
     ]
+
+
+def host_profile_view() -> dict:
+    """The author-visible host profile (plan 37 §6.2.4)."""
+    from app.extensions.runtime.sandbox.isolation import posture
+
+    profile = _profile()
+    return {
+        "product": profile.get("product"),
+        "class": profile.get("class"),
+        "kinds": profile.get("kinds", []),
+        "tiers": profile.get("tiers", []),
+        "honors": profile.get("honors", []),
+        "honorsByTier": profile.get("honorsByTier", {}),
+        "honorsByKind": profile.get("honorsByKind", {}),
+        "surfaces": profile.get("surfaces"),
+        "apiVersion": {
+            "envelope": contract.ENVELOPE_API_VERSION,
+            "connectorKindVersion": contract.CONNECTOR_KIND_VERSION,
+        },
+        "degradeRules": _charter()["surfaces"]["degradeRules"],
+        "t2Isolation": posture(),
+        "disclosures": ["t2SandboxDisclosure", "t3PerimeterDisclosure"],
+    }

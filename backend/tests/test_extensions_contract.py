@@ -29,7 +29,6 @@ import httpx
 import pytest
 
 from app.extensions import contract, polite_http
-from app.extensions.runtime.sandbox import protocol as rpc_protocol
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[2] / "contracts"
 MANIFEST_FIXTURES = json.loads(

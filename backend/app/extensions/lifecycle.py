@@ -43,6 +43,8 @@ import logging
 import re
 import sys
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -91,6 +93,28 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+# Host-side writer serialization (plan 37 Phase 3.7): one in-flight
+# lifecycle mutation per source/install at a time. The check-and-add is
+# synchronous (no await between), so the event loop makes it atomic; a
+# losing writer gets a typed ``not-ready`` and mutates nothing.
+_lifecycle_inflight: set[str] = set()
+
+
+@asynccontextmanager
+async def _exclusive(key: str) -> AsyncIterator[None]:
+    if key in _lifecycle_inflight:
+        raise LifecycleError(
+            "not-ready",
+            f"another extension lifecycle operation is in flight for {key} — "
+            "retry once it completes",
+        )
+    _lifecycle_inflight.add(key)
+    try:
+        yield
+    finally:
+        _lifecycle_inflight.discard(key)
+
+
 # ------------------------------------------------------------- contracts
 
 
@@ -112,6 +136,8 @@ def _load_json(name: str) -> dict:
 
 _sources_schema_cache: dict | None = None
 _charter_cache: dict | None = None
+_manifest_schema_cache: dict | None = None
+_docs_schema_cache: dict | None = None
 
 
 def _sources_schema() -> dict:
@@ -119,6 +145,20 @@ def _sources_schema() -> dict:
     if _sources_schema_cache is None:
         _sources_schema_cache = _load_json("extension-sources.schema.json")
     return _sources_schema_cache
+
+
+def _manifest_schema() -> dict:
+    global _manifest_schema_cache
+    if _manifest_schema_cache is None:
+        _manifest_schema_cache = _load_json("extension-manifest.schema.json")
+    return _manifest_schema_cache
+
+
+def _docs_schema() -> dict:
+    global _docs_schema_cache
+    if _docs_schema_cache is None:
+        _docs_schema_cache = _load_json("docs-tree.schema.json")
+    return _docs_schema_cache
 
 
 def _charter() -> dict:
@@ -481,6 +521,50 @@ def _copy_tree(src: Path, dest: Path) -> None:
         target.write_bytes(path.read_bytes())
 
 
+def _materialize_content(content_src: Path, content_dir: Path, expected_digest: str) -> Path:
+    """Land (or REUSE) a content-addressed tree with F15 integrity.
+
+    An existing ``<id>/<digest>/`` is re-hashed before use: altered bytes
+    are refused typed, never silently executed. A fresh landing copies to
+    a temporary sibling, verifies the hash, then renames into place — a
+    crash mid-copy cannot leave a half-tree at the addressable path.
+    """
+    if content_dir.exists():
+        if digest_tree(content_dir) != expected_digest:
+            raise LifecycleError(
+                "invalid",
+                f"existing content tree {content_dir} no longer hashes to its pinned "
+                "digest — refusing to reuse altered bytes",
+            )
+        return content_dir
+    content_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging = content_dir.parent / f".{content_dir.name}.{uuid.uuid4().hex}.tmp"
+    try:
+        _copy_tree(content_src, staging)
+        if digest_tree(staging) != expected_digest:
+            raise LifecycleError(
+                "invalid",
+                "the copied content does not hash to the discovered digest — refusing to land it",
+            )
+        try:
+            staging.rename(content_dir)
+        except OSError:
+            # Another writer landed the same address first: accept only an
+            # intact tree; anything else is the F15 refusal above.
+            if digest_tree(content_dir) != expected_digest:
+                raise LifecycleError(
+                    "invalid",
+                    f"content tree {content_dir} was landed concurrently with altered bytes",
+                ) from None
+            return content_dir
+        return content_dir
+    finally:
+        if staging.exists():
+            import shutil
+
+            shutil.rmtree(staging, ignore_errors=True)
+
+
 def discover_manifests(tree: Path, subpath: str) -> list[dict]:
     """Manifest discovery: the subpath dir (repo root when absent) plus
     ONE level of child dirs — each manifest.json is byte-capped, parsed
@@ -565,9 +649,7 @@ def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
             )
         caps = set(manifest.get("capabilities") or [])
         honored = set(
-            (profile.get("honorsByKind") or {}).get("mini-app")
-            or profile.get("honors")
-            or []
+            (profile.get("honorsByKind") or {}).get("mini-app") or profile.get("honors") or []
         )
         unhonored = sorted(caps - honored) if caps else ["(none declared)"]
         if unhonored:
@@ -587,10 +669,7 @@ def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
         caps = set(manifest.get("capabilities") or [])
         honored_tier = (profile.get("honorsByTier") or {}).get(tier) if tier else None
         if honored_tier is None and tier:
-            return (
-                f"no honors declared for tier {tier!r} in the host profile — "
-                "import fails closed"
-            )
+            return f"no honors declared for tier {tier!r} in the host profile — import fails closed"
         honored = set(honored_tier or profile.get("honors") or [])
         unhonored = sorted(caps - honored)
         if unhonored:
@@ -603,13 +682,174 @@ def _entry_dir(tree: Path, subpath: str) -> Path:
     return (tree / subpath).resolve() if subpath else tree.resolve()
 
 
+@dataclass
+class _Candidate:
+    """One discovered+registered import candidate (host-derived values
+    only): the manifest, its entry dir, the content-tree digest and tier."""
+
+    manifest: dict
+    subpath: str
+    entry_dir: Path
+    digest: str
+    tier: str
+
+
+def _registration_gate(manifest: dict, entry_dir: Path, tier: str) -> None:
+    """The ONE family registration decision for an imported manifest (plan
+    37 Phase 1/3.2): structure + i18n + docs + profile + capability
+    cross-references + safe patterns + the secret-domain rule. Any problem
+    rejects the import typed; there is no partial registration."""
+    problems = contract.validate_registration(
+        manifest,
+        schema=_manifest_schema(),
+        bundled=False,
+        profile=_profile(),
+        tier=tier,
+        docs_root=entry_dir,
+        docs_schema=_docs_schema(),
+        charter=_charter(),
+    )
+    if problems:
+        raise LifecycleError("invalid", "manifest rejected at registration: " + "; ".join(problems))
+
+
+def _evaluate_candidate(source: ExtensionSource, found: dict, tree: Path) -> _Candidate:
+    """Registration + host-profile + digest for one discovered manifest —
+    the same sequence install, apply and preview run (one pipeline, no
+    drift)."""
+    manifest = found["manifest"]
+    subpath = str(found.get("subpath") or "")
+    entry_dir = _entry_dir(tree, subpath)
+    kind = manifest.get("kind")
+    tier = "T0" if kind == "mini-app" else detect_connector_tier(entry_dir)
+    _registration_gate(manifest, entry_dir, tier)
+    reason = check_host_profile(manifest, tier if kind == "connector" else None)
+    if reason is not None:
+        raise LifecycleError("unsupported", reason)
+    if kind == "mini-app":
+        _validate_miniapp_surfaces(manifest)
+    return _Candidate(
+        manifest=manifest,
+        subpath=subpath,
+        entry_dir=entry_dir,
+        digest=digest_tree(entry_dir),
+        tier=tier,
+    )
+
+
+def _find_candidate(source: ExtensionSource, tree: Path, extension_id: str) -> _Candidate:
+    for found in discover_manifests(tree, str((source.descriptor or {}).get("subpath") or "")):
+        if found["extensionId"] == extension_id:
+            return _evaluate_candidate(source, found, tree)
+    raise LifecycleError("not-found", f"extension {extension_id!r} not offered by this source")
+
+
+# ------------------------------------------------------------- consent echo
+
+_CONSENT_ECHO_KEYS = frozenset({"digest", "capabilities", "version"})
+
+
+def _validated_consent_echo(consent: Any, *, action: str) -> dict:
+    """Accept ONLY the host-derived echo ``{digest, capabilities, version}``
+    (exact keys, exact types). The boolean consent path is gone: a caller
+    that has not seen a preview cannot install or apply."""
+    if not isinstance(consent, dict):
+        if action == "apply":
+            raise LifecycleError(
+                "invalid",
+                "applying an imported update requires re-consent (D22) — pass the "
+                "host-derived consent echo {digest, capabilities, version}",
+            )
+        raise LifecycleError(
+            "invalid",
+            "consent is required before any install of imported code/data (D7) — pass "
+            "the host-derived consent echo {digest, capabilities, version}",
+        )
+    if set(consent) != _CONSENT_ECHO_KEYS:
+        raise LifecycleError(
+            "invalid",
+            "the consent echo must carry exactly {digest, capabilities, version} "
+            f"(got {sorted(consent)})",
+        )
+    digest = consent.get("digest")
+    capabilities = consent.get("capabilities")
+    version = consent.get("version")
+    if (
+        not isinstance(digest, str)
+        or not _SHA256_HEX.fullmatch(digest)
+        or not isinstance(version, str)
+        or not isinstance(capabilities, list)
+        or not all(isinstance(capability, str) for capability in capabilities)
+    ):
+        raise LifecycleError(
+            "invalid",
+            "the consent echo is malformed: digest must be 64 lowercase hex, "
+            "capabilities a string array, version a string",
+        )
+    return {"digest": digest, "capabilities": list(capabilities), "version": version}
+
+
+def _assert_consent_matches(echo: dict, candidate: _Candidate) -> None:
+    """Recompute digest/capabilities/version after the re-fetch and refuse
+    any drift: the surface consented to one exact candidate."""
+    changes: list[str] = []
+    if echo["digest"] != candidate.digest:
+        changes.append("digest")
+    if set(echo["capabilities"]) != set(candidate.manifest.get("capabilities") or []):
+        changes.append("capabilities")
+    if echo["version"] != str(candidate.manifest.get("version") or ""):
+        changes.append("version")
+    if changes:
+        raise LifecycleError(
+            "invalid",
+            "the source moved since consent (changed: "
+            + ", ".join(changes)
+            + ") — re-consent to the current candidate",
+        )
+
+
+def consent_echo(manifest: dict, digest: str) -> dict:
+    """The exact echo a consent surface hands back (plan 37 Phase 3.1).
+
+    The HOST derives this payload from its own fetch/discovery; a caller
+    never fabricates a digest. ``install_extension``/``apply_update`` take
+    this echo, re-fetch/re-discover, recompute the same three values and
+    refuse any mismatch with a typed ``invalid``. Exact keys: ``digest``,
+    ``capabilities``, ``version`` (no extras — the wire shape is closed).
+    """
+    return {
+        "digest": digest,
+        "capabilities": list(manifest.get("capabilities") or []),
+        "version": str(manifest.get("version") or ""),
+    }
+
+
+def _secret_destinations(manifest: dict) -> list[dict]:
+    """Per-secret consent rows: what the manifest says this slot is sent
+    to, VERBATIM (plan 37 Phase 4.1 / H1c). An imported T2 ``net`` slot
+    always carries domains (registration rejects otherwise); a bundled or
+    non-injecting slot may show an empty list."""
+    rows: list[dict] = []
+    for entry in manifest.get("secrets") or []:
+        if not isinstance(entry, dict) or not entry.get("id"):
+            continue
+        rows.append(
+            {
+                "id": str(entry["id"]),
+                "purpose": entry.get("purpose"),
+                "sentToHost": [str(domain) for domain in entry.get("domains") or []],
+            }
+        )
+    return rows
+
+
 def consent_payload(
     manifest: dict, digest: str, *, subpath: str = "", tier: str | None = None
 ) -> dict:
     """What a consent surface MUST show (charter consent law): capabilities,
     tier + import class, provenance verbatim from the manifest, the pinned
-    digest, and the tier's disclosure VERBATIM (T2 sandbox / T3 perimeter /
-    T0 declarative)."""
+    digest, per-secret destinations verbatim, and the tier's disclosure
+    VERBATIM (T2 sandbox / T3 perimeter / T0 declarative)."""
     if tier is None:
         tier = "T0" if manifest.get("kind") == "mini-app" else "T3"
     if tier == "T0":
@@ -626,6 +866,7 @@ def consent_payload(
         "tier": tier,
         "importClass": "imported",
         "capabilities": list(manifest.get("capabilities") or []),
+        "secrets": _secret_destinations(manifest),
         "provenance": {
             "author": manifest.get("author"),
             "license": manifest.get("license"),
@@ -803,14 +1044,15 @@ async def add_source(
 async def remove_source(db: AsyncSession, source_id: uuid.UUID) -> dict:
     """Manual source removal: installs PARK (disabled + orphaned), data
     and consent records stay — removal never deletes data."""
-    source = await db.get(ExtensionSource, source_id)
-    if source is None:
-        raise LifecycleError("not-found", "source not found")
-    for install in await _installs_for_source(db, source_id):
-        await _park(db, install, note="source removed")
-        install.source_id = None
-    await db.delete(source)
-    await db.commit()
+    async with _exclusive(f"source:{source_id}"):
+        source = await db.get(ExtensionSource, source_id)
+        if source is None:
+            raise LifecycleError("not-found", "source not found")
+        for install in await _installs_for_source(db, source_id):
+            await _park(db, install, note="source removed")
+            install.source_id = None
+        await db.delete(source)
+        await db.commit()
     return {"id": str(source_id), "removed": True}
 
 
@@ -826,6 +1068,15 @@ async def _fetch_tree(source: ExtensionSource, dest: Path) -> tuple[ResolvedRef,
 
 
 async def sync_source(
+    db: AsyncSession, source_id: uuid.UUID, *, data_dir: Path | None = None
+) -> dict:
+    """Serialized wrapper: one source mutation at a time (plan 37 Phase
+    3.7). A concurrent writer gets typed ``not-ready``."""
+    async with _exclusive(f"source:{source_id}"):
+        return await _sync_source_locked(db, source_id, data_dir=data_dir)
+
+
+async def _sync_source_locked(
     db: AsyncSession, source_id: uuid.UUID, *, data_dir: Path | None = None
 ) -> dict:
     """Fetch + discover + validate + compat-check + digest — recording the
@@ -926,77 +1177,141 @@ async def _check_installs_after_failed_fetch(db: AsyncSession, source: Extension
         install.update = note
 
 
+async def preview_install(
+    db: AsyncSession,
+    source_id: uuid.UUID,
+    extension_id: str,
+) -> dict:
+    """The host-derived preview a consent surface shows BEFORE install
+    (plan 37 Phase 3.1): re-fetch + re-discover + register + digest, then
+    return the consent payload and the exact echo the caller hands back.
+
+    Callers never fabricate a digest: pass ``preview["echo"]`` to
+    :func:`install_extension` (or the same shape from
+    :func:`preview_update` to :func:`apply_update`). The install/apply
+    call re-derives everything again and refuses drift.
+    """
+    import tempfile
+
+    source = await db.get(ExtensionSource, source_id)
+    if source is None:
+        raise LifecycleError("not-found", "source not found")
+    with tempfile.TemporaryDirectory(prefix="ca-ext-preview-") as tmp:
+        tree = Path(tmp) / "tree"
+        await _fetch_tree(source, tree)
+        candidate = _find_candidate(source, tree, extension_id)
+    payload = consent_payload(
+        candidate.manifest,
+        candidate.digest,
+        subpath=candidate.subpath,
+        tier=candidate.tier,
+    )
+    return {
+        "extensionId": candidate.manifest.get("id"),
+        "version": candidate.manifest.get("version"),
+        "subpath": candidate.subpath,
+        "digest": candidate.digest,
+        "tier": candidate.tier,
+        "capabilities": list(candidate.manifest.get("capabilities") or []),
+        "ref": _pin_ref(source, candidate.digest),
+        "consent": payload,
+        "echo": consent_echo(candidate.manifest, candidate.digest),
+    }
+
+
+async def preview_update(
+    db: AsyncSession,
+    install_id: uuid.UUID,
+) -> dict:
+    """The update's host-derived preview (same shape as
+    :func:`preview_install`): re-fetch + re-discover now and return the
+    exact echo an explicit re-consent hands back."""
+    import tempfile
+
+    install = await db.get(ExtensionInstall, install_id)
+    if install is None:
+        raise LifecycleError("not-found", "install not found")
+    source = await db.get(ExtensionSource, install.source_id) if install.source_id else None
+    if source is None:
+        raise LifecycleError("not-found", "the source row is gone — re-import instead")
+    with tempfile.TemporaryDirectory(prefix="ca-ext-preview-") as tmp:
+        tree = Path(tmp) / "tree"
+        await _fetch_tree(source, tree)
+        candidate = _find_candidate(source, tree, install.extension_id)
+    payload = consent_payload(
+        candidate.manifest,
+        candidate.digest,
+        subpath=candidate.subpath,
+        tier=candidate.tier,
+    )
+    return {
+        "installId": str(install.id),
+        "extensionId": candidate.manifest.get("id"),
+        "version": candidate.manifest.get("version"),
+        "subpath": candidate.subpath,
+        "digest": candidate.digest,
+        "tier": candidate.tier,
+        "capabilities": list(candidate.manifest.get("capabilities") or []),
+        "ref": str((install.update or {}).get("ref") or ""),
+        "consent": payload,
+        "echo": consent_echo(candidate.manifest, candidate.digest),
+    }
+
+
 async def install_extension(
     db: AsyncSession,
     source_id: uuid.UUID,
     extension_id: str,
     *,
-    consent: bool,
+    consent: dict,
     actor_id: uuid.UUID | None = None,
     managed_by: str = "manual",
     data_dir: Path | None = None,
 ) -> dict:
-    """Consent-gated install (D7): lands the discovered content under
-    ``data_dir/extensions/<id>/<digest>/`` and mints a DISABLED ``mcp``
-    job source whose stdio command spawns the cloned ``server.py``
-    (managed spawn, D13). Never enables — the explicit enable call is the
-    only path to a live instance. A tombstoned install revives (history
-    retained, still disabled — never silently re-enabled)."""
+    """Consent-gated install (D7): ``consent`` is the host-derived echo
+    ``{digest, capabilities, version}`` (see :func:`preview_install`).
+
+    Lands the discovered content under ``data_dir/extensions/<id>/<digest>/``
+    and mints a DISABLED ``mcp`` job source whose stdio command spawns the
+    cloned ``server.py`` (managed spawn, D13). Never enables — the explicit
+    enable call is the only path to a live instance. A tombstoned install
+    revives (history retained, still disabled — never silently re-enabled).
+    The echo is re-checked against a fresh fetch: any drift is a typed
+    ``invalid`` ("the source moved ... re-consent")."""
     import tempfile
 
-    if not consent:
-        raise LifecycleError(
-            "invalid", "consent is required before any install of imported code/data (D7)"
+    echo = _validated_consent_echo(consent, action="install")
+    async with _exclusive(f"source:{source_id}"):
+        source = await db.get(ExtensionSource, source_id)
+        if source is None:
+            raise LifecycleError("not-found", "source not found")
+        prior = await db.execute(
+            select(ExtensionInstall).where(ExtensionInstall.extension_id == extension_id)
         )
-    source = await db.get(ExtensionSource, source_id)
-    if source is None:
-        raise LifecycleError("not-found", "source not found")
-    prior = await db.execute(
-        select(ExtensionInstall).where(ExtensionInstall.extension_id == extension_id)
-    )
-    prior_install = prior.scalars().first()
-    if prior_install is not None and prior_install.state != "removed":
-        raise LifecycleError("invalid", f"extension already installed: {extension_id}")
-    with tempfile.TemporaryDirectory(prefix="ca-ext-src-") as tmp:
-        tree = Path(tmp) / "tree"
-        await _fetch_tree(source, tree)
-        candidate = None
-        for found in discover_manifests(tree, str((source.descriptor or {}).get("subpath") or "")):
-            if found["extensionId"] == extension_id:
-                candidate = found
-                break
-        if candidate is None:
-            raise LifecycleError(
-                "not-found", f"extension {extension_id!r} not offered by this source"
+        prior_install = prior.scalars().first()
+        if prior_install is not None and prior_install.state != "removed":
+            raise LifecycleError("invalid", f"extension already installed: {extension_id}")
+        with tempfile.TemporaryDirectory(prefix="ca-ext-src-") as tmp:
+            tree = Path(tmp) / "tree"
+            await _fetch_tree(source, tree)
+            candidate = _find_candidate(source, tree, extension_id)
+            _assert_consent_matches(echo, candidate)
+            install = await _land_install(
+                db,
+                source=source,
+                extension_id=extension_id,
+                manifest=candidate.manifest,
+                subpath=candidate.subpath,
+                digest=candidate.digest,
+                ref=_pin_ref(source, candidate.digest),
+                actor_id=actor_id,
+                managed_by=managed_by,
+                content_src=candidate.entry_dir,
+                data_dir=data_dir,
+                prior_install=prior_install,
+                tier=candidate.tier,
             )
-        manifest = candidate["manifest"]
-        sub = candidate["subpath"]
-        tier = None
-        if manifest.get("kind") == "connector":
-            tier = detect_connector_tier(_entry_dir(tree, sub))
-        reason = check_host_profile(manifest, tier)
-        if reason is not None:
-            raise LifecycleError("unsupported", reason)
-        if manifest.get("kind") == "mini-app":
-            _validate_miniapp_surfaces(manifest)
-        entry_dir = _entry_dir(tree, sub)
-        digest = digest_tree(entry_dir)
-        install = await _land_install(
-            db,
-            source=source,
-            extension_id=extension_id,
-            manifest=manifest,
-            subpath=sub,
-            digest=digest,
-            ref=_pin_ref(source, digest),
-            actor_id=actor_id,
-            managed_by=managed_by,
-            content_src=entry_dir,
-            data_dir=data_dir,
-            prior_install=prior_install,
-            tier=tier or "T0",
-        )
-    await db.commit()
+        await db.commit()
     return _install_view(install)
 
 
@@ -1033,9 +1348,9 @@ async def _land_install(
     ``prior_install`` revives in place (history retained, still disabled)."""
     from app.models.posting_model import JobSource
 
-    content_dir = _content_root(data_dir) / extension_id / digest
-    if not (content_dir / MANIFEST_FILE).exists():
-        _copy_tree(content_src, content_dir)
+    content_dir = _materialize_content(
+        content_src, _content_root(data_dir) / extension_id / digest, digest
+    )
     source_key = extension_id
     kind = manifest.get("kind")
     if tier is None:
@@ -1227,88 +1542,90 @@ async def apply_update(
     db: AsyncSession,
     install_id: uuid.UUID,
     *,
-    consent: bool,
+    consent: dict,
     actor_id: uuid.UUID | None = None,
     data_dir: Path | None = None,
 ) -> dict:
     """The ONLY apply path (D22): an explicit re-consent to the recorded
-    available update. Lands the new digest, moves the pin, appends the
-    consent record, and points the minted instance at the new content."""
+    available update, handed back as the host-derived echo
+    ``{digest, capabilities, version}`` (see :func:`preview_update`).
+
+    Lands the new digest, moves the pin, appends the consent record from
+    host-derived values only, and points the minted instance at the new
+    content. The echo is re-checked after a fresh fetch: digest,
+    capabilities or version drift refuses with a typed ``invalid``."""
     import tempfile
 
-    if not consent:
-        raise LifecycleError("invalid", "applying an imported update requires re-consent (D22)")
+    echo = _validated_consent_echo(consent, action="apply")
     install = await db.get(ExtensionInstall, install_id)
     if install is None:
         raise LifecycleError("not-found", "install not found")
-    update = install.update or {}
-    if update.get("state") != "available":
-        raise LifecycleError("invalid", f"no update available (state: {update.get('state')!r})")
     source = await db.get(ExtensionSource, install.source_id) if install.source_id else None
     if source is None:
         raise LifecycleError("not-found", "the source row is gone — re-import instead")
-    with tempfile.TemporaryDirectory(prefix="ca-ext-src-") as tmp:
-        tree = Path(tmp) / "tree"
-        await _fetch_tree(source, tree)
-        candidate = None
-        for found in discover_manifests(tree, str((source.descriptor or {}).get("subpath") or "")):
-            if found["extensionId"] == install.extension_id:
-                candidate = found
-                break
-        if candidate is None:
-            raise LifecycleError("not-found", "the update disappeared from the source")
-        manifest = candidate["manifest"]
-        sub = candidate["subpath"]
-        entry_dir = _entry_dir(tree, sub)
-        tier = install.tier
-        if manifest.get("kind") == "connector":
-            tier = detect_connector_tier(entry_dir)
-        reason = check_host_profile(manifest, tier)
-        if reason is not None:
-            raise LifecycleError("unsupported", f"the update is not hostable: {reason}")
-        if manifest.get("kind") == "mini-app":
-            _validate_miniapp_surfaces(manifest)
-        digest = digest_tree(entry_dir)
-        if digest != update.get("digest"):
-            raise LifecycleError(
-                "invalid",
-                "the source moved again mid-apply — re-run the check; pins untouched",
+    async with _exclusive(f"source:{source.id}"), _exclusive(f"install:{install_id}"):
+        update = install.update or {}
+        if update.get("state") != "available":
+            raise LifecycleError("invalid", f"no update available (state: {update.get('state')!r})")
+        with tempfile.TemporaryDirectory(prefix="ca-ext-src-") as tmp:
+            tree = Path(tmp) / "tree"
+            await _fetch_tree(source, tree)
+            candidate = _find_candidate(source, tree, install.extension_id)
+            _assert_consent_matches(echo, candidate)
+            if candidate.digest != update.get("digest"):
+                raise LifecycleError(
+                    "invalid",
+                    "the source moved again mid-apply — re-run the check; pins untouched",
+                )
+            content_dir = _materialize_content(
+                candidate.entry_dir,
+                _content_root(data_dir) / install.extension_id / candidate.digest,
+                candidate.digest,
             )
-        content_dir = _content_root(data_dir) / install.extension_id / digest
-        if not (content_dir / MANIFEST_FILE).exists():
-            _copy_tree(entry_dir, content_dir)
-        payload = consent_payload(manifest, digest, subpath=sub, tier=tier)
-        record = {
-            **payload,
-            "actor": str(actor_id) if actor_id else None,
-            "at": _utcnow().isoformat(),
-            "reconsent": True,
-        }
-        install.consents = [*(install.consents or []), record]
-        install.pin_history = [
-            *(install.pin_history or []),
-            {"ref": str(update.get("ref") or ""), "digest": digest, "at": record["at"]},
-        ]
-        install.manifest = manifest
-        install.version = str(manifest.get("version") or "")
-        install.pin_ref = str(update.get("ref") or install.pin_ref)
-        install.digest = digest
-        install.content_path = str(content_dir)
-        install.tier = tier or install.tier
-        install.update = {}
-        if manifest.get("kind") == "connector" and (tier or install.tier) == "T3":
-            from app.models.posting_model import JobSource
+            payload = consent_payload(
+                candidate.manifest,
+                candidate.digest,
+                subpath=candidate.subpath,
+                tier=candidate.tier,
+            )
+            record = {
+                **payload,
+                "actor": str(actor_id) if actor_id else None,
+                "at": _utcnow().isoformat(),
+                "reconsent": True,
+            }
+            install.consents = [*(install.consents or []), record]
+            install.pin_history = [
+                *(install.pin_history or []),
+                {
+                    "ref": str(update.get("ref") or ""),
+                    "digest": candidate.digest,
+                    "at": record["at"],
+                },
+            ]
+            install.manifest = candidate.manifest
+            install.version = str(candidate.manifest.get("version") or "")
+            install.pin_ref = str(update.get("ref") or install.pin_ref)
+            install.digest = candidate.digest
+            install.content_path = str(content_dir)
+            install.tier = candidate.tier or install.tier
+            install.update = {}
+            if (
+                candidate.manifest.get("kind") == "connector"
+                and (candidate.tier or install.tier) == "T3"
+            ):
+                from app.models.posting_model import JobSource
 
-            row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
-            job_source = row.scalars().first()
-            if job_source is not None:
-                job_source.config = {
-                    **job_source.config,
-                    "command": f'"{sys.executable}" "{content_dir / ENTRY_FILE}"',
-                }
-        # T2 updates need no instance mutation: the sandbox runner reads
-        # the install row's content_path + manifest at every spawn.
-    await db.commit()
+                row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+                job_source = row.scalars().first()
+                if job_source is not None:
+                    job_source.config = {
+                        **job_source.config,
+                        "command": f'"{sys.executable}" "{content_dir / ENTRY_FILE}"',
+                    }
+            # T2 updates need no instance mutation: the sandbox runner
+            # reads the install row's content_path + manifest at spawn.
+        await db.commit()
     return _install_view(install)
 
 
@@ -1323,15 +1640,16 @@ async def self_disable(db: AsyncSession, *, install: ExtensionInstall, reason: s
     is the only way back (see :func:`set_install_enabled`)."""
     from app.models.posting_model import JobSource
 
-    install.state = "self-disabled"
-    install.enabled = False
-    logger.warning("extension self-disabled (%s): %s", install.extension_id, reason[:200])
-    if install.source_key:
-        row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
-        job_source = row.scalars().first()
-        if job_source is not None:
-            job_source.enabled = False
-            job_source.error = f"self-disabled: {reason}"[:2000]
+    async with _exclusive(f"install:{install.id}"):
+        install.state = "self-disabled"
+        install.enabled = False
+        logger.warning("extension self-disabled (%s): %s", install.extension_id, reason[:200])
+        if install.source_key:
+            row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+            job_source = row.scalars().first()
+            if job_source is not None:
+                job_source.enabled = False
+                job_source.error = f"self-disabled: {reason}"[:2000]
 
 
 async def t2_install(db: AsyncSession, key: str) -> ExtensionInstall:
@@ -1399,40 +1717,42 @@ async def set_install_enabled(db: AsyncSession, install_id: uuid.UUID, enabled: 
     surface routes."""
     from app.models.posting_model import JobSource
 
-    install = await db.get(ExtensionInstall, install_id)
-    if install is None:
-        raise LifecycleError("not-found", "install not found")
-    if install.state == "removed":
-        raise LifecycleError(
-            "invalid", "a tombstoned extension is never re-enabled on its own — re-import"
-        )
-    if enabled:
-        # An explicit re-enable is the ONLY way out of a self-disable
-        # (ADR-0030's AppService boot pattern: the surfaced reason is the
-        # admin's to accept) — the state returns to `installed`.
-        if install.state in ("disabled", "self-disabled"):
-            install.state = "installed"
-        install.parked = False
-    install.enabled = enabled
-    kind = (install.manifest or {}).get("kind")
-    if kind == "mini-app":
+    async with _exclusive(f"install:{install_id}"):
+        install = await db.get(ExtensionInstall, install_id)
+        if install is None:
+            raise LifecycleError("not-found", "install not found")
+        if install.state == "removed":
+            raise LifecycleError(
+                "invalid", "a tombstoned extension is never re-enabled on its own — re-import"
+            )
+        if enabled:
+            # An explicit re-enable is the ONLY way out of a self-disable
+            # (ADR-0030's AppService boot pattern: the surfaced reason is the
+            # admin's to accept) — the state returns to `installed`.
+            if install.state in ("disabled", "self-disabled"):
+                install.state = "installed"
+            install.parked = False
+        install.enabled = enabled
+        kind = (install.manifest or {}).get("kind")
+        if kind == "mini-app":
+            await db.commit()
+            return _install_view(install)
+        row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+        job_source = row.scalars().first()
+        if job_source is None:
+            raise LifecycleError("not-found", "the minted job source is gone — re-import")
+        job_source.enabled = enabled
         await db.commit()
-        return _install_view(install)
-    row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
-    job_source = row.scalars().first()
-    if job_source is None:
-        raise LifecycleError("not-found", "the minted job source is gone — re-import")
-    job_source.enabled = enabled
-    await db.commit()
     return _install_view(install)
 
 
 async def park_install(db: AsyncSession, install_id: uuid.UUID) -> dict:
-    install = await db.get(ExtensionInstall, install_id)
-    if install is None:
-        raise LifecycleError("not-found", "install not found")
-    await _park(db, install, note="admin park")
-    await db.commit()
+    async with _exclusive(f"install:{install_id}"):
+        install = await db.get(ExtensionInstall, install_id)
+        if install is None:
+            raise LifecycleError("not-found", "install not found")
+        await _park(db, install, note="admin park")
+        await db.commit()
     return _install_view(install)
 
 
@@ -1440,13 +1760,14 @@ async def tombstone_install(db: AsyncSession, install_id: uuid.UUID) -> dict:
     """Tombstone (lifecycle `removed`): the minted instance is disabled,
     the install row + content + consent records are retained — a re-import
     at the same digest surfaces the history, never a silent re-enable."""
-    install = await db.get(ExtensionInstall, install_id)
-    if install is None:
-        raise LifecycleError("not-found", "install not found")
-    await _park(db, install, note="tombstone")
-    install.state = "removed"
-    install.tombstoned_at = _utcnow()
-    await db.commit()
+    async with _exclusive(f"install:{install_id}"):
+        install = await db.get(ExtensionInstall, install_id)
+        if install is None:
+            raise LifecycleError("not-found", "install not found")
+        await _park(db, install, note="tombstone")
+        install.state = "removed"
+        install.tombstoned_at = _utcnow()
+        await db.commit()
     return _install_view(install)
 
 
@@ -1551,21 +1872,31 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
                 continue
             source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
         assert source is not None
-        install = by_extension.get(extension_id)
-        if install is None:
-            await _reconcile_missing_install(
-                db, source, extension_id, pin, report, data_dir=data_dir
+        try:
+            # Serialize with install/apply/sync on this source (Phase 3.7);
+            # a losing reconcile reports typed, mutating nothing.
+            async with _exclusive(f"source:{source.id}"):
+                install = by_extension.get(extension_id)
+                if install is None:
+                    await _reconcile_missing_install(
+                        db, source, extension_id, pin, report, data_dir=data_dir
+                    )
+                    continue
+                if install.managed_by == "manual":
+                    report["drift"].append(
+                        {
+                            "extensionId": extension_id,
+                            "reason": (
+                                "manually installed — never re-pinned or removed by reconcile (D22)"
+                            ),
+                        }
+                    )
+                    continue
+                await _reconcile_pin(db, source, install, pin, report)
+        except LifecycleError as exc:
+            report["failures"].append(
+                {"extensionId": extension_id, "error": f"{exc.code}: {exc.detail}"}
             )
-            continue
-        if install.managed_by == "manual":
-            report["drift"].append(
-                {
-                    "extensionId": extension_id,
-                    "reason": "manually installed — never re-pinned or removed by reconcile (D22)",
-                }
-            )
-            continue
-        await _reconcile_pin(db, source, install, pin, report)
 
     named = {str(entry.get("id") or "") for entry in entries}
     for install in installs:

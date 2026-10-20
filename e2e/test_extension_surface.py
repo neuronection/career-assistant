@@ -91,12 +91,17 @@ def _import_gallery(page: Page) -> str:
     assert sync.status == 200, sync.text()
     report = sync.json()
     assert report.get("ok") is not False, report
-    [candidate] = [c for c in report["candidates"] if c["extensionId"] == MINIAPP_ID]
+    preview = _api_call(
+        page,
+        "GET",
+        f"/admin/extensions/sources/{source_id}/preview/{MINIAPP_ID}",
+    )
+    assert preview.status == 200, preview.text()
     installed = _api_call(
         page,
         "POST",
         f"/admin/extensions/sources/{source_id}/install",
-        {"extension_id": MINIAPP_ID, "consent": True},
+        {"extension_id": MINIAPP_ID, "consent": preview.json()["echo"]},
     )
     assert installed.status == 201, installed.text()
     install = installed.json()

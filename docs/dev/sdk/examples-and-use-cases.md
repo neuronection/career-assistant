@@ -413,10 +413,13 @@ rides the same lifecycle):
 cd backend
 uv run python -m app.extensions.cli source add descriptor.json    # https git URL (prod) or gated local path
 uv run python -m app.extensions.cli source sync <origin-or-id>    # discover + validate + update-check
-uv run python -m app.extensions.cli source install <origin> <extension-id> --consent
+uv run python -m app.extensions.cli source preview <origin> <extension-id>  # host-derived echo
+uv run python -m app.extensions.cli source install <origin> <extension-id> \
+  --consent-echo '<echo JSON from preview>'
 # ... later, after the source moved:
 uv run python -m app.extensions.cli source sync <origin-or-id>    # records state: available + manifestDiff
-uv run python -m app.extensions.cli source pin <extension-id> --consent   # the ONLY apply path
+uv run python -m app.extensions.cli source pin <extension-id> \
+  --consent-echo '<echo JSON from the update preview>'   # the ONLY apply path
 uv run python -m app.extensions.cli source remove <origin-or-id>  # installs park, data intact
 uv run python -m app.extensions.cli source validate <path-or-url> --ref branch=main
 ```
@@ -431,7 +434,8 @@ What the update engine does, exactly:
   changed);
 - changed digest ⇒ the update is *offered* (`state: available`,
   `requiresReconsent: true`, manifest diff recorded) — `source pin
-  --consent` (or the apply API) is the only apply path;
+  --consent-echo` (or the apply API with the update preview's echo) is
+  the only apply path;
 - digest change under the **same pinned ref** ⇒ `digest-drift`: loud
   failure, source degraded, pins untouched — verify the source and
   re-consent explicitly;
@@ -442,7 +446,7 @@ What the update engine does, exactly:
 **What to be careful at.**
 
 - **Never auto-apply**: no path applies imported code without an
-  explicit consent call — do not script `pin --consent` unattended.
+  explicit consent call — do not script `pin --consent-echo` unattended.
 - **Credentials are sealed slot references** (private repos): supply
   them through the admin API/settings UI; an inline token is
   structurally invalid at the schema seam.

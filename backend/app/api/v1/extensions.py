@@ -44,6 +44,18 @@ def _requested_locales(request: Request) -> list[str]:
     return ordered or ["en"]
 
 
+@router.get("/host-profile")
+async def extension_host_profile(
+    user: User = Depends(get_current_user),
+) -> dict:
+    """The author-visible host profile (plan 37 §6.2.4): what this host
+    hosts/honors, its apiVersion ceilings, degrade rules and the T2
+    isolation posture — no secrets, no mutable state."""
+    from app.extensions.registry import host_profile_view
+
+    return host_profile_view()
+
+
 @router.get("/surfaces")
 async def list_extension_surfaces(
     request: Request,

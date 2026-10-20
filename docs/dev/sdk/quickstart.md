@@ -80,11 +80,15 @@ candidate: career-cv-gallery | compatible: True | hasEntry: False | digest: d371
 ```
 
 `example-posting-fetcher` is the T3 fetcher (a `server.py` beside the
-manifest ⇒ tier T3). Install it — the `--consent` flag records your
-consent to exactly the digest shown:
+manifest ⇒ tier T3). Preview it, then install with the host-derived
+`echo` the preview returns — the install re-fetches and refuses the echo
+if the source moved:
 
 ```bash
-uv run python -m app.extensions.cli source install "$CA/career-connector-template" example-posting-fetcher --consent
+uv run python -m app.extensions.cli source preview "$CA/career-connector-template" example-posting-fetcher
+# copy the "echo" object from the preview into --consent-echo:
+uv run python -m app.extensions.cli source install "$CA/career-connector-template" example-posting-fetcher \
+  --consent-echo '{"digest": "<preview digest>", "capabilities": ["sync"], "version": "1.0.0"}'
 ```
 
 ```json

@@ -40,7 +40,7 @@ import time
 from collections import deque
 from datetime import UTC, datetime
 from typing import Any, ClassVar
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -81,6 +81,57 @@ class QuotaExhausted(Exception):
     def __init__(self, detail: str):
         super().__init__(detail)
         self.detail = detail[:500]
+
+
+class _SecretScopedClient:
+    """Per-call client wrapper that strips secret-bearing headers on any
+    hop whose target host is outside the slot's declared domains (plan 37
+    Phase 4.1 / H1c).
+
+    The polite runtime re-guards every redirect hop but reuses the same
+    header map; a cross-host hop inside the manifest's ``net`` domains
+    would otherwise receive the Authorization secret. This wrapper sees
+    each request the runtime builds (the pinned ``Host`` header carries
+    the original name) and removes only the headers the seam injected.
+    The initial request was already checked in ``_inject_secrets`` and is
+    refused before any socket when its host is undeclared — this closes
+    the hop after that.
+    """
+
+    def __init__(
+        self,
+        inner: Any,
+        *,
+        secret_headers: dict[str, list[list[str]]],
+    ) -> None:
+        # header(lower) -> one domain list per secret slot in its value
+        self._inner = inner
+        self._secret_headers = secret_headers
+
+    @staticmethod
+    def _host_for(url: str, headers: dict[str, str]) -> str:
+        for name, value in headers.items():
+            if name.lower() == "host" and value:
+                return str(value).lower()
+        return (urlparse(url).hostname or "").lower()
+
+    def build_request(self, method: str, url: str, **kwargs: Any) -> Any:
+        headers = dict(kwargs.get("headers") or {})
+        host = self._host_for(url, headers)
+        for name, slot_domains in self._secret_headers.items():
+            allowed = all(
+                any(polite_http.host_matches_domain(host, domain) for domain in domains)
+                for domains in slot_domains
+            )
+            if not allowed:
+                for header_name in list(headers):
+                    if header_name.lower() == name:
+                        del headers[header_name]
+        kwargs["headers"] = headers
+        return self._inner.build_request(method, url, **kwargs)
+
+    async def send(self, request: Any, **kwargs: Any) -> Any:
+        return await self._inner.send(request, **kwargs)
 
 
 class SeamError(Exception):
@@ -146,6 +197,7 @@ class CapabilityProvider:
         manifest = install.manifest or {}
         self._item_schema = manifest.get("itemSchema") or {}
         self._declared_slots = self._secret_slot_ids(manifest)
+        self._secret_domains = self._secret_slot_domains(manifest)
         self._domains = frozenset(manifest.get("domains") or [])
         caps = manifest.get("capabilities") or []
         self._net_declared = "net" in caps
@@ -284,7 +336,17 @@ class CapabilityProvider:
                     }
                 ),
             )
-        headers = {name: self._inject_secrets(value) for name, value in headers.items()}
+        target_host = (urlparse(url).hostname or "").lower()
+        secret_bindings: dict[str, list[list[str]]] = {}
+        for name, value in headers.items():
+            slots = SECRET_REF_PATTERN.findall(value)
+            if slots:
+                secret_bindings[name.lower()] = [
+                    list(self._secret_domains.get(slot) or []) for slot in slots
+                ]
+        headers = {
+            name: self._inject_secrets(value, host=target_host) for name, value in headers.items()
+        }
         max_bytes = params.get("maxBytes")
         if max_bytes is not None and (
             isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1
@@ -297,11 +359,18 @@ class CapabilityProvider:
             if max_bytes is not None
             else settings.connector_max_response_mb * 1024 * 1024
         )
-        transport = build_transport(
-            domains=self._domains,
-            requests_per_minute=settings.connector_requests_per_minute,
-            max_response_bytes=cap,
-        )
+        transport_kwargs: dict[str, Any] = {
+            "domains": self._domains,
+            "requests_per_minute": settings.connector_requests_per_minute,
+            "max_response_bytes": cap,
+        }
+        if secret_bindings:
+            from app.extensions.runtime.http import connector_client
+
+            transport_kwargs["client"] = _SecretScopedClient(
+                connector_client(), secret_headers=secret_bindings
+            )
+        transport = build_transport(**transport_kwargs)
         try:
             response = await transport(url, headers)
         except polite_http.PoliteHttpError as exc:
@@ -434,19 +503,42 @@ class CapabilityProvider:
         # the placeholder and the host substitutes host-side.
         return {"resolved": True, "injectedAs": SECRET_PLACEHOLDER % slot}
 
-    def _inject_secrets(self, text: str) -> str:
+    def _inject_secrets(self, text: str, *, host: str) -> str:
         """Host-side substitution of ``{{secret:<slot>}}`` placeholders —
         the ONLY path a secret value may travel (host → upstream, inside
         a request HEADER; never host → sandbox, and never a URL — the
         seam rejects URL placeholders typed, the 2026-10-18 evaluation's
         H1 policy). Undeclared slots are invalid; declared-but-unresolved
-        slots fail needs-secret."""
+        slots fail needs-secret; a slot may only be substituted when the
+        target host matches that slot's declared ``domains`` (H1c)."""
         for slot in SECRET_REF_PATTERN.findall(text):
             if slot not in self._declared_slots:
                 raise SeamError("invalid", _detail({"reason": "slot not declared"}))
             if not self._secrets.get(slot):
                 raise SeamError(
                     "needs-secret", _detail({"slot": slot}), retryable="after-config-change"
+                )
+            domains = self._secret_domains.get(slot) or []
+            if not domains:
+                raise SeamError(
+                    "invalid",
+                    _detail(
+                        {
+                            "reason": "secret slot declares no destination domains",
+                            "slot": slot,
+                        }
+                    ),
+                )
+            if not any(polite_http.host_matches_domain(host, domain) for domain in domains):
+                raise SeamError(
+                    "net-denied",
+                    _detail(
+                        {
+                            "reason": "secret slot is not declared for this host",
+                            "slot": slot,
+                            "host": host,
+                        }
+                    ),
                 )
 
         def sub(match: re.Match[str]) -> str:
@@ -520,6 +612,16 @@ class CapabilityProvider:
             if isinstance(entry, dict) and entry.get("id"):
                 slots.add(str(entry["id"]))
         return frozenset(slots)
+
+    @staticmethod
+    def _secret_slot_domains(manifest: dict[str, Any]) -> dict[str, tuple[str, ...]]:
+        """The manifest's per-slot destination domains (H1c), verbatim."""
+        domains: dict[str, tuple[str, ...]] = {}
+        for entry in manifest.get("secrets") or []:
+            if not isinstance(entry, dict) or not entry.get("id"):
+                continue
+            domains[str(entry["id"])] = tuple(str(domain) for domain in entry.get("domains") or [])
+        return domains
 
     @classmethod
     def reset_shared_state(cls) -> None:

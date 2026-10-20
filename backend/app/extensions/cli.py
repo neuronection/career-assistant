@@ -6,8 +6,11 @@ Usage (from ``backend/``)::
     uv run python -m app.extensions.cli source add <descriptor.json>
     uv run python -m app.extensions.cli source list
     uv run python -m app.extensions.cli source sync <origin-or-id>
-    uv run python -m app.extensions.cli source install <origin> <extension-id> --consent
-    uv run python -m app.extensions.cli source pin <extension-id> --consent
+    uv run python -m app.extensions.cli source preview <origin-or-id> <extension-id>
+    uv run python -m app.extensions.cli source install <origin> <extension-id> \
+        --consent-echo '<preview JSON echo>'
+    uv run python -m app.extensions.cli source pin <extension-id> \
+        --consent-echo '<preview JSON echo>'
     uv run python -m app.extensions.cli source remove <origin-or-id>
     uv run python -m app.extensions.cli source validate <path-or-url> [--ref strategy=value]
     uv run python -m app.extensions.cli desired-state get
@@ -38,6 +41,23 @@ from app.extensions.lifecycle import LifecycleError
 
 def _print(data) -> None:
     print(json.dumps(data, indent=2, default=str))
+
+
+def _consent_echo(raw: str) -> dict:
+    """A host-derived echo as inline JSON or ``@path`` — never a boolean.
+
+    Capture it from ``source preview`` (or the admin preview endpoints);
+    the install/apply call re-derives the values and refuses drift.
+    """
+    if raw.startswith("@"):
+        raw = Path(raw[1:]).read_text(encoding="utf-8")
+    try:
+        echo = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LifecycleError("invalid", f"--consent-echo is not JSON: {exc}") from exc
+    if not isinstance(echo, dict):
+        raise LifecycleError("invalid", "--consent-echo must be a JSON object")
+    return echo
 
 
 async def _resolve_source(db, ref: str):
@@ -73,11 +93,18 @@ async def _cmd_source(args: argparse.Namespace) -> int:
             report = await lifecycle.sync_source(db, source.id)
             _print(report)
             return 0 if report.get("ok") else 1
+        if args.action == "preview":
+            source = await _resolve_source(db, args.source)
+            _print(await lifecycle.preview_install(db, source.id, args.extension_id))
+            return 0
         if args.action == "install":
             source = await _resolve_source(db, args.source)
             _print(
                 await lifecycle.install_extension(
-                    db, source.id, args.extension_id, consent=args.consent
+                    db,
+                    source.id,
+                    args.extension_id,
+                    consent=_consent_echo(args.consent_echo),
                 )
             )
             return 0
@@ -99,7 +126,11 @@ async def _cmd_source(args: argparse.Namespace) -> int:
             )
             if install is None:
                 raise LifecycleError("not-found", f"no install for {args.extension_id!r}")
-            _print(await lifecycle.apply_update(db, install.id, consent=args.consent))
+            _print(
+                await lifecycle.apply_update(
+                    db, install.id, consent=_consent_echo(args.consent_echo)
+                )
+            )
             return 0
         if args.action == "remove":
             source = await _resolve_source(db, args.source)
@@ -196,15 +227,26 @@ def build_parser() -> argparse.ArgumentParser:
     source_sub.add_parser("list", help="list sources + candidates + installs")
     sync = source_sub.add_parser("sync", help="fetch + discover + update-check")
     sync.add_argument("source", help="origin URL/path or source id")
+    preview = source_sub.add_parser(
+        "preview", help="host-derived install preview + consent echo (no mutation)"
+    )
+    preview.add_argument("source")
+    preview.add_argument("extension_id")
     install = source_sub.add_parser("install", help="consent-install an offered extension")
     install.add_argument("source")
     install.add_argument("extension_id")
     install.add_argument(
-        "--consent", action="store_true", help="record explicit consent (required)"
+        "--consent-echo",
+        required=True,
+        help="the exact echo from `source preview` (JSON object or @path)",
     )
     pin = source_sub.add_parser("pin", help="apply a recorded update (explicit re-consent)")
     pin.add_argument("extension_id")
-    pin.add_argument("--consent", action="store_true", help="record explicit re-consent (required)")
+    pin.add_argument(
+        "--consent-echo",
+        required=True,
+        help="the exact echo from the update preview (JSON object or @path)",
+    )
     remove = source_sub.add_parser("remove", help="remove a source (installs park)")
     remove.add_argument("source")
     validate = source_sub.add_parser(

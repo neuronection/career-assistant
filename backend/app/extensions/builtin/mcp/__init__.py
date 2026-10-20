@@ -112,6 +112,50 @@ class McpConnector(PostingConnector):
     def config_model(self) -> type[BaseModel]:
         return McpConfig
 
+    @staticmethod
+    def _managed_content_error(command: str) -> ConnectorError | None:
+        """Verify the pinned digest before spawning a MANAGED import (plan
+        37 Phase 3.2 / F15): the command's ``server.py`` lives under
+        ``data_dir/extensions/<id>/<digest>/`` — re-hash the tree and
+        refuse a drifted one typed. Admin-authored commands outside that
+        root are not digest-addressed and keep their existing posture."""
+        import re
+        from pathlib import Path
+        from shlex import split as shlex_split
+
+        from app.core.config import settings
+        from app.extensions import lifecycle
+
+        try:
+            parts = shlex_split(command)
+        except ValueError:
+            return _invalid("the stdio command is not parseable")
+        if not parts:
+            return _invalid("the stdio command is empty")
+        entry = Path(parts[-1])
+        if entry.name != "server.py":
+            return None
+        content_dir = entry.parent
+        content_root = (Path(settings.data_dir) / "extensions").resolve()
+        try:
+            content_dir.resolve().relative_to(content_root)
+        except ValueError:
+            return None
+        expected = content_dir.name
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
+            return _invalid("managed content path is not digest-addressed — refusing to spawn")
+        if not entry.is_file():
+            return _invalid("the managed server.py is missing — re-import the extension")
+        try:
+            actual = lifecycle.digest_tree(content_dir)
+        except lifecycle.LifecycleError as exc:
+            return _invalid(exc.detail)
+        if actual != expected:
+            return _invalid(
+                "the installed content no longer matches its pinned digest — refusing to spawn"
+            )
+        return None
+
     def _client_for(self, cfg: McpConfig, token: str):
         """Delegate client construction to the AI layer (fastmcp imports
         are AI-layer-only; factored for test injection)."""
@@ -146,6 +190,15 @@ class McpConnector(PostingConnector):
             meta={"transport": cfg.transport, "server": (cfg.command or cfg.url)[:200]},
         )
         started = time.monotonic()
+        integrity = self._managed_content_error(cfg.command) if cfg.transport == "stdio" else None
+        if integrity is not None:
+            if audit is not None:
+                now = time.monotonic()
+                effect.ok = False
+                effect.error = f"{integrity.code}: {integrity.detail}"
+                effect.latency_ms = (now - started) * 1000
+                await audit(effect)
+            return ConnectorResult(partial_errors=[integrity])
         try:
             client = self._client_for(cfg, str((secrets or {}).get("token") or ""))
             async with client as session:

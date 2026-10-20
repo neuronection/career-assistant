@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "Fixture docs tree for import-lifecycle tests.",
+          "audience": "dev"
+        }
+      ]
+    }
+  ]
+}

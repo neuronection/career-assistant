@@ -60,8 +60,9 @@ accepted on the command line.
 | `source add` | `<descriptor.json>` | add a source (https git, or the gated dev `local` variant) |
 | `source list` | — | sources + candidates + installs |
 | `source sync` | `<origin-or-id>` | fetch + discover + validate + update-check; exit 1 when the source reports failure |
-| `source install` | `<source> <extension-id> --consent` | consent-gated install; mints the disabled instance |
-| `source pin` | `<extension-id> --consent` | apply a recorded available update (the only apply path) |
+| `source preview` | `<source> <extension-id>` | host-derived install preview + the exact consent echo (no mutation) |
+| `source install` | `<source> <extension-id> --consent-echo <json\|@file>` | consent-gated install; re-derives and refuses drift, mints the disabled instance |
+| `source pin` | `<extension-id> --consent-echo <json\|@file>` | apply a recorded available update with its preview echo (the only apply path) |
 | `source remove` | `<origin-or-id>` | remove the source; installs park (data + consent intact) |
 | `source validate` | `<path-or-url> [--ref strategy=value] [--subpath dir]` | read-only authoring check: descriptor + manifests + host profile |
 | `desired-state get` / `put` | `[<document.json>]` | read / write the GitOps desired-state document (admin-owned) |

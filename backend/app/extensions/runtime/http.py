@@ -46,6 +46,12 @@ def _http_client() -> httpx.AsyncClient:
     return _client
 
 
+def connector_client() -> httpx.AsyncClient:
+    """The shared no-auto-redirect client (public seam for wrappers such as
+    the T2 secret-scoped hop guard, which decorates the same instance)."""
+    return _http_client()
+
+
 async def close_connector_client() -> None:
     global _client
     if _client is not None and not _client.is_closed:

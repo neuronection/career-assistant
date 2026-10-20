@@ -27,9 +27,30 @@ export type ConsentPayload = {
   tier: string;
   importClass: string;
   capabilities: string[];
+  secrets?: { id: string; purpose: string | null; sentToHost: string[] }[];
   provenance: ConsentProvenance;
   disclosureKey: string;
   disclosure: string;
+};
+
+// The host-derived consent echo (plan 37 Phase 3.1): callers hand back
+// exactly what the preview returned — never a locally fabricated digest.
+export type ConsentEcho = {
+  digest: string;
+  capabilities: string[];
+  version: string;
+};
+
+export type ExtensionPreview = {
+  extensionId: string | null;
+  version: string | null;
+  subpath: string;
+  digest: string;
+  tier: string;
+  capabilities: string[];
+  ref: string;
+  consent: ConsentPayload;
+  echo: ConsentEcho;
 };
 
 export type ExtensionCandidate = {
@@ -121,10 +142,27 @@ export async function syncExtensionSource(id: string): Promise<{
   return response.data;
 }
 
+export async function fetchInstallPreview(
+  sourceId: string,
+  extensionId: string,
+): Promise<ExtensionPreview> {
+  const response = await api.get<ExtensionPreview>(
+    `/admin/extensions/sources/${sourceId}/preview/${encodeURIComponent(extensionId)}`,
+  );
+  return response.data;
+}
+
+export async function fetchUpdatePreview(installId: string): Promise<ExtensionPreview> {
+  const response = await api.get<ExtensionPreview>(
+    `/admin/extensions/installs/${installId}/preview`,
+  );
+  return response.data;
+}
+
 export async function installExtension(
   sourceId: string,
   extensionId: string,
-  consent: boolean,
+  consent: ConsentEcho,
 ): Promise<ExtensionInstallView> {
   const response = await api.post(`/admin/extensions/sources/${sourceId}/install`, {
     extension_id: extensionId,
@@ -135,7 +173,7 @@ export async function installExtension(
 
 export async function applyExtensionUpdate(
   installId: string,
-  consent: boolean,
+  consent: ConsentEcho,
 ): Promise<ExtensionInstallView> {
   const response = await api.post(`/admin/extensions/installs/${installId}/apply`, { consent });
   return response.data;

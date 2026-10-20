@@ -15286,7 +15286,7 @@
     },
     "/api/v1/admin/extensions/installs/{install_id}/apply": {
       "post": {
-        "description": "The only apply path: an explicit re-consent to a recorded available\nupdate (no signing service exists \u2014 there is no auto-apply at all).",
+        "description": "The only apply path: an explicit re-consent to a recorded available\nupdate, as the host-derived echo from ``GET .../installs/{id}/preview``\n(no signing service exists \u2014 there is no auto-apply at all).",
         "operationId": "apply_extension_update_api_v1_admin_extensions_installs__install_id__apply_post",
         "parameters": [
           {
@@ -15441,6 +15441,52 @@
           }
         },
         "summary": "Park Extension Install",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/extensions/installs/{install_id}/preview": {
+      "get": {
+        "description": "The host-derived update preview: the exact echo an explicit\nre-consent (apply) hands back.",
+        "operationId": "preview_extension_update_api_v1_admin_extensions_installs__install_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "install_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Install Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Extension Update Api V1 Admin Extensions Installs  Install Id  Preview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Extension Update",
         "tags": [
           "admin"
         ]
@@ -15635,7 +15681,7 @@
     },
     "/api/v1/admin/extensions/sources/{source_id}/install": {
       "post": {
-        "description": "Consent-gated install (D7): ``{\"extension_id\": ..., \"consent\": true}``\n\u2014 the consent payload (capabilities, tier, provenance verbatim, digest,\nthe T3 perimeter disclosure verbatim) was shown from the source's\ncandidates BEFORE this call. Installs are DISABLED; enabling is a\nseparate explicit act.",
+        "description": "Consent-gated install (D7): ``{\"extension_id\": ..., \"consent\":\n{digest, capabilities, version}}`` \u2014 the echo from the preview endpoint\n(capabilities, tier, provenance, digest and the T3 perimeter disclosure\nwere shown BEFORE this call). The host re-derives the values and\nrefuses drift typed. Installs are DISABLED; enabling is a separate\nexplicit act.",
         "operationId": "install_from_source_api_v1_admin_extensions_sources__source_id__install_post",
         "parameters": [
           {
@@ -15686,6 +15732,61 @@
           }
         },
         "summary": "Install From Source",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/extensions/sources/{source_id}/preview/{extension_id}": {
+      "get": {
+        "description": "The host-derived install preview (plan 37 Phase 3.1): re-fetch +\nre-discover + register + digest, returning the consent payload and the\nexact echo ``{digest, capabilities, version}`` the install call must\nhand back. The UI never fabricates a digest.",
+        "operationId": "preview_extension_install_api_v1_admin_extensions_sources__source_id__preview__extension_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "extension_id",
+            "required": true,
+            "schema": {
+              "title": "Extension Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Extension Install Api V1 Admin Extensions Sources  Source Id  Preview  Extension Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Extension Install",
         "tags": [
           "admin"
         ]
@@ -24611,6 +24712,30 @@
         "summary": "Get Page Image",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/extensions/host-profile": {
+      "get": {
+        "description": "The author-visible host profile (plan 37 \u00a76.2.4): what this host\nhosts/honors, its apiVersion ceilings, degrade rules and the T2\nisolation posture \u2014 no secrets, no mutable state.",
+        "operationId": "extension_host_profile_api_v1_extensions_host_profile_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Extension Host Profile Api V1 Extensions Host Profile Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Extension Host Profile",
+        "tags": [
+          "extensions"
         ]
       }
     },

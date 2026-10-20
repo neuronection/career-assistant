@@ -243,13 +243,15 @@ async def _run_fetch_locked(
 
     workdir = _workdir(install.extension_id)
     from app.extensions.runtime.sandbox import runtime as sandbox_runtime
+    from app.extensions.runtime.sandbox.isolation import available, wrap_child_command
 
     interpreter = sandbox_runtime.check_sandbox_runtime()[0]
-    argv = [
-        *interpreter,
-        "-I",
-        "-B",
-        str(child_entry()),
+    if not available():
+        raise sandbox_runtime.SandboxRuntimeUnavailable(
+            "kernel isolation (bubblewrap) is unavailable on this platform — "
+            "T2 self-disables; install bubblewrap or use a supported Linux host"
+        )
+    child_args = [
         "--protocol",
         PROTOCOL,
         "--content-dir",
@@ -259,11 +261,17 @@ async def _run_fetch_locked(
         "--digest",
         install.digest,
     ]
+    argv = wrap_child_command(
+        interpreter=interpreter,
+        child_path=child_entry(),
+        content_dir=Path(install.content_path),
+        child_args=child_args,
+    )
     spawn_kwargs: dict[str, Any] = {
         "stdin": asyncio.subprocess.PIPE,
         "stdout": asyncio.subprocess.PIPE,
         "stderr": asyncio.subprocess.DEVNULL,
-        "env": _child_env(workdir),
+        "env": {},
         "cwd": str(workdir),
         "limit": FRAMING_MAX_LINE_BYTES,
         "start_new_session": True,

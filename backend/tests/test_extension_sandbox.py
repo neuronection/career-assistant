@@ -26,6 +26,7 @@ import json
 import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import httpx
@@ -89,6 +90,13 @@ async def mock_net(monkeypatch):
             return httpx.Response(404, text="no robots")
         if path == "/redir-evil":
             return httpx.Response(302, headers={"Location": "https://evil.example.jobs/x"})
+        if path == "/redir-declared":
+            return httpx.Response(302, headers={"Location": "https://api.example.org/other"})
+        if path == "/other":
+            return httpx.Response(
+                200,
+                json={"auth": bool(request.headers.get("authorization"))},
+            )
         if path == "/leak":
             # an upstream that reflects the bearer token back into the
             # landing URL (it saw the Authorization header) — H1(a)
@@ -187,8 +195,13 @@ async def install_t2(
     assert report["ok"] is True, report
     [candidate] = report["candidates"]
     assert candidate["compatible"] is True, candidate
+    preview = await lifecycle.preview_install(db, uuid.UUID(str(source_view["id"])), manifest["id"])
     await install_extension(
-        db, source_view["id"], manifest["id"], consent=True, data_dir=root / "data"
+        db,
+        source_view["id"],
+        manifest["id"],
+        consent=preview["echo"],
+        data_dir=root / "data",
     )
     row = (
         (
@@ -348,7 +361,9 @@ async def test_escape_secret_sniffing_contained(db, t2_env, mock_net):
     to a PLACEHOLDER and the value crosses host→upstream only."""
     manifest = reference_manifest()
     manifest["capabilities"] = ["sync", "net", "state", "secrets"]
-    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    manifest["secrets"] = [
+        {"id": "api-token", "purpose": "board token", "domains": ["example.jobs"]}
+    ]
     entry = "\n".join(
         [
             "from capability import items_emit, net_fetch, secrets_need",
@@ -405,7 +420,9 @@ async def test_escape_secret_gates_undeclared_and_unresolved(db, t2_env):
     """The seam's secret gates, probed at the provider (the sync pre-check
     already blocks unresolved REQUIRED slots upstream — D19)."""
     manifest = reference_manifest()
-    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    manifest["secrets"] = [
+        {"id": "api-token", "purpose": "board token", "domains": ["example.jobs"]}
+    ]
     install = await install_t2(db, t2_env, "secret-gates", manifest, None)
     from app.extensions.runtime.sandbox.capabilities import SeamError
 
@@ -976,12 +993,27 @@ async def test_connector_rides_kill_switch_on_unavailable_runtime(db, t2_env, mo
 # {{secret:...}} placeholder in a URL is a typed invalid — never a fetch.
 
 
-async def _secrets_provider(db, t2_env, name: str):
+async def _secrets_provider(
+    db,
+    t2_env,
+    name: str,
+    *,
+    net_domains: list[str] | None = None,
+    slot_domains: list[str] | None = None,
+):
     """A provider for a manifest declaring net+secrets with the slot
     resolved (the value the walls must never see cross back)."""
     manifest = reference_manifest()
     manifest["capabilities"] = ["sync", "net", "state", "secrets"]
-    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    if net_domains is not None:
+        manifest["domains"] = net_domains
+    manifest["secrets"] = [
+        {
+            "id": "api-token",
+            "purpose": "board token",
+            "domains": slot_domains or ["example.jobs"],
+        }
+    ]
     install = await install_t2(db, t2_env, name, manifest, None)
     return cap_mod.CapabilityProvider(
         db=db, install=install, secrets={"api-token": "super-secret-value-99"}
@@ -1054,7 +1086,9 @@ async def test_escape_url_secret_exfil_channel_closed(db, t2_env, mock_net):
     secret path; the response envelope's finalUrl crosses back clean."""
     manifest = reference_manifest()
     manifest["capabilities"] = ["sync", "net", "state", "secrets"]
-    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    manifest["secrets"] = [
+        {"id": "api-token", "purpose": "board token", "domains": ["example.jobs"]}
+    ]
     entry = "\n".join(
         [
             "from capability import items_emit, net_fetch, secrets_need",
@@ -1090,4 +1124,108 @@ async def test_escape_url_secret_exfil_channel_closed(db, t2_env, mock_net):
     assert authorized, "the header-authenticated fetch happened"
     assert authorized[0].headers["authorization"] == "Bearer super-secret-value-99", (
         "headers remain the substitution path host-side"
+    )
+
+
+async def test_imported_net_secret_slot_without_domains_is_rejected(db, t2_env):
+    """Registration law (H1c): an imported T2 net+secrets manifest must
+    bind every slot to domains — rejected before any content lands."""
+    manifest = reference_manifest()
+    manifest["capabilities"] = ["sync", "net", "state", "secrets"]
+    manifest["secrets"] = [{"id": "api-token", "purpose": "board token"}]
+    with pytest.raises(lifecycle.LifecycleError) as rejected:
+        await install_t2(db, t2_env, "secret-unbound", manifest, None)
+    assert rejected.value.code == "invalid"
+    assert "must bind" in rejected.value.detail and "domains" in rejected.value.detail
+    assert (await db.execute(select(ExtensionInstall))).scalars().first() is None, (
+        "registration rejected before landing"
+    )
+
+
+async def test_secret_slot_is_refused_before_any_request_to_an_undeclared_host(
+    db, t2_env, mock_net
+):
+    """H1c: a slot may only be substituted toward its own ``domains``; an
+    undeclared target is refused typed BEFORE a socket/request happens."""
+    from app.extensions.runtime.sandbox.capabilities import SeamError
+
+    provider = await _secrets_provider(
+        db,
+        t2_env,
+        "secret-host-gate",
+        net_domains=["example.jobs", "api.example.org"],
+        slot_domains=["example.jobs"],
+    )
+    before = len(mock_net)
+    with pytest.raises(SeamError) as excinfo:
+        await provider.handle(
+            "cap.net.fetch",
+            {
+                "url": "https://api.example.org/other",
+                "headers": {"Authorization": "Bearer {{secret:api-token}}"},
+            },
+        )
+    assert excinfo.value.code == "net-denied"
+    assert "not declared for this host" in excinfo.value.envelope["detail"]
+    assert len(mock_net) == before, "refused before any request (robots included)"
+    assert "super-secret-value-99" not in json.dumps(excinfo.value.envelope)
+
+
+async def test_secret_header_is_stripped_on_a_cross_host_redirect(db, t2_env, mock_net):
+    """H1c hop behavior: a redirect inside the manifest's net domains but
+    outside the slot's domains must not receive the secret header."""
+    provider = await _secrets_provider(
+        db,
+        t2_env,
+        "secret-hop",
+        net_domains=["example.jobs", "api.example.org"],
+        slot_domains=["example.jobs"],
+    )
+    result = await provider.handle(
+        "cap.net.fetch",
+        {
+            "url": "https://example.jobs/redir-declared",
+            "headers": {"Authorization": "Bearer {{secret:api-token}}"},
+        },
+    )
+    assert result["status"] == 200
+    first = [r for r in mock_net if r.url.path == "/redir-declared"]
+    second = [r for r in mock_net if r.url.path == "/other"]
+    assert first and second, "both hops ran through the real polite runtime"
+    assert first[0].headers["authorization"] == "Bearer super-secret-value-99"
+    assert "authorization" not in second[0].headers, (
+        "the cross-host hop never receives the secret (stripped per hop)"
+    )
+
+
+async def test_cross_host_redirect_strips_the_secret_end_to_end(db, t2_env, mock_net):
+    """The same hop rule through a REAL child: the landed request carries
+    no Authorization, proven by the upstream reporting what it saw."""
+    manifest = reference_manifest()
+    manifest["capabilities"] = ["sync", "net", "state", "secrets"]
+    manifest["domains"] = ["example.jobs", "api.example.org"]
+    manifest["secrets"] = [
+        {"id": "api-token", "purpose": "board token", "domains": ["example.jobs"]}
+    ]
+    entry = "\n".join(
+        [
+            "import json",
+            "from capability import items_emit, net_fetch, secrets_need",
+            "def fetch(config, state):",
+            "    placeholder = secrets_need('api-token')",
+            "    response = net_fetch(",
+            "        'https://example.jobs/redir-declared',",
+            "        headers={'Authorization': 'Bearer ' + placeholder},",
+            "    )",
+            "    payload = json.loads(response['body'])",
+            "    items_emit([{'external_id': 'cross-host-auth:' + str(payload['auth']),"
+            " 'title': 'probe'}])",
+            "    return {}",
+        ]
+    )
+    install = await install_t2(db, t2_env, "secret-hop-child", manifest, entry)
+    report = await enable_and_sync(db, install, **{"api-token": "super-secret-value-99"})
+    assert report["synced"] == 1, report
+    assert await _posted_external_ids(db, install) == {"cross-host-auth:False"}, (
+        "the real child's redirect landing host saw no Authorization header"
     )

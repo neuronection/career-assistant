@@ -27,10 +27,12 @@ from sqlalchemy import select
 from app.extensions import lifecycle, surfaces
 from app.models.posting_model import JobSource
 from tests.test_extension_sources import (
+    FIXTURE_DOCS,
     FIXTURE_MANIFEST,
     FIXTURE_SERVER,
     TEMPLATE_DIR,
     _actor_id,
+    _echo_for,
     _git,
     local_descriptor,
 )
@@ -206,9 +208,14 @@ def make_gallery_repo(root: Path, *, manifest: dict | None = None) -> Path:
     repo.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(FIXTURE_SERVER, repo / "server.py")
     shutil.copyfile(FIXTURE_MANIFEST, repo / "manifest.json")
+    if FIXTURE_DOCS.is_dir():
+        shutil.copytree(FIXTURE_DOCS, repo / "docs", dirs_exist_ok=True)
     (repo / "cv-gallery").mkdir()
     effective = manifest if manifest is not None else template_miniapp_manifest()
     (repo / "cv-gallery" / "manifest.json").write_text(json.dumps(effective), encoding="utf-8")
+    origin_docs = TEMPLATE_DIR / "cv-gallery" / "docs"
+    docs_source = origin_docs if origin_docs.is_dir() else FIXTURE_DOCS
+    shutil.copytree(docs_source, repo / "cv-gallery" / "docs", dirs_exist_ok=True)
     _git(repo, "init", "--quiet", "--initial-branch", "main")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "gallery import")
@@ -221,7 +228,11 @@ async def _install_gallery(db: AsyncSession, repo_root, manifest: dict | None = 
     source_id = uuid.UUID(source_view["id"])
     await lifecycle.sync_source(db, source_id)
     return await lifecycle.install_extension(
-        db, source_id, MINIAPP_ID, consent=True, actor_id=await _actor_id(db)
+        db,
+        source_id,
+        MINIAPP_ID,
+        consent=await _echo_for(db, source_id, MINIAPP_ID),
+        actor_id=await _actor_id(db),
     )
 
 
@@ -255,7 +266,11 @@ async def test_gallery_imports_consents_and_surfaces(
     assert "declarative data only" in consent["disclosure"]
 
     installed = await lifecycle.install_extension(
-        db, source_id, MINIAPP_ID, consent=True, actor_id=await _actor_id(db)
+        db,
+        source_id,
+        MINIAPP_ID,
+        consent=await _echo_for(db, source_id, MINIAPP_ID),
+        actor_id=await _actor_id(db),
     )
     assert installed["tier"] == "T0"
     assert installed["enabled"] is False, "installs are disabled — enable is explicit"
@@ -336,7 +351,9 @@ async def test_the_surface_api_serves_enabled_pages_only(
     source_view = await lifecycle.add_source(db, local_descriptor(repo))
     source_id = uuid_module.UUID(source_view["id"])
     await lifecycle.sync_source(db, source_id)
-    installed = await lifecycle.install_extension(db, source_id, MINIAPP_ID, consent=True)
+    installed = await lifecycle.install_extension(
+        db, source_id, MINIAPP_ID, consent=await _echo_for(db, source_id, MINIAPP_ID)
+    )
     from fastapi import HTTPException
 
     from app.api.v1 import extensions as surface_api
