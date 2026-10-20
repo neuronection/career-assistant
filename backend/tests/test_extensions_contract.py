@@ -49,82 +49,12 @@ SOURCES_SCHEMA = json.loads(
 # ------------------------------------------------ structural: the Phase 0 wall
 
 
-def _schema_for(group: str, case: dict[str, Any]) -> Any:
-    if group == "sources" and case.get("against") == "desiredState":
-        return SOURCES_SCHEMA["$defs"]["desiredStateDocument"], SOURCES_SCHEMA
-    if group == "sources" and case.get("against") == "localSource":
-        return SOURCES_SCHEMA["$defs"]["localSourceDescriptor"], SOURCES_SCHEMA
-    if group == "bundled":
-        return MANIFEST_SCHEMA["$defs"]["bundledManifest"], MANIFEST_SCHEMA
-    if group == "sources":
-        return SOURCES_SCHEMA, SOURCES_SCHEMA
-    return MANIFEST_SCHEMA, MANIFEST_SCHEMA
-
-
-def _is_manifest_group(group: str) -> bool:
-    return group in ("manifest", "bundled")
-
-
-@pytest.mark.parametrize(
-    "group,case",
-    [
-        pytest.param(group, case, id=f"{group}:{case['name']}")
-        for group in ("manifest", "bundled", "sources")
-        for case in MANIFEST_FIXTURES.get(group, {}).get("valid", [])
-    ],
-)
-def test_structural_fixtures_accept(group: str, case: dict[str, Any]) -> None:
-    target, root = _schema_for(group, case)
-    assert contract.validate(target, case["doc"], root) is None, case["name"]
-    if _is_manifest_group(group):
-        # the plan-35 wave-B cross-key i18n semantics ride the same cases
-        # (dev wall 2/3: valid = schema AND semantics clean)
-        assert contract.manifest_i18n_semantics(case["doc"]) == [], case["name"]
-
-
-@pytest.mark.parametrize(
-    "group,case",
-    [
-        pytest.param(group, case, id=f"{group}:{case['name']}")
-        for group in ("manifest", "bundled", "sources")
-        for case in MANIFEST_FIXTURES.get(group, {}).get("invalid", [])
-    ],
-)
-def test_structural_fixtures_reject(group: str, case: dict[str, Any]) -> None:
-    target, root = _schema_for(group, case)
-    err = contract.validate(target, case["doc"], root)
-    channel = case.get("reject", "schema")
-    if channel == "semantics":
-        assert _is_manifest_group(group), f"{case['name']}: semantics channel outside a manifest group"
-        assert err is None, f"{case['name']}: semantics channel but schema rejected ({err})"
-        assert contract.manifest_i18n_semantics(case["doc"]), f"{case['name']}: accepted by the semantic channel"
-    elif channel == "schema":
-        assert err is not None, f"invalid case {case['name']} was accepted by the schema channel"
-    else:
-        raise AssertionError(f"{case['name']}: unknown reject channel {channel!r}")
-
-
-# ------------------------------------- the capability-RPC seam (Phase 5 wall)
-
-
-@pytest.mark.parametrize(
-    "case", MANIFEST_FIXTURES["rpc"]["valid"], ids=lambda case: f"rpc:{case['name']}"
-)
-def test_rpc_fixtures_accept(case: dict[str, Any]) -> None:
-    """Valid capability-rpc/1 messages pass the seam's structural gate —
-    the SAME gate the sandbox host applies to every framed line."""
-    doc = rpc_protocol.validate_message(json.dumps(case["doc"]))
-    assert doc["v"] == 1
-
-
-@pytest.mark.parametrize(
-    "case", MANIFEST_FIXTURES["rpc"]["invalid"], ids=lambda case: f"rpc:{case['name']}"
-)
-def test_rpc_fixtures_reject(case: dict[str, Any]) -> None:
-    """Invalid messages (unknown method, off-enum error codes, capability
-    methods as events, missing params, over-cap detail) fail typed."""
-    with pytest.raises(rpc_protocol.FramingError):
-        rpc_protocol.validate_message(json.dumps(case["doc"]))
+def test_structural_fixture_wall() -> None:
+    """One canonical runner: schema + semantics + the reject channel."""
+    failures = contract.run_manifest_fixtures(
+        MANIFEST_FIXTURES, MANIFEST_SCHEMA, SOURCES_SCHEMA
+    )
+    assert failures == [], "\n".join(failures)
 
 
 # ------------------------------------------------ behavioral: the D23 wall

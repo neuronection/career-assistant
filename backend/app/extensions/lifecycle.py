@@ -70,26 +70,10 @@ TREE_MAX_BYTES = 128 * 1024 * 1024
 # are T0 declarative. Tier is PROVENANCE AT INSTALL (D2): the artifact
 # shape decides (an ``extension.py`` capability-RPC module = T2; a
 # ``server.py`` MCP entry = T3; both or neither = rejected). The surface
-# host honors page + panel (window degrades to page, D17); the honored
-# capability set per kind x tier below is the registration gate (data,
-# never code).
-IMPORTED_KINDS = ("connector", "mini-app")
-CONNECTOR_HONORED_CAPABILITIES = frozenset({"sync", "secrets"})
-# The T2 seam's honored set (plan 32 Phase 5): net/state/secrets ride the
-# capability RPC host-side; nothing else is hosted for imported connectors.
-T2_CONNECTOR_HONORED_CAPABILITIES = frozenset({"sync", "net", "state", "secrets"})
-MINIAPP_HONORED_CAPABILITIES = frozenset({"report", "run"})
+# host and honored capability sets are read from the vendored charter's
+# career-assistant host profile — data, never code (plan 37 Phase 2).
 MINIAPP_API_VERSION = 1
 T2_ENTRY_FILE = "extension.py"
-
-# Degradable ui:* surfaces (the charter degrade law, D17/D25): an
-# unhonored surface follows its chain to the first honored target —
-# window → page → panel on the web host (window Hosting declined).
-SURFACES_DEGRADE_CHAINS = {
-    "page": ("page", "panel"),
-    "panel": ("panel",),
-    "window": ("page", "panel"),
-}
 
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
@@ -142,6 +126,17 @@ def _charter() -> dict:
     if _charter_cache is None:
         _charter_cache = _load_json("extension-charter.json")
     return _charter_cache
+
+
+def _profile() -> dict:
+    """The career-assistant host profile — the authoritative honors data."""
+    for profile in _charter().get("hostProfiles", {}).get("profiles", []):
+        if profile.get("product") == "career-assistant":
+            return profile
+    raise LifecycleError(
+        "not-ready",
+        "no career-assistant host profile in the vendored charter — import fails closed",
+    )
 
 
 def t3_perimeter_disclosure() -> str:
@@ -549,13 +544,16 @@ def detect_connector_tier(entry_dir: Path) -> str:
 def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
     """Host-profile compatibility (data, never code): kind hosted? tier
     runnable? apiVersion current? capabilities honored? Returns the
-    self-disable reason, or None when compatible. ``tier`` refines the
-    connector-kind honored set (T2 rides the capability-RPC seam)."""
+    self-disable reason, or None when compatible. Everything comes from
+    the vendored charter's career-assistant profile — per-tier for
+    connectors, per-kind for mini-apps (plan 37 Phase 2)."""
+    profile = _profile()
     kind = manifest.get("kind")
-    if kind not in IMPORTED_KINDS:
+    hosted_kinds = list(profile.get("kinds") or [])
+    if kind not in hosted_kinds:
         return (
-            f"kind {kind!r} is not hosted for import (career hosts connector "
-            "and mini-app imports; bridge is server-class)"
+            f"kind {kind!r} is not hosted for import (career hosts "
+            f"{', '.join(hosted_kinds)}; bridge is server-class)"
         )
     if kind == "mini-app":
         # the mini-app kind keeps the ADR-0029 INT apiVersion lineage —
@@ -566,7 +564,11 @@ def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
                 f"apiVersion {api_version!r} is not {MINIAPP_API_VERSION} (the mini-app refinement)"
             )
         caps = set(manifest.get("capabilities") or [])
-        honored = MINIAPP_HONORED_CAPABILITIES | {f"ui:{k}" for k in SURFACES_DEGRADE_CHAINS}
+        honored = set(
+            (profile.get("honorsByKind") or {}).get("mini-app")
+            or profile.get("honors")
+            or []
+        )
         unhonored = sorted(caps - honored) if caps else ["(none declared)"]
         if unhonored:
             return f"capabilities not honored by this host: {', '.join(unhonored)}"
@@ -582,16 +584,18 @@ def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
                 f"requires host connector refinement >= {kind_version} "
                 f"(host has {contract.CONNECTOR_KIND_VERSION}) — self-disable"
             )
-        honored_tier = (
-            T2_CONNECTOR_HONORED_CAPABILITIES
-            if tier == "T2"
-            else (CONNECTOR_HONORED_CAPABILITIES if tier == "T3" else None)
-        )
-        if honored_tier is not None:
-            caps = set(manifest.get("capabilities") or [])
-            unhonored = sorted(caps - honored_tier)
-            if unhonored:
-                return f"capabilities not honored for a {tier} import: {', '.join(unhonored)}"
+        caps = set(manifest.get("capabilities") or [])
+        honored_tier = (profile.get("honorsByTier") or {}).get(tier) if tier else None
+        if honored_tier is None and tier:
+            return (
+                f"no honors declared for tier {tier!r} in the host profile — "
+                "import fails closed"
+            )
+        honored = set(honored_tier or profile.get("honors") or [])
+        unhonored = sorted(caps - honored)
+        if unhonored:
+            where = f"a {tier} import" if tier else "this host"
+            return f"capabilities not honored for {where}: {', '.join(unhonored)}"
     return None
 
 
