@@ -14,9 +14,9 @@ enum, retryable sub-enum) as typed Python errors.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-from collections.abc import Mapping
 
 from app.extensions import contract
 from app.extensions.polite_http import DEFAULT_RETRYABLE, ERROR_CODES, ERROR_DETAIL_MAX_CHARS

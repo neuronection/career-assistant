@@ -518,7 +518,7 @@ class CapabilityProvider:
                 raise SeamError(
                     "needs-secret", _detail({"slot": slot}), retryable="after-config-change"
                 )
-            domains = self._secret_domains.get(slot) or []
+            domains = self._secret_domains.get(slot) or ()
             if not domains:
                 raise SeamError(
                     "invalid",

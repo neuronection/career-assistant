@@ -62,9 +62,7 @@ def test_escape_matrix_is_the_contract() -> None:
     """The fixture wall (sandbox-isolation.fixtures.json, plan 39) is the
     normative probe set — every backend is measured against exactly these
     cases, and the kernel probes run above are matrix cases."""
-    cases = isolation.escape_matrix(
-        Path(__file__).resolve().parents[2] / "contracts"
-    )
+    cases = isolation.escape_matrix(Path(__file__).resolve().parents[2] / "contracts")
     groups = {case["group"] for case in cases}
     for required in (
         "fs-read-outside",

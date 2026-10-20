@@ -242,8 +242,8 @@ async def _run_fetch_locked(
     from app.extensions.runtime.sandbox.capabilities import CapabilityProvider
 
     workdir = _workdir(install.extension_id)
-    from app.extensions.runtime.sandbox import runtime as sandbox_runtime
     from app.extensions.isolation import available, wrap_child_command
+    from app.extensions.runtime.sandbox import runtime as sandbox_runtime
 
     interpreter = sandbox_runtime.check_sandbox_runtime()[0]
     if not available():

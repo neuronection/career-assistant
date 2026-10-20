@@ -1116,7 +1116,9 @@ async def _sync_source_locked(
                 # Tier is provenance from the MANIFEST (plan-38 D1): entry
                 # declares code, mcp declares the external process. The
                 # fixed-filename detection is retired.
-                tier = contract.derive_tier(manifest) if manifest.get("kind") == "connector" else None
+                tier = (
+                    contract.derive_tier(manifest) if manifest.get("kind") == "connector" else None
+                )
                 reason = None
                 if manifest.get("kind") == "mini-app":
                     # Artifact class first (plan 38 W3/W5): entry/tier law and
@@ -1147,7 +1149,10 @@ async def _sync_source_locked(
         source.consecutive_failures += 1
         source.error = f"{exc.code}: {exc.detail}"
         source.last_checked_at = _utcnow()
-        report = {"ok": False, "error": {"code": exc.code, "detail": contract.cap_error_detail(exc.detail)}}
+        report = {
+            "ok": False,
+            "error": {"code": exc.code, "detail": contract.cap_error_detail(exc.detail)},
+        }
         await _check_installs_after_failed_fetch(db, source)
         await db.commit()
         return report
@@ -1621,9 +1626,10 @@ async def apply_update(
                 row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
                 job_source = row.scalars().first()
                 if job_source is not None:
+                    entry_path = content_dir / str(candidate.manifest.get("entry"))
                     job_source.config = {
                         **job_source.config,
-                        "command": f'"{sys.executable}" "{content_dir / str(candidate.manifest.get("entry"))}"',
+                        "command": f'"{sys.executable}" "{entry_path}"',
                     }
             # T2 updates need no instance mutation: the sandbox runner
             # reads the install row's content_path + manifest at spawn.

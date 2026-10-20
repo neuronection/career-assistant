@@ -460,7 +460,9 @@ async def test_api_version_too_new_rejected_with_ceiling(db, local_roots):
     report = await sync_source(db, source.id)
     assert report["ok"] is False
     assert report["error"]["code"] == "invalid"
-    assert "kindVersion" in report["error"]["detail"]["message"], "the error names the ceiling precisely"
+    assert "kindVersion" in report["error"]["detail"]["message"], (
+        "the error names the ceiling precisely"
+    )
 
 
 async def test_unhonored_capability_rejected(db, local_roots):

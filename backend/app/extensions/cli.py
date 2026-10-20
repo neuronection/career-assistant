@@ -171,7 +171,11 @@ async def _validate(args: argparse.Namespace) -> int:
             manifest = entry["manifest"]
             # Tier is provenance from the manifest (plan-38 D1) — the
             # fixed-filename detection is retired.
-            tier = lifecycle.contract.derive_tier(manifest) if manifest.get("kind") == "connector" else None
+            tier = (
+                lifecycle.contract.derive_tier(manifest)
+                if manifest.get("kind") == "connector"
+                else None
+            )
             reason = lifecycle.check_host_profile(manifest, tier)
             digest = lifecycle.digest_tree(lifecycle._entry_dir(tree, entry["subpath"]))
             state = "compatible" if reason is None else f"INCOMPATIBLE: {reason}"

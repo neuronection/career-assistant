@@ -50,9 +50,20 @@ ERROR_DETAIL_MAX_CHARS = 500
 #: imports); `contract.cap_error_detail` is canonical and the rpc fixtures
 #: pin the wire shape identically in every copy.
 _ERROR_DETAIL_CAPS = {
-    "message": 400, "path": 256, "field": 64, "id": 128, "packId": 128,
-    "runId": 128, "slot": 128, "host": 253, "method": 128, "op": 64,
-    "stage": 64, "engine": 64, "expected": 128, "actual": 128,
+    "message": 400,
+    "path": 256,
+    "field": 64,
+    "id": 128,
+    "packId": 128,
+    "runId": 128,
+    "slot": 128,
+    "host": 253,
+    "method": 128,
+    "op": 64,
+    "stage": 64,
+    "engine": 64,
+    "expected": 128,
+    "actual": 128,
 }
 
 
@@ -88,6 +99,8 @@ def _bounded_detail(detail: Any) -> dict[str, Any]:
             break
         del out[droppable]
     return out
+
+
 INPUT_MAX_BYTES = 256 * 1024
 
 # The closed method vocabulary (extension-charter.json rpc).
@@ -634,12 +647,10 @@ def load_extension(
         # D1: the entry is manifest-declared and digest-covered — the child
         # runs exactly that path (the fixed-filename pin is retired).
         if entry != manifest.get("entry"):
+            message = "the entry must match the manifest's declared entry (digest-covered)"
             return {}, {
                 "code": "invalid",
-                "detail": _bounded_detail({
-                    "message": "the entry must match the manifest's declared entry (digest-covered)",
-                    "path": entry,
-                }),
+                "detail": _bounded_detail({"message": message, "path": entry}),
                 "retryable": "no",
             }
         source = (root / entry).read_bytes()

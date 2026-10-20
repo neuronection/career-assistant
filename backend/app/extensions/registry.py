@@ -138,9 +138,7 @@ def validate_manifest(connector: PostingConnector) -> dict:
         charter=_charter(),
     )
     if problems:
-        raise ValidationError(
-            f"Connector {connector.key} manifest invalid: {'; '.join(problems)}"
-        )
+        raise ValidationError(f"Connector {connector.key} manifest invalid: {'; '.join(problems)}")
     return manifest
 
 
