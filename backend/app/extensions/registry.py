@@ -268,7 +268,7 @@ def list_connectors() -> list[dict]:
 
 def host_profile_view() -> dict:
     """The author-visible host profile (plan 37 §6.2.4)."""
-    from app.extensions.runtime.sandbox.isolation import posture
+    from app.extensions.isolation import posture
 
     profile = _profile()
     return {
