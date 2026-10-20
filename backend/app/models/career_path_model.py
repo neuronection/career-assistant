@@ -1,6 +1,15 @@
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -54,3 +63,55 @@ class CareerPathStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     path: Mapped[CareerPath] = relationship(back_populates="steps")
     family = relationship("JobFamily")
     skill = relationship("Skill")
+    parent_step_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("career_path_steps.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Why this branch exists ("or: research track") — display only.
+    edge_label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+
+
+class UserPathFlag(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A user's mark on a career path or one of its steps.
+
+    `step_id` NULL flags the whole path. The uniqueness is two partial
+    unique indexes instead of one UNIQUE(...) tuple: both PostgreSQL and
+    SQLite treat NULLs as distinct inside a unique constraint, which
+    would let a user flag the same path twice.
+    """
+
+    __tablename__ = "user_path_flags"
+    __table_args__ = (
+        CheckConstraint(
+            "flag IN ('interested', 'dismissed', 'pinned')",
+            name="flag_allowed",
+        ),
+        Index(
+            "uq_user_path_flags_step",
+            "user_id",
+            "path_id",
+            "step_id",
+            unique=True,
+            sqlite_where=text("step_id IS NOT NULL"),
+            postgresql_where=text("step_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_user_path_flags_path",
+            "user_id",
+            "path_id",
+            unique=True,
+            sqlite_where=text("step_id IS NULL"),
+            postgresql_where=text("step_id IS NULL"),
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    path_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("career_paths.id", ondelete="CASCADE"), nullable=False
+    )
+    step_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("career_path_steps.id", ondelete="CASCADE"), nullable=True
+    )
+    flag: Mapped[str] = mapped_column(String(12), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")

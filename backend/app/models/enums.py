@@ -190,6 +190,14 @@ class PathStatus(StrEnum):
     PUBLISHED = "published"
 
 
+class PathFlag(StrEnum):
+    """A user's mark on a career path or one of its possibilities."""
+
+    INTERESTED = "interested"
+    DISMISSED = "dismissed"
+    PINNED = "pinned"
+
+
 class AssessmentKind(StrEnum):
     ONBOARDING = "onboarding"
     FULL = "full"
@@ -343,6 +351,32 @@ class PostingStatus(StrEnum):
     HIDDEN = "hidden"
 
 
+class SourceKind(StrEnum):
+    """What a `job_sources` row feeds: postings or a wider data family."""
+
+    POSTING = "posting"
+    MARKET = "market"
+    UNIVERSITY = "university"
+    SEARCH = "search"
+    WEBHOOK_IN = "webhook_in"
+
+
+class HealthStatus(StrEnum):
+    """Connector/webhook health, surfaced as a source badge."""
+
+    OK = "ok"
+    DEGRADED = "degraded"
+    FAILED = "failed"
+
+
+class WebhookTarget(StrEnum):
+    """Which pipeline consumes an inbound webhook event."""
+
+    POSTING_STATUS = "posting_status"
+    APPLICATION_STATUS = "application_status"
+    INGEST = "ingest"
+
+
 class PostingEvidence(StrEnum):
     EXPLICIT = "explicit"
     INFERRED = "inferred"
@@ -369,9 +403,59 @@ class SalaryPeriod(StrEnum):
 
 
 class ApplicationStage(StrEnum):
+    """Where an application sits in the pipeline."""
+
     APPLIED = "applied"
+    SCREENING = "screening"
     INTERVIEW = "interview"
     OFFER = "offer"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+
+
+class ApplicationVia(StrEnum):
+    """The channel an application was submitted through."""
+
+    URL = "url"
+    EMAIL = "email"
+    PORTAL = "portal"
+    REFERRAL = "referral"
+    EVENT = "event"
+    OTHER = "other"
+
+
+class ApplicationEventKind(StrEnum):
+    """Timeline event kinds; every stage move writes `stage_change`."""
+
+    STAGE_CHANGE = "stage_change"
+    NOTE = "note"
+    DOCUMENT_LINKED = "document_linked"
+    FOLLOWUP_SENT = "followup_sent"
+    FOLLOWUP_SNOOZED = "followup_snoozed"
+    INTERVIEW_SCHEDULED = "interview_scheduled"
+    OFFER_RECEIVED = "offer_received"
+    EXTERNAL_UPDATE = "external_update"
+    IMPORTED = "imported"
+
+
+class ApplicationActor(StrEnum):
+    """Who wrote an application event."""
+
+    USER = "user"
+    SYSTEM = "system"
+    ASSISTANT = "assistant"
+    EXTENSION = "extension"
+
+
+class ApplicationOutcome(StrEnum):
+    """Terminal result of an application."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+    EXPIRED = "expired"
+    GHOSTED = "ghosted"
 
 
 class Seniority(StrEnum):
@@ -461,11 +545,20 @@ class NotificationStatus(StrEnum):
 
 
 class NotificationChannel(StrEnum):
-    """Delivery channels; the registry leaves email/sms slots open."""
+    """Delivery channels; the channel registry is the extensibility seam."""
 
     IN_APP = "in_app"
     DESKTOP = "desktop"
     BROWSER = "browser"
+    EMAIL = "email"
+    WEBHOOK = "webhook"
+
+
+class FeedTokenKind(StrEnum):
+    """Signed-subscription flavours (calendar feed, RSS)."""
+
+    ICS = "ics"
+    RSS = "rss"
 
 
 class DeliveryStatus(StrEnum):
@@ -559,7 +652,6 @@ class BackgroundJobType(StrEnum):
     CV_OCR = "cv_ocr"
     CV_PARSE = "cv_parse"
     CATALOG_ENRICH = "catalog_enrich"
-    CHAT_TITLE = "chat_title"
     AUTOPILOT_RUN = "autopilot_run"
     CV_GENERATE = "cv_generate"
     CV_POLISH = "cv_polish"
@@ -790,3 +882,49 @@ class ProposalStatus(StrEnum):
 
 class ProposalSource(StrEnum):
     CHAT = "chat"
+    MCP = "mcp"
+    AUTOPILOT = "autopilot"
+    IMPORT = "import"
+
+
+class McpTokenScope(StrEnum):
+    """Closed MCP token scope vocabulary; `write` ships with 119's tools."""
+
+    READ = "read"
+    WRITE = "write"
+
+
+class LabelEntityKind(StrEnum):
+    """Catalog entity families a label overlay can target."""
+
+    JOB = "job"
+    SKILL = "skill"
+    FAMILY = "family"
+    UNIVERSITY = "university"
+    DEPARTMENT = "department"
+    METRIC_DIMENSION = "metric_dimension"
+    ASSESSMENT_TEMPLATE = "assessment_template"
+    CV_TEMPLATE = "cv_template"
+
+
+class LabelField(StrEnum):
+    """Which display field an overlay replaces."""
+
+    LABEL = "label"
+    DESCRIPTION = "description"
+    SHORT_DESCRIPTION = "short_description"
+
+
+class LabelSource(StrEnum):
+    """Who drafted an overlay (approval is the only route to `approved`)."""
+
+    AI_DRAFT = "ai_draft"
+    HUMAN = "human"
+
+
+class LabelStatus(StrEnum):
+    """Overlay review state."""
+
+    DRAFT = "draft"
+    APPROVED = "approved"
+    REJECTED = "rejected"

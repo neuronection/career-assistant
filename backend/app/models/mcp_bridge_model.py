@@ -10,7 +10,7 @@ are audited + budgeted like every AI call (``ai_generations`` via the
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.encryption import decrypt_secret, encrypt_secret, mask_secret
@@ -61,3 +61,28 @@ class AIMCPServer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     def namespaced(self, tool_name: str) -> str:
         return f"mcp.{self.name}.{tool_name}"
+
+
+class McpToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A hashed MCP access token (plan 113 / 119).
+
+    `user_id` NULL ⇒ an instance token; set ⇒ a personal token.
+    `scopes` is a closed list (`read`, later `write`). Rotation and
+    per-token revocation need no schema change.
+    """
+
+    __tablename__ = "mcp_tokens"
+    __table_args__ = (Index("ix_mcp_tokens_user", "user_id"),)
+
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    scopes: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=lambda: ["read"])
+    label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    last_used_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    rotated_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    rotated_from_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("mcp_tokens.id", ondelete="SET NULL"), nullable=True
+    )

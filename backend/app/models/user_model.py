@@ -48,6 +48,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # OIDC link (§14, present from day one); unique as a pair above.
     oidc_issuer: Mapped[str | None] = mapped_column(String(500), nullable=True)
     oidc_subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # UI locale (BCP-47 short form); NULL = instance default
+    # (`app_settings` `i18n.default_locale`).
+    locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     profiles: Mapped[list["Profile"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

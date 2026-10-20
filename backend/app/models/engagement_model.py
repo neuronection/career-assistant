@@ -176,7 +176,7 @@ class NotificationDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "created_at",
         ),
         CheckConstraint(
-            "channel IN ('in_app', 'desktop', 'browser')",
+            "channel IN ('in_app', 'desktop', 'browser', 'email', 'webhook')",
             name="channel_allowed",
         ),
         CheckConstraint(
@@ -202,6 +202,35 @@ class NotificationDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("notification_subscriptions.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+
+class UserChannelConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Per-user, per-channel delivery configuration (plan 113 / 117).
+
+    `config` carries typed keys per channel (email: address override,
+    digest_mode; webhook: url, template). `secrets` holds only the
+    channel's sealed secret slots (webhook tokens — URLs are not
+    secrets), following the job-source secret pattern.
+    """
+
+    __tablename__ = "user_channel_configs"
+    __table_args__ = (
+        UniqueConstraint("user_id", "channel", name="uq_user_channel_configs_user_channel"),
+        CheckConstraint(
+            "channel IN ('in_app', 'desktop', 'browser', 'email', 'webhook')",
+            name="channel_allowed",
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    config: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    secrets: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    # Email double-opt-in / webhook test-delivery confirmation.
+    verified_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
 
 
 class NotificationSubscription(UUIDPrimaryKeyMixin, TimestampMixin, Base):

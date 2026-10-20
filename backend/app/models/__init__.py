@@ -1,5 +1,6 @@
 from app.models.ai_model import AIGeneration
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
+from app.models.application_model import Application, ApplicationEvent
 from app.models.assessment_model import (
     AssessmentAnswer,
     AssessmentQuestion,
@@ -9,7 +10,7 @@ from app.models.assessment_template_model import AssessmentTemplate
 from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
 from app.models.background_job_model import BackgroundJob
 from app.models.base import Base
-from app.models.career_path_model import CareerPath, CareerPathStep
+from app.models.career_path_model import CareerPath, CareerPathStep, UserPathFlag
 from app.models.chat_model import ChatMessage, ChatSession
 from app.models.cv_intake_model import CvParseDraft
 from app.models.cv_model import CvDocument, CvVersion
@@ -27,6 +28,7 @@ from app.models.engagement_model import (
     NotificationRule,
     NotificationSubscription,
     SearchHistory,
+    UserChannelConfig,
 )
 from app.models.experience_model import (
     ExperienceAchievement,
@@ -36,6 +38,7 @@ from app.models.experience_model import (
     SkillEvidence,
 )
 from app.models.extension_model import ExtensionInstall, ExtensionSource
+from app.models.followup_model import FollowupRule, UserFeedToken
 from app.models.growth_model import (
     GrowthPlan,
     GrowthPlanStep,
@@ -43,9 +46,10 @@ from app.models.growth_model import (
 )
 from app.models.interview_model import InterviewSession
 from app.models.job_model import Job, JobFamily, JobRelation, JobSkill, JobTag
+from app.models.localization_model import LabelOverride
 from app.models.market_model import MarketSnapshot  # noqa: F401
 from app.models.matching_model import MatchInsight
-from app.models.mcp_bridge_model import AIMCPServer
+from app.models.mcp_bridge_model import AIMCPServer, McpToken
 from app.models.metric_model import (
     MetricDimension,
     SkillTransferability,
@@ -56,6 +60,7 @@ from app.models.posting_model import (
     JobSource,
     PostingInteraction,
     PostingSkill,
+    WebhookEndpoint,
 )
 from app.models.profile_entities_model import (
     Certification,
@@ -84,6 +89,8 @@ __all__ = [
     "AIProvider",
     "AITaskAssignment",
     "AppSetting",
+    "Application",
+    "ApplicationEvent",
     "AssessmentAnswer",
     "AssessmentQuestion",
     "AssessmentRun",
@@ -111,6 +118,7 @@ __all__ = [
     "ExperienceSkill",
     "ExtensionInstall",
     "ExtensionSource",
+    "FollowupRule",
     "GrowthPlan",
     "GrowthPlanStep",
     "InterestTag",
@@ -123,8 +131,10 @@ __all__ = [
     "JobSkill",
     "JobSource",
     "JobTag",
+    "LabelOverride",
     "LearningResource",
     "MatchInsight",
+    "McpToken",
     "MetricDimension",
     "Notification",
     "NotificationDelivery",
@@ -147,8 +157,12 @@ __all__ = [
     "SkillTransferability",
     "University",
     "User",
+    "UserChannelConfig",
+    "UserFeedToken",
     "UserInterest",
     "UserMetricProfile",
+    "UserPathFlag",
     "UserSkill",
     "UserToolGrant",
+    "WebhookEndpoint",
 ]

@@ -4,7 +4,7 @@ hot field is a real indexed column; money is NUMERIC + ISO currency +
 period; JSONB keeps content only."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
@@ -28,6 +28,7 @@ from app.models.base import (
     TZDateTime,
     UUIDPrimaryKeyMixin,
 )
+from app.models.enums import HealthStatus, SourceKind
 
 # Crockford base32 (no I, L, O, U) — unambiguous when read aloud or typed.
 REF_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -53,10 +54,34 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "job_sources"
     __table_args__ = (
         CheckConstraint("length(connector_key) BETWEEN 1 AND 80", name="connector_key_present"),
+        CheckConstraint(
+            "kind IN ('posting', 'market', 'university', 'search', 'webhook_in')",
+            name="kind_allowed",
+        ),
+        CheckConstraint(
+            "last_status IN ('ok', 'degraded', 'failed')",
+            name="last_status_allowed",
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     connector_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    # What this source feeds: postings today, wider data families later.
+    kind: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=SourceKind.POSTING.value,
+        server_default=SourceKind.POSTING.value,
+    )
+    # Scheduler trigger this source runs under (NULL = manual only).
+    schedule_kind: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    paused_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_status: Mapped[str] = mapped_column(
+        String(12),
+        nullable=False,
+        default=HealthStatus.OK.value,
+        server_default=HealthStatus.OK.value,
+    )
     config: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Secret slots (D19/INV-4): slot id -> atrest-sealed value; never
     # plaintext, never returned by APIs (mask/hint only).
@@ -180,8 +205,11 @@ class PostingSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Per-user posting state — the single source of posting-state truth
-    (mirrors semantics; stage is's pipeline)."""
+    """Per-user posting engagement state — seen / saved / hidden only.
+
+    Application state (stage, applied date, notes, documents) lives in
+    `applications` since plan 113; this table never carries it again.
+    """
 
     __tablename__ = "posting_interactions"
     __table_args__ = (
@@ -198,10 +226,54 @@ class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     seen_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     saved_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     hidden_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
-    applied_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
-    applied_via_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
-    stage: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class WebhookEndpoint(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Inbound-webhook endpoint (dormant until plan 122 phase 3).
+
+    `key` names the endpoint; `token_hash` is the sha256 of the secret it
+    authenticates with. `target` decides which pipeline consumes the
+    event.
+    """
+
+    __tablename__ = "webhook_endpoints"
+    __table_args__ = (
+        CheckConstraint(
+            "target IN ('posting_status', 'application_status', 'ingest')",
+            name="target_allowed",
+        ),
+        CheckConstraint(
+            "last_status IN ('ok', 'degraded', 'failed')",
+            name="last_status_allowed",
+        ),
+        Index("ix_webhook_endpoints_source", "source_id"),
+    )
+
+    key: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("job_sources.id", ondelete="SET NULL"), nullable=True
+    )
+    target: Mapped[str] = mapped_column(String(24), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_event_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_status: Mapped[str] = mapped_column(
+        String(12),
+        nullable=False,
+        default=HealthStatus.OK.value,
+        server_default=HealthStatus.OK.value,
+    )
+
+
+def current_fit_version() -> int:
+    """The fit engine's current formula version.
+
+    Imported lazily: ORM models never depend on the services layer at
+    module import time.
+    """
+    from app.services.fit.dimensions import FIT_VERSION
+
+    return FIT_VERSION
 
 
 class PostingFit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -213,6 +285,7 @@ class PostingFit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("user_id", "posting_id", name="uq_posting_fits_user_posting"),
         Index("ix_posting_fits_posting_id", "posting_id"),
+        Index("ix_posting_fits_user_computed", "user_id", "computed_at"),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -226,3 +299,8 @@ class PostingFit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Canonical-JSON sha256 of every input (skills, weights, profile
     # basics, extract_version, posted_at) — mismatch ⇒ stale ⇒ recompute.
     inputs_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Analytics window for 120's bounded recompute + refit progress.
+    computed_at: Mapped[datetime] = mapped_column(
+        TZDateTime(), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    fit_version: Mapped[int] = mapped_column(Integer, nullable=False, default=current_fit_version)

@@ -33,7 +33,7 @@ _KIND_ALLOWED = (
     "'profile_achievement', 'user_skill', 'profile_section', 'cv_synth', "
     "'cv_set_bullets', 'cv_choice', 'tool_execution')"
 )
-_SOURCE_ALLOWED = "source IN ('chat')"
+_SOURCE_ALLOWED = "source IN ('chat', 'mcp', 'autopilot', 'import')"
 
 
 class ProfileProposal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -67,7 +67,10 @@ class ProfileProposal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Field-level before/after rows, computed server-side at creation.
     diff_json: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="pending")
-    source: Mapped[str] = mapped_column(String(12), nullable=False, default="chat")
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="chat")
+    # {tool, session, request_id} provenance for non-chat sources
+    # (ADR-0015 audit requirement).
+    origin: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Lineage back to the chat turn and the audited model call. SET NULL:
     # proposals survive session/message deletion (first-class data).
     chat_session_id: Mapped[uuid.UUID | None] = mapped_column(
