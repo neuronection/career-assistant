@@ -93,8 +93,15 @@ def test_structural_fixtures_accept(group: str, case: dict[str, Any]) -> None:
 def test_structural_fixtures_reject(group: str, case: dict[str, Any]) -> None:
     target, root = _schema_for(group, case)
     err = contract.validate(target, case["doc"], root)
-    sem = contract.manifest_i18n_semantics(case["doc"]) if _is_manifest_group(group) else []
-    assert err is not None or sem, f"invalid case {case['name']} was accepted"
+    channel = case.get("reject", "schema")
+    if channel == "semantics":
+        assert _is_manifest_group(group), f"{case['name']}: semantics channel outside a manifest group"
+        assert err is None, f"{case['name']}: semantics channel but schema rejected ({err})"
+        assert contract.manifest_i18n_semantics(case["doc"]), f"{case['name']}: accepted by the semantic channel"
+    elif channel == "schema":
+        assert err is not None, f"invalid case {case['name']} was accepted by the schema channel"
+    else:
+        raise AssertionError(f"{case['name']}: unknown reject channel {channel!r}")
 
 
 # ------------------------------------- the capability-RPC seam (Phase 5 wall)
