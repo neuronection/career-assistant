@@ -122,7 +122,11 @@ describe("ConnectorsSection job sources", () => {
     vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
     vi.mocked(sourcesApi.probeSource).mockResolvedValue({
       ok: false,
-      error: { code: "needs-secret", detail: "missing secret slot(s): api_token", retryable: "after-config-change" },
+      error: {
+        code: "needs-secret",
+        detail: { message: "missing secret slot(s): api_token" },
+        retryable: "after-config-change",
+      },
     });
     const { userEvent } = await import("@testing-library/user-event");
     renderSection();

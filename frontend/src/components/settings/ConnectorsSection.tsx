@@ -186,7 +186,10 @@ function JobSourceConnectors() {
     } catch (err) {
       setProbes((current) => ({
         ...current,
-        [source.id]: { ok: false, error: { code: "error", detail: apiDetail(err), retryable: "no" } },
+        [source.id]: {
+          ok: false,
+          error: { code: "error", detail: { message: apiDetail(err) }, retryable: "no" },
+        },
       }));
     } finally {
       setProbingId(null);
