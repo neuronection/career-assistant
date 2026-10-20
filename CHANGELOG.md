@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Internal (plan 113 schema foundation, 2026-10-21)
+- **Application pipeline schema foundation.** `applications` +
+  `application_events` replace the application fields on
+  `posting_interactions` (seen/saved/hidden stay there); the apply path
+  writes the first `stage_change` event. The wave also lands the shapes
+  plans 114–125 consume (follow-up rules, feed tokens, per-channel
+  notification config, inbound webhook endpoints, catalog label overlays,
+  MCP tokens, career-path branching/flags, fit analytics columns) in two
+  migrations, so no later plan needs one. No user-visible behavior change.
+
 ### Added (per-extension docs surface, 2026-10-19)
 - **Connector documentation is now served in-app** (plan 34 wave 8):
   `GET /api/v1/admin/postings/connectors/{key}/documentation` returns the

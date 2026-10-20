@@ -104,7 +104,8 @@ regenerating a baseline, **drop and recreate** instead.
   revision, upgrade to head, assert the transform (both dialects).
 - Downgrade round-trip when data is rewritten.
 - **Bump the head-assertion test.** `backend/tests/test_migrations.py` asserts
-  `get_heads() == ["0041"]`; every new revision must update that literal.
+  `get_heads() == ["0052"]`; every new revision must update that literal
+  (and `test_autopilot.py`'s linear-chain check).
 
 ## Worktrees
 

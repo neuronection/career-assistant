@@ -302,10 +302,23 @@ There is no side door around it.
 - **Follow-up automation** is a scheduler slot
   (`system_followups` → `followup_sweep` job,
   `app/services/followups_service.py`): a stateless sweep over applied
-  `posting_interactions` (+7d/+14d nudges, interview/offer check-ins)
+  `applications` (+7d/+14d nudges, interview/offer check-ins)
   emitting through the notification funnel; sent-state lives in
   notification dedup keys, prefs in `preferences["followups"]`
   (`GET/PATCH /me/followups`).
+- **Applications are an event-sourced pipeline** (plan 113): the
+  `applications` row holds the current stage and the typed refs, while
+  `application_events` is the append-only timeline — every stage
+  transition goes through `app/services/applications_service.py` and
+  writes exactly one `stage_change` event. Future writers (116's
+  follow-up sweep, 119's MCP proposals, 122's inbound webhooks) append
+  events instead of introducing status columns.
+- **Notification channels are a registry**
+  (`app/services/notification_channels.py`): the `NotificationChannel`
+  vocabulary now spans `in_app`/`desktop`/`browser`/`email`/`webhook`
+  and `user_channel_configs` stores typed per-channel config, so 117
+  registers the email/webhook dispatchers without a schema change.
+  SMS is a stated non-goal; nothing reserves a slot for it.
 
 ## AI flows are LangGraph graphs
 

@@ -20,7 +20,7 @@ documents. Every JSONB write is validated by pydantic on the way in.
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `users` | `user_model.py` | Accounts (family-normative `users`, identity-auth §5) |
+| `users` | `user_model.py` | Accounts (family-normative `users`, identity-auth §5); `locale` is the optional UI locale (NULL = the instance default) |
 | `profiles` | `user_model.py` | The structured profile document — family 1:N per user (`name`, `is_default`, `last_used_at`, `preferences` + career's JSON sections; §5/§6) |
 | `auth_sessions` | `identity_model.py` | Refresh families (rotation + reuse detection, §5) |
 | `instance_settings` | `identity_model.py` | Instance access-mode facts (`auth_mode`, `demo_mode` — init-only, §4) |
@@ -46,7 +46,9 @@ stays referentially intact.
 | `jobs` | `job_model.py` | Jobs with rich structured attributes |
 | `job_relations` | `job_model.py` | Typed edges (`similar_to`, `specialises_into`, `leads_to`, `alternative_to`, `prerequisite_of`) with weight/rationale/source |
 | `job_skills`, `job_tags` | `job_model.py` | FK joins to `skills` / `interest_tags` |
-| `career_paths`, `career_path_steps` | `career_path_model.py` | Curated and AI-drafted routes |
+| `career_paths`, `career_path_steps` | `career_path_model.py` | Curated and AI-drafted routes; steps carry `parent_step_id` + `edge_label` for branching |
+| `label_overrides` | `localization_model.py` | Review-first catalog i18n overlays (`entity_kind` + `entity_id` + `locale` + `field` unique; AI drafts land as `draft`, only approval reaches `approved`) |
+| `user_path_flags` | `career_path_model.py` | A user's `interested`/`dismissed`/`pinned` mark on a path (`step_id` NULL = the whole path) |
 
 ## Universities
 
@@ -70,11 +72,16 @@ stays referentially intact.
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `job_sources` | `posting_model.py` | Configured connector sources |
+| `job_sources` | `posting_model.py` | Configured connector sources: `kind` (`posting`/`market`/`university`/`search`/`webhook_in`), `schedule_kind`, `paused_at`, `last_status` (`ok`/`degraded`/`failed`) |
 | `job_postings` | `posting_model.py` | Live postings + extraction payload |
 | `posting_skills` | `posting_model.py` | Extracted skills with level/priority/evidence |
-| `posting_interactions` | `posting_model.py` | Seen/saved/applied funnel |
-| `posting_fits` | `posting_model.py` | Per-posting fit |
+| `posting_interactions` | `posting_model.py` | Engagement state only: seen / saved / hidden |
+| `applications` | `application_model.py` | The application pipeline, 1:1 per user+posting: `stage`, `applied_at`, `applied_via` + `applied_via_url`, `deadline_at`, `next_followup_at`, `contact` (`{name, email, role, channel}`), `offer` (`{currency, amount, period, benefits[]}` — money triple), `outcome`/`closed_at`, `cv_id`/`cover_letter_id`, `external_ref`, `notes`, extension-only `meta` |
+| `application_events` | `application_model.py` | Append-only timeline: `at`, `kind`, `stage_from`/`stage_to`, `body`, `actor`, per-kind `meta` (`document_id` for `document_linked`, `step` for `followup_*`, the webhook payload for `external_update`); every stage transition writes exactly one `stage_change` |
+| `followup_rules` | `followup_model.py` | Per-user follow-up cadence (`cadence_days`), milestone check-ins, per-kind channel routing (`default`/`followup_due`/`interview_checkin`/`offer_checkin`) |
+| `user_feed_tokens` | `followup_model.py` | Hashed `.ics`/RSS subscription tokens with scope, rotation chain and revocation |
+| `webhook_endpoints` | `posting_model.py` | Inbound-webhook keys (`target` = `posting_status`/`application_status`/`ingest`), hashed token, health |
+| `posting_fits` | `posting_model.py` | Per-posting fit + `inputs_hash` staleness, `computed_at` and `fit_version` for bounded recompute/trends |
 | `market_snapshots` | `market_model.py` | Aggregated market data |
 | `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs and explainable findings |
 
@@ -93,6 +100,30 @@ against the vendored `desiredStateDocument` schema, which cannot express
 deletion).
 
 ### Migration notes
+
+- **0052** — plan 113 clean break: every `posting_interactions` row that
+  carries application state (`applied_at`, `stage`, `notes`,
+  `applied_via_url`) is folded into `applications` — one row per
+  user+posting, `applied_via` `url`, an out-of-vocabulary legacy stage
+  coerced to `applied` — and the four columns are dropped; dead
+  `chat_title` background-job rows are deleted. `downgrade()` recreates
+  the columns and folds the values back per user+posting (lossy only for
+  applications that never had an engagement row, and for the deleted job
+  rows) while **keeping the 0051 application tables**, which 0051's own
+  downgrade then drops. Covered by
+  `tests/test_migrations.py::test_0052_application_fold_and_downgrade_roundtrip`.
+
+- **0051** — plan 113 additive foundation: new `applications`,
+  `application_events`, `followup_rules`, `user_feed_tokens`,
+  `user_channel_configs`, `webhook_endpoints`, `label_overrides`,
+  `mcp_tokens`, `user_path_flags`; new columns `job_sources.kind` /
+  `schedule_kind` / `paused_at` / `last_status`, `users.locale`,
+  `profile_proposals.origin` (with `source` widened to 16),
+  `career_path_steps.parent_step_id` / `edge_label`,
+  `posting_fits.computed_at` / `fit_version`; `notification_deliveries.channel`
+  widened for email/webhook. Existing `posting_fits` rows backfill
+  `computed_at = updated_at` and `fit_version = 5`. Downgrade drops all of
+  it and restores the narrow CHECKs.
 
 - **0049** — the T2 sandbox runner's store (plan 32 Phase 5 /
   ADR-0030 Python port): widens `extension_installs.tier` to carry `T2`
@@ -128,7 +159,7 @@ deletion).
 | Table(s) | Model | Holds |
 |---|---|---|
 | `chat_sessions`, `chat_messages` | `chat_model.py` | Sessions, messages, turn metadata (tools/nodes traces) |
-| `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage) |
+| `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage); `source` spans `chat`/`mcp`/`autopilot`/`import`, `origin` carries `{tool, session, request_id}` provenance |
 | `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
 | `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) |
@@ -136,6 +167,7 @@ deletion).
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
 | `ai_embeddings` | `embedding_model.py` | Packed JSONB vectors (single source of truth) |
 | `ai_mcp_servers` | `mcp_bridge_model.py` | External MCP server registrations |
+| `mcp_tokens` | `mcp_bridge_model.py` | Hashed MCP access tokens (personal or instance-wide), closed `scopes`, rotation + per-token revocation |
 
 ## Growth, engagement and notifications
 
@@ -144,7 +176,8 @@ deletion).
 | `growth_plans`, `growth_plan_steps` | `growth_model.py` | Roadmaps |
 | `learning_resources` | `growth_model.py` | Resources for skill gaps |
 | `search_history` | `engagement_model.py` | Saved/recent searches |
-| `notifications`, `notification_recipients`, `notification_deliveries` | `engagement_model.py` | The notification funnel (dedup keys, delivery state) |
+| `notifications`, `notification_recipients`, `notification_deliveries` | `engagement_model.py` | The notification funnel (dedup keys, delivery state); `channel` spans `in_app`/`desktop`/`browser`/`email`/`webhook` — dispatch implementations land with 117 |
+| `user_channel_configs` | `engagement_model.py` | Per-user, per-channel config (email: `address` override + `digest_mode`; webhook: `url` + `template`), sealed `secrets` (webhook tokens only — URLs are not secrets) + `verified_at` |
 | `notification_kinds`, `notification_kind_prefs`, `notification_rules`, `notification_preferences`, `notification_subscriptions` | `engagement_model.py` | Kind registry, per-rule caps/cooldowns, quiet hours |
 
 ## Scheduling and operations
