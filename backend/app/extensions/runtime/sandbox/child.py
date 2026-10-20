@@ -140,7 +140,6 @@ MODULE_ALLOWLIST = frozenset(
 )
 
 MAX_PROTOCOL_VIOLATIONS = 3
-ENTRY_FILE = "extension.py"
 
 
 class SandboxViolation(RuntimeError):
@@ -632,6 +631,17 @@ def load_extension(
         if len(manifest_bytes) > MANIFEST_MAX_BYTES:
             raise ValueError("manifest exceeds manifestMaxBytes")
         manifest = json.loads(manifest_bytes)
+        # D1: the entry is manifest-declared and digest-covered — the child
+        # runs exactly that path (the fixed-filename pin is retired).
+        if entry != manifest.get("entry"):
+            return {}, {
+                "code": "invalid",
+                "detail": _bounded_detail({
+                    "message": "the entry must match the manifest's declared entry (digest-covered)",
+                    "path": entry,
+                }),
+                "retryable": "no",
+            }
         source = (root / entry).read_bytes()
         namespace: dict[str, Any] = {
             "__name__": "extension",
@@ -798,8 +808,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--digest", required=True)
     args = parser.parse_args(argv)
     if args.protocol != PROTOCOL:
-        return 2
-    if args.entry != ENTRY_FILE:
         return 2
     try:
         actual = digest_content(args.content_dir)

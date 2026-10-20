@@ -8,20 +8,30 @@
   "author": "Neuronection",
   "license": "MIT",
   "repository": "https://example.com/neuronection/t2-reference-scorer",
-  "categories": ["data"],
-  "capabilities": ["sync", "net", "state"],
-  "domains": ["example.jobs"],
+  "categories": [
+    "data"
+  ],
+  "capabilities": [
+    "sync",
+    "net",
+    "state"
+  ],
+  "domains": [
+    "example.jobs"
+  ],
   "configSchema": {
     "type": "object",
     "properties": {
       "url": {
         "type": "string",
         "title": "Postings URL",
-        "description": "The board URL to fetch — must sit under the manifest's declared domains.",
+        "description": "The board URL to fetch \u2014 must sit under the manifest's declared domains.",
         "maxLength": 500
       }
     },
-    "required": ["url"]
+    "required": [
+      "url"
+    ]
   },
   "defaults": {
     "url": "https://example.jobs/postings.json"
@@ -29,11 +39,23 @@
   "itemSchema": {
     "type": "object",
     "properties": {
-      "external_id": { "type": "string", "title": "External id" },
-      "title": { "type": "string", "title": "Title" },
-      "url": { "type": "string", "title": "URL" }
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
     },
-    "required": ["external_id", "title"]
+    "required": [
+      "external_id",
+      "title"
+    ]
   },
   "supportsIncremental": true,
   "i18n": {
@@ -44,5 +66,6 @@
         "summary": "A sandboxed postings fetcher with extension-owned dedupe state."
       }
     }
-  }
+  },
+  "entry": "extension.py"
 }

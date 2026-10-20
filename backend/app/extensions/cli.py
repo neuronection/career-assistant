@@ -169,18 +169,9 @@ async def _validate(args: argparse.Namespace) -> int:
             raise LifecycleError("invalid", "no extension manifests found (root + one level)")
         for entry in found:
             manifest = entry["manifest"]
-            tier = None
-            if manifest.get("kind") == "connector":
-                try:
-                    tier = lifecycle.detect_connector_tier(
-                        lifecycle._entry_dir(tree, entry["subpath"])
-                    )
-                except LifecycleError as exc:
-                    print(
-                        f"  {entry['extensionId']} @ {entry['subpath'] or '.'} — INCOMPATIBLE: "
-                        f"{exc.detail}"
-                    )
-                    continue
+            # Tier is provenance from the manifest (plan-38 D1) — the
+            # fixed-filename detection is retired.
+            tier = lifecycle.contract.derive_tier(manifest) if manifest.get("kind") == "connector" else None
             reason = lifecycle.check_host_profile(manifest, tier)
             digest = lifecycle.digest_tree(lifecycle._entry_dir(tree, entry["subpath"]))
             state = "compatible" if reason is None else f"INCOMPATIBLE: {reason}"

@@ -257,7 +257,7 @@ async def _run_fetch_locked(
         "--content-dir",
         install.content_path,
         "--entry",
-        "extension.py",
+        str(install.manifest.get("entry") or ""),
         "--digest",
         install.digest,
     ]

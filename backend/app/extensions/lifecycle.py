@@ -59,7 +59,6 @@ from app.models.extension_model import ExtensionInstall, ExtensionSource
 logger = logging.getLogger(__name__)
 
 DESIRED_STATE_KEY = "extensions.desired_state"
-ENTRY_FILE = "server.py"
 EXTENSIONS_SUBDIR = "extensions"
 MANIFEST_FILE = "manifest.json"
 MANIFEST_MAX_BYTES = 524_288
@@ -67,15 +66,15 @@ TREE_MAX_FILES = 4096
 TREE_MAX_BYTES = 128 * 1024 * 1024
 
 # Host profile (career, ADR-0040 D8 / plan 32 Phases 1-5): connector-kind
-# imports arrive as T3 (external MCP process) or — since Phase 5 — T2
-# (the capability-RPC sandbox, ADR-0030's Python port); mini-app imports
-# are T0 declarative. Tier is PROVENANCE AT INSTALL (D2): the artifact
-# shape decides (an ``extension.py`` capability-RPC module = T2; a
-# ``server.py`` MCP entry = T3; both or neither = rejected). The surface
-# host and honored capability sets are read from the vendored charter's
-# career-assistant host profile — data, never code (plan 37 Phase 2).
+# imports arrive as T3 (external MCP process) or T2 (the capability-RPC
+# sandbox, ADR-0030's Python port); mini-app imports are T0 declarative.
+# Tier is PROVENANCE AT INSTALL (D2 / plan-38 D1): the MANIFEST decides —
+# ``entry`` declares code (imported + entry = T2), ``mcp`` declares the
+# external process (entry + mcp = T3). The fixed-filename convention
+# (extension.py/server.py) is retired. The surface host and honored
+# capability sets are read from the vendored charter's career-assistant
+# host profile — data, never code (plan 37 Phase 2).
 MINIAPP_API_VERSION = 1
-T2_ENTRY_FILE = "extension.py"
 
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
@@ -610,30 +609,6 @@ def discover_manifests(tree: Path, subpath: str) -> list[dict]:
     return found
 
 
-def detect_connector_tier(entry_dir: Path) -> str:
-    """Tier is provenance at install (D2): the artifact shape decides.
-    An ``extension.py`` capability-RPC module imports as T2 (the sandbox);
-    a ``server.py`` MCP entry as T3 (external process); both is ambiguous
-    (rejected), neither is not runnable."""
-    has_t2 = (entry_dir / T2_ENTRY_FILE).is_file()
-    has_t3 = (entry_dir / ENTRY_FILE).is_file()
-    if has_t2 and has_t3:
-        raise LifecycleError(
-            "invalid",
-            f"ambiguous artifact: both {T2_ENTRY_FILE} (T2 sandbox) and {ENTRY_FILE} "
-            "(T3 MCP) present — ship exactly one entry shape",
-        )
-    if has_t2:
-        return "T2"
-    if has_t3:
-        return "T3"
-    raise LifecycleError(
-        "unsupported",
-        f"no runnable entry beside the manifest (expected {T2_ENTRY_FILE} for the T2 "
-        f"sandbox tier or {ENTRY_FILE} for the T3 MCP tier)",
-    )
-
-
 def check_host_profile(manifest: dict, tier: str | None = None) -> str | None:
     """Host-profile compatibility (data, never code): kind hosted? tier
     runnable? apiVersion current? capabilities honored? Returns the
@@ -758,7 +733,7 @@ def _evaluate_candidate(source: ExtensionSource, found: dict, tree: Path) -> _Ca
         compat = _miniapp_compat_reason(manifest)
         if compat is not None:
             raise LifecycleError("unsupported", compat)
-    tier = "T0" if kind == "mini-app" else detect_connector_tier(entry_dir)
+    tier = contract.derive_tier(manifest)
     _registration_gate(manifest, entry_dir, tier)
     reason = check_host_profile(manifest, tier if kind == "connector" else None)
     if reason is not None:
@@ -1138,26 +1113,10 @@ async def _sync_source_locked(
                 manifest = found["manifest"]
                 sub = found["subpath"]
                 entry_dir = _entry_dir(tree, sub)
-                tier = None
-                if manifest.get("kind") == "connector":
-                    try:
-                        tier = detect_connector_tier(entry_dir)
-                    except LifecycleError as exc:
-                        # An unusable artifact shape is the compat reason,
-                        # never a source failure (discovery keeps scanning).
-                        candidates.append(
-                            {
-                                "extensionId": found["extensionId"],
-                                "subpath": sub,
-                                "digest": digest_tree(entry_dir),
-                                "ref": resolved.ref,
-                                "manifest": manifest,
-                                "compatible": False,
-                                "reason": exc.detail,
-                                "hasEntry": False,
-                            }
-                        )
-                        continue
+                # Tier is provenance from the MANIFEST (plan-38 D1): entry
+                # declares code, mcp declares the external process. The
+                # fixed-filename detection is retired.
+                tier = contract.derive_tier(manifest) if manifest.get("kind") == "connector" else None
                 reason = None
                 if manifest.get("kind") == "mini-app":
                     # Artifact class first (plan 38 W3/W5): entry/tier law and
@@ -1176,8 +1135,7 @@ async def _sync_source_locked(
                         "manifest": manifest,
                         "compatible": reason is None,
                         "reason": reason,
-                        "hasEntry": (entry_dir / ENTRY_FILE).is_file()
-                        or (entry_dir / T2_ENTRY_FILE).is_file(),
+                        "hasEntry": bool(manifest.get("entry")),
                     }
                 )
             if not candidates:
@@ -1402,7 +1360,7 @@ async def _land_install(
     if kind == "connector" and tier == "T3":
         # T3 connector imports: the instance is a managed-spawn job
         # source (external MCP process, Phase 2/3 shape).
-        command = f'"{sys.executable}" "{content_dir / ENTRY_FILE}"'
+        command = f'"{sys.executable}" "{content_dir / str(manifest.get("entry"))}"'
         clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
         existing_row = clash.scalars().first()
         if existing_row is None:
@@ -1665,7 +1623,7 @@ async def apply_update(
                 if job_source is not None:
                     job_source.config = {
                         **job_source.config,
-                        "command": f'"{sys.executable}" "{content_dir / ENTRY_FILE}"',
+                        "command": f'"{sys.executable}" "{content_dir / str(candidate.manifest.get("entry"))}"',
                     }
             # T2 updates need no instance mutation: the sandbox runner
             # reads the install row's content_path + manifest at spawn.
@@ -1987,9 +1945,7 @@ async def _reconcile_missing_install(
             if found is None:
                 raise LifecycleError("not-found", f"{extension_id!r} not offered by the source")
             manifest = found["manifest"]
-            tier = None
-            if manifest.get("kind") == "connector":
-                tier = detect_connector_tier(_entry_dir(tree, found["subpath"]))
+            tier = contract.derive_tier(manifest) if manifest.get("kind") == "connector" else None
             reason = check_host_profile(manifest, tier)
             if reason is not None:
                 raise LifecycleError("unsupported", reason)

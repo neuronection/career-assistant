@@ -500,8 +500,8 @@ async def test_missing_entry_file_rejected_at_install(db, local_roots):
         await install_extension(
             db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
         )
-    assert exc.value.code == "unsupported"
-    assert "server.py" in exc.value.detail
+    assert exc.value.code == "invalid"
+    assert "is not a regular file" in exc.value.detail
 
 
 async def test_digest_drift_on_pinned_ref_is_a_loud_failure(db, local_roots, mcp_allowlist):
@@ -1139,6 +1139,7 @@ async def test_code_bearing_miniapp_is_not_tiered_t0(db, local_roots):
     manifest.pop("itemSchema", None)
     manifest.pop("supportsIncremental", None)
     manifest["entry"] = "extension.py"
+    manifest.pop("mcp", None)
     repo = make_repo(local_roots, manifest=manifest, tag=None)
     source = await _add(db, local_descriptor(repo))
     report = await sync_source(db, source.id)
@@ -1160,6 +1161,8 @@ async def test_surfaceless_miniapp_self_disables_typed(db, local_roots):
     manifest.pop("itemSchema", None)
     manifest.pop("supportsIncremental", None)
     manifest.pop("surfaces", None)
+    manifest.pop("mcp", None)
+    manifest.pop("entry", None)
     manifest["capabilities"] = ["ui:page"]
     repo = make_repo(local_roots, manifest=manifest, tag=None)
     source = await _add(db, local_descriptor(repo))
