@@ -4,7 +4,7 @@ back to the previous shape and upgrade again on the suite's test DB."""
 import asyncio
 import contextlib
 import os
-from datetime import UTC
+from datetime import UTC, datetime
 
 import pytest
 from alembic.config import Config
@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0051"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0052"], (
         "revision chain stays linear on one head"
     )
 
@@ -1323,6 +1323,271 @@ def test_0045_byok_uniform_realignment_roundtrip():
                 [
                     sa.text(f"DELETE FROM ai_models WHERE id = '{model_id}'"),
                     sa.text(f"DELETE FROM ai_providers WHERE id = '{provider_id}'"),
+                ]
+            )
+        )
+
+
+def test_0052_application_fold_and_downgrade_roundtrip():
+    """Plan 113: legacy `posting_interactions` application fields fold into
+    `applications`; downgrading to 0051 restores the four columns and folds
+    the values back. Engagement-only rows never gain an application."""
+    import uuid as _uuid
+
+    import sqlalchemy as sa
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    _json = JSONB().with_variant(sa.JSON(), "sqlite")
+    users = sa.table(
+        "users",
+        sa.column("id", sa.Uuid()),
+        sa.column("email", sa.String),
+        sa.column("password_hash", sa.String),
+        sa.column("full_name", sa.String),
+        sa.column("is_active", sa.Boolean),
+        sa.column("is_admin", sa.Boolean),
+        sa.column("failed_login_attempts", sa.Integer),
+        sa.column("token_version", sa.Integer),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    sources = sa.table(
+        "job_sources",
+        sa.column("id", sa.Uuid()),
+        sa.column("key", sa.String),
+        sa.column("connector_key", sa.String),
+        sa.column("config", _json),
+        sa.column("sync_state", _json),
+        sa.column("error", sa.String),
+        sa.column("enabled", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    postings = sa.table(
+        "job_postings",
+        sa.column("id", sa.Uuid()),
+        sa.column("source_id", sa.Uuid()),
+        sa.column("external_id", sa.String),
+        sa.column("ref", sa.String),
+        sa.column("title", sa.String),
+        sa.column("org", sa.String),
+        sa.column("location", _json),
+        sa.column("url", sa.String),
+        sa.column("content_hash", sa.String),
+        sa.column("raw", _json),
+        sa.column("needs_review", sa.Boolean),
+        sa.column("posting_facts", _json),
+        sa.column("status", sa.String),
+        sa.column("mapping_reason", sa.String),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    interactions = sa.table(
+        "posting_interactions",
+        sa.column("id", sa.Uuid()),
+        sa.column("user_id", sa.Uuid()),
+        sa.column("posting_id", sa.Uuid()),
+        sa.column("seen_at", sa.DateTime(timezone=True)),
+        sa.column("saved_at", sa.DateTime(timezone=True)),
+        sa.column("hidden_at", sa.DateTime(timezone=True)),
+        sa.column("applied_at", sa.DateTime(timezone=True)),
+        sa.column("applied_via_url", sa.String),
+        sa.column("stage", sa.String),
+        sa.column("notes", sa.Text),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    applications = sa.table(
+        "applications",
+        sa.column("user_id", sa.Uuid()),
+        sa.column("posting_id", sa.Uuid()),
+        sa.column("stage", sa.String),
+        sa.column("applied_at", sa.DateTime(timezone=True)),
+        sa.column("applied_via", sa.String),
+        sa.column("applied_via_url", sa.String),
+        sa.column("notes", sa.Text),
+    )
+
+    config = _configured()
+    command.downgrade(config, "0050")
+
+    run_id = _uuid.uuid4().hex[:8]
+    user_id = _uuid.uuid4()
+    source_id = _uuid.uuid4()
+    applied_posting = _uuid.uuid4()
+    seen_posting = _uuid.uuid4()
+    applied_interaction = _uuid.uuid4()
+    seen_interaction = _uuid.uuid4()
+    now = datetime.now(UTC)
+    email = f"fold0052-{run_id}@example.com"
+    source_key = f"fold-0052-{run_id}"
+
+    async def run(statements):
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for statement in statements:
+                    await conn.execute(statement)
+        finally:
+            await engine.dispose()
+
+    async def read_applications():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                rows = await conn.execute(
+                    sa.select(
+                        applications.c.posting_id,
+                        applications.c.stage,
+                        applications.c.applied_at,
+                        applications.c.applied_via,
+                        applications.c.applied_via_url,
+                        applications.c.notes,
+                    ).where(applications.c.user_id == user_id)
+                )
+                return {row.posting_id: row for row in rows.all()}
+        finally:
+            await engine.dispose()
+
+    async def read_interactions():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                rows = await conn.execute(
+                    sa.select(
+                        interactions.c.posting_id,
+                        interactions.c.stage,
+                        interactions.c.applied_at,
+                        interactions.c.applied_via_url,
+                        interactions.c.notes,
+                    ).where(interactions.c.user_id == user_id)
+                )
+                return {row.posting_id: row for row in rows.all()}
+        finally:
+            await engine.dispose()
+
+    try:
+        asyncio.run(
+            run(
+                [
+                    users.insert().values(
+                        id=user_id,
+                        email=email,
+                        password_hash="$2b$12$foldmigrationplaceholder",
+                        full_name="",
+                        is_active=True,
+                        is_admin=False,
+                        failed_login_attempts=0,
+                        token_version=1,
+                        created_at=now,
+                        updated_at=now,
+                    ),
+                    sources.insert().values(
+                        id=source_id,
+                        key=source_key,
+                        connector_key="ats_api",
+                        config={},
+                        sync_state={},
+                        error="",
+                        enabled=True,
+                        created_at=now,
+                        updated_at=now,
+                    ),
+                    *[
+                        postings.insert().values(
+                            id=posting_id,
+                            source_id=source_id,
+                            external_id=f"{source_key}-{index}",
+                            ref=f"F{index}{run_id}"[:8],
+                            title="Fold posting",
+                            org="Fold Co",
+                            location={},
+                            url="",
+                            content_hash=f"fold-hash-{run_id}-{index}",
+                            raw={},
+                            needs_review=False,
+                            posting_facts={},
+                            status="new",
+                            mapping_reason="",
+                            created_at=now,
+                            updated_at=now,
+                        )
+                        for index, posting_id in enumerate((applied_posting, seen_posting))
+                    ],
+                    interactions.insert().values(
+                        id=applied_interaction,
+                        user_id=user_id,
+                        posting_id=applied_posting,
+                        seen_at=now,
+                        saved_at=now,
+                        hidden_at=None,
+                        applied_at=now,
+                        applied_via_url="https://jobs.example/fold",
+                        stage="interview",
+                        notes="legacy note",
+                        created_at=now,
+                        updated_at=now,
+                    ),
+                    interactions.insert().values(
+                        id=seen_interaction,
+                        user_id=user_id,
+                        posting_id=seen_posting,
+                        seen_at=now,
+                        saved_at=None,
+                        hidden_at=None,
+                        applied_at=None,
+                        applied_via_url="",
+                        stage=None,
+                        notes="",
+                        created_at=now,
+                        updated_at=now,
+                    ),
+                ]
+            )
+        )
+
+        command.upgrade(config, "head")
+
+        folded = asyncio.run(read_applications())
+        assert set(folded) == {applied_posting}, "only application rows are folded"
+        row = folded[applied_posting]
+        assert row.stage == "interview"
+        assert row.applied_via == "url"
+        assert row.applied_via_url == "https://jobs.example/fold"
+        assert row.notes == "legacy note"
+        assert row.applied_at is not None
+
+        command.downgrade(config, "0051")
+        restored = asyncio.run(read_interactions())
+        assert restored[applied_posting].stage == "interview"
+        assert restored[applied_posting].applied_via_url == "https://jobs.example/fold"
+        assert restored[applied_posting].notes == "legacy note"
+        assert restored[applied_posting].applied_at is not None
+        assert restored[seen_posting].stage is None
+        assert restored[seen_posting].applied_via_url == ""
+        assert asyncio.run(read_applications()), "0052 downgrade keeps the 0051 shape"
+    finally:
+        command.upgrade(config, "head")
+        asyncio.run(
+            run(
+                [
+                    sa.text(
+                        "DELETE FROM applications WHERE user_id IN "
+                        "(SELECT id FROM users WHERE email = :email)"
+                    ).bindparams(email=email),
+                    sa.text(
+                        "DELETE FROM posting_interactions WHERE user_id IN "
+                        "(SELECT id FROM users WHERE email = :email)"
+                    ).bindparams(email=email),
+                    sa.text(
+                        "DELETE FROM job_postings WHERE source_id IN "
+                        "(SELECT id FROM job_sources WHERE key = :key)"
+                    ).bindparams(key=source_key),
+                    sa.text("DELETE FROM job_sources WHERE key = :key").bindparams(key=source_key),
+                    sa.text("DELETE FROM users WHERE email = :email").bindparams(email=email),
                 ]
             )
         )
