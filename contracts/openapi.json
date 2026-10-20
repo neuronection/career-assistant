@@ -365,10 +365,15 @@
         "type": "object"
       },
       "ApplicationStage": {
+        "description": "Where an application sits in the pipeline.",
         "enum": [
           "applied",
+          "screening",
           "interview",
-          "offer"
+          "offer",
+          "accepted",
+          "rejected",
+          "withdrawn"
         ],
         "title": "ApplicationStage",
         "type": "string"
@@ -30252,7 +30257,7 @@
     },
     "/api/v1/postings/applied": {
       "post": {
-        "description": "Applied tracking: set when the user opens the original URL.",
+        "description": "Applied tracking: the pipeline row plus its first stage event.",
         "operationId": "postings_applied_api_v1_postings_applied_post",
         "requestBody": {
           "content": {

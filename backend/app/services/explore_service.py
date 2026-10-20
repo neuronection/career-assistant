@@ -20,6 +20,7 @@ from sqlalchemy import Text, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
+from app.models.application_model import Application
 from app.models.enums import EducationLevel, EducationLevelOrder, PostingSkillPriority
 from app.models.experience_model import Organization
 from app.models.job_model import Job, JobFamily
@@ -266,6 +267,7 @@ def _conditions_for(
     filters: dict,
     skill_ids: dict[str, UUID],
     source_ids: dict[str, UUID],
+    user_id: UUID,
 ) -> list:
     """SQL conditions for one filter dimension (empty when inactive)."""
     conditions: list = []
@@ -387,7 +389,11 @@ def _conditions_for(
         if filters.get("seen"):
             conditions.append(PostingInteraction.seen_at.is_not(None))
         if filters.get("applied"):
-            conditions.append(PostingInteraction.applied_at.is_not(None))
+            conditions.append(
+                JobPosting.id.in_(
+                    select(Application.posting_id).where(Application.user_id == user_id)
+                )
+            )
         if filters.get("extracted_only"):
             conditions.append(JobPosting.extract_version.is_not(None))
 
@@ -567,7 +573,7 @@ async def explore(
     from app.models.job_model import JobSkill, JobTag
 
     base = (
-        select(JobPosting, PostingInteraction)
+        select(JobPosting, PostingInteraction, Application)
         .options(
             selectinload(JobPosting.catalog_job).selectinload(Job.family),
             selectinload(JobPosting.catalog_job)
@@ -582,14 +588,21 @@ async def explore(
             (PostingInteraction.posting_id == JobPosting.id)
             & (PostingInteraction.user_id == user_id),
         )
+        .outerjoin(
+            Application,
+            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
+        )
         .where(JobPosting.status.in_(["mapped", "new"]))
     )
     conditions: list = []
     for dimension in DIMENSIONS:
-        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids))
+        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
     query = base.where(and_(*conditions)) if conditions else base
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
-    entries = [{"posting": posting, "interaction": interaction} for posting, interaction in rows]
+    entries = [
+        {"posting": posting, "interaction": interaction, "application": application}
+        for posting, interaction, application in rows
+    ]
 
     entries = [
         entry
@@ -646,6 +659,7 @@ async def explore(
             {
                 "posting": entry["posting"],
                 "interaction": entry["interaction"],
+                "application": entry.get("application"),
                 "seen": entry["interaction"] is not None
                 and entry["interaction"].seen_at is not None,
                 "fit": entry.get("fit"),
@@ -681,7 +695,7 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
         for dimension in DIMENSIONS:
             if skip and dimension in skip:
                 continue
-            conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids))
+            conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
         query = base.where(and_(*conditions)) if conditions else base
         if extra is not None:
             query = query.where(extra)
@@ -718,6 +732,7 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
                     filters,
                     skill_ids,
                     source_ids,
+                    user_id,
                     skip={"education_min", "languages"},
                 )
             )
@@ -735,7 +750,7 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
     rows = (
         (
             await db.execute(
-                _facet_query(db, base, filters, skill_ids, source_ids, skip={"released"})
+                _facet_query(db, base, filters, skill_ids, source_ids, user_id, skip={"released"})
             )
         )
         .scalars()
@@ -761,7 +776,7 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
     facets["posted"] = buckets
 
     skill_counts: dict[str, int] = {}
-    core = _facet_query(db, base, filters, skill_ids, source_ids, skip=set(DIMENSIONS))
+    core = _facet_query(db, base, filters, skill_ids, source_ids, user_id, skip=set(DIMENSIONS))
     skill_rows = await db.execute(
         select(Skill.key, func.count(PostingSkill.posting_id))
         .join(PostingSkill, PostingSkill.skill_id == Skill.id)
@@ -785,6 +800,7 @@ def _facet_query(
     filters: dict,
     skill_ids: dict[str, UUID],
     source_ids: dict[str, UUID],
+    user_id: UUID,
     *,
     skip: set[str] | None = None,
 ):
@@ -792,7 +808,7 @@ def _facet_query(
     for dimension in DIMENSIONS:
         if skip and dimension in skip:
             continue
-        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids))
+        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
     return base.where(and_(*conditions)) if conditions else base
 
 

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.extensions import registry
+from app.models.application_model import Application
 from app.models.enums import (
     MappingMethod,
     NotificationRuleKind,
@@ -483,7 +484,7 @@ async def list_postings(
     from app.models.job_model import JobTag
 
     query = (
-        select(JobPosting, PostingInteraction)
+        select(JobPosting, PostingInteraction, Application)
         .options(
             selectinload(JobPosting.catalog_job).selectinload(Job.family),
             selectinload(JobPosting.catalog_job)
@@ -497,6 +498,10 @@ async def list_postings(
             PostingInteraction,
             (PostingInteraction.posting_id == JobPosting.id)
             & (PostingInteraction.user_id == user_id),
+        )
+        .outerjoin(
+            Application,
+            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
         .where(JobPosting.status.in_(["mapped", "new"]))
     )
@@ -519,13 +524,20 @@ async def list_postings(
 
     items = []
     unseen = 0
-    for posting, interaction in rows:
+    for posting, interaction, application in rows:
         seen = interaction is not None and interaction.seen_at is not None
         if saved and (interaction is None or interaction.saved_at is None):
             continue
         if not seen:
             unseen += 1
-        items.append({"posting": posting, "interaction": interaction, "seen": seen})
+        items.append(
+            {
+                "posting": posting,
+                "interaction": interaction,
+                "application": application,
+                "seen": seen,
+            }
+        )
 
     if sort == "fresh":
         items.sort(key=lambda i: i["posting"].posted_at or _utcnow(), reverse=True)
@@ -629,7 +641,7 @@ async def search_postings(
         conditions.append(cond.exists())
 
     query = (
-        select(JobPosting, PostingInteraction)
+        select(JobPosting, PostingInteraction, Application)
         .options(
             selectinload(JobPosting.catalog_job).selectinload(Job.family),
             selectinload(JobPosting.catalog_job)
@@ -643,6 +655,10 @@ async def search_postings(
             PostingInteraction,
             (PostingInteraction.posting_id == JobPosting.id)
             & (PostingInteraction.user_id == user_id),
+        )
+        .outerjoin(
+            Application,
+            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
         .where(JobPosting.status.in_(["mapped", "new"]))
     )
@@ -666,13 +682,20 @@ async def search_postings(
 
     items = []
     unseen = 0
-    for posting, interaction in rows:
+    for posting, interaction, application in rows:
         seen = interaction is not None and interaction.seen_at is not None
         if saved and (interaction is None or interaction.saved_at is None):
             continue
         if not seen:
             unseen += 1
-        items.append({"posting": posting, "interaction": interaction, "seen": seen})
+        items.append(
+            {
+                "posting": posting,
+                "interaction": interaction,
+                "application": application,
+                "seen": seen,
+            }
+        )
 
     if match_profile:
         coverages = {}

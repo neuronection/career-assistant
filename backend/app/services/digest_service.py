@@ -150,7 +150,7 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
     for dimension in DIMENSIONS:
         if dimension == "state":
             continue  # the run itself defines seen-state below
-        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids))
+        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
     query = (
         select(JobPosting, PostingInteraction)
         .outerjoin(

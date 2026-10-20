@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enums import EducationLevel, EducationLevelOrder, PostingSkillPriority
 from app.models.posting_model import JobPosting, PostingFit, PostingSkill
 from app.models.user_model import UserSkill
+from app.services.fit.dimensions import FIT_VERSION
 
 FRESH_WEIGHT = 1.0
 FRESH_DECAY_PER_WEEK = 0.5
@@ -420,6 +421,8 @@ async def get_posting_fit(
     cached.score = Decimal(str(computed["score"]))
     cached.breakdown = computed["breakdown"]
     cached.inputs_hash = computed["inputs_hash"]
+    cached.computed_at = datetime.now(UTC)
+    cached.fit_version = FIT_VERSION
     await db.flush()
     return computed
 

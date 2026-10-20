@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.models.application_model import Application
 from app.models.background_job_model import BackgroundJob
 from app.models.engagement_model import Notification, NotificationKind
 from app.models.enums import BackgroundJobType, ScheduleKind
@@ -20,15 +21,23 @@ from app.services.scheduler.runner import SchedulerService
 from tests.conftest import _make_posting, _uid
 
 
-async def _applied(db, headers, source, *, days_ago=8, stage=None) -> PostingInteraction:
+async def _applied(db, headers, source, *, days_ago=8, stage=None) -> JobPosting:
     posting: JobPosting = await _make_posting(db, source, external_id="fu-1")
+    user_id = UUID(_uid(headers))
+    applied_at = datetime.now(UTC) - timedelta(days=days_ago)
     db.add(
         PostingInteraction(
-            user_id=UUID(_uid(headers)),
+            user_id=user_id,
             posting_id=posting.id,
-            seen_at=datetime.now(UTC) - timedelta(days=days_ago),
-            applied_at=datetime.now(UTC) - timedelta(days=days_ago),
-            stage=stage,
+            seen_at=applied_at,
+        )
+    )
+    db.add(
+        Application(
+            user_id=user_id,
+            posting_id=posting.id,
+            applied_at=applied_at,
+            stage=stage or "applied",
         )
     )
     await db.commit()
@@ -62,7 +71,7 @@ async def test_second_nudge_waits_for_first_and_the_delay(
     await _applied(db, auth_headers, source, days_ago=3)
     assert await sweep(db) == 0, "before the first delay nothing is due"
 
-    rows = (await db.execute(select(PostingInteraction))).scalars().all()
+    rows = (await db.execute(select(Application))).scalars().all()
     rows[0].applied_at = datetime.now(UTC) - timedelta(days=20)
     await db.commit()
     assert await sweep(db) == 1  # first
@@ -93,7 +102,7 @@ async def test_disabled_user_and_adjusted_delays(
 
     await update_prefs(db, UUID(_uid(auth_headers)), {"enabled": True, "first_delay_days": 30})
     assert await sweep(db) == 0, "8d < 30d custom delay"
-    rows = (await db.execute(select(PostingInteraction))).scalars().all()
+    rows = (await db.execute(select(Application))).scalars().all()
     rows[0].applied_at = datetime.now(UTC) - timedelta(days=31)
     await db.commit()
     assert await sweep(db) == 1

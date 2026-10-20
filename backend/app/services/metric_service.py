@@ -306,6 +306,7 @@ class MetricService:
         """
         from datetime import datetime, timedelta
 
+        from app.models.application_model import Application
         from app.models.job_model import JobTag
         from app.models.posting_model import JobPosting, PostingInteraction
         from app.models.user_model import Profile
@@ -333,6 +334,21 @@ class MetricService:
             .all()
         )
         posting_ids = [i.posting_id for i in interactions if i.posting_id]
+        applications: dict[uuid.UUID, Application] = {}
+        if posting_ids:
+            application_rows = (
+                (
+                    await self.db.execute(
+                        select(Application).where(
+                            Application.user_id == user_id,
+                            Application.posting_id.in_(posting_ids),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            applications = {application.posting_id: application for application in application_rows}
         postings: dict[uuid.UUID, JobPosting] = {}
         if posting_ids:
             posting_rows = (
@@ -355,7 +371,12 @@ class MetricService:
                 weight += _REVEALED_ENGAGEMENT_WEIGHTS["seen"]
             if interaction.saved_at and interaction.saved_at >= window_start:
                 weight += _REVEALED_ENGAGEMENT_WEIGHTS["saved"]
-            if interaction.applied_at and interaction.applied_at >= window_start:
+            application = applications.get(interaction.posting_id)
+            if (
+                application is not None
+                and application.applied_at
+                and application.applied_at >= window_start
+            ):
                 weight += _REVEALED_ENGAGEMENT_WEIGHTS["applied"]
             if weight <= 0:
                 continue
@@ -423,42 +444,63 @@ class MetricService:
     async def outcome_funnel(self, user_id: uuid.UUID) -> list[dict]:
         """Application funnel per catalog family — observation only
         : never read by scoring, no self-reinforcing loop."""
+        from app.models.application_model import Application
         from app.models.job_model import Job, JobFamily
         from app.models.posting_model import JobPosting, PostingInteraction
 
-        rows = await self.db.execute(
-            select(PostingInteraction, JobFamily.label)
-            .join(JobPosting, JobPosting.id == PostingInteraction.posting_id)
-            .join(Job, Job.id == JobPosting.catalog_job_id)
-            .join(JobFamily, JobFamily.id == Job.family_id)
-            .where(PostingInteraction.user_id == user_id)
-        )
         families: dict[str, dict] = {}
-        for interaction, family_label in rows.all():
-            bucket = families.setdefault(
-                family_label,
+
+        def bucket(label: str) -> dict:
+            return families.setdefault(
+                label,
                 {
-                    "family": family_label,
+                    "family": label,
                     "saved": 0,
                     "applied": 0,
                     "interview": 0,
                     "offer": 0,
                 },
             )
-            if interaction.saved_at is not None:
-                bucket["saved"] += 1
-            if interaction.applied_at is not None:
-                bucket["applied"] += 1
-            if interaction.stage == "interview":
-                bucket["interview"] += 1
-            elif interaction.stage == "offer":
-                bucket["offer"] += 1
+
+        saved_rows = await self.db.execute(
+            select(JobFamily.label, func.count(PostingInteraction.id))
+            .join(JobPosting, JobPosting.id == PostingInteraction.posting_id)
+            .join(Job, Job.id == JobPosting.catalog_job_id)
+            .join(JobFamily, JobFamily.id == Job.family_id)
+            .where(
+                PostingInteraction.user_id == user_id,
+                PostingInteraction.saved_at.is_not(None),
+            )
+            .group_by(JobFamily.label)
+        )
+        for family_label, count in saved_rows.all():
+            bucket(family_label)["saved"] = int(count)
+
+        application_rows = await self.db.execute(
+            select(JobFamily.label, Application.stage, func.count(Application.id))
+            .join(JobPosting, JobPosting.id == Application.posting_id)
+            .join(Job, Job.id == JobPosting.catalog_job_id)
+            .join(JobFamily, JobFamily.id == Job.family_id)
+            .where(
+                Application.user_id == user_id,
+                Application.applied_at.is_not(None),
+            )
+            .group_by(JobFamily.label, Application.stage)
+        )
+        for family_label, stage, count in application_rows.all():
+            entry = bucket(family_label)
+            entry["applied"] += int(count)
+            if stage == "interview":
+                entry["interview"] += int(count)
+            elif stage == "offer":
+                entry["offer"] += int(count)
+
         results = []
-        for bucket in families.values():
-            applied = bucket["applied"]
-            bucket["interview_rate"] = round(bucket["interview"] / applied, 2) if applied else None
-            bucket["offer_rate"] = round(bucket["offer"] / applied, 2) if applied else None
-            results.append(bucket)
+        for entry in families.values():
+            applied = entry["applied"]
+            entry["interview_rate"] = round(entry["interview"] / applied, 2) if applied else None
+            entry["offer_rate"] = round(entry["offer"] / applied, 2) if applied else None
+            results.append(entry)
         results.sort(key=lambda item: (-item["applied"], item["family"]))
         return results
 

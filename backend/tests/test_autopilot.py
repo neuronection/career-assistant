@@ -454,18 +454,16 @@ async def test_cross_user_isolation(client, auth_headers, db, search_fixtures):
 
 
 async def test_no_apply_invariant(client, auth_headers, db, search_fixtures):
-    """Autopilot never applies: no interaction gains applied_at."""
-    from app.models.posting_model import PostingInteraction
+    """Autopilot never applies: no application row is ever created."""
+    from app.models.application_model import Application
 
     created = await _goal(client, auth_headers)
     service, user_id = _service(db, auth_headers)
     result = await service.run_goal(UUID(created["id"]), user_id)
     await db.commit()
     assert result["findings"]
-    rows = await db.execute(select(PostingInteraction))
-    for interaction in rows.scalars().all():
-        assert interaction.applied_at is None
-        assert interaction.applied_via_url == ""
+    rows = await db.execute(select(Application))
+    assert rows.scalars().all() == []
 
 
 # ------------------------------------------------------------ graph internals

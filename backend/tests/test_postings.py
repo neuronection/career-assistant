@@ -429,6 +429,50 @@ async def test_interaction_state_round_trip(
     assert hidden_gone["total"] == 0
 
 
+async def test_apply_writes_pipeline_row_and_first_stage_event(
+    client, auth_headers, profile_ready, seeded_catalog, db, source
+):
+    """Plan 113: the apply path owns the pipeline row; the first
+    `stage_change` event is written exactly once per real transition."""
+    from app.models.application_model import Application, ApplicationEvent
+    from app.services.applications_service import transition_stage
+
+    await sync_source(db, source)
+    posting_id = (await client.get("/api/v1/postings", headers=auth_headers)).json()["items"][0][
+        "id"
+    ]
+    payload = {
+        "posting_id": posting_id,
+        "applied_via_url": "https://jobs.example/1",
+    }
+    first = await client.post("/api/v1/postings/applied", json=payload, headers=auth_headers)
+    assert first.status_code == 200, first.text
+    assert first.json()["stage"] == "applied"
+
+    application = (await db.execute(select(Application))).scalars().one()
+    assert application.stage == "applied"
+    assert application.applied_via_url == "https://jobs.example/1"
+    events = (await db.execute(select(ApplicationEvent))).scalars().all()
+    assert len(events) == 1
+    assert events[0].kind == "stage_change"
+    assert events[0].stage_from is None
+    assert events[0].stage_to == "applied"
+    assert events[0].actor == "user"
+
+    repeat = await client.post("/api/v1/postings/applied", json=payload, headers=auth_headers)
+    assert repeat.status_code == 200, repeat.text
+    events = (await db.execute(select(ApplicationEvent))).scalars().all()
+    assert len(events) == 1, "re-applying on the same stage is not a transition"
+
+    await transition_stage(db, application, to_stage="interview")
+    await db.commit()
+    events = (
+        (await db.execute(select(ApplicationEvent).order_by(ApplicationEvent.at))).scalars().all()
+    )
+    assert [event.stage_to for event in events] == ["applied", "interview"]
+    assert events[1].stage_from == "applied"
+
+
 # --------------------------------------------- secrets (plan 32 Phase 1 / D19)
 
 

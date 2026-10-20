@@ -89,6 +89,7 @@ from sqlalchemy import create_engine, delete, event, func, inspect, select  # no
 from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
+from app.models.application_model import Application  # noqa: E402
 from app.models.cv_model import CvDocument  # noqa: E402
 from app.models.cv_template_model import CvTemplate  # noqa: E402
 from app.models.experience_model import (  # noqa: E402
@@ -1178,11 +1179,17 @@ def purge_seeded(session: Session) -> dict[str, int]:
 
     run(delete(AuthSession).where(AuthSession.user_id.in_(user_ids)))
     counts["applications"] = run(
-        delete(PostingInteraction).where(PostingInteraction.user_id.in_(user_ids))
+        delete(Application).where(Application.user_id.in_(user_ids))
     )
+    run(delete(PostingInteraction).where(PostingInteraction.user_id.in_(user_ids)))
     run(delete(PostingFit).where(PostingFit.user_id.in_(user_ids)))
     if posting_ids:
         run(delete(PostingSkill).where(PostingSkill.posting_id.in_(posting_ids)))
+        run(
+            delete(Application).where(
+                Application.posting_id.in_(posting_ids)
+            )
+        )
         run(
             delete(PostingInteraction).where(
                 PostingInteraction.posting_id.in_(posting_ids)
@@ -1608,6 +1615,12 @@ def _ensure_application(
             posting_id=posting_id,
             seen_at=applied_at - timedelta(days=1),
             saved_at=applied_at - timedelta(hours=6),
+        )
+    )
+    session.add(
+        Application(
+            user_id=user.id,
+            posting_id=posting_id,
             applied_at=applied_at,
             applied_via_url=f"https://demo.career.local/postings/{spec.posting_key}/apply",
             stage=spec.stage,
@@ -1747,8 +1760,8 @@ def scope_totals(session: Session) -> dict[str, int]:
         else 0,
         "applications": count(
             select(func.count())
-            .select_from(PostingInteraction)
-            .where(PostingInteraction.user_id.in_(user_ids))
+            .select_from(Application)
+            .where(Application.user_id.in_(user_ids))
         ),
     }
 

@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.models.application_model import Application
 from app.models.assessment_template_model import AssessmentTemplate
 from app.models.enums import TemplateSource, TemplateStatus
 from app.models.job_model import Job, JobTag
@@ -51,7 +52,14 @@ async def _engaged_posting(db, headers, source) -> JobPosting:
             posting_id=posting.id,
             seen_at=now,
             saved_at=now,
+        )
+    )
+    db.add(
+        Application(
+            user_id=UUID(_uid(headers)),
+            posting_id=posting.id,
             applied_at=now,
+            stage="applied",
         )
     )
     await db.commit()
@@ -150,21 +158,33 @@ async def test_outcome_funnel_counts_and_rates(
                 posting_id=postings[0].id,
                 seen_at=now,
                 saved_at=now,
-                applied_at=now,
-                stage="interview",
             ),
             PostingInteraction(
                 user_id=user_id,
                 posting_id=postings[1].id,
                 seen_at=now,
-                applied_at=now,
-                stage="offer",
             ),
             PostingInteraction(
                 user_id=user_id, posting_id=postings[2].id, seen_at=now, saved_at=now
             ),
-            PostingInteraction(
-                user_id=user_id, posting_id=postings[3].id, seen_at=now, applied_at=now
+            PostingInteraction(user_id=user_id, posting_id=postings[3].id, seen_at=now),
+            Application(
+                user_id=user_id,
+                posting_id=postings[0].id,
+                applied_at=now,
+                stage="interview",
+            ),
+            Application(
+                user_id=user_id,
+                posting_id=postings[1].id,
+                applied_at=now,
+                stage="offer",
+            ),
+            Application(
+                user_id=user_id,
+                posting_id=postings[3].id,
+                applied_at=now,
+                stage="applied",
             ),
         ]
     )

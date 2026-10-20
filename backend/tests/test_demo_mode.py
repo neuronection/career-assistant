@@ -80,6 +80,7 @@ def db_counts(database: Path) -> dict[str, int]:
             "cv_documents",
             "job_postings",
             "posting_interactions",
+            "applications",
             "skills",
         ):
             counts[table] = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
@@ -105,7 +106,7 @@ def named_counts(counts: dict[str, int]) -> dict[str, int]:
         "honors": counts["profile_achievements"],
         "cvs": counts["cv_documents"],
         "postings": counts["job_postings"],
-        "applications": counts["posting_interactions"],
+        "applications": counts["applications"],
         "demo_mode": counts["demo_mode"],
     }
 

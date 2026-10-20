@@ -38,7 +38,7 @@ router = APIRouter(tags=["postings"])
 
 
 def _posting_out(
-    posting: JobPosting, interaction, fit=None, source_key="", coverage=None
+    posting: JobPosting, interaction, application=None, fit=None, source_key="", coverage=None
 ) -> PostingOut:
     from app.schemas.job import JobOut
 
@@ -71,8 +71,8 @@ def _posting_out(
         fit=fit,
         seen=interaction is not None and interaction.seen_at is not None,
         saved=interaction is not None and interaction.saved_at is not None,
-        applied_at=interaction.applied_at if interaction else None,
-        notes=interaction.notes if interaction else "",
+        applied_at=application.applied_at if application else None,
+        notes=application.notes if application else "",
         extract_version=posting.extract_version,
         needs_review=posting.needs_review,
         coverage=coverage,
@@ -111,6 +111,7 @@ async def postings(
             _posting_out(
                 item["posting"],
                 item["interaction"],
+                item.get("application"),
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
             )
@@ -161,6 +162,7 @@ async def postings_search(
             _posting_out(
                 item["posting"],
                 item["interaction"],
+                item.get("application"),
                 fit=item.get("fit"),
                 coverage=item.get("coverage"),
                 source_key=sources.get(item["posting"].source_id, ""),
@@ -216,6 +218,7 @@ async def postings_explore(
             _posting_out(
                 item["posting"],
                 item["interaction"],
+                item.get("application"),
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
             )
@@ -349,20 +352,18 @@ async def postings_hide(
 async def postings_applied(
     data: AppliedIn, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Applied tracking: set when the user opens the original URL."""
-    interaction = await set_state(
+    """Applied tracking: the pipeline row plus its first stage event."""
+    from app.services.applications_service import apply_to_posting
+
+    application = await apply_to_posting(
         db,
         user.id,
         data.posting_id,
-        field="applied_at",
-        value=datetime.now(UTC),
-        extra={
-            "applied_via_url": data.applied_via_url,
-            "stage": data.stage.value if data.stage else "applied",
-        },
+        applied_via_url=data.applied_via_url,
+        stage=data.stage,
     )
     return {
-        "posting_id": str(interaction.posting_id),
-        "applied_at": interaction.applied_at.isoformat(),
-        "stage": interaction.stage,
+        "posting_id": str(application.posting_id),
+        "applied_at": application.applied_at.isoformat(),
+        "stage": application.stage,
     }

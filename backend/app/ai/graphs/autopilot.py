@@ -265,6 +265,7 @@ def _serialize_candidate(item: dict) -> dict | None:
         salary_max = extract["salary"].get("max")
     description = str((posting.raw or {}).get("description") or "")
     interaction = item.get("interaction")
+    application = item.get("application")
     return {
         "posting_id": str(posting.id),
         "ref": posting.ref,
@@ -288,8 +289,8 @@ def _serialize_candidate(item: dict) -> dict | None:
             else None
         ),
         "applied_at": (
-            interaction.applied_at.isoformat()
-            if interaction is not None and interaction.applied_at
+            application.applied_at.isoformat()
+            if application is not None and application.applied_at
             else None
         ),
         "hidden_at": (
