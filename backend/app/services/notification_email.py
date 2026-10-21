@@ -113,13 +113,25 @@ def _html_body(lead: str, body: str, link: str | None = None) -> str:
     return "<html><body>" + "".join(parts) + "</body></html>"
 
 
+KIND_TEMPLATES = frozenset(
+    {
+        "followup_due",
+        "digest_ready",
+        "interview_checkin",
+        "proposal_resolved",
+        "channel_test",
+    }
+)
+
+
 def render_notification(ctx: DeliveryContext, *, digest_mode: bool = False) -> RenderedEmail:
     """Kind-aware message for one delivery context.
 
     The digest kind renders the digest service's body verbatim — the one
-    rendering path — while the other kinds add a short lead line.
+    rendering path — while alerts and follow-ups add a short lead line over
+    the emitter's own title/body (copy keys stay translatable).
     """
-    kind = ctx.kind if f"email.{ctx.kind}.lead" in COPY[DEFAULT_LOCALE] else "digest_ready"
+    kind = ctx.kind if ctx.kind in KIND_TEMPLATES else "alert_threshold"
     lead = t(f"email.{kind}.lead")
     subject = t(f"email.{kind}.subject", title=ctx.title)
     link = ctx.payload.get("link")

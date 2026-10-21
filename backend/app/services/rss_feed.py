@@ -93,6 +93,7 @@ async def _scope_filters(db: AsyncSession, user_id: UUID, scope: dict | None) ->
                     SearchHistory.id == UUID(str(search_id)),
                     SearchHistory.user_id == user_id,
                     SearchHistory.scope == "postings",
+                    SearchHistory.saved.is_(True),
                 )
             )
         )

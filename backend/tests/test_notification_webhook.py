@@ -33,6 +33,7 @@ class _PostRecorder:
 @pytest.fixture(autouse=True)
 def _allow_loopback(monkeypatch):
     monkeypatch.setattr(settings, "webhook_allow_private_hosts", True)
+    notification_webhook.reset_rate_limits()
 
 
 async def _user(db, headers) -> User:
@@ -244,3 +245,13 @@ async def test_transient_failure_raises_for_the_queue(client, auth_headers, db, 
 async def test_validate_url_refuses_credentials():
     with pytest.raises(ValidationError):
         await notification_webhook.validate_url("https://user:pass@example.com/hook")
+
+
+def test_per_host_rate_cap_refuses_and_recovers(monkeypatch):
+    monkeypatch.setattr(settings, "webhook_requests_per_minute", 2)
+    notification_webhook.reset_rate_limits()
+    assert notification_webhook.host_allowed("hooks.example", now=100.0)
+    assert notification_webhook.host_allowed("hooks.example", now=101.0)
+    assert not notification_webhook.host_allowed("hooks.example", now=102.0)
+    assert notification_webhook.host_allowed("other.example", now=102.0)
+    assert notification_webhook.host_allowed("hooks.example", now=161.0)

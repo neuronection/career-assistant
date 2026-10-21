@@ -261,6 +261,21 @@ async def test_digest_mode_batches_routine_email(client, auth_headers, db, kinds
     assert "Digest mode is on" in mail_seam.body()
 
 
+async def test_alert_kinds_use_the_alert_template(client, auth_headers, db, kinds, mail_seam):
+    await _verified_email(client, auth_headers, db, mail_seam)
+    user = await _user(db, auth_headers)
+    service = NotificationService(db)
+    await service.set_kind_pref(user.id, "fit_threshold", channels=["in_app", "email"])
+    await service.emit(
+        "fit_threshold", [user.id], title="Data Analyst crossed your fit line", body="9.1 / 10"
+    )
+    await db.commit()
+    message = mail_seam.messages[-1]
+    assert message["Subject"] == "Data Analyst crossed your fit line"
+    assert "career alert crossed your threshold" in mail_seam.body()
+    assert "9.1 / 10" in mail_seam.body()
+
+
 async def test_digest_email_renders_digest_body_verbatim(
     client, auth_headers, db, kinds, mail_seam
 ):

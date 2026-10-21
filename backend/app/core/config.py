@@ -221,6 +221,10 @@ class Settings(BaseSettings):
     # Webhook egress is SSRF-guarded (public addresses only). The dev/test
     # hatch lets an e2e receiver listen on loopback; production ignores it.
     webhook_allow_private_hosts: bool = False
+    # Per-host webhook rate cap (requests/minute; 0 disables the cap). The
+    # queue retries a capped delivery with backoff instead of hammering a
+    # host, mirroring the polite connector runtime.
+    webhook_requests_per_minute: int = 30
 
     # Rate limiting (the kit's family limiter over the in-memory
     # counter — plan 21; see docs/dev/security.md "Rate limiting").

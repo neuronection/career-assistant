@@ -13,6 +13,9 @@ Slack/Teams/Telegram/ntfy support is payload shaping only; no vendor SDKs.
 from __future__ import annotations
 
 import logging
+import time
+from collections import defaultdict, deque
+from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
@@ -47,6 +50,28 @@ TEMPLATES = ("generic", "slack", "teams", "telegram", "ntfy")
 MAX_ATTEMPTS = 3
 
 _SECRET_MASK = "***"
+_HOST_WINDOW_SECONDS = 60.0
+_host_hits: dict[str, deque[float]] = defaultdict(deque)
+
+
+def reset_rate_limits() -> None:
+    """Clear the per-host window (tests/process restart)."""
+    _host_hits.clear()
+
+
+def host_allowed(host: str, *, now: float | None = None) -> bool:
+    """Per-host sliding-window cap; a refused send is retried, never dropped."""
+    limit = int(settings.webhook_requests_per_minute)
+    if limit <= 0:
+        return True
+    moment = time.monotonic() if now is None else now
+    bucket = _host_hits[host]
+    while bucket and moment - bucket[0] >= _HOST_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= limit:
+        return False
+    bucket.append(moment)
+    return True
 
 
 class WebhookBlocked(WebFetchBlocked):
@@ -148,6 +173,9 @@ async def _deliver_payload(
         safe_url = await validate_url(url)
     except Exception as exc:
         return DeliveryStatus.FAILED.value, f"blocked: {exc}"[:1000]
+    host = urlparse(safe_url).hostname or ""
+    if not host_allowed(host):
+        return DeliveryStatus.FAILED.value, f"transient: rate limited for host {host}"[:1000]
     payload = render_payload(template, ctx)
     try:
         status, snippet = await _post(safe_url, payload, _headers(ctx, secret))
