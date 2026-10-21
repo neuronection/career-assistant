@@ -18,6 +18,7 @@ import { fetchTemplates } from "@/api/cvTemplates";
 import { cancelBackgroundJob } from "@/api/backgroundJobs";
 import { useBackgroundJob } from "@/hooks/useBackgroundJob";
 import { openCvChat } from "@/components/chat/cvChatLink";
+import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
 import { JobFlowStatus } from "@/components/JobFlowStatus";
 import { RunTelemetryStrip } from "@/components/cv/RunsPanel";
 import { PolishPreviewIframe } from "@/components/cv/PolishTrace";
@@ -360,6 +361,8 @@ export function GenerateCvFlow({
   return (
     <div className="space-y-4 p-4 pt-0" data-testid="cv-generate-form">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("cvGenerate.subtitle")}</p>
+
+      <AiSetupPrompt variant="card" />
 
       <SelectField
         label={t("cvGenerate.target")}

@@ -23,6 +23,12 @@ class OnboardingPathIn(BaseModel):
     path: OnboardingPath | None = None
 
 
+class AiSetupPrefsIn(BaseModel):
+    """First-run AI setup step skip state (typed `profiles.preferences` key)."""
+
+    dismissed: bool = True
+
+
 class FollowupPrefsIn(BaseModel):
     """User-adjustable follow-up automation settings."""
 
@@ -83,6 +89,7 @@ async def _bootstrap_payload(db, profile) -> dict:
     """Shared shape for GET /me/bootstrap and PUT /me/stage (plans 25+27)."""
     from sqlalchemy import select
 
+    from app.ai.status import ai_status
     from app.models.engagement_model import NotificationRule
     from app.models.enums import NotificationRuleKind
     from app.services.experience_service import ExperienceService
@@ -125,6 +132,13 @@ async def _bootstrap_payload(db, profile) -> dict:
         "target_mode": bool(target_families),
         "target_families": sorted(set(target_families)),
         "notification_channels": available_channels(),
+        "ai": (
+            await ai_status(
+                db,
+                profile.user_id,
+                setup_dismissed=bool((profile.preferences or {}).get("ai_setup_dismissed")),
+            )
+        ).payload(),
     }
 
 
@@ -227,6 +241,30 @@ async def put_scoring_weights(
         "scoring_weights": validated.model_dump(mode="json"),
         "refitted": refitted,
     }
+
+
+@router.put("/preferences/ai-setup")
+async def put_ai_setup_pref(
+    body: AiSetupPrefsIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Store whether the caller skipped the first-run AI setup step.
+
+    The skip rides a typed `profiles.preferences` key (schema is frozen —
+    plan 113); the setup prompt itself keeps rendering until a provider is
+    configured, so dismissing never hides the gap.
+    """
+    from app.services.deps import get_profile_for_user
+
+    profile = await get_profile_for_user(db, user.id)
+    profile.preferences = {
+        **(profile.preferences or {}),
+        "ai_setup_dismissed": bool(body.dismissed),
+    }
+    db.add(profile)
+    await db.commit()
+    return await _bootstrap_payload(db, profile)
 
 
 @router.get("/followups")

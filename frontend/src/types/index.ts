@@ -349,6 +349,25 @@ export interface Profile {
   };
 }
 
+export interface AiTaskCoverage {
+  assigned: number;
+  total: number;
+  missing: string[];
+}
+
+/** Effective AI configuration for the caller (plan 118) — derived
+ * server-side from the DB config; nothing here is an env setting. */
+export interface AiStatus {
+  configured: boolean;
+  provider_type: string | null;
+  default_model: string | null;
+  task_coverage: AiTaskCoverage;
+  /** A mock provider is serving at least one slot — dev/test only. */
+  mock_active: boolean;
+  /** The caller skipped the first-run setup step. */
+  setup_dismissed: boolean;
+}
+
 export interface Bootstrap {
   career_stage: CareerStage;
   stage_source: "derived" | "explicit";
@@ -368,6 +387,7 @@ export interface Bootstrap {
   target_mode?: boolean;
   target_families?: string[];
   notification_channels?: NotificationChannel[];
+  ai?: AiStatus;
 }
 
 export type NotificationChannel = "in_app" | "desktop" | "browser";

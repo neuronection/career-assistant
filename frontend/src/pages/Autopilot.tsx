@@ -25,6 +25,7 @@ import {
   ModalTitle,
   Spinner,
 } from "@/components/ui";
+import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
 import {
   ChipTogglesRow,
   NumberField,
@@ -576,6 +577,8 @@ export function Autopilot() {
           <Sparkles className="mr-1 h-4 w-4" /> {t("autopilot.newGoal")}
         </Button>
       </div>
+
+      <AiSetupPrompt variant="banner" />
 
       {notice && (
         <div

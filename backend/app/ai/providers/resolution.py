@@ -263,15 +263,18 @@ async def resolve_task_model(
     db: AsyncSession,
     task_type: str,
     user_id: UUID | None = None,
+    *,
+    allow_dev_bootstrap: bool = True,
 ) -> ResolvedModel | None:
     """Resolve the effective provider/model for a task and user.
 
     Returns ``None`` when nothing is configured (before an admin sets up
     providers; the mock provider joins the pool only with MOCK_AI=1 in
-    dev/test).
+    dev/test). Read-only callers pass ``allow_dev_bootstrap=False`` so
+    reporting the configuration never seeds one.
     """
     resolved = await _resolve_scanned(db, task_type, user_id)
-    if resolved is not None:
+    if resolved is not None or not allow_dev_bootstrap:
         return resolved
     await ensure_dev_bootstrap(db)
     return await _resolve_scanned(db, task_type, user_id, source_suffix=" (dev bootstrap)")

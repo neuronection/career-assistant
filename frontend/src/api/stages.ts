@@ -13,6 +13,12 @@ export async function setStage(
   return data;
 }
 
+/** Persist the first-run AI setup skip (plan 118); returns the bootstrap. */
+export async function setAiSetupDismissed(dismissed: boolean): Promise<Bootstrap> {
+  const { data } = await api.put<Bootstrap>("/me/preferences/ai-setup", { dismissed });
+  return data;
+}
+
 export async function saveScoringWeightsSuggested(
   weights: ScoringWeights
 ): Promise<{ scoring_weights: ScoringWeights; refitted: number }> {

@@ -18,6 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui";
+import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
 
 const TONES = ["professional", "warm", "concise", "confident"];
 const LENGTHS = ["short", "medium", "long"];
@@ -122,6 +123,7 @@ export function AiToolbarCluster({
   if (mode === "cover_letter") {
     return (
       <div className="flex items-center gap-2" data-testid="ai-toolbar-cluster">
+        <AiSetupPrompt variant="inline" />
         <Button
           size="sm"
           disabled={!hasTargetPosting || busy === "ai:cover_letter"}
@@ -148,6 +150,7 @@ export function AiToolbarCluster({
 
   return (
     <div className="flex items-center gap-2" data-testid="ai-toolbar-cluster">
+      <AiSetupPrompt variant="inline" />
       <Popover open={tailorOpen} onOpenChange={setTailorOpen}>
         <PopoverAnchor asChild>
           <div>

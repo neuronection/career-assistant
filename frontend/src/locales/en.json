@@ -2831,5 +2831,14 @@
       "degradedHint": "The extension asked for a surface kind this device does not host; the charter degrade rules rendered this page instead.",
       "navHint": "Installed extension pages live here"
     }
+  },
+  "aiSetup": {
+    "title": "Connect an AI provider",
+    "bannerTitle": "AI is not set up yet",
+    "body": "Matching, CV generation, parsing and chat run on an AI provider you connect. Pick one, test the connection and assign the model defaults — about a minute.",
+    "inlineBody": "Connect an AI provider to use this.",
+    "cta": "Set up AI",
+    "mockActive": "Mock provider active — dev only",
+    "mockHint": "This call was served by the built-in deterministic mock. Configure a real provider in Settings → AI Configuration."
   }
 }

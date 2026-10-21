@@ -10,6 +10,7 @@ import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
 import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
 import { ChatSelectionMenu } from "@/components/chat/ChatSelectionMenu";
+import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
 import { copyText } from "@/lib/clipboard";
 import {
   LiveTemplatePreviews,
@@ -304,6 +305,7 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
         <p className="max-w-[16rem] text-sm text-slate-400">
           {t("chat.cvEmptyBody")}
         </p>
+        <AiSetupPrompt variant="card" className="w-full max-w-xs text-left" />
         <div className="flex w-full max-w-xs flex-col gap-1.5" data-testid="cv-chat-prompts">
           {chips.map(({ prompt, custom }) => (
             <span key={prompt} className="group relative">
@@ -355,6 +357,7 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
       <p className={`text-sm text-slate-400 ${compact ? "max-w-[16rem]" : "max-w-sm"}`}>
         {studioCv !== null ? t("chat.studioEmptyBody") : t("chat.emptyBody")}
       </p>
+      <AiSetupPrompt variant="card" className="w-full max-w-xs text-left" />
       <div className="flex flex-col gap-1.5">
         {GENERIC_SUGGESTIONS.map((suggestion) => (
           <button
