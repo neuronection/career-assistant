@@ -12,6 +12,12 @@
       "reason_contains": "no posting rows seeded",
       "when": "conditional",
       "why": "data-dependent: the catalog may be empty in a minimal fixture set"
+    },
+    {
+      "id": "tests/test_explore_benchmark.py::test_explore_hot_path_benchmarks",
+      "reason_contains": "perf benchmark runs on demand",
+      "when": "always",
+      "why": "plan-120 p95 budgets on synthetic 1k/10k fixtures are on-demand only (CAREER_PERF_BENCH=1), never a PR gate"
     }
   ],
   "sqlite": [
@@ -50,6 +56,12 @@
       "reason_contains": "Postgres EXPLAIN plans",
       "when": "always",
       "why": "the keyset plan shape is asserted with EXPLAIN on Postgres only; SQLite covers behavioral parity"
+    },
+    {
+      "id": "tests/test_explore_benchmark.py::test_explore_hot_path_benchmarks",
+      "reason_contains": "perf benchmark runs on demand",
+      "when": "always",
+      "why": "plan-120 p95 budgets on synthetic 1k/10k fixtures are on-demand only (CAREER_PERF_BENCH=1), never a PR gate"
     }
   ]
 }

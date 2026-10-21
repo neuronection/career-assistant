@@ -321,6 +321,37 @@ There is no side door around it.
   registers the email/webhook dispatchers without a schema change.
   SMS is a stated non-goal; nothing reserves a slot for it.
 
+## Postings & Explore read path
+
+- **Filtering and paging happen in SQL** (`app/services/explore_service.py`,
+  plan 120). Every filter dimension — including `education_min` (normalized
+  education tokens ranked by `EducationLevelOrder`) and `languages` (the
+  posting's extracted language list) — compiles to a SQL predicate, so the
+  database selects candidates instead of loading the whole table into
+  Python. `total` is one exact count over the same predicate set.
+- **Cursor pagination is keyset-based** on `(sort key, id)`. `fresh` and
+  `salary` page entirely in SQL (id as the stable tiebreak, NULLs last),
+  so a cursor page never drifts when rows are inserted above it.
+- **Fit and relevance rank a bounded recency window.** A global fit order
+  would require scoring every posting — the O(all-postings) cliff this
+  plan removes. Both sorts fetch the newest `limit × 5` matching postings
+  (floor 100, cap 500) and rank inside it; `total` stays the exact
+  filtered count and cursors pin the window frontier (same cursor ⇒ same
+  window across writes). Relevance keeps hybrid RRF as a ranking signal
+  over that window — semantic never becomes a filter gate.
+- **`posting_fits` is the fit cache** (`app/services/posting_fit_service.py`):
+  detail, Explore's fit window and the feed read it; misses/stale rows
+  recompute and write through (the feed bounds its writes with
+  `FEED_FIT_WRITE_BUDGET`). Staleness is still derived — `inputs_hash`
+  mismatch or a bumped `FIT_VERSION` ⇒ recompute; there is no stored
+  "stale" boolean. `SYSTEM_REFIT_SWEEP` (`fit_refit`, payload
+  `{"scope": "stale"}`) backfills missing rows newest-first and refreshes
+  rows older than seven days in batches under a row budget, off the
+  request path.
+- **Facets are self-excluding and grouped**: one GROUP BY per value
+  dimension (a single pass cannot honor per-dimension self-exclusion)
+  instead of one COUNT per value; counts stay live (no approximation).
+
 ## AI flows are LangGraph graphs
 
 Multi-step AI flows are checkpointed LangGraph

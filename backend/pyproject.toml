@@ -165,7 +165,7 @@ follow_imports = "silent"
 # errors requires lowering the peg in the same commit
 # (`uv run python ../scripts/check-mypy-ratchet.py --update`); adding any
 # error fails CI. Clean packages move to `[tool.mypy] files` instead.
-packages = { "app/services" = 164 }
+packages = { "app/services" = 160 }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -183,4 +183,7 @@ markers = [
     # identity-auth §18 contract cases — the drift gate against the family
     # test kit (CI runs `pytest -m contract` as an explicit step).
     "contract: implements an identity-auth §18 contract case (family drift gate)",
+    # Plan 120: p95 Explore budgets on synthetic 1k/10k fixtures.
+    # On-demand only — never a PR gate (CAREER_PERF_BENCH=1).
+    "benchmark: on-demand performance benchmark (skipped unless CAREER_PERF_BENCH=1)",
 ]

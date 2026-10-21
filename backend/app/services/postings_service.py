@@ -559,18 +559,27 @@ async def list_postings(
     if sort == "fresh":
         items.sort(key=lambda i: i["posting"].posted_at or _utcnow(), reverse=True)
     else:
-        fits = {}
-        for item in items:
-            fits[item["posting"].id] = await posting_fit(db, user_id, item["posting"])
+        from app.services.posting_fit_service import (
+            FEED_FIT_WRITE_BUDGET,
+            get_posting_fits_batch,
+        )
+
+        fits = await get_posting_fits_batch(
+            db,
+            user_id,
+            [item["posting"] for item in items],
+            write_budget=FEED_FIT_WRITE_BUDGET,
+        )
+        scores = {posting_id: entry["score"] for posting_id, entry in fits.items()}
         items.sort(
             key=lambda i: (
                 0 if not i["seen"] else 1,
-                -fits[i["posting"].id],
+                -scores[i["posting"].id],
                 i["posting"].title,
             )
         )
         for item in items:
-            item["fit"] = fits[item["posting"].id]
+            item["fit"] = scores[item["posting"].id]
     return {"items": items, "unseen": unseen, "total": len(items)}
 
 
@@ -728,18 +737,27 @@ async def search_postings(
         for item in items:
             item["coverage"] = coverages[item["posting"].id]
     elif sort == "fit":
-        fits = {}
-        for item in items:
-            fits[item["posting"].id] = await posting_fit(db, user_id, item["posting"])
+        from app.services.posting_fit_service import (
+            FEED_FIT_WRITE_BUDGET,
+            get_posting_fits_batch,
+        )
+
+        fits = await get_posting_fits_batch(
+            db,
+            user_id,
+            [item["posting"] for item in items],
+            write_budget=FEED_FIT_WRITE_BUDGET,
+        )
+        scores = {posting_id: entry["score"] for posting_id, entry in fits.items()}
         items.sort(
             key=lambda i: (
                 0 if not i["seen"] else 1,
-                -fits[i["posting"].id],
+                -scores[i["posting"].id],
                 i["posting"].title,
             )
         )
         for item in items:
-            item["fit"] = fits[item["posting"].id]
+            item["fit"] = scores[item["posting"].id]
     else:
         items.sort(key=lambda i: i["posting"].posted_at or _utcnow(), reverse=True)
     return {"items": items, "unseen": unseen, "total": len(items)}

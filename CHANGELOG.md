@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (Explore & fit performance, 2026-10-22)
+- **Explore stays fast as the job board grows** (plan 120). Filters
+  (including minimum education and language requirements), counting and
+  paging now run in the database instead of loading every matching
+  posting into memory; `total` is exact and cursor pages cannot drift
+  when new postings arrive. Fit scores are cached and written through as
+  they are computed — the posting detail, the feed and Explore read the
+  same cache, and a background refit sweep backfills it in batches.
+  Fit- and relevance-sorted Explore rank the newest matching postings
+  (a bounded window of five pages, at least 100 and at most 500 rows);
+  the facet sidebar's counts are unchanged and still live. No schema
+  change.
+
 ### Added (application tracker, 2026-10-21)
 - **Your applications finally have a home** (plan 116). A new
   `/applications` page shows the pipeline as a board (default) or a
