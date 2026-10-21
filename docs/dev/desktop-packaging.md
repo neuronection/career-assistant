@@ -101,10 +101,10 @@ Use `scripts/version_manager.py` for the bump + tag flow (see the
 
 | Workflow | Purpose |
 |---|---|
-| `ci.yml` | pytest (Postgres + serial SQLite desktop job), frontend build + vitest, ruff, docs-sync |
+| `ci.yml` | pytest (Postgres + serial SQLite desktop job, both with contract + coverage floors), frontend build + vitest, ruff, mypy + the ratchet, blocking pip-audit/npm audit, the required assistant-ui drift audit (`quality-gates` job), docs-sync, packaging + docker + e2e |
 | `release.yml` | Tag-driven packaging and GitHub Release |
 | `ai-alignment.yml` | The AI architecture gate (`scripts/check-ai-alignment.sh`) |
-| `drift-audit.yml` | assistant-ui adoption drift |
+| `drift-audit.yml` | Weekly assistant-ui drift sweep + vendored-audit-script freshness (the PR gate lives in `ci.yml`) |
 | `gitleaks.yml` | Secret scanning |
 
 ## Related
