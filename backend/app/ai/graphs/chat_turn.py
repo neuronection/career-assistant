@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from collections.abc import Callable
@@ -40,10 +41,13 @@ from app.ai.gateway import (
     ainvoke_structured,
     partial_answer_text,
 )
+from app.core.errors import sanitize_error_detail
 from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType, ProposalKind
 from app.models.user_model import User
 from app.services import chat_tool_memory
+
+logger = logging.getLogger(__name__)
 
 MAX_PROFILE_OPS = 5
 
@@ -395,7 +399,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                 chat_session_id=deps.session.id,
             )
         except Exception as exc:
-            result = {"error": str(exc)}
+            logger.warning("chat tool %s failed", call["name"], exc_info=True)
+            result = {"error": sanitize_error_detail(str(exc))}
         executed += 1
         if isinstance(result, dict) and result.get("status") == "awaiting_approval":
             # D20: a destructive call became a confirmation card — the

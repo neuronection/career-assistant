@@ -477,6 +477,31 @@ the on-demand path made both edges visible).
 PDF parsing and AI generation run as FastAPI background tasks; Redis ships
 in the compose file for a later worker split (no Celery in v1).
 
+## Error surfaces
+
+Three layers, one rule: **only our own words reach the screen.**
+
+- **Domain errors** (`app/core/errors.py`: `DomainError` and its typed
+  subclasses) are the only exceptions whose message is user-facing. API
+  handlers map them to a status (`400/403/404/409/503`) and pass the
+  message through; anything else is a bug and surfaces as a generic error.
+- **Untrusted text** (model output, connector/provider messages, fetched
+  documents) crosses into a user-visible field only through
+  `sanitize_error_detail` — credential-shaped material is scrubbed and the
+  message is capped at 300 chars (500 for stored document errors). Raw
+  `str(exc)` from an untrusted boundary never lands in an SSE event, a job
+  row, a run ledger entry or an error card.
+- **Fail-soft sites** keep the documented degradation (sidecar telemetry,
+  optional PDF engine, plugin/tool isolation, shutdown/teardown) but record
+  why: `logger.warning(..., exc_info=True)` for a real degradation,
+  `debug` for an expected fallback. A bare `except Exception: pass` is
+  reserved for process shutdown and best-effort teardown; everything else
+  either logs or converts to a typed error.
+
+Mechanical enforcement is partial by design — a `try/except` cannot be
+linted for intent — so review treats a new silent broad catch as a defect,
+and plan 124's sweep inventory lives in the wave record.
+
 ## AI configuration is data, not env
 
 AI providers/models/task assignments live exclusively in the database

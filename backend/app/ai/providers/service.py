@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 import httpx
@@ -9,10 +10,16 @@ from app.ai.decide.types import DecisionTransport
 from app.ai.providers.errors import classify_provider_error
 from app.core.config import settings
 from app.core.encryption import MASK_MARKER, encrypt_secret
-from app.core.errors import PermissionDeniedError, ValidationError
+from app.core.errors import (
+    PermissionDeniedError,
+    ValidationError,
+    sanitize_error_detail,
+)
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.enums import AIProviderType, AITaskTier
 from app.models.user_model import User
+
+logger = logging.getLogger(__name__)
 
 
 def _test_failure(error: Exception, provider: AIProvider, detail: str) -> dict:
@@ -603,7 +610,7 @@ class AIProviderService:
             detail = f"Error code: {exc.response.status_code} - {exc.response.text}"
             return _test_failure(exc, provider, detail[:300])
         except Exception as exc:
-            return _test_failure(exc, provider, str(exc)[:300])
+            return _test_failure(exc, provider, sanitize_error_detail(str(exc)))
 
     async def _run_test_google(
         self,

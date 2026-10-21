@@ -14,6 +14,7 @@ trace.
 import asyncio
 import copy
 import json
+import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -32,7 +33,7 @@ from app.ai.agents.context import context_json, parse_context
 from app.ai.flow_events import delta_event, flow_failed_event, flow_started_event, tool_call_event
 from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import StructuredStream, partial_answer_text, register_mock_fixture
-from app.core.errors import DomainError, NotFoundError, ValidationError
+from app.core.errors import DomainError, NotFoundError, ValidationError, sanitize_error_detail
 from app.models.enums import AITaskType, CvVersionCreator
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_assistant import CvBuilderTurn, OpResult
@@ -48,6 +49,8 @@ from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
 from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
 from app.services.cv_template_service import slugify_key
 from app.services.cv_themes import CV_THEMES, THEMES_BY_KEY
+
+logger = logging.getLogger(__name__)
 
 SYSTEM = (
     "You are the CV Builder assistant inside Career Assistant's CV Studio. "
@@ -1028,9 +1031,14 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
         await _revive(db, cv)
         return OpResult(op=kind, ok=False, detail=str(exc)[:300])
     except Exception as exc:
+        logger.warning("builder op %s failed", kind, exc_info=True)
         await db.rollback()
         await _revive(db, cv)
-        return OpResult(op=kind, ok=False, detail=f"{type(exc).__name__}: {exc}"[:300])
+        return OpResult(
+            op=kind,
+            ok=False,
+            detail=sanitize_error_detail(f"{type(exc).__name__}: {exc}"),
+        )
 
 
 # --------------------------------------------------------- visual review
@@ -1049,6 +1057,7 @@ async def _critique_preview(
     try:
         resolved = await resolve_task_model(db, AITaskType.CV_TEMPLATE_REVIEW.value, user_id)
     except Exception:
+        logger.warning("vision model resolution failed", exc_info=True)
         resolved = None
     if resolved is None:
         return None, "no vision model configured for visual review"
@@ -1060,7 +1069,8 @@ async def _critique_preview(
     except PDFEngineUnavailable:
         return None, "no headless Chromium on this host for screenshots"
     except Exception as exc:
-        return None, f"screenshot failed: {exc}"
+        logger.warning("critique screenshot failed", exc_info=True)
+        return None, sanitize_error_detail(f"screenshot failed: {type(exc).__name__}: {exc}")
     critique = await critique_pages(
         db,
         user_id,
@@ -1195,6 +1205,7 @@ async def _template_previews(
             row = await service.get_readable(uuid.UUID(template_id), user_id)
             png = await service.first_page_png(row)
         except Exception:
+            logger.debug("page image unavailable for critique", exc_info=True)
             continue
         if png is None:
             continue
@@ -1390,7 +1401,7 @@ async def builder_turn_events(
                         await db.refresh(cv)
                         await db.refresh(session)
                     except Exception:
-                        pass
+                        logger.debug("op result serialization failed", exc_info=True)
                 yield _tool_event(
                     tools_trace,
                     id=f"cv-{op.op}-{round_index}-{op_index}",
@@ -1457,7 +1468,7 @@ async def builder_turn_events(
                 )
                 version_number = version.version
             except Exception:
-                pass
+                logger.debug("snapshot refresh failed", exc_info=True)
 
         state = await builder_state_payload(
             db,
@@ -1522,7 +1533,8 @@ async def builder_turn_events(
                 with contextlib.suppress(Exception):
                     await db.refresh(session)
         code = "ai_unavailable" if "not configured" in str(exc).lower() else "ai_error"
-        yield sse_pair(flow_failed_event(True, code=code, message=str(exc)))
+        logger.warning("cv builder turn failed (%s)", code, exc_info=True)
+        yield sse_pair(flow_failed_event(True, code=code, message=sanitize_error_detail(str(exc))))
 
 
 # ---------------------------------------------------------- mock fixture

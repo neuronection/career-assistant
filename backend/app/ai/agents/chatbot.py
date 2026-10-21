@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import time
 import uuid
@@ -11,11 +12,14 @@ from app.ai.agents.context import context_json
 from app.ai.agents.prompts import QUICK_ASSIST
 from app.ai.gateway import ainvoke_structured
 from app.ai.schemas import ChatReply
+from app.core.errors import sanitize_error_detail
 from app.models.enums import AITaskType
 from app.models.job_model import Job
 from app.models.posting_model import JobSource
 from app.services import chat_tool_memory
 from app.services.chat_digest_cache import context_without_cache
+
+logger = logging.getLogger(__name__)
 
 
 def _job_search_query():
@@ -341,7 +345,8 @@ async def search_postings_tool(
 
         result = await explore(db, user_id, normalized, sort="fit", limit=n)
     except Exception as exc:
-        return {"error": str(exc), "results": []}
+        logger.warning("chat explore tool failed", exc_info=True)
+        return {"error": sanitize_error_detail(str(exc)), "results": []}
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     cards = []
     for item in result["items"]:

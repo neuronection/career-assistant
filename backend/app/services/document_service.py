@@ -1,4 +1,5 @@
 import io
+import logging
 import uuid
 from pathlib import Path
 
@@ -7,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import parse_universities
 from app.core.config import settings
-from app.core.errors import NotFoundError, ValidationError
+from app.core.errors import NotFoundError, ValidationError, sanitize_error_detail
 from app.models.document_model import Document
 from app.models.enums import DocumentStatus
 from app.models.university_model import Department, University
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -87,8 +90,9 @@ class DocumentService:
             document.extraction = extraction.model_dump(mode="json")
             document.status = DocumentStatus.PARSED.value
         except Exception as exc:
+            logger.warning("document %s parse failed", document_id, exc_info=True)
             document.status = DocumentStatus.ERROR.value
-            document.error = str(exc)[:500]
+            document.error = sanitize_error_detail(str(exc), limit=500)
         self.db.add(document)
         await self.db.commit()
         await self.db.refresh(document)

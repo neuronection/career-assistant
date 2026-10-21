@@ -9,6 +9,7 @@ match."""
 
 import hashlib
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -32,6 +33,8 @@ from app.models.posting_model import (
     PostingSkill,
 )
 from app.models.taxonomy_model import Skill
+
+logger = logging.getLogger(__name__)
 
 AUTO_MAP_THRESHOLD = 0.34
 FRESH_DECAY_PER_WEEK = 0.5
@@ -128,10 +131,24 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
         source.error = f"{error.code}: {error.detail}"
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
-    except Exception as exc:
-        source.error = f"connector failure: {exc}"[:2000]
+    except Exception:
+        logger.warning(
+            "connector %s failed while fetching source %s",
+            source.connector_key,
+            source.key,
+            exc_info=True,
+        )
+        error = ConnectorError(
+            code="io",
+            detail=(
+                f"the {source.connector_key} connector failed — check its configuration "
+                "and the server log"
+            ),
+            retryable="after-config-change",
+        )
+        source.error = f"{error.code}: {error.detail}"[:2000]
         await db.commit()
-        return {"synced": 0, "error": source.error}
+        return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
 
     synced = 0
     errors = [error.model_dump(mode="json") for error in result.partial_errors]

@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
+from app.core.errors import sanitize_error_detail
 from app.models.engagement_model import NotificationSubscription
 from app.models.enums import DeliveryStatus
 from app.models.settings_model import AppSetting
@@ -177,7 +178,8 @@ class BrowserPushChannel(BaseChannel):
                 else:
                     errors.append(str(exc)[:300])
             except Exception as exc:
-                errors.append(str(exc)[:300])
+                logger.warning("web push delivery failed", exc_info=True)
+                errors.append(sanitize_error_detail(str(exc)))
         if dead:
             await self._deactivate([sub.id for sub in dead])
         if errors and not dead:

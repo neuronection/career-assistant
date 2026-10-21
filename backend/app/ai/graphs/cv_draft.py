@@ -40,6 +40,7 @@ from app.ai.agents.cv_drafter import (
 )
 from app.ai.gateway import RunRef
 from app.ai.schemas import CvDraftStructure, CvDraftTexts
+from app.core.errors import sanitize_error_detail
 from app.models.enums import AITaskType, CvVersionCreator
 from app.models.posting_model import JobPosting
 from app.schemas.cv import CvContextRef, CvContextSelection
@@ -71,6 +72,7 @@ def _polish_max(state) -> int:
     try:
         return max(1, int(_request(state).polish_iterations))
     except Exception:
+        logger.debug("polish_iterations unreadable; using the default", exc_info=True)
         return POLISH_MAX_ITERATIONS
 
 
@@ -159,6 +161,7 @@ async def _is_cancelled(deps: GraphDeps) -> bool:
     try:
         return bool(await deps.cancelled())
     except Exception:
+        logger.debug("cancellation probe failed; treating the run as live", exc_info=True)
         return False
 
 
@@ -560,6 +563,7 @@ def make_enrich_node(deps: GraphDeps):
                     run=_run_ref(state, f"cv_draft.enrich:{round_index}"),
                 )
             except Exception:
+                logger.warning("cv_draft enrichment round failed; keeping evidence", exc_info=True)
                 return {"web_evidence": evidence} if evidence else {}
             calls = message.tool_calls or []
             if not calls:
@@ -742,7 +746,8 @@ def make_draft_node(deps: GraphDeps):
                         run=_run_ref(state, "cv_draft.draft"),
                     )
                 except Exception as exc:
-                    retry_note = f"{type(exc).__name__}: {exc}"[:300]
+                    logger.warning("cv_draft section retry failed", exc_info=True)
+                    retry_note = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
                     continue
                 clamped = _clamp_section_texts(result, allowed_ids)
                 if _section_usable(_section_payload(clamped, kind), kind):
@@ -846,6 +851,7 @@ async def _resolve_template_for_run(
             notes=request.notes,
         )
     except Exception:
+        logger.warning("AI template pick failed; using the studio default", exc_info=True)
         return None, "AI template pick unavailable — using the studio default"
     picks = result.get("picks") or []
     if not picks:
@@ -951,6 +957,7 @@ def make_assemble_node(deps: GraphDeps):
                 )
                 template_skeleton = TemplateContent.model_validate(row.content).blocks or []
             except Exception:
+                logger.debug("style template lookup failed", exc_info=True)
                 template_id = None
         blocks = (
             _merge_onto_template(template_skeleton, generated) if template_skeleton else generated
@@ -1336,6 +1343,7 @@ def make_review_node(deps: GraphDeps):
         try:
             measure = await measure_pages(html, page_size=cv.page_size)
         except Exception:
+            logger.warning("polish page measurement failed", exc_info=True)
             measure = None
         measured_pages = (measure.pages if measure is not None else 0) or 0
         _review_pages_truth(summary_lint, measured_pages, int(request.max_pages))

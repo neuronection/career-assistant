@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import Curation, SearchPlan
+from app.core.errors import sanitize_error_detail
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType, AutopilotRunStatus
 from app.services.explore_service import explore, parse_explore_filters
@@ -390,7 +391,8 @@ def make_search_node(deps: GraphDeps):
                     ):
                         best[key] = candidate
             except Exception as exc:
-                entry["error"] = f"{type(exc).__name__}: {exc}"[:300]
+                logger.warning("autopilot candidate evaluation failed", exc_info=True)
+                entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
             timeline.append(entry)
             await _report(
                 deps,

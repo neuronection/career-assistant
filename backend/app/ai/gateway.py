@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import build_chat_model
 from app.core.config import settings
-from app.core.errors import AINotConfiguredError
+from app.core.errors import AINotConfiguredError, sanitize_error_detail
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 
@@ -974,7 +974,7 @@ class StructuredStream:
                 pack_version=pack.version if pack else None,
             )
         except Exception as exc:
-            self.error = f"{type(exc).__name__}: {exc}"
+            self.error = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
             audit_error = self.error
             if self.reply is None:
                 raw_snippet = "".join(self._raw).strip()

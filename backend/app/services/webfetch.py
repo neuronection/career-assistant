@@ -249,6 +249,7 @@ def text_from_html(html: str) -> tuple[str, str]:
         extractor.feed(html or "")
         extractor.close()
     except Exception:
+        logger.debug("html parse fallback", exc_info=True)
         return "", " ".join((html or "").split())[:DEFAULT_TEXT_CAP]
     return " ".join(extractor.title.split()), extractor.text()
 
