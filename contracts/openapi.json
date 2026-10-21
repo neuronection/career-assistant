@@ -2552,6 +2552,40 @@
         "title": "CertificationPatch",
         "type": "object"
       },
+      "ChannelTestOut": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "delivery_id": {
+            "title": "Delivery Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "delivery_id",
+          "status"
+        ],
+        "title": "ChannelTestOut",
+        "type": "object"
+      },
       "ChatAttachmentIn": {
         "description": "One reference attachment on a chat message (plan 78).\n\nv1 kind: `cv` \u2014 the CV/cover-letter document enters the prompt as a\ndeterministic reference block (never auto-edited by the chat turn).",
         "properties": {
@@ -6650,6 +6684,263 @@
         "title": "EffectiveAssignment",
         "type": "object"
       },
+      "EmailChannelConfigIn": {
+        "description": "Per-user email channel config; a changed address needs verification.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "digest_mode": {
+            "default": false,
+            "title": "Digest Mode",
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "title": "EmailChannelConfigIn",
+        "type": "object"
+      },
+      "EmailChannelConfigOut": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "digest_mode": {
+            "default": false,
+            "title": "Digest Mode",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "pending_address": {
+            "default": "",
+            "title": "Pending Address",
+            "type": "string"
+          },
+          "verified": {
+            "default": false,
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "enabled",
+          "address"
+        ],
+        "title": "EmailChannelConfigOut",
+        "type": "object"
+      },
+      "EmailTransportIn": {
+        "description": "Instance SMTP config (admin); a `***` password keeps the sealed slot.",
+        "properties": {
+          "from_address": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Address"
+          },
+          "from_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Name"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "maximum": 65535.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "starttls": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starttls"
+          },
+          "use_ssl": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Ssl"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "title": "EmailTransportIn",
+        "type": "object"
+      },
+      "EmailTransportOut": {
+        "properties": {
+          "from_address": {
+            "title": "From Address",
+            "type": "string"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "password_set": {
+            "title": "Password Set",
+            "type": "boolean"
+          },
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "starttls": {
+            "title": "Starttls",
+            "type": "boolean"
+          },
+          "use_ssl": {
+            "title": "Use Ssl",
+            "type": "boolean"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "port",
+          "username",
+          "from_address",
+          "from_name",
+          "starttls",
+          "use_ssl",
+          "password_set"
+        ],
+        "title": "EmailTransportOut",
+        "type": "object"
+      },
+      "EmailVerificationOut": {
+        "properties": {
+          "pending_address": {
+            "default": "",
+            "title": "Pending Address",
+            "type": "string"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sent"
+        ],
+        "title": "EmailVerificationOut",
+        "type": "object"
+      },
+      "EmailVerifyIn": {
+        "properties": {
+          "token": {
+            "maxLength": 200,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "EmailVerifyIn",
+        "type": "object"
+      },
       "EnqueueResponse": {
         "properties": {
           "job_id": {
@@ -7622,6 +7913,170 @@
           "unseen"
         ],
         "title": "FeedOut",
+        "type": "object"
+      },
+      "FeedTokenIn": {
+        "description": "Mint a calendar/RSS token; an RSS token may scope to a saved search.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FeedTokenKind"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "title": "Scope",
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "FeedTokenIn",
+        "type": "object"
+      },
+      "FeedTokenKind": {
+        "description": "Signed-subscription flavours (calendar feed, RSS).",
+        "enum": [
+          "ics",
+          "rss"
+        ],
+        "title": "FeedTokenKind",
+        "type": "string"
+      },
+      "FeedTokenMintedOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FeedTokenKind"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "rotated_from_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated From Id"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "title": "Scope",
+            "type": "object"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "scope",
+          "created_at",
+          "token"
+        ],
+        "title": "FeedTokenMintedOut",
+        "type": "object"
+      },
+      "FeedTokenOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FeedTokenKind"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "rotated_from_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated From Id"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "title": "Scope",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "scope",
+          "created_at"
+        ],
+        "title": "FeedTokenOut",
         "type": "object"
       },
       "FitBreakdownOut": {
@@ -15682,6 +16137,99 @@
         "title": "WebSettingsUpdate",
         "type": "object"
       },
+      "WebhookChannelConfigIn": {
+        "description": "Per-user webhook config; `***` keeps the sealed token slot.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "title": "WebhookChannelConfigIn",
+        "type": "object"
+      },
+      "WebhookChannelConfigOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "secret_set": {
+            "default": false,
+            "title": "Secret Set",
+            "type": "boolean"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "verified": {
+            "default": false,
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "enabled",
+          "url",
+          "template"
+        ],
+        "title": "WebhookChannelConfigOut",
+        "type": "object"
+      },
       "WorkPreferencesSection": {
         "properties": {
           "creativity_priority": {
@@ -17050,6 +17598,68 @@
           }
         },
         "summary": "Broadcast",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/admin/notifications/email": {
+      "get": {
+        "description": "Instance SMTP config \u2014 password presence only, never the value.",
+        "operationId": "get_email_transport_api_v1_admin_notifications_email_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTransportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Email Transport",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "description": "Update instance SMTP config; a plaintext password is sealed at write.",
+        "operationId": "put_email_transport_api_v1_admin_notifications_email_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailTransportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTransportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Email Transport",
         "tags": [
           "notifications"
         ]
@@ -28408,6 +29018,49 @@
         ]
       }
     },
+    "/api/v1/me/calendar.ics": {
+      "get": {
+        "description": "The account-wide calendar feed (authenticated by the URL token).",
+        "operationId": "calendar_feed_endpoint_api_v1_me_calendar_ics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 16,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Calendar Feed Endpoint",
+        "tags": [
+          "feeds"
+        ]
+      }
+    },
     "/api/v1/me/certifications": {
       "get": {
         "description": "The caller's certifications and licenses.",
@@ -29069,6 +29722,241 @@
         "summary": "Export My Data",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/v1/me/feed-tokens": {
+      "get": {
+        "description": "Token metadata (never the hash or plaintext), newest first.",
+        "operationId": "list_feed_tokens_api_v1_me_feed_tokens_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FeedTokenOut"
+                  },
+                  "title": "Response List Feed Tokens Api V1 Me Feed Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Feed Tokens",
+        "tags": [
+          "feeds"
+        ]
+      },
+      "post": {
+        "description": "Mint a token; the plaintext is in this response only, once.",
+        "operationId": "mint_feed_token_api_v1_me_feed_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedTokenMintedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mint Feed Token",
+        "tags": [
+          "feeds"
+        ]
+      }
+    },
+    "/api/v1/me/feed-tokens/{token_id}": {
+      "delete": {
+        "description": "Revoke a token (a revoked or unknown token answers 404 on the feed).",
+        "operationId": "revoke_feed_token_api_v1_me_feed_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Feed Token",
+        "tags": [
+          "feeds"
+        ]
+      }
+    },
+    "/api/v1/me/feed-tokens/{token_id}/rotate": {
+      "post": {
+        "description": "Revoke one token and return its successor's one-time plaintext.",
+        "operationId": "rotate_feed_token_api_v1_me_feed_tokens__token_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedTokenMintedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Feed Token",
+        "tags": [
+          "feeds"
+        ]
+      }
+    },
+    "/api/v1/me/feeds/rss": {
+      "get": {
+        "description": "The Atom feed for a saved-search token (authenticated by the token).",
+        "operationId": "rss_feed_endpoint_api_v1_me_feeds_rss_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 16,
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rss Feed Endpoint",
+        "tags": [
+          "feeds"
         ]
       }
     },
@@ -30932,6 +31820,240 @@
           }
         },
         "summary": "List Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels/email": {
+      "get": {
+        "description": "The caller's email channel config (never the SMTP password).",
+        "operationId": "get_email_channel_api_v1_notifications_channels_email_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailChannelConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Email Channel",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "description": "Save the address override/digest mode; a changed address re-verifies.",
+        "operationId": "put_email_channel_api_v1_notifications_channels_email_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailChannelConfigIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailChannelConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Email Channel",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels/email/test": {
+      "post": {
+        "description": "Send a test email and record its `channel_test` delivery row.",
+        "operationId": "test_email_channel_api_v1_notifications_channels_email_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Test Email Channel",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels/email/verification": {
+      "post": {
+        "description": "Send a fresh double-opt-in link for the pending address.",
+        "operationId": "resend_email_verification_api_v1_notifications_channels_email_verification_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Resend Email Verification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels/email/verify": {
+      "post": {
+        "description": "Consume the one-time token; stamps `verified_at` on success.",
+        "operationId": "verify_email_channel_api_v1_notifications_channels_email_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Verify Email Channel Api V1 Notifications Channels Email Verify Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Email Channel",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels/webhook": {
+      "get": {
+        "description": "The caller's webhook config (the token is presence-only).",
+        "operationId": "get_webhook_channel_api_v1_notifications_channels_webhook_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookChannelConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Webhook Channel",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "description": "Save the URL/preset/token; the URL passes the SSRF guard at write.",
+        "operationId": "put_webhook_channel_api_v1_notifications_channels_webhook_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookChannelConfigIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookChannelConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Webhook Channel",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/channels/webhook/test": {
+      "post": {
+        "description": "Immediate test delivery; success stamps `verified_at`.",
+        "operationId": "test_webhook_channel_api_v1_notifications_channels_webhook_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Test Webhook Channel",
         "tags": [
           "notifications"
         ]

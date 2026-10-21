@@ -151,6 +151,7 @@ def render_atom(
     base_url: str,
     now: datetime | None = None,
     next_cursor: str | None = None,
+    token: str | None = None,
 ) -> str:
     """Render the Atom document (escaped, absolute links)."""
     moment = (now or utcnow()).astimezone(UTC)
@@ -163,8 +164,8 @@ def render_atom(
         f"<updated>{updated}</updated>",
         f'<link rel="alternate" href={quoteattr(base_url.rstrip("/") + POSTS_PATH)}/>',
     ]
-    if next_cursor:
-        href = f"{base_url.rstrip('/')}/api/v1/me/feeds/rss?cursor={next_cursor}"
+    if next_cursor and token:
+        href = f"{base_url.rstrip('/')}/api/v1/me/feeds/rss?token={token}&cursor={next_cursor}"
         lines.append(f'<link rel="next" href={quoteattr(href)}/>')
     lines.append("<author><name>Career Assistant</name></author>")
     for posting in postings:
@@ -194,6 +195,7 @@ async def build_atom(
     base_url: str,
     cursor: str | None = None,
     now: datetime | None = None,
+    token: str | None = None,
 ) -> str:
     """The user's Atom feed for one token scope."""
     _filters, title = await _scope_filters(db, user.id, scope)
@@ -207,4 +209,5 @@ async def build_atom(
         base_url=base_url,
         now=now,
         next_cursor=next_cursor,
+        token=token,
     )

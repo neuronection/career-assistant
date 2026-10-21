@@ -3,7 +3,12 @@ import type {
   AlertRule,
   AlertRuleKind,
   AlertRuleParams,
+  ChannelTestResult,
+  EmailChannelConfig,
+  EmailTransportConfig,
   FeedResponse,
+  FeedToken,
+  FeedTokenMinted,
   NotificationItem,
   NotificationPreferences,
   NotificationsResponse,
@@ -11,6 +16,7 @@ import type {
   PushSubscriptionRecord,
   SearchRecord,
   SearchScope,
+  WebhookChannelConfig,
 } from "@/types";
 
 export async function recordSearch(body: {
@@ -164,6 +170,127 @@ export async function updateNotificationPreferences(
 ): Promise<NotificationPreferences> {
   const { data } = await api.put<NotificationPreferences>(
     "/notifications/preferences",
+    body
+  );
+  return data;
+}
+
+export async function fetchEmailChannelConfig(): Promise<EmailChannelConfig> {
+  const { data } = await api.get<EmailChannelConfig>(
+    "/notifications/channels/email"
+  );
+  return data;
+}
+
+export async function updateEmailChannelConfig(body: {
+  enabled: boolean;
+  address?: string | null;
+  digest_mode: boolean;
+}): Promise<EmailChannelConfig> {
+  const { data } = await api.put<EmailChannelConfig>(
+    "/notifications/channels/email",
+    body
+  );
+  return data;
+}
+
+export async function resendEmailVerification(): Promise<{
+  sent: boolean;
+  pending_address: string;
+}> {
+  const { data } = await api.post<{ sent: boolean; pending_address: string }>(
+    "/notifications/channels/email/verification"
+  );
+  return data;
+}
+
+export async function verifyEmailAddress(
+  token: string
+): Promise<{ verified: boolean }> {
+  const { data } = await api.post<{ verified: boolean }>(
+    "/notifications/channels/email/verify",
+    { token }
+  );
+  return data;
+}
+
+export async function testEmailChannel(): Promise<ChannelTestResult> {
+  const { data } = await api.post<ChannelTestResult>(
+    "/notifications/channels/email/test"
+  );
+  return data;
+}
+
+export async function fetchWebhookChannelConfig(): Promise<WebhookChannelConfig> {
+  const { data } = await api.get<WebhookChannelConfig>(
+    "/notifications/channels/webhook"
+  );
+  return data;
+}
+
+export async function updateWebhookChannelConfig(body: {
+  enabled: boolean;
+  url?: string | null;
+  template?: string | null;
+  secret?: string | null;
+}): Promise<WebhookChannelConfig> {
+  const { data } = await api.put<WebhookChannelConfig>(
+    "/notifications/channels/webhook",
+    body
+  );
+  return data;
+}
+
+export async function testWebhookChannel(): Promise<ChannelTestResult> {
+  const { data } = await api.post<ChannelTestResult>(
+    "/notifications/channels/webhook/test"
+  );
+  return data;
+}
+
+export async function fetchFeedTokens(): Promise<FeedToken[]> {
+  const { data } = await api.get<FeedToken[]>("/me/feed-tokens");
+  return data;
+}
+
+export async function mintFeedToken(body: {
+  kind: "ics" | "rss";
+  scope?: Record<string, string>;
+}): Promise<FeedTokenMinted> {
+  const { data } = await api.post<FeedTokenMinted>("/me/feed-tokens", body);
+  return data;
+}
+
+export async function rotateFeedToken(id: string): Promise<FeedTokenMinted> {
+  const { data } = await api.post<FeedTokenMinted>(
+    `/me/feed-tokens/${id}/rotate`
+  );
+  return data;
+}
+
+export async function revokeFeedToken(id: string): Promise<void> {
+  await api.delete(`/me/feed-tokens/${id}`);
+}
+
+export async function fetchEmailTransport(): Promise<EmailTransportConfig> {
+  const { data } = await api.get<EmailTransportConfig>(
+    "/admin/notifications/email"
+  );
+  return data;
+}
+
+export async function updateEmailTransport(body: {
+  host?: string;
+  port?: number;
+  username?: string;
+  from_address?: string;
+  from_name?: string;
+  starttls?: boolean;
+  use_ssl?: boolean;
+  password?: string;
+}): Promise<EmailTransportConfig> {
+  const { data } = await api.put<EmailTransportConfig>(
+    "/admin/notifications/email",
     body
   );
   return data;

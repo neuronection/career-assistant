@@ -44,12 +44,22 @@ function apiExports(): { file: string; name: string }[] {
   return exports;
 }
 
+let source_cache: { file: string; text: string }[] | null = null;
+
+function sources(): { file: string; text: string }[] {
+  source_cache ??= sourceFiles(SRC).map((file) => ({
+    file,
+    text: readFileSync(file, "utf8"),
+  }));
+  return source_cache;
+}
+
 function consumers(name: string, ownFile: string): string[] {
   const pattern = new RegExp(`\\b${name}\\b`);
-  return sourceFiles(SRC)
-    .filter((file) => file !== ownFile)
-    .filter((file) => pattern.test(readFileSync(file, "utf8")))
-    .map((file) => relative(SRC, file).split(sep).join("/"));
+  return sources()
+    .filter(({ file }) => file !== ownFile)
+    .filter(({ text }) => pattern.test(text))
+    .map(({ file }) => relative(SRC, file).split(sep).join("/"));
 }
 
 describe("api client surface", () => {

@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (notification reach: email, webhooks, calendar, RSS, 2026-10-22)
+- **Notifications now reach your inbox, your team chat and your calendar**
+  (plan 117). Settings → Notifications gains an **email** channel (a
+  confirmed notification address, optional digest mode, and an admin SMTP
+  transport whose password is sealed at rest), a **webhook** channel with
+  Slack/Teams/Telegram/ntfy payload presets, SSRF-guarded URLs, a shared
+  token header, background retries and a test-delivery button, and
+  **calendar / RSS subscriptions** built on rotatable tokens: the `.ics`
+  feed carries admission deadlines, application deadlines, scheduled
+  interviews and follow-up review days with stable UIDs, while the Atom
+  feed follows a saved search (or all new postings). Per-kind routing
+  sends any notification kind to email or a webhook; follow-up reminders
+  keep their own per-stage overrides. Email respects quiet hours by
+  waiting for the digest run, webhooks queue, and pull feeds are never
+  suppressed. Tokens are shown once, stored only as hashes, revocable and
+  rotatable; revoked links answer `404`.
+
 ### Added (application tracker, 2026-10-21)
 - **Your applications finally have a home** (plan 116). A new
   `/applications` page shows the pipeline as a board (default) or a

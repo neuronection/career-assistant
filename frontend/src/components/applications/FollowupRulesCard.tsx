@@ -15,18 +15,22 @@ const DEFAULT_RULE: FollowupRules = {
   channels: {},
 };
 
+const ROUTE_KEYS = ["default", "followup_due", "interview_checkin", "offer_checkin"] as const;
+const ROUTE_CHANNELS = ["email", "webhook"] as const;
+
 function sameRules(a: FollowupRules, b: FollowupRules): boolean {
   return (
     a.enabled === b.enabled &&
     a.milestone_checkins === b.milestone_checkins &&
-    a.cadence_days.join(",") === b.cadence_days.join(",")
+    a.cadence_days.join(",") === b.cadence_days.join(",") &&
+    JSON.stringify(a.channels) === JSON.stringify(b.channels)
   );
 }
 
 /** Follow-up cadence settings block (plan 116.3): enable switch,
  * cadence editor and the interview/offer check-in toggle. One block,
  * mounted by Settings → Notifications and the tracker toolbar. */
-export function FollowupRulesCard() {
+export function FollowupRulesCard({ showChannels = false }: { showChannels?: boolean }) {
   const { t } = useTranslation();
   const [rules, setRules] = useState<FollowupRules | null>(null);
   const [draft, setDraft] = useState<FollowupRules | null>(null);
@@ -82,6 +86,7 @@ export function FollowupRulesCard() {
         enabled: draft.enabled,
         cadence_days: draft.cadence_days,
         milestone_checkins: draft.milestone_checkins,
+        ...(showChannels ? { channels: draft.channels } : {}),
       });
       setRules(next);
       setDraft(next);
@@ -91,6 +96,17 @@ export function FollowupRulesCard() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const toggleRouteChannel = (route: string, channel: string) => {
+    const current = draft.channels[route] ?? [];
+    const next = current.includes(channel)
+      ? current.filter((entry) => entry !== channel)
+      : [...current, channel];
+    const channels = { ...draft.channels };
+    if (next.length === 0) delete channels[route];
+    else channels[route] = next;
+    change({ channels });
   };
 
   const dirty = rules === null || !sameRules(rules, draft);
@@ -152,6 +168,36 @@ export function FollowupRulesCard() {
           {t("followupRules.addStep")}
         </Button>
       </div>
+      {showChannels && (
+        <div className="space-y-2" data-testid="followup-channel-routes">
+          <p className="text-xs text-[var(--as-muted-fg)]">
+            {t("followupRules.channelsBody")}
+          </p>
+          {ROUTE_KEYS.map((route) => (
+            <div key={route} className="flex items-center justify-between gap-2">
+              <span className="text-xs text-[var(--as-fg)]">
+                {t(`followupRules.channels.${route}`)}
+              </span>
+              <div className="flex items-center gap-3">
+                {ROUTE_CHANNELS.map((channel) => (
+                  <label
+                    key={channel}
+                    className="flex items-center gap-1 text-[11px] text-[var(--as-muted-fg)]"
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid={`followup-route-${route}-${channel}`}
+                      checked={(draft.channels[route] ?? []).includes(channel)}
+                      onChange={() => toggleRouteChannel(route, channel)}
+                    />
+                    {channel}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {error !== null && (
         <p className="text-xs text-rose-600" data-testid="followup-rules-error">
           {error}

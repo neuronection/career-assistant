@@ -197,10 +197,15 @@ def available_channels() -> list[str]:
 
     One build, capabilities declared: the desktop shell registers its
     channel in-process at boot; web deployments carry the `browser`
-    (VAPID) slot.
+    (VAPID) slot. Sorted by the closed registry order so API responses and
+    settings UI are deterministic.
     """
+    from app.models.enums import NotificationChannel
+
     _load_plugins()
-    return [key for key, channel in _registry.items() if channel.available()]
+    order = {member.value: index for index, member in enumerate(NotificationChannel)}
+    keys = [key for key, channel in _registry.items() if channel.available()]
+    return sorted(keys, key=lambda key: (order.get(key, len(order)), key))
 
 
 def within_quiet_hours(quiet: dict | None, now: datetime | None = None) -> bool:

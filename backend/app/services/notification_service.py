@@ -198,7 +198,7 @@ class NotificationService:
                     digest_mode = (
                         bool((config.config or {}).get("digest_mode")) if config else False
                     )
-                    if quiet_now:
+                    if quiet_now and kind_row.key != "digest_ready":
                         await self._defer(notification, user_id, kind_row.key, "quiet_hours")
                         continue
                     if digest_mode and kind_row.key != "digest_ready":

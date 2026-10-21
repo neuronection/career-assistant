@@ -146,6 +146,7 @@ async def rss_feed_endpoint(
         scope=dict(row.scope or {}),
         base_url=base_url,
         cursor=cursor,
+        token=token,
     )
     await db.commit()
     return Response(
