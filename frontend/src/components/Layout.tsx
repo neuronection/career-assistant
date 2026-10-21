@@ -43,6 +43,7 @@ export function Layout() {
   const isTemplateRoute = useMatch("/cv/templates/:id") !== null;
   const isExperienceRoute = useMatch("/profile/experience") !== null;
   const isEducationRoute = useMatch("/profile/education") !== null;
+  const isApplicationsRoute = useMatch("/applications") !== null;
   const chatMode = useChatStore((state) => state.chatMode);
   const chatModeChosen = useChatStore((state) => state.chatModeChosen);
   const profileEpoch = useProfilesStore((state) => state.epoch);
@@ -51,6 +52,7 @@ export function Layout() {
     isTemplateRoute ||
     isExperienceRoute ||
     isEducationRoute ||
+    isApplicationsRoute ||
     location.pathname === "/onboarding" ||
     location.pathname === "/onboarding/setup" ||
     location.pathname === "/chat";

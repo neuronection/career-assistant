@@ -13,6 +13,12 @@
       "docs": "docs/user/postings-and-search.md"
     },
     {
+      "key": "/applications",
+      "state": "on",
+      "since": "2026-10-21",
+      "docs": "docs/user/applications.md"
+    },
+    {
       "key": "/autopilot",
       "state": "beta",
       "since": "2026-10-21",

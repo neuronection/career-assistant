@@ -969,6 +969,8 @@ export interface JobPostingItem {
   saved: boolean;
   applied_at?: string | null;
   notes?: string;
+  application_id?: string | null;
+  stage?: string | null;
   source_key: string;
   extract_version?: number | null;
   needs_review?: boolean;

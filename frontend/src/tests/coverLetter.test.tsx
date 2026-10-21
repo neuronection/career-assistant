@@ -24,6 +24,15 @@ const fetchTemplates = vi.fn();
 const fetchPhotoGallery = vi.fn();
 const fetchPostings = vi.fn();
 const fetchPostingDetail = vi.fn();
+const trackApplication = vi.fn();
+
+vi.mock("@/api/applications", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/applications")>();
+  return {
+    ...mod,
+    trackApplication: (...args: unknown[]) => trackApplication(...args),
+  };
+});
 
 vi.mock("@/api/mePhoto", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/mePhoto")>();
@@ -432,5 +441,80 @@ describe("PostingDetail cover-letter entry point", () => {
       "Posting not found"
     );
     expect(screen.queryByTestId("letter-opened")).not.toBeInTheDocument();
+  });
+});
+
+describe("PostingDetail track-application entry point", () => {
+  it("tracks the posting and opens its tracker drawer", async () => {
+    fetchPostingDetail.mockResolvedValue({
+      id: "post-1",
+      ref: "abc",
+      title: "Junior DevOps",
+      org: "Acme",
+      location: {},
+      url: "https://jobs.example/1",
+    });
+    trackApplication.mockResolvedValue({
+      id: "app-9",
+      posting_id: "post-1",
+      posting_title: "Junior DevOps",
+      posting_org: "Acme",
+      stage: "applied",
+    });
+    render(
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/postings"]}>
+          <Routes>
+            <Route
+              path="/postings"
+              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
+            />
+            <Route path="/applications" element={<div data-testid="tracker-opened" />} />
+          </Routes>
+        </MemoryRouter>
+      </TooltipProvider>
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("track-application"));
+
+    await waitFor(() =>
+      expect(trackApplication).toHaveBeenCalledWith({
+        posting_id: "post-1",
+        applied_via: "url",
+        applied_via_url: "https://jobs.example/1",
+      })
+    );
+    expect(await screen.findByTestId("tracker-opened")).toBeInTheDocument();
+  });
+
+  it("links to the existing application instead of re-tracking", async () => {
+    fetchPostingDetail.mockResolvedValue({
+      id: "post-1",
+      ref: "abc",
+      title: "Junior DevOps",
+      org: "Acme",
+      location: {},
+      url: "https://jobs.example/1",
+      application_id: "app-5",
+      stage: "interview",
+    });
+    render(
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/postings"]}>
+          <Routes>
+            <Route
+              path="/postings"
+              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
+            />
+            <Route path="/applications" element={<div data-testid="tracker-opened" />} />
+          </Routes>
+        </MemoryRouter>
+      </TooltipProvider>
+    );
+    const user = userEvent.setup();
+    expect(await screen.findByTestId("open-application")).toBeInTheDocument();
+    expect(screen.queryByTestId("track-application")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("open-application"));
+    expect(await screen.findByTestId("tracker-opened")).toBeInTheDocument();
   });
 });

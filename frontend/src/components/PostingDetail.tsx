@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
-import { ExternalLink, GraduationCap, Quote, Sparkles } from "lucide-react";
+import { ExternalLink, GraduationCap, Quote, Sparkles, Target } from "lucide-react";
 
+import { trackApplication } from "@/api/applications";
 import { apiDetail } from "@/api/client";
 import { createCoverLetter } from "@/api/cv";
 import {
@@ -112,7 +113,27 @@ export function PostingDetail({
   const [interviewError, setInterviewError] = useState("");
   const [letterBusy, setLetterBusy] = useState(false);
   const [letterError, setLetterError] = useState("");
+  const [trackBusy, setTrackBusy] = useState(false);
+  const [trackError, setTrackError] = useState("");
   const navigate = useNavigate();
+
+  async function track() {
+    if (posting === null) return;
+    setTrackBusy(true);
+    setTrackError("");
+    try {
+      const application = await trackApplication({
+        posting_id: posting.id,
+        applied_via: "url",
+        applied_via_url: posting.url,
+      });
+      onClose();
+      navigate(`/applications?application=${application.id}`);
+    } catch (err) {
+      setTrackError(apiDetail(err));
+      setTrackBusy(false);
+    }
+  }
 
   async function draftLetter() {
     setLetterBusy(true);
@@ -238,6 +259,31 @@ export function PostingDetail({
               <GraduationCap className="mr-1 h-3.5 w-3.5" />
               {t("postingDetail.practiceInterview")}
             </Button>
+            {posting.application_id ? (
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="open-application"
+                onClick={() => {
+                  onClose();
+                  navigate(`/applications?application=${posting.application_id}`);
+                }}
+              >
+                <Target className="mr-1 h-3.5 w-3.5" />
+                {t("postingDetail.openApplication")}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={trackBusy}
+                onClick={() => void track()}
+                data-testid="track-application"
+              >
+                <Target className="mr-1 h-3.5 w-3.5" />
+                {t("postingDetail.trackApplication")}
+              </Button>
+            )}
           </div>
           {interviewError && (
             <p
@@ -251,6 +297,11 @@ export function PostingDetail({
           {letterError && (
             <p role="alert" className="text-xs text-red-600" data-testid="letter-error">
               {letterError}
+            </p>
+          )}
+          {trackError && (
+            <p role="alert" className="text-xs text-red-600" data-testid="track-error">
+              {trackError}
             </p>
           )}
           <p className="text-slate-500">

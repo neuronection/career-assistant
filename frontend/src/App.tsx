@@ -21,6 +21,7 @@ import { Catalog } from "@/pages/Catalog";
 import { CatalogGraph } from "@/components/catalog/CatalogGraph";
 import { CatalogTree } from "@/components/catalog/CatalogTree";
 import { Dashboard } from "@/pages/Dashboard";
+import { Applications } from "@/pages/Applications";
 import { ChatPage } from "@/pages/ChatPage";
 import { Generate } from "@/pages/Generate";
 import { JobDetail } from "@/pages/JobDetail";
@@ -76,6 +77,7 @@ export function App() {
             <Route index element={<PostingsFeed />} />
             <Route path="search" element={<Explore />} />
           </Route>
+          <Route path="/applications" element={<Applications />} />
           <Route path="/explore" element={<Navigate to="/postings/search" replace />} />
           <Route path="/autopilot" element={<Autopilot />} />
           <Route path="/interviews" element={<Interviews />} />

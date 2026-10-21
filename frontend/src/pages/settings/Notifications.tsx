@@ -9,6 +9,7 @@ import {
   unsubscribePush,
   updateNotificationPreferences,
 } from "@/api/engagement";
+import { FollowupRulesCard } from "@/components/applications/FollowupRulesCard";
 import { hasChannel } from "@/lib/desktop";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import type { PreferencesMatrix } from "@/types";
@@ -220,6 +221,18 @@ export function Notifications() {
               )}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-sm font-semibold text-slate-900">
+          {t("notifications.followupTitle")}
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          {t("notifications.followupBody")}
+        </p>
+        <div className="mt-3">
+          <FollowupRulesCard />
         </div>
       </section>
     </div>

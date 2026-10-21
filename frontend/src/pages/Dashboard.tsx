@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Building2,
   Bookmark,
-  BriefcaseBusiness,
   FileText,
   Sparkles,
   Target,
@@ -17,6 +16,7 @@ import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { fetchRankings, fetchCandidates } from "@/api/matching";
 import { fetchFeed, markSeen } from "@/api/engagement";
+import { fetchApplications } from "@/api/applications";
 import { fetchPostings } from "@/api/postings";
 import {
   dismissNudge,
@@ -25,14 +25,15 @@ import {
 import { JobCard } from "@/components/JobCard";
 import { ScoreRing } from "@/components/ScoreRing";
 import { FitStaleBadge } from "@/components/FitStaleBadge";
+import { ApplicationsFunnel } from "@/components/applications/ApplicationsFunnel";
 import type {
   Candidate,
   FeedResponse,
   JobPostingItem,
-  PostingsResponse,
   RankedJob,
   TargetDashboard,
 } from "@/types";
+import type { ApplicationFunnel } from "@/types/application";
 import { useState } from "react";
 
 const STAGE_TAGLINE: Record<string, string> = {
@@ -52,7 +53,7 @@ export function Dashboard() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [feed, setFeed] = useState<FeedResponse | null>(null);
   const [feedView, setFeedView] = useState<"all" | "saved">("all");
-  const [applications, setApplications] = useState<PostingsResponse | null>(null);
+  const [funnel, setFunnel] = useState<ApplicationFunnel | null>(null);
   const [target, setTarget] = useState<TargetDashboard | null>(null);
   const [targetJobs, setTargetJobs] = useState<JobPostingItem[]>([]);
   const navigate = useNavigate();
@@ -70,9 +71,9 @@ export function Dashboard() {
     void fetchRankings({ page_size: 4 }).then((r) => setTop(r.items)).catch(() => setTop([]));
     void fetchCandidates({ limit: 4 }).then(setCandidates).catch(() => setCandidates([]));
     loadFeed("all");
-    void fetchPostings({ saved: true })
-      .then(setApplications)
-      .catch(() => setApplications(null));
+    void fetchApplications()
+      .then((listing) => setFunnel(listing.funnel))
+      .catch(() => setFunnel(null));
     void fetchTargetDashboard()
       .then((t) => {
         setTarget(t);
@@ -349,29 +350,7 @@ export function Dashboard() {
         </section>
       )}
 
-      {applications && applications.total > 0 && (
-        <section className="bg-white border border-slate-200 rounded-xl p-4" data-testid="applications-widget">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BriefcaseBusiness className="w-4 h-4 text-primary-600" />
-              <h2 className="font-semibold text-slate-900">Your applications</h2>
-            </div>
-            <Link to="/postings" className="text-sm text-primary-700">{t("dashboard.liveTab")}</Link>
-          </div>
-          <div className="flex gap-6 mt-3 text-sm">
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{applications.total}</p>
-              <p className="text-xs text-slate-500">saved postings</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-emerald-600">
-                {applications.items.filter((p) => p.applied_at).length}
-              </p>
-              <p className="text-xs text-slate-500">applied</p>
-            </div>
-          </div>
-        </section>
-      )}
+      <ApplicationsFunnel funnel={funnel} />
 
       {candidates.length > 0 && (
         <section>

@@ -44,7 +44,7 @@ describe("resolveActiveId", () => {
   });
 
   it("registry keeps its shape", () => {
-    expect(NAV).toHaveLength(11);
+    expect(NAV).toHaveLength(12);
     expect(NAV.filter((item) => item.studentOnly).map((item) => item.to)).toEqual(
       []
     );
@@ -56,6 +56,7 @@ describe("resolveActiveId", () => {
     const visible = NAV.filter((item) => isVisible(item.to)).map((item) => item.to);
     expect(visible).toEqual(NAV.map((item) => item.to));
     expect(FEATURES.map((feature) => feature.key).sort()).toEqual([
+      "/applications",
       "/autopilot",
       "/growth",
       "/interviews",
