@@ -73,6 +73,8 @@ def _posting_out(
         saved=interaction is not None and interaction.saved_at is not None,
         applied_at=application.applied_at if application else None,
         notes=application.notes if application else "",
+        application_id=application.id if application else None,
+        stage=application.stage if application else None,
         extract_version=posting.extract_version,
         needs_review=posting.needs_review,
         coverage=coverage,
@@ -293,7 +295,24 @@ async def posting_detail(
     match = await get_posting_fit(db, user.id, posting)
     similar = await similar_postings(db, posting)
 
-    out = _posting_out(posting, None)
+    from app.models.posting_model import PostingInteraction
+    from app.services.applications_service import get_application
+
+    interaction = (
+        (
+            await db.execute(
+                select(PostingInteraction).where(
+                    PostingInteraction.user_id == user.id,
+                    PostingInteraction.posting_id == posting.id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    application = await get_application(db, user.id, posting.id)
+
+    out = _posting_out(posting, interaction, application)
     return PostingDetailOut(
         **out.model_dump(),
         extract=posting.extract,

@@ -4,6 +4,7 @@ from app.api.v1 import (
     admin,
     ai,
     ai_admin,
+    applications,
     assessments,
     autopilot,
     background_jobs,
@@ -42,6 +43,7 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(instance.router)
 api_router.include_router(autopilot.router)
 api_router.include_router(me.router)
+api_router.include_router(applications.router)
 api_router.include_router(me_cv_data.router)
 api_router.include_router(me_photo.router)
 api_router.include_router(metrics.router)

@@ -11,7 +11,7 @@ services.
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
@@ -25,7 +25,7 @@ from app.models.enums import (
     ApplicationVia,
 )
 from app.models.followup_model import FollowupRule
-from app.models.posting_model import JobPosting
+from app.models.posting_model import JobPosting, PostingInteraction
 
 MILESTONE_STAGES = frozenset({ApplicationStage.INTERVIEW.value, ApplicationStage.OFFER.value})
 CLOSING_STAGES = frozenset(
@@ -207,6 +207,94 @@ class ApplicationService:
     async def get(self, user_id: uuid.UUID, application_id: uuid.UUID) -> Application:
         """One owned application or 404."""
         return await self._owned(user_id, application_id)
+
+    async def list_applications(
+        self,
+        user_id: uuid.UUID,
+        *,
+        stage: ApplicationStage | str | None = None,
+        open_only: bool = False,
+        q: str | None = None,
+    ) -> list[tuple[Application, JobPosting]]:
+        """The user's applications with their postings, newest first."""
+        stmt = (
+            select(Application, JobPosting)
+            .join(JobPosting, JobPosting.id == Application.posting_id)
+            .where(Application.user_id == user_id)
+        )
+        if stage is not None:
+            stmt = stmt.where(Application.stage == _value(stage))
+        if open_only:
+            stmt = stmt.where(Application.closed_at.is_(None))
+        needle = (q or "").strip().lower()
+        if needle:
+            pattern = f"%{needle}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(JobPosting.title).like(pattern),
+                    func.lower(JobPosting.org).like(pattern),
+                )
+            )
+        rows = await self.db.execute(stmt.order_by(Application.updated_at.desc()))
+        return list(rows.all())
+
+    async def funnel(self, user_id: uuid.UUID) -> dict:
+        """Dashboard funnel counts: saved → applied → interviewing → offers."""
+        saved = (
+            await self.db.execute(
+                select(func.count())
+                .select_from(PostingInteraction)
+                .where(
+                    PostingInteraction.user_id == user_id,
+                    PostingInteraction.saved_at.is_not(None),
+                )
+            )
+        ).scalar_one()
+        stage_counts = dict(
+            (
+                await self.db.execute(
+                    select(Application.stage, func.count())
+                    .where(Application.user_id == user_id)
+                    .group_by(Application.stage)
+                )
+            ).all()
+        )
+        closed = (
+            await self.db.execute(
+                select(func.count())
+                .select_from(Application)
+                .where(
+                    Application.user_id == user_id,
+                    Application.closed_at.is_not(None),
+                )
+            )
+        ).scalar_one()
+        applied_total = sum(stage_counts.values())
+        interviewing = stage_counts.get(ApplicationStage.SCREENING.value, 0) + stage_counts.get(
+            ApplicationStage.INTERVIEW.value, 0
+        )
+        offers = stage_counts.get(ApplicationStage.OFFER.value, 0) + stage_counts.get(
+            ApplicationStage.ACCEPTED.value, 0
+        )
+        return {
+            "saved": int(saved),
+            "applied": int(applied_total),
+            "interviewing": int(interviewing),
+            "offers": int(offers),
+            "closed": int(closed),
+        }
+
+    async def next_due(self, user_id: uuid.UUID) -> datetime | None:
+        """The earliest scheduled follow-up across open applications."""
+        return (
+            await self.db.execute(
+                select(func.min(Application.next_followup_at)).where(
+                    Application.user_id == user_id,
+                    Application.closed_at.is_(None),
+                    Application.next_followup_at.is_not(None),
+                )
+            )
+        ).scalar_one_or_none()
 
     async def _owned(self, user_id: uuid.UUID, application_id: uuid.UUID) -> Application:
         application = (

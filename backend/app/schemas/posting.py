@@ -71,6 +71,8 @@ class PostingOut(BaseModel):
     saved: bool = False
     applied_at: datetime | None = None
     notes: str = ""
+    application_id: UUID | None = None
+    stage: str | None = None
     # Deep extraction provenance: raw → fast-mapped → extracted.
     extract_version: int | None = None
     needs_review: bool = False

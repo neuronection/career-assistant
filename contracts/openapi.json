@@ -376,6 +376,626 @@
         "title": "AnswersIn",
         "type": "object"
       },
+      "ApplicationCloseIn": {
+        "description": "Close the application with a terminal outcome.",
+        "properties": {
+          "note": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Note",
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ApplicationOutcome"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "ApplicationCloseIn",
+        "type": "object"
+      },
+      "ApplicationCreateIn": {
+        "description": "Track an application (idempotent per posting).",
+        "properties": {
+          "applied_via": {
+            "$ref": "#/components/schemas/ApplicationVia",
+            "default": "url"
+          },
+          "applied_via_url": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Applied Via Url",
+            "type": "string"
+          },
+          "cover_letter_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Letter Id"
+          },
+          "cv_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Id"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "posting_id"
+        ],
+        "title": "ApplicationCreateIn",
+        "type": "object"
+      },
+      "ApplicationDetailOut": {
+        "description": "The list row plus the newest-first event timeline.",
+        "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "applied_via": {
+            "default": "url",
+            "title": "Applied Via",
+            "type": "string"
+          },
+          "applied_via_url": {
+            "default": "",
+            "title": "Applied Via Url",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "contact": {
+            "additionalProperties": true,
+            "title": "Contact",
+            "type": "object"
+          },
+          "cover_letter_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Letter Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cv_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Id"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "external_ref": {
+            "default": "",
+            "title": "External Ref",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "next_followup_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Followup At"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "offer": {
+            "additionalProperties": true,
+            "title": "Offer",
+            "type": "object"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          },
+          "posting_org": {
+            "default": "",
+            "title": "Posting Org",
+            "type": "string"
+          },
+          "posting_ref": {
+            "default": "",
+            "title": "Posting Ref",
+            "type": "string"
+          },
+          "posting_title": {
+            "default": "",
+            "title": "Posting Title",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationEventOut"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "posting_id",
+          "stage",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ApplicationDetailOut",
+        "type": "object"
+      },
+      "ApplicationDocumentIn": {
+        "description": "Attach the documents actually sent.",
+        "properties": {
+          "cover_letter_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Letter Id"
+          },
+          "cv_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Id"
+          }
+        },
+        "title": "ApplicationDocumentIn",
+        "type": "object"
+      },
+      "ApplicationEventOut": {
+        "description": "One timeline entry.",
+        "properties": {
+          "actor": {
+            "default": "user",
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "body": {
+            "default": "",
+            "title": "Body",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "stage_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage From"
+          },
+          "stage_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage To"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind"
+        ],
+        "title": "ApplicationEventOut",
+        "type": "object"
+      },
+      "ApplicationListOut": {
+        "description": "One tracker page of applications plus aggregate counts.",
+        "properties": {
+          "funnel": {
+            "$ref": "#/components/schemas/FunnelOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_followup_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Followup At"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "funnel"
+        ],
+        "title": "ApplicationListOut",
+        "type": "object"
+      },
+      "ApplicationNoteIn": {
+        "description": "Append one note to the timeline.",
+        "properties": {
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ApplicationNoteIn",
+        "type": "object"
+      },
+      "ApplicationOut": {
+        "description": "The application row as the tracker renders it.",
+        "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "applied_via": {
+            "default": "url",
+            "title": "Applied Via",
+            "type": "string"
+          },
+          "applied_via_url": {
+            "default": "",
+            "title": "Applied Via Url",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "contact": {
+            "additionalProperties": true,
+            "title": "Contact",
+            "type": "object"
+          },
+          "cover_letter_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Letter Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cv_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Id"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "external_ref": {
+            "default": "",
+            "title": "External Ref",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "title": "Meta",
+            "type": "object"
+          },
+          "next_followup_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Followup At"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "offer": {
+            "additionalProperties": true,
+            "title": "Offer",
+            "type": "object"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          },
+          "posting_org": {
+            "default": "",
+            "title": "Posting Org",
+            "type": "string"
+          },
+          "posting_ref": {
+            "default": "",
+            "title": "Posting Ref",
+            "type": "string"
+          },
+          "posting_title": {
+            "default": "",
+            "title": "Posting Title",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "posting_id",
+          "stage",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ApplicationOut",
+        "type": "object"
+      },
+      "ApplicationOutcome": {
+        "description": "Terminal result of an application.",
+        "enum": [
+          "accepted",
+          "rejected",
+          "withdrawn",
+          "expired",
+          "ghosted"
+        ],
+        "title": "ApplicationOutcome",
+        "type": "string"
+      },
+      "ApplicationSnoozeIn": {
+        "description": "Push the next follow-up out by whole days.",
+        "properties": {
+          "days": {
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "title": "ApplicationSnoozeIn",
+        "type": "object"
+      },
       "ApplicationStage": {
         "description": "Where an application sits in the pipeline.",
         "enum": [
@@ -388,6 +1008,38 @@
           "withdrawn"
         ],
         "title": "ApplicationStage",
+        "type": "string"
+      },
+      "ApplicationTransitionIn": {
+        "description": "Move an application to another stage.",
+        "properties": {
+          "body": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Body",
+            "type": "string"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ApplicationStage"
+          }
+        },
+        "required": [
+          "stage"
+        ],
+        "title": "ApplicationTransitionIn",
+        "type": "object"
+      },
+      "ApplicationVia": {
+        "description": "The channel an application was submitted through.",
+        "enum": [
+          "url",
+          "email",
+          "portal",
+          "referral",
+          "event",
+          "other"
+        ],
+        "title": "ApplicationVia",
         "type": "string"
       },
       "AppliedIn": {
@@ -7090,6 +7742,38 @@
         "title": "FollowupPrefsIn",
         "type": "object"
       },
+      "FunnelOut": {
+        "description": "Dashboard funnel: saved \u2192 applied \u2192 interviewing \u2192 offers.",
+        "properties": {
+          "applied": {
+            "default": 0,
+            "title": "Applied",
+            "type": "integer"
+          },
+          "closed": {
+            "default": 0,
+            "title": "Closed",
+            "type": "integer"
+          },
+          "interviewing": {
+            "default": 0,
+            "title": "Interviewing",
+            "type": "integer"
+          },
+          "offers": {
+            "default": 0,
+            "title": "Offers",
+            "type": "integer"
+          },
+          "saved": {
+            "default": 0,
+            "title": "Saved",
+            "type": "integer"
+          }
+        },
+        "title": "FunnelOut",
+        "type": "object"
+      },
       "GapOut": {
         "properties": {
           "delta": {
@@ -9786,6 +10470,18 @@
       "PostingDetailOut": {
         "description": "Detail view: full extract, source attribution, the\nmatch-score card and the similar-postings rail.",
         "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
           "applied_at": {
             "anyOf": [
               {
@@ -10087,6 +10783,17 @@
             "title": "Source Title",
             "type": "string"
           },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -10116,6 +10823,18 @@
       },
       "PostingOut": {
         "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
           "applied_at": {
             "anyOf": [
               {
@@ -10362,6 +11081,17 @@
             "default": "",
             "title": "Source Key",
             "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
           },
           "status": {
             "title": "Status",
@@ -27078,6 +27808,436 @@
         "summary": "Update Achievement",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/v1/me/applications": {
+      "get": {
+        "description": "The tracker listing with the dashboard funnel counts.",
+        "operationId": "list_applications_api_v1_me_applications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ApplicationStage"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "open_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Open Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Applications",
+        "tags": [
+          "applications"
+        ]
+      },
+      "post": {
+        "description": "Track one application (idempotent per posting).",
+        "operationId": "create_application_api_v1_me_applications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Application",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}": {
+      "get": {
+        "description": "One application with its reverse-chronological timeline.",
+        "operationId": "get_application_api_v1_me_applications__application_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Application",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}/close": {
+      "post": {
+        "description": "Close with a terminal outcome.",
+        "operationId": "close_application_api_v1_me_applications__application_id__close_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationCloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Application",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}/documents": {
+      "post": {
+        "description": "Attach the CV / cover letter actually sent.",
+        "operationId": "link_application_document_api_v1_me_applications__application_id__documents_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationDocumentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Link Application Document",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}/notes": {
+      "post": {
+        "description": "Append a note event and refresh the rolling note column.",
+        "operationId": "add_application_note_api_v1_me_applications__application_id__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationNoteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Application Note",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}/snooze": {
+      "post": {
+        "description": "Push the next follow-up out by whole days.",
+        "operationId": "snooze_application_followup_api_v1_me_applications__application_id__snooze_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationSnoozeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Snooze Application Followup",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}/transition": {
+      "post": {
+        "description": "Move the application; each real move writes one `stage_change`.",
+        "operationId": "transition_application_api_v1_me_applications__application_id__transition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationTransitionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transition Application",
+        "tags": [
+          "applications"
         ]
       }
     },
