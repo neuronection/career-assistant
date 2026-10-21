@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (beta pages un-gated, 2026-10-21)
+- **Live postings, Career Autopilot, Interview prep and the Growth toolkit
+  are reachable from the sidebar** — they were hidden behind a five-tap
+  lock icon (a dev-mode easter egg), while the dashboard and onboarding
+  already linked into them. All four now render a **Beta** chip with one
+  expectation line from a single feature-state registry
+  (`frontend/src/config/features.json`); the easter egg is gone. The demo
+  tour shoots the same four pages, and the README/feature-status table is
+  checked against the registry by the test suite.
+
 ### Added (cover letters shipped, 2026-10-21)
 - **Cover letters are available.** Every posting's **Draft cover letter**
   button now works (it previously had no handler and was disabled), and

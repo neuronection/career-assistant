@@ -59,7 +59,13 @@ Zustand stores in `stores/`:
 | `cvBuilderLinkStore` | Cross-surface CV live-sync (plan 104) |
 | `profileStore`, `profileProposalsStore` | Profile + pending proposal cards |
 | `templatePreviewsStore` | Template gallery previews |
-| `toastStore`, `devModeStore` | Notices, dev toggles |
+| `toastStore` | Notices |
+
+Page visibility lives outside the stores: `config/features.json` is the
+feature-state table (`on`/`beta`/`hidden`) that the sidebar, the beta
+banner, the demo tour and the docs-claims test all read. There is no dev
+mode and no hidden unlock — see
+[UI conventions → feature state](ui-conventions.md#2d-feature-state-beta-affordance).
 
 ## API client
 

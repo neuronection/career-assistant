@@ -1,0 +1,28 @@
+{
+  "features": [
+    {
+      "key": "/postings",
+      "state": "beta",
+      "since": "2026-10-21",
+      "docs": "docs/user/postings-and-search.md"
+    },
+    {
+      "key": "/autopilot",
+      "state": "beta",
+      "since": "2026-10-21",
+      "docs": "docs/user/career-autopilot.md"
+    },
+    {
+      "key": "/interviews",
+      "state": "beta",
+      "since": "2026-10-21",
+      "docs": "docs/user/interviews.md"
+    },
+    {
+      "key": "/growth",
+      "state": "beta",
+      "since": "2026-10-21",
+      "docs": "docs/user/growth.md"
+    }
+  ]
+}

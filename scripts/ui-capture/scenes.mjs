@@ -9,10 +9,28 @@
  * Chat scenes drive the mock provider's demo scripts / ops path on
  * purpose: prompts are chosen so answers carry rendered items — job
  * reference chips and HITL proposal cards, not just prose.
+ *
+ * Visibility: the four beta surfaces (postings, Autopilot, Interviews,
+ * Growth) are shot because the feature registry says `beta` — a scene
+ * that targets a `hidden` feature throws at import time, so the tour and
+ * the app's navigation cannot disagree.
  */
-// NOTE: scenes for pages that are hidden behind dev mode (beta) are kept
-// here commented out — Autopilot, Postings (+detail), Interviews, Growth.
-// They re-enable by uncommenting when those pages leave beta.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const registry = JSON.parse(
+  readFileSync(join(here, "../../frontend/src/config/features.json"), "utf8")
+);
+
+function featureState(path) {
+  const clean = String(path).split("?")[0];
+  const match = registry.features
+    .filter((f) => clean === f.key || clean.startsWith(`${f.key}/`))
+    .sort((a, b) => b.key.length - a.key.length)[0];
+  return match ? match.state : "on";
+}
 export const groups = [
   "Authentication",
   "Overview",
@@ -84,7 +102,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='job-detail']",
   },
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "postings",
     group: "Career exploration",
@@ -94,8 +111,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='postings-page']",
   },
-  ——————————————————————————————————————————————————————————————— */
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "posting-detail",
     group: "Career exploration",
@@ -105,7 +120,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='posting-detail']",
   },
-  ——————————————————————————————————————————————————————————————— */
   {
     name: "universities",
     group: "Career exploration",
@@ -115,7 +129,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='universities']",
   },
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "autopilot",
     group: "Working life",
@@ -125,8 +138,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='autopilot-page']",
   },
-  ——————————————————————————————————————————————————————————————— */
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "interviews",
     group: "Working life",
@@ -136,8 +147,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='interviews-page']",
   },
-  ——————————————————————————————————————————————————————————————— */
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "growth",
     group: "Working life",
@@ -147,7 +156,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='growth']",
   },
-  ——————————————————————————————————————————————————————————————— */
   {
     name: "profile-experience",
     group: "Your profile",
@@ -220,3 +228,11 @@ export const scenes = [
     waitForSelector: "[data-testid='settings-account']",
   },
 ];
+
+for (const scene of scenes) {
+  if (featureState(scene.path) === "hidden") {
+    throw new Error(
+      `Scene ${scene.name} targets a hidden feature (${scene.path}) — the demo tour and the feature registry disagree.`
+    );
+  }
+}

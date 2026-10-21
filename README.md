@@ -87,6 +87,24 @@ It is **beta** software, built for anyone exploring career paths and for technic
 
 The short tour; the exhaustive one — including Autopilot, deep posting extraction, growth toolkit, variant library, MCP and more — lives in the [feature catalog](docs/user/features.md).
 
+### Feature status
+
+Every user-facing surface carries a state. The sidebar, the in-app beta
+banner, the demo tour and this table read the same registry
+(`frontend/src/config/features.json`); `backend/tests/test_docs_claims.py`
+fails when a claim here drifts from the code.
+
+| Surface | Route | State | Documented in |
+|---|---|---|---|
+| Live postings | `/postings` | beta | [user/postings-and-search.md](docs/user/postings-and-search.md) |
+| Career Autopilot | `/autopilot` | beta | [user/career-autopilot.md](docs/user/career-autopilot.md) |
+| Interview prep | `/interviews` | beta | [user/interviews.md](docs/user/interviews.md) |
+| Growth toolkit | `/growth` | beta | [user/growth.md](docs/user/growth.md) |
+
+`beta` means the surface works end to end and carries a visible Beta chip
+plus one expectation line in the app; everything else the catalog lists is
+shipped (`on`).
+
 - **Explore a living job catalog** — browse job families as a tree, follow typed relations in an interactive graph, and enrich the catalog with AI-generated jobs that map onto the existing taxonomy. Search and filter across everything.
 - **Build a deep, structured profile** — an onboarding wizard with start paths (answer only what applies), CV intake with review-first import, and an AI analysis of your profile. Everything is typed, so matching is computed, not vibes.
 - **Get matched, with reasons** — AI scores with structured rationale (positives, negatives, missing prerequisites), your own score and interest status alongside, filterable rankings, and a side-by-side compare tray (`/compare`).

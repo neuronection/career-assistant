@@ -17,15 +17,15 @@ import { CompareTray } from "@/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
 import {
   extensionNavItems,
-  NAV,
   resolveActiveId,
   toNavItem,
+  visibleNav,
+  type AppNavItem,
 } from "@/config/nav";
 import { useExtensionSurfacesStore } from "@/stores/extensionSurfacesStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useProfilesStore } from "@/stores/profilesStore";
-import { useDevModeStore } from "@/stores/devModeStore";
-import { DevMenu } from "@/components/DevMenu";
+import { BetaBanner } from "@/components/BetaBanner";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -44,7 +44,6 @@ export function Layout() {
   const chatMode = useChatStore((state) => state.chatMode);
   const chatModeChosen = useChatStore((state) => state.chatModeChosen);
   const profileEpoch = useProfilesStore((state) => state.epoch);
-  const devModeEnabled = useDevModeStore((state) => state.enabled);
   const fullBleed =
     isBuilderRoute ||
     isTemplateRoute ||
@@ -67,8 +66,7 @@ export function Layout() {
     setMobileOpen(false);
   }, [location.pathname, location.search]);
 
-  const enabled = (item: (typeof NAV)[number]) =>
-    (devModeEnabled || !item.inDev) &&
+  const enabled = (item: AppNavItem) =>
     !(item.studentOnly && bootstrap && !bootstrap.features.universities);
   const pendingProposals = useProfileProposalsStore((state) => state.pendingCount);
 
@@ -80,7 +78,7 @@ export function Layout() {
 
   const surfaceCards = useExtensionSurfacesStore((state) => state.cards);
   const items = [
-    ...NAV.filter(enabled).map((item) => toNavItem(item, t, pendingProposals)),
+    ...visibleNav().filter(enabled).map((item) => toNavItem(item, t, pendingProposals)),
     ...extensionNavItems(surfaceCards, t),
   ];
 
@@ -136,12 +134,7 @@ export function Layout() {
             </button>
           }
           footer={
-            <div className="flex flex-col gap-2">
-              <SidebarFooter collapsed={collapsed} compact={isShort} />
-              <div className={collapsed ? "flex justify-center pb-1" : "flex justify-end pb-1 pr-1"}>
-                <DevMenu />
-              </div>
-            </div>
+            <SidebarFooter collapsed={collapsed} compact={isShort} />
           }
         />
       </div>
@@ -185,6 +178,7 @@ export function Layout() {
           >
             {/* Profile switch (§6) re-mounts the page subtree so every
                 route refetches under the new X-Profile-Id scope (§15). */}
+            <BetaBanner pathname={location.pathname} />
             <Outlet key={profileEpoch} />
           </div>
         </main>

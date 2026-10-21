@@ -50,6 +50,10 @@
     "confirmDeleteTitle": "Delete profile",
     "confirmDeleteBody": "Delete this profile? The career data stored in it is removed."
   },
+  "featureState": {
+    "betaChip": "Beta",
+    "betaNote": "This page works end to end, but expect rough edges — your feedback shapes what ships next."
+  },
   "auth": {
     "email": "Email",
     "password": "Password",

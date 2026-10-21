@@ -326,6 +326,25 @@ page-local form for a profile section.
   (`practice-interview-posting`) creates + starts + jumps straight to
   chat.
 
+## 2d. Feature state (beta affordance)
+
+`frontend/src/config/features.json` is the single feature-state table
+(`key` = route prefix, `state` = `on` | `beta` | `hidden`, `since`,
+`docs`). Navigation visibility (`config/nav.ts` via `isVisible`), the app
+shell's beta banner, the demo tour (`scripts/ui-capture/scenes.mjs`) and
+`backend/tests/test_docs_claims.py` all read it — they cannot disagree.
+A route absent from the table is `on`.
+
+- **Never hide a shipped page behind an easter egg.** `beta` means
+  reachable with a visible chip; `hidden` is for a surface kept routable
+  for deep links only. Changing a state is one registry edit plus the
+  docs the gate names.
+- The shell renders the chip + expectation line automatically
+  (`components/BetaBanner.tsx`, testids `beta-banner` / `beta-chip`) for
+  every `beta` route — pages never carry their own beta copy.
+- The README feature-status table and `docs/user/<page>.md` follow the
+  same registry; `test_docs_claims.py` fails when a claim drifts.
+
 ## 3. Design tokens & styling rules
 
 - Semantic `--as-*` tokens only (`--as-surface`, `--as-border`,

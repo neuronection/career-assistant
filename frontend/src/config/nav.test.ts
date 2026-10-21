@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Briefcase, LayoutDashboard } from "lucide-react";
+import { FEATURES, isVisible } from "./features";
 import { NAV, resolveActiveId, toNavItem, type AppNavItem } from "./nav";
 
 describe("resolveActiveId", () => {
@@ -51,14 +52,18 @@ describe("resolveActiveId", () => {
     expect(NAV[NAV.length - 1].to).toBe("/settings/ai");
   });
 
-  it("flags the in-development pages", () => {
-    expect(NAV.filter((item) => item.inDev).map((item) => item.to)).toEqual([
-      "/postings",
+  it("keeps every registry-backed page visible in navigation", () => {
+    const visible = NAV.filter((item) => isVisible(item.to)).map((item) => item.to);
+    expect(visible).toEqual(NAV.map((item) => item.to));
+    expect(FEATURES.map((feature) => feature.key).sort()).toEqual([
       "/autopilot",
-      "/interviews",
       "/growth",
+      "/interviews",
+      "/postings",
     ]);
-    // Hidden entries stay in the registry so deep links still resolve.
+    // Every registered surface is beta (un-gated 2026-10-21), never hidden.
+    expect(FEATURES.every((feature) => feature.state === "beta")).toBe(true);
+    // Deep links still resolve against the registry.
     expect(resolveActiveId("/postings/search")).toBe("/postings");
     expect(resolveActiveId("/autopilot")).toBe("/autopilot");
   });
