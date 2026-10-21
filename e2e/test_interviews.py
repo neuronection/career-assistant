@@ -6,6 +6,9 @@ loop: the plan renders, practice opens the bound chat session, and one
 answered question comes back as a coached turn with a rubric.
 """
 
+import re
+import time
+
 import pytest
 from conftest import API, BASE_URL, api_headers
 from playwright.sync_api import expect
@@ -14,8 +17,8 @@ from playwright.sync_api import expect
 @pytest.fixture()
 def interview_session(page) -> dict:
     response = page.request.post(
-        f"{API}/interviews/sessions",
-        data={"job_code": "E2E-INTERVIEW", "kind": "behavioral"},
+        f"{API}/interview/sessions",
+        data={"job_code": "data-scientist", "kind": "behavioral"},
         headers=api_headers(),
     )
     if not response.ok:
@@ -36,17 +39,33 @@ def test_interview_plan_and_practice_loop(page, interview_session) -> None:
     assert page.locator('[data-testid^="plan-item-"]').count() > 0
 
     page.get_by_test_id("practice-interview").click()
-    expect(page.get_by_role("textbox", name="Message")).to_be_visible(timeout=60_000)
-    assert page.url.endswith("/chat")
+    page.get_by_role("textbox", name="Message").wait_for(state="visible", timeout=60_000)
+    # The start call binds the session, then the surface navigates — wait for
+    # the route commit instead of racing it.
+    expect(page).to_have_url(re.compile(r"/chat$"), timeout=30_000)
 
-    composer = page.get_by_role("textbox", name="Message")
+    composer = page.locator('[data-as="chat-composer"] textarea').last
+    composer.wait_for(state="visible", timeout=30_000)
     composer.fill("I shipped a container pipeline that cut deploy time in half.")
-    composer.press("Enter")
+    send = page.get_by_role("button", name="Send message")
+    expect(send).to_be_enabled(timeout=10_000)
+    send.click()
 
-    expect(page.get_by_test_id("chat-message-trace")).to_be_visible(timeout=90_000)
+    # The interview graph persists its turn through the builder-turn path
+    # (no chat trace block); the coached mock reply is the completion signal.
+    expect(page.get_by_text("One improvement").first).to_be_visible(timeout=90_000)
 
-    detail = page.request.get(
-        f"{API}/interviews/sessions/{interview_session['id']}", headers=api_headers()
-    )
-    assert detail.ok, detail.text()
-    assert detail.json()["rubric_scores"], "the answered question is scored"
+    # The rubric is committed when the interview node records the turn —
+    # poll instead of racing the persistence commit that follows the trace.
+    deadline = time.monotonic() + 30
+    scored: list = []
+    while time.monotonic() < deadline:
+        detail = page.request.get(
+            f"{API}/interview/sessions/{interview_session['id']}", headers=api_headers()
+        )
+        assert detail.ok, detail.text()
+        scored = detail.json()["rubric_scores"]
+        if scored:
+            break
+        page.wait_for_timeout(500)
+    assert scored, "the answered question is scored"
