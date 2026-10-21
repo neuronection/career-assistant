@@ -73,7 +73,7 @@ centered `max-w-7xl` column:
   `ItemBulletsEditorModal`): the two-layer bullets model — saving
   creates/patches a scope-`bullets` VARIANT pinned via the item's ONE
   `synth_pins["{source}:{id}"]` slot (plan 110 collapsed the old
-  `:bullets` suffix; the plain key is the only write target, no CV-local
+  `:bullets` suffix; the plain key is the only form, no CV-local
   override for achievements),
   with the resolved snapshot list as base, an "Edited for this CV"
   chip, Reset-to-profile (unpin), a resolved

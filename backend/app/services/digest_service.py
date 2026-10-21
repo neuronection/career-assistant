@@ -137,12 +137,6 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
         parse_explore_filters,
     )
 
-    # Legacy pre-32 saved filters used {"remote": true} meaning the
-    # location JSONB flag (not the onsite_policy column) — keep that
-    # semantic, then parse/validate the rest as the explore vocabulary.
-    legacy_remote = filters.get("remote") is True
-    if legacy_remote:
-        filters = {k: v for k, v in filters.items() if k != "remote"}
     filters = parse_explore_filters(filters)
     skill_ids = await _resolve_skill_ids(db, filters)
     source_ids = await _resolve_source_ids(db, filters)
@@ -163,8 +157,6 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
             JobPosting.catalog_job_id.is_not(None),
         )
     )
-    if legacy_remote:
-        query = query.where(JobPosting.location["remote"].as_boolean().is_(True))
     if conditions:
         from sqlalchemy import and_
 

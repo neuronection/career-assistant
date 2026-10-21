@@ -655,17 +655,19 @@ async def test_builder_context_digest_shape(client, db, auth_headers, profile_re
 # ----------------------------------------------------------------- turn
 
 
-async def _open_builder_session(client, auth_headers, cv_id: str) -> str:
+async def _open_builder_session(
+    client, auth_headers, cv_id: str
+) -> tuple[str, list[dict[str, str]]]:
+    """A NORMAL session plus the CV attachment a build-intent turn needs
+    to hand off to the copilot (plan 78 — there is no session-level CV
+    binding)."""
     session = await client.post(
         "/api/v1/chat/sessions",
-        json={
-            "title": "CV assistant",
-            "context": {"surface": "cv_builder", "cv_id": cv_id},
-        },
+        json={"title": "CV assistant"},
         headers=auth_headers,
     )
     assert session.status_code == 201, session.text
-    return session.json()["id"]
+    return session.json()["id"], [{"kind": "cv", "cv_id": cv_id}]
 
 
 async def test_assistant_turn_stream_applies_ops(
@@ -678,11 +680,11 @@ async def test_assistant_turn_stream_applies_ops(
     await _seed_bank(db)
     cv, cv_json = await _owned_cv(db, client, auth_headers)
     original_template_id = cv.template_id
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
 
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "switch to another template"},
+        json={"content": "restyle: switch to another template", "attachments": attach},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -757,7 +759,7 @@ async def test_builder_turn_failure_persists_partial_trace(
 
     await _seed_bank(db)
     _cv, cv_json = await _owned_cv(db, client, auth_headers)
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
 
     async def _explode(self, *args, **kwargs):
         raise DomainError("plan exploded")
@@ -766,7 +768,7 @@ async def test_builder_turn_failure_persists_partial_trace(
     monkeypatch.setattr(StructuredStream, "chunks", _explode)
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "rewrite the summary section"},
+        json={"content": "rewrite the summary section", "attachments": attach},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -793,7 +795,7 @@ async def test_builder_turn_failure_persists_partial_trace(
 async def test_regular_session_untouched_by_builder_flow(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
-    """A session without the cv_builder context runs the normal chatbot."""
+    """A session without a CV attachment runs the normal chatbot."""
     session = await client.post(
         "/api/v1/chat/sessions", json={"title": "chat"}, headers=auth_headers
     )
@@ -820,10 +822,10 @@ async def test_builder_session_edit_keeps_copilot(
     )
     await _seed_bank(db)
     _cv, cv_json = await _owned_cv(db, client, auth_headers)
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
     await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "switch template"},
+        json={"content": "restyle: switch template", "attachments": attach},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -833,7 +835,7 @@ async def test_builder_session_edit_keeps_copilot(
 
     edited = await client.post(
         f"/api/v1/chat/messages/{rows[0]['id']}/edit",
-        json={"content": "apply a theme instead"},
+        json={"content": "restyle with a theme instead"},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -842,27 +844,6 @@ async def test_builder_session_edit_keeps_copilot(
     assert events[0][1]["flow"] == "cv_builder"
     tool_calls = [payload for name, payload in events if name == "tool_call"]
     assert any(call["name"] == "cv_apply_theme" for call in tool_calls)
-
-
-async def test_builder_session_validates_cv_ownership(client, db, auth_headers, profile_ready):
-    await _seed_bank(db)
-    _cv, cv_json = await _owned_cv(db, client, auth_headers)
-    other_headers = await _second_user(client)
-    session = await client.post(
-        "/api/v1/chat/sessions",
-        json={
-            "title": "sneaky",
-            "context": {"surface": "cv_builder", "cv_id": cv_json["id"]},
-        },
-        headers=other_headers,
-    )
-    response = await client.post(
-        f"/api/v1/chat/sessions/{session.json()['id']}/messages",
-        json={"content": "switch template"},
-        params={"stream": "true"},
-        headers=other_headers,
-    )
-    assert response.status_code == 404
 
 
 async def test_visual_review_degrades_without_chromium(
@@ -874,10 +855,13 @@ async def test_visual_review_degrades_without_chromium(
         "app.ai.agents.cv_builder_chat.measure_pages",
         _raise_engine_unavailable,
     )
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "review the layout and fix the overflow"},
+        json={
+            "content": "restyle and review the layout and fix the overflow",
+            "attachments": attach,
+        },
         params={"stream": "true"},
         headers=auth_headers,
     )

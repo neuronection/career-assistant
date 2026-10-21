@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Removed (no-BC legacy sweep, 2026-10-21)
+- **Every remaining code-level compatibility path is gone** (plan 114;
+  the no-BC directive). Saved searches validate strictly against the
+  explore-filter vocabulary (the pre-plan-32 `{"remote": true}` shape is
+  gone), CV variant pins have exactly one key form (`{source}:{id}`; the
+  `:bullets` read tolerance is deleted), a chat session is never bound to
+  a CV any more (the builder runs per turn via a CV attachment +
+  build-intent wording — plan 78's only route), and proposal cards carry
+  the snapshot's real child ids. No user-visible surface changes: every
+  removed path only served a shape that nothing has written since plans
+  32/78/99/110.
+
 ### Changed (failure copy is sanitized, 2026-10-21)
 - **Failure messages cannot leak credentials or provider dumps.** Connector
   sync failures, university-document parse errors, AI provider connection

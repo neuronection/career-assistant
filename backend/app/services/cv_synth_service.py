@@ -47,7 +47,6 @@ from app.services.engagement_service import canonical_hash
 
 NO_SYNTH_SOURCES = {"basics"}
 SYNC_LIMIT = 5
-BULLETS_PIN_SUFFIX = ":bullets"
 TEXT_SCOPES = ("item", "summary")
 
 
@@ -361,7 +360,6 @@ class CvSynthService:
             pins[key] = str(row.id)
         else:
             pins.pop(key, None)
-            pins.pop(key + BULLETS_PIN_SUFFIX, None)
         context["synth_pins"] = pins
         cv.context = context
         await self.db.commit()
@@ -482,8 +480,6 @@ class CvSynthService:
         for row in rows:
             for ref in row.source_refs or []:
                 key = f"{ref['source_key']}:{ref['item_id']}"
-                if key.endswith(BULLETS_PIN_SUFFIX):
-                    key = key[: -len(BULLETS_PIN_SUFFIX)]
                 pins[key] = str(row.id)
         await CvService(self.db).update(
             cv.id,
@@ -799,12 +795,7 @@ class CvSynthService:
         stored."""
         if not pins or not snapshot:
             return
-        normalized: dict[str, str] = {}
-        for key, value in pins.items():
-            if key.endswith(BULLETS_PIN_SUFFIX):
-                key = key[: -len(BULLETS_PIN_SUFFIX)]
-            if value:
-                normalized[str(key)] = str(value)
+        normalized: dict[str, str] = {str(key): str(value) for key, value in pins.items() if value}
         if not normalized:
             return
         ref_keys: list[tuple[str, str]] = []
@@ -930,9 +921,7 @@ class CvSynthService:
         snapshot (plan 110 AD1/AD3b: ONE pin slot per item,
         `"{source}:{id}"` — a row applies what its payload carries, so
         text and bullets compose on one starred row; matches are
-        scope-agnostic). Legacy `"{source}:{id}:bullets"` keys from
-        pre-110 versions are read with tolerance and folded into the
-        single slot here — write paths emit ONLY the single form.
+        scope-agnostic).
         Precedence `override > synth > source` holds because the
         editor's `apply_overrides` runs AFTER this (the builder calls
         it in `render_state`), so a manual field patch always wins.
@@ -940,12 +929,7 @@ class CvSynthService:
         recorded into `CvVersion` `context_resolution` at compile."""
         if not pins:
             return {}
-        normalized: dict[str, str] = {}
-        for key, value in pins.items():
-            if key.endswith(BULLETS_PIN_SUFFIX):
-                key = key[: -len(BULLETS_PIN_SUFFIX)]
-            if value:
-                normalized[key] = value
+        normalized: dict[str, str] = {key: value for key, value in pins.items() if value}
         applied: dict[str, str] = {}
         ref_by_id: dict[str, str] = {}
         for key, ids in resolution.snapshot_index.items():

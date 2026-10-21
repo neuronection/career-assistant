@@ -922,7 +922,6 @@ async def test_cv_synth_accept_pins_on_session_cv_and_renders(db, auth_headers):
     session = ChatSession(
         user_id=user.id,
         title="cv chat",
-        context={"surface": "cv_builder", "cv_id": "not-a-uuid-yet"},
     )
     db.add(cv)
     db.add(session)
@@ -940,7 +939,7 @@ async def test_cv_synth_accept_pins_on_session_cv_and_renders(db, auth_headers):
             "action": "summarize",
         },
     )
-    # The chat flow's server-injected pin target (create_from_ops).
+    # The op's own payload names the CV to star on approval.
     proposal.payload_json["cv_id"] = str(cv.id)
     flag_modified(proposal, "payload_json")
     await db.commit()

@@ -111,7 +111,7 @@ class CvBuilderService:
         when it cannot apply the profile text does — never another
         variant's text. Stale variants are NOT filtered (overlay
         parity)."""
-        from app.services.cv_synth_service import BULLETS_PIN_SUFFIX, CvSynthService
+        from app.services.cv_synth_service import CvSynthService
 
         refs = [
             (source_key, item_id)
@@ -122,12 +122,7 @@ class CvBuilderService:
             return []
         pinned_refs: set[tuple[str, str]] = set()
         for pin_key in pins or {}:
-            base = (
-                pin_key[: -len(BULLETS_PIN_SUFFIX)]
-                if pin_key.endswith(BULLETS_PIN_SUFFIX)
-                else pin_key
-            )
-            source_key, _, item_id = base.partition(":")
+            source_key, _, item_id = pin_key.partition(":")
             if source_key and item_id:
                 pinned_refs.add((source_key, item_id))
         matches = await CvSynthService(self.db).match_for_user(

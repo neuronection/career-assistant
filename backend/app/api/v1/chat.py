@@ -156,22 +156,6 @@ def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-async def _cv_builder_cv(session, db):
-    """The owned CV a builder-bound session references, or None."""
-    context = session.context or {}
-    if context.get("surface") != "cv_builder" or not context.get("cv_id"):
-        return None
-    import uuid as uuid_mod
-
-    from app.services.cv_service import CvService
-
-    try:
-        cv_id = uuid_mod.UUID(str(context["cv_id"]))
-    except ValueError as exc:
-        raise DomainError("Invalid CV reference in session context") from exc
-    return await CvService(db).get_owned(cv_id, session.user_id)
-
-
 async def _interview_session(session, db):
     """The owned interview session a practice-bound chat session serves,
     or None."""
@@ -195,11 +179,10 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
     events (`meta`/`proposal`/`builder_state`/`preview`), persisted
     under `user_message_id` (send, edit-branch, regenerate).
 
-    Sessions bound to a CV (`context.surface == "cv_builder"`)
-    run the builder copilot loop instead of the generic chat flow — same
-    endpoint, same SSE contract, plus a terminal `builder_state` event.
     Interview-bound sessions (`context.surface == "interview"`)
-    run the practice turn the same way.
+    run the practice turn; every other turn runs the chat-turn graph,
+    which hands a build-intent turn with a CV attachment to the builder
+    copilot (plan 78) — there is no session-level CV binding.
     """
     interview = await _interview_session(session, db)
     if interview is not None:
@@ -226,12 +209,6 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             interview_events(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
-
-    cv = await _cv_builder_cv(session, db)
-    if cv is not None:
-        return await _builder_stream_response(
-            cv, session, history, content, user_message_id, user, db
         )
 
     # On-demand builder handoff (plan 78 AD3): a CV attachment plus

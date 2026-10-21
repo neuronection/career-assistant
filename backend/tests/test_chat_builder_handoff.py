@@ -1,6 +1,6 @@
 """Builder on-demand handoff (plan 78.2): attachment + build intent runs
 the copilot loop for that turn in a NORMAL session; question intent
-stays a CHAT turn; legacy bound sessions keep routing."""
+stays a CHAT turn. There is no session-level CV binding."""
 
 import uuid
 
@@ -144,25 +144,6 @@ async def test_build_intent_without_attachment_stays_chat(client, db, auth_heade
         "rewrite my cover letter approach",
     )
     assert "builder_state" not in [name for name, _ in events]
-
-
-async def test_legacy_bound_session_still_routes(client, db, auth_headers, builder_env):
-    """AD1 compat: existing cv_builder-bound sessions keep the copilot."""
-    user = await _auth_user(db)
-    cv = await _cv(db, user)
-    session = (
-        await client.post(
-            "/api/v1/chat/sessions",
-            json={
-                "title": "legacy bound",
-                "context": {"surface": "cv_builder", "cv_id": str(cv.id)},
-            },
-            headers=auth_headers,
-        )
-    ).json()
-
-    events = await _send(client, session["id"], auth_headers, "rewrite the summary")
-    assert "builder_state" in [name for name, _ in events]
 
 
 async def test_sync_path_hands_off_too(client, db, auth_headers, builder_env):

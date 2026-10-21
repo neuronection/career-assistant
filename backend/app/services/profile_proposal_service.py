@@ -22,7 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, DomainError, NotFoundError, ValidationError
-from app.models.chat_model import ChatSession
 from app.models.enums import ProposalAction, ProposalKind, ProposalStatus
 from app.models.experience_model import ExperienceItem, ExperienceSkill
 from app.models.profile_entities_model import (
@@ -824,15 +823,14 @@ def _resolve_collection_edits(
     """Resolve granular collection edits into full child lists (plan 99.2).
 
     Adds append to the current children (duplicate skill keys / link
-    urls are conflicting edits); removes match by stable child id first
-    ({skill_key} for skills, exact text for achievements, exact url for
-    links as fallback) — an unknown anchor is an anchor mismatch, never
-    a partial rewrite. Row ids ride a temporary ``_row_id`` key for
-    matching and are stripped from the resolved lists.
+    urls are conflicting edits); removes match by the child's own id
+    from the read snapshot ({skill_key} for skills, exact text for
+    achievements, exact url for links as fallback) — an unknown anchor
+    is an anchor mismatch, never a partial rewrite.
     """
     skills: list[dict] = [
         {
-            "_row_id": str(link.id),
+            "id": str(link.id),
             "skill_key": link.skill.key if link.skill else str(link.skill_id),
             "role_in_item": link.role_in_item,
             "level_claim": link.level_claim,
@@ -840,7 +838,7 @@ def _resolve_collection_edits(
         for link in entity.skills or []
     ]
     achievements: list[dict] = [
-        {"_row_id": str(row.id), "text": row.text, "metric": row.metric}
+        {"id": str(row.id), "text": row.text, "metric": row.metric}
         for row in entity.achievements or []
     ]
     links: list[dict] = [dict(_as_link_entry(link)) for link in entity.links or [] if link]
@@ -899,7 +897,7 @@ def _resolve_collection_edits(
                     (
                         i
                         for i, row in enumerate(skills)
-                        if row.get("_row_id") == match.get("id")
+                        if row.get("id") == match.get("id")
                         or row.get("skill_key") == match.get("skill_key")
                     ),
                     -1,
@@ -910,8 +908,7 @@ def _resolve_collection_edits(
                     (
                         i
                         for i, row in enumerate(achievements)
-                        if row.get("_row_id") == match.get("id")
-                        or row.get("text") == match.get("text")
+                        if row.get("id") == match.get("id") or row.get("text") == match.get("text")
                     ),
                     -1,
                 )
@@ -925,11 +922,9 @@ def _resolve_collection_edits(
 
     resolved: dict = {}
     if "skills" in touched:
-        resolved["skills"] = [{k: v for k, v in row.items() if k != "_row_id"} for row in skills]
+        resolved["skills"] = skills
     if "achievements" in touched:
-        resolved["achievements"] = [
-            {k: v for k, v in row.items() if k != "_row_id"} for row in achievements
-        ]
+        resolved["achievements"] = achievements
     if "links" in touched:
         resolved["links"] = links
     for field in resolved:
@@ -1492,26 +1487,6 @@ class ProfileProposalService:
         silently applied.
         """
         resolved_ops, dropped = await resolve_ops(self.db, user_id, ops, grounding)
-        if chat_session_id is not None:
-            # Server-injected pin target (plan-104 follow-up): a cv_synth
-            # op proposed from a builder-bound chat session carries the
-            # session's CV — approving then pins in one gesture. Model
-            # payloads never write this field.
-            session = await self.db.get(ChatSession, chat_session_id)
-            context = (session.context or {}) if session is not None else {}
-            surface = context.get("surface")
-            raw_cv = str(context.get("cv_id") or "")
-            if surface == "cv_builder" and raw_cv:
-                try:
-                    pinned_cv_id = uuid.UUID(raw_cv)
-                except ValueError:
-                    pinned_cv_id = None
-                if pinned_cv_id is not None:
-                    for resolved in resolved_ops:
-                        if resolved.get("kind") == ProposalKind.CV_SYNTH.value and not (
-                            resolved.get("payload") or {}
-                        ).get("cv_id"):
-                            resolved["payload"]["cv_id"] = pinned_cv_id
         created: list[ProfileProposal] = []
         for resolved in resolved_ops:
             try:
@@ -2508,15 +2483,12 @@ class ProfileProposalService:
 
     def _cv_synth_label(self, payload: dict) -> str:
         """Card label (plan 101 AD1): resolved ref labels, ≤2 abbreviated
-        ("Sample Internship (+2)"), the posting ref when posting-aimed.
-        Pre-101 payloads (no ``resolved_refs``) keep the count fallback."""
+        ("Sample Internship (+2)"), the posting ref when posting-aimed."""
         refs = payload.get("refs") or []
         posting_id = payload.get("posting_id")
         posting = (
             f" · posting {payload.get('resolved_posting')}"
             if posting_id and payload.get("resolved_posting")
-            else " · posting fit"  # legacy shape
-            if posting_id
             else ""
         )
         resolved = payload.get("resolved_refs") or []

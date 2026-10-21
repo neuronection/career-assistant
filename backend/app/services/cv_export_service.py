@@ -691,7 +691,6 @@ class CvExportService:
 
         from app.schemas.cv import CvContextSelection
         from app.services.cv_synth_service import (
-            BULLETS_PIN_SUFFIX,
             CvSynthService,
             _context_index,
         )
@@ -707,13 +706,8 @@ class CvExportService:
             entry.update(extra)
             checks.append(entry)
 
-        # Plan 110: one pin slot per item; legacy `:bullets`-suffixed keys
-        # (immutable old versions) fold onto the single form for checks.
-        pins = {
-            key[: -len(BULLETS_PIN_SUFFIX)] if key.endswith(BULLETS_PIN_SUFFIX) else key: value
-            for key, value in (selection.synth_pins or {}).items()
-            if value
-        }
+        # One pin slot per item (plan 110): the map is the single form.
+        pins = {key: value for key, value in (selection.synth_pins or {}).items() if value}
         ref_by_id: dict[str, str] = {}
         for key, ids in resolution.snapshot_index.items():
             for item_id in ids:

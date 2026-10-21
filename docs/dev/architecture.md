@@ -101,10 +101,11 @@ There is no side door around it.
   star never goes silently dead. `snapshotted variants apply through
   `match_for_user` scope-agnostically; the synth_items highlights
   block filters rows by payload presence (bullets-only winners render
-  via their item, not an empty highlight). Legacy `:bullets`-suffixed
-  pin keys are read-tolerant everywhere (old immutable versions) while
+  via their item, not an empty highlight). The pin map carries one plain
+  key per item (`{ref}`) — the `:bullets`-suffixed form is gone (plan
+  114; nothing reads it any more) and
   all write paths, the bullets editor and `variant_pin` emit only the
-  single `{ref}` key; one data migration (0041) folded existing stars
+  single key; one data migration (0041) folded the legacy stars
   preserving per-field winners. Pins are written SURGICALLY —
   `PUT /cv/{id}/context/pin` (`{source_key, item_id, synth_id|null}`)
   read-modify-writes the one slot and promotes a pinned draft to active
@@ -456,8 +457,9 @@ digest next turn — no TTLs, no write-path hooks. Cached digests ride
 turn trace records a `profile_digests` tool row with status `cached`.
 
 **One chat, CVs as references, builder on demand** (plan 78): chat
-sessions are never re-routed by a CV binding for new sessions (plan 53's
-`surface: "cv_builder"` context is a legacy read path only). CVs /
+sessions are never bound to a CV (plan 114 removed plan 53's
+`surface: "cv_builder"` context read path — a session's context is
+`interview` or nothing). CVs /
 cover letters enter as per-message **attachments** (`MessageIn
 .attachments`, ≤2, ownership-validated, snapshots on the user message
 metadata) and resolve into a deterministic `cv_references` prompt block

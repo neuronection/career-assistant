@@ -341,7 +341,7 @@ async def test_saved_search_schedule_end_to_end(
         json={
             "scope": "postings",
             "query": "qa",
-            "filters": {"remote": True},
+            "filters": {"remote_policy": ["remote"]},
             "result_count": 1,
         },
         headers=auth_headers,
@@ -375,6 +375,7 @@ async def test_saved_search_schedule_end_to_end(
         title="QA Automation Engineer",
         org="SynthCo",
         location={"remote": True},
+        onsite_policy="remote",
         url="https://jobs.example/1",
         content_hash="hash-match-1",
         catalog_job_id=uuid_mod.UUID(jobs[0]["id"]),
