@@ -59,6 +59,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     patchCv: (...args: unknown[]) => patchCv(...args),
     fetchCoverLetterBrief: (...args: unknown[]) => fetchCoverLetterBrief(...args),
     draftCoverLetter: (...args: unknown[]) => draftCoverLetter(...args),
+    fetchSynthItems: vi.fn().mockResolvedValue([]),
   };
 });
 

@@ -40,6 +40,10 @@ _COLLECTIONS = (
     # HITL cards (plan 77): dismissible only while pending — resolved
     # rows 4xx harmlessly and never affect other specs.
     ("/me/profile-proposals", "proposals"),
+    # Plan 124.3 surfaces: autopilot goals and university intake documents
+    # are deletable, so the autopilot/universities specs start pristine.
+    ("/autopilot/goals", None),
+    ("/documents", None),
 )
 
 

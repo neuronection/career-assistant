@@ -1,8 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 
+import { api } from "@/api/client";
 import { initI18n } from "@/lib/i18n";
 
 void initI18n();
+
+api.defaults.adapter = async (config) => {
+  throw new Error(
+    `unmocked API call in tests: ${config.method?.toUpperCase()} ${config.url}`
+  );
+};
 
 afterEach(() => {
   localStorage.clear();
