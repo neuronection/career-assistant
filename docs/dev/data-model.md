@@ -85,6 +85,21 @@ stays referentially intact.
 | `market_snapshots` | `market_model.py` | Aggregated market data |
 | `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs and explainable findings |
 
+**Application pipeline lifecycle.** `app/services/applications_service.py`
+is the only writer of both tables. Any stage move — forward, backward or
+terminal — is allowed and writes exactly one `stage_change` event (a move
+to the same stage writes nothing); closing with accepted / rejected /
+withdrawn also moves the stage, while expired / ghosted close without
+touching it, and a closed application refuses further moves. A note
+appends one `note` event and updates the rolling `notes` column; a
+document link writes `document_linked` with the document ids in `meta`.
+`next_followup_at` is the scheduler-facing projection: the service
+recomputes it from `followup_rules.cadence_days` on create, transition
+and rule changes (due immediately at Interview/Offer while milestone
+check-ins are on), the follow-up sweep rewrites it after each pass from
+the notification history, and a snooze pins it explicitly.
+
+
 ## Extensions (import layer)
 
 | Table(s) | Model | Holds |

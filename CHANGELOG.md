@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (application tracker, 2026-10-21)
+- **Your applications finally have a home** (plan 116). A new
+  `/applications` page shows the pipeline as a board (default) or a
+  list: stage columns, applied/deadline/next-follow-up dates, linked CV
+  and cover-letter thumbnails and an unread-activity dot. The drawer
+  holds the reverse-chronological timeline, a note composer, stage
+  moves, document links, follow-up snooze and close-with-outcome; every
+  real stage move writes exactly one timeline event. **Track
+  application** on a posting creates the row, the dashboard shows a real
+  saved → applied → interviewing → offers funnel, and follow-up
+  notifications deep-link into the drawer. Follow-up reminders now run
+  on a configurable cadence (default 7 and 14 days) with
+  interview/offer check-ins, editable in Settings → Notifications or
+  from the tracker; the assistant can read your pipeline and proposes
+  stage changes and notes as approval cards that resolve through the
+  same service as the forms.
+
 ### Removed (dead Studio copilot mirror, 2026-10-21)
 - **The chat no longer mirrors a live copilot turn into the CV builder.**
   Chat sessions stopped being bound to a CV in plan 114 (the builder runs

@@ -39,7 +39,11 @@ the Postings page.
 Postings map onto the catalog by **literal skill-ID intersection** — never
 label matching. They inherit your fit score with adjustments for freshness,
 remote work and seniority, with **no per-posting AI** for the base mapping.
-Every posting tracks your saved → applied funnel.
+Every posting tracks your saved → applied funnel. **Track application**
+on a posting's detail creates the pipeline row and opens the
+[application tracker](applications.md), where the same application moves
+through screening, interview and offer with a full event timeline and
+configurable follow-up reminders.
 
 ## Deep extraction
 

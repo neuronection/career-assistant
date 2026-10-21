@@ -95,6 +95,12 @@
               "description": "Connector engines, the live postings feed, deep extraction into skills and benefits, and the Explore page's filters and saved searches."
             },
             {
+              "id": "applications",
+              "file": "user/applications.md",
+              "title": "Track your applications",
+              "description": "The application board and list, the detail timeline, document links, follow-up schedules, and how the assistant proposes stage changes and notes."
+            },
+            {
               "id": "add-a-job-source",
               "file": "user/add-a-job-source.md",
               "title": "Add a job source",
