@@ -70,8 +70,12 @@ def _frontend_routes() -> tuple[set[str], set[str]]:
 def _backend_routes() -> set[str]:
     from app.main import app
 
-    paths = set(app.openapi()["paths"])
-    paths |= {route.path for route in app.routes if hasattr(route, "path")}
+    paths = {path for path in app.openapi()["paths"] if "{rest:path}" not in path}
+    paths |= {
+        route.path
+        for route in app.routes
+        if hasattr(route, "path") and "{rest:path}" not in route.path
+    }
     return paths | {path.removeprefix("/api/v1") or "/" for path in paths}
 
 
