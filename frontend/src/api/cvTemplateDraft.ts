@@ -35,14 +35,6 @@ export async function publishTemplateVersion(
   );
   return data;
 }
-
-export async function duplicateTemplate(templateId: string): Promise<CvTemplateSummary> {
-  const { data } = await api.post<CvTemplateSummary>(
-    `/cv/templates/${templateId}/duplicate`
-  );
-  return data;
-}
-
 export async function previewTemplateDraft(content: TemplateContent): Promise<string> {
   const { data } = await api.post<string>(
     "/cv/templates/preview-draft",

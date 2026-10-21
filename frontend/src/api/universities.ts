@@ -5,7 +5,6 @@ import type {
   ChatSession,
   Department,
   DocumentRecord,
-  JobDepartmentLink,
   University,
   UniversityDetail,
 } from "@/types";
@@ -37,12 +36,6 @@ export async function addAdmission(
   const { data } = await api.post<Admission>(`/universities/departments/${departmentId}/admissions`, body);
   return data;
 }
-
-export async function createJobLink(body: Partial<JobDepartmentLink>): Promise<JobDepartmentLink> {
-  const { data } = await api.post<JobDepartmentLink>("/universities/job-links", body);
-  return data;
-}
-
 export async function uploadDocument(
   file: File,
 ): Promise<{ document: DocumentRecord; job_id: string }> {
@@ -60,12 +53,6 @@ export async function fetchDocuments(): Promise<DocumentRecord[]> {
   const { data } = await api.get<DocumentRecord[]>("/documents");
   return data;
 }
-
-export async function fetchDocument(id: string): Promise<DocumentRecord> {
-  const { data } = await api.get<DocumentRecord>(`/documents/${id}`);
-  return data;
-}
-
 export async function applyDocument(id: string): Promise<{ applied: Record<string, number> }> {
   const { data } = await api.post(`/documents/${id}/apply`);
   return data;

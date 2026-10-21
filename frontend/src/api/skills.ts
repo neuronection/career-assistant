@@ -19,12 +19,6 @@ export async function fetchSkillOntology(params: {
   const { data } = await api.get<SkillSummary[]>("/skills", { params });
   return data;
 }
-
-export async function fetchSkillDetail(key: string): Promise<Skill & { children_keys: string[]; jobs: unknown[] }> {
-  const { data } = await api.get(`/skills/${key}`);
-  return data;
-}
-
 export async function fetchMySkills(): Promise<UserSkill[]> {
   const { data } = await api.get<UserSkill[]>("/me/skills");
   return data;

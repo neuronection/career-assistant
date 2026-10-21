@@ -17,7 +17,6 @@ vi.mock("@/api/chatStream", () => ({
   streamChatMessage: streamChatMessage,
   streamChatEdit: streamChatEdit,
   streamChatRegenerate: streamChatRegenerate,
-  streamChatRequest: vi.fn(),
 }));
 
 vi.mock("@/api/universities", async (importOriginal) => {

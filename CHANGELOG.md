@@ -13,9 +13,9 @@ All notable changes to **Career Assistant** are documented here.
   a CV any more (the builder runs per turn via a CV attachment +
   build-intent wording — plan 78's only route), and proposal cards carry
   the snapshot's real child ids. Six enum classes no code path could
-  reach were deleted from the vocabulary registry, and a new wall
-  (`tests/test_enum_usage.py`) fails on the next dead member. No
-  user-visible surface changes: every
+  reach were deleted from the vocabulary registry, and nineteen unused
+  API-client functions left `frontend/src/api/*` (a new wall fails an
+  export with no consumer). No user-visible surface changes: every
   removed path only served a shape that nothing has written since plans
   32/78/99/110.
 

@@ -23,7 +23,6 @@ vi.mock("@/api/chatStream", () => ({
   streamChatMessage: streamChatMessage,
   streamChatEdit: vi.fn(),
   streamChatRegenerate: streamChatRegenerate,
-  streamChatRequest: vi.fn(),
 }));
 
 vi.mock("@/api/universities", () => ({

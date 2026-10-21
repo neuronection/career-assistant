@@ -40,12 +40,3 @@ export async function publishJob(ref: string): Promise<Job> {
   const { data } = await api.post(`/jobs/${ref}/publish`);
   return data;
 }
-
-export async function suggestJobRelations(ref: string): Promise<Relation[]> {
-  const { data } = await api.post(`/jobs/${ref}/relations/suggest`);
-  return data;
-}
-
-export async function deleteJob(ref: string): Promise<void> {
-  await api.delete(`/jobs/${ref}`);
-}

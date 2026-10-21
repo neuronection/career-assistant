@@ -120,14 +120,6 @@ export async function runGoal(
   const { data } = await api.post(`/autopilot/goals/${goalId}/run`);
   return data;
 }
-
-export async function fetchGoalRuns(goalId: string): Promise<AutopilotRunWithFindings[]> {
-  const { data } = await api.get<AutopilotRunWithFindings[]>(
-    `/autopilot/goals/${goalId}/runs`
-  );
-  return data;
-}
-
 export async function fetchFindingsByRun(): Promise<AutopilotRunWithFindings[]> {
   const { data } = await api.get<AutopilotRunWithFindings[]>("/autopilot/findings");
   return data;

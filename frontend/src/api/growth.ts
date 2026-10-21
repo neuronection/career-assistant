@@ -5,14 +5,6 @@ import type {
   MarketSnapshot,
   RadarEntry,
 } from "@/types";
-
-export async function createGrowthPlan(targetJobId: string): Promise<GrowthPlanItem> {
-  const { data } = await api.post<GrowthPlanItem>("/growth/plans", {
-    target_job_id: targetJobId,
-  });
-  return data;
-}
-
 export async function fetchGrowthPlans(): Promise<GrowthPlanItem[]> {
   const { data } = await api.get<GrowthPlanItem[]>("/growth/plans");
   return data;

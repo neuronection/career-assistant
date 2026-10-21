@@ -198,20 +198,3 @@ export async function tombstoneExtensionInstall(
   const response = await api.post(`/admin/extensions/installs/${installId}/tombstone`);
   return response.data;
 }
-
-export async function fetchDesiredState(): Promise<Record<string, unknown>> {
-  const response = await api.get<Record<string, unknown>>("/admin/extensions/desired-state");
-  return response.data;
-}
-
-export async function putDesiredState(
-  document: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const response = await api.put("/admin/extensions/desired-state", document);
-  return response.data;
-}
-
-export async function reconcileExtensions(): Promise<Record<string, unknown>> {
-  const response = await api.post("/admin/extensions/reconcile");
-  return response.data;
-}

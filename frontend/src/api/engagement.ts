@@ -11,7 +11,6 @@ import type {
   PushSubscriptionRecord,
   SearchRecord,
   SearchScope,
-  ThreadsResponse,
 } from "@/types";
 
 export async function recordSearch(body: {
@@ -47,12 +46,6 @@ export async function fetchFeed(
   const { data } = await api.get<FeedResponse>("/feed", { params });
   return data;
 }
-
-export async function fetchUnseenCount(): Promise<{ unseen: number }> {
-  const { data } = await api.get<{ unseen: number }>("/feed/unseen-count");
-  return data;
-}
-
 export async function markSeen(jobIds: string[]): Promise<{ marked: number }> {
   const { data } = await api.post<{ marked: number }>("/feed/seen", {
     job_ids: jobIds,
@@ -99,16 +92,6 @@ export async function fetchUnreadCount(): Promise<{ unread_count: number }> {
   );
   return data;
 }
-
-export async function fetchThreads(
-  params: { group?: string; limit?: number } = {}
-): Promise<ThreadsResponse> {
-  const { data } = await api.get<ThreadsResponse>("/notifications/threads", {
-    params,
-  });
-  return data;
-}
-
 export async function fetchPreferencesMatrix(): Promise<PreferencesMatrix> {
   const { data } = await api.get<PreferencesMatrix>("/notifications/preferences");
   return data;

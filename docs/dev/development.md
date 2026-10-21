@@ -62,6 +62,14 @@ and dependency exceptions are up-only; the process is documented in
   get Google-style docstrings.
 - **Migrations**: schema changes require an Alembic revision, reviewed by hand
   (see [migrations.md](migrations.md)).
+- **No compatibility shims.** A read fallback for an old shape, a dual-write,
+  a deprecated alias or a "legacy key tolerated" branch is rejected in
+  review. When a shape changes, the old shape dies in the same commit (a
+  migration folds the data if it matters at all).
+- **An API client function ships with its first consumer.** `frontend/src/
+  api/*` exports are surface, not inventory — `src/tests/apiSurface.test.ts`
+  fails an export nothing imports; shared code between a client's own calls
+  stays module-private.
 - **Changelog**: user-visible changes add an entry under `## [Unreleased]` in
   `CHANGELOG.md` (CI-enforced).
 

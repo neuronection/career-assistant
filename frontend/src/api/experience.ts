@@ -4,7 +4,6 @@ import type {
   ExperienceItemIn,
   ExperienceItemOut,
   ExperienceItemUpdate,
-  EvidenceOut,
 } from "@/types/experience";
 
 export async function fetchExperience(): Promise<{
@@ -48,10 +47,5 @@ export async function applyDerivation(): Promise<{
   derived: DerivedSkillOut[];
 }> {
   const { data } = await api.post("/me/experience/derivation/apply");
-  return data;
-}
-
-export async function fetchSkillEvidence(skillId: string): Promise<EvidenceOut> {
-  const { data } = await api.get(`/me/skills/${skillId}/evidence`);
   return data;
 }
