@@ -10,8 +10,7 @@ import {
   FlowTelemetryStrip,
   FlowTraceCard,
 } from "@/components/ui";
-import { CopilotActivityCard } from "@/components/cv/CopilotActivityCard";
-import { useCvLiveTurn } from "@/stores/cvBuilderLinkStore";
+
 import { openCvChat } from "@/components/chat/cvChatLink";
 import { isRunningRun, traceFromRun } from "@/lib/cvBuildTrace";
 
@@ -105,19 +104,17 @@ export function BuildProgressBody({
 }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
-  const liveTurn = useCvLiveTurn(cvId);
   const activeRun = runs?.find(isRunningRun) ?? null;
   const askAssistant = () => {
     void openCvChat(cvId, "docked");
   };
 
   if (activeRun === null && finalRun === null) {
-    return <CopilotActivityCard cvId={cvId} />;
+    return null;
   }
 
   const runRow = activeRun ?? finalRun!;
   const trace = traceFromRun(runRow);
-  const stripOnly = liveTurn !== null && activeRun !== null;
 
   const cancel = async () => {
     if (activeRun === null || freeToState(activeRun.status) === false) {
@@ -200,7 +197,6 @@ export function BuildProgressBody({
 
   return (
     <div className="space-y-2" data-testid="cv-build-progress">
-      <CopilotActivityCard cvId={cvId} />
       <div
         className="rounded-[var(--as-radius)] border border-[var(--as-border)] p-3"
         data-testid={activeRun !== null ? "cv-run-progress" : "cv-run-final"}
@@ -211,33 +207,29 @@ export function BuildProgressBody({
           {telemetry(runRow)}
         </div>
       </div>
-      {stripOnly ? null : (
-        <>
-          <FlowTraceCard
-            trace={trace}
-            labels={{
-              title: t("cvBuilder.runs.traceTitle"),
-              stages: t("cvBuilder.runs.stages"),
-              calls: t("cvBuilder.runs.calls"),
-              ops: t("cvBuilder.runs.ops"),
-            }}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            {finalRun?.status === "failed" ? (
-              <Button variant="outline" size="sm" onClick={() => void resume()} disabled={busy} data-testid="cv-run-resume">
-                {t("cvBuilder.runs.resume", "Resume run")}
-              </Button>
-            ) : null}
-            <Button variant="ghost" size="sm" onClick={askAssistant} data-testid="cv-build-ask-assistant">
-              {t("cvBuilder.copilotActivity.askAssistant", "Ask the assistant")}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onOpenRuns} data-testid="cv-run-open-runs">
-              <History className="size-3.5" aria-hidden />
-              {t("cvBuilder.runs.openAll", "Open runs & metrics")}
-            </Button>
-          </div>
-        </>
-      )}
+      <FlowTraceCard
+        trace={trace}
+        labels={{
+          title: t("cvBuilder.runs.traceTitle"),
+          stages: t("cvBuilder.runs.stages"),
+          calls: t("cvBuilder.runs.calls"),
+          ops: t("cvBuilder.runs.ops"),
+        }}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        {finalRun?.status === "failed" ? (
+          <Button variant="outline" size="sm" onClick={() => void resume()} disabled={busy} data-testid="cv-run-resume">
+            {t("cvBuilder.runs.resume", "Resume run")}
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" onClick={askAssistant} data-testid="cv-build-ask-assistant">
+          {t("cvBuilder.copilotActivity.askAssistant", "Ask the assistant")}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onOpenRuns} data-testid="cv-run-open-runs">
+          <History className="size-3.5" aria-hidden />
+          {t("cvBuilder.runs.openAll", "Open runs & metrics")}
+        </Button>
+      </div>
       {activeRun !== null ? (
         <Button variant="outline" size="sm" onClick={() => void cancel()} disabled={busy} data-testid="cv-run-cancel">
           {t("cvBuilder.runs.cancel", "Cancel run")}

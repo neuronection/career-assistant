@@ -251,7 +251,7 @@ describe("CV reference attachments (plan 78.3)", () => {
     const bound = {
       ...SESSION,
       id: "s0",
-      context: { surface: "cv_builder", cv_id: 999 },
+      context: { surface: "interview", interview_id: "i-1" },
     };
     const fresh = { ...SESSION, id: "s2", title: "CV chat" };
     useChatStore.setState({

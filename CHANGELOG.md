@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Removed (dead Studio copilot mirror, 2026-10-21)
+- **The chat no longer mirrors a live copilot turn into the CV builder.**
+  Chat sessions stopped being bound to a CV in plan 114 (the builder runs
+  per turn through a CV attachment), so the plan-67 mirror, its
+  `CopilotActivityCard`, the CV-bound chat empty state, the "Open in
+  builder" chat header action and the builder-link trace chip could never
+  appear. They are deleted; the builder copilot itself is unchanged —
+  builder turns, their persisted trace, the attachment handoff and the
+  "Profile changed" live-sync all keep working. No user-visible surface
+  changes.
+
 ### Removed (no-BC legacy sweep, 2026-10-21)
 - **Every remaining code-level compatibility path is gone** (plan 114;
   the no-BC directive). Saved searches validate strictly against the

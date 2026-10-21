@@ -4,7 +4,6 @@ import {
   MAX_TRACE_SUMMARY,
   MAX_TRACE_TOOLS,
   isRunningRun,
-  traceFromLiveTurn,
   traceFromRun,
   traceFromTurnMeta,
 } from "@/lib/cvBuildTrace";
@@ -210,75 +209,5 @@ describe("traceFromTurnMeta (plan 66 persisted builder-turn metadata)", () => {
     for (const op of trace.toolOps ?? []) {
       expect(op.detail?.length).toBe(MAX_TRACE_SUMMARY + 1);
     }
-  });
-});
-
-describe("traceFromLiveTurn (library liveTurnReducer state, camelCase)", () => {
-  const live = {
-    status: "streaming",
-    nodes: [
-      { id: "ground", label: "Reading the builder state", status: "done" },
-      { id: "generate", label: "Planning changes", status: "running" },
-    ],
-    toolCalls: [
-      {
-        name: "get_builder_state",
-        title: "Reading the draft",
-        status: "done",
-        args: '{"selected": ["skills"]}',
-        result: "3 blocks",
-        durationMs: 210,
-      },
-      {
-        name: "plan_changes",
-        status: "running",
-        args: "{}",
-      },
-    ],
-    startedAt: 1000,
-  };
-
-  it("normalizes camelCase reducer state onto the same FlowTrace schema", () => {
-    const trace = traceFromLiveTurn(live as never);
-    expect(trace.stages).toEqual([
-      { label: "Reading the builder state", note: null, at: null },
-      { label: "Planning changes", note: "running", at: null },
-    ]);
-    expect(trace.toolOps?.[0]).toEqual({
-      label: "Reading the draft",
-      ok: true,
-      detail: "3 blocks",
-    });
-    expect(trace.toolOps?.[1]?.ok).toBe(true);
-    expect(trace.outcome).toBe("running");
-    expect(trace.llmCalls).toEqual([]);
-  });
-
-  it("marks error turns and truncates oversize summaries", () => {
-    const trace = traceFromLiveTurn({
-      ...live,
-      status: "error",
-      error: { code: "timeout", message: "stream stalled" },
-      toolCalls: [
-        { name: "plan_changes", status: "failed", args: "a".repeat(200) },
-      ],
-    } as never);
-    expect(trace.outcome).toBe("error");
-    expect(trace.toolOps?.[0]).toEqual({
-      label: "plan_changes",
-      ok: false,
-      detail: `${"a".repeat(160)}…`,
-    });
-  });
-
-  it("caps the op results to the same 16-tool contract", () => {
-    const trace = traceFromLiveTurn({
-      status: "done",
-      toolCalls: Array.from({ length: 20 }, (_, index) => ({
-        name: `tool_${index}`,
-        status: "done",
-      })),
-    });
-    expect(trace.toolOps).toHaveLength(MAX_TRACE_TOOLS);
   });
 });

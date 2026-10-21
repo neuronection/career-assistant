@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import type { CvAssistantState } from "@/types/cvAssistant";
-import type { LiveTurnTraceInput } from "@/lib/cvBuildTrace";
 
 /**
  * The link between the ONE chatbot and the CV builder page:
@@ -12,12 +11,6 @@ import type { LiveTurnTraceInput } from "@/lib/cvBuildTrace";
  * Nothing chat-specific lives here; with no builder mounted the state
  * simply accumulates and is ignored.
  *
- * Plan 67: the link also mirrors the LIVE turn's flow events
- * (node/tool snapshots from the chat stream reducer) CV-scoped
- * (`cv:${id}` keys) so the builder
- * page shows the copilot's activity even with the chat dock closed.
- * Deltas/text never ride the mirror; they stay in the dock.
- *
  * Plan 104: `dataRevision` counts side-effecting chat mutations that
  * change a CV's RESOLVED content outside the editor (approved/reverted
  * HITL cards, write-scope tools like variant_pin). The mounted builder
@@ -27,7 +20,6 @@ import type { LiveTurnTraceInput } from "@/lib/cvBuildTrace";
  */
 interface CvBuilderLinkState {
   lastBuilderState: CvAssistantState | null;
-  liveTurns: Record<string, LiveTurnTraceInput>;
   flushCallback: (() => void) | null;
   dataRevision: number;
   /** Plan 105: who drove the last revision bump — chat surfaces the
@@ -37,35 +29,18 @@ interface CvBuilderLinkState {
   /** Consumed by the mounted builder: the applied state is cleared so
    * it can never land on a different CV's builder later. */
   clearBuilderState: () => void;
-  applyTurnTrace: (cvId: string, trace: LiveTurnTraceInput | null) => void;
   registerFlush: (flush: (() => void) | null) => void;
   flushPendingSave: () => void;
   notifyDataChanged: (origin?: "chat" | "local") => void;
 }
 
-function turnKey(cvId: string): string {
-  return `cv:${cvId}`;
-}
-
 export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
   lastBuilderState: null,
-  liveTurns: {},
   flushCallback: null,
   dataRevision: 0,
   lastDataOrigin: "chat",
   applyBuilderState: (state) => set({ lastBuilderState: state }),
   clearBuilderState: () => set({ lastBuilderState: null }),
-  applyTurnTrace: (cvId, trace) => {
-    const key = turnKey(cvId);
-    if (trace === null) {
-      if (get().liveTurns[key] === undefined) return;
-      const liveTurns = { ...get().liveTurns };
-      delete liveTurns[key];
-      set({ liveTurns });
-      return;
-    }
-    set({ liveTurns: { ...get().liveTurns, [key]: trace } });
-  },
   registerFlush: (flush) => set({ flushCallback: flush }),
   flushPendingSave: () => {
     const flush = get().flushCallback;
@@ -74,7 +49,3 @@ export const useCvBuilderLink = create<CvBuilderLinkState>((set, get) => ({
   notifyDataChanged: (origin: "chat" | "local" = "chat") =>
     set((state) => ({ dataRevision: state.dataRevision + 1, lastDataOrigin: origin })),
 }));
-
-export function useCvLiveTurn(cvId: string | null): LiveTurnTraceInput | null {
-  return useCvBuilderLink((state) => (cvId === null ? undefined : state.liveTurns[turnKey(cvId)])) ?? null;
-}

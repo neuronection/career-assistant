@@ -5,7 +5,7 @@ import * as uniApi from "@/api/universities";
 import { useChatStore } from "@/stores/chatStore";
 import { createChatTransport, type CareerChatTransport } from "@/components/chat/chatTransport";
 import { getDraft, writeDraft } from "@/components/chat/drafts";
-import { activeCvId, cvTitle } from "@/components/chat/cvChatLink";
+import { cvTitle } from "@/components/chat/cvChatLink";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useTemplatePreviewsStore } from "@/stores/templatePreviewsStore";
@@ -239,29 +239,6 @@ export function useCareerChat() {
   }, [lastResolved, stream.status]);
 
   useEffect(() => {
-    // Plan 67: the builder page mirrors the live turn's flow events
-    // (node/tool snapshots, never text deltas) — keyed by the CV the
-    // session is bound to. reset() returns the stream to idle, which
-    // clears the mirror once the persisted trace landed (refresh above).
-    const store = useChatStore.getState();
-    const cvId = activeCvId(store.sessions, store.activeSessionId);
-    if (cvId === null) {
-      return;
-    }
-    if (stream.status === "idle") {
-      useCvBuilderLink.getState().applyTurnTrace(cvId, null);
-      return;
-    }
-    useCvBuilderLink.getState().applyTurnTrace(cvId, {
-      status: stream.status,
-      nodes: stream.nodes,
-      toolCalls: stream.toolCalls,
-      startedAt: stream.startedAt,
-      error: stream.error ?? null,
-    });
-  }, [stream.status, stream.nodes, stream.toolCalls, stream.startedAt, stream.error]);
-
-  useEffect(() => {
     // Plan 104: write-scope tools mutate CV-visible data the moment they
     // finish (variant_pin, copilot cv_synth_*). The mounted builder
     // refetches its preview — per tool card, never re-fired on re-renders.
@@ -295,11 +272,6 @@ export function useCareerChat() {
       await newSession();
     }
     const store = useChatStore.getState();
-    if (activeCvId(store.sessions, store.activeSessionId) !== null) {
-      // Copilot turn on a CV-bound session: flush the editor's pending
-      // debounced autosave first so ops and edits never race.
-      useCvBuilderLink.getState().flushPendingSave();
-    }
     writeDraft(store.activeSessionId, "");
     setDraftState("");
     const attachments = useChatStore.getState().attachments;

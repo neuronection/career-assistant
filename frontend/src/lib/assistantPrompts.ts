@@ -1,8 +1,5 @@
-const STORAGE_KEY = "ca:cv-assistant:custom-prompts";
-const MAX_PROMPTS = 20;
-
 /** Predefined CV copilot prompts (kind-aware); shown as the chat's
- *  empty-state suggestions whenever the active session is CV-bound. */
+ *  empty-state suggestions while a CV is open in Studio. */
 export const CV_PROMPTS: Record<"resume" | "cover_letter", string[]> = {
   resume: [
     "Review this CV and fix any layout or overflow issues",
@@ -19,40 +16,8 @@ export const CV_PROMPTS: Record<"resume" | "cover_letter", string[]> = {
   ],
 };
 
-export function loadCustomPrompts(): string[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function persist(prompts: string[]): string[] {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(prompts));
-  return prompts;
-}
-
-export function saveCustomPrompt(prompt: string): string[] {
-  const trimmed = prompt.trim().slice(0, 300);
-  if (!trimmed) return loadCustomPrompts();
-  const next = [trimmed, ...loadCustomPrompts().filter((p) => p !== trimmed)];
-  return persist(next.slice(0, MAX_PROMPTS));
-}
-
-export function removeCustomPrompt(prompt: string): string[] {
-  return persist(loadCustomPrompts().filter((p) => p !== prompt));
-}
-
-export type CvPromptChip = {
-  prompt: string;
-  custom: boolean;
-};
-
-export function cvPromptChips(kind: "resume" | "cover_letter"): CvPromptChip[] {
-  const custom = loadCustomPrompts();
-  return [...CV_PROMPTS[kind].map((prompt) => ({ prompt, custom: false })), ...custom.map((prompt) => ({ prompt, custom: true }))];
+export function cvPromptChips(kind: "resume" | "cover_letter"): string[] {
+  return CV_PROMPTS[kind];
 }
 
 export const GENERIC_SUGGESTIONS = [

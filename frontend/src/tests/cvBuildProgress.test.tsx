@@ -69,11 +69,11 @@ beforeEach(() => {
   api.fetchCvRuns.mockReset().mockResolvedValue([]);
   api.cancelBackgroundJob.mockReset().mockResolvedValue({});
   api.polishCv.mockReset().mockResolvedValue({});
-  useCvBuilderLink.setState({ lastBuilderState: null, liveTurns: {}, flushCallback: null });
+  useCvBuilderLink.setState({ lastBuilderState: null, flushCallback: null });
 });
 
 afterEach(() => {
-  useCvBuilderLink.setState({ lastBuilderState: null, liveTurns: {}, flushCallback: null });
+  useCvBuilderLink.setState({ lastBuilderState: null, flushCallback: null });
   vi.useRealTimers();
 });
 
@@ -181,23 +181,12 @@ describe("builder run progress card (plan 67.3)", () => {
     });
   });
 
-  it("collapsed to telemetry strip when a copilot turn is live; cancel still reachable", async () => {
-    act(() => {
-      useCvBuilderLink.getState().applyTurnTrace("cv-1", {
-        status: "streaming",
-        nodes: [{ id: "generate", label: "Planning changes", status: "running" }],
-        toolCalls: [],
-      });
-    });
+  it("renders the active run with cancel reachable", async () => {
     api.fetchCvRuns.mockResolvedValue([runRow()]);
     renderCard();
     const card = await screen.findByTestId("cv-build-progress");
-    expect(screen.getByTestId("cv-copilot-activity")).toBeInTheDocument();
-    expect(screen.getByText("Planning changes")).toBeInTheDocument();
     expect(card.querySelector('[data-testid="cv-run-progress"]')).not.toBeNull();
-    expect(card.querySelector('svg.lucide-history') === null || true).toBeTruthy();
     expect(screen.queryByTestId("cv-run-resume")).not.toBeInTheDocument();
     expect(screen.getByTestId("cv-run-cancel")).toBeInTheDocument();
-    expect(card.textContent).not.toContain("Run trace");
   });
 });

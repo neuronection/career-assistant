@@ -47,13 +47,7 @@ import { fetchChatTree, type ChatTree } from "@/api/universities";
 import { transcribeAudio, classifyDictationError } from "@/api/ai";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { ChatViewSwitcher } from "@/components/chat/ChatViewSwitcher";
-import { activeCvId } from "@/components/chat/cvChatLink";
-import {
-  cvPromptChips,
-  GENERIC_SUGGESTIONS,
-  removeCustomPrompt,
-  saveCustomPrompt,
-} from "@/lib/assistantPrompts";
+import { cvPromptChips, GENERIC_SUGGESTIONS } from "@/lib/assistantPrompts";
 import { SessionList } from "@/components/chat/SessionList";
 import { ToolsDialog } from "@/components/chat/ToolsDialog";
 import { renderToolResult } from "@/components/chat/toolResultView";
@@ -95,7 +89,6 @@ function TraceMeta({ message }: { message: ChatMessageRow }) {
  * badges.
  */
 function MessageTrace({ message }: { message: ChatMessageRow }) {
-  const { t } = useTranslation();
   const meta = message.metadata_json;
   const tools = meta?.tools ?? [];
   const nodes = meta?.nodes ?? [];
@@ -109,12 +102,10 @@ function MessageTrace({ message }: { message: ChatMessageRow }) {
   }
   const hasTimeline =
     nodes.length > 0 || tools.some((tool) => typeof tool.start_ms === "number");
-  const versionChip = builderVersionChip(message, t);
   if (!hasTimeline) {
     return (
       <div className="mt-1 flex w-full flex-col gap-1">
         <TraceMeta message={message} />
-        {versionChip}
       </div>
     );
   }
@@ -144,43 +135,9 @@ function MessageTrace({ message }: { message: ChatMessageRow }) {
           })),
         ]}
       />
-      {versionChip}
     </div>
   );
 }
-
-/**
- * Plan 67.4: a copilot turn that produced a version deep-links back to
- * its CV's builder (chat → builder). The CV id comes from the session
- * binding the trace was produced in; absent → no chip.
- */
-function builderVersionChip(
-  message: ChatMessageRow,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  const meta = message.metadata_json;
-  if (meta?.surface !== "cv_builder" || typeof meta.version !== "number") {
-    return null;
-  }
-  const sessions = useChatStore.getState().sessions;
-  const active = sessions.find((session) => session.id === useChatStore.getState().activeSessionId);
-  const context = active?.context as { surface?: string; cv_id?: string } | null;
-  if (context?.surface !== "cv_builder" || !context.cv_id) {
-    return null;
-  }
-  return (
-    <Link
-      to={`/cv/${context.cv_id}`}
-      className="self-start"
-      data-testid="chat-builder-link"
-    >
-      <span className="inline-flex items-center gap-1 rounded-full border border-[var(--as-border)] bg-[var(--as-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]">
-        {t("cvBuilder.copilotActivity.openInStudio")}
-      </span>
-    </Link>
-  );
-}
-
 
 function CvRefChip({
   cvId,
@@ -280,24 +237,12 @@ function ReferenceChips({
 function ChatEmptyState({ compact }: { compact: boolean }) {
   const { t } = useTranslation();
   const chat = useCareerChatContext();
-  const sessions = useChatStore((state) => state.sessions);
-  const activeSessionId = useChatStore((state) => state.activeSessionId);
-  const cvId = activeCvId(sessions, activeSessionId);
   // Plan 78: with a CV open in Studio, the CV prompt chips replace the
   // generic suggestions — the suggested attach chip rides in the composer.
   const studioMatch = useMatch("/cv/:id");
-  const studioCv =
-    cvId === null && studioMatch?.params.id !== undefined
-      ? studioMatch.params.id
-      : null;
-  const [savedPrompts, setSavedPrompts] = useState(() =>
-    cvId ? cvPromptChips("resume").filter((chip) => chip.custom).map((chip) => chip.prompt) : [],
-  );
-  if (cvId || studioCv !== null) {
-    const chips = [
-      ...cvPromptChips("resume").filter((chip) => !chip.custom),
-      ...savedPrompts.map((prompt) => ({ prompt, custom: true })),
-    ];
+  const studioCv = studioMatch?.params.id ?? null;
+  if (studioCv !== null) {
+    const chips = cvPromptChips("resume");
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
         <span className="flex size-10 items-center justify-center rounded-full bg-primary-50">
@@ -308,44 +253,17 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
         </p>
         <AiSetupPrompt variant="card" className="w-full max-w-xs text-left" />
         <div className="flex w-full max-w-xs flex-col gap-1.5" data-testid="cv-chat-prompts">
-          {chips.map(({ prompt, custom }) => (
-            <span key={prompt} className="group relative">
-              <button
-                type="button"
-                data-testid="cv-chat-prompt"
-                onClick={() => chat.setDraft(prompt)}
-                className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-7 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                {prompt}
-              </button>
-              {custom ? (
-                <button
-                  type="button"
-                  aria-label={t("chat.removeSavedPrompt", { prompt })}
-                  data-testid="cv-chat-prompt-remove"
-                  onClick={() =>
-                    setSavedPrompts(removeCustomPrompt(prompt))
-                  }
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="size-3" />
-                </button>
-              ) : null}
-            </span>
-          ))}
-          {chat.draft.trim() ? (
+          {chips.map((prompt) => (
             <button
+              key={prompt}
               type="button"
-              data-testid="cv-chat-prompt-save"
-              onClick={() => {
-                setSavedPrompts(saveCustomPrompt(chat.draft));
-                chat.setDraft("");
-              }}
-              className="rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-50"
+              data-testid="cv-chat-prompt"
+              onClick={() => chat.setDraft(prompt)}
+              className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
             >
-              {t("chat.saveDraftPrompt")}
+              {prompt}
             </button>
-          ) : null}
+          ))}
         </div>
       </div>
     );

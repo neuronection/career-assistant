@@ -1699,12 +1699,7 @@
     "aiDraftBanner": "AI draft applied — review before exporting.",
     "regenerate": "Regenerate",
     "copilotActivity": {
-      "title": "Copilot activity",
-      "openInStudio": "Open in CV Studio",
-      "askAssistant": "Ask the assistant",
-      "working": "Working…",
-      "done": "Turn finished",
-      "error": "Turn failed"
+      "askAssistant": "Ask the assistant"
     },
     "polishReview": {
       "title": "AI polish notes",
@@ -2139,10 +2134,6 @@
     "similarHeading": "Similar postings",
     "year": "year"
   },
-  "chatPage": {
-    "openInBuilder": "Open in CV builder",
-    "boundToCv": "This chat is bound to a CV — continue in the builder"
-  },
   "sessionList": {
     "renameChat": "Rename chat",
     "chatTitleAria": "Chat title",
@@ -2171,8 +2162,6 @@
     "openInExplore": "Open in Explore →",
     "cvEmptyBody": "Ask anything about this CV — I can restyle, restructure and rewrite it, and review the rendered preview.",
     "emptyBody": "Ask anything about careers, jobs or study paths.",
-    "removeSavedPrompt": "Remove saved prompt: {{prompt}}",
-    "saveDraftPrompt": "+ Save current draft as prompt",
     "composerPlaceholder": "Ask about a job…",
     "toolsAria": "Available tools",
     "branchesLabel": "Conversation branches",
