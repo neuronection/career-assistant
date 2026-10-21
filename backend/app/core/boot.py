@@ -47,7 +47,7 @@ def configure_logging() -> None:
     if _configured:
         return
     logging.basicConfig(
-        level=logging.debug if settings.debug else logging.INFO,
+        level=logging.DEBUG if settings.debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     _configured = True

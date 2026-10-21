@@ -7,6 +7,7 @@ unified fan-out stack while keeping these rule/trigger semantics.
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -39,7 +40,7 @@ DEFAULT_RULE_PARAMS = {
 }
 
 
-def canonical_hash(payload: dict) -> str:
+def canonical_hash(payload: Any) -> str:
     """Canonical-JSON sha256 (sorted keys, stable types) — policy."""
     canonical = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

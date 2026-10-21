@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import DomainError
+from app.models.enums import DegreeLevel, UniversityType
 from app.schemas.university import (
     AdmissionCreate,
     AdmissionOut,
@@ -36,7 +37,7 @@ async def list_universities(
             name=u.name,
             country=u.country,
             city=u.city,
-            university_type=u.university_type,
+            university_type=UniversityType(u.university_type),
             website=u.website,
             notes=u.notes,
             source=u.source,
@@ -59,7 +60,7 @@ async def create_university(
         name=u.name,
         country=u.country,
         city=u.city,
-        university_type=u.university_type,
+        university_type=UniversityType(u.university_type),
         website=u.website,
         notes=u.notes,
         source=u.source,
@@ -155,7 +156,7 @@ async def add_department(
         university_id=d.university_id,
         name=d.name,
         field_key=d.field_key,
-        degree=d.degree,
+        degree=DegreeLevel(d.degree),
         duration_years=d.duration_years,
         language=d.language,
         application_deadline=d.application_deadline,

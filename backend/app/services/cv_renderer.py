@@ -844,7 +844,7 @@ def _render_block(
         ]
         if not allowed:
             return "", False
-        rows = "".join(
+        achievement_rows = "".join(
             f"<li><span class='item-title'>{esc(a.get('title') or a)}</span>"
             + (f" <span class='item-org'>{esc(a['issuer'])}</span>" if a.get("issuer") else "")
             + (
@@ -859,7 +859,7 @@ def _render_block(
             _section_tag(
                 "achievements",
                 props.title,
-                f"<ul class='items'>{rows}</ul>",
+                f"<ul class='items'>{achievement_rows}</ul>",
                 design,
                 props,
             ),
@@ -954,7 +954,7 @@ def _first_link_target(links: list, wanted: str) -> str | None:
     return None
 
 
-def _render_qr(target: str, props: Any, design: Any) -> str:
+def _render_qr(target: str, props: Any, design: Any) -> tuple[str, bool]:
     """Compact inline SVG QR (no network, deterministic matrix)."""
     from urllib.parse import quote
 
@@ -1359,9 +1359,9 @@ def render_cv(
             metrics.overflow = metrics.estimated_pages > max_pages
         elif content.pages.overflow_policy == CvOverflowPolicy.TRUNCATE:
             budget = max_pages * metrics.lines_per_page
-            columns = [(main_entries, main_bodies), (sidebar_entries, sidebar_bodies)]
+            column_groups = [(main_entries, main_bodies), (sidebar_entries, sidebar_bodies)]
             per_column = use_sidebar and bool(sidebar_entries)
-            metrics.truncated = truncate_column(columns, budget, per_column)
+            metrics.truncated = truncate_column(column_groups, budget, per_column)
             metrics.estimated_lines = sum(e[2] for e in main_entries) + sum(
                 e[2] for e in sidebar_entries
             )

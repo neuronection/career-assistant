@@ -22,6 +22,7 @@ from app.schemas.cover_letter import (
 )
 from app.schemas.cv import (
     CvCompileOut,
+    CvContextItemInfo,
     CvContextItemRef,
     CvContextSelection,
     CvContextSourceOut,
@@ -89,11 +90,11 @@ async def context_sources(
                 label=definition.label,
                 description=definition.description,
                 items=[
-                    {
-                        "item_id": item.item_id,
-                        "label": item.label,
-                        "detail": item.detail,
-                    }
+                    CvContextItemInfo(
+                        item_id=item.item_id,
+                        label=item.label,
+                        detail=item.detail,
+                    )
                     for item in resolved.get(key) or []
                 ],
             )
@@ -437,7 +438,6 @@ async def list_cv_runs(
                         BackgroundJob.result["cv_id"].as_string() == str(cv.id),
                         and_(
                             BackgroundJob.status == BackgroundJobStatus.RUNNING.value,
-                            running_alias is not None,
                             BackgroundJob.id == running_alias,
                         ),
                     ),
@@ -576,10 +576,7 @@ async def apply_cv_ops(
     state = await builder_state_payload(
         db, cv, operations=[r.model_dump(mode="json") for r in results]
     )
-    return CvOpsOut(
-        results=[r.model_dump(mode="json") for r in results],
-        state=state,
-    )
+    return CvOpsOut(results=results, state=state)
 
 
 @router.get("/{cv_id}/design", response_model=CvDesignOut)

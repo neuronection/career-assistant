@@ -10,6 +10,7 @@ contract: `202 {job_id}`)."""
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -185,7 +186,7 @@ async def generate_synth_items(
     payload: CvSynthItemGenerate,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> CvSynthGenerateOut:
+) -> CvSynthGenerateOut | JSONResponse:
     """Draft synthesized variants (≤5 refs inline; more → queued bulk)."""
     if len(payload.refs) > SYNC_LIMIT:
         job = await enqueue(
@@ -194,8 +195,6 @@ async def generate_synth_items(
             {"request": payload.model_dump(mode="json")},
             user_id=user.id,
         )
-        from fastapi.responses import JSONResponse
-
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
             content=CvSynthGenerateOut(job_id=job.id, items=[]).model_dump(mode="json"),

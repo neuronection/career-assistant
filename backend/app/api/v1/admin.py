@@ -3,6 +3,7 @@
 User management (`/admin/users`, reset-password, force-logout) is the
 auth-kit's §12 surface now — see `nx_auth.user_admin` (plan 16 P3a)."""
 
+import logging
 import uuid
 from datetime import datetime
 
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.errors import DomainError, ValidationError
+from app.core.errors import DomainError, ValidationError, sanitize_error_detail
 from app.models.ai_model import AIGeneration
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
@@ -21,6 +22,8 @@ from app.schemas.job import JobOut
 from app.services.deps import get_current_user, require_admin
 from app.services.job_service import JobService
 from app.services.taxonomy_service import TaxonomyService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -645,7 +648,10 @@ async def probe_posting_source(
             "latency_ms": int((_time.monotonic() - started) * 1000),
         }
     except Exception as exc:
-        error = ConnectorError(code="provider", detail=str(exc)[:500], retryable="yes")
+        logger.warning("provider connection test failed", exc_info=True)
+        error = ConnectorError(
+            code="provider", detail=sanitize_error_detail(str(exc), limit=500), retryable="yes"
+        )
         return {
             "ok": False,
             "error": error.model_dump(mode="json"),
@@ -774,12 +780,17 @@ async def install_from_source(
 
     if not payload.get("extension_id"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "extension_id is required")
+    consent = payload.get("consent")
+    if not isinstance(consent, dict):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "consent must be the host-derived echo object"
+        )
     try:
         return await install_extension(
             db,
             source_id,
             str(payload["extension_id"]),
-            consent=payload.get("consent"),
+            consent=consent,
             actor_id=user.id,
         )
     except LifecycleError as exc:
@@ -798,8 +809,13 @@ async def apply_extension_update(
     (no signing service exists — there is no auto-apply at all)."""
     from app.extensions.lifecycle import LifecycleError, apply_update
 
+    consent = payload.get("consent")
+    if not isinstance(consent, dict):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "consent must be the host-derived echo object"
+        )
     try:
-        return await apply_update(db, install_id, consent=payload.get("consent"), actor_id=user.id)
+        return await apply_update(db, install_id, consent=consent, actor_id=user.id)
     except LifecycleError as exc:
         raise _lifecycle_error(exc) from exc
 
@@ -1009,4 +1025,7 @@ async def admin_run_schedule_now(
     from app.services.scheduler.runner import SchedulerService
 
     schedule = await SchedulerService(db).run_now(schedule_id)
-    return {"id": str(schedule.id), "next_run_at": schedule.next_run_at.isoformat()}
+    return {
+        "id": str(schedule.id),
+        "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+    }

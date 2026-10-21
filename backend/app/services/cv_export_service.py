@@ -8,6 +8,7 @@ without it the client falls back to the print view).
 """
 
 import json
+import logging
 import re
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
@@ -34,6 +35,8 @@ from app.services.cv_renderer import (
     default_section_title,
     summary_text,
 )
+
+logger = logging.getLogger(__name__)
 
 ExportFormat = Literal["pdf", "docx", "md", "json", "ats_text"]
 
@@ -116,9 +119,9 @@ def _heading_of(kind: str, props: dict) -> str:
     return props.get("title") or kind.replace("_", " ").title()
 
 
-def _visible_blocks(blocks: list[dict], snapshot: dict) -> list[tuple[str, dict, dict]]:
+def _visible_blocks(blocks: list[dict], snapshot: dict) -> list[tuple[str, dict, Any]]:
     """Blocks that carry content, in render order (renderer parity)."""
-    visible: list[tuple[str, dict, dict]] = []
+    visible: list[tuple[str, dict, Any]] = []
     for block in blocks:
         kind, props = str(block.get("kind")), dict(block.get("props") or {})
         if block_hidden(block):
@@ -461,7 +464,7 @@ def to_json_export(cv: CvDocument, version: CvVersion) -> bytes:
     return json.dumps(package, indent=2, sort_keys=True).encode()
 
 
-def _render_order(blocks: list[dict], template: object | None) -> list[dict]:
+def _render_order(blocks: list[dict], template: Any | None) -> list[dict]:
     """Blocks in the order the renderer emits their headings.
 
     A sidebar layout renders the sidebar column before (side=left) or
@@ -477,7 +480,7 @@ def _render_order(blocks: list[dict], template: object | None) -> list[dict]:
             design = TemplateContent.model_validate(template.content).design
             layout, side = design.layout, design.sidebar_side
         except Exception:
-            pass
+            logger.debug("template content unreadable for render order", exc_info=True)
     if layout != "sidebar":
         return blocks
     sidebar = [block for block in blocks if block_area(block) == "sidebar"]
@@ -700,7 +703,7 @@ class CvExportService:
         checks: list[dict] = []
 
         def add(cid: str, level: str, message: str, **extra: object) -> None:
-            entry = {"id": cid, "level": level, "message": message}
+            entry: dict[str, object] = {"id": cid, "level": level, "message": message}
             entry.update(extra)
             checks.append(entry)
 
@@ -733,6 +736,7 @@ class CvExportService:
             except ValueError:
                 reason = "the pin is malformed"
             except Exception:
+                logger.debug("pinned variant lookup failed", exc_info=True)
                 reason = "the pinned variant no longer exists"
             if reason is None:
                 if row.status != CvSynthStatus.ACTIVE.value:
@@ -813,6 +817,7 @@ class CvExportService:
         except PDFEngineUnavailable:
             return None, None
         except Exception:
+            logger.warning("page measurement failed; falling back to the estimate", exc_info=True)
             return None, None
         return measure.pages, measure.source
 

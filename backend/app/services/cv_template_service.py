@@ -345,7 +345,7 @@ class CvTemplateService:
 
         old_blocks = [_block_signature(block) for block in older.blocks]
         new_blocks = [_block_signature(block) for block in newer.blocks]
-        block_changes = {
+        block_changes: dict[str, list] = {
             "added": [sig for sig in new_blocks if sig not in old_blocks],
             "removed": [sig for sig in old_blocks if sig not in new_blocks],
             "props_changed": [],
@@ -496,9 +496,9 @@ class CvTemplateService:
                 "interests",
             }:
                 return False
-            if kind == "skills" and props.display not in ("chips", "list"):
+            if kind == "skills" and getattr(props, "display", None) not in ("chips", "list"):
                 return False
-            if kind == "items" and props.source_key not in SOURCE_KEYS:
+            if kind == "items" and getattr(props, "source_key", None) not in SOURCE_KEYS:
                 return False
         return True
 
@@ -522,7 +522,7 @@ class CvTemplateService:
             .order_by(CvDocument.created_at.desc())
             .limit(limit)
         )
-        return set(rows.scalars().all())
+        return {template_id for template_id in rows.scalars().all() if template_id is not None}
 
     async def suggest(
         self,
@@ -608,9 +608,9 @@ class CvTemplateService:
         )
         by_ref = {f"t{index}": row for index, row in enumerate(ordered)}
         picks = [
-            {"template_id": str(row.id), "title": row.title, "reason": pick.reason}
+            {"template_id": str(match.id), "title": match.title, "reason": pick.reason}
             for pick in ranking.ranking
-            if (row := by_ref.get(pick.template_ref)) is not None
+            if (match := by_ref.get(pick.template_ref)) is not None
         ]
         return {"picks": picks, "candidates_considered": len(ordered)}
 

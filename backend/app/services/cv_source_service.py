@@ -212,12 +212,12 @@ async def run_ocr(
         engine = {"ocr": "tesseract"}
         return ocr_pages, engine
     ordered = sorted(image_paths.items())
-    ocr_pages: list[CvSourcePage] = []
+    vision_pages: list[CvSourcePage] = []
     for start in range(0, len(ordered), OCR_BATCH_PAGES):
         batch = ordered[start : start + OCR_BATCH_PAGES]
-        ocr_pages.extend(await _vision_ocr(db, user_id, batch))
+        vision_pages.extend(await _vision_ocr(db, user_id, batch))
     engine = {"ocr": "vision"}
-    return ocr_pages, engine
+    return vision_pages, engine
 
 
 async def process_cv_document(

@@ -182,11 +182,13 @@ async def postings_explore(
     the explore vocabulary — `skills=sql:4,python`, multi-value comma
     lists, `posted_within=7d`, `sort=fit|fresh|salary|relevance` and an
     opaque `cursor`."""
-    raw = dict(request.query_params)
+    raw: dict[str, str | list[str]] = dict(request.query_params)
     # Pagination/sort controls are the endpoint's, not filter vocabulary.
-    sort = raw.pop("sort", None) or "fit"
-    cursor = raw.pop("cursor", None)
-    limit = min(max(int(raw.pop("limit", None) or 20), 1), 100)
+    sort = request.query_params.get("sort") or "fit"
+    cursor = request.query_params.get("cursor")
+    limit = min(max(int(request.query_params.get("limit") or 20), 1), 100)
+    for control in ("sort", "cursor", "limit"):
+        raw.pop(control, None)
     multi = {key: list(request.query_params.getlist(key)) for key in ("skills",)}
     for key, values in multi.items():
         if values and "," in values[0]:
@@ -364,6 +366,6 @@ async def postings_applied(
     )
     return {
         "posting_id": str(application.posting_id),
-        "applied_at": application.applied_at.isoformat(),
+        "applied_at": application.applied_at.isoformat() if application.applied_at else None,
         "stage": application.stage,
     }

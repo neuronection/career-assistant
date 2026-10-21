@@ -275,13 +275,14 @@ class TrayIcon:
         self._snapshot_data: dict = {}
 
     def start(self) -> None:
-        self._icon = self._pystray.Icon(
+        icon = self._pystray.Icon(
             "career-assistant",
             self._render(self._status),
             "Career Assistant",
             menu=self._build_menu(),
         )
-        self._icon.run_detached()
+        self._icon = icon
+        icon.run_detached()
 
     def poll(self) -> None:
         """Refresh badge/state + menu from the services (tray thread)."""

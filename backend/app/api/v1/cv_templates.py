@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.cv_template_designer import critique_pages, draft_template
 from app.core.database import get_db
-from app.core.errors import ValidationError
+from app.core.errors import ValidationError, sanitize_error_detail
 from app.models.cv_template_model import CvTemplate
 from app.models.enums import CvTemplateSource
 from app.schemas.cv_template import (
@@ -399,11 +399,12 @@ async def visual_review(
     service = CvTemplateService(db)
     template = await service.get_readable(template_id, user.id)
     lint = service.lint(template, max_pages=page_count)
-    images = []
+    images: list[tuple[str, bytes]] = []
     for file in files[:10]:
-        if (file.content_type or "") not in {"image/png", "image/jpeg"}:
+        content_type = file.content_type or ""
+        if content_type not in {"image/png", "image/jpeg"}:
             raise HTTPException(415, "Page images must be PNG or JPEG")
-        images.append((file.content_type, await file.read()))
+        images.append((content_type, await file.read()))
     try:
         critique = await critique_pages(
             db,
@@ -422,7 +423,9 @@ async def visual_review(
         if isinstance(exc, AINotConfiguredError):
             critique = None
         else:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, sanitize_error_detail(str(exc))
+            ) from exc
     return {
         "lint": lint,
         "issues": critique.issues if critique else [],

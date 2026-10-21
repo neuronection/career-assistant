@@ -12,7 +12,7 @@ from app.models.enums import CvTemplateSource, CvTemplateStatus
 from app.schemas.cv_template import TemplateContent
 from app.services.engagement_service import canonical_hash
 
-DESIGN_A4_SANS = {}
+DESIGN_A4_SANS: dict[str, object] = {}
 
 
 def _content(

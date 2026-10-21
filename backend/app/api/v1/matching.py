@@ -127,17 +127,17 @@ async def refit_fit(
     insight = await fit_service.upsert_fit(user.id, job_row, result)
     return {
         "job_id": str(job_row.id),
-        "fit_score": float(insight.fit_score),
+        "fit_score": float(insight.fit_score or 0.0),
         "breakdown": insight.fit_breakdown,
     }
 
 
-@router.post("/match/score")
+@router.post("/match/score", response_model=list[MatchInsightOut] | dict)
 async def score_jobs(
     body: ScoreIn = Body(default=_EMPTY_SCORE),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[MatchInsightOut] | dict:
+) -> list[MatchInsightOut] | JSONResponse:
     """AI-score jobs for the caller.
 
     Single job (`job_id`) scores synchronously and returns the insights.

@@ -217,11 +217,18 @@ class LanguagesProps(BaseModel):
     container: BlockContainer = Field(default_factory=BlockContainer)
 
 
+AchievementKind = Literal["award", "honor", "publication", "extracurricular"]
+
+
+def _default_achievement_kinds() -> list[AchievementKind]:
+    return ["award", "honor", "publication", "extracurricular"]
+
+
 class AchievementsProps(BaseModel):
     icon: str | None = Field(default=None, max_length=30)
     title: str = Field(default="Achievements", max_length=60)
-    kinds: list[Literal["award", "honor", "publication", "extracurricular"]] = Field(
-        default_factory=lambda: ["award", "honor", "publication", "extracurricular"],
+    kinds: list[AchievementKind] = Field(
+        default_factory=_default_achievement_kinds,
         max_length=4,
     )
     container: BlockContainer = Field(default_factory=BlockContainer)
@@ -422,7 +429,10 @@ def validate_blocks(blocks: list[dict]) -> list[tuple[str, BaseModel]]:
     problems: list[str] = []
     for index, block in enumerate(blocks):
         kind = block.get("kind")
-        spec = REGISTRY.get(kind or "")
+        if not isinstance(kind, str):
+            problems.append(f"block {index}: missing kind")
+            continue
+        spec = REGISTRY.get(kind)
         if spec is None:
             problems.append(f"block {index}: unknown kind {kind!r}")
             continue

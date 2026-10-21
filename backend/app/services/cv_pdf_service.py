@@ -28,6 +28,7 @@ import io
 import os
 import sys
 from dataclasses import dataclass, field
+from typing import Any
 
 import pypdfium2 as pdfium
 
@@ -52,9 +53,9 @@ IDLE_SHUTDOWN_SECONDS = 300
 _CHANNEL_CANDIDATES: tuple[str | None, ...] = (None, "msedge", "chrome")
 
 _UNRESOLVED: object = object()
-_PLAYWRIGHT: object = None
+_PLAYWRIGHT: Any = None
 _PLAYWRIGHT_LOOP: asyncio.AbstractEventLoop | None = None
-_BROWSER: object = None
+_BROWSER: Any = None
 _BROWSER_LOOP: asyncio.AbstractEventLoop | None = None
 _BROWSER_CHANNEL: object = _UNRESOLVED
 _ENGINE_LOCK: asyncio.Lock | None = None
@@ -105,7 +106,7 @@ def _engine_lock() -> asyncio.Lock:
     return _ENGINE_LOCK
 
 
-async def _get_playwright() -> object:
+async def _get_playwright() -> Any:
     """The persistent Playwright driver, started lazily and reused.
 
     The bundled browsers path must be resolved before the driver starts —
@@ -157,7 +158,7 @@ async def _launch_browser(p) -> object:
     raise PDFEngineUnavailable(f"No Chromium-class browser launched: {last_error}")
 
 
-async def _get_browser(p) -> object:
+async def _get_browser(p: Any) -> Any:
     """The persistent engine browser, launched lazily and reused.
 
     A browser bound to another event loop (test suites, embedded shells) is

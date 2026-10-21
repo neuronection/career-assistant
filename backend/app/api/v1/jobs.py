@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.agents import suggest_relations
 from app.core.database import get_db
 from app.core.errors import DomainError
-from app.models.enums import BackgroundJobType
+from app.models.enums import BackgroundJobType, RelationType
 from app.schemas.common import Message
 from app.schemas.job import JobCreate, JobGraph, JobOut, JobUpdate, RelationOut
 from app.services.deps import get_current_user
@@ -54,7 +54,7 @@ async def relations(
                 to_code=rel.to_job.code,
                 from_title=rel.from_job.title,
                 to_title=rel.to_job.title,
-                relation_type=rel.relation_type,
+                relation_type=RelationType(rel.relation_type),
                 weight=rel.weight,
                 rationale=rel.rationale,
                 source=rel.source,
@@ -110,7 +110,7 @@ async def suggest_job_relations(
             to_code=to_job.code,
             from_title=job.title,
             to_title=to_job.title,
-            relation_type=rel.relation_type,
+            relation_type=RelationType(rel.relation_type),
             weight=rel.weight,
             rationale=rel.rationale,
             source="ai",

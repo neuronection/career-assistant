@@ -3,6 +3,7 @@
 jobs, advances next_run_at. The scheduler decides WHEN; the queue decides
 WHAT/HOW — a tick never runs business logic itself."""
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -329,7 +330,7 @@ class SchedulerService:
         await self.db.refresh(schedule)
         return schedule
 
-    async def run_now(self, schedule_id: UUID) -> BackgroundJob:
+    async def run_now(self, schedule_id: UUID) -> Schedule:
         """Admin run-now: due immediately on the next tick."""
         schedule = await self._get(schedule_id)
         if schedule.task is None:
@@ -511,7 +512,7 @@ class SchedulerService:
             )
 
 
-async def start_scheduler() -> object | None:
+async def start_scheduler() -> asyncio.Task | None:
     """Background loop for the app lifespan (single-process, like)."""
     import asyncio
 

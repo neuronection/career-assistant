@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.experience import (
+    AchievementOut,
     DerivationApplyOut,
     DerivationOut,
     EvidenceOut,
@@ -14,6 +15,7 @@ from app.schemas.experience import (
     ExperienceItemOut,
     ExperienceItemUpdate,
     ExperienceOut,
+    ExperienceSkillOut,
 )
 from app.services.deps import get_current_user
 from app.services.experience_service import ExperienceService
@@ -21,15 +23,15 @@ from app.services.experience_service import ExperienceService
 router = APIRouter(tags=["experience"])
 
 
-def _skill_out(link) -> dict:
-    return {
-        "skill_id": link.skill_id,
-        "skill_key": link.skill.key,
-        "skill_label": link.skill.label,
-        "role_in_item": link.role_in_item,
-        "level_claim": link.level_claim,
-        "last_used": link.last_used,
-    }
+def _skill_out(link) -> ExperienceSkillOut:
+    return ExperienceSkillOut(
+        skill_id=link.skill_id,
+        skill_key=link.skill.key,
+        skill_label=link.skill.label,
+        role_in_item=link.role_in_item,
+        level_claim=link.level_claim,
+        last_used=link.last_used,
+    )
 
 
 def _item_out(item) -> ExperienceItemOut:
@@ -50,7 +52,9 @@ def _item_out(item) -> ExperienceItemOut:
         status=item.status,
         created_at=item.created_at,
         skills=[_skill_out(link) for link in item.skills],
-        achievements=[{"id": a.id, "text": a.text, "metric": a.metric} for a in item.achievements],
+        achievements=[
+            AchievementOut(id=a.id, text=a.text, metric=a.metric) for a in item.achievements
+        ],
     )
 
 

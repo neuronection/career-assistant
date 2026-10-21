@@ -93,7 +93,7 @@ class CareerUserStore:
         email: str,
         password_hash: str | None,
         full_name: str = "",
-        is_admin: bool = False,
+        is_admin: bool | None = None,
         user_id: str | None = None,
     ) -> UserRecord:
         from app.schemas.profile import (

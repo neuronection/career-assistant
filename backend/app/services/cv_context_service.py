@@ -90,7 +90,7 @@ async def _resolve_basics(
         from app.api.v1.me_photo import photo_data_uri
 
         document = (
-            (await db.execute(select(Document).where(Document.id == profile.photo_document_id)))
+            (await db.execute(select(Document).where(Document.id == effective_photo_id)))
             .scalars()
             .first()
         )
@@ -721,7 +721,8 @@ def apply_overrides(snapshot: dict, snapshot_index: dict[str, list[str]], overri
             # MATERIALIZED by the override — the editor can type a
             # summary from scratch, not only patch an existing one.
             if not index or index[0] == item_id:
-                patched[key] = {**(patched.get(key) or {}), **patches}
+                current = patched.get(key)
+                patched[key] = {**(current if isinstance(current, dict) else {}), **patches}
             continue
         rows = [dict(row) for row in patched.get(key) or []]
         for position, ref_id in enumerate(snapshot_index.get(key) or []):

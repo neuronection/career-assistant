@@ -40,7 +40,7 @@ async def seed_taxonomy(db) -> tuple[int, int]:
 
 async def seed_catalog(db) -> tuple[int, int]:
     """Insert missing families, jobs and relations."""
-    family_ids: dict[str, object] = {}
+    family_ids: dict[str, JobFamily] = {}
     families_added = 0
     for spec in FAMILIES:
         exists = (
@@ -51,7 +51,8 @@ async def seed_catalog(db) -> tuple[int, int]:
         if exists:
             family_ids[spec["key"]] = exists
             continue
-        parent = family_ids.get(spec.get("parent"))
+        parent_key = spec.get("parent")
+        parent = family_ids.get(parent_key) if isinstance(parent_key, str) else None
         parent_id = parent.id if parent is not None else None
         level = 0
         path = spec["key"]
@@ -76,14 +77,14 @@ async def seed_catalog(db) -> tuple[int, int]:
         exists = (await db.execute(select(Job).where(Job.code == spec["code"]))).scalars().first()
         if exists:
             continue
-        family = family_ids.get(spec["family"])
-        if family is None:
+        job_family = family_ids.get(spec["family"])
+        if job_family is None:
             logger.warning("Job %s references unknown family %s", spec["code"], spec["family"])
             continue
         job = Job(
             code=spec["code"],
             title=spec["title"],
-            family_id=family.id,
+            family_id=job_family.id,
             short_description=spec["description"],
             status="published",
             source="seed",
@@ -379,7 +380,7 @@ async def seed_notification_kinds(db) -> int:
             .first()
         )
         if exists is None:
-            db.add(NotificationKind(**{**spec, "id": uuid.UUID(spec["id"])}))
+            db.add(NotificationKind(**{**spec, "id": uuid.UUID(str(spec["id"]))}))
             added += 1
     await db.commit()
     return added

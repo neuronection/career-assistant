@@ -76,6 +76,8 @@ def _coverage(extract: PostingExtract, levels: dict[str, int]) -> TailorCoverage
     covered: list[CoverageEntry] = []
     missing: list[CoverageEntry] = []
     for skill in extract.skills:
+        if not skill.skill_key:
+            continue
         entry = CoverageEntry(
             skill_key=skill.skill_key,
             label=skill.skill_key,

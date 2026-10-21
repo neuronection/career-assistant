@@ -24,6 +24,7 @@ staleness then tracks source drift *after* the user spoke.
 
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +35,9 @@ from app.core.errors import NotFoundError, ValidationError
 from app.models.cv_model import CvDocument
 from app.models.cv_synth_model import CvSynthItem
 from app.models.enums import CvSynthSource, CvSynthStatus
+from app.schemas.cv import CvContextRef
 from app.schemas.cv_synth import (
+    CvSynthAction,
     CvSynthItemCreate,
     CvSynthItemGenerate,
     CvSynthItemUpdate,
@@ -587,6 +590,8 @@ class CvSynthService:
         differs. Draft-then-approve applies like every variant."""
         from app.ai.agents.cv_synthetizer import synthesize
 
+        if request.translate_of is None:
+            raise ValidationError("Translate needs a source variant")
         master = await self.get_owned(request.translate_of, user_id)
         if request.target_language is None:
             raise ValidationError("Translate needs target_language")
@@ -637,10 +642,10 @@ class CvSynthService:
         action = str(row.voice.get("action") or "summarize")
         request = CvSynthItemGenerate(
             refs=[
-                {"source_key": ref["source_key"], "item_id": ref["item_id"]}
+                CvContextRef(source_key=ref["source_key"], item_id=ref["item_id"])
                 for ref in row.source_refs
             ],
-            action=action,
+            action=cast(CvSynthAction, action),
             tone=row.voice.get("tone"),
             length=row.voice.get("length"),
             instruction=row.voice.get("instruction"),

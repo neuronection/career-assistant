@@ -96,6 +96,8 @@ class CoverLetterService:
         covered: list[CoverageEntry] = []
         missing: list[CoverageEntry] = []
         for skill in extract.skills if extract else []:
+            if not skill.skill_key:
+                continue
             entry = CoverageEntry(
                 skill_key=skill.skill_key,
                 label=skill.skill_key,
@@ -134,9 +136,9 @@ class CoverLetterService:
             fit = BriefFit()
         resolution = await resolve(self.db, user_id)
         goal = ""
-        for item in resolution.items:
-            if item.item_id == "summary":
-                goal = str((item.payload or {}).get("summary") or "")
+        for resolved_item in resolution.items:
+            if resolved_item.item_id == "summary":
+                goal = str((resolved_item.payload or {}).get("summary") or "")
                 break
 
         def brief_skills(priority: str) -> list[BriefSkill]:
@@ -150,7 +152,7 @@ class CoverLetterService:
                     user_level=levels.get(skill.skill_key),
                 )
                 for skill in (extract.skills if extract else [])
-                if skill.priority == priority
+                if skill.priority == priority and skill.skill_key
             ]
 
         return CoverLetterBriefOut(
@@ -250,13 +252,13 @@ class CoverLetterService:
                 "user_level": levels.get(skill.skill_key),
             }
             for skill in (extract.skills if extract else [])
-            if skill.priority == "must_have"
+            if skill.priority == "must_have" and skill.skill_key
         ]
         coverage = self._coverage(extract, levels)
         goal = ""
-        for item in resolution.items:
-            if item.item_id == "summary":
-                goal = str((item.payload or {}).get("summary") or "")
+        for resolved_item in resolution.items:
+            if resolved_item.item_id == "summary":
+                goal = str((resolved_item.payload or {}).get("summary") or "")
                 break
         brief = {
             "posting_title": posting.title,

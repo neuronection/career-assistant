@@ -129,19 +129,43 @@ exclude = [
 
 [tool.mypy]
 # The type gate grows by ratchet: packages join `files` only when clean,
-# and never leave. app/services is the next candidate (110 errors at
-# adoption, 2026-09-09); app/extensions joined clean (plan 32 Phase 4).
-# Fix in sub-slices, then add it.
+# and never leave. Packages still being cleaned are pinned in
+# [tool.career-mypy-ratchet] below (plan 124.2) and enforced by
+# scripts/check-mypy-ratchet.py, which fails when a package's error count
+# moves in EITHER direction.
 #
 # The vendored extension-contract canonical (app/extensions/contract.py)
 # is byte-identical to dev/contracts/contract.py — never edited in-repo,
 # and mypy-strict compliance is the dev canonical's duty (the
 # unification wave's sync introduced strict-mode findings here; study
 # carries the same exclusion).
-files = ["app/ai", "app/schemas", "app/models", "app/extensions"]
+files = [
+    "app/ai",
+    "app/api",
+    "app/auth",
+    "app/backups.py",
+    "app/core",
+    "app/desktop",
+    "app/extensions",
+    "app/local.py",
+    "app/main.py",
+    "app/middleware.py",
+    "app/models",
+    "app/schemas",
+    "app/seeds",
+    "app/shell.py",
+]
 exclude = ["app/extensions/contract.py"]
 ignore_missing_imports = true
 follow_imports = "silent"
+
+[tool.career-mypy-ratchet]
+# Pinned mypy error counts for packages that are not clean yet
+# (plan 124: the wall is the number; it may only ratchet DOWN). Fixing
+# errors requires lowering the peg in the same commit
+# (`uv run python ../scripts/check-mypy-ratchet.py --update`); adding any
+# error fails CI. Clean packages move to `[tool.mypy] files` instead.
+packages = { "app/services" = 164 }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

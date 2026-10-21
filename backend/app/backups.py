@@ -120,10 +120,11 @@ def prune_backups(data_dir: Path) -> int:
     if len(candidates) <= KEEP_DAILY + KEEP_WEEKLY:
         return 0
     keep: set[Path] = set(candidates[-KEEP_DAILY:])
-    week_buckets: dict[int, Path] = {}
+    week_buckets: dict[tuple[int, int], Path] = {}
     for path in candidates:
         stamp = _backup_timestamp(path)
-        bucket = stamp.isocalendar()[:2]
+        iso = stamp.isocalendar()
+        bucket = (iso.year, iso.week)
         week_buckets[bucket] = path  # later entries overwrite → newest of week
     for path in week_buckets.values():
         keep.add(path)
