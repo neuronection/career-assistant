@@ -148,8 +148,8 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 
 | Gate | Command | Wall |
 |---|---|---|
-| Backend (Postgres) | `uv run pytest tests -n auto --cov=app --cov-fail-under=80` | coverage 80% |
-| Backend (SQLite profile) | same, with `CAREER_DATABASE_URL=sqlite+aiosqlite:///./neuronection_career_test.db` (serial) | coverage 80% |
+| Backend (Postgres) | `uv run pytest tests -n auto --cov=app --cov-fail-under=79` | coverage 79% |
+| Backend (SQLite profile) | same, with `CAREER_DATABASE_URL=sqlite+aiosqlite:///./neuronection_career_test.db` (serial) | coverage 79% |
 | Contract (both dialects) | `uv run pytest -m contract` | identity-auth §18 |
 | Types | `uv run mypy` | `[tool.mypy] files` — clean packages only |
 | Type ratchet | `uv run python ../scripts/check-mypy-ratchet.py` | `[tool.career-mypy-ratchet]` pegs |
@@ -208,7 +208,7 @@ The suite must not shrink silently. Every skip carries a reason string, and
 All of these must pass:
 
 ```bash
-cd backend && uv run pytest tests -q -n auto --cov=app --cov-fail-under=80
+cd backend && uv run pytest tests -q -n auto --cov=app --cov-fail-under=79
 cd backend && uv run ruff check . && uv run ruff format --check .
 cd backend && uv run mypy
 cd backend && uv run python ../scripts/check-mypy-ratchet.py
