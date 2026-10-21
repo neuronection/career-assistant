@@ -365,6 +365,17 @@ NOTIFICATION_KINDS = [
         "mutable": True,
         "manage_url": "/profile",
     },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c800e",
+        "key": "channel_test",
+        "label": "Channel test delivery",
+        "group": "system",
+        "severity": "info",
+        "default_enabled": True,
+        "default_channels": ["in_app"],
+        "mutable": False,
+        "manage_url": "/settings/notifications",
+    },
 ]
 
 

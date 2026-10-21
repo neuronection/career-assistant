@@ -15,6 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.engagement import (
     BroadcastIn,
+    ChannelTestOut,
+    EmailChannelConfigIn,
+    EmailChannelConfigOut,
+    EmailTransportIn,
+    EmailTransportOut,
+    EmailVerificationOut,
+    EmailVerifyIn,
     KindPrefIn,
     KindPrefUpdateOut,
     NotificationPreferencesIn,
@@ -171,6 +178,98 @@ async def put_kind_preference(
     )
     await db.commit()
     return KindPrefUpdateOut.model_validate(result)
+
+
+@router.get("/notifications/channels/email", response_model=EmailChannelConfigOut)
+async def get_email_channel(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> EmailChannelConfigOut:
+    """The caller's email channel config (never the SMTP password)."""
+    return EmailChannelConfigOut.model_validate(await NotificationService(db).email_config(user))
+
+
+@router.put("/notifications/channels/email", response_model=EmailChannelConfigOut)
+async def put_email_channel(
+    data: EmailChannelConfigIn,
+    request: Request,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EmailChannelConfigOut:
+    """Save the address override/digest mode; a changed address re-verifies."""
+    service = NotificationService(db)
+    config, needs_verification = await service.set_email_config(
+        user, enabled=data.enabled, address=data.address, digest_mode=data.digest_mode
+    )
+    if needs_verification:
+        from app.services.notification_email import request_verification
+
+        pending = await request_verification(db, user, verify_base_url=str(request.base_url))
+        if pending:
+            config = await service.email_config(user)
+    await db.commit()
+    return EmailChannelConfigOut.model_validate(config)
+
+
+@router.post("/notifications/channels/email/verification", response_model=EmailVerificationOut)
+async def resend_email_verification(
+    request: Request,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EmailVerificationOut:
+    """Send a fresh double-opt-in link for the pending address."""
+    from app.services.notification_email import request_verification
+
+    pending = await request_verification(db, user, verify_base_url=str(request.base_url))
+    await db.commit()
+    return EmailVerificationOut(sent=pending is not None, pending_address=pending or "")
+
+
+@router.post("/notifications/channels/email/verify")
+async def verify_email_channel(
+    data: EmailVerifyIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Consume the one-time token; stamps `verified_at` on success."""
+    from app.services.notification_email import confirm_verification
+
+    verified = await confirm_verification(db, user, data.token)
+    await db.commit()
+    return {"verified": verified}
+
+
+@router.post("/notifications/channels/email/test", response_model=ChannelTestOut)
+async def test_email_channel(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> ChannelTestOut:
+    """Send a test email and record its `channel_test` delivery row."""
+    result = await NotificationService(db).test_channel(user.id, "email")
+    await db.commit()
+    return ChannelTestOut.model_validate(result)
+
+
+@router.get("/admin/notifications/email", response_model=EmailTransportOut)
+async def get_email_transport(
+    admin=Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> EmailTransportOut:
+    """Instance SMTP config — password presence only, never the value."""
+    from app.services.notification_email import load_public_email_settings
+
+    return EmailTransportOut.model_validate(await load_public_email_settings(db))
+
+
+@router.put("/admin/notifications/email", response_model=EmailTransportOut)
+async def put_email_transport(
+    data: EmailTransportIn,
+    admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> EmailTransportOut:
+    """Update instance SMTP config; a plaintext password is sealed at write."""
+    from app.services.notification_email import save_email_settings
+
+    saved = await save_email_settings(db, data.model_dump(exclude_unset=True))
+    await db.commit()
+    return EmailTransportOut.model_validate(saved)
 
 
 @router.get("/notifications/vapid-key", response_model=VapidKeyOut)

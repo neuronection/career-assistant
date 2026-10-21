@@ -212,7 +212,7 @@ class KindPrefIn(BaseModel):
     def _known_channels(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
             return None
-        allowed = {"in_app", "desktop", "browser"}
+        allowed = {"in_app", "desktop", "browser", "email", "webhook"}
         unknown = [c for c in value if c not in allowed]
         if unknown:
             raise ValueError(f"unknown channels: {', '.join(unknown)}")
@@ -257,3 +257,60 @@ class BroadcastIn(BaseModel):
 
 class UnseenCountOut(BaseModel):
     unseen: int
+
+
+class EmailChannelConfigIn(BaseModel):
+    """Per-user email channel config; a changed address needs verification."""
+
+    enabled: bool = True
+    address: str | None = Field(default=None, max_length=320)
+    digest_mode: bool = False
+
+
+class EmailChannelConfigOut(BaseModel):
+    enabled: bool
+    address: str
+    pending_address: str = ""
+    digest_mode: bool = False
+    verified: bool = False
+    verified_at: datetime | None = None
+
+
+class EmailVerifyIn(BaseModel):
+    token: str = Field(min_length=16, max_length=200)
+
+
+class EmailVerificationOut(BaseModel):
+    sent: bool
+    pending_address: str = ""
+
+
+class ChannelTestOut(BaseModel):
+    channel: str
+    delivery_id: str
+    status: str
+    error: str | None = None
+
+
+class EmailTransportIn(BaseModel):
+    """Instance SMTP config (admin); a `***` password keeps the sealed slot."""
+
+    host: str | None = Field(default=None, max_length=255)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    username: str | None = Field(default=None, max_length=255)
+    from_address: str | None = Field(default=None, max_length=320)
+    from_name: str | None = Field(default=None, max_length=120)
+    starttls: bool | None = None
+    use_ssl: bool | None = None
+    password: str | None = Field(default=None, max_length=500)
+
+
+class EmailTransportOut(BaseModel):
+    host: str
+    port: int
+    username: str
+    from_address: str
+    from_name: str
+    starttls: bool
+    use_ssl: bool
+    password_set: bool

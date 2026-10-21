@@ -18,9 +18,13 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib import metadata
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.models.enums import DeliveryStatus
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +42,8 @@ class DeliveryContext:
     body: str
     payload: dict = field(default_factory=dict)
     severity: str = "info"
+    delivery_id: UUID | None = None
+    db: AsyncSession | None = None
 
 
 class BaseChannel:
@@ -65,7 +71,22 @@ class InAppChannel(BaseChannel):
         return DeliveryStatus.DELIVERED.value, None
 
 
-_BUILTINS_KEYS = ("in_app", "browser")
+class EmailChannel(BaseChannel):
+    """SMTP/inbox transport with double opt-in and kind-aware copy."""
+
+    key = "email"
+
+    def available(self) -> bool:
+        return True
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
+        from app.services import notification_email
+
+        return await notification_email.deliver(ctx)
+
+
+_BUILTINS_KEYS = ("in_app", "browser", "email", "webhook")
+
 
 _registry: dict[str, BaseChannel] = {}
 _plugins_loaded = False
@@ -80,6 +101,8 @@ def _ensure_builtins() -> None:
     """
     if "in_app" not in _registry:
         _registry["in_app"] = InAppChannel()
+    if "email" not in _registry:
+        _registry["email"] = EmailChannel()
     if "browser" not in _registry:
         try:
             from app.services.webpush_service import BrowserPushChannel

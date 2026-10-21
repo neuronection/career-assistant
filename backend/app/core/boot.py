@@ -62,6 +62,17 @@ def validate_boot_config() -> list[str]:
     """
     from app.core.keys import data_key_previous
 
+    if settings.is_production:
+        if settings.mail_transport != "smtp":
+            raise BootConfigError(
+                "CAREER_MAIL_TRANSPORT must be smtp in production (file is dev/test only)"
+            )
+        if settings.webhook_allow_private_hosts:
+            raise BootConfigError(
+                "CAREER_WEBHOOK_ALLOW_PRIVATE_HOSTS is dev/test only — webhook egress "
+                "must stay SSRF-guarded in production"
+            )
+
     return _kit_validate(
         production=settings.is_production,
         identity_mode=settings.identity_mode,

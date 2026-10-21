@@ -212,6 +212,16 @@ class Settings(BaseSettings):
     # an empty list means built-ins only (in_app, desktop, browser).
     notification_channels_allowlist: list[str] = []
 
+    # Email channel transport (plan 117.1). SMTP config itself is DB-only
+    # (`app.notifications` AppSetting, password in a sealed slot); this knob
+    # only swaps the transport for dev/test capture. `file` writes `.eml`
+    # files and is refused on production boots.
+    mail_transport: str = "smtp"
+    mail_dir: str = ""
+    # Webhook egress is SSRF-guarded (public addresses only). The dev/test
+    # hatch lets an e2e receiver listen on loopback; production ignores it.
+    webhook_allow_private_hosts: bool = False
+
     # Rate limiting (the kit's family limiter over the in-memory
     # counter — plan 21; see docs/dev/security.md "Rate limiting").
     # Units: requests per minute. 0 disables a bucket (§16 names).

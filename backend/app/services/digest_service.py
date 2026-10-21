@@ -78,6 +78,8 @@ async def build_and_emit_digest(db: AsyncSession, user_id: UUID, *, now: datetim
 
     unseen = await _unseen_target_postings(db, user_id)
     radar = await near_miss_radar(db, user_id, limit=3)
+    service = NotificationService(db)
+    await service.flush_deferred_email(user_id)
     body_parts = []
     if unseen:
         body_parts.append(
@@ -85,7 +87,7 @@ async def build_and_emit_digest(db: AsyncSession, user_id: UUID, *, now: datetim
         )
     if radar:
         body_parts.append(f"close to: {radar[0]['headline']}")
-    emitted = await NotificationService(db).emit(
+    emitted = await service.emit(
         "digest_ready",
         [user_id],
         title="Your weekly career digest",
