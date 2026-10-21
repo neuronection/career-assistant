@@ -61,10 +61,10 @@ if [[ "$CAREER_DATABASE_URL" == *"neuronection_career_e2e" ]] && docker ps --for
   # pre-empts the bootstrap resolution and leaves the mock fixtures
   # unregistered (the smoke suite ran with generic answers, plan 99.1).
   docker exec "$PG_CONTAINER" psql -U neuronection_career_owner -d postgres -c \
-    "DROP DATABASE neuronection_career_e2e (FORCE)" 2>/dev/null \
+    "DROP DATABASE IF EXISTS neuronection_career_e2e (FORCE)" 2>/dev/null \
     || docker exec "$PG_CONTAINER" psql -U neuronection_career_owner -d postgres \
       -c "select pg_terminate_backend(pid) from pg_stat_activity where datname='neuronection_career_e2e' and pid <> pg_backend_pid(); commit;" \
-      -c "DROP DATABASE neuronection_career_e2e;"
+      -c "DROP DATABASE IF EXISTS neuronection_career_e2e;"
   docker exec "$PG_CONTAINER" psql -U neuronection_career_owner -d postgres -c "CREATE DATABASE neuronection_career_e2e OWNER neuronection_career_owner;"
 fi
 
