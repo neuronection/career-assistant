@@ -132,12 +132,6 @@ class PrerequisiteStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
-class ChatRole(StrEnum):
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-
-
 class SkillStatus(StrEnum):
     PROPOSED = "proposed"
     ACTIVE = "active"
@@ -158,25 +152,12 @@ class JobSkillImportance(StrEnum):
     BONUS = "bonus"
 
 
-class JobSkillSource(StrEnum):
-    SEED = "seed"
-    AI = "ai"
-    ADMIN = "admin"
-
-
 class UserSkillSource(StrEnum):
     SELF_REPORT = "self_report"
     ASSESSMENT = "assessment"
     EXPERIENCE = "experience"
     AI_INFERRED = "ai_inferred"
     DOCUMENT = "document"
-
-
-class PathStepKind(StrEnum):
-    EDUCATION = "education"
-    JOB = "job"
-    EXPERIENCE = "experience"
-    CERTIFICATION = "certification"
 
 
 class PathSource(StrEnum):
@@ -270,11 +251,6 @@ class AITaskType(StrEnum):
     DECISION_BOOLEAN_GATE = "decision_boolean_gate"
     DECISION_CHOICE = "decision_choice"
     DECISION_SCORE = "decision_score"
-
-
-class AIScope(StrEnum):
-    SYSTEM = "system"
-    USER = "user"
 
 
 class AIProviderType(StrEnum):
@@ -394,14 +370,6 @@ class MappingMethod(StrEnum):
     MANUAL = "manual"
 
 
-class SalaryPeriod(StrEnum):
-    HOUR = "hour"
-    DAY = "day"
-    WEEK = "week"
-    MONTH = "month"
-    YEAR = "year"
-
-
 class ApplicationStage(StrEnum):
     """Where an application sits in the pipeline."""
 
@@ -456,15 +424,6 @@ class ApplicationOutcome(StrEnum):
     WITHDRAWN = "withdrawn"
     EXPIRED = "expired"
     GHOSTED = "ghosted"
-
-
-class Seniority(StrEnum):
-    INTERN = "intern"
-    JUNIOR = "junior"
-    MID = "mid"
-    SENIOR = "senior"
-    LEAD = "lead"
-    PRINCIPAL = "principal"
 
 
 class GrowthPlanStatus(StrEnum):
