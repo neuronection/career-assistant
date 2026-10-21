@@ -83,3 +83,6 @@ frontend/coverage/
 *.bak.*
 *.orig
 *.rej
+
+# OpenChamber browser-panel artifacts (local screenshots)
+.openchamber/
