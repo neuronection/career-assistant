@@ -435,8 +435,9 @@ async def _run_fit_refit(
 ) -> dict:
     """Deterministic refit — never calls AI.
 
-    Payload `{"scope": "stale"}` sweeps every user whose stored fits are
-    on an old fit_version (the refit sweep); default refits the
+    Payload `{"scope": "stale"}` sweeps every user whose stored job fits
+    are on an old fit_version and backfills/refreshes the posting-fit
+    cache within a row budget (the refit sweep); the default refits the
     job's user."""
     from app.services.fit.service import FitService
 
@@ -464,11 +465,29 @@ async def _run_fit_refit(
             await FitService(db).refit_user(user_id)
             done += 1
             await progress(
-                min(90, 10 + int(done / max(1, len(stale_users)) * 80)),
+                min(70, 10 + int(done / max(1, len(stale_users)) * 60)),
                 "refitting users",
             )
+        from datetime import timedelta
+
+        from app.services.posting_fit_service import (
+            POSTING_FIT_SWEEP_AGE,
+            POSTING_FIT_SWEEP_BUDGET,
+            sweep_posting_fits,
+        )
+
+        posting_fits = await sweep_posting_fits(
+            db,
+            budget=int(payload.get("posting_fit_budget", POSTING_FIT_SWEEP_BUDGET)),
+            older_than=timedelta(
+                minutes=int(
+                    payload.get("older_than_minutes", POSTING_FIT_SWEEP_AGE.total_seconds() / 60)
+                )
+            ),
+            progress=progress,
+        )
         await progress(100, "done")
-        return {"refitted_users": done}
+        return {"refitted_users": done, "posting_fits": posting_fits}
     user_id = _require_user(job)
 
     async def report(done: int) -> None:

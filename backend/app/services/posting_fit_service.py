@@ -9,7 +9,8 @@ analogue and stays unused)."""
 
 import hashlib
 import json
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -381,62 +382,249 @@ async def compute_posting_fit(
     }
 
 
+def _expected_hash(user_id: UUID, posting: JobPosting, context: dict) -> str:
+    return _canonical_hash(
+        _inputs_payload(
+            user_id,
+            posting,
+            context["user_levels"],
+            context["weights"],
+            context["stage"].value,
+            constraints=context["profile"].constraints,
+        )
+    )
+
+
+def _cache_is_fresh(cached: PostingFit | None, inputs_hash: str) -> bool:
+    return (
+        cached is not None
+        and cached.inputs_hash == inputs_hash
+        and cached.fit_version == FIT_VERSION
+    )
+
+
+def _cached_result(cached: PostingFit, posting: JobPosting, context: dict) -> dict:
+    breakdown = cached.breakdown or {}
+    return {
+        "score": round(float(cached.score), 2),
+        "breakdown": breakdown,
+        "extracted": breakdown.get("archetype_estimate") is None if breakdown else False,
+        "estimate": "archetype_estimate" in breakdown,
+        "gates": lifestyle_gates(posting, context["profile"].constraints),
+        "inputs_hash": cached.inputs_hash,
+    }
+
+
+def _fit_row(user_id: UUID, posting: JobPosting, computed: dict, now: datetime) -> dict:
+    return {
+        "id": uuid.uuid4(),
+        "user_id": user_id,
+        "posting_id": posting.id,
+        "score": Decimal(str(computed["score"])),
+        "breakdown": computed["breakdown"],
+        "inputs_hash": computed["inputs_hash"],
+        "computed_at": now,
+        "fit_version": FIT_VERSION,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+async def _write_fit_rows(db: AsyncSession, rows: list[dict]) -> None:
+    """Conflict-safe batch write-through of computed fits.
+
+    The unique `(user_id, posting_id)` constraint referees concurrent
+    requests; the loser adopts the winner's shape by updating the row
+    (deterministic inputs ⇒ identical values).
+    """
+    if not rows:
+        return
+    from sqlalchemy.dialects import postgresql, sqlite
+
+    table = PostingFit.__table__
+    if db.get_bind().dialect.name == "sqlite":
+        statement = sqlite.insert(table).values(rows)
+    else:
+        statement = postgresql.insert(table).values(rows)
+    updated = {
+        "score": statement.excluded.score,
+        "breakdown": statement.excluded.breakdown,
+        "inputs_hash": statement.excluded.inputs_hash,
+        "computed_at": statement.excluded.computed_at,
+        "fit_version": statement.excluded.fit_version,
+        "updated_at": statement.excluded.updated_at,
+    }
+    await db.execute(
+        statement.on_conflict_do_update(
+            index_elements=["user_id", "posting_id"],
+            set_=updated,
+        )
+    )
+    await db.commit()
+
+
 async def get_posting_fit(
     db: AsyncSession, user_id: UUID, posting: JobPosting, *, refresh: bool = False
 ) -> dict:
     """Cached read: cheap inputs load → hash → cached row is a hit when
     the hash matches; stale (or missing) rows recompute and persist."""
     context = await _load_context(db, user_id)
-    inputs = _inputs_payload(
-        user_id,
-        posting,
-        context["user_levels"],
-        context["weights"],
-        context["stage"].value,
-    )
-    inputs_hash = _canonical_hash(inputs)
+    inputs_hash = _expected_hash(user_id, posting, context)
 
     rows = await db.execute(
         select(PostingFit).where(PostingFit.user_id == user_id, PostingFit.posting_id == posting.id)
     )
     cached = rows.scalars().first()
-    if cached is not None and not refresh and cached.inputs_hash == inputs_hash:
-        return {
-            "score": round(float(cached.score), 2),
-            "breakdown": cached.breakdown or {},
-            "extracted": cached.breakdown.get("archetype_estimate") is None
-            if cached.breakdown
-            else False,
-            "estimate": cached.breakdown is not None and "archetype_estimate" in cached.breakdown,
-            # Gates are pure derived data (extract facts vs current
-            # constraints) — recomputed on read, never cached stale.
-            "gates": lifestyle_gates(posting, context["profile"].constraints),
-            "inputs_hash": cached.inputs_hash,
-        }
+    if not refresh and _cache_is_fresh(cached, inputs_hash):
+        return _cached_result(cached, posting, context)
 
     computed = await compute_posting_fit(db, user_id, posting, context=context)
-    if cached is None:
-        cached = PostingFit(user_id=user_id, posting_id=posting.id)
-        db.add(cached)
-    cached.score = Decimal(str(computed["score"]))
-    cached.breakdown = computed["breakdown"]
-    cached.inputs_hash = computed["inputs_hash"]
-    cached.computed_at = datetime.now(UTC)
-    cached.fit_version = FIT_VERSION
-    await db.flush()
+    await _write_fit_rows(db, [_fit_row(user_id, posting, computed, datetime.now(UTC))])
     return computed
 
 
 async def get_posting_fits_batch(
-    db: AsyncSession, user_id: UUID, postings: list[JobPosting]
+    db: AsyncSession,
+    user_id: UUID,
+    postings: list[JobPosting],
+    *,
+    write_budget: int | None = None,
+    refresh: bool = False,
 ) -> dict[UUID, dict]:
-    """Listing-time batch: compute with one shared context and persist
-    nothing (the cache is a view-time artifact; a listing must never
-    write hundreds of rows)."""
+    """Listing-time batch: one shared context, cache-first per posting.
+
+    Cached rows whose `inputs_hash` still matches are hits; missing or
+    stale rows recompute (bounded by the caller's window) and are written
+    through — `write_budget` caps the persistence when the caller passes a
+    full feed instead of a page.
+    """
     if not postings:
         return {}
     context = await _load_context(db, user_id)
+    ids = [posting.id for posting in postings]
+    cached_rows = (
+        (
+            await db.execute(
+                select(PostingFit).where(
+                    PostingFit.user_id == user_id, PostingFit.posting_id.in_(ids)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    cached_by_id = {row.posting_id: row for row in cached_rows}
+
     result: dict[UUID, dict] = {}
+    pending: list[dict] = []
+    now = datetime.now(UTC)
     for posting in postings:
-        result[posting.id] = await compute_posting_fit(db, user_id, posting, context=context)
+        cached = cached_by_id.get(posting.id)
+        inputs_hash = _expected_hash(user_id, posting, context)
+        if not refresh and _cache_is_fresh(cached, inputs_hash):
+            result[posting.id] = _cached_result(cached, posting, context)
+            continue
+        computed = await compute_posting_fit(db, user_id, posting, context=context)
+        result[posting.id] = computed
+        if write_budget is None or len(pending) < write_budget:
+            pending.append(_fit_row(user_id, posting, computed, now))
+    await _write_fit_rows(db, pending)
     return result
+
+
+FEED_FIT_WRITE_BUDGET = 200
+POSTING_FIT_SWEEP_BUDGET = 5000
+POSTING_FIT_SWEEP_AGE = timedelta(days=7)
+POSTING_FIT_SWEEP_BATCH = 200
+
+
+async def sweep_posting_fits(
+    db: AsyncSession,
+    *,
+    user_id: UUID | None = None,
+    budget: int = POSTING_FIT_SWEEP_BUDGET,
+    older_than: timedelta = POSTING_FIT_SWEEP_AGE,
+    progress=None,
+) -> dict:
+    """Backfill and refresh the posting-fit cache off the request path.
+
+    Rows older than `older_than` or stamped with a previous engine
+    version are recomputed in batches, then postings with no cache row
+    are backfilled newest-first. The row `budget` bounds one sweep; the
+    next scheduled run continues where this one stopped. Staleness never
+    becomes a stored boolean — every recompute re-derives `inputs_hash`.
+    """
+    from app.models.user_model import Profile
+
+    if user_id is not None:
+        user_ids = [user_id]
+    else:
+        user_ids = (await db.execute(select(Profile.user_id).distinct())).scalars().all()
+    cutoff = _utcnow() - older_than
+    processed = 0
+    for current_user in user_ids:
+        if processed >= budget:
+            break
+        while processed < budget:
+            remaining = budget - processed
+            batch_limit = min(POSTING_FIT_SWEEP_BATCH, remaining)
+            stale_ids = (
+                (
+                    await db.execute(
+                        select(PostingFit.posting_id)
+                        .where(
+                            PostingFit.user_id == current_user,
+                            (
+                                (PostingFit.fit_version != FIT_VERSION)
+                                | (PostingFit.computed_at < cutoff)
+                            ),
+                        )
+                        .limit(batch_limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            missing_ids: list[UUID] = []
+            if len(stale_ids) < batch_limit:
+                missing_ids = (
+                    (
+                        await db.execute(
+                            select(JobPosting.id)
+                            .where(
+                                JobPosting.status.in_(["mapped", "new"]),
+                                ~JobPosting.id.in_(
+                                    select(PostingFit.posting_id).where(
+                                        PostingFit.user_id == current_user
+                                    )
+                                ),
+                            )
+                            .order_by(JobPosting.posted_at.desc().nulls_last())
+                            .limit(batch_limit - len(stale_ids))
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            ids = [*stale_ids, *missing_ids]
+            if not ids:
+                break
+            postings = (
+                (
+                    await db.execute(
+                        select(JobPosting)
+                        .where(JobPosting.id.in_(ids))
+                        .order_by(JobPosting.posted_at.desc().nulls_last())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            await get_posting_fits_batch(db, current_user, list(postings), refresh=True)
+            processed += len(postings)
+            if progress is not None:
+                percent = 10 + int(80 * min(processed, budget) / max(1, budget))
+                await progress(percent, "refreshing posting fits")
+            if len(postings) < batch_limit:
+                break
+    return {"rows": processed, "users": len(user_ids), "budget": budget}
