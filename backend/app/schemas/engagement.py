@@ -292,6 +292,24 @@ class ChannelTestOut(BaseModel):
     error: str | None = None
 
 
+class WebhookChannelConfigIn(BaseModel):
+    """Per-user webhook config; `***` keeps the sealed token slot."""
+
+    enabled: bool = True
+    url: str | None = Field(default=None, max_length=1000)
+    template: str | None = Field(default=None, max_length=40)
+    secret: str | None = Field(default=None, max_length=500)
+
+
+class WebhookChannelConfigOut(BaseModel):
+    enabled: bool
+    url: str
+    template: str
+    secret_set: bool = False
+    verified: bool = False
+    verified_at: datetime | None = None
+
+
 class EmailTransportIn(BaseModel):
     """Instance SMTP config (admin); a `***` password keeps the sealed slot."""
 

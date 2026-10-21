@@ -85,6 +85,27 @@ class EmailChannel(BaseChannel):
         return await notification_email.deliver(ctx)
 
 
+class WebhookChannel(BaseChannel):
+    """Queued HTTP POST transport; the durable queue owns retries."""
+
+    key = "webhook"
+
+    def available(self) -> bool:
+        return True
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
+        from app.services import notification_webhook
+
+        if ctx.db is None or ctx.delivery_id is None:
+            return DeliveryStatus.FAILED.value, "no delivery session"
+        row = await notification_webhook.channel_row(ctx.db, ctx.user_id)
+        public = notification_webhook.public_config(row)
+        if row is None or not public["enabled"] or not public["url"]:
+            return DeliveryStatus.FAILED.value, "webhook channel disabled"
+        await notification_webhook.enqueue_delivery(ctx.db, ctx)
+        return DeliveryStatus.PENDING.value, None
+
+
 _BUILTINS_KEYS = ("in_app", "browser", "email", "webhook")
 
 
@@ -103,6 +124,8 @@ def _ensure_builtins() -> None:
         _registry["in_app"] = InAppChannel()
     if "email" not in _registry:
         _registry["email"] = EmailChannel()
+    if "webhook" not in _registry:
+        _registry["webhook"] = WebhookChannel()
     if "browser" not in _registry:
         try:
             from app.services.webpush_service import BrowserPushChannel

@@ -33,6 +33,8 @@ from app.schemas.engagement import (
     SubscriptionOut,
     ThreadsOut,
     VapidKeyOut,
+    WebhookChannelConfigIn,
+    WebhookChannelConfigOut,
 )
 from app.services import notification_stream
 from app.services.deps import get_current_user, require_admin
@@ -270,6 +272,47 @@ async def put_email_transport(
     saved = await save_email_settings(db, data.model_dump(exclude_unset=True))
     await db.commit()
     return EmailTransportOut.model_validate(saved)
+
+
+@router.get("/notifications/channels/webhook", response_model=WebhookChannelConfigOut)
+async def get_webhook_channel(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> WebhookChannelConfigOut:
+    """The caller's webhook config (the token is presence-only)."""
+    from app.services.notification_webhook import load_config
+
+    return WebhookChannelConfigOut.model_validate(await load_config(db, user))
+
+
+@router.put("/notifications/channels/webhook", response_model=WebhookChannelConfigOut)
+async def put_webhook_channel(
+    data: WebhookChannelConfigIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> WebhookChannelConfigOut:
+    """Save the URL/preset/token; the URL passes the SSRF guard at write."""
+    from app.services.notification_webhook import set_config
+
+    config = await set_config(
+        db,
+        user,
+        enabled=data.enabled,
+        url=data.url,
+        template=data.template,
+        secret=data.secret,
+    )
+    await db.commit()
+    return WebhookChannelConfigOut.model_validate(config)
+
+
+@router.post("/notifications/channels/webhook/test", response_model=ChannelTestOut)
+async def test_webhook_channel(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> ChannelTestOut:
+    """Immediate test delivery; success stamps `verified_at`."""
+    result = await NotificationService(db).test_channel(user.id, "webhook")
+    await db.commit()
+    return ChannelTestOut.model_validate(result)
 
 
 @router.get("/notifications/vapid-key", response_model=VapidKeyOut)
