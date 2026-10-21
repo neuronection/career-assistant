@@ -133,7 +133,14 @@ def install_identity(application: FastAPI, settings: Settings) -> None:
     config = replace(
         config,
         # Public instance facts (P3e demo badge) must be readable pre-login.
-        auth_exempt_prefixes=(*config.auth_exempt_prefixes, "/api/v1/instance"),
+        auth_exempt_prefixes=(
+            *config.auth_exempt_prefixes,
+            "/api/v1/instance",
+            # Feed URLs authenticate with their own rotatable token — calendar
+            # clients and feed readers cannot send session cookies or headers.
+            "/api/v1/me/calendar.ics",
+            "/api/v1/me/feeds",
+        ),
     )
     install_auth_kit(
         application,
@@ -147,5 +154,9 @@ def install_identity(application: FastAPI, settings: Settings) -> None:
         profiles=CareerProfileStore(AuthSessionLocal),
         audit=CareerAuditSink(AuthSessionLocal),
         shell_secret=shell_secret,
+        shell_exempt_prefixes=(
+            "/api/v1/me/calendar.ics",
+            "/api/v1/me/feeds",
+        ),
         owner_email="owner@local",
     )

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import NotificationRuleKind, SearchScope
+from app.models.enums import FeedTokenKind, NotificationRuleKind, SearchScope
 from app.schemas.job import JobOut
 from app.schemas.matching import MatchInsightOut
 
@@ -332,3 +332,24 @@ class EmailTransportOut(BaseModel):
     starttls: bool
     use_ssl: bool
     password_set: bool
+
+
+class FeedTokenIn(BaseModel):
+    """Mint a calendar/RSS token; an RSS token may scope to a saved search."""
+
+    kind: FeedTokenKind
+    scope: dict = Field(default_factory=dict)
+
+
+class FeedTokenOut(BaseModel):
+    id: UUID
+    kind: FeedTokenKind
+    scope: dict
+    created_at: datetime
+    last_used_at: datetime | None = None
+    revoked_at: datetime | None = None
+    rotated_from_id: UUID | None = None
+
+
+class FeedTokenMintedOut(FeedTokenOut):
+    token: str

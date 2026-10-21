@@ -17,6 +17,7 @@ from app.api.v1 import (
     engagement,
     experience,
     extensions,
+    feeds,
     growth,
     instance,
     interview,
@@ -66,6 +67,7 @@ api_router.include_router(engagement.router)
 api_router.include_router(experience.router)
 api_router.include_router(profile_proposals.router)
 api_router.include_router(notifications.router)
+api_router.include_router(feeds.router)
 api_router.include_router(growth.router)
 api_router.include_router(postings.router)
 api_router.include_router(scheduler.router)
