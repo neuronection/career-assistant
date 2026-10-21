@@ -36,6 +36,15 @@ variables**.
 A fresh production install starts unconfigured; AI endpoints answer `503`
 until an admin adds a provider.
 
+## Tools (`/settings/tools`)
+
+Admin-only integration switches, scoped to the `tools.*` settings domain:
+**Web search** (the provider and key the AI's web tools use) and
+**Connectors** (the bundled posting sources, their credentials and sync
+state, plus the extension sources imported from git). See
+[Add a job source](add-a-job-source.md) and
+[Import extensions from git](import-extensions-from-git.md).
+
 ## Taxonomy (`/settings/taxonomy`)
 
 Curate the interest tags and the skills ontology (categories, level anchors,
@@ -56,10 +65,12 @@ needed. Whether self-service registration is open is a deployment
 switch — see
 [Privacy and security](privacy-and-security.md#authentication).
 
-## Scheduler (`/settings/scheduler`)
+## Automations (`/settings/automations`)
 
-Configure the periodic engine: saved-search schedules, source syncs, the
-digest, check-ins and re-fit sweeps. See
+Configure the one periodic engine: saved-search schedules (interval, daily,
+weekly or cron), the digest and check-in rhythm, source syncs and re-fit
+sweeps, each with its next run and last status, plus run-now, pause and
+resume. The legacy scheduler deep link redirects here. See
 [Notifications and scheduler](notifications-and-scheduler.md).
 
 ## Notifications (`/settings/notifications`)

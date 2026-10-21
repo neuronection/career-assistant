@@ -204,7 +204,7 @@ flowchart LR
         FE[React SPA<br/>Vite + Zustand + reactflow]
     end
     subgraph Server["FastAPI server"]
-        API[REST API<br/>JWT bearer auth]
+        API[REST API<br/>cookie session + CSRF]
         BG[Background tasks<br/>PDF parsing · AI generation]
     end
     subgraph Datastore
@@ -258,13 +258,13 @@ Interactive API docs are also available at `/docs` on a running backend.
 | Cache / Queue | Redis (composed in; worker split planned) |
 | Migrations | Alembic |
 | AI / NLP | OpenAI-compatible providers (`base_url` override → OpenAI / OpenRouter / Ollama / LM Studio), pydantic-validated structured outputs, deterministic dev-only mock |
-| Auth | JWT bearer (PyJWT) + bcrypt |
+| Auth | Cookie sessions (auth-kit) + double-submit CSRF, bcrypt password hashing |
 | Tests | pytest + pytest-asyncio + httpx, vitest + testing-library, ruff |
 | Container | Docker + Docker Compose (dev database) |
 
 ## Scope & limitations
 
-Career Assistant is in **public beta** (`0.10.x`). The points below are honest boundaries — not every limitation is a bug.
+Career Assistant is in **public beta** (`0.16.x`). The points below are honest boundaries — not every limitation is a bug.
 
 - **Pre-1.0 APIs.** REST endpoints and DB schemas may change before `1.0`. Pin a version if you depend on it.
 - **Single-container scale.** One uvicorn process serves the API and the built SPA (see [Deployment](docs/dev/deployment.md)); there is no horizontal-scaling story yet. A worker split is on the roadmap.
@@ -285,8 +285,14 @@ Career Assistant is in **public beta** (`0.10.x`). The points below are honest b
 
 **Up next**:
 
-- Notification-center library unification and health-assistant adoption — shared work in the assistant-ui and health repos.
-- Pending rescope: match staleness/bulk re-score, E2E + typing gates, broader i18n coverage, demand-history trends; sustainability model.
+- **Phase 2 of the 2026-10-21 wave** — applications and follow-ups, the
+  notification-integration loop, AI first-run setup, assistant-surface
+  parity, explore/fit performance, i18n completion, the connector
+  platform, a codebase restructure, the quality gates and the career-path
+  explorer (plans 116–125).
+- **Notification-center library unification** and health-assistant
+  adoption — shared work in the assistant-ui and health repos.
+- **Sustainability model** — how the family of assistants stays funded.
 
 ## Community & support
 

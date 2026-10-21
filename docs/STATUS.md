@@ -4,11 +4,18 @@ Single source of truth for **what exists** and where the project is. Update
 this page in the same commit as any behavior change; the per-release detail
 lives in [CHANGELOG.md](https://github.com/neuronection/career-assistant/blob/main/CHANGELOG.md).
 
-**Current phase: public beta — v0.14.0.** Both product modes are
+**Current phase: public beta — v0.16.0.** Both product modes are
 first-class and CI-covered: the self-hosted web platform (Postgres, Docker)
 and the local desktop app (pywebview + SQLite). The schema is dialect-aware
 (Postgres + SQLite verified against one Alembic chain). Pre-1.0 REST and
 schema surfaces may still change.
+
+Four surfaces ship as **beta** (reachable, with a visible Beta chip and one
+expectation line in the app): live postings, Career Autopilot, Interview
+prep and the Growth toolkit. The state of every surface lives in
+`frontend/src/config/features.json`, which the sidebar, the tour and the
+[README feature-status table](https://github.com/neuronection/career-assistant#feature-status)
+all read.
 
 ## Module status
 
@@ -50,14 +57,6 @@ schema surfaces may still change.
 | Desktop app (pywebview window + tray, background scheduler) | done | Single-instance lock; auto-start opt-in |
 | Desktop packaging (deb / AppImage / Windows exe) | done | Tag-driven releases; `careerassistant enginecheck` probe |
 | MCP server (`/mcp`, read-scope tools) + client bridge | done | Token rotation; per-host rate limiting; audited + budgeted |
-**Plan 20 Phases 5–7 (2026-10-02):** uv + pyproject packaging family-wide
-(extras `pdf`/`desktop`/`sqlite`; Docker `uv sync --frozen` — the
-credentials bridge is gone), family ruff rule set applied, no-legacy
-artifact sweep, and the family convergence gate (C1–C6) vendored +
-CI-gated (contract count pinned at 55). Boot smokes fixed: greenlet as a
-declared dependency, boot guards before keyring construction, python
-healthcheck. Standalone stack verified end-to-end. Suites: 1520.
-
 | Identity & auth (family `auth-kit`, ADR-0013/0028) | done | Cookie sessions + double-submit CSRF, key-separated token contract, DB-authoritative init-only instance modes (fail-closed), desktop DIM + shell-secret gate; user management is the kit's §12 surface with the shared `AdminUserTable` (Settings → Users) and account self-service (Settings → Account: sessions, password change, deletion). Plan 20 Phases 3–4: the §4 init + boot guards + §16 knob routing are the shared kit glue (`app/auth/install.py`, `nx_auth.boot`); S14 §4.5 transition cases; prefixed-only `CAREER_*` config with the data/config dir split, `main.py` split (238 ln), one app construction per process |
 | AI gateway (single structured-output path, DB-only config) | done | Audited in `ai_generations`; mock provider dev/test-only |
 | Uniform AI settings (§15 BYOK setup + decision models, plan 26 Phase 4) | done | Preset tiles → guided setup → defaults-first assignments on the assistant-ui kit; capability-slot defaults (`default` pseudo-task gone); decision funnel (`app/ai/decide/`) with the `systemone` transport, D2b routing + scope-chain fallback, audited in `ai_generations`; byok gate R1–R7 + alignment strict in CI |
@@ -81,7 +80,10 @@ Honest boundaries, not necessarily bugs — the full list lives in the
 
 ## Up next
 
+- The 2026-10-21 wave, phase 2 (plans 116–125): applications and
+  follow-ups, the notification-integration loop, AI first-run setup,
+  assistant-surface parity, explore/fit performance, i18n completion, the
+  connector platform, a codebase restructure, quality gates and the
+  career-path explorer.
 - Notification-center library unification and health-assistant adoption.
-- Pending rescope: match staleness/bulk re-score, E2E + typing gates,
-  broader i18n coverage, demand-history trends.
-- Cover letters: finish the per-posting flow and ungate its UI entries.
+- Sustainability model for the assistant family.
