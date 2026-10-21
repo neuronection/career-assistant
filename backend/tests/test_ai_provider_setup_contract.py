@@ -53,8 +53,17 @@ from app.ai.providers.presets import (
 )
 from app.ai.providers.presets import guess_preset_for_key as _guess_preset_for_key
 from app.ai.providers.service import infer_caps
+from app.core.config import settings
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.user_model import User
+
+#: SQLite test sessions run in AUTOCOMMIT (deletion-based isolation, see
+#: tests/conftest.py) — a pre-probe INSERT is already committed, so
+#: "persists nothing after rollback" can only be proven on Postgres.
+rollback_isolation = pytest.mark.skipif(
+    settings.database_url.startswith("sqlite"),
+    reason="AUTOCOMMIT test sessions cannot prove rollback isolation",
+)
 
 
 def install_catalog(
@@ -456,6 +465,7 @@ async def test_case_5_dead_id_assignments_rebind(
     assert chat is not None and chat.model_id == by_id["gpt-6.1-sol"].id
 
 
+@rollback_isolation
 async def test_case_6_invalid_key_persists_nothing(
     db, monkeypatch: pytest.MonkeyPatch, auth_headers
 ) -> None:
