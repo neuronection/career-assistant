@@ -74,6 +74,9 @@ echo ">>> migrating scratch DB"
 echo ">>> seeding catalog (idempotent)"
 (cd backend && PYTHONPATH="$(pwd)" "${PY_BIN[@]}" -m app.seeds.run)
 
+echo ">>> seeding the e2e posting"
+(cd backend && PYTHONPATH="$(pwd)" "${PY_BIN[@]}" ../e2e/seed_posting.py)
+
 echo ">>> booting server on :${PORT}"
 (cd backend && exec "${UVICORN_BIN[@]}" app.main:app --host 127.0.0.1 --port "$PORT" \
   > /tmp/career-e2e-server.log 2>&1) &
