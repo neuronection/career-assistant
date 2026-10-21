@@ -352,6 +352,21 @@ class ApplicationService:
         if owned is None:
             raise ValidationError("Document not found")
 
+    async def set_followup_at(
+        self,
+        user_id: uuid.UUID,
+        application_id: uuid.UUID,
+        when: datetime | None,
+    ) -> None:
+        """Write the scheduler-facing next follow-up (sweep projection)."""
+        application = await self._owned(user_id, application_id)
+        application.next_followup_at = when
+        await self.db.flush()
+
+    async def refresh_followup_at(self, user_id: uuid.UUID, application: Application) -> None:
+        """Recompute the coarse schedule from the current rule."""
+        await self._refresh_schedule(user_id, application)
+
     async def create(
         self,
         user_id: uuid.UUID,

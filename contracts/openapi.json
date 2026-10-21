@@ -7702,9 +7702,114 @@
         "title": "FitRefitIn",
         "type": "object"
       },
-      "FollowupPrefsIn": {
-        "description": "User-adjustable follow-up automation settings.",
+      "FollowupItemOut": {
+        "description": "Per-application follow-up state.",
         "properties": {
+          "application_id": {
+            "title": "Application Id",
+            "type": "string"
+          },
+          "applied_at": {
+            "title": "Applied At",
+            "type": "string"
+          },
+          "due_now": {
+            "default": false,
+            "title": "Due Now",
+            "type": "boolean"
+          },
+          "next_due": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Step"
+          },
+          "org": {
+            "default": "",
+            "title": "Org",
+            "type": "string"
+          },
+          "posting_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posting Ref"
+          },
+          "role": {
+            "default": "",
+            "title": "Role",
+            "type": "string"
+          },
+          "sent_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sent Steps",
+            "type": "array"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_id",
+          "applied_at",
+          "stage"
+        ],
+        "title": "FollowupItemOut",
+        "type": "object"
+      },
+      "FollowupRuleIn": {
+        "description": "Partial follow-up rules patch.",
+        "properties": {
+          "cadence_days": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence Days"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
           "enabled": {
             "anyOf": [
               {
@@ -7716,30 +7821,68 @@
             ],
             "title": "Enabled"
           },
-          "first_delay_days": {
+          "milestone_checkins": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "boolean"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "First Delay Days"
-          },
-          "second_delay_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Second Delay Days"
+            "title": "Milestone Checkins"
           }
         },
-        "title": "FollowupPrefsIn",
+        "title": "FollowupRuleIn",
+        "type": "object"
+      },
+      "FollowupRuleOut": {
+        "description": "Per-user follow-up cadence and switches.",
+        "properties": {
+          "cadence_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Cadence Days",
+            "type": "array"
+          },
+          "channels": {
+            "additionalProperties": true,
+            "title": "Channels",
+            "type": "object"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "milestone_checkins": {
+            "default": true,
+            "title": "Milestone Checkins",
+            "type": "boolean"
+          }
+        },
+        "title": "FollowupRuleOut",
+        "type": "object"
+      },
+      "FollowupSurfaceOut": {
+        "description": "What the settings block and notification deep links read.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FollowupItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/FollowupRuleOut"
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "title": "FollowupSurfaceOut",
         "type": "object"
       },
       "FunnelOut": {
@@ -28931,16 +29074,14 @@
     },
     "/api/v1/me/followups": {
       "get": {
-        "description": "Follow-up surface: preferences + per-application state.",
+        "description": "Follow-up rules plus per-application state.",
         "operationId": "get_followups_api_v1_me_followups_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Followups Api V1 Me Followups Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/FollowupSurfaceOut"
                 }
               }
             },
@@ -28953,13 +29094,13 @@
         ]
       },
       "patch": {
-        "description": "Adjust follow-up automation: on/off + the two nudge delays.",
-        "operationId": "patch_followup_prefs_api_v1_me_followups_patch",
+        "description": "Adjust the follow-up cadence and switches.",
+        "operationId": "patch_followup_rules_api_v1_me_followups_patch",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FollowupPrefsIn"
+                "$ref": "#/components/schemas/FollowupRuleIn"
               }
             }
           },
@@ -28970,9 +29111,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Patch Followup Prefs Api V1 Me Followups Patch",
-                  "type": "object"
+                  "$ref": "#/components/schemas/FollowupRuleOut"
                 }
               }
             },
@@ -28989,7 +29128,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Patch Followup Prefs",
+        "summary": "Patch Followup Rules",
         "tags": [
           "me"
         ]

@@ -1,13 +1,17 @@
-"""Application follow-ups: polite no-response nudges for
-applied applications, delivered through the funnel.
+"""Application follow-ups: polite nudges and milestone check-ins,
+delivered through the notification funnel.
 
-The sweep is stateless — sent-state lives in the notifications table
+Cadence and switches live in `followup_rules` (plan 113): `cadence_days`
+generalizes the landed +7d/+14d behavior, `milestone_checkins` gates the
+interview/offer prompts. Sent-state lives in the notifications table
 (dedup keys `followup:{user}:{application}:{step}`), so there is no
-parallel follow-up table to drift. Delays are user-adjustable via
-profile preferences (`preferences["followups"]`); interview/offer
-stages get a congrats/check-in prompt instead of a nudge. Everything is
-observation-friendly: `GET /me/followups` shows what was sent and what
-is coming without waiting for the sweep.
+parallel follow-up table to drift; `applications.next_followup_at` is
+the scheduler-facing projection and is written through
+:class:`ApplicationService`.
+
+Channel routing (`rules.channels`) is persisted here and consumed by the
+delivery layer (plan 117); until then every nudge rides the registered
+in-app/desktop/browser channels.
 """
 
 import uuid
@@ -16,34 +20,48 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ValidationError
 from app.models.application_model import Application
 from app.models.engagement_model import Notification
+from app.models.enums import ApplicationStage
+from app.models.followup_model import FollowupRule
 from app.models.posting_model import JobPosting
+from app.services.applications_service import (
+    MILESTONE_STAGES,
+    ApplicationService,
+    normalize_cadence,
+)
 from app.services.notification_service import NotificationService
 
-DEFAULT_FIRST_DAYS = 7
-DEFAULT_SECOND_DAYS = 14
 DEDUP_TTL_DAYS = 30
 MAX_PER_DAY = 5
-
-MILESTONE_STAGES = {"interview", "offer"}
+CHANNEL_KINDS = ("default", "followup_due", "interview_checkin", "offer_checkin")
+APPLICATIONS_LINK = "/applications?application={application_id}"
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def followup_prefs(preferences: dict | None) -> dict:
-    """Normalized per-user follow-up settings (defaults merged in)."""
-    raw = (preferences or {}).get("followups") or {}
-    enabled = bool(raw.get("enabled", True))
-    first = raw.get("first_delay_days", DEFAULT_FIRST_DAYS)
-    second = raw.get("second_delay_days", DEFAULT_SECOND_DAYS)
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=UTC)
+
+
+def rule_payload(rule: FollowupRule) -> dict:
+    """The rule row as the API/settings surface reads it."""
     return {
-        "enabled": enabled,
-        "first_delay_days": max(1, min(int(first), 60)),
-        "second_delay_days": max(max(1, min(int(first), 60)) + 1, min(int(second), 120)),
+        "enabled": bool(rule.enabled),
+        "cadence_days": normalize_cadence(rule.cadence_days),
+        "milestone_checkins": bool(rule.milestone_checkins),
+        "channels": dict(rule.channels or {}),
     }
+
+
+async def rules_for(db: AsyncSession, user_id: uuid.UUID) -> FollowupRule:
+    """The user's rule row; defaults when none exists yet."""
+    return await ApplicationService(db).rule(user_id)
 
 
 def _dedup_key(user_id: uuid.UUID, application_id: uuid.UUID, step: str) -> str:
@@ -69,119 +87,138 @@ async def _posting_map(
     return {posting.id: posting for posting in rows.scalars().all()}
 
 
-async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
-    """One follow-up pass over every applied application; returns the
-    number of notifications emitted."""
-    from app.services.profile_service import ProfileService
+def _milestone_copy(stage: str, role: str) -> tuple[str, str]:
+    if stage == ApplicationStage.OFFER.value:
+        return (
+            f"Congrats on the offer — {role}",
+            "Log the offer details in your tracker and take a beat before deciding.",
+        )
+    return (
+        f"How did the interview go — {role}?",
+        "Add a note back to the team this week — momentum matters.",
+    )
 
+
+async def _emit(
+    service: NotificationService,
+    application: Application,
+    posting: JobPosting | None,
+    *,
+    step: str,
+    title: str,
+    body: str,
+) -> bool:
+    role = posting.title if posting is not None else "your application"
+    event = await service.emit(
+        "followup_due",
+        [application.user_id],
+        title=title.format(role=role),
+        body=body,
+        payload={
+            "posting_ref": posting.ref if posting is not None else None,
+            "application_id": str(application.id),
+            "step": step,
+            "link": APPLICATIONS_LINK.format(application_id=application.id),
+        },
+        dedup_key=_dedup_key(application.user_id, application.id, step),
+        dedup_ttl_days=DEDUP_TTL_DAYS,
+        max_per_day=MAX_PER_DAY,
+    )
+    return event is not None
+
+
+async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
+    """One follow-up pass over every open application; returns the
+    number of notifications emitted."""
     now = now or _utcnow()
-    rows = await db.execute(select(Application).where(Application.applied_at.is_not(None)))
+    rows = await db.execute(
+        select(Application).where(
+            Application.applied_at.is_not(None),
+            Application.closed_at.is_(None),
+        )
+    )
     applications = list(rows.scalars().all())
     if not applications:
         return 0
 
     user_ids = list({application.user_id for application in applications})
-    prefs_by_user: dict[uuid.UUID, dict] = {}
+    rules_by_user: dict[uuid.UUID, FollowupRule] = {}
     for user_id in user_ids:
-        profile = await ProfileService(db).get(user_id)
-        prefs_by_user[user_id] = followup_prefs(profile.preferences)
+        rules_by_user[user_id] = await rules_for(db, user_id)
 
     postings = await _posting_map(
         db, list({application.posting_id for application in applications})
     )
 
     emitted = 0
-    service = NotificationService(db)
+    notifications = NotificationService(db)
+    application_service = ApplicationService(db)
     for application in applications:
-        prefs = prefs_by_user[application.user_id]
-        if not prefs["enabled"]:
-            continue
+        rule = rules_by_user[application.user_id]
         posting = postings.get(application.posting_id)
-        role = posting.title if posting is not None else "your application"
-        sent = await _sent_steps(db, application.user_id, application.id)
-        applied_at = application.applied_at
+        applied_at = _as_utc(application.applied_at)
         if applied_at is None:
             continue
-        applied_at = applied_at if applied_at.tzinfo else applied_at.replace(tzinfo=UTC)
+        sent = await _sent_steps(db, application.user_id, application.id)
+        next_due: datetime | None = None
 
-        if application.stage in MILESTONE_STAGES:
-            step = f"stage:{application.stage}"
-            if step in sent:
-                continue
-            title = (
-                f"Congrats on the {application.stage} stage — {role}"
-                if application.stage == "offer"
-                else f"How did the interview go — {role}?"
-            )
-            body = "Worth a note back to the team this week — momentum matters."
-            event = await service.emit(
-                "followup_due",
-                [application.user_id],
-                title=title,
-                body=body,
-                payload={
-                    "posting_ref": posting.ref if posting is not None else None,
-                    "application_id": str(application.id),
-                    "step": step,
-                    "link": "/postings",
-                },
-                dedup_key=_dedup_key(application.user_id, application.id, step),
-                dedup_ttl_days=DEDUP_TTL_DAYS,
-                max_per_day=MAX_PER_DAY,
-            )
-            emitted += 1 if event is not None else 0
+        if not rule.enabled:
+            await application_service.set_followup_at(application.user_id, application.id, None)
             continue
 
-        first_due = applied_at + timedelta(days=prefs["first_delay_days"])
-        second_due = applied_at + timedelta(days=prefs["second_delay_days"])
-        pending: list[tuple[str, datetime, str]] = []
-        if "first" not in sent and now >= first_due:
-            pending.append(
-                (
-                    "first",
-                    first_due,
-                    f"Follow up on your application — {role}",
-                    "It has been a while with no response. A short, polite "
-                    "nudge to the hiring team keeps you visible.",
+        if rule.milestone_checkins and application.stage in MILESTONE_STAGES:
+            step = f"stage:{application.stage}"
+            if step not in sent:
+                title, body = _milestone_copy(application.stage, "{role}")
+                emitted += (
+                    1
+                    if await _emit(
+                        notifications,
+                        application,
+                        posting,
+                        step=step,
+                        title=title,
+                        body=body,
+                    )
+                    else 0
                 )
-            )
-        elif "first" in sent and "second" not in sent and now >= second_due:
-            pending.append(
-                (
-                    "second",
-                    second_due,
-                    f"Second nudge due — {role}",
-                    "One more brief follow-up is reasonable; after that, "
-                    "put your energy into new applications.",
+            await application_service.set_followup_at(application.user_id, application.id, None)
+            continue
+
+        step = None
+        for days in normalize_cadence(rule.cadence_days):
+            candidate = f"cadence:{days}"
+            due = applied_at + timedelta(days=days)
+            if candidate in sent:
+                continue
+            if now >= due:
+                emitted += (
+                    1
+                    if await _emit(
+                        notifications,
+                        application,
+                        posting,
+                        step=candidate,
+                        title="{role} — follow up on your application",
+                        body=(
+                            f"It has been {days} days since you applied with no response. "
+                            "A short, polite nudge to the hiring team keeps you visible."
+                        ),
+                    )
+                    else 0
                 )
-            )
-        for step, _due, title, body in pending:
-            event = await service.emit(
-                "followup_due",
-                [application.user_id],
-                title=title,
-                body=body,
-                payload={
-                    "posting_ref": posting.ref if posting is not None else None,
-                    "application_id": str(application.id),
-                    "step": step,
-                    "link": "/postings",
-                },
-                dedup_key=_dedup_key(application.user_id, application.id, step),
-                dedup_ttl_days=DEDUP_TTL_DAYS,
-                max_per_day=MAX_PER_DAY,
-            )
-            emitted += 1 if event is not None else 0
+                continue
+            step, next_due = candidate, due
+            break
+
+        await application_service.set_followup_at(application.user_id, application.id, next_due)
     await db.commit()
     return emitted
 
 
 async def list_followups(db: AsyncSession, user_id: uuid.UUID) -> dict:
-    """The user's follow-up surface: preferences + per-application state."""
-    from app.services.profile_service import ProfileService
-
-    profile = await ProfileService(db).get(user_id)
-    prefs = followup_prefs(profile.preferences)
+    """The settings surface: the rule block plus per-application state."""
+    rule = await rules_for(db, user_id)
     rows = await db.execute(
         select(Application)
         .where(
@@ -197,23 +234,22 @@ async def list_followups(db: AsyncSession, user_id: uuid.UUID) -> dict:
     for application in applications:
         posting = postings.get(application.posting_id)
         sent = await _sent_steps(db, user_id, application.id)
-        applied_at = application.applied_at
+        applied_at = _as_utc(application.applied_at)
         if applied_at is None:
             continue
-        applied_at = applied_at if applied_at.tzinfo else applied_at.replace(tzinfo=UTC)
-        first_due = applied_at + timedelta(days=prefs["first_delay_days"])
-        second_due = applied_at + timedelta(days=prefs["second_delay_days"])
-        next_step = None
-        next_due = None
-        if application.stage in MILESTONE_STAGES:
-            milestone = f"stage:{application.stage}"
-            if milestone not in sent:
-                next_step = f"{application.stage} check-in"
-                next_due = applied_at
-        elif "first" not in sent:
-            next_step, next_due = "first", first_due
-        elif "second" not in sent and now >= first_due:
-            next_step, next_due = "second", second_due
+        next_due = _as_utc(application.next_followup_at)
+        if application.closed_at is not None or not rule.enabled:
+            next_step = None
+        elif rule.milestone_checkins and application.stage in MILESTONE_STAGES:
+            next_step = (
+                None if f"stage:{application.stage}" in sent else f"{application.stage} check-in"
+            )
+        else:
+            next_step = (
+                None
+                if all(f"cadence:{days}" in sent for days in normalize_cadence(rule.cadence_days))
+                else "follow-up"
+            )
         items.append(
             {
                 "application_id": str(application.id),
@@ -228,20 +264,68 @@ async def list_followups(db: AsyncSession, user_id: uuid.UUID) -> dict:
                 "due_now": bool(next_due is not None and next_due <= now),
             }
         )
-    return {"prefs": prefs, "items": items}
+    return {"rules": rule_payload(rule), "items": items}
 
 
-async def update_prefs(db: AsyncSession, user_id: uuid.UUID, patch: dict) -> dict:
-    """User-adjustable follow-up settings (delays + on/off)."""
-    from app.core.errors import ValidationError
-    from app.services.profile_service import ProfileService
-
+async def update_rules(db: AsyncSession, user_id: uuid.UUID, patch: dict) -> dict:
+    """User-adjustable follow-up rules (enable, cadence, milestones)."""
     if "enabled" in patch and not isinstance(patch["enabled"], bool):
         raise ValidationError("enabled must be a boolean")
-    profile = await ProfileService(db).get(user_id)
-    current = followup_prefs(profile.preferences)
-    incoming = {**current, **{k: v for k, v in patch.items() if v is not None}}
-    merged = followup_prefs({"followups": incoming})
-    profile.preferences = {**profile.preferences, "followups": merged}
+    if "milestone_checkins" in patch and not isinstance(patch["milestone_checkins"], bool):
+        raise ValidationError("milestone_checkins must be a boolean")
+    if "cadence_days" in patch and patch["cadence_days"] is not None:
+        raw = patch["cadence_days"]
+        if not isinstance(raw, list) or not raw:
+            raise ValidationError("cadence_days must be a non-empty list of days")
+        try:
+            requested = sorted({int(day) for day in raw})
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("cadence_days must contain whole days") from exc
+        if normalize_cadence(raw) != requested:
+            raise ValidationError("cadence_days must be unique positive days (1-120)")
+    channels = patch.get("channels")
+    if channels is not None:
+        if not isinstance(channels, dict):
+            raise ValidationError("channels must be an object")
+        unknown = set(channels) - set(CHANNEL_KINDS)
+        if unknown:
+            raise ValidationError(f"Unknown follow-up channel kind: {sorted(unknown)[0]}")
+
+    row = (
+        (await db.execute(select(FollowupRule).where(FollowupRule.user_id == user_id)))
+        .scalars()
+        .first()
+    )
+    if row is None:
+        row = FollowupRule(
+            user_id=user_id,
+            enabled=True,
+            cadence_days=[7, 14],
+            milestone_checkins=True,
+            channels={},
+        )
+        db.add(row)
+        await db.flush()
+    if patch.get("enabled") is not None:
+        row.enabled = patch["enabled"]
+    if patch.get("milestone_checkins") is not None:
+        row.milestone_checkins = patch["milestone_checkins"]
+    if patch.get("cadence_days") is not None:
+        row.cadence_days = normalize_cadence(patch["cadence_days"])
+    if channels is not None:
+        row.channels = dict(channels)
     await db.commit()
-    return merged
+    await db.refresh(row)
+
+    application_service = ApplicationService(db)
+    rows = await db.execute(
+        select(Application).where(
+            Application.user_id == user_id,
+            Application.applied_at.is_not(None),
+            Application.closed_at.is_(None),
+        )
+    )
+    for application in rows.scalars().all():
+        await application_service.refresh_followup_at(user_id, application)
+    await db.commit()
+    return rule_payload(row)

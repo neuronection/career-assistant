@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.enums import CareerStage, OnboardingPath
+from app.schemas.application import FollowupRuleIn, FollowupRuleOut, FollowupSurfaceOut
 from app.schemas.background_job import EnqueueResponse
 from app.services.account_service import request_export
 from app.services.deps import get_current_user
@@ -27,14 +28,6 @@ class AiSetupPrefsIn(BaseModel):
     """First-run AI setup step skip state (typed `profiles.preferences` key)."""
 
     dismissed: bool = True
-
-
-class FollowupPrefsIn(BaseModel):
-    """User-adjustable follow-up automation settings."""
-
-    enabled: bool | None = None
-    first_delay_days: int | None = None
-    second_delay_days: int | None = None
 
 
 async def _fit_stale(db, user_id) -> bool:
@@ -267,25 +260,26 @@ async def put_ai_setup_pref(
     return await _bootstrap_payload(db, profile)
 
 
-@router.get("/followups")
-async def get_followups(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
-    """Follow-up surface: preferences + per-application state."""
+@router.get("/followups", response_model=FollowupSurfaceOut)
+async def get_followups(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> FollowupSurfaceOut:
+    """Follow-up rules plus per-application state."""
     from app.services.followups_service import list_followups
 
-    return await list_followups(db, user.id)
+    return FollowupSurfaceOut(**await list_followups(db, user.id))
 
 
-@router.patch("/followups")
-async def patch_followup_prefs(
-    prefs: FollowupPrefsIn,
+@router.patch("/followups", response_model=FollowupRuleOut)
+async def patch_followup_rules(
+    rules: FollowupRuleIn,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Adjust follow-up automation: on/off + the two nudge delays."""
-    from app.services.followups_service import update_prefs
+) -> FollowupRuleOut:
+    """Adjust the follow-up cadence and switches."""
+    from app.services.followups_service import update_rules
 
-    merged = await update_prefs(db, user.id, prefs.model_dump(exclude_unset=True))
-    return merged
+    return FollowupRuleOut(**await update_rules(db, user.id, rules.model_dump(exclude_unset=True)))
 
 
 @router.post("/export", response_model=EnqueueResponse, status_code=202)
