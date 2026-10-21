@@ -33,39 +33,41 @@ from app.services.deps import get_current_user
 router = APIRouter(prefix="/me/applications", tags=["applications"])
 
 
-def _out(
-    application: Application,
-    posting: JobPosting | None,
-    timeline: list | None = None,
-) -> ApplicationOut:
-    payload = {
-        "id": application.id,
-        "posting_id": application.posting_id,
-        "posting_ref": (posting.ref if posting is not None else "") or "",
-        "posting_title": posting.title if posting is not None else "",
-        "posting_org": posting.org if posting is not None else "",
-        "stage": application.stage,
-        "applied_at": application.applied_at,
-        "applied_via": application.applied_via,
-        "applied_via_url": application.applied_via_url,
-        "deadline_at": application.deadline_at,
-        "next_followup_at": application.next_followup_at,
-        "contact": application.contact or {},
-        "offer": application.offer or {},
-        "outcome": application.outcome,
-        "closed_at": application.closed_at,
-        "cv_id": application.cv_id,
-        "cover_letter_id": application.cover_letter_id,
-        "external_ref": application.external_ref,
-        "notes": application.notes,
-        "meta": application.meta or {},
-        "created_at": application.created_at,
-        "updated_at": application.updated_at,
-    }
-    if timeline is None:
-        return ApplicationOut(**payload)
+def _out(application: Application, posting: JobPosting | None) -> ApplicationOut:
+    """One application row with the posting identity it belongs to."""
+    return ApplicationOut(
+        id=application.id,
+        posting_id=application.posting_id,
+        posting_ref=(posting.ref if posting is not None else "") or "",
+        posting_title=posting.title if posting is not None else "",
+        posting_org=posting.org if posting is not None else "",
+        stage=application.stage,
+        applied_at=application.applied_at,
+        applied_via=application.applied_via,
+        applied_via_url=application.applied_via_url,
+        deadline_at=application.deadline_at,
+        next_followup_at=application.next_followup_at,
+        contact=application.contact or {},
+        offer=application.offer or {},
+        outcome=application.outcome,
+        closed_at=application.closed_at,
+        cv_id=application.cv_id,
+        cover_letter_id=application.cover_letter_id,
+        external_ref=application.external_ref,
+        notes=application.notes,
+        meta=application.meta or {},
+        created_at=application.created_at,
+        updated_at=application.updated_at,
+    )
+
+
+def _detail_out(
+    application: Application, posting: JobPosting | None, timeline: list
+) -> ApplicationDetailOut:
+    """The application row plus its reverse-chronological timeline."""
+    base = _out(application, posting)
     return ApplicationDetailOut(
-        **payload,
+        **base.model_dump(),
         timeline=[ApplicationEventOut.model_validate(row) for row in timeline],
     )
 
@@ -75,7 +77,7 @@ async def _detail(db: AsyncSession, user_id: UUID, application_id: UUID) -> Appl
     application = await service.get(user_id, application_id)
     posting = await db.get(JobPosting, application.posting_id)
     timeline = await service.timeline(user_id, application_id)
-    return _out(application, posting, timeline)
+    return _detail_out(application, posting, timeline)
 
 
 @router.get("", response_model=ApplicationListOut)
