@@ -70,10 +70,21 @@ health-assistant. Core rules:
 ./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI (ADR-0023)
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
 ./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
-cd backend && uv run pytest tests -q -n auto           # equivalent direct invocation
+cd backend && uv run pytest tests -q -n auto           # equivalent ONLY in the primary checkout
 cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run
 ```
+
+**Worktree testing gotcha**: the direct `uv run pytest` above is equivalent
+only in the primary checkout. In a linked worktree it binds the
+pytest/settings defaults — i.e. the shared primary Postgres on :5433 (and
+its plain, not-auto-migrated test database) — instead of the worktree's
+own dev-db, silently testing the wrong database. The worktree-correct
+invocations are `./scripts/run-tests.sh` (it swaps
+`CAREER_DATABASE_URL=$DATABASE_URL_TEST` from `.env.wt.local`) or
+`set -a && source .env.wt.local && set +a && export
+CAREER_DATABASE_URL="$DATABASE_URL_TEST"` before pytest. Sourcing
+`.env.wt.local` alone is wrong: it exports the *dev* URL.
 
 Parallel tests (pytest-xdist): `PYTEST_XDIST_WORKERS=N` overrides the
 worker count, `PYTEST_XDIST=0` opts out. Each xdist worker gets its OWN
@@ -99,6 +110,12 @@ to the test DB needs an explicit override:
 regenerating a baseline, drop+recreate instead).
 
 ## Conventions
+- **No backwards compatibility (no-BC).** There are no users to migrate:
+  a read fallback for an old shape, a dual-write, a deprecated alias or a
+  "legacy key tolerated" branch is rejected in review. When a shape
+  changes, the old shape dies in the same commit — a migration folds the
+  data if it matters at all. (Plan 114 swept the last shims; plan 113's
+  `0052` is the clean schema break.)
 - **Feature registry is law for user-facing surfaces**: every surface
   gets a `frontend/src/config/features.json` entry (omit = `on`);
   `beta`/`hidden` states also require the README **Feature status** row
@@ -109,6 +126,11 @@ regenerating a baseline, drop+recreate instead).
   is never documented as a page.
 - **Structured over plain text**: AI outputs are pydantic-validated into
   typed JSONB shapes; reference taxonomy by stable `key` slugs, never labels.
+- **An API client function ships with its first consumer**: exports in
+  `frontend/src/api/*` are surface, not inventory —
+  `frontend/src/tests/apiSurface.test.ts` fails an export that nothing
+  under `src/` imports, and code a client shares between its own calls
+  stays module-private.
 - **No comments unless requested**; Google-style docstrings on public APIs.
 - E2E posting-grounded specs reuse `e2e/seed_posting.py` (idempotent
   deterministic `E2E00001`) — never hand-seed postings per spec.
