@@ -11,15 +11,18 @@
 #   default: drop + recreate only (CI-style runs migrate themselves)
 #   --migrate: also run `alembic upgrade head` against the test DB
 set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/worktree-env.sh
+source "$ROOT/scripts/lib/worktree-env.sh"
+dc_wt_load
 
-CONTAINER="${CAREER_PG_CONTAINER:-career-postgres}"
+CONTAINER="${CAREER_PG_CONTAINER:-${POSTGRES_CONTAINER:-career-postgres}}"
 PG_USER="${CAREER_PG_USER:-neuronection_career_owner}"
 PG_PASSWORD="${CAREER_PG_PASSWORD:-career_dev_pw}"
-PORT="${CAREER_PG_PORT:-5433}"
+PORT="${CAREER_PG_PORT:-${POSTGRES_PORT:-5433}}"
 DB="neuronection_career_test"
 MIGRATE=0
 [[ "${1:-}" == "--migrate" ]] && MIGRATE=1
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo ">>> dropping and recreating ${DB} in ${CONTAINER}"
 docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres -c \

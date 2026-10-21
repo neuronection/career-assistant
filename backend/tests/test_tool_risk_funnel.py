@@ -140,6 +140,7 @@ def demo_connector(_clean_connectors):
     class WipeConnector:
         key = "demo_wipe"
         title = "Demo wipe"
+        manifest_file = None
 
         def config_model(self):
             class Config(BaseModel):
@@ -239,6 +240,7 @@ def test_extension_bridge_throws_on_risk_class_drift(_clean_connectors):
     class DriftingConnector:
         key = "demo_drift"
         title = "Drift"
+        manifest_file = None
 
         def config_model(self):
             class Config(BaseModel):
@@ -276,6 +278,7 @@ def test_extension_bridge_throws_on_undeclared_contribution(_clean_connectors):
     class UndeclaredConnector:
         key = "demo_undecl"
         title = "Undeclared"
+        manifest_file = None
 
         def config_model(self):
             class Config(BaseModel):

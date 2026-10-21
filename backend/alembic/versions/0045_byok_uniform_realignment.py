@@ -24,6 +24,7 @@ Revises: 0044
 """
 
 import json
+import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
@@ -82,7 +83,8 @@ def _rewrite_caps(mapping: dict[str, tuple[str, ...]]) -> None:
             if cap not in deduped:
                 deduped.append(cap)
         if deduped != caps:
-            op.execute(_ai_models.update().where(_ai_models.c.id == row_id).values(caps=deduped))
+            target = uuid.UUID(row_id) if isinstance(row_id, str) else row_id
+            op.execute(_ai_models.update().where(_ai_models.c.id == target).values(caps=deduped))
 
 
 def _slot_occupied(bind, scope: str, user_id: str | None) -> bool:

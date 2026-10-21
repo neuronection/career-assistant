@@ -2,9 +2,10 @@
 ``extensionDocsTree`` form, guidelines/extension-docs.md §10; health's
 ``app/extensions/docs.py`` is the family reference shape).
 
-The registration-time binding gate lives in ``registry.py``
-(``_validate_docs_binding`` — the vendored schema plus the contract's
-wall semantics). This module carries the SERVE-side pieces:
+The registration-time binding gate lives in the shared contract
+(``contract.validate_registration`` — the vendored schema plus the
+contract's wall semantics, run by ``registry.validate_manifest``). This
+module carries the SERVE-side pieces:
 
 - :func:`load_tree` — parse ``docs/docs-tree.json`` under a bundle's
   docs dir; None when the bundle ships no tree.

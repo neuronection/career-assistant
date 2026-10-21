@@ -4,7 +4,14 @@
 # tests/conftest.py automatically); PYTEST_XDIST=0 opts out, and
 # PYTEST_XDIST_WORKERS overrides the worker count.
 set -e
-cd "$(dirname "$0")/../backend"
+cd "$(dirname "$0")/.."
+# shellcheck source=scripts/lib/worktree-env.sh
+source scripts/lib/worktree-env.sh
+dc_wt_load
+cd backend
+if [[ -n "${DATABASE_URL_TEST:-}" ]]; then
+  export CAREER_DATABASE_URL="$DATABASE_URL_TEST"
+fi
 args=(tests/"${1:-}")
 if uv run python -c "import xdist" >/dev/null 2>&1 && [[ ${PYTEST_XDIST:-1} != 0 ]]; then
   args+=(-n "${PYTEST_XDIST_WORKERS:-auto}")

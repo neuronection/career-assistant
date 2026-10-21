@@ -123,8 +123,10 @@ wt_start_db() {
   dc_step "starting worktree dev DB (own compose project, own ports)"
   (
     cd "$root"
-    export COMPOSE_PROJECT_NAME POSTGRES_PORT POSTGRES_TEST_DB \
-      POSTGRES_CONTAINER REDIS_CONTAINER
+    set -a
+    # shellcheck disable=SC1091
+    source .env.wt.local
+    set +a
     # --env-file: pin ${POSTGRES_*} interpolation to the worktree's .env —
     # without it compose reads docker/.env (the production stack's env
     # file) and initializes the volume with the wrong password.

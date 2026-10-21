@@ -1190,6 +1190,7 @@ def test_0045_byok_uniform_realignment_roundtrip():
     columns, audio→stt caps remap, default→text slot remap — all one-shot,
     reversible to the pre-wave shape."""
     import json as _json
+    import uuid as _uuid
 
     import sqlalchemy as sa
     from sqlalchemy import text
@@ -1200,6 +1201,10 @@ def test_0045_byok_uniform_realignment_roundtrip():
 
     _json_type = JSONB().with_variant(sa.JSON(), "sqlite")
     _uuid_type = sa.Uuid()
+
+    def _by_id(sql: str, value):
+        return text(sql).bindparams(sa.bindparam("id", value=value, type_=_uuid_type))
+
     _models = sa.table(
         "ai_models",
         sa.column("id", _uuid_type),
@@ -1208,6 +1213,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
         sa.column("model_name", sa.String),
         sa.column("is_active", sa.Boolean),
         sa.column("caps", _json_type),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
     _assignments = sa.table(
         "ai_task_assignments",
@@ -1216,6 +1223,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
         sa.column("scope", sa.String),
         sa.column("provider_id", _uuid_type),
         sa.column("is_active", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
     _providers = sa.table(
         "ai_providers",
@@ -1225,6 +1234,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
         sa.column("provider_type", sa.String),
         sa.column("api_base", sa.String),
         sa.column("is_active", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
 
     async def run(statements):
@@ -1245,15 +1256,25 @@ def test_0045_byok_uniform_realignment_roundtrip():
             await engine.dispose()
 
     async def read_caps():
-        raw = await scalar(text(f"SELECT caps FROM ai_models WHERE id = '{model_id}'"))
-        return _json.loads(raw) if isinstance(raw, str) else raw
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                raw = (
+                    await conn.execute(
+                        _by_id("SELECT caps FROM ai_models WHERE id = :id", model_id)
+                    )
+                ).scalar_one()
+                return _json.loads(raw) if isinstance(raw, str) else raw
+        finally:
+            await engine.dispose()
 
     config = _configured()
-    provider_id = "5eed0a45-0000-4000-8000-000000000001"
-    model_id = "5eed0a45-0000-4000-8000-000000000002"
-    assignment_id = "5eed0a45-0000-4000-8000-000000000003"
+    provider_id = _uuid.UUID("5eed0a45-0000-4000-8000-000000000001")
+    model_id = _uuid.UUID("5eed0a45-0000-4000-8000-000000000002")
+    assignment_id = _uuid.UUID("5eed0a45-0000-4000-8000-000000000003")
     try:
         command.downgrade(config, "0044")
+        now = datetime.now(UTC)
         asyncio.run(
             run(
                 [
@@ -1264,6 +1285,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
                         provider_type="openai_compatible",
                         api_base="https://api.openai.com/v1",
                         is_active=True,
+                        created_at=now,
+                        updated_at=now,
                     ),
                     _models.insert().values(
                         id=model_id,
@@ -1272,6 +1295,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
                         model_name="whisper-x",
                         is_active=True,
                         caps=["audio"],
+                        created_at=now,
+                        updated_at=now,
                     ),
                     _assignments.insert().values(
                         id=assignment_id,
@@ -1279,6 +1304,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
                         scope="system",
                         provider_id=provider_id,
                         is_active=True,
+                        created_at=now,
+                        updated_at=now,
                     ),
                 ]
             )
@@ -1293,7 +1320,10 @@ def test_0045_byok_uniform_realignment_roundtrip():
         assert (
             asyncio.run(
                 scalar(
-                    text(f"SELECT task_type FROM ai_task_assignments WHERE id = '{assignment_id}'")
+                    _by_id(
+                        "SELECT task_type FROM ai_task_assignments WHERE id = :id",
+                        assignment_id,
+                    )
                 )
             )
             == "text"
@@ -1321,8 +1351,8 @@ def test_0045_byok_uniform_realignment_roundtrip():
         asyncio.run(
             run(
                 [
-                    sa.text(f"DELETE FROM ai_models WHERE id = '{model_id}'"),
-                    sa.text(f"DELETE FROM ai_providers WHERE id = '{provider_id}'"),
+                    _by_id("DELETE FROM ai_models WHERE id = :id", model_id),
+                    _by_id("DELETE FROM ai_providers WHERE id = :id", provider_id),
                 ]
             )
         )
@@ -1597,6 +1627,8 @@ def test_0047_job_source_secrets_roundtrip():
     """Plan 32 Phase 1 / ADR-0040 D19: the secrets column lands and the one
     legacy plaintext credential (ats ``config.api_token``) is MOVED — sealed
     into the slot, stripped from config."""
+    import uuid as _uuid
+
     import sqlalchemy as sa
     from sqlalchemy import text
     from sqlalchemy.dialects.postgresql import JSONB
@@ -1616,9 +1648,14 @@ def test_0047_job_source_secrets_roundtrip():
         sa.column("sync_state", _json_type),
         sa.column("error", sa.String),
         sa.column("enabled", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
     )
 
-    source_id = "5eed0a45-0000-4000-8000-000000000047"
+    source_id = _uuid.UUID("5eed0a45-0000-4000-8000-000000000047")
+
+    def _by_id(sql: str):
+        return text(sql).bindparams(sa.bindparam("id", value=source_id, type_=_uuid_type))
 
     async def run(statements):
         engine = create_async_engine(settings.database_url)
@@ -1635,7 +1672,7 @@ def test_0047_job_source_secrets_roundtrip():
             async with engine.begin() as conn:
                 row = (
                     await conn.execute(
-                        text(f"SELECT config, secrets FROM job_sources WHERE id = '{source_id}'")
+                        _by_id("SELECT config, secrets FROM job_sources WHERE id = :id")
                     )
                 ).first()
                 import json as _json
@@ -1650,6 +1687,7 @@ def test_0047_job_source_secrets_roundtrip():
     config = _configured()
     try:
         command.downgrade(config, "0046")
+        now = datetime.now(UTC)
         asyncio.run(
             run(
                 [
@@ -1665,6 +1703,8 @@ def test_0047_job_source_secrets_roundtrip():
                         sync_state={},
                         error="",
                         enabled=True,
+                        created_at=now,
+                        updated_at=now,
                     ),
                 ]
             )
@@ -1682,4 +1722,4 @@ def test_0047_job_source_secrets_roundtrip():
         assert not _column_present("job_sources", "secrets"), "downgrade drops secrets"
     finally:
         command.upgrade(config, "head")
-        asyncio.run(run([sa.text(f"DELETE FROM job_sources WHERE id = '{source_id}'")]))
+        asyncio.run(run([_by_id("DELETE FROM job_sources WHERE id = :id")]))

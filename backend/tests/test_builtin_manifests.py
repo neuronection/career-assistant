@@ -36,7 +36,7 @@ from app.extensions.builtin.job_boards import (
     RemotiveConnector,
 )
 from app.extensions.builtin.mcp import McpConnector
-from app.extensions.registry import _BUILTINS, _validate_docs_binding, validate_manifest
+from app.extensions.registry import _BUILTINS, validate_manifest
 from app.extensions.sdk import PostingConnector, manifest_path
 
 BUILTIN_ROOT = Path(__file__).resolve().parents[1] / "app" / "extensions" / "builtin"
@@ -88,7 +88,7 @@ def test_the_documented_builtins_carry_valid_docs_trees():
             )
             continue
         pointed += 1
-        _validate_docs_binding(connector, manifest)  # raises on any broken promise
+        validate_manifest(connector)
     assert pointed == len(DOCUMENTED)
     assert {c.key for c in _BUILTINS} == {c.key for c in BUILTINS}
 
@@ -128,9 +128,7 @@ def test_docs_pointer_without_tree_disables_registration(tmp_path):
     manifest = json.loads((BUILTIN_ROOT / "arbeitnow" / "manifest.json").read_text())
     (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(ValidationError, match="tree is unreadable"):
-        _validate_docs_binding(
-            _stub("arbeitnow", manifest_file=tmp_path / "manifest.json"), manifest
-        )
+        validate_manifest(_stub("arbeitnow", manifest_file=tmp_path / "manifest.json"))
 
 
 def test_docs_pointer_with_invalid_tree_disables_registration(tmp_path):
@@ -141,8 +139,8 @@ def test_docs_pointer_with_invalid_tree_disables_registration(tmp_path):
         json.dumps({"version": 1, "categories": [{"category": "getting-started", "items": []}]}),
         encoding="utf-8",
     )
-    with pytest.raises(ValidationError, match="docs tree invalid"):
-        _validate_docs_binding(_stub("mcp", manifest_file=tmp_path / "manifest.json"), manifest)
+    with pytest.raises(ValidationError, match=r"\$\.docs"):
+        validate_manifest(_stub("mcp", manifest_file=tmp_path / "manifest.json"))
 
 
 def test_docs_tree_files_resolve_beside_the_tree():

@@ -10,8 +10,18 @@
 #   E2E_PORT           server port (default 8111)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/worktree-env.sh
+source "$ROOT/scripts/lib/worktree-env.sh"
+dc_wt_load
+PG_CONTAINER="${POSTGRES_CONTAINER:-career-postgres}"
+PG_PORT="${POSTGRES_PORT:-5433}"
 PORT="${E2E_PORT:-8111}"
-export CAREER_DATABASE_URL="${CAREER_DATABASE_URL:-postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_e2e}"
+if [[ -n "${E2E_DATABASE_URL:-}" ]]; then
+  export CAREER_DATABASE_URL="$E2E_DATABASE_URL"
+elif [[ "${CAREER_DATABASE_URL:-}" == */neuronection_career ]]; then
+  export CAREER_DATABASE_URL="${CAREER_DATABASE_URL%/neuronection_career}/neuronection_career_e2e"
+fi
+export CAREER_DATABASE_URL="${CAREER_DATABASE_URL:-postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:${PG_PORT}/neuronection_career_e2e}"
 export E2E_BASE_URL="http://127.0.0.1:${PORT}"
 export CAREER_APP_ENV=test
 export CAREER_SCHEDULER_ENABLED=false
@@ -46,16 +56,16 @@ if [[ "${SKIP_FRONTEND_BUILD:-0}" != "1" ]]; then
   (cd frontend && npm run build)
 fi
 
-if [[ "$CAREER_DATABASE_URL" == *"neuronection_career_e2e" ]] && docker ps --format '{{.Names}}' | grep -qx career-postgres; then
+if [[ "$CAREER_DATABASE_URL" == *"neuronection_career_e2e" ]] && docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
   # Recreate the scratch DB — a stale seeded provider (pre CAREER_MOCK_AI gate)
   # pre-empts the bootstrap resolution and leaves the mock fixtures
   # unregistered (the smoke suite ran with generic answers, plan 99.1).
-  docker exec career-postgres psql -U neuronection_career_owner -d postgres -c \
+  docker exec "$PG_CONTAINER" psql -U neuronection_career_owner -d postgres -c \
     "DROP DATABASE neuronection_career_e2e (FORCE)" 2>/dev/null \
-    || docker exec career-postgres psql -U neuronection_career_owner -d postgres \
+    || docker exec "$PG_CONTAINER" psql -U neuronection_career_owner -d postgres \
       -c "select pg_terminate_backend(pid) from pg_stat_activity where datname='neuronection_career_e2e' and pid <> pg_backend_pid(); commit;" \
       -c "DROP DATABASE neuronection_career_e2e;"
-  docker exec career-postgres psql -U neuronection_career_owner -d postgres -c "CREATE DATABASE neuronection_career_e2e OWNER neuronection_career_owner;"
+  docker exec "$PG_CONTAINER" psql -U neuronection_career_owner -d postgres -c "CREATE DATABASE neuronection_career_e2e OWNER neuronection_career_owner;"
 fi
 
 echo ">>> migrating scratch DB"
