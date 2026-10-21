@@ -99,9 +99,19 @@ to the test DB needs an explicit override:
 regenerating a baseline, drop+recreate instead).
 
 ## Conventions
+- **Feature registry is law for user-facing surfaces**: every surface
+  gets a `frontend/src/config/features.json` entry (omit = `on`);
+  `beta`/`hidden` states also require the README **Feature status** row
+  and a `scripts/ui-capture/scenes.mjs` tour scene — the three-way
+  agreement is gated by `tests/test_docs_claims.py` (which also pins
+  documented routes in `docs/user/*` to real routes). Documented routes
+  must be backticked or markdown-linked to be checked; a redirect target
+  is never documented as a page.
 - **Structured over plain text**: AI outputs are pydantic-validated into
   typed JSONB shapes; reference taxonomy by stable `key` slugs, never labels.
 - **No comments unless requested**; Google-style docstrings on public APIs.
+- E2E posting-grounded specs reuse `e2e/seed_posting.py` (idempotent
+  deterministic `E2E00001`) — never hand-seed postings per spec.
 - JSONB mutations need `flag_modified(obj, "field")` before commit.
 - AI calls always go through `app.ai.gateway.ainvoke_structured` (audited in
   `ai_generations`). AI config is DB-only via Settings → AI Configuration —
