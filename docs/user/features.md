@@ -92,6 +92,13 @@ short version; this page is the reference. Statuses live in
   deterministic coverage of your skills, and read the provenance (raw →
   fast-mapped → extracted) on every card. Low-confidence fields are suppressed
   for review, never guessed.
+- **Track every application** — a board (or list) from applied through
+  screening, interview, offer and acceptance, with the documents you sent,
+  a per-application event timeline, notes, follow-up snoozes, deadlines and
+  close-with-outcome. Follow-up reminders follow your own cadence, the
+  dashboard shows the real saved → applied → interviewing → offers funnel,
+  and the assistant can read the pipeline and proposes stage changes and
+  notes as approval cards.
 - **Explore page** — filters every structured field (including contract type,
   travel, schedule cues, benefits and organization) with live facet counts,
   saves searches you can schedule, and paginates by cursor. Posting detail
