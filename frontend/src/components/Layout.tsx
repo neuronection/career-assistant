@@ -26,6 +26,8 @@ import { useExtensionSurfacesStore } from "@/stores/extensionSurfacesStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useProfilesStore } from "@/stores/profilesStore";
 import { BetaBanner } from "@/components/BetaBanner";
+import { FirstRunSetupGate } from "@/components/onboarding/FirstRunSetupGate";
+import { AiMockChip } from "@/components/ai/AiSetupPrompt";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -50,6 +52,7 @@ export function Layout() {
     isExperienceRoute ||
     isEducationRoute ||
     location.pathname === "/onboarding" ||
+    location.pathname === "/onboarding/setup" ||
     location.pathname === "/chat";
 
   useEffect(() => {
@@ -153,6 +156,7 @@ export function Layout() {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
+            <AiMockChip />
             {user && <ProfileSwitcherMenu />}
             {user && <NotificationBell />}
             {user && (
@@ -186,6 +190,7 @@ export function Layout() {
 
       {effectiveChatMode({ chatMode, chatModeChosen }, location.pathname) === "docked" && <ChatDock />}
 
+      <FirstRunSetupGate />
       <ChatWidget />
       <CompareTray />
       <ToastHost />

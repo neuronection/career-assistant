@@ -691,6 +691,61 @@ async def test_run_test_reports_http_error(db):
     assert "bad key" in result["error"]
 
 
+async def test_run_test_classifies_failures_for_typed_ui_copy(db):
+    """Plan 118.3: the connection test carries the §15 code beside the text."""
+    import httpx
+
+    user = await _mk_user(db, "testconn-classify@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type="openai_compatible"
+    )
+
+    def unauthorized(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": {"message": "bad key"}})
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(unauthorized),
+    )
+    assert result["ok"] is False
+    assert result["code"] == "invalid_key"
+    assert "Error code: 401" in result["error"]
+
+    def throttled(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": {"message": "slow down"}})
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(throttled),
+    )
+    assert result["code"] == "new_user_quota"
+
+
+async def test_run_test_success_has_no_error_code(db):
+    import httpx
+
+    user = await _mk_user(db, "testconn-ok@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type="openai_compatible"
+    )
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": "OK"}}]})
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(ok),
+    )
+    assert result["ok"] is True
+    assert result.get("code") is None
+
+
 async def test_run_test_routes_decision_models_to_the_decision_probe(db, monkeypatch):
     """A decision-capable model on a MIXED provider (openai_compatible,
     e.g. OpenRouter) must never hit chat/completions — the vendor 400s

@@ -284,7 +284,10 @@ export async function setAssignment(taskType: string, body: { scope: "user" | "s
   return data;
 }
 
-export async function testConnection(providerId: string, modelId: string): Promise<{ ok: boolean; reply?: string; error?: string }> {
+export async function testConnection(
+  providerId: string,
+  modelId: string
+): Promise<{ ok: boolean; reply?: string; error?: string; code?: string }> {
   const { data } = await api.post("/ai/test", null, { params: { provider_id: providerId, model_id: modelId } });
   return data;
 }

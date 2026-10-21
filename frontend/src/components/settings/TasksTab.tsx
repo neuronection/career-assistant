@@ -187,16 +187,20 @@ type Scope = "system" | "user";
 interface TasksTabProps {
   canManageGlobal: boolean;
   onChanged: () => void;
+  /** Scope to open on (the first-run wizard follows the provider's scope). */
+  initialScope?: Scope;
 }
 
 /** Task → model assignments on the family TaskAssignmentPicker, §15
  * defaults-first: capability-slot defaults (text/vision/stt/tts/
  * embeddings) lead, the Decision group (decision:* slots, primary) is
  * second, concrete tasks follow — every row a per-task override. */
-export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
+export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
-  const [scope, setScope] = useState<Scope>(canManageGlobal ? "system" : "user");
+  const [scope, setScope] = useState<Scope>(
+    initialScope ?? (canManageGlobal ? "system" : "user")
+  );
   const [taskRows, setTaskRows] = useState<aiApi.AITaskInfo[]>([]);
   const [allModels, setAllModels] = useState<ProviderModelInfo[]>([]);
   const [assignments, setAssignments] = useState<aiApi.StoredAssignment[]>([]);
@@ -216,8 +220,8 @@ export function TasksTab({ canManageGlobal, onChanged }: TasksTabProps) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setScope(canManageGlobal ? "system" : "user");
-  }, [canManageGlobal]);
+    setScope(initialScope ?? (canManageGlobal ? "system" : "user"));
+  }, [canManageGlobal, initialScope]);
 
   const refresh = async () => {
     setError("");

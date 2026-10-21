@@ -450,7 +450,8 @@ def test_menu_model_shape():
         autostart=False,
     )
     ids = [item["id"] for item in menu]
-    assert ids[:2] == ["open", "sync_now"]
+    assert ids[:2] == ["open", "configure_ai"]
+    assert ids[2] == "sync_now"
     assert "notifications" in ids and "quit" in ids
     notifications = next(item for item in menu if item["id"] == "notifications")
     assert notifications["label"] == "Notifications (4)"
@@ -469,6 +470,52 @@ def test_menu_model_shape():
         "label": "Start on login",
         "checked": False,
     } in menu
+
+
+def test_menu_model_offers_ai_setup():
+    """Plan 118.2: the tray is a first-run entry into AI configuration."""
+    from app.desktop.tray import build_menu_model
+
+    menu = build_menu_model(
+        saved_searches=[],
+        notifications=[],
+        unread=0,
+        close_to_tray=False,
+        autostart=False,
+    )
+    assert {"id": "configure_ai", "label": "Configure AI provider"} in menu
+    assert [item["id"] for item in menu[:2]] == ["open", "configure_ai"]
+
+
+class _RecordingWindow:
+    def __init__(self):
+        self.scripts = []
+
+    def evaluate_js(self, script):
+        self.scripts.append(script)
+
+    def show(self):
+        return None
+
+    def restore(self):
+        return None
+
+
+def test_bridge_navigates_the_spa_router():
+    """The shell never owns the router: it only asks the SPA to route."""
+    from app.desktop.bridge import DesktopBridge
+
+    bridge = DesktopBridge()
+    window = _RecordingWindow()
+    bridge.attach(window)
+    assert bridge.navigate("/settings/ai") is True
+    assert window.scripts[-1] == (
+        'window.__caDesktopNavigate && window.__caDesktopNavigate("/settings/ai")'
+    )
+    assert bridge.navigate("settings/ai") is False
+    assert bridge.show_and_navigate("/onboarding/setup") is True
+    bridge.detach()
+    assert bridge.navigate("/settings/ai") is False
 
 
 # ---------------------------------------------------------- tray actions (API)
@@ -499,6 +546,34 @@ async def _first_admin_id(conn):
     async with _test_session(conn) as db:
         rows = await db.execute(select(User.id).where(User.is_admin.is_(True)))
         return rows.scalars().first()
+
+
+async def test_tray_configure_ai_opens_the_ai_settings_route(clean_db):
+    """Plan 118.2: the tray entry lands on Settings → AI."""
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from app.desktop.tray import TrayActions
+
+    class _NavBridge:
+        def __init__(self):
+            self.paths: list[str] = []
+
+        def show_and_focus(self):
+            return None
+
+        def show_and_navigate(self, path):
+            self.paths.append(path)
+            return True
+
+    bridge = _NavBridge()
+    factory = async_sessionmaker(
+        bind=clean_db,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    await TrayActions(factory, bridge).configure_ai()
+    assert bridge.paths == ["/settings/ai"]
 
 
 async def test_tray_actions_use_admin_inbox(db, clean_db, client, auth_headers, kinds):

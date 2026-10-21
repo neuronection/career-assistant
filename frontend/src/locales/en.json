@@ -2839,6 +2839,28 @@
     "inlineBody": "Connect an AI provider to use this.",
     "cta": "Set up AI",
     "mockActive": "Mock provider active — dev only",
-    "mockHint": "This call was served by the built-in deterministic mock. Configure a real provider in Settings → AI Configuration."
+    "mockHint": "This call was served by the built-in deterministic mock. Configure a real provider in Settings → AI Configuration.",
+    "page": {
+      "title": "Set up AI",
+      "body": "Connect a provider, test the connection and assign the model defaults that matching, CV generation, parsing and chat run on.",
+      "readyTitle": "AI is ready",
+      "readyBody": "A provider is configured — continue to onboarding, or adjust the defaults below.",
+      "readyProvider": "{{model}} serves the chat default · {{count}} of {{total}} model slots assigned",
+      "continue": "Continue",
+      "settings": "Open AI settings",
+      "skip": "Skip for now",
+      "verifyTitle": "Test and assign",
+      "verifyBody": "Send a tiny completion over the new connection, then choose which model serves each default.",
+      "connection": "Connection",
+      "notTested": "Not tested",
+      "refresh": "Refresh",
+      "noModels": "No models are registered for this provider yet — add models in AI settings, then refresh.",
+      "assignTitle": "Default model assignments",
+      "assignBody": "Each row assigns the model that task runs on. Unset tasks fall back to their capability slot.",
+      "assignHint": "Assign the chat default to finish — AI features stay off until one is set.",
+      "configuredHint": "The chat default is assigned — AI features are live.",
+      "finish": "Finish setup",
+      "settingsHint": "Need an API key first? Pick a provider above, or configure everything in"
+    }
   }
 }

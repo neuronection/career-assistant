@@ -189,6 +189,8 @@ class TestResult(BaseModel):
     ok: bool
     reply: str = ""
     error: str = ""
+    """§15 code of the failure (``""`` on success)."""
+    code: str = ""
 
 
 class BudgetOut(BaseModel):

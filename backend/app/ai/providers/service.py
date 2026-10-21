@@ -6,12 +6,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import discover_google_models, token_cap_kwargs
 from app.ai.decide.types import DecisionTransport
+from app.ai.providers.errors import classify_provider_error
 from app.core.config import settings
 from app.core.encryption import MASK_MARKER, encrypt_secret
 from app.core.errors import PermissionDeniedError, ValidationError
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.enums import AIProviderType, AITaskTier
 from app.models.user_model import User
+
+
+def _test_failure(error: Exception, provider: AIProvider, detail: str) -> dict:
+    """Connection-test failure with the §15 error code beside the message."""
+    classified = classify_provider_error(
+        error,
+        local_provider=bool(provider.is_local),
+        api_key=provider.api_key,
+        attempted_preset=provider.preset_key,
+    )
+    return {"ok": False, "error": detail, "code": classified.code.value}
 
 
 def _validate_provider_type(provider_type: str) -> str:
@@ -563,7 +575,11 @@ class AIProviderService:
                     "ok": True,
                     "reply": f"decision endpoint OK ({result.resolved_model or 'probe'})",
                 }
-            return {"ok": False, "error": result.error or "decision probe failed"}
+            return {
+                "ok": False,
+                "error": result.error or "decision probe failed",
+                "code": "unknown",
+            }
         if provider.provider_type == "google":
             return await self._run_test_google(provider, model, transport)
         url = f"{provider.api_base.rstrip('/')}/chat/completions"
@@ -585,9 +601,9 @@ class AIProviderService:
             return {"ok": True, "reply": reply[:200]}
         except httpx.HTTPStatusError as exc:
             detail = f"Error code: {exc.response.status_code} - {exc.response.text}"
-            return {"ok": False, "error": detail[:300]}
+            return _test_failure(exc, provider, detail[:300])
         except Exception as exc:
-            return {"ok": False, "error": str(exc)[:300]}
+            return _test_failure(exc, provider, str(exc)[:300])
 
     async def _run_test_google(
         self,
@@ -620,4 +636,4 @@ class AIProviderService:
             reply = content.strip() if isinstance(content, str) else str(content)
             return {"ok": True, "reply": reply[:200]}
         except Exception as exc:
-            return {"ok": False, "error": str(exc)[:300]}
+            return _test_failure(exc, provider, str(exc)[:300])

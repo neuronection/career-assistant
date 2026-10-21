@@ -53,7 +53,10 @@ def build_menu_model(
 ) -> list[dict]:
     """The menu: Open · Sync now · Saved searches ▸ ·
     Notifications ▸ (last 5, mark read) · Quit (+ pref toggles)."""
-    menu: list[dict] = [{"id": "open", "label": "Open Career Assistant"}]
+    menu: list[dict] = [
+        {"id": "open", "label": "Open Career Assistant"},
+        {"id": "configure_ai", "label": "Configure AI provider"},
+    ]
     if has_tray:
         menu.append({"id": "sync_now", "label": "Sync now"})
         menu.append(
@@ -122,6 +125,10 @@ class TrayActions:
 
     async def open(self) -> None:
         self._bridge.show_and_focus()
+
+    async def configure_ai(self) -> None:
+        """Open Settings → AI (plan 118.2: setup without hunting the UI)."""
+        self._bridge.show_and_navigate("/settings/ai")
 
     async def owner_ids(self) -> list[UUID]:
         from app.models.user_model import User
@@ -354,6 +361,8 @@ class TrayIcon:
 
         if menu_id in ("open", ""):
             fire(self._actions.open())
+        elif menu_id == "configure_ai":
+            fire(self._actions.configure_ai())
         elif menu_id == "sync_now":
             fire(self._actions.sync_now())
         elif menu_id == "notifications:mark_read":

@@ -898,7 +898,11 @@ async def test_connection(
     result = await AIProviderService(db).run_test(user, provider_id=provider_id, model_id=model_id)
     if result["ok"]:
         return TestResult(ok=True, reply=result.get("reply", ""))
-    return TestResult(ok=False, error=result.get("error", "unknown error"))
+    return TestResult(
+        ok=False,
+        error=result.get("error", "unknown error"),
+        code=result.get("code", ""),
+    )
 
 
 @router.get("/budgets", response_model=list[BudgetOut])

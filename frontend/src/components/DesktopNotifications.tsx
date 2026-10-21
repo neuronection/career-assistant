@@ -9,6 +9,7 @@ import {
   desktopApi,
   fetchShellSettings,
   isDesktop,
+  registerNavigateHandler,
   registerNotifyHandler,
   setCloseToTray,
   withinQuietHours,
@@ -97,6 +98,7 @@ export function DesktopNotifications() {
     };
 
     const unregister = registerNotifyHandler(notify);
+    const unregisterNavigate = registerNavigateHandler((path) => navigate(path));
     desktopApi()?.ready();
 
     void fetchShellSettings().then((settings) => {
@@ -105,6 +107,7 @@ export function DesktopNotifications() {
 
     return () => {
       unregister();
+      unregisterNavigate();
       clearInterval(prefsTimer);
     };
   }, [navigate, pushToast]);

@@ -35,6 +35,7 @@ declare global {
   interface Window {
     pywebview?: PywebviewHost;
     __caDesktopBridge?: { onNotify: (toast: DesktopToast) => void };
+    __caDesktopNavigate?: (path: string) => void;
   }
 }
 
@@ -53,6 +54,14 @@ export function registerNotifyHandler(
   window.__caDesktopBridge = { onNotify: handler };
   return () => {
     delete window.__caDesktopBridge;
+  };
+}
+
+/** Register the tray → router hook; returns the unregister function. */
+export function registerNavigateHandler(handler: (path: string) => void): () => void {
+  window.__caDesktopNavigate = handler;
+  return () => {
+    delete window.__caDesktopNavigate;
   };
 }
 

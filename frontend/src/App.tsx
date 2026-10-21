@@ -25,6 +25,7 @@ import { ChatPage } from "@/pages/ChatPage";
 import { Generate } from "@/pages/Generate";
 import { JobDetail } from "@/pages/JobDetail";
 import { Onboarding } from "@/pages/Onboarding";
+import { OnboardingSetup } from "@/pages/OnboardingSetup";
 import { ExpressOnboarding } from "@/pages/ExpressOnboarding";
 import { ExtensionSurfacePage } from "@/pages/ExtensionSurface";
 import { Growth } from "@/pages/Growth";
@@ -60,6 +61,7 @@ export function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/onboarding/setup" element={<OnboardingSetup />} />
           <Route path="/onboarding/express" element={<ExpressOnboarding />} />
           <Route path="/catalog" element={<Catalog />}>
             <Route index element={<CatalogTree />} />

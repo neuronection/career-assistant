@@ -65,6 +65,7 @@ beforeEach(() => {
 afterEach(() => {
   delete (window as unknown as { pywebview?: unknown }).pywebview;
   delete window.__caDesktopBridge;
+  delete window.__caDesktopNavigate;
   vi.restoreAllMocks();
 });
 
@@ -97,6 +98,21 @@ describe("desktop bridge contract", () => {
     fireEvent.click(screen.getByTestId(/^toast-\d+$/));
     await waitFor(() => expect(api.activate).toHaveBeenCalledWith("/jobs/qa-engineer"));
     expect(await screen.findByText("landed")).toBeInTheDocument();
+  });
+
+  it("routes a tray deep link through the SPA router", async () => {
+    installShellApi();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<DesktopNotifications />} />
+          <Route path="/settings/ai" element={<div>ai-settings-page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(window.__caDesktopNavigate).toBeDefined());
+    window.__caDesktopNavigate?.("/settings/ai");
+    expect(await screen.findByText("ai-settings-page")).toBeInTheDocument();
   });
 
   it("falls back to in-app toasts when the OS path is unavailable", async () => {
