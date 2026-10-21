@@ -555,7 +555,8 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         calls.append({"name": name, "args": args, "id": f"call-{index}"})
     if not calls:
         applications = (tools.get("my_applications") or {}).get("applications") or []
-        if applications:
+        already_proposed = "set_application_stage" in tools or "add_application_note" in tools
+        if applications and not already_proposed:
             application_id = applications[0].get("application_id")
             if _re.search(r"\binterviews?\b", lowered):
                 calls = [

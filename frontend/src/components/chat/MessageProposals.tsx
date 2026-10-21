@@ -126,7 +126,9 @@ function ProposalCard({
             ? t("chat.proposals.approveVariants")
             : t("chat.proposals.approve"),
           reject: t("chat.proposals.reject"),
-          confirm: t("chat.proposals.confirmDelete"),
+          confirm: card.kind === "tool_execution"
+            ? t("chat.proposals.confirmAction")
+            : t("chat.proposals.confirmDelete"),
           cancel: t("chat.proposals.cancel"),
           preview: t("chat.proposals.preview"),
           pending: t("chat.proposals.pending"),

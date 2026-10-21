@@ -690,7 +690,7 @@ def proposal_title(proposal: ProfileProposal) -> str:
     """Card title: "Update experience · Siemens internship"."""
     if proposal.kind == ProposalKind.TOOL_EXECUTION.value:
         tool = str((proposal.payload_json or {}).get("tool") or proposal.entity_label)
-        return f"Run destructive tool · {tool}"
+        return f"Assistant action · {tool}"
     spec = KIND_SPECS.get(proposal.kind)
     noun = spec.label if spec is not None else proposal.kind
     verb = ACTION_VERBS.get(proposal.action, proposal.action.title())

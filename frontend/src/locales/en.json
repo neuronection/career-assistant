@@ -2274,6 +2274,7 @@
       },
       "reject": "Reject",
       "confirmDelete": "Confirm delete",
+      "confirmAction": "Confirm action",
       "cancel": "Cancel",
       "pending": "Pending review",
       "approved": "Approved",

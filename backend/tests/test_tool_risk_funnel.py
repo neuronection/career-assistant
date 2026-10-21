@@ -489,5 +489,5 @@ async def test_card_flows_through_proposal_out_schema(db, user, destructive_regi
     event = proposal_event(proposal)
     assert event["kind"] == "tool_execution"
     assert event["destructive"] is True
-    assert event["title"].startswith("Run destructive tool")
+    assert event["title"].startswith("Assistant action")
     assert event["status"] == ProposalStatus.PENDING.value

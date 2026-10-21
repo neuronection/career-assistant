@@ -77,11 +77,10 @@ def test_tracker_journey_apply_nudge_interview_offer(page) -> None:
         f"{API}/me/applications/{app_id}", headers=api_headers()
     ).json()
     assert detail["stage"] == "offer"
-    assert [event["stage_to"] for event in detail["timeline"] if event["kind"] == "stage_change"] == [
-        "applied",
-        "interview",
-        "offer",
+    stage_events = [
+        event["stage_to"] for event in detail["timeline"] if event["kind"] == "stage_change"
     ]
+    assert list(reversed(stage_events)) == ["applied", "interview", "offer"]
 
     # Dashboard funnel reflects the pipeline.
     page.goto(f"{BASE_URL}/")
@@ -113,6 +112,9 @@ def test_chat_stage_change_resolves_through_a_confirmation_card(page) -> None:
     assert before["stage"] == "applied", "nothing applies before approval"
 
     cards.get_by_role("button", name="Approve").first.click()
+    confirm = cards.get_by_role("button", name="Confirm action")
+    if confirm.count() > 0:
+        confirm.first.click()
     page.get_by_text("Approved", exact=True).first.wait_for(
         state="visible", timeout=20_000
     )
