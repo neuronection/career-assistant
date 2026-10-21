@@ -222,8 +222,6 @@ export function CvStudio() {
           <Button
             variant="outline"
             onClick={openLetterModal}
-            disabled
-            title={t("common.comingSoon")}
             data-testid="new-letter"
           >
             <MailPlus className="mr-1.5 h-4 w-4" /> {t("cvStudio.newLetter")}

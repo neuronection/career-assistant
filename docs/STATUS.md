@@ -40,7 +40,7 @@ schema surfaces may still change.
 | CV Studio — on-demand AI generation + vision polish loop | done | LangGraph draft flow; bounded fix loop; restorable versions |
 | CV Studio — item variant library (text + bullets) | done | Staleness/orphan detection; one-variant window per ref |
 | CV Studio — exports (PDF/DOCX/Markdown/JSON/ATS text) | done | PDF is the page-count truth (real print engine) |
-| Cover letters per posting | in progress | Entry points gated in the UI until the feature ships |
+| Cover letters per posting | done | Brief + evidence-cited AI drafts (unbacked paragraphs flagged, never auto-applied); created from CV Studio or a posting; same templates, versions and exports as CVs |
 | Chat (tool-calling over your data, grounded digests) | done | Checkpointed LangGraph turn graph |
 | Chat profile proposals (HITL cards, before/after preview, revert) | done | Read-before-edit gate; anchored granular edits; never auto-applied |
 | Builder copilot (chat → builder operations, vision self-review) | done | Same audited op path as UI buttons |

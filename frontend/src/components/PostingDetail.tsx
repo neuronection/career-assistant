@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { ExternalLink, GraduationCap, Quote, Sparkles } from "lucide-react";
 
-import { fetchPostingDetail } from "@/api/postings";
+import { apiDetail } from "@/api/client";
+import { createCoverLetter } from "@/api/cv";
 import {
   createInterviewSession,
   startInterviewSession,
 } from "@/api/interview";
+import { fetchPostingDetail } from "@/api/postings";
 import { openInterviewChat } from "@/components/chat/interviewChatLink";
-import { apiDetail } from "@/api/client";
 import {
   Button,
   Modal,
@@ -109,7 +110,22 @@ export function PostingDetail({
   const [activeId, setActiveId] = useState(postingId);
   const [interviewBusy, setInterviewBusy] = useState(false);
   const [interviewError, setInterviewError] = useState("");
+  const [letterBusy, setLetterBusy] = useState(false);
+  const [letterError, setLetterError] = useState("");
   const navigate = useNavigate();
+
+  async function draftLetter() {
+    setLetterBusy(true);
+    setLetterError("");
+    try {
+      const letter = await createCoverLetter({ posting_id: activeId });
+      onClose();
+      navigate(`/cv/${letter.id}`);
+    } catch (err) {
+      setLetterError(apiDetail(err));
+      setLetterBusy(false);
+    }
+  }
 
   async function practiceInterview() {
     setInterviewBusy(true);
@@ -205,8 +221,8 @@ export function PostingDetail({
               variant="outline"
               size="sm"
               className="ml-auto"
-              disabled
-              title={t("common.comingSoon")}
+              disabled={letterBusy}
+              onClick={() => void draftLetter()}
               data-testid="draft-cover-letter"
             >
               <Sparkles className="mr-1 h-3.5 w-3.5" />
@@ -230,6 +246,11 @@ export function PostingDetail({
               data-testid="interview-error"
             >
               {interviewError}
+            </p>
+          )}
+          {letterError && (
+            <p role="alert" className="text-xs text-red-600" data-testid="letter-error">
+              {letterError}
             </p>
           )}
           <p className="text-slate-500">

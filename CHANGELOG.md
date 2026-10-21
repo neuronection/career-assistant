@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (cover letters shipped, 2026-10-21)
+- **Cover letters are available.** Every posting's **Draft cover letter**
+  button now works (it previously had no handler and was disabled), and
+  CV Studio's **New cover letter** modal creates a letter from a saved
+  posting and an optional base CV. Letters use the existing brief,
+  evidence-cited AI drafts, template rendering, versions and exports —
+  no new surfaces, just the two entry points that were gated.
+
 ### Internal (plan 113 schema foundation, 2026-10-21)
 - **Application pipeline schema foundation.** `applications` +
   `application_events` replace the application fields on

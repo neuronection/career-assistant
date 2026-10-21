@@ -219,11 +219,13 @@ structured profile.
   staleness is detected when the source changes, you star to activate, and a
   dedicated variant editor drafts fill-in-form with slot comparison against
   what's on the CV now, with an in-editor AI generate-fill.
-- **Cover letters per posting** (coming soon — creation entry points are
-  gated in the UI until the feature ships) — a deterministic brief (must-haves, fit, your
-  goal), audited AI drafts that cite your evidence per paragraph with unbacked
-  claims flagged, letters rendered through the same template engine with your
-  CV's design tokens, and the same versions/exports as CVs.
+- **Cover letters per posting** — start one from **CV Studio → New cover
+  letter** (pick a saved posting and, optionally, a CV to reuse) or from any
+  posting's **Draft cover letter** button; the builder opens a deterministic
+  brief (must-haves, fit, your goal), audited AI drafts that cite your
+  evidence per paragraph with unbacked claims flagged, and the letter renders
+  through the same template engine with your CV's design tokens — with the
+  same versions/exports as CVs.
 - **Listing at a glance** — every CV card in the studio carries a first-page
   thumbnail printed by the same engine as the PDF (downscaled, cached per
   edit), the whole card opens the CV, and the list shows exactly your CVs —
