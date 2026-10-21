@@ -2,28 +2,30 @@
 
 Absorbs's `/postings/search` vocabulary into one filter builder
 (`parse_explore_filters`) shared by the explore endpoint, the chatbot
-tools and the/29 saved-search runner. Cursor-based pagination on
-(sort key, id); facets are self-excluding — each dimension recounts
-without its own filter, so sidebar badges stay live when a facet is
-active. Post-filter dimensions that no SQL dialect lets us express
-honestly (education order, extracted-language lists) run in Python
-right after the query.
+tools and the/29 saved-search runner. Every filter dimension is a SQL
+predicate (plan 120): the database filters and keyset-pages, Python only
+ranks — fit and relevance run over a bounded recency window because a
+global fit order would require scoring every posting. Facets are
+self-excluding: each dimension recounts without its own filter, so
+sidebar badges stay live when a facet is active.
 """
 
 import base64
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Text, and_, func, or_, select
+from sqlalchemy import Text, and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import ValidationError
 from app.models.application_model import Application
 from app.models.enums import EducationLevel, EducationLevelOrder, PostingSkillPriority
 from app.models.experience_model import Organization
-from app.models.job_model import Job, JobFamily
+from app.models.job_model import Job, JobFamily, JobSkill, JobTag
 from app.models.posting_model import (
     JobPosting,
     JobSource,
@@ -42,11 +44,14 @@ POSTED_WINDOWS: dict[str, timedelta] = {
 SENIORITY_VALUES = ("intern", "junior", "mid", "senior", "lead", "principal")
 REMOTE_VALUES = ("onsite", "hybrid", "remote")
 SKILL_FACET_SIZE = 15
+OPEN_STATUSES = ("mapped", "new")
 
 DIMENSIONS = (
     "q",
     "skills",
     "salary",
+    "education_min",
+    "languages",
     "seniority",
     "employment_type",
     "remote_policy",
@@ -61,6 +66,10 @@ DIMENSIONS = (
     "benefits",
     "org",
 )
+
+RANKED_WINDOW_MULTIPLIER = 5
+RANKED_WINDOW_MIN = 100
+RANKED_WINDOW_MAX = 500
 
 _EPOCH = datetime.fromtimestamp(0, tz=UTC)
 
@@ -307,6 +316,21 @@ def _conditions_for(
         if filters.get("salary_currency"):
             conditions.append(JobPosting.salary_currency == filters["salary_currency"])
 
+    elif dimension == "education_min" and filters.get("education_min"):
+        conditions.append(
+            _normalized_lower(JobPosting.education_level).in_(
+                _education_sql_tokens(filters["education_min"])
+            )
+        )
+
+    elif dimension == "languages" and filters.get("languages"):
+        extracted = func.lower(JobPosting.extract["languages"].as_string())
+        matches = [
+            extracted.like(f'%"{_like_literal(lang)}"%', escape="\\")
+            for lang in filters["languages"]
+        ]
+        conditions.append(or_(*matches))
+
     elif dimension == "seniority" and filters.get("seniority"):
         conditions.append(JobPosting.seniority.in_(filters["seniority"]))
 
@@ -323,8 +347,6 @@ def _conditions_for(
         conditions.append(JobPosting.travel_class.in_(filters["travel"]))
 
     elif dimension == "schedule" and filters.get("schedule"):
-        # Dialect-safe JSONB/JSON containment via a text cast (the facts
-        # blob embeds the cue strings verbatim).
         facts_text = func.coalesce(func.cast(JobPosting.posting_facts, Text), "")
         cue_conditions = [facts_text.like(f'%"{cue}"%') for cue in filters["schedule"]]
         conditions.append(or_(*cue_conditions))
@@ -400,7 +422,24 @@ def _conditions_for(
     return conditions
 
 
-# ------------------------------------------------ Python-side post-filters
+def _collect_conditions(
+    filters: dict,
+    skill_ids: dict[str, UUID],
+    source_ids: dict[str, UUID],
+    user_id: UUID,
+    *,
+    skip: set[str] | None = None,
+) -> list:
+    conditions: list = []
+    for dimension in DIMENSIONS:
+        if skip and dimension in skip:
+            continue
+        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
+    return conditions
+
+
+# ------------------------------------------------------ education + language
+
 
 _EDU_ALIASES = {
     "no formal": "no_formal",
@@ -421,7 +460,7 @@ _EDU_ALIASES = {
 def _parse_education(value: str | None) -> str | None:
     if not value:
         return None
-    token = str(value).strip().lower().replace("'", "").replace("'", "")
+    token = str(value).strip().lower().replace("'", "")
     token = " ".join(token.split())
     resolved = _EDU_ALIASES.get(token)
     if resolved:
@@ -432,28 +471,47 @@ def _parse_education(value: str | None) -> str | None:
         return None
 
 
-def _education_at_least(value: str | None, minimum: str) -> bool:
-    resolved = _parse_education(value)
-    if resolved is None:
-        return False
-    return EducationLevelOrder.at_least(EducationLevel(resolved), EducationLevel(minimum))
+def _like_literal(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _languages_supported(posting: JobPosting, languages: list[str]) -> bool:
-    """extract['languages'] must include a requested language; postings
-    without language data cannot answer a language filter."""
-    offered = [str(lang).lower() for lang in (posting.extract or {}).get("languages") or []]
-    if not offered:
-        return False
-    return any(lang in offered for lang in languages)
+def _normalized_lower(column):
+    text = func.lower(func.replace(func.coalesce(column, ""), "'", ""))
+    for _ in range(3):
+        text = func.replace(text, "  ", " ")
+    return func.trim(text)
+
+
+def _education_sql_tokens(minimum: str) -> tuple[str, ...]:
+    floor = EducationLevel(minimum)
+    tokens: set[str] = set()
+    for token in set(_EDU_ALIASES) | {level.value for level in EducationLevel}:
+        resolved = _parse_education(token)
+        if resolved is None:
+            continue
+        if EducationLevelOrder.at_least(EducationLevel(resolved), floor):
+            tokens.add(token)
+    return tuple(sorted(tokens))
 
 
 # ------------------------------------------------------------ cursor codec
 
 
-def encode_cursor(sort: str, key: Any, posting_id: UUID) -> str:
-    payload = json.dumps({"s": sort, "k": _key_to_json(key), "id": str(posting_id)})
-    return base64.urlsafe_b64encode(payload.encode()).decode()
+def encode_cursor(
+    sort: str,
+    key: Any,
+    posting_id: UUID,
+    *,
+    frontier: dict | None = None,
+) -> str:
+    payload: dict[str, Any] = {
+        "s": sort,
+        "k": _key_to_json(key),
+        "id": str(posting_id),
+    }
+    if frontier is not None:
+        payload["w"] = frontier
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
 
 def _key_to_json(key: Any) -> Any:
@@ -468,12 +526,198 @@ def _key_from_json(value: Any) -> Any:
     return value
 
 
-def decode_cursor(cursor: str) -> tuple[str, Any, UUID]:
+def decode_cursor(cursor: str) -> tuple[str, Any, UUID, dict | None]:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
-        return payload["s"], _key_from_json(payload["k"]), UUID(payload["id"])
+        return (
+            payload["s"],
+            _key_from_json(payload["k"]),
+            UUID(payload["id"]),
+            payload.get("w"),
+        )
     except Exception as exc:
         raise ValidationError("Invalid pagination cursor") from exc
+
+
+def _frontier_payload(posting: JobPosting) -> dict:
+    return {
+        "dt": posting.posted_at.isoformat() if posting.posted_at else None,
+        "id": str(posting.id),
+    }
+
+
+# ------------------------------------------------------------------ paging
+
+
+def _base_select(user_id: UUID):
+    return (
+        select(JobPosting, PostingInteraction, Application)
+        .options(
+            selectinload(JobPosting.catalog_job).selectinload(Job.family),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.tag_links)
+            .selectinload(JobTag.tag),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.skill_links)
+            .selectinload(JobSkill.skill),
+        )
+        .outerjoin(
+            PostingInteraction,
+            (PostingInteraction.posting_id == JobPosting.id)
+            & (PostingInteraction.user_id == user_id),
+        )
+        .outerjoin(
+            Application,
+            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
+        )
+        .where(JobPosting.status.in_(OPEN_STATUSES))
+    )
+
+
+async def _count_matches(db: AsyncSession, user_id: UUID, conditions: list) -> int:
+    query = (
+        select(func.count(JobPosting.id))
+        .select_from(JobPosting)
+        .outerjoin(
+            PostingInteraction,
+            (PostingInteraction.posting_id == JobPosting.id)
+            & (PostingInteraction.user_id == user_id),
+        )
+        .outerjoin(
+            Application,
+            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
+        )
+        .where(JobPosting.status.in_(OPEN_STATUSES))
+    )
+    if conditions:
+        query = query.where(and_(*conditions))
+    return int((await db.execute(query)).scalar_one())
+
+
+def _row_entries(rows) -> list[dict]:
+    return [
+        {"posting": posting, "interaction": interaction, "application": application}
+        for posting, interaction, application in rows
+    ]
+
+
+def _keyset_order(sort: str) -> tuple:
+    if sort == "fresh":
+        return (JobPosting.posted_at.desc().nulls_last(), JobPosting.id.desc())
+    return (JobPosting.salary_min.desc().nulls_last(), JobPosting.id.desc())
+
+
+def _keyset_conditions(sort: str, key: Any, posting_id: UUID) -> list:
+    if sort == "fresh":
+        if key <= _EPOCH:
+            return [JobPosting.posted_at.is_(None), JobPosting.id < posting_id]
+        return [
+            or_(
+                JobPosting.posted_at < key,
+                and_(JobPosting.posted_at == key, JobPosting.id < posting_id),
+                JobPosting.posted_at.is_(None),
+            )
+        ]
+    if key is None or key == float("-inf"):
+        return [JobPosting.salary_min.is_(None), JobPosting.id < posting_id]
+    threshold = Decimal(str(key))
+    return [
+        or_(
+            JobPosting.salary_min < threshold,
+            and_(JobPosting.salary_min == threshold, JobPosting.id < posting_id),
+            JobPosting.salary_min.is_(None),
+        )
+    ]
+
+
+def _frontier_condition(frontier: dict) -> Any:
+    posting_id = UUID(str(frontier["id"]))
+    raw = frontier.get("dt")
+    if raw is None:
+        return and_(JobPosting.posted_at.is_(None), JobPosting.id <= posting_id)
+    posted_at = datetime.fromisoformat(str(raw))
+    return or_(
+        JobPosting.posted_at < posted_at,
+        and_(JobPosting.posted_at == posted_at, JobPosting.id <= posting_id),
+        JobPosting.posted_at.is_(None),
+    )
+
+
+def _ranked_window(limit: int) -> int:
+    return min(max(limit * RANKED_WINDOW_MULTIPLIER, RANKED_WINDOW_MIN), RANKED_WINDOW_MAX)
+
+
+async def _keyset_page(
+    db: AsyncSession,
+    user_id: UUID,
+    conditions: list,
+    sort: str,
+    after_key: Any,
+    after_id: UUID | None,
+    limit: int,
+) -> tuple[list[dict], str | None]:
+    query = _base_select(user_id)
+    if conditions:
+        query = query.where(and_(*conditions))
+    if after_key is not None and after_id is not None:
+        query = query.where(and_(*_keyset_conditions(sort, after_key, after_id)))
+    rows = (await db.execute(query.order_by(*_keyset_order(sort)).limit(limit + 1))).all()
+    entries = _row_entries(rows)
+    page = entries[:limit]
+    next_cursor = None
+    if len(entries) > limit and page:
+        last_key, last_id = _sort_key(page[-1], sort)
+        next_cursor = encode_cursor(sort, last_key, last_id)
+    return page, next_cursor
+
+
+async def _ranked_page(
+    db: AsyncSession,
+    user_id: UUID,
+    filters: dict,
+    conditions: list,
+    sort: str,
+    after_key: Any,
+    after_id: UUID | None,
+    frontier: dict | None,
+    limit: int,
+) -> tuple[list[dict], str | None]:
+    query = _base_select(user_id)
+    if conditions:
+        query = query.where(and_(*conditions))
+    if frontier is not None:
+        query = query.where(_frontier_condition(frontier))
+    rows = (
+        await db.execute(
+            query.order_by(JobPosting.posted_at.desc().nulls_last(), JobPosting.id.desc()).limit(
+                _ranked_window(limit)
+            )
+        )
+    ).all()
+    entries = _row_entries(rows)
+    if not entries:
+        return [], None
+    window_frontier = _frontier_payload(entries[0]["posting"])
+
+    if sort == "fit":
+        from app.services.posting_fit_service import get_posting_fits_batch
+
+        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in entries])
+        for entry in entries:
+            entry["fit"] = fits[entry["posting"].id]["score"]
+
+    entries = _sort_entries(entries, filters, sort)
+    if sort == "relevance":
+        await _apply_hybrid_relevance(db, entries, filters.get("q") or "")
+        entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
+    if after_key is not None and after_id is not None:
+        entries = [entry for entry in entries if _after_cursor(entry, sort, after_key, after_id)]
+    page = entries[:limit]
+    next_cursor = None
+    if len(entries) > limit and page:
+        last_key, last_id = _sort_key(page[-1], sort)
+        next_cursor = encode_cursor(sort, last_key, last_id, frontier=window_frontier)
+    return page, next_cursor
 
 
 # ------------------------------------------------------------------ explore
@@ -491,6 +735,15 @@ def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
     else:
         key = posting.posted_at or _EPOCH
     return key, posting.id
+
+
+def _after_cursor(entry: dict, sort: str, after_key: Any, after_id: UUID) -> bool:
+    """Every sort orders (key, id) DESCENDING — next-page entries are the
+    tuples strictly below the cursor's."""
+    key, posting_id = _sort_key(entry, sort)
+    if key == after_key:
+        return str(posting_id) < str(after_id)
+    return key < after_key
 
 
 async def _apply_hybrid_relevance(db: AsyncSession, entries: list[dict], q: str) -> None:
@@ -543,10 +796,7 @@ def _sort_entries(entries: list[dict], filters: dict, sort: str) -> list[dict]:
 
         for entry in entries:
             entry["relevance"] = relevance(entry)
-    if sort == "salary":
-        entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
-    else:  # fit, fresh, relevance — same (key, id) descending order
-        entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
+    entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
     return entries
 
 
@@ -559,7 +809,13 @@ async def explore(
     cursor: str | None = None,
     limit: int = 20,
 ) -> dict:
-    """The explore query: filters → facets → sort → cursor page."""
+    """The explore query: SQL filters → count → keyset page → facets.
+
+    `fresh`/`salary` page entirely in SQL. `fit`/`relevance` rank a
+    bounded recency window (page size times a small multiplier) because a global fit
+    order would require scoring every posting; `total` stays the exact
+    filtered count.
+    """
     if sort not in ("fit", "fresh", "salary", "relevance"):
         raise ValidationError("sort must be fit|fresh|salary|relevance")
     if sort == "relevance" and not filters.get("q"):
@@ -567,92 +823,33 @@ async def explore(
 
     skill_ids = await _resolve_skill_ids(db, filters)
     source_ids = await _resolve_source_ids(db, filters)
-
-    from sqlalchemy.orm import selectinload
-
-    from app.models.job_model import JobSkill, JobTag
-
-    base = (
-        select(JobPosting, PostingInteraction, Application)
-        .options(
-            selectinload(JobPosting.catalog_job).selectinload(Job.family),
-            selectinload(JobPosting.catalog_job)
-            .selectinload(Job.tag_links)
-            .selectinload(JobTag.tag),
-            selectinload(JobPosting.catalog_job)
-            .selectinload(Job.skill_links)
-            .selectinload(JobSkill.skill),
-        )
-        .outerjoin(
-            PostingInteraction,
-            (PostingInteraction.posting_id == JobPosting.id)
-            & (PostingInteraction.user_id == user_id),
-        )
-        .outerjoin(
-            Application,
-            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
-        )
-        .where(JobPosting.status.in_(["mapped", "new"]))
-    )
-    conditions: list = []
-    for dimension in DIMENSIONS:
-        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
-    query = base.where(and_(*conditions)) if conditions else base
-    rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
-    entries = [
-        {"posting": posting, "interaction": interaction, "application": application}
-        for posting, interaction, application in rows
-    ]
-
-    entries = [
-        entry
-        for entry in entries
-        if (
-            "education_min" not in filters
-            or _education_at_least(entry["posting"].education_level, filters["education_min"])
-        )
-        and (
-            "languages" not in filters
-            or _languages_supported(entry["posting"], filters["languages"])
-        )
-    ]
-
-    if sort == "fit":
-        from app.services.posting_fit_service import get_posting_fits_batch
-
-        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in entries])
-        for entry in entries:
-            entry["fit"] = fits[entry["posting"].id]["score"]
-
-    entries = _sort_entries(entries, filters, sort)
-    if sort == "relevance":
-        await _apply_hybrid_relevance(db, entries, filters.get("q") or "")
-        entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
-    total = len(entries)
+    conditions = _collect_conditions(filters, skill_ids, source_ids, user_id)
+    total = await _count_matches(db, user_id, conditions)
 
     after_key: Any = None
     after_id: UUID | None = None
+    frontier: dict | None = None
     if cursor:
-        cursor_sort, after_key, after_id = decode_cursor(cursor)
+        cursor_sort, after_key, after_id, frontier = decode_cursor(cursor)
         if cursor_sort != sort:
             raise ValidationError("Cursor does not match the requested sort")
 
-    def _after(entry: dict) -> bool:
-        """Every sort orders (key, id) DESCENDING — next-page entries are
-        the tuples strictly below the cursor's."""
-        key, posting_id = _sort_key(entry, sort)
-        if key == after_key:
-            return str(posting_id) < str(after_id)
-        return key < after_key
-
-    if cursor:
-        entries = [entry for entry in entries if _after(entry)]
-
-    page = entries[:limit]
-    next_cursor = None
-    if len(entries) > limit and page:
-        last_key, last_id = _sort_key(page[-1], sort)
-        next_cursor = encode_cursor(sort, last_key, last_id)
+    if sort in ("fresh", "salary"):
+        page, next_cursor = await _keyset_page(
+            db, user_id, conditions, sort, after_key, after_id, limit
+        )
+    else:
+        page, next_cursor = await _ranked_page(
+            db,
+            user_id,
+            filters,
+            conditions,
+            sort,
+            after_key,
+            after_id,
+            frontier,
+            limit,
+        )
 
     return {
         "items": [
@@ -675,114 +872,137 @@ async def explore(
 # ------------------------------------------------------------------- facets
 
 
-async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
-    """Self-excluding facet counts over the active filter set."""
-    skill_ids = await _resolve_skill_ids(db, filters)
-    source_ids = await _resolve_source_ids(db, filters)
-
-    base = (
+async def _grouped_facet(
+    db: AsyncSession,
+    user_id: UUID,
+    filters: dict,
+    skill_ids: dict[str, UUID],
+    source_ids: dict[str, UUID],
+    *,
+    skip: set[str],
+    group: Any,
+) -> dict[Any, int]:
+    query = (
         select(JobPosting)
         .outerjoin(
             PostingInteraction,
             (PostingInteraction.posting_id == JobPosting.id)
             & (PostingInteraction.user_id == user_id),
         )
-        .where(JobPosting.status.in_(["mapped", "new"]))
+        .where(JobPosting.status.in_(OPEN_STATUSES))
     )
+    conditions = _collect_conditions(filters, skill_ids, source_ids, user_id, skip=skip)
+    if conditions:
+        query = query.where(and_(*conditions))
+    statement = query.with_only_columns(group, func.count(JobPosting.id)).group_by(group)
+    return {key: int(count) for key, count in (await db.execute(statement)).all()}
 
-    async def _count(extra=None, skip: set[str] | None = None) -> int:
-        conditions: list = []
-        for dimension in DIMENSIONS:
-            if skip and dimension in skip:
-                continue
-            conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
-        query = base.where(and_(*conditions)) if conditions else base
-        if extra is not None:
-            query = query.where(extra)
-        rows = await db.execute(select(query.subquery()))
-        return len(rows.all())
+
+async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
+    """Self-excluding facet counts over the active filter set.
+
+    One grouped query per value dimension (each dimension must recount
+    without its own filter, so a single pass cannot answer them all);
+    within a dimension the pass is one query instead of one count per
+    value.
+    """
+    skill_ids = await _resolve_skill_ids(db, filters)
+    source_ids = await _resolve_source_ids(db, filters)
 
     facets: dict[str, Any] = {}
 
+    source_counts = await _grouped_facet(
+        db, user_id, filters, skill_ids, source_ids, skip={"source"}, group=JobPosting.source_id
+    )
     facets["source"] = {}
     for source in (
         (await db.execute(select(JobSource).where(JobSource.enabled.is_(True)))).scalars().all()
     ):
-        facets["source"][source.key] = await _count(
-            JobPosting.source_id == source.id, skip={"source"}
-        )
+        facets["source"][source.key] = source_counts.get(source.id, 0)
 
-    facets["seniority"] = {}
-    for value in SENIORITY_VALUES:
-        facets["seniority"][value] = await _count(JobPosting.seniority == value, skip={"seniority"})
+    seniority_counts = await _grouped_facet(
+        db,
+        user_id,
+        filters,
+        skill_ids,
+        source_ids,
+        skip={"seniority"},
+        group=JobPosting.seniority,
+    )
+    facets["seniority"] = {value: seniority_counts.get(value, 0) for value in SENIORITY_VALUES}
 
-    facets["remote_policy"] = {}
-    for value in REMOTE_VALUES:
-        facets["remote_policy"][value] = await _count(
-            JobPosting.onsite_policy == value, skip={"remote_policy"}
-        )
+    remote_counts = await _grouped_facet(
+        db,
+        user_id,
+        filters,
+        skill_ids,
+        source_ids,
+        skip={"remote_policy"},
+        group=JobPosting.onsite_policy,
+    )
+    facets["remote_policy"] = {value: remote_counts.get(value, 0) for value in REMOTE_VALUES}
 
     education_counts: dict[str, int] = {}
-    rows = (
-        (
-            await db.execute(
-                _facet_query(
-                    db,
-                    base,
-                    filters,
-                    skill_ids,
-                    source_ids,
-                    user_id,
-                    skip={"education_min", "languages"},
-                )
-            )
+    for raw_level, count in (
+        await _grouped_facet(
+            db,
+            user_id,
+            filters,
+            skill_ids,
+            source_ids,
+            skip={"education_min"},
+            group=JobPosting.education_level,
         )
-        .scalars()
-        .all()
-    )
-    for posting in rows:
-        level = _parse_education(posting.education_level)
+    ).items():
+        level = _parse_education(raw_level)
         if level:
-            education_counts[level] = education_counts.get(level, 0) + 1
+            education_counts[level] = education_counts.get(level, 0) + count
     facets["education"] = dict(sorted(education_counts.items(), key=lambda kv: -kv[1])[:8])
 
-    buckets = {"24h": 0, "7d": 0, "30d": 0, "90d": 0, "older": 0}
-    rows = (
-        (
-            await db.execute(
-                _facet_query(db, base, filters, skill_ids, source_ids, user_id, skip={"released"})
-            )
-        )
-        .scalars()
-        .all()
-    )
     now = _utcnow()
-    for posting in rows:
-        posted = posting.posted_at
-        if not posted:
-            buckets["older"] += 1
-            continue
-        age = now - posted
-        if age <= POSTED_WINDOWS["24h"]:
-            buckets["24h"] += 1
-        elif age <= POSTED_WINDOWS["7d"]:
-            buckets["7d"] += 1
-        elif age <= POSTED_WINDOWS["30d"]:
-            buckets["30d"] += 1
-        elif age <= POSTED_WINDOWS["90d"]:
-            buckets["90d"] += 1
-        else:
-            buckets["older"] += 1
+    bucket = case(
+        (JobPosting.posted_at.is_(None), "older"),
+        (JobPosting.posted_at >= now - POSTED_WINDOWS["24h"], "24h"),
+        (JobPosting.posted_at >= now - POSTED_WINDOWS["7d"], "7d"),
+        (JobPosting.posted_at >= now - POSTED_WINDOWS["30d"], "30d"),
+        (JobPosting.posted_at >= now - POSTED_WINDOWS["90d"], "90d"),
+        else_="older",
+    )
+    buckets = {"24h": 0, "7d": 0, "30d": 0, "90d": 0, "older": 0}
+    for name, count in (
+        await _grouped_facet(
+            db,
+            user_id,
+            filters,
+            skill_ids,
+            source_ids,
+            skip={"released"},
+            group=bucket,
+        )
+    ).items():
+        if name in buckets:
+            buckets[name] = count
     facets["posted"] = buckets
 
+    core_conditions = _collect_conditions(
+        filters, skill_ids, source_ids, user_id, skip=set(DIMENSIONS)
+    )
+    core = (
+        select(JobPosting.id)
+        .outerjoin(
+            PostingInteraction,
+            (PostingInteraction.posting_id == JobPosting.id)
+            & (PostingInteraction.user_id == user_id),
+        )
+        .where(JobPosting.status.in_(OPEN_STATUSES))
+    )
+    if core_conditions:
+        core = core.where(and_(*core_conditions))
     skill_counts: dict[str, int] = {}
-    core = _facet_query(db, base, filters, skill_ids, source_ids, user_id, skip=set(DIMENSIONS))
     skill_rows = await db.execute(
         select(Skill.key, func.count(PostingSkill.posting_id))
         .join(PostingSkill, PostingSkill.skill_id == Skill.id)
-        .where(
-            PostingSkill.posting_id.in_(core.with_only_columns(JobPosting.id)),
-        )
+        .where(PostingSkill.posting_id.in_(core))
         .group_by(Skill.key)
         .order_by(func.count(PostingSkill.posting_id).desc())
         .limit(SKILL_FACET_SIZE)
@@ -792,24 +1012,6 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
     facets["skills"] = skill_counts
 
     return facets
-
-
-def _facet_query(
-    db: AsyncSession,
-    base,
-    filters: dict,
-    skill_ids: dict[str, UUID],
-    source_ids: dict[str, UUID],
-    user_id: UUID,
-    *,
-    skip: set[str] | None = None,
-):
-    conditions: list = []
-    for dimension in DIMENSIONS:
-        if skip and dimension in skip:
-            continue
-        conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
-    return base.where(and_(*conditions)) if conditions else base
 
 
 # ------------------------------------------------------- sources + similar
@@ -876,8 +1078,6 @@ async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5
     if not jaccard:
         return []
 
-    if not jaccard:
-        return []
     ordered = sorted(jaccard.items(), key=lambda kv: -kv[1])[: limit * 2]
     ids = [posting_id for posting_id, _ in ordered]
     rows = await db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))

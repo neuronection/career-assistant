@@ -44,6 +44,12 @@
       "reason_contains": "no posting rows seeded",
       "when": "conditional",
       "why": "data-dependent: the catalog may be empty in a minimal fixture set"
+    },
+    {
+      "id": "tests/test_explore_performance.py::test_explore_keyset_query_is_index_backed_on_postgres",
+      "reason_contains": "Postgres EXPLAIN plans",
+      "when": "always",
+      "why": "the keyset plan shape is asserted with EXPLAIN on Postgres only; SQLite covers behavioral parity"
     }
   ]
 }
