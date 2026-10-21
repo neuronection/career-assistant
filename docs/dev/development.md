@@ -33,15 +33,20 @@ Useful flags:
 |---|---|
 | Backend tests | `./scripts/run-tests.sh` (or `cd backend && uv run pytest tests -q -n auto`) |
 | Backend lint | `cd backend && uv run ruff check . && uv run ruff format --check .` |
+| Types + ratchet | `cd backend && uv run mypy && uv run python ../scripts/check-mypy-ratchet.py` |
 | Frontend build | `cd frontend && npm run build` |
-| Frontend tests | `cd frontend && npm run test -- --run` |
+| Frontend tests | `cd frontend && npm run test -- --run --coverage` |
 | Frontend lint | `cd frontend && npm run lint` |
 | E2E smoke | `./scripts/run-e2e.sh` |
+| assistant-ui drift | `node scripts/audit-assistant-ui-usage.mjs ./frontend/src` |
+| Dependency audit | `python scripts/check-dependency-audit.py` |
 | Seed catalog | `./scripts/seed.sh` |
 | Changelog gate | `./scripts/check-changelog.sh` |
 
-Everything above must pass locally before a PR — CI runs the same steps.
-Never commit untested code.
+Everything above must pass locally before a PR — CI runs the same steps and
+all of them block (no advisory/`continue-on-error` steps). Floors, type pegs
+and dependency exceptions are up-only; the process is documented in
+[testing.md](testing.md#quality-gates-ci).
 
 ## Conventions that matter
 

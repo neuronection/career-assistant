@@ -1,0 +1,49 @@
+{
+  "$comment": "Reviewed intentional skips, per dialect (tests/conftest.py::pytest_sessionfinish enforces this list). A new skip fails the suite until it is added here with a reason; `when: always` entries must actually fire on a full-suite run. Entries are dialect-scoped because the two CI lanes prove different contracts.",
+  "postgres": [
+    {
+      "id": "tests/test_data_integrity.py::test_explore_filters_are_index_backed_on_sqlite",
+      "reason_contains": "SQLite desktop fallback check",
+      "when": "always",
+      "why": "the SQLite EXPLAIN QUERY PLAN plan shape cannot be asserted on Postgres"
+    },
+    {
+      "id": "tests/test_profile_proposals.py::test_cv_synth_card_posting_ref_names_public_ref",
+      "reason_contains": "no posting rows seeded",
+      "when": "conditional",
+      "why": "data-dependent: the catalog may be empty in a minimal fixture set"
+    }
+  ],
+  "sqlite": [
+    {
+      "id": "tests/test_data_integrity.py::test_explore_filters_are_index_backed_on_postgres",
+      "reason_contains": "Postgres EXPLAIN plans",
+      "when": "always",
+      "why": "Postgres EXPLAIN plan shape cannot be asserted on SQLite"
+    },
+    {
+      "id": "tests/test_ai_provider_setup_contract.py::test_case_6_invalid_key_persists_nothing",
+      "reason_contains": "AUTOCOMMIT test sessions cannot prove rollback isolation",
+      "when": "always",
+      "why": "documented BYOK rollback case: SQLite test sessions run AUTOCOMMIT, a pre-probe insert is already committed (Postgres pins the contract)"
+    },
+    {
+      "id": "tests/test_chat_turn_graph.py::test_postgres_prune_removes_stale_threads",
+      "reason_contains": "Postgres retention beat",
+      "when": "always",
+      "why": "the langgraph server tables are created by the Postgres saver setup, not migrations"
+    },
+    {
+      "id": "tests/test_checkpointer.py::test_postgres_checkpointer_uses_a_connection_pool",
+      "reason_contains": "pool shape is Postgres-only",
+      "when": "always",
+      "why": "the pooled-saver shape has no SQLite equivalent"
+    },
+    {
+      "id": "tests/test_profile_proposals.py::test_cv_synth_card_posting_ref_names_public_ref",
+      "reason_contains": "no posting rows seeded",
+      "when": "conditional",
+      "why": "data-dependent: the catalog may be empty in a minimal fixture set"
+    }
+  ]
+}

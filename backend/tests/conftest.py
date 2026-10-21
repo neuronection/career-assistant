@@ -1,4 +1,6 @@
 import contextlib
+import fnmatch
+import json
 import secrets
 from collections.abc import AsyncGenerator, Iterator
 from datetime import UTC, datetime, timedelta
@@ -802,3 +804,72 @@ async def grant_tool(db, user, key: str) -> None:
 
     user_id = user if isinstance(user, UUID) else user.id
     await grant(db, user_id, key)
+
+
+_SKIP_ALLOWLIST_PATH = Path(__file__).with_name("skip_allowlist.json")
+_observed_skips: dict[str, str] = {}
+
+
+def _skip_allowlist() -> list[dict[str, str]]:
+    data = json.loads(_SKIP_ALLOWLIST_PATH.read_text(encoding="utf-8"))
+    return data.get("sqlite" if IS_SQLITE else "postgres", [])
+
+
+def _targets_full_suite(config: pytest.Config) -> bool:
+    if getattr(config.option, "markexpr", "") or getattr(config.option, "keyword", ""):
+        return False
+    targets = [str(arg).rstrip("/") for arg in config.args] or ["tests"]
+    return targets == ["tests"]
+
+
+def pytest_runtest_logreport(report) -> None:
+    """Record every skip so the wall can compare it against the allowlist."""
+    if not report.skipped or report.nodeid in _observed_skips:
+        return
+    reason = ""
+    if isinstance(report.longrepr, tuple) and len(report.longrepr) == 3:
+        reason = str(report.longrepr[2]).removeprefix("Skipped: ")
+    _observed_skips[report.nodeid] = reason
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Fail the run when the skip list grows beyond the reviewed allowlist.
+
+    Skips are intentional coverage gaps: a dialect-only case, a missing
+    optional engine, or a documented environment limitation. A new skip
+    must be reviewed and added to ``tests/skip_allowlist.json`` (with a
+    reason) instead of silently shrinking the suite. The completeness
+    half (every ``when: always`` entry actually fired) only applies to a
+    full-suite run.
+    """
+    if hasattr(session.config, "workerinput"):
+        return
+    allowlist = _skip_allowlist()
+    problems: list[str] = []
+    matched: set[int] = set()
+    for nodeid, reason in _observed_skips.items():
+        for index, entry in enumerate(allowlist):
+            if not fnmatch.fnmatch(nodeid, entry["id"]):
+                continue
+            if entry["reason_contains"] not in reason:
+                continue
+            matched.add(index)
+            break
+        else:
+            problems.append(f"unlisted skip: {nodeid} ({reason})")
+    if _targets_full_suite(session.config):
+        for index, entry in enumerate(allowlist):
+            if entry.get("when", "always") == "always" and index not in matched:
+                problems.append(
+                    f"allowlisted skip did not fire: {entry['id']} ({entry['reason_contains']})"
+                )
+    if not problems:
+        return
+    session.exitstatus = 1
+    reporter = session.config.pluginmanager.getplugin("terminalreporter")
+    if reporter is not None:
+        reporter.write_line("")
+        reporter.write_line("skip wall FAILED — expected skip list drifted:", red=True)
+        for problem in problems:
+            reporter.write_line(f"  {problem}", red=True)
+        reporter.write_line(f"  update {_SKIP_ALLOWLIST_PATH} (documented skips only)")

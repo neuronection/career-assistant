@@ -8,9 +8,13 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   server: {
-    port: 3100,
+    port: Number(process.env.VITE_PORT ?? 3100),
+    strictPort: true,
     proxy: {
-      "/api": { target: "http://127.0.0.1:8100", changeOrigin: true },
+      "/api": {
+        target: process.env.CA_API_PROXY ?? "http://127.0.0.1:8100",
+        changeOrigin: true,
+      },
     },
   },
 });

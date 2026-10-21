@@ -146,5 +146,10 @@ regenerating a baseline, drop+recreate instead).
   frozen app with `careerassistant enginecheck`.
 - Update `CHANGELOG.md` under `## [Unreleased]` for user-visible changes
   (CI-enforced on PRs via `scripts/check-changelog.sh`).
+- **Gates block and only tighten** (plan 124): coverage floors, the mypy
+  per-package peg (`[tool.career-mypy-ratchet]`), the dependency-audit
+  allowlist and the skip allowlist (`tests/skip_allowlist.json`) move in one
+  direction only — no `continue-on-error`, no cron-only gates. Policy +
+  exception process: `docs/dev/testing.md` → "Quality gates (CI)".
 - Always test before commit: backend pytest + ruff, frontend build + vitest.
 - Never push to a remote unless explicitly asked.

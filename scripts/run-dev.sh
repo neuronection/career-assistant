@@ -5,8 +5,10 @@
 # app — the local SQLite profile (platform data dir, as bootstrapped by
 # `python -m careerassistant`) + desktop identity (open auth, DIM owner;
 # no login UI) — then backend :8100 (uvicorn --reload) + frontend :3100
-# (vite) as one honcho group (Procfile.dev). A single Ctrl+C stops
-# everything; if any process dies honcho exits loud. No Docker needed.
+# (vite) as one honcho group (Procfile.dev). In a linked git worktree the
+# ports come from .env.wt.local (scripts/lib/worktree-env.sh), so
+# concurrent sessions never collide. A single Ctrl+C stops everything; if
+# any process dies honcho exits loud. No Docker needed.
 # Desktop dev binds loopback only (127.0.0.1) — the ungated open-auth API
 # must never face the network; `--web` keeps the 0.0.0.0 LAN binding.
 #
@@ -45,10 +47,16 @@ SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 cd "$SCRIPT_DIR/.."
 # shellcheck source=scripts/lib/dev-common.sh
 source scripts/lib/dev-common.sh
+# shellcheck source=scripts/lib/worktree-env.sh
+source scripts/lib/worktree-env.sh
+dc_wt_load
 
-BACKEND_PORT=8100
-FRONTEND_PORT=3100
-DB_PORT=5433
+BACKEND_PORT="${BACKEND_PORT:-8100}"
+FRONTEND_PORT="${FRONTEND_PORT:-3100}"
+DB_PORT="${POSTGRES_PORT:-5433}"
+export BACKEND_PORT FRONTEND_PORT
+export CA_API_PROXY="${CA_API_PROXY:-http://127.0.0.1:$BACKEND_PORT}"
+export VITE_PORT="$FRONTEND_PORT"
 
 DEV_DB_COMPOSE="docker/docker-compose.dev-db.yml"
 
@@ -108,7 +116,7 @@ if [[ "$WEB" = true ]]; then
   # is deterministic regardless of what .env pins. Keeps the historical
   # LAN binding (device testing); the identity is server + authenticated.
   export CAREER_IDENTITY_MODE=server
-  : "${CAREER_DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career}"
+  : "${CAREER_DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:$DB_PORT/neuronection_career}"
   export CAREER_DATABASE_URL
   export CA_DEV_HOST="${CA_DEV_HOST:-0.0.0.0}" CA_VITE_HOST="${CA_VITE_HOST:-0.0.0.0}"
   dc_info "web mode     → identity: server, database: postgres @127.0.0.1:$DB_PORT, bind: $CA_DEV_HOST"

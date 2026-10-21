@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (failure copy is sanitized, 2026-10-21)
+- **Failure messages cannot leak credentials or provider dumps.** Connector
+  sync failures, university-document parse errors, AI provider connection
+  tests, chat/tool errors and the CV builder's op results now pass through
+  one sanitizer (`sanitize_error_detail`) and, where the operator needs the
+  detail, log it with the stack trace instead of showing it. Unconfigured /
+  budget / rate-limit AI failures keep their typed copy. No behavior change
+  on the happy path.
+
 ### Added (first-run AI setup, 2026-10-21)
 - **A fresh install now walks you through connecting an AI provider**
   (plan 118). The bootstrap payload reports the effective AI state
