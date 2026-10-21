@@ -109,6 +109,35 @@ async def test_stream_emits_flow_failed_on_error(
     assert "no valid output" in failed["message"]
 
 
+async def test_stream_maps_budget_and_rate_limit_failures_to_typed_codes(
+    client, db, auth_headers, profile_ready, seeded_catalog, monkeypatch
+):
+    """Plan 118.3: budget/limiter failures carry their own codes so the SPA
+    renders typed copy instead of the raw domain message."""
+    import app.ai.graphs.chat_turn as chat_turn
+    from app.api.v1.chat import chat_failure_code
+    from app.core.errors import DomainError
+
+    async def broke(state, deps):
+        raise DomainError(
+            "AI budget 'Monthly' reached (10/10 tokens this month); "
+            "an admin can raise or remove it in Settings → AI Configuration."
+        )
+
+    monkeypatch.setattr(chat_turn, "agent_round", broke)
+    session = (
+        await client.post("/api/v1/chat/sessions", json={"title": "budget"}, headers=auth_headers)
+    ).json()
+    response = await _post_message(client, session["id"], auth_headers, stream="true")
+    failed = next(p for n, p in _parse_sse(response.text) if n == "flow_failed")
+    assert failed["code"] == "ai_budget"
+    assert "Monthly" in failed["message"]
+
+    assert chat_failure_code("AI rate limit reached; retry in 23s") == "ai_rate_limit"
+    assert chat_failure_code("AI is not configured yet.") == "ai_not_configured"
+    assert chat_failure_code("something else broke") == "ai_unavailable"
+
+
 async def test_flow_events_audit_one_row_per_model_call(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):

@@ -2278,6 +2278,13 @@
     "selectionMenu": {
       "copy": "Copy",
       "quote": "Quote in chat"
+    },
+    "aiError": {
+      "unconfigured": "AI is not configured yet — connect a provider to use chat.",
+      "budget": "The AI budget for this workspace is used up. An admin can raise it in Settings → AI Configuration.",
+      "rate_limit": "Too many AI requests in a row — wait a moment and try again.",
+      "unavailable": "The AI service is unavailable right now — try again in a moment.",
+      "error": "The AI call failed — try again."
     }
   },
   "demand": {

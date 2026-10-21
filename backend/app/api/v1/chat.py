@@ -36,6 +36,25 @@ from app.services.deps import get_current_user, get_profile_for_user
 from app.services.profile_service import ProfileService
 
 router = APIRouter(tags=["chat"])
+
+
+def chat_failure_code(message: str) -> str:
+    """Typed failure code for the SPA's error copy (plan 118.3).
+
+    The SPA never renders the raw message for these: each code maps to
+    translated copy, while the sanitized detail stays on the transcript
+    marker for debugging.
+    """
+    text = message.lower()
+    if "not configured" in text:
+        return "ai_not_configured"
+    if "budget" in text:
+        return "ai_budget"
+    if "rate limit" in text:
+        return "ai_rate_limit"
+    return "ai_unavailable"
+
+
 logger = logging.getLogger(__name__)
 
 #: Single-flight per session (plan 98): one streaming turn at a time —
@@ -309,7 +328,7 @@ async def _run_turn_stream(session, history, content, user_message_id, user, db)
             deps.emit(*sse_pair(flow_failed_event(True, code="ai_not_configured", message=detail)))
             await _persist_turn_failure("ai_not_configured", detail)
         except DomainError as exc:
-            code = "ai_not_configured" if "not configured" in str(exc) else "ai_unavailable"
+            code = chat_failure_code(str(exc))
             detail = sanitize_error_detail(str(exc))
             deps.emit(*sse_pair(flow_failed_event(True, code=code, message=detail)))
             await _persist_turn_failure(code, detail)

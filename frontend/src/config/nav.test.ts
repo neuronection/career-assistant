@@ -59,10 +59,17 @@ describe("resolveActiveId", () => {
       "/autopilot",
       "/growth",
       "/interviews",
+      "/onboarding/setup",
       "/postings",
     ]);
-    // Every registered surface is beta (un-gated 2026-10-21), never hidden.
-    expect(FEATURES.every((feature) => feature.state === "beta")).toBe(true);
+    // Every registered surface is beta (un-gated 2026-10-21) except the
+    // shipped first-run AI setup step; none are hidden.
+    expect(
+      FEATURES.filter((feature) => feature.state === "beta")
+        .map((feature) => feature.key)
+        .sort()
+    ).toEqual(["/autopilot", "/growth", "/interviews", "/postings"]);
+    expect(FEATURES.every((feature) => feature.state !== "hidden")).toBe(true);
     // Deep links still resolve against the registry.
     expect(resolveActiveId("/postings/search")).toBe("/postings");
     expect(resolveActiveId("/autopilot")).toBe("/autopilot");

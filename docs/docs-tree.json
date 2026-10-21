@@ -27,6 +27,12 @@
               "description": "Install Career Assistant (desktop app, Docker or bare metal), connect an AI provider, complete onboarding and take your first steps."
             },
             {
+              "id": "ai-setup",
+              "file": "user/ai-setup.md",
+              "title": "First-run AI setup",
+              "description": "Connect an AI provider on a fresh install: the first-run setup wizard, the skip that persists, the mock-provider chip and typed failure states."
+            },
+            {
               "id": "onboarding-and-profile",
               "file": "user/onboarding-and-profile.md",
               "title": "Onboarding and your profile",

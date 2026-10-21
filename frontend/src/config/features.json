@@ -1,6 +1,12 @@
 {
   "features": [
     {
+      "key": "/onboarding/setup",
+      "state": "on",
+      "since": "2026-10-21",
+      "docs": "docs/user/ai-setup.md"
+    },
+    {
       "key": "/postings",
       "state": "beta",
       "since": "2026-10-21",

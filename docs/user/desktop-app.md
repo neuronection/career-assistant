@@ -27,8 +27,9 @@ tray degrades gracefully without one).
 First launch creates a strong per-instance key file (`auth_keys.json`,
 0600), applies migrations and seeds the
 starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI
-providers are configured in-app — for a fully local setup, point a provider at
-Ollama (`http://localhost:11434/v1`) or LM Studio.
+providers are configured in-app through the [first-run AI setup](ai-setup.md)
+step (or **Settings → AI Configuration**) — for a fully local setup, point a
+provider at Ollama (`http://localhost:11434/v1`) or LM Studio.
 
 ## The tray
 
@@ -38,7 +39,8 @@ prompt):
 - **Scheduled searches, syncs and alerts continue** in the background.
 - **Native toasts** arrive through the desktop notification channel, honoring
   quiet hours and opening the relevant item on click.
-- **Sync-now and saved-search controls** live in the tray menu.
+- **Sync-now and saved-search controls** live in the tray menu, and
+  **Configure AI provider** opens Settings → AI without hunting for it.
 - **Misfired runs catch up on boot** (for example after the machine slept).
 
 Quit from the tray menu. A **second launch focuses the running window**

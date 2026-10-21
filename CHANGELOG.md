@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (first-run AI setup, 2026-10-21)
+- **A fresh install now walks you through connecting an AI provider**
+  (plan 118). The bootstrap payload reports the effective AI state
+  (`ai: {configured, provider_type, default_model, task_coverage,
+  mock_active}`), an unconfigured app opens the new `/onboarding/setup`
+  step on boot, and every surface that needs a provider (chat empty
+  state, the CV builder's AI actions, generate-with-AI, Autopilot) offers
+  the same setup prompt until one is configured. The step composes the
+  assistant-ui AI-settings kit — provider tiles → guided form → review →
+  connection test → task assignments — is skippable with a persisted
+  dismissal, and the desktop tray gained **Configure AI provider**. AI
+  failures (unconfigured, budget exhausted, rate limited) render typed
+  copy instead of the raw provider message, and a **Mock provider active —
+  dev only** chip is visible in the header whenever the mock serves a
+  call. No schema change: the skip rides a typed `profiles.preferences`
+  key.
+
 ### Changed (beta pages un-gated, 2026-10-21)
 - **Live postings, Career Autopilot, Interview prep and the Growth toolkit
   are reachable from the sidebar** — they were hidden behind a five-tap

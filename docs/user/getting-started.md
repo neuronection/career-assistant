@@ -88,8 +88,10 @@ TLS, upgrades, backups and bare-metal installs.
 
 ## Connect an AI provider
 
-AI features are unconfigured on a fresh install. Open
-**Settings → AI Configuration** and add a provider:
+AI features are unconfigured on a fresh install, so the app opens the
+[first-run AI setup](ai-setup.md) step on boot — pick a provider, test the
+connection and assign the model defaults, or **Skip for now** and configure
+later. The manual route is **Settings → AI Configuration**:
 
 1. Pick a provider (OpenAI, OpenRouter, or any OpenAI-compatible endpoint —
    for a fully local setup point it at Ollama `http://localhost:11434/v1` or

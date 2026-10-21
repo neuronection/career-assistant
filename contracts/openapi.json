@@ -349,6 +349,18 @@
         "title": "AdmissionOut",
         "type": "object"
       },
+      "AiSetupPrefsIn": {
+        "description": "First-run AI setup step skip state (typed `profiles.preferences` key).",
+        "properties": {
+          "dismissed": {
+            "default": true,
+            "title": "Dismissed",
+            "type": "boolean"
+          }
+        },
+        "title": "AiSetupPrefsIn",
+        "type": "object"
+      },
       "AnswersIn": {
         "properties": {
           "answers": {
@@ -13894,6 +13906,11 @@
       },
       "TestResult": {
         "properties": {
+          "code": {
+            "default": "",
+            "title": "Code",
+            "type": "string"
+          },
           "error": {
             "default": "",
             "title": "Error",
@@ -28200,6 +28217,50 @@
         "summary": "Set Default Photo",
         "tags": [
           "profile"
+        ]
+      }
+    },
+    "/api/v1/me/preferences/ai-setup": {
+      "put": {
+        "description": "Store whether the caller skipped the first-run AI setup step.\n\nThe skip rides a typed `profiles.preferences` key (schema is frozen \u2014\nplan 113); the setup prompt itself keeps rendering until a provider is\nconfigured, so dismissing never hides the gap.",
+        "operationId": "put_ai_setup_pref_api_v1_me_preferences_ai_setup_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSetupPrefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Ai Setup Pref Api V1 Me Preferences Ai Setup Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ai Setup Pref",
+        "tags": [
+          "me"
         ]
       }
     },

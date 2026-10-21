@@ -12,6 +12,7 @@ import { MessageProposals, ProposalCards } from "@/components/chat/MessagePropos
 import { ChatSelectionMenu } from "@/components/chat/ChatSelectionMenu";
 import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
 import { copyText } from "@/lib/clipboard";
+import { aiFailureCopyKey, aiFailureKind } from "@/lib/aiErrorCopy";
 import {
   LiveTemplatePreviews,
   MessageTemplatePreviews,
@@ -494,6 +495,16 @@ function MessageList({
   };
 
   const live = chat.stream.live !== null;
+  const failureKind = aiFailureKind(chat.stream.error?.code);
+  const streamError =
+    chat.stream.error !== null
+      ? {
+          ...chat.stream.error,
+          message: failureKind
+            ? t(aiFailureCopyKey(failureKind))
+            : chat.stream.error.message,
+        }
+      : undefined;
   const proposalCards = useProfileProposalsStore((state) => state.live);
   const runningNode = [...chat.stream.nodes]
     .reverse()
@@ -538,14 +549,13 @@ function MessageList({
                     ? "error"
                     : "streaming"
               }
-              error={chat.stream.error ?? undefined}
+              error={streamError}
               actions={
                 chat.stream.error?.retryable
                   ? {
                       onRetry: () => void chat.retry(),
                       errorExtra:
-                        chat.stream.error !== null &&
-                        chat.stream.error.message.includes("not configured") ? (
+                        failureKind === "unconfigured" ? (
                           <Link
                             to="/settings/ai"
                             className="inline-flex items-center rounded-[var(--as-radius-sm)] border border-current px-2 py-1 text-xs font-medium transition-colors hover:opacity-80"

@@ -20,7 +20,8 @@ Account self-service — every signed-in user, on any instance mode:
 ## AI Configuration (`/settings/ai`)
 
 The one place AI is configured. There are deliberately **no AI environment
-variables**.
+variables**. On a fresh install the app leads you here through the
+[first-run setup wizard](ai-setup.md) instead of failing silently.
 
 - **Providers** — add an OpenAI-compatible provider (OpenAI, OpenRouter, or a
   local Ollama/LM Studio via a base URL). API keys are encrypted at rest and
