@@ -70,6 +70,12 @@ def test_builtin_registry_declarations():
         # — chat-audience variant management (plan 104)
         "variant_list",
         "variant_pin",
+        # — applications tracker (plan 116)
+        "my_applications",
+        "my_application_timeline",
+        "my_deadlines",
+        "set_application_stage",
+        "add_application_note",
         # — web tools family (plan 80)
         "web_search",
         "fetch_url",
@@ -82,10 +88,18 @@ def test_builtin_registry_declarations():
     assert all(
         t["scope"] == "read"
         for k, t in non_cv.items()
-        if k not in ("my_notifications", "variant_pin")
+        if k
+        not in (
+            "my_notifications",
+            "variant_pin",
+            "set_application_stage",
+            "add_application_note",
+        )
     )
     assert non_cv["my_notifications"]["scope"] == "write"
     assert non_cv["variant_pin"]["scope"] == "write"
+    assert non_cv["set_application_stage"]["scope"] == "write"
+    assert non_cv["add_application_note"]["scope"] == "write"
     assert listed["cv_read_state"]["scope"] == "read"
     assert listed["cv_review_visual"]["scope"] == "read"
     # Plan 107: the visual review serves the general chat too

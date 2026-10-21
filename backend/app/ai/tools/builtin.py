@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.ai.tools.base import AITool, ToolContext, ToolScope
+from app.ai.tools.base import AITool, ToolContext, ToolRiskClass, ToolScope
 
 
 class SearchJobsInput(BaseModel):
@@ -72,6 +72,39 @@ class ReadProfileSectionInput(BaseModel):
     """Open ONE profile section's full JSON before proposing its edit."""
 
     section: Literal["basics", "academics", "work_preferences", "constraints"]
+
+
+class MyApplicationsInput(BaseModel):
+    """The caller's application pipeline rows (optionally one stage)."""
+
+    stage: (
+        Literal["applied", "screening", "interview", "offer", "accepted", "rejected", "withdrawn"]
+        | None
+    ) = None
+    open_only: bool = False
+
+
+class ApplicationRefInput(BaseModel):
+    """One application id (from my_applications)."""
+
+    application_id: str = Field(min_length=8, max_length=64)
+
+
+class ApplicationStageInput(BaseModel):
+    """Move one application to another stage (confirmation card)."""
+
+    application_id: str = Field(min_length=8, max_length=64)
+    stage: Literal[
+        "applied", "screening", "interview", "offer", "accepted", "rejected", "withdrawn"
+    ]
+    note: str = Field(default="", max_length=2000)
+
+
+class ApplicationNoteInput(BaseModel):
+    """Append one note to an application timeline (confirmation card)."""
+
+    application_id: str = Field(min_length=8, max_length=64)
+    text: str = Field(min_length=1, max_length=4000)
 
 
 async def _search_jobs(db, ctx: ToolContext, args: SearchJobsInput):
@@ -241,6 +274,155 @@ async def _compare_jobs(db, ctx: ToolContext, args: CompareJobsInput):
             " Narrate the trade-offs from these numbers only."
         ),
     }
+
+
+async def _my_applications(db, ctx: ToolContext, args: MyApplicationsInput):
+    """The caller's application pipeline with the tracker's own ids."""
+    from app.services.applications_service import ApplicationService
+
+    assert ctx.user_id is not None, "my_applications requires a user"
+    rows = await ApplicationService(db).list_applications(
+        ctx.user_id, stage=args.stage, open_only=args.open_only
+    )
+    return {
+        "applications": [
+            {
+                "application_id": str(application.id),
+                "posting_ref": posting.ref,
+                "title": posting.title,
+                "org": posting.org,
+                "stage": application.stage,
+                "outcome": application.outcome,
+                "applied_at": application.applied_at.isoformat()
+                if application.applied_at
+                else None,
+                "deadline_at": application.deadline_at.isoformat()
+                if application.deadline_at
+                else None,
+                "next_followup_at": application.next_followup_at.isoformat()
+                if application.next_followup_at
+                else None,
+                "closed_at": application.closed_at.isoformat() if application.closed_at else None,
+            }
+            for application, posting in rows
+        ],
+        "note": (
+            "application_id values feed my_application_timeline, and stage/note"
+            " changes must go through the confirmation card tools."
+        ),
+    }
+
+
+async def _my_application_timeline(db, ctx: ToolContext, args: ApplicationRefInput):
+    """One application's full event timeline (newest first)."""
+    import uuid as uuid_mod
+
+    from app.services.applications_service import ApplicationService
+
+    assert ctx.user_id is not None, "my_application_timeline requires a user"
+    service = ApplicationService(db)
+    application = await service.get(ctx.user_id, uuid_mod.UUID(args.application_id))
+    events = await service.timeline(ctx.user_id, application.id)
+    return {
+        "application_id": str(application.id),
+        "stage": application.stage,
+        "outcome": application.outcome,
+        "notes": application.notes,
+        "events": [
+            {
+                "at": event.at.isoformat(),
+                "kind": event.kind,
+                "stage_from": event.stage_from,
+                "stage_to": event.stage_to,
+                "body": event.body,
+                "actor": event.actor,
+            }
+            for event in events
+        ],
+    }
+
+
+async def _my_deadlines(db, ctx: ToolContext, args: ProfileDigestInput):
+    """Application deadlines merged with university admission deadlines."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.models.university_model import Department, University
+    from app.services.applications_service import ApplicationService
+
+    assert ctx.user_id is not None, "my_deadlines requires a user"
+    today = datetime.now(UTC).date()
+    rows = await ApplicationService(db).list_applications(ctx.user_id, open_only=True)
+    deadlines = []
+    for application, posting in rows:
+        if application.deadline_at is None:
+            continue
+        deadlines.append(
+            {
+                "kind": "application",
+                "title": posting.title,
+                "org": posting.org,
+                "deadline": application.deadline_at.date().isoformat(),
+                "application_id": str(application.id),
+            }
+        )
+    admissions = await db.execute(
+        select(Department, University)
+        .join(University, University.id == Department.university_id)
+        .where(Department.application_deadline.is_not(None))
+        .order_by(Department.application_deadline)
+    )
+    for department, university in admissions.all():
+        deadline = department.application_deadline
+        if deadline is None or deadline < today:
+            continue
+        deadlines.append(
+            {
+                "kind": "admission",
+                "title": department.name,
+                "org": university.name,
+                "deadline": deadline.isoformat(),
+                "degree": department.degree,
+            }
+        )
+    deadlines.sort(key=lambda row: row["deadline"])
+    return {"deadlines": deadlines[: args.limit]}
+
+
+async def _set_application_stage(db, ctx: ToolContext, args: ApplicationStageInput):
+    """Move one application (executes only through its confirmation card)."""
+    import uuid as uuid_mod
+
+    from app.models.enums import ApplicationActor
+    from app.services.applications_service import ApplicationService
+
+    assert ctx.user_id is not None, "set_application_stage requires a user"
+    application = await ApplicationService(db).transition(
+        ctx.user_id,
+        uuid_mod.UUID(args.application_id),
+        to_stage=args.stage,
+        actor=ApplicationActor.ASSISTANT,
+        body=args.note,
+    )
+    return {"application_id": str(application.id), "stage": application.stage}
+
+
+async def _add_application_note(db, ctx: ToolContext, args: ApplicationNoteInput):
+    """Append a note (executes only through its confirmation card)."""
+    import uuid as uuid_mod
+
+    from app.models.enums import ApplicationActor
+    from app.services.applications_service import ApplicationService
+
+    assert ctx.user_id is not None, "add_application_note requires a user"
+    event = await ApplicationService(db).add_note(
+        ctx.user_id,
+        uuid_mod.UUID(args.application_id),
+        args.text,
+        actor=ApplicationActor.ASSISTANT,
+    )
+    return {"event_id": str(event.id), "kind": event.kind}
 
 
 BUILTIN_TOOLS: list[AITool] = [
@@ -413,6 +595,76 @@ BUILTIN_TOOLS: list[AITool] = [
         input_model=ReadProfileSectionInput,
         handler=_read_profile_section,
         scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_applications",
+        title="My applications",
+        description=(
+            "The user's application pipeline (one row per posting) with"
+            " application_id, stage, dates and the next follow-up. Optionally"
+            " filter by stage; pass open_only for active applications."
+        ),
+        input_model=MyApplicationsInput,
+        handler=_my_applications,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_application_timeline",
+        title="One application's timeline",
+        description=(
+            "Full event history of ONE application (newest first) with its"
+            " current stage and rolling notes. Read this before proposing a"
+            " stage change or note."
+        ),
+        input_model=ApplicationRefInput,
+        handler=_my_application_timeline,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_deadlines",
+        title="My deadlines",
+        description=(
+            "Application deadlines merged with upcoming university admission"
+            " deadlines, sorted by date."
+        ),
+        input_model=ProfileDigestInput,
+        handler=_my_deadlines,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="set_application_stage",
+        title="Move an application's stage",
+        description=(
+            "Move ONE application to another pipeline stage. The user must"
+            " approve a confirmation card before anything runs; read the"
+            " application timeline first."
+        ),
+        input_model=ApplicationStageInput,
+        handler=_set_application_stage,
+        scope=ToolScope.WRITE,
+        risk_class=ToolRiskClass.DESTRUCTIVE,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="add_application_note",
+        title="Add an application note",
+        description=(
+            "Append one note to an application's timeline. The user must"
+            " approve a confirmation card before anything runs."
+        ),
+        input_model=ApplicationNoteInput,
+        handler=_add_application_note,
+        scope=ToolScope.WRITE,
+        risk_class=ToolRiskClass.DESTRUCTIVE,
         cost_hint="cheap",
         requires_user=True,
     ),

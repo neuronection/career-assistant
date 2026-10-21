@@ -535,6 +535,10 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         for name, keywords in plan
         if name not in tools and any(keyword in lowered for keyword in keywords)
     ]
+    if "my_applications" not in tools and _re.search(
+        r"\bapplications?\b|\btracker\b|\bpipeline\b|\bdeadlines?\b", lowered
+    ):
+        wanted.append("my_applications")
     if (
         "read_cv_items" not in tools
         and ctx.get("cv_references")
@@ -549,6 +553,34 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
             if refs:
                 args["cv_id"] = refs[0].get("cv_id") or ""
         calls.append({"name": name, "args": args, "id": f"call-{index}"})
+    if not calls:
+        applications = (tools.get("my_applications") or {}).get("applications") or []
+        if applications:
+            application_id = applications[0].get("application_id")
+            if _re.search(r"\binterviews?\b", lowered):
+                calls = [
+                    {
+                        "name": "set_application_stage",
+                        "args": {"application_id": application_id, "stage": "interview"},
+                        "id": "call-0",
+                    }
+                ]
+            elif _re.search(r"\boffers?\b", lowered):
+                calls = [
+                    {
+                        "name": "set_application_stage",
+                        "args": {"application_id": application_id, "stage": "offer"},
+                        "id": "call-0",
+                    }
+                ]
+            elif _re.search(r"\bnotes?\b", lowered):
+                calls = [
+                    {
+                        "name": "add_application_note",
+                        "args": {"application_id": application_id, "text": message[:200]},
+                        "id": "call-0",
+                    }
+                ]
     if not calls:
         calls = [
             {
