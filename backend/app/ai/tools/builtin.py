@@ -61,6 +61,29 @@ class ProfileDigestInput(BaseModel):
     limit: int = Field(default=12, ge=1, le=25)
 
 
+class SavedSearchesInput(BaseModel):
+    """The caller's saved searches, optionally one search scope."""
+
+    scope: Literal["catalog", "rankings", "universities", "postings"] | None = None
+    limit: int = Field(default=12, ge=1, le=50)
+
+
+class MarketTrendInput(BaseModel):
+    """Recorded demand history for exactly one scope: a family key OR a
+    catalog job (code/id) reference."""
+
+    family_key: str | None = Field(default=None, max_length=80)
+    job_ref: str | None = Field(default=None, max_length=80)
+    limit: int = Field(default=12, ge=1, le=60)
+
+
+class FitBreakdownInput(BaseModel):
+    """One target's fit breakdown: a posting reference or a catalog job
+    code/id."""
+
+    target: str = Field(min_length=1, max_length=80)
+
+
 class ReadProfileItemInput(BaseModel):
     """Open ONE profile entity's full content before proposing edits."""
 
@@ -390,6 +413,156 @@ async def _my_deadlines(db, ctx: ToolContext, args: ProfileDigestInput):
     return {"deadlines": deadlines[: args.limit]}
 
 
+async def _my_saved_searches(db, ctx: ToolContext, args: SavedSearchesInput):
+    """The caller's saved searches — the reusable queries behind alerts
+    and RSS feeds — with the search ids the feed-token scope points at."""
+    from app.models.enums import SearchScope
+    from app.services.engagement_service import EngagementService
+
+    assert ctx.user_id is not None, "my_saved_searches requires a user"
+    scope = SearchScope(args.scope) if args.scope else None
+    rows = await EngagementService(db).list_searches(ctx.user_id, scope=scope, saved=True)
+    rows = rows[: args.limit]
+    if not rows:
+        return {
+            "searches": [],
+            "note": (
+                "Nothing tracked yet — no saved searches. Save one from the "
+                "postings search or Explore filters (Save search) to see it "
+                "here; do not summarize searches that do not exist."
+            ),
+        }
+    return {
+        "searches": [
+            {
+                "search_id": str(row.id),
+                "scope": row.scope,
+                "query": row.query,
+                "filters": row.filters or {},
+                "result_count": row.result_count,
+                "saved": row.saved,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rows
+        ],
+        "note": (
+            "saved=true rows are the caller's saved searches; search_id values "
+            "also scope RSS feed tokens."
+        ),
+    }
+
+
+async def _market_trend(db, ctx: ToolContext, args: MarketTrendInput):
+    """Persisted demand history for one family or catalog job, oldest
+    first — thin samples are surfaced as thin, never smoothed."""
+    from app.services import market_history_service
+    from app.services.job_service import JobService
+
+    family = (args.family_key or "").strip()
+    ref = (args.job_ref or "").strip()
+    if bool(family) == bool(ref):
+        return {"error": "Pass exactly one of family_key or job_ref."}
+    job = None
+    if ref:
+        job = await JobService(db).get_by_code_or_id(ref)
+        if job is None or job.status != "published":
+            return {"error": f"job not found: {ref!r}"}
+    scope = {"kind": "family", "key": family} if family else {"kind": "job", "key": job.code}
+    trend = await market_history_service.trend(
+        db,
+        family_key=family or None,
+        job_id=job.id if job is not None else None,
+        limit=args.limit,
+    )
+    if not trend:
+        return {
+            "scope": scope,
+            "trend": [],
+            "note": (
+                "No demand history recorded for this scope yet — snapshots "
+                "are captured on a daily cadence. Say so instead of "
+                "inventing a direction."
+            ),
+        }
+    return {
+        "scope": scope,
+        "trend": trend,
+        "note": (
+            "One row per captured day, oldest first; thin_sample rows are too "
+            "small to read as a trend. Narrate only these numbers."
+        ),
+    }
+
+
+async def _my_fit_breakdown(db, ctx: ToolContext, args: FitBreakdownInput):
+    """The deterministic dimensions behind ONE fit score, resolved over
+    the live posting first and the catalog archetype second."""
+    from app.services.job_service import JobService
+    from app.services.matching_service import MatchingService
+    from app.services.posting_fit_service import get_posting_fit
+    from app.services.postings_service import resolve_posting
+
+    assert ctx.user_id is not None, "my_fit_breakdown requires a user"
+    posting = await resolve_posting(db, args.target)
+    if posting is not None:
+        computed = await get_posting_fit(db, ctx.user_id, posting)
+        return {
+            "target": {
+                "kind": "posting",
+                "ref": posting.ref,
+                "title": posting.title,
+                "org": posting.org,
+            },
+            "score": computed["score"],
+            "estimate": bool(computed.get("estimate")),
+            "gated": bool(computed.get("gates")),
+            "gate_reasons": computed.get("gates") or [],
+            "dimensions": {
+                key: {
+                    "score": round(float(entry.get("score") or 0), 1),
+                    "detail": entry.get("detail") or "",
+                }
+                for key, entry in (computed.get("breakdown") or {}).items()
+            },
+            "note": (
+                "Dimensions score 0-10 (higher = better). estimate=true means "
+                "the posting has not been deep-extracted and the score is the "
+                "mapped archetype fallback."
+            ),
+        }
+    job = await JobService(db).get_by_code_or_id(args.target)
+    if job is None or job.status != "published":
+        return {
+            "error": (
+                f"No posting or catalog job matched {args.target!r}. Use a "
+                "posting reference from search_postings or a job code from "
+                "search_jobs."
+            )
+        }
+    service = MatchingService(db)
+    profile = await service.profile_for(ctx.user_id)
+    item = (await service.compare(profile, job_ids=[job.id]))[0]
+    breakdown = item["insight"].fit_breakdown or {}
+    return {
+        "target": {"kind": "catalog_job", "code": job.code, "title": job.title},
+        "score": round(float(item["fit_score"]), 1),
+        "estimate": False,
+        "gated": bool(breakdown.get("gates")),
+        "gate_reasons": breakdown.get("gates") or [],
+        "dimensions": {
+            dim: {
+                "score": round(float(entry.get("score") or 0), 1),
+                "detail": entry.get("detail") or "",
+            }
+            for dim, entry in (breakdown.get("dimensions") or {}).items()
+        },
+        "note": (
+            "Dimensions score 0-10 (higher = better fit for this user). "
+            "Narrate the trade-offs from these numbers only."
+        ),
+    }
+
+
 async def _set_application_stage(db, ctx: ToolContext, args: ApplicationStageInput):
     """Move one application (executes only through its confirmation card)."""
     import uuid as uuid_mod
@@ -635,6 +808,47 @@ BUILTIN_TOOLS: list[AITool] = [
         ),
         input_model=ProfileDigestInput,
         handler=_my_deadlines,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_saved_searches",
+        title="My saved searches",
+        description=(
+            "The user's saved searches (scope, query, filters, result count)"
+            " with their search ids. Empty means nothing is tracked yet — say"
+            " so and point at the Save search action; never invent a search."
+        ),
+        input_model=SavedSearchesInput,
+        handler=_my_saved_searches,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
+    AITool(
+        key="market_trend",
+        title="Market demand trend",
+        description=(
+            "Recorded demand history (capture date, sample size, thin-sample"
+            " flag, salary band, posting months) for ONE family key or ONE"
+            " catalog job. Empty history is reported honestly."
+        ),
+        input_model=MarketTrendInput,
+        handler=_market_trend,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+    ),
+    AITool(
+        key="my_fit_breakdown",
+        title="One fit score's breakdown",
+        description=(
+            "The deterministic fit dimensions and gate reasons behind ONE"
+            " posting reference or catalog job code — the numbers the model"
+            " must narrate instead of guessing."
+        ),
+        input_model=FitBreakdownInput,
+        handler=_my_fit_breakdown,
         scope=ToolScope.READ,
         cost_hint="cheap",
         requires_user=True,

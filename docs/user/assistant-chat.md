@@ -12,6 +12,13 @@ The chatbot searches jobs, pulls job details and looks up your matches through
 tool-calling over your own data. Answers cite what they used, and long AI runs
 show a progress trace you can read (the notes and timeline behind a reply).
 
+It also reads your own activity: the application pipeline and one
+application's timeline, upcoming application and university-admission
+deadlines, your saved searches, recorded market history for a job family or
+role, and the dimensions behind a single fit score. When there is nothing to
+read it says **nothing tracked yet** and points at the page that creates it —
+it never fills the gap with an invented summary.
+
 ## Proposals, never auto-apply
 
 When you ask the assistant to change your profile, it does not just do it. It

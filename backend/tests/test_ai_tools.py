@@ -76,6 +76,10 @@ def test_builtin_registry_declarations():
         "my_deadlines",
         "set_application_stage",
         "add_application_note",
+        # — read parity: saved searches, market, fit (plan 119.1)
+        "my_saved_searches",
+        "market_trend",
+        "my_fit_breakdown",
         # — web tools family (plan 80)
         "web_search",
         "fetch_url",

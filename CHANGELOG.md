@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (assistant read parity, 2026-10-22)
+- **The assistant can now answer questions about your own activity** (plan
+  119.1). Alongside the application reads from plan 116, chat and MCP
+  clients can list your **saved searches**, read recorded **market demand
+  history** for a job family or role, and open the **fit breakdown** behind
+  one posting or catalog job (deterministic dimensions and gate reasons,
+  never a guessed score). Empty results are stated as "nothing tracked
+  yet" with the page that creates them instead of a made-up summary.
+
 ### Fixed (PDF engine flake, 2026-10-22)
 - **CV export no longer degrades on a transient Chromium launch failure**
   (plan 119). The PDF engine retries the launch once across every
