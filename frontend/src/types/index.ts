@@ -390,7 +390,7 @@ export interface Bootstrap {
   ai?: AiStatus;
 }
 
-export type NotificationChannel = "in_app" | "desktop" | "browser";
+export type NotificationChannel = "in_app" | "desktop" | "browser" | "email" | "webhook";
 
 export interface NotificationPreferences {
   desktop_channel_enabled: boolean;
@@ -810,7 +810,7 @@ export interface NotificationKindPref {
   overridden: boolean;
 }
 
-export type NotificationChannelKey = "in_app" | "desktop" | "browser";
+export type NotificationChannelKey = "in_app" | "desktop" | "browser" | "email" | "webhook";
 
 export interface PreferencesMatrix {
   channels: NotificationChannelKey[];
@@ -823,6 +823,58 @@ export interface PushSubscriptionRecord {
   device_id: string;
   is_active: boolean;
   created_at: string;
+}
+
+export interface EmailChannelConfig {
+  enabled: boolean;
+  address: string;
+  pending_address: string;
+  digest_mode: boolean;
+  verified: boolean;
+  verified_at: string | null;
+}
+
+export interface WebhookChannelConfig {
+  enabled: boolean;
+  url: string;
+  template: string;
+  secret_set: boolean;
+  verified: boolean;
+  verified_at: string | null;
+}
+
+export type WebhookTemplate = "generic" | "slack" | "teams" | "telegram" | "ntfy";
+
+export interface ChannelTestResult {
+  channel: string;
+  delivery_id: string;
+  status: string;
+  error: string | null;
+}
+
+export interface FeedToken {
+  id: string;
+  kind: "ics" | "rss";
+  scope: Record<string, string>;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  rotated_from_id: string | null;
+}
+
+export interface FeedTokenMinted extends FeedToken {
+  token: string;
+}
+
+export interface EmailTransportConfig {
+  host: string;
+  port: number;
+  username: string;
+  from_address: string;
+  from_name: string;
+  starttls: boolean;
+  use_ssl: boolean;
+  password_set: boolean;
 }
 
 export interface NotificationPreferences {

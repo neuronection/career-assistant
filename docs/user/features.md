@@ -151,6 +151,9 @@ The product works after you're hired:
 - **Threshold alerts** (fit ≥ your line, or new jobs in families you follow)
   with per-day caps, cooldowns and a kind registry — the substrate's
   multi-channel notification center builds on.
+- **Reach beyond the tab** — email (confirmed address, optional digest mode),
+  webhooks with Slack/Teams/Telegram/ntfy presets, and rotatable `.ics` /
+  Atom subscription links for your calendar and feed reader.
 
 ## Assessment & metric model
 

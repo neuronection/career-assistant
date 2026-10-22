@@ -319,7 +319,7 @@ async def test_preferences_default_then_update(client, auth_headers, kinds):
     body = response.json()
     assert body["desktop_channel_enabled"] is True
     assert body["quiet_hours"] is None
-    assert body["channels"] == ["in_app", "browser"]
+    assert body["channels"] == ["in_app", "browser", "email", "webhook"]
     kind_keys = {kind["key"]: kind for kind in body["kinds"]}
     assert "fit_threshold" in kind_keys
     assert kind_keys["fit_threshold"]["enabled"] is True
@@ -394,7 +394,12 @@ async def test_bootstrap_declares_web_channels(client, auth_headers):
     assert settings.desktop_mode is False
     response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()["notification_channels"] == ["in_app", "browser"]
+    assert response.json()["notification_channels"] == [
+        "in_app",
+        "browser",
+        "email",
+        "webhook",
+    ]
 
 
 async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeypatch):
@@ -413,12 +418,16 @@ async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeyp
             "in_app",
             "browser",
             "desktop",
+            "email",
+            "webhook",
         }
         response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
         assert response.json()["notification_channels"] == [
             "in_app",
-            "browser",
             "desktop",
+            "browser",
+            "email",
+            "webhook",
         ]
     finally:
         notification_channels.unregister_channel("desktop")

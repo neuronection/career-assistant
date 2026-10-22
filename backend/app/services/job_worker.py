@@ -827,6 +827,17 @@ async def _run_cv_polish(
     )
 
 
+async def _run_notification_delivery(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Send one queued webhook delivery (retries ride the job's attempts)."""
+    from app.services.notification_webhook import process_delivery
+
+    payload = job.payload or {}
+    delivery_id = payload.get("delivery_id")
+    if not delivery_id:
+        return {"skipped": "delivery id missing"}
+    return await process_delivery(db, uuid.UUID(str(delivery_id)))
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -851,6 +862,7 @@ HANDLERS: dict[str, Handler] = {
     "cv_generate": _run_cv_generate,
     "cv_polish": _run_cv_polish,
     "cv_synth": _run_cv_synth,
+    "notification_delivery": _run_notification_delivery,
 }
 
 

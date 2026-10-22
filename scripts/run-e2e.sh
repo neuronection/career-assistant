@@ -37,6 +37,15 @@ export CAREER_MOCK_AI=1
 # hit the cap and the turn 429s with "retry in 23s").
 export CAREER_RATELIMIT_ENABLED=false
 export CAREER_RATELIMIT_AI=0
+# Notification reach (plan 117): the email transport captures messages as
+# `.eml` files (never real SMTP) and the webhook SSRF hatch lets the spec's
+# loopback receiver stand in for a vendor endpoint. Both are dev/test-only.
+export CAREER_MAIL_TRANSPORT=file
+export CAREER_MAIL_DIR="${E2E_MAIL_DIR:-/tmp/career-e2e-mail}"
+export CAREER_WEBHOOK_ALLOW_PRIVATE_HOSTS=1
+export E2E_MAIL_DIR="$CAREER_MAIL_DIR"
+rm -rf "$CAREER_MAIL_DIR"
+mkdir -p "$CAREER_MAIL_DIR"
 # The extension-surface spec (plan 32 Phase 4) imports the reference
 # mini-app through the local-git-source variant, confined (net_guard-style)
 # to the sibling template repo when it is checked out.

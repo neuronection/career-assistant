@@ -18,9 +18,13 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib import metadata
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.models.enums import DeliveryStatus
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +42,8 @@ class DeliveryContext:
     body: str
     payload: dict = field(default_factory=dict)
     severity: str = "info"
+    delivery_id: UUID | None = None
+    db: AsyncSession | None = None
 
 
 class BaseChannel:
@@ -65,7 +71,43 @@ class InAppChannel(BaseChannel):
         return DeliveryStatus.DELIVERED.value, None
 
 
-_BUILTINS_KEYS = ("in_app", "browser")
+class EmailChannel(BaseChannel):
+    """SMTP/inbox transport with double opt-in and kind-aware copy."""
+
+    key = "email"
+
+    def available(self) -> bool:
+        return True
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
+        from app.services import notification_email
+
+        return await notification_email.deliver(ctx)
+
+
+class WebhookChannel(BaseChannel):
+    """Queued HTTP POST transport; the durable queue owns retries."""
+
+    key = "webhook"
+
+    def available(self) -> bool:
+        return True
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
+        from app.services import notification_webhook
+
+        if ctx.db is None or ctx.delivery_id is None:
+            return DeliveryStatus.FAILED.value, "no delivery session"
+        row = await notification_webhook.channel_row(ctx.db, ctx.user_id)
+        public = notification_webhook.public_config(row)
+        if row is None or not public["enabled"] or not public["url"]:
+            return DeliveryStatus.FAILED.value, "webhook channel disabled"
+        await notification_webhook.enqueue_delivery(ctx.db, ctx)
+        return DeliveryStatus.PENDING.value, None
+
+
+_BUILTINS_KEYS = ("in_app", "browser", "email", "webhook")
+
 
 _registry: dict[str, BaseChannel] = {}
 _plugins_loaded = False
@@ -80,6 +122,10 @@ def _ensure_builtins() -> None:
     """
     if "in_app" not in _registry:
         _registry["in_app"] = InAppChannel()
+    if "email" not in _registry:
+        _registry["email"] = EmailChannel()
+    if "webhook" not in _registry:
+        _registry["webhook"] = WebhookChannel()
     if "browser" not in _registry:
         try:
             from app.services.webpush_service import BrowserPushChannel
@@ -151,10 +197,15 @@ def available_channels() -> list[str]:
 
     One build, capabilities declared: the desktop shell registers its
     channel in-process at boot; web deployments carry the `browser`
-    (VAPID) slot.
+    (VAPID) slot. Sorted by the closed registry order so API responses and
+    settings UI are deterministic.
     """
+    from app.models.enums import NotificationChannel
+
     _load_plugins()
-    return [key for key, channel in _registry.items() if channel.available()]
+    order = {member.value: index for index, member in enumerate(NotificationChannel)}
+    keys = [key for key, channel in _registry.items() if channel.available()]
+    return sorted(keys, key=lambda key: (order.get(key, len(order)), key))
 
 
 def within_quiet_hours(quiet: dict | None, now: datetime | None = None) -> bool:

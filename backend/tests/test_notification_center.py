@@ -479,7 +479,7 @@ async def test_stream_endpoint_requires_auth(client):
 async def test_preferences_matrix_shape(client, auth_headers, kinds):
     response = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
     body = response.json()
-    assert body["channels"] == ["in_app", "browser"]
+    assert set(body["channels"]) == {"in_app", "browser", "email", "webhook"}
     groups = {kind["group"] for kind in body["kinds"]}
     assert "career" in groups and "system" in groups
     fit = next(k for k in body["kinds"] if k["key"] == "fit_threshold")
