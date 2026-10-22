@@ -75,6 +75,14 @@ agents):
 - The tool list is the **registry projection** — it always matches the
   assistant's own tools, with their `read`/`write` scopes shown. Read tools
   are always exposed; write tools need the admin write switch.
+- **Resources** give a client read-first entry points:
+  `career://profile` (privacy-minimized digest), `career://applications`
+  (pipeline rows), `career://saved-searches` and `career://cv/{id}` (that
+  CV's items and bullets). They are scoped to the token's owner; a token
+  not bound to a user sees no user-data resources.
+- **Prompts** package the common flows — `tailor_cv_to_posting`,
+  `prepare_interview_plan`, `summarize_my_fit`. They carry references
+  (ids) and instructions, never your data.
 - **Every call is audited** (`mcp_tool_call`, visible in the recent-call
   list) and rate-limited per client host.
 - Admins can also register **external MCP servers** — tools are namespaced,

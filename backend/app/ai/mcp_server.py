@@ -247,6 +247,19 @@ def _registry_tool(key: str):
         return None
 
 
+async def _resource_payload(tool_key: str, args: dict | None = None) -> str:
+    """Run one read tool for the token-bound user and serialize it."""
+    from app.ai.tools import run_tool
+
+    claims = _claims()
+    user_id = _bound_user(claims)
+    if user_id is None:
+        raise ValueError("This resource requires a token bound to a user")
+    async with _session() as db:
+        result = await run_tool(db, tool_key, user_id, args=args or {})
+    return json.dumps(result, indent=2, default=str)
+
+
 def build_mcp_server():
     """The FastMCP server: registry tools + resources + prompts."""
     from fastmcp import FastMCP
@@ -259,9 +272,11 @@ def build_mcp_server():
             "Career Assistant exposes the user's own career data. Read tools "
             "cover the catalog, live postings, profile digests, the "
             "application tracker, deadlines, saved searches, market history "
-            "and fit breakdowns. Write tools appear only for a write-scope "
-            "token while the admin switch is on, and every write is an "
-            "approval card — never a direct mutation."
+            "and fit breakdowns. Resources: career://profile, "
+            "career://applications, career://saved-searches, "
+            "career://cv/{id}. Prompts package the common flows. Write tools "
+            "appear only for a write-scope token while the admin switch is on, "
+            "and every write is an approval card — never a direct mutation."
         ),
         auth=token_verifier(),
     )
@@ -284,6 +299,89 @@ def build_mcp_server():
                 description=tool.description,
                 auth=_read_scope if scope == READ_SCOPE else _write_scope,
             )
+        )
+
+    @mcp.resource(
+        "career://profile",
+        name="Profile digest",
+        description="Privacy-minimized profile overview (name, languages, counts).",
+        mime_type="application/json",
+        auth=_bound_read_scope,
+    )
+    async def profile_resource() -> str:
+        return await _resource_payload("my_profile_digest")
+
+    @mcp.resource(
+        "career://applications",
+        name="Application pipeline",
+        description="The token owner's application rows with stages and dates.",
+        mime_type="application/json",
+        auth=_bound_read_scope,
+    )
+    async def applications_resource() -> str:
+        return await _resource_payload("my_applications")
+
+    @mcp.resource(
+        "career://saved-searches",
+        name="Saved searches",
+        description="Saved searches (query, filters) with their ids.",
+        mime_type="application/json",
+        auth=_bound_read_scope,
+    )
+    async def saved_searches_resource() -> str:
+        return await _resource_payload("my_saved_searches")
+
+    @mcp.resource(
+        "career://cv/{cv_id}",
+        name="CV items",
+        description="One owned CV's item ids and bullets (public-safe fields only).",
+        mime_type="application/json",
+        auth=_bound_read_scope,
+    )
+    async def cv_resource(cv_id: str) -> str:
+        return await _resource_payload("read_cv_items", {"cv_id": cv_id})
+
+    @mcp.prompt(
+        name="tailor_cv_to_posting",
+        description="Plan a CV tailored to one posting (references only).",
+        auth=_read_scope,
+    )
+    def tailor_cv_to_posting(cv_id: str, posting_ref: str) -> str:
+        return (
+            f"Read career://cv/{cv_id} and the posting by its ref "
+            f"({posting_ref}) with get_posting, then my_fit_breakdown for the "
+            "posting. Compare the posting's requirements with the CV's "
+            "bullets and propose concrete bullet/template changes only "
+            "through the write tools, which always create approval cards. "
+            "Never invent experience or metrics."
+        )
+
+    @mcp.prompt(
+        name="prepare_interview_plan",
+        description="Build an interview plan for one application (references only).",
+        auth=_read_scope,
+    )
+    def prepare_interview_plan(application_id: str) -> str:
+        return (
+            f"Read my_application_timeline for application {application_id} to "
+            "learn its stage and history, then my_deadlines. Ask which "
+            "interview format is expected if it is not in the timeline. Base "
+            "the plan on that application's posting (get_posting) and the "
+            "candidate's own evidence — do not invent employers, dates or "
+            "questions attributed to the company."
+        )
+
+    @mcp.prompt(
+        name="summarize_my_fit",
+        description="Explain one fit score from its dimensions (references only).",
+        auth=_read_scope,
+    )
+    def summarize_my_fit(target: str) -> str:
+        return (
+            f"Call my_fit_breakdown with target {target} and narrate ONLY the "
+            "returned dimensions and gate reasons (0-10, higher is better). "
+            "If the result is an estimate (the posting is not deep-extracted) "
+            "say so. Do not re-score or invent numbers."
         )
 
     return mcp

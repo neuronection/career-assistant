@@ -16,6 +16,17 @@ All notable changes to **Career Assistant** are documented here.
   rate-limited and audited. An admin **write-access switch** (default
   off) gates all write tools.
 
+### Added (MCP resources and prompts, 2026-10-22)
+- **MCP clients can browse and plan, not just call tools** (plan 119.3).
+  The server now publishes resources — `career://profile` (a
+  privacy-minimized digest), `career://applications`,
+  `career://saved-searches` and `career://cv/{id}` — and three prompts
+  (`tailor_cv_to_posting`, `prepare_interview_plan`,
+  `summarize_my_fit`). Resources return only the token owner's data;
+  prompts carry references, never data. A token that is not bound to a
+  user sees no user-data resources, and a read-only token never sees a
+  write tool.
+
 ### Added (assistant read parity, 2026-10-22)
 - **The assistant can now answer questions about your own activity** (plan
   119.1). Alongside the application reads from plan 116, chat and MCP
