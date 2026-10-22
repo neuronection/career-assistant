@@ -66,6 +66,8 @@ async def emit_tool_confirmation(
     user_id: uuid.UUID,
     args: Any,
     chat_session_id: uuid.UUID | None = None,
+    source: str = "chat",
+    origin: dict | None = None,
 ) -> dict:
     """Turn one destructive call into its confirmation card. NOTHING
     executes here — the return value is the model-facing reference."""
@@ -82,6 +84,8 @@ async def emit_tool_confirmation(
             "summary": _summary(tool, args_dict),
         },
         chat_session_id=chat_session_id,
+        source=source,
+        origin=origin,
     )
     from app.services.profile_proposal_service import notify_proposals
 

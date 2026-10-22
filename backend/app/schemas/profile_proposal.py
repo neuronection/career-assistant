@@ -254,6 +254,7 @@ class ProfileProposalOut(BaseModel):
     diff: list[dict[str, Any]] = Field(default_factory=list)
     destructive: bool = False
     source: str = "chat"
+    origin: dict[str, Any] = Field(default_factory=dict)
     chat_session_id: UUID | None = None
     chat_message_id: UUID | None = None
     ai_generation_id: UUID | None = None

@@ -35,6 +35,7 @@ def _out(proposal) -> ProfileProposalOut:
         diff=proposal.diff_json or [],
         destructive=proposal.action == "delete",
         source=proposal.source,
+        origin=dict(proposal.origin or {}),
         chat_session_id=proposal.chat_session_id,
         chat_message_id=proposal.chat_message_id,
         ai_generation_id=proposal.ai_generation_id,

@@ -36,6 +36,11 @@ class ToolContext:
     """Per-invocation context handed to tool handlers."""
 
     user_id: uuid.UUID | None = None
+    #: Who invoked the tool (`chat` or `mcp`). A tool that emits a
+    #: Class-B card stamps it as the proposal source.
+    source: str = "chat"
+    #: Provenance for non-chat callers ({token label, request id, …}).
+    origin: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

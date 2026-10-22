@@ -16,6 +16,18 @@ All notable changes to **Career Assistant** are documented here.
   rate-limited and audited. An admin **write-access switch** (default
   off) gates all write tools.
 
+### Added (MCP write scope, 2026-10-22)
+- **MCP can now write — only through approval cards** (plan 119.4). An
+  admin switch (default **off**) plus a per-token `write` scope adds
+  `profile_update`, `application_transition` and `cv_ops`. Every call is
+  an ADR-0015 Class-B card: `profile_update` opens the real profile
+  proposal card with its diff; the other two are confirmation cards that
+  run through the application/CV services on approval. Each card carries
+  its origin (token label + request id), appears in the MCP section's
+  pending list, and is budget-checked, rate-limited and audited like any
+  other call. With the switch off, write tools are absent from the
+  client's tool list.
+
 ### Added (MCP resources and prompts, 2026-10-22)
 - **MCP clients can browse and plan, not just call tools** (plan 119.3).
   The server now publishes resources — `career://profile` (a

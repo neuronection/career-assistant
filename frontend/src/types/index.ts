@@ -681,6 +681,14 @@ export interface ProfileProposalCardData {
   diff: ProfileProposalDiffRow[];
   destructive: boolean;
   source: string;
+  /** Non-chat provenance (ADR-0015): MCP token label + request id. */
+  origin?: {
+    channel?: string;
+    token_id?: string;
+    token_label?: string;
+    request_id?: string;
+    tool?: string;
+  };
   chat_session_id?: string | null;
   created_at: string;
   /** Picker cards (plan 108): the option list rides the payload. */

@@ -47,12 +47,14 @@ def _builtins() -> list[AITool]:
     from app.ai.tools.cv_builder import CV_BUILDER_TOOLS
     from app.ai.tools.cv_synth import CV_SYNTH_TOOLS
     from app.ai.tools.web import WEB_TOOLS
+    from app.ai.tools.writes import WRITE_TOOLS
 
     return [
         *BUILTIN_TOOLS,
         *CV_BUILDER_TOOLS,
         *CV_SYNTH_TOOLS,
         *WEB_TOOLS,
+        *WRITE_TOOLS,
         *BUILTIN_CAPABILITIES,
     ]
 
@@ -268,6 +270,8 @@ async def run_tool(
     args: dict | None = None,
     *,
     chat_session_id=None,
+    source: str = "chat",
+    origin: dict | None = None,
 ) -> Any:
     """Validate args and execute a registry tool (the one executor).
 
@@ -276,7 +280,12 @@ async def run_tool(
     ``destructive`` tools CANNOT execute here — the call becomes an
     ADR-0015 Class-B confirmation card (kind ``tool_execution``) and
     runs only through that card's idempotent resolve (never by calling
-    this function again, whatever the model does with the result)."""
+    this function again, whatever the model does with the result).
+
+    ``hitl=True`` marks a tool whose handler only *emits* a Class-B card
+    (a real proposal, e.g. an MCP ``profile_update``) and never mutates
+    user data itself: it runs without a catalog grant because nothing
+    happens until the user approves the card."""
     tool = get_tool(key)
     if tool.kind != "tool":
         raise DomainError(f"Not a callable tool: {key}")
@@ -284,7 +293,7 @@ async def run_tool(
     if tool.requires_user and user_id is None:
         raise PermissionDeniedError(f"Tool {key} requires a signed-in user")
     risk = tool.effective_risk_class
-    if risk is ToolRiskClass.STATE_CHANGING:
+    if risk is ToolRiskClass.STATE_CHANGING and not tool.hitl:
         from app.ai.tools.grants import has_grant
 
         if user_id is None or not await has_grant(db, user_id, tool.key):
@@ -305,7 +314,13 @@ async def run_tool(
             user_id=user_id,
             args=parsed,
             chat_session_id=chat_session_id,
+            source=source,
+            origin=origin,
         )
     handler = tool.handler
     assert handler is not None, "callable tools always carry a handler"
-    return await handler(db, ToolContext(user_id=user_id), parsed)
+    return await handler(
+        db,
+        ToolContext(user_id=user_id, source=source, origin=dict(origin or {})),
+        parsed,
+    )

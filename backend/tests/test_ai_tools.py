@@ -80,6 +80,10 @@ def test_builtin_registry_declarations():
         "my_saved_searches",
         "market_trend",
         "my_fit_breakdown",
+        # — MCP write surface (plan 119.4; cards only, never direct writes)
+        "profile_update",
+        "application_transition",
+        "cv_ops",
         # — web tools family (plan 80)
         "web_search",
         "fetch_url",
@@ -98,9 +102,16 @@ def test_builtin_registry_declarations():
             "variant_pin",
             "set_application_stage",
             "add_application_note",
+            "profile_update",
+            "application_transition",
+            "cv_ops",
         )
     )
     assert non_cv["my_notifications"]["scope"] == "write"
+    assert non_cv["profile_update"]["scope"] == "write"
+    assert non_cv["profile_update"]["hitl"] is True
+    assert non_cv["application_transition"]["risk_class"] == "destructive"
+    assert listed["cv_ops"]["risk_class"] == "destructive"
     assert non_cv["variant_pin"]["scope"] == "write"
     assert non_cv["set_application_stage"]["scope"] == "write"
     assert non_cv["add_application_note"]["scope"] == "write"

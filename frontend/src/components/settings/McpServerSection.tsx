@@ -5,10 +5,16 @@ import { Check, Copy, KeyRound, Loader2, Plus, RefreshCw, RotateCw, Trash2 } fro
 import * as mcpApi from "@/api/mcp";
 import type { McpAuditRow, McpStatus, McpTokenMinted, McpTokenView } from "@/api/mcp";
 import { apiDetail } from "@/api/client";
+import {
+  approveProfileProposal,
+  fetchProfileProposals,
+  rejectProfileProposal,
+} from "@/api/profileProposals";
 import { Button } from "@/components/ui";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { SegmentedTabs } from "@/components/ui";
 import { copyText } from "@/lib/clipboard";
+import type { ProfileProposalCardData } from "@/types";
 
 const TOKEN_PLACEHOLDER = "YOUR_MCP_TOKEN";
 
@@ -60,6 +66,7 @@ export function McpServerSection() {
   const [status, setStatus] = useState<McpStatus | null>(null);
   const [tokens, setTokens] = useState<McpTokenView[]>([]);
   const [audit, setAudit] = useState<McpAuditRow[]>([]);
+  const [proposals, setProposals] = useState<ProfileProposalCardData[]>([]);
   const [minted, setMinted] = useState<McpTokenMinted | null>(null);
   const [label, setLabel] = useState("");
   const [writeScope, setWriteScope] = useState(false);
@@ -81,6 +88,12 @@ export function McpServerSection() {
       setError("");
     } catch (err) {
       setError(errorText(err, t("toolsSettings.mcp.loadError")));
+    }
+    try {
+      const { proposals: rows } = await fetchProfileProposals("pending");
+      setProposals(rows.filter((row) => row.source === "mcp"));
+    } catch {
+      setProposals([]);
     }
   }, [t]);
 
@@ -135,6 +148,16 @@ export function McpServerSection() {
     run(`revoke-${id}`, async () => {
       await mcpApi.revokeMcpToken(id);
       if (minted?.id === id) setMinted(null);
+      await reload();
+    });
+
+  const resolve = (id: string, action: "approve" | "reject") =>
+    run(`${action}-${id}`, async () => {
+      if (action === "approve") {
+        await approveProfileProposal(id);
+      } else {
+        await rejectProfileProposal(id);
+      }
       await reload();
     });
 
@@ -354,6 +377,51 @@ export function McpServerSection() {
           <p className="text-[11px] text-amber-700">{t("toolsSettings.mcp.writeToolsNote")}</p>
         ) : null}
       </div>
+
+      {proposals.length > 0 ? (
+        <div className="space-y-2" data-testid="mcp-pending-proposals">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t("toolsSettings.mcp.pendingTitle", { count: proposals.length })}
+          </h4>
+          <ul className="space-y-1">
+            {proposals.map((proposal) => (
+              <li
+                key={proposal.id}
+                className="rounded border border-slate-200 px-3 py-2 text-xs"
+                data-testid={`mcp-proposal-${proposal.id}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{proposal.title}</span>
+                  <span className="ml-auto text-[10px] text-slate-500">
+                    {proposal.origin?.token_label
+                      ? t("toolsSettings.mcp.origin", {
+                          token: proposal.origin.token_label,
+                          request: proposal.origin.request_id?.slice(0, 8) ?? "—",
+                        })
+                      : t("toolsSettings.mcp.originUnknown")}
+                  </span>
+                </div>
+                <div className="mt-1 flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => void resolve(proposal.id, "approve")}
+                    data-testid={`mcp-approve-${proposal.id}`}
+                  >
+                    {t("toolsSettings.mcp.approve")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void resolve(proposal.id, "reject")}
+                  >
+                    {t("toolsSettings.mcp.reject")}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">

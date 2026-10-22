@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { McpServerSection } from "@/components/settings/McpServerSection";
 import type { McpAuditRow, McpStatus, McpTokenView } from "@/api/mcp";
+import type { ProfileProposalCardData } from "@/types";
 
 const api = vi.hoisted(() => ({
   fetchMcpStatus: vi.fn(),
@@ -15,7 +16,14 @@ const api = vi.hoisted(() => ({
   setMcpWriteEnabled: vi.fn(),
 }));
 
+const proposalsApi = vi.hoisted(() => ({
+  fetchProfileProposals: vi.fn(),
+  approveProfileProposal: vi.fn(),
+  rejectProfileProposal: vi.fn(),
+}));
+
 vi.mock("@/api/mcp", () => api);
+vi.mock("@/api/profileProposals", () => proposalsApi);
 
 const STATUS: McpStatus = {
   endpoint: "https://career.example/mcp",
@@ -55,6 +63,23 @@ const TOKEN: McpTokenView = {
   active: true,
 };
 
+const PROPOSAL: ProfileProposalCardData = {
+  id: "prop-mcp-1",
+  kind: "tool_execution",
+  action: "create",
+  status: "pending",
+  title: "Move an application's stage",
+  diff: [],
+  destructive: true,
+  source: "mcp",
+  origin: {
+    channel: "mcp",
+    token_label: "MCP CLI",
+    request_id: "12345678-abcd",
+  },
+  created_at: "2026-10-22T09:00:00Z",
+};
+
 const AUDIT: McpAuditRow = {
   id: "audit-1",
   tool: "my_applications",
@@ -87,6 +112,12 @@ beforeEach(() => {
     token: "rotated-secret",
   });
   api.revokeMcpToken.mockResolvedValue(undefined);
+  proposalsApi.fetchProfileProposals.mockResolvedValue({
+    proposals: [PROPOSAL],
+    pending_count: 1,
+  });
+  proposalsApi.approveProfileProposal.mockResolvedValue({});
+  proposalsApi.rejectProfileProposal.mockResolvedValue({});
 });
 
 describe("MCP server settings (plan 119.2/119.4)", () => {
@@ -142,6 +173,16 @@ describe("MCP server settings (plan 119.2/119.4)", () => {
 
     await user.click(screen.getByTestId("mcp-revoke-tok-1"));
     expect(api.revokeMcpToken).toHaveBeenCalledWith("tok-1");
+  });
+
+  it("renders MCP-originated cards with their token provenance and resolves them", async () => {
+    const user = userEvent.setup();
+    render(<McpServerSection />);
+    const card = await screen.findByTestId("mcp-proposal-prop-mcp-1");
+    expect(card).toHaveTextContent("MCP CLI");
+    expect(card).toHaveTextContent("request 12345678");
+    await user.click(screen.getByTestId("mcp-approve-prop-mcp-1"));
+    expect(proposalsApi.approveProfileProposal).toHaveBeenCalledWith("prop-mcp-1");
   });
 
   it("shows the generic client snippet with a token placeholder", async () => {

@@ -186,7 +186,20 @@ def _dynamic_handler(tool):
         async with _session() as db:
             await enforce_budgets(db, AITaskType.MCP_TOOL_CALL, user_id)
             try:
-                result = await run_tool(db, tool.key, user_id, args=dict(kwargs))
+                result = await run_tool(
+                    db,
+                    tool.key,
+                    user_id,
+                    args=dict(kwargs),
+                    source="mcp",
+                    origin={
+                        "channel": "mcp",
+                        "token_id": claims.get("token_id"),
+                        "token_label": label,
+                        "request_id": request_id,
+                        "tool": tool.key,
+                    },
+                )
                 payload = json.loads(json.dumps(result, default=str))
             except Exception as exc:
                 await _audit_call(

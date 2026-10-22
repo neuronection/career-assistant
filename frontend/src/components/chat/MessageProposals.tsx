@@ -102,6 +102,17 @@ function ProposalCard({
 
   return (
     <div data-testid={`hitl-card-${card.id}`}>
+      {card.origin?.token_label || card.source === "mcp" ? (
+        <p
+          className="mb-1 text-[11px] text-[var(--as-muted-fg)]"
+          data-testid={`hitl-origin-${card.id}`}
+        >
+          {t("chat.proposals.originMcp", {
+            token: card.origin?.token_label || t("chat.proposals.originMcpUnknown"),
+            request: (card.origin?.request_id ?? "").slice(0, 8) || "—",
+          })}
+        </p>
+      ) : null}
       <HitlProposalCard
         title={card.title}
         status={state.status}

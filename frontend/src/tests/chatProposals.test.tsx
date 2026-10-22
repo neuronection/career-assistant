@@ -93,6 +93,26 @@ describe("MessageProposals / ProposalCards", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
   });
 
+  it("renders MCP origin provenance on MCP-sourced cards only (plan 119.4)", () => {
+    const mcpCard: ProfileProposalCardData = {
+      ...CARD,
+      id: "prop-mcp",
+      source: "mcp",
+      origin: {
+        channel: "mcp",
+        token_label: "Claude Desktop",
+        request_id: "abcdef12-3456",
+      },
+    };
+    const { rerender } = render(<MessageProposals message={messageWith([CARD])} />);
+    expect(screen.queryByTestId(`hitl-origin-${CARD.id}`)).toBeNull();
+
+    rerender(<MessageProposals message={messageWith([mcpCard])} />);
+    const origin = screen.getByTestId("hitl-origin-prop-mcp");
+    expect(origin).toHaveTextContent("Claude Desktop");
+    expect(origin).toHaveTextContent("abcdef12");
+  });
+
   it("renders nothing without proposals", () => {
     const { container } = render(
       <MessageProposals message={messageWith([])} />,

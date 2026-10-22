@@ -714,6 +714,7 @@ def proposal_event(proposal: ProfileProposal) -> dict:
             or proposal.kind == ProposalKind.TOOL_EXECUTION.value
         ),
         "source": proposal.source,
+        "origin": dict(proposal.origin or {}),
         "chat_session_id": (str(proposal.chat_session_id) if proposal.chat_session_id else None),
         "created_at": proposal.created_at.isoformat(),
     }
@@ -1258,6 +1259,7 @@ class ProfileProposalService:
         payload: dict,
         entity_id: uuid.UUID | None = None,
         source: str = "chat",
+        origin: dict | None = None,
         edit_ops: dict | None = None,
         chat_session_id: uuid.UUID | None = None,
         chat_message_id: uuid.UUID | None = None,
@@ -1265,8 +1267,9 @@ class ProfileProposalService:
     ) -> ProfileProposal:
         """Validate one op against its REST schema and persist the card.
 
-        ``edit_ops`` (plan 99.2) carries the raw anchored-edit
-        instructions; they merge into ``payload_json`` after schema
+        ``origin`` carries non-chat provenance (MCP token label + request
+        id) for the ADR-0015 audit requirement. ``edit_ops`` (plan 99.2)
+        carries the raw anchored-edit instructions; they merge into ``payload_json`` after schema
         validation (the REST schema stays clean) for audit, card copy
         and preview highlighting.
         """
@@ -1459,6 +1462,7 @@ class ProfileProposalService:
             diff_json=diff,
             status=ProposalStatus.PENDING.value,
             source=source,
+            origin=dict(origin or {}),
             chat_session_id=chat_session_id,
             chat_message_id=chat_message_id,
             ai_generation_id=ai_generation_id,

@@ -103,8 +103,7 @@ async def test_bridge_admin_api_round_trip(
         headers=client_admin_headers,
     )
     assert enabled.status_code == 200
-    assert enabled.json()["write_enabled"] is True
-    assert isinstance(enabled.json()["write_tools"], list)
+    assert "application_transition" in enabled.json()["write_tools"]
 
     listed = await client.get("/api/v1/ai/mcp/tokens", headers=client_admin_headers)
     assert [row["label"] for row in listed.json()] == ["Desktop"]

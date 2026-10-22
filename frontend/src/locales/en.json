@@ -1365,7 +1365,12 @@
       "writeToolsNote": "Write tools are visible because write access is on. Calls never mutate directly — they produce approval cards below.",
       "auditTitle": "Recent MCP calls",
       "refresh": "Refresh",
-      "noCalls": "No MCP calls recorded yet."
+      "noCalls": "No MCP calls recorded yet.",
+      "pendingTitle": "Pending MCP approvals ({{count}})",
+      "origin": "from {{token}} · request {{request}}",
+      "originUnknown": "origin unavailable",
+      "approve": "Approve",
+      "reject": "Reject"
     }
   },
   "onboarding": {
@@ -2445,7 +2450,9 @@
         "languages": "Languages",
         "interests": "Interests",
         "posting": "Target posting"
-      }
+      },
+      "originMcp": "from MCP token {{token}} · request {{request}}",
+      "originMcpUnknown": "unknown"
     },
     "attach": {
       "open": "Attach a CV as reference",

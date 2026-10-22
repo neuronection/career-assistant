@@ -85,6 +85,12 @@ agents):
   (ids) and instructions, never your data.
 - **Every call is audited** (`mcp_tool_call`, visible in the recent-call
   list) and rate-limited per client host.
+- **Writes are approval cards, never direct changes.** While an admin has
+  write access on, a write-scope token sees `profile_update`,
+  `application_transition` and `cv_ops`. Each call creates a pending card
+  in the MCP section of the settings page (with its token label and request
+  id as origin); approving it applies the change through the same service
+  the app's forms use. Read-only tokens never see these tools.
 - Admins can also register **external MCP servers** — tools are namespaced,
   disabled by default, enabled per tool, and every invocation is audited and
   budgeted.
