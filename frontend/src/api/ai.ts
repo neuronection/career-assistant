@@ -335,8 +335,10 @@ export interface SearchProvider {
   type: string;
   enabled: boolean;
   base_url: string;
+  google_cx: string | null;
   key_hint: string | null;
   max_results: number;
+  timeout_ms: number;
   key_set: boolean;
 }
 
@@ -352,6 +354,12 @@ export interface SearchProviderCatalog {
       baseUrlRequired: boolean;
       baseUrlHint?: string | null;
       notes?: string | null;
+      fields?: Array<{
+        id: string;
+        label: string;
+        required: boolean;
+        placeholder?: string | null;
+      }>;
     }
   >;
 }
@@ -377,6 +385,7 @@ export async function createSearchProvider(body: {
   type: string;
   name?: string | null;
   base_url?: string | null;
+  google_cx?: string | null;
   api_key?: string | null;
 }): Promise<SearchProvider> {
   const { data } = await api.post<SearchProvider>("/ai/web/search-providers", body);
@@ -388,6 +397,7 @@ export async function updateSearchProvider(
   body: {
     name?: string | null;
     base_url?: string | null;
+    google_cx?: string | null;
     enabled?: boolean | null;
     api_key?: string | null;
   },

@@ -23,6 +23,11 @@ connector's declared cap wins when lower), ``connector_max_response_mb``,
 
 from __future__ import annotations
 
+import asyncio
+import json
+from collections.abc import Awaitable, Callable
+from urllib.parse import urlparse
+
 import httpx
 
 from app.core.config import settings
@@ -32,6 +37,10 @@ from app.extensions.sdk import HttpTransport
 _robots: polite_http.RobotsCache | None = None
 _limiters: dict[int, polite_http.HostRateLimiter] = {}
 _client: httpx.AsyncClient | None = None
+
+SearchTransport = Callable[
+    [str, str, dict[str, str], dict | None], Awaitable[polite_http.PoliteResponse]
+]
 
 
 def _http_client() -> httpx.AsyncClient:
@@ -163,5 +172,146 @@ def build_transport(
             rate=limiter,
             robots=_robots,
         )
+
+    return transport
+
+
+def build_search_transport(
+    *,
+    domains: frozenset[str] | None = None,
+    requests_per_minute: int | None = None,
+    client: httpx.AsyncClient | None = None,
+    config: polite_http.PoliteHttpConfig | None = None,
+    resolver: polite_http.Resolver | None = None,
+) -> SearchTransport:
+    """The guarded transport behind the keyed web-search providers.
+
+    Same discipline as the connector runtime — resolve-then-connect SSRF
+    guard, declared-domain scope, per-host token bucket, DNS-rebinding
+    pinning, response caps and retry/backoff — with one deliberate
+    difference: redirects are REFUSED rather than followed. A keyed search
+    POST that redirects would hand the provider key to the redirect
+    target, so a 3xx is a typed provider error. robots.txt is not
+    consulted: these are authenticated API calls, not crawls.
+    """
+    cfg = config or _base_config()
+    rpm = max(1, min(int(requests_per_minute or cfg.requests_per_minute), cfg.requests_per_minute))
+    limiter = _rate_limiter(rpm)
+    scoped = polite_http.PoliteHttpConfig(
+        guard=cfg.guard,
+        domains=domains or frozenset(),
+        requests_per_minute=rpm,
+        max_response_bytes=cfg.max_response_bytes,
+        connect_timeout=cfg.connect_timeout,
+        read_timeout=cfg.read_timeout,
+        max_retries=cfg.max_retries,
+        max_redirects=cfg.max_redirects,
+        user_agent=cfg.user_agent,
+        respect_robots=False,
+        pin_resolved_address=cfg.pin_resolved_address,
+    )
+    http = client or _http_client()
+
+    async def transport(
+        method: str, url: str, headers: dict[str, str], body: dict | None = None
+    ) -> polite_http.PoliteResponse:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if not host:
+            raise polite_http.PoliteHttpError("net-denied", "search URL has no host")
+        if parsed.username or parsed.password:
+            raise polite_http.PoliteHttpError("net-denied", "URLs with credentials are not allowed")
+        if scoped.domains and not any(
+            polite_http.host_matches_domain(host, domain) for domain in scoped.domains
+        ):
+            raise polite_http.PoliteHttpError(
+                "net-denied", f"host {host} is outside the declared domain scope"
+            )
+        resolved = await polite_http.assert_safe_url(url, config=scoped.guard, resolver=resolver)
+        wait = limiter.acquire(host)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        request_url = url
+        extra_headers: dict[str, str] = {}
+        extensions: dict[str, object] = {}
+        if scoped.pin_resolved_address:
+            request_url, extra_headers, extensions = polite_http.pinned_request_parts(url, resolved)
+        merged = {"User-Agent": scoped.user_agent, "Accept": "application/json"}
+        if body is not None:
+            merged["Content-Type"] = "application/json"
+        merged.update(dict(headers or {}))
+        merged.update(extra_headers)
+        payload = json.dumps(body).encode() if body is not None else None
+        attempt = 0
+        last_retry_after: float | None = None
+        while True:
+            request = http.build_request(
+                method.upper(), request_url, headers=merged, content=payload
+            )
+            if extensions:
+                request.extensions.update(extensions)
+            try:
+                response = await http.send(request, stream=True)
+            except (httpx.RequestError, OSError) as exc:
+                await polite_http._quiet_close(None)
+                attempt += 1
+                if attempt >= scoped.max_retries:
+                    raise polite_http.PoliteHttpError(
+                        "unreachable", f"network error contacting {host}: {exc}"
+                    ) from exc
+                await asyncio.sleep(polite_http.backoff_delay(attempt))
+                continue
+            status = response.status_code
+            if 300 <= status < 400:
+                await polite_http._quiet_close(response)
+                raise polite_http.PoliteHttpError(
+                    "provider",
+                    f"{host} redirected a keyed search request — refusing to follow",
+                    status=status,
+                )
+            if status in (401, 403):
+                await polite_http._quiet_close(response)
+                raise polite_http.PoliteHttpError(
+                    "auth", f"{host} returned {status} (credentials rejected)", status=status
+                )
+            if status == 429 or status >= 500:
+                attempt += 1
+                wait_seconds = polite_http.parse_retry_after(response.headers.get("Retry-After"))
+                if status == 429 and wait_seconds is not None:
+                    last_retry_after = wait_seconds
+                if wait_seconds is None:
+                    wait_seconds = polite_http.backoff_delay(attempt)
+                await polite_http._quiet_close(response)
+                if attempt >= scoped.max_retries:
+                    if status == 429:
+                        raise polite_http.PoliteHttpError(
+                            "rate-limited",
+                            f"rate limited by {host} after {scoped.max_retries} attempts",
+                            retry_after_ms=(
+                                int(last_retry_after * 1000)
+                                if last_retry_after is not None
+                                else None
+                            ),
+                            status=status,
+                        )
+                    raise polite_http.PoliteHttpError(
+                        "provider", f"{host} returned {status} after retries", status=status
+                    )
+                await asyncio.sleep(wait_seconds)
+                continue
+            body_text, truncated = await polite_http._read_capped(
+                response, scoped.max_response_bytes
+            )
+            result = polite_http.PoliteResponse(
+                status=status,
+                body=body_text,
+                etag=response.headers.get("ETag"),
+                last_modified=response.headers.get("Last-Modified"),
+                url=url,
+                truncated=truncated,
+                headers=dict(response.headers),
+            )
+            await polite_http._quiet_close(response)
+            return result
 
     return transport

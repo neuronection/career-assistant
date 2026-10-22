@@ -583,6 +583,8 @@ class SearchProviderIn(BaseModel):
     base_url: str | None = Field(default=None, max_length=500)
     enabled: bool | None = None
     max_results: int | None = Field(default=None, ge=1, le=10)
+    timeout_ms: int | None = Field(default=None, ge=500, le=30_000)
+    google_cx: str | None = Field(default=None, max_length=120)
     api_key: str | None = Field(default=None, max_length=500)
 
 
@@ -592,8 +594,10 @@ class SearchProviderOut(BaseModel):
     type: str
     enabled: bool
     base_url: str
+    google_cx: str | None = None
     key_hint: str | None = None
     max_results: int = 5
+    timeout_ms: int = 8000
     key_set: bool = False
 
 
@@ -728,8 +732,11 @@ async def test_search_provider(
             result_count=probe.get("result_count"),
             error=probe.get("detail") or probe.get("status"),
         )
-    _ = await provider_api_key(db, provider_id)  # keyed transports land with guarded adapters
-    raise HTTPException(status_code=422, detail="no guarded adapter for this provider type yet")
+    from app.extensions.search_adapters import probe_provider
+
+    key = await provider_api_key(db, provider_id)
+    probe = await probe_provider(provider, api_key=key)
+    return SearchProviderProbeOut(**probe)
 
 
 @router.post("/embeddings/recompute")

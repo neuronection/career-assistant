@@ -1319,13 +1319,14 @@
       "connectors": "Verbindungen"
     },
     "webSearch": {
-      "hint": "Geordnete Anbieterinstanzen, die die SUCH- und ABFRUFS-Recherchewerkzeuge verwenden — der erste, der antwortet, gewinnt. Career bietet die Suche über seinen eigenen, sicheren (SSRF-geschützten) Client an.",
+      "hint": "Geordnete Anbieterinstanzen, die die SUCH- und ABFRUFS-Recherchewerkzeuge verwenden — der erste, der antwortet, gewinnt. SearXNG nutzt den SSRF-geschützten Client; Anbieter mit Schlüssel (Tavily, Brave, Exa, Serper, Google PSE) nutzen den geschützten POST-Transport.",
       "add": "Anbieter hinzufügen",
       "empty": "Noch keine Websuche-Anbieter — fügen Sie einen hinzu, um die Recherchewerkzeuge zu nutzen.",
       "name": "Name (optional)",
       "type": "Anbietertyp",
       "baseUrl": "Basis-URL (optional)",
       "baseUrlRequired": "Basis-URL (erforderlich)",
+      "googleCx": "Programmable-Search-Engine-ID (cx)",
       "key": "API-Schlüssel",
       "keyOptional": "API-Schlüssel (optional)",
       "keyStored": "API-Schlüssel gespeichert",

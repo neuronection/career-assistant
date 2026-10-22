@@ -15,16 +15,20 @@ import { Button } from "@/components/ui";
 
 // Tools → web search (ADR-0033 domain tools.web-search): the family
 // multi-provider shape (ADR-0035 / plan 28 Phase 4) — an ordered list; the
-// first enabled provider that answers wins. Career serves it through its
-// SSRF-guarded searxng transport (plan 80); keyed POST providers join when
-// guarded adapters land. The form renders from the vendored catalog.
+// first enabled provider that answers wins. SearXNG rides career's
+// SSRF-guarded GET client; keyed providers (Tavily, Brave, Exa, Serper,
+// Google PSE) ride the guarded search transport (plan 122). The form
+// renders from the vendored catalog.
 type Draft = {
   id: string | null;
   type: string;
   name: string;
   base_url: string;
+  google_cx: string;
   api_key: string;
 };
+
+const catalogType = (type: string) => (type === "google_pse" ? "google-pse" : type);
 
 const PROBE_LABEL_KEYS: Record<string, string> = {
   ok: "toolsSettings.webSearch.probeOk",
@@ -66,6 +70,7 @@ export function WebSearchSection() {
         type: form.type,
         name: form.name.trim() || null,
         base_url: form.base_url.trim() || null,
+        google_cx: form.google_cx.trim() || null,
         api_key: form.api_key.trim() === "" ? null : form.api_key.trim(),
       };
       if (form.id) {
@@ -137,10 +142,12 @@ export function WebSearchSection() {
     }
   };
 
-  const catalogEntry = (type: string) => catalog?.providers[type];
+  const catalogEntry = (type: string) => catalog?.providers[catalogType(type)];
   const entry = draft ? catalogEntry(draft.type) : undefined;
   const saveDisabled =
-    busy || (entry?.baseUrlRequired === true && draft?.base_url.trim() === "");
+    busy ||
+    (entry?.baseUrlRequired === true && draft?.base_url.trim() === "") ||
+    (draft?.type === "google-pse" && draft?.google_cx.trim() === "");
 
   return (
     <div className="space-y-6" data-testid="web-search-section">
@@ -228,9 +235,10 @@ export function WebSearchSection() {
                 onClick={() =>
                   setDraft({
                     id: provider.id,
-                    type: provider.type,
+                    type: catalogType(provider.type),
                     name: provider.name,
                     base_url: provider.base_url ?? "",
+                    google_cx: provider.google_cx ?? "",
                     api_key: "",
                   })
                 }
@@ -272,6 +280,7 @@ export function WebSearchSection() {
               type: catalog?.providerOrder[0] ?? "searxng",
               name: "",
               base_url: "",
+              google_cx: "",
               api_key: "",
             })
           }
@@ -336,6 +345,14 @@ export function WebSearchSection() {
               onChange={(event) => setDraft({ ...draft, api_key: event.target.value })}
             />
           </div>
+          {draft.type === "google-pse" ? (
+            <input
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder={t("toolsSettings.webSearch.googleCx")}
+              value={draft.google_cx}
+              onChange={(event) => setDraft({ ...draft, google_cx: event.target.value })}
+            />
+          ) : null}
           {entry?.notes ? (
             <p className="text-[11px] text-slate-500">{entry.notes}</p>
           ) : null}

@@ -165,15 +165,43 @@ async def test_search_providers_crud_roundtrip(client, db, client_admin_headers)
 
 
 @pytest.mark.asyncio
-async def test_search_providers_reject_bad_input(client, client_admin_headers):
+async def test_search_providers_accept_keyed_types_and_reject_bad_input(
+    client, client_admin_headers
+):
     headers = client_admin_headers
+    keyed = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={"type": "tavily", "api_key": "tvly-secret"},
+    )
+    assert keyed.status_code == 201, keyed.text
+    assert keyed.json()["type"] == "tavily"
+    assert keyed.json()["base_url"] == "https://api.tavily.com"
+    assert keyed.json()["key_set"] is True
     unknown_type = await client.post(
         "/api/v1/ai/web/search-providers",
         headers=headers,
-        json={"type": "tavily", "base_url": "https://api.tavily.com", "api_key": "k"},
+        json={"type": "altavista", "base_url": "https://altavista.example"},
     )
-    # keyed POST providers wait for guarded adapters (career Phase 4 note)
     assert unknown_type.status_code == 422
+    missing_cx = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={"type": "google_pse", "api_key": "AIza-secret"},
+    )
+    assert missing_cx.status_code == 422
+    catalog_type = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={
+            "type": "google-pse",
+            "google_cx": "a1b2c3d4e5f6g7h8j",
+            "api_key": "AIza-secret",
+        },
+    )
+    assert catalog_type.status_code == 201, catalog_type.text
+    assert catalog_type.json()["type"] == "google_pse"
+    assert catalog_type.json()["google_cx"] == "a1b2c3d4e5f6g7h8j"
     missing_base = await client.post(
         "/api/v1/ai/web/search-providers", headers=headers, json={"type": "searxng"}
     )

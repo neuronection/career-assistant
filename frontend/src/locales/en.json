@@ -1319,13 +1319,14 @@
       "connectors": "Connectors"
     },
     "webSearch": {
-      "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. Career serves search through its own hardened (SSRF-guarded) client.",
+      "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. SearXNG rides the SSRF-guarded client; keyed providers (Tavily, Brave, Exa, Serper, Google PSE) ride the guarded POST transport.",
       "add": "Add provider",
       "empty": "No web search providers yet — add one to power the research tools.",
       "name": "Name (optional)",
       "type": "Provider type",
       "baseUrl": "Base URL (optional)",
       "baseUrlRequired": "Base URL (required)",
+      "googleCx": "Programmable Search engine id (cx)",
       "key": "API key",
       "keyOptional": "API key (optional)",
       "keyStored": "API key stored",

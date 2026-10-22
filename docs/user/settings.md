@@ -45,9 +45,12 @@ until an admin adds a provider.
 ## Tools (`/settings/tools`)
 
 Admin-only integration switches, scoped to the `tools.*` settings domain:
-**Web search** (the provider and key the AI's web tools use) and
+**Web search** (the ordered providers and keys the AI's web tools use) and
 **Connectors** (the bundled posting sources, their credentials and sync
-state, plus the extension sources imported from git). See
+state, plus the extension sources imported from git). Web search ships
+SearXNG plus five keyed providers — Tavily, Brave, Exa, Serper and Google
+Programmable Search; the first enabled provider that answers wins, and a
+**Test** button probes each row with a typed result. See
 [Add a job source](add-a-job-source.md) and
 [Import extensions from git](import-extensions-from-git.md).
 

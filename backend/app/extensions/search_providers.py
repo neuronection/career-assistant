@@ -6,10 +6,12 @@ Fernet-encrypted inside the setting row (never returned), lazy migration
 from the pre-plan-28 single `web.searxng_url` value, and ordered-fallback
 search (first enabled provider that answers wins).
 
-The wire transport stays career's own: SearXNG search runs through the
-SSRF-guarded `webfetch` client (plan 80 trust boundary — app policy, not
-contract). Only the searxng type is offered until guarded adapters exist
-for the POST-style providers; the vendored catalog gates the UI.
+SearXNG keeps career's own SSRF-guarded GET client (plan 80); the keyed
+providers (Tavily, Brave, Exa, Serper, Google Programmable Search) run
+through the guarded search transport in
+:mod:`app.extensions.runtime.http` (SSRF/egress guard, sealed key slots,
+response caps, refused redirects) and the adapters in
+:mod:`app.extensions.search_adapters`. The vendored catalog gates the UI.
 """
 
 from __future__ import annotations
@@ -25,9 +27,25 @@ from app.models.settings_model import AppSetting
 SETTING_KEY = "web.search_providers"
 LEGACY_SETTING_KEY = "web.searxng_url"
 
-# Career's guarded transport covers searxng today; keyed POST providers
-# (tavily/brave/exa/serper/google-pse) join when guarded adapters land.
-SUPPORTED_TYPES = ("searxng",)
+SUPPORTED_TYPES = ("searxng", "tavily", "brave", "exa", "serper", "google_pse")
+DEFAULT_BASE_URLS = {
+    "tavily": "https://api.tavily.com",
+    "brave": "https://api.search.brave.com/res/v1",
+    "exa": "https://api.exa.ai",
+    "serper": "https://google.serper.dev",
+    "google_pse": "https://www.googleapis.com/customsearch/v1",
+}
+BASE_URL_REQUIRED = ("searxng",)
+PROVIDER_LABELS = {
+    "searxng": "SearXNG",
+    "tavily": "Tavily",
+    "brave": "Brave Search",
+    "exa": "Exa",
+    "serper": "Serper (Google)",
+    "google_pse": "Google Programmable Search",
+}
+_TYPE_ALIASES = {"google-pse": "google_pse", "google_pse": "google_pse"}
+DEFAULT_TIMEOUT_MS = 8000
 
 LEGACY_PROVIDER_ID = "legacy"
 
@@ -39,6 +57,11 @@ class SearchProviderError(Exception):
         self.kind = kind
         self.message = message
         super().__init__(message)
+
+
+def canonical_type(value: str) -> str:
+    token = str(value or "").strip()
+    return _TYPE_ALIASES.get(token, token)
 
 
 def provider_key_hint(api_key: str) -> str:
@@ -71,29 +94,47 @@ def _normalize(raw: dict) -> dict:
     provider_id = str(raw.get("id", "")).strip()
     if not provider_id:
         raise SearchProviderError("bad_request", "provider id is required")
-    p_type = str(raw.get("type", "")).strip()
+    p_type = canonical_type(str(raw.get("type", "")))
     if p_type not in SUPPORTED_TYPES:
         raise SearchProviderError(
             "unknown_type",
-            f"provider type must be one of {list(SUPPORTED_TYPES)} "
-            "(keyed POST providers join when guarded adapters land)",
+            f"provider type must be one of {list(SUPPORTED_TYPES)}",
         )
-    name = str(raw.get("name", "") or "").strip() or "SearXNG"
+    name = str(raw.get("name", "") or "").strip() or PROVIDER_LABELS[p_type]
     base_url = str(raw.get("base_url", "") or "").strip().rstrip("/")
-    if not base_url.startswith(("http://", "https://")):
-        raise SearchProviderError("missing_config", "a base URL is required")
+    if base_url and not base_url.startswith(("http://", "https://")):
+        raise SearchProviderError("bad_request", "base_url must be an http(s) URL")
+    if not base_url and p_type in BASE_URL_REQUIRED:
+        raise SearchProviderError(
+            "missing_config",
+            "SearXNG needs a base URL (self-hosted instance)",
+        )
+    if not base_url:
+        base_url = DEFAULT_BASE_URLS[p_type]
+    google_cx = str(raw.get("google_cx", "") or "").strip() or None
+    if p_type == "google_pse" and not google_cx:
+        raise SearchProviderError(
+            "missing_config",
+            "Google Programmable Search needs an engine id (cx)",
+        )
     try:
         max_results = int(raw.get("max_results", 5))
     except (TypeError, ValueError):
         max_results = 5
+    try:
+        timeout_ms = int(raw.get("timeout_ms", DEFAULT_TIMEOUT_MS))
+    except (TypeError, ValueError):
+        timeout_ms = DEFAULT_TIMEOUT_MS
     return {
         "id": provider_id,
         "name": name,
         "type": p_type,
         "enabled": bool(raw.get("enabled", True)),
         "base_url": base_url,
+        "google_cx": google_cx,
         "key_hint": str(raw.get("key_hint", "") or "").strip() or None,
         "max_results": max(1, min(max_results, 10)),
+        "timeout_ms": max(500, min(timeout_ms, 30_000)),
         "api_key_enc": str(raw.get("api_key_enc", "") or "") or None,
     }
 
@@ -206,13 +247,19 @@ async def provider_api_key(db: AsyncSession, provider_id: str) -> str:
     return decrypt_secret(entry["api_key_enc"]) or ""
 
 
-async def search_with_fallback(db: AsyncSession, query: str, n: int) -> dict | None:
+async def search_with_fallback(
+    db: AsyncSession, query: str, n: int, *, transport=None
+) -> dict | None:
     """First enabled provider that answers wins; None = none configured.
 
     The result carries the family-normalized shape plus the serving
     provider's name; failures accumulate per provider like the desktop
     reference — the last provider's status is preserved so callers can
-    report honest reasons (json_disabled vs unreachable vs …)."""
+    report honest reasons (json_disabled vs unreachable vs …). SearXNG
+    keeps career's guarded GET client; keyed providers run through the
+    guarded search transport (``transport`` is the test seam).
+    """
+    from app.extensions.search_adapters import run_search
     from app.services.webfetch import search_web
 
     providers = [entry for entry in await list_providers(db) if entry["enabled"]]
@@ -221,9 +268,11 @@ async def search_with_fallback(db: AsyncSession, query: str, n: int) -> dict | N
     errors: list[str] = []
     last_result: dict | None = None
     for provider in providers:
-        # career's guarded searxng transport (plan 80) — keyless today; the
-        # Fernet-stored key rides along when keyed searxng lands
-        result = await search_web(provider["base_url"], query, n)
+        if provider["type"] == "searxng":
+            result = await search_web(provider["base_url"], query, n)
+        else:
+            key = await provider_api_key(db, provider["id"])
+            result = await run_search(provider, query, api_key=key, limit=n, transport=transport)
         if result.get("available"):
             return {**result, "provider_name": provider["name"]}
         errors.append(f"{provider['name']}: {result.get('status', 'unreachable')}")

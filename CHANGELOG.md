@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (keyed web-search providers, 2026-10-22)
+- **Web search supports five keyed providers** (plan 122 phase 2):
+  **Tavily**, **Brave Search**, **Exa**, **Serper** and **Google
+  Programmable Search** join SearXNG in Settings → Tools → Web search.
+  Keys are sealed in the settings row (last-4 hint only), the ordered
+  fallback is unchanged, and every call rides a new guarded transport —
+  SSRF/egress guard, DNS pinning, per-host rate caps, response caps and
+  **refused redirects** so a provider key can never follow a redirect.
+  Google PSE asks for its engine id (cx) in the row form.
+
 ### Added (DACH board pack, 2026-10-22)
 - **Five new German-market job sources** (plan 122 phase 1): **Personio**,
   **JOIN.com**, **Recruitee** and **Teamtailor** employer career-site feeds
