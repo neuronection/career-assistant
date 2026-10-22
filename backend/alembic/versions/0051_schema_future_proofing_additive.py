@@ -281,10 +281,12 @@ def upgrade() -> None:
 
     with op.batch_alter_table("career_path_steps") as batch:
         batch.add_column(sa.Column("parent_step_id", sa.Uuid(), nullable=True))
+        # The server default must SURVIVE the batch rebuild: SQLite copies
+        # every existing row into `_alembic_tmp_*`, and a NOT NULL column
+        # with no default fails that copy on a populated desktop database.
         batch.add_column(
             sa.Column("edge_label", sa.String(length=120), nullable=False, server_default="")
         )
-        batch.alter_column("edge_label", server_default=None)
         batch.create_foreign_key(
             "fk_career_path_steps_parent_step_id_career_path_steps",
             "career_path_steps",
@@ -302,7 +304,6 @@ def upgrade() -> None:
             existing_nullable=False,
         )
         batch.add_column(sa.Column("origin", _JSON, nullable=False, server_default="{}"))
-        batch.alter_column("origin", server_default=None)
         batch.drop_constraint("source_allowed", type_="check")
         batch.create_check_constraint("source_allowed", _PROPOSAL_SOURCE)
 

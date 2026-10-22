@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (desktop upgrade path, 2026-10-22)
+- **A populated desktop database upgrades past the 0051 schema wave**
+  (plan 122 commit-zero). `career_path_steps.edge_label` and
+  `profile_proposals.origin` were added `NOT NULL` without a surviving
+  server default, so SQLite's batch rebuild failed on any instance that
+  already had rows (`_alembic_tmp_career_path_steps.edge_label`). Both
+  columns now keep their defaults, and a populated-SQLite upgrade
+  regression test pins 0050 → head.
+
 ### Added (German and Greek UI, catalog translations, 2026-10-22)
 - **The interface ships in English, German and Greek** (plan 121).
   Settings → Account → **Appearance** switches the language per user

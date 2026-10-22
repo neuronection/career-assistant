@@ -1723,3 +1723,257 @@ def test_0047_job_source_secrets_roundtrip():
     finally:
         command.upgrade(config, "head")
         asyncio.run(run([_by_id("DELETE FROM job_sources WHERE id = :id")]))
+
+
+def test_populated_sqlite_upgrades_0050_to_head(tmp_path, monkeypatch):
+    """Plan 122 commit-zero: a POPULATED SQLite (desktop) database must
+    upgrade 0050 → head.
+
+    0051 adds NOT NULL columns to pre-existing tables via batch rebuilds;
+    SQLite copies every row into `_alembic_tmp_*` before swapping, so a
+    NOT NULL column without a server default that survives the rebuild
+    fails the copy (`career_path_steps.edge_label`,
+    `profile_proposals.origin`). Fresh databases and CI never populate the
+    table first, which is why the defect escaped plan 113.
+    """
+    import uuid as _uuid
+
+    import sqlalchemy as sa
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'populated.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+
+    _json = JSONB().with_variant(sa.JSON(), "sqlite")
+    _uuid_type = sa.Uuid()
+    users = sa.table(
+        "users",
+        sa.column("id", _uuid_type),
+        sa.column("email", sa.String),
+        sa.column("password_hash", sa.String),
+        sa.column("full_name", sa.String),
+        sa.column("is_active", sa.Boolean),
+        sa.column("is_admin", sa.Boolean),
+        sa.column("failed_login_attempts", sa.Integer),
+        sa.column("token_version", sa.Integer),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    sources = sa.table(
+        "job_sources",
+        sa.column("id", _uuid_type),
+        sa.column("key", sa.String),
+        sa.column("connector_key", sa.String),
+        sa.column("kind", sa.String),
+        sa.column("last_status", sa.String),
+        sa.column("config", _json),
+        sa.column("sync_state", _json),
+        sa.column("error", sa.String),
+        sa.column("enabled", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    steps = sa.table(
+        "career_path_steps",
+        sa.column("id", _uuid_type),
+        sa.column("path_id", _uuid_type),
+        sa.column("position", sa.Integer),
+        sa.column("kind", sa.String),
+        sa.column("label", sa.String),
+        sa.column("edge_label", sa.String),
+        sa.column("optional", sa.Boolean),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    proposals = sa.table(
+        "profile_proposals",
+        sa.column("id", _uuid_type),
+        sa.column("user_id", _uuid_type),
+        sa.column("kind", sa.String),
+        sa.column("action", sa.String),
+        sa.column("entity_label", sa.String),
+        sa.column("payload_json", _json),
+        sa.column("diff_json", _json),
+        sa.column("status", sa.String),
+        sa.column("source", sa.String),
+        sa.column("origin", _json),
+        sa.column("resolve_error", sa.String),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    fits = sa.table(
+        "posting_fits",
+        sa.column("id", _uuid_type),
+        sa.column("user_id", _uuid_type),
+        sa.column("posting_id", _uuid_type),
+        sa.column("score", sa.Numeric(4, 2)),
+        sa.column("breakdown", _json),
+        sa.column("inputs_hash", sa.String),
+        sa.column("computed_at", sa.DateTime(timezone=True)),
+        sa.column("fit_version", sa.Integer),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    interactions = sa.table(
+        "posting_interactions",
+        sa.column("id", _uuid_type),
+        sa.column("user_id", _uuid_type),
+        sa.column("posting_id", _uuid_type),
+        sa.column("applied_at", sa.DateTime(timezone=True)),
+        sa.column("applied_via_url", sa.String),
+        sa.column("stage", sa.String),
+        sa.column("notes", sa.Text),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    applications = sa.table(
+        "applications",
+        sa.column("user_id", _uuid_type),
+        sa.column("posting_id", _uuid_type),
+        sa.column("stage", sa.String),
+        sa.column("notes", sa.Text),
+    )
+
+    user_id = _uuid.uuid4()
+    source_id = _uuid.uuid4()
+    step_id = _uuid.uuid4()
+    proposal_id = _uuid.uuid4()
+    posting_id = _uuid.uuid4()
+
+    async def run(statements):
+        engine = create_async_engine(db_url)
+        try:
+            async with engine.begin() as conn:
+                for statement in statements:
+                    await conn.execute(statement)
+        finally:
+            await engine.dispose()
+
+    async def read(statement):
+        engine = create_async_engine(db_url)
+        try:
+            async with engine.begin() as conn:
+                return (await conn.execute(statement)).all()
+        finally:
+            await engine.dispose()
+
+    config = _configured()
+    command.upgrade(config, "0050")
+    now = datetime.now(UTC)
+    asyncio.run(
+        run(
+            [
+                users.insert().values(
+                    id=user_id,
+                    email="populated-0051@example.com",
+                    password_hash="$2b$12$populatedmigrationplaceholder",
+                    full_name="",
+                    is_active=True,
+                    is_admin=False,
+                    failed_login_attempts=0,
+                    token_version=1,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                sources.insert().values(
+                    id=source_id,
+                    key="populated-0051",
+                    connector_key="rss",
+                    config={"url": "https://example.org/feed.xml"},
+                    sync_state={"watermark": "2026-01-01T00:00:00+00:00"},
+                    error="",
+                    enabled=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                steps.insert().values(
+                    id=step_id,
+                    path_id=_uuid.uuid4(),
+                    position=0,
+                    kind="skill",
+                    label="Keep me",
+                    optional=False,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                proposals.insert().values(
+                    id=proposal_id,
+                    user_id=user_id,
+                    kind="experience_item",
+                    action="create",
+                    entity_label="Populated proposal",
+                    payload_json={"title": "Engineer"},
+                    diff_json=[],
+                    status="pending",
+                    source="chat",
+                    resolve_error="",
+                    created_at=now,
+                    updated_at=now,
+                ),
+                fits.insert().values(
+                    id=_uuid.uuid4(),
+                    user_id=user_id,
+                    posting_id=posting_id,
+                    score=7.5,
+                    breakdown={},
+                    inputs_hash="populated",
+                    created_at=now,
+                    updated_at=now,
+                ),
+                interactions.insert().values(
+                    id=_uuid.uuid4(),
+                    user_id=user_id,
+                    posting_id=posting_id,
+                    applied_at=now,
+                    applied_via_url="https://example.org/apply",
+                    stage="interview",
+                    notes="populated note",
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+    )
+
+    command.upgrade(config, "head")
+
+    step_rows = asyncio.run(
+        read(sa.select(steps.c.label, steps.c.edge_label).where(steps.c.id == step_id))
+    )
+    assert step_rows == [("Keep me", "")], "the populated step survives with an empty edge label"
+
+    proposal_rows = asyncio.run(
+        read(
+            sa.select(proposals.c.source, proposals.c.origin).where(
+                proposals.c.id == proposal_id
+            )
+        )
+    )
+    assert proposal_rows[0][0] == "chat"
+    assert proposal_rows[0][1] == {}, "the populated proposal keeps an empty origin object"
+
+    source_rows = asyncio.run(
+        read(sa.select(sources.c.kind, sources.c.last_status).where(sources.c.id == source_id))
+    )
+    assert source_rows == [("posting", "ok")], "source kind/health defaults fill the populated row"
+
+    fit_rows = asyncio.run(
+        read(
+            sa.select(fits.c.computed_at, fits.c.fit_version).where(fits.c.user_id == user_id)
+        )
+    )
+    assert fit_rows[0][0] is not None, "computed_at is backfilled from updated_at"
+    assert fit_rows[0][1] == 5, "fit_version is backfilled"
+
+    folded = asyncio.run(
+        read(
+            sa.select(applications.c.stage, applications.c.notes).where(
+                applications.c.user_id == user_id
+            )
+        )
+    )
+    assert folded == [("interview", "populated note")], "0052 folds the application fields"
