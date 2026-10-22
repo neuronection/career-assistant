@@ -1,0 +1,82 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Teamtailor",
+  "home_page_url": "https://career.teamtailor.com/jobs",
+  "feed_url": "https://career.teamtailor.com/jobs.json",
+  "items": [
+    {
+      "id": "4ff07fd5-3ac0-4333-8f4c-955380396321",
+      "title": "UK Account Executive - SMB",
+      "url": "https://career.teamtailor.com/jobs/8118064-uk-account-executive-smb",
+      "date_published": "2026-07-24T09:05:16+02:00",
+      "content_html": "<figure><lite-youtube videoid=\"sc-TJB8qo00\" title=\"Play: Video\" posterquality=\"sddefault\"></lite-youtube></figure><h4>Let's build the future together!</h4><p><a target=\"_blank\" href=\"https://www.teamtailor.com/en/\">Teamtailor</a> is an Employer Branding and an ATS SaaS platform used by over 13,000 companies, 250.000 users in 90 countries around the world.</p><p>Working at Teamtailor means working at a global, international, and fast-paced tech company that offers an ideal workplace for those who want to have a real impact on the growth of an organisation and are craving for responsibilities. It also means having lots of fun!!! 🥳</p><p><span style=\"font-size:1em;font-weight:initial;letter-spacing:-0.011em;\">Building a diverse team with various backgrounds and expertise is at the core of Teamtailor since its very beginning, and is truly a part of our strength today! There are no typical profiles, except that every team member shares our vision and wants to be part of our success. Join us in our mission to help companies and people interact with each other in a better way so that they can make life-changing decisions together.</span></p><p><span>We are now looking for an <strong>Account Executive</strong> to join the team from our <strong>Farringdon office</strong> - this role is perfect for someone who thrives on ownership, moves fast, and loves building their own book of business!</span></p><p><span>We work hard and have lots of fun along the way, but every call counts, and we",
+      "_jobposting": {
+        "@context": "http://schema.org/",
+        "@type": "JobPosting",
+        "title": "UK Account Executive - SMB",
+        "description": "<figure><lite-youtube videoid=\"sc-TJB8qo00\" title=\"Play: Video\" posterquality=\"sddefault\"></lite-youtube></figure><h4>Let's build the future together!</h4><p><a target=\"_blank\" href=\"https://www.teamtailor.com/en/\">Teamtailor</a> is an Employer Branding and an ATS SaaS platform used by over 13,000 companies, 250.000 users in 90 countries around the world.</p><p>Working at Teamtailor means working at a global, international, and fast-paced tech company that offers an ideal workplace for those who want to have a real impact on the growth of an organisation and are craving for responsibilities. It also means having lots of fun!!! 🥳</p><p><span style=\"font-size:1em;font-weight:initial;letter-spacing:-0.011em;\">Building a diverse team with various backgrounds and expertise is at the core of Teamtailor since its very beginning, and is truly a part of our strength today! There are no typical profiles, except that every team member shares our vision and wants to be part of our success. Join us in our mission to help companies and people interact with each other in a better way so that they can make life-changing decisions together.</span></p><p><span>We are now looking for an <strong>Account Executive</strong> to join the team from our <strong>Farringdon office</strong> - this role is perfect for someone who thrives on ownership, moves fast, and loves building their own book of business!</span></p><p><span>We work hard and have lots of fun along the way, but every call counts, and we",
+        "identifier": {
+          "@type": "PropertyValue",
+          "name": "Teamtailor",
+          "value": 8118064
+        },
+        "datePosted": "2026-07-24T09:05:16+02:00",
+        "hiringOrganization": {
+          "@type": "Organization",
+          "name": "Teamtailor",
+          "sameAs": "https://career.teamtailor.com"
+        },
+        "jobLocation": [
+          {
+            "@type": "Place",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "16 Laystall Court",
+              "addressLocality": "London",
+              "postalCode": "EC1R 4",
+              "addressCountry": "GB",
+              "addressRegion": "Europe"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "5f14f689-77ee-4b85-a1f1-05df74ea2944",
+      "title": "Revenue Systems Engineer",
+      "url": "https://career.teamtailor.com/jobs/8546033-revenue-systems-engineer",
+      "date_published": "2026-10-14T14:33:33+02:00",
+      "content_html": "<figure><lite-youtube videoid=\"sc-TJB8qo00\" title=\"Play: Video\" posterquality=\"sddefault\"></lite-youtube></figure><h4><strong>Join us to shape the future!</strong></h4><p>Teamtailor is a global Employer Branding and ATS SaaS platform used by over 13,000 companies, 250,000 users, and available in 90 countries worldwide. 🌍</p><p>Working at <a target=\"_blank\" href=\"https://www.teamtailor.com/en/\">Teamtailor</a> means being part of a dynamic, fast-paced tech company that values impact and responsibility. Our workplace fosters an environment where everyone can contribute meaningfully to the growth of the company. 🎉🥳</p><h4><strong>About the role</strong></h4><p>The Revenue Systems Engineer designs, builds and maintains the configuration, logic and integrations that run our revenue systems.</p><p>Revenue Systems runs the tools that about 440 people across many teams use every day, from Sales and Customer Success to Finance and Data: Salesforce as our hub, and around it tools for conversation intelligence, scheduling, enrichment, contracts, billing and customer success. We are turning the team into a product team, where each tool has an owner, a direction and outcomes we measure.</p><p>In this role, you work across the whole stack: Salesforce configuration and code, integrations between our tools, and the data that flows through them. You are involved early in discovery and take solutions all the way to production.</p><h4><strong>Key responsibilities</strong></h4><ul><li><p><strong>",
+      "_jobposting": {
+        "@context": "http://schema.org/",
+        "@type": "JobPosting",
+        "title": "Revenue Systems Engineer",
+        "description": "<figure><lite-youtube videoid=\"sc-TJB8qo00\" title=\"Play: Video\" posterquality=\"sddefault\"></lite-youtube></figure><h4><strong>Join us to shape the future!</strong></h4><p>Teamtailor is a global Employer Branding and ATS SaaS platform used by over 13,000 companies, 250,000 users, and available in 90 countries worldwide. 🌍</p><p>Working at <a target=\"_blank\" href=\"https://www.teamtailor.com/en/\">Teamtailor</a> means being part of a dynamic, fast-paced tech company that values impact and responsibility. Our workplace fosters an environment where everyone can contribute meaningfully to the growth of the company. 🎉🥳</p><h4><strong>About the role</strong></h4><p>The Revenue Systems Engineer designs, builds and maintains the configuration, logic and integrations that run our revenue systems.</p><p>Revenue Systems runs the tools that about 440 people across many teams use every day, from Sales and Customer Success to Finance and Data: Salesforce as our hub, and around it tools for conversation intelligence, scheduling, enrichment, contracts, billing and customer success. We are turning the team into a product team, where each tool has an owner, a direction and outcomes we measure.</p><p>In this role, you work across the whole stack: Salesforce configuration and code, integrations between our tools, and the data that flows through them. You are involved early in discovery and take solutions all the way to production.</p><h4><strong>Key responsibilities</strong></h4><ul><li><p><strong>",
+        "identifier": {
+          "@type": "PropertyValue",
+          "name": "Teamtailor",
+          "value": 8546033
+        },
+        "datePosted": "2026-10-14T14:33:33+02:00",
+        "hiringOrganization": {
+          "@type": "Organization",
+          "name": "Teamtailor",
+          "sameAs": "https://career.teamtailor.com"
+        },
+        "jobLocation": [
+          {
+            "@type": "Place",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "Östgötagatan 16",
+              "addressLocality": "Stockholm",
+              "postalCode": "116 21",
+              "addressCountry": "SE",
+              "addressRegion": "Sweden"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

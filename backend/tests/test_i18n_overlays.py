@@ -6,8 +6,6 @@ rejected rows never do, and a missing overlay leaves the base label intact.
 
 import uuid
 
-from sqlalchemy import select
-
 from app.models.enums import LabelStatus
 
 
@@ -56,13 +54,9 @@ async def test_overlay_fallback_chain(client, auth_headers, db, seeded_catalog):
         )
     ).json()
     assert rows
-    title_row = next(
-        row for row in rows if row["entity_kind"] == "job" and row["field"] == "label"
-    )
+    title_row = next(row for row in rows if row["entity_kind"] == "job" and row["field"] == "label")
 
-    listing = (
-        await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)
-    ).json()
+    listing = (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()
     target = next(job for job in listing if job["id"] == title_row["entity_id"])
     assert title_row["base_value"] == target["title"]
     assert title_row["value"] == f"[de] {target['title']}"
@@ -75,9 +69,7 @@ async def test_overlay_fallback_chain(client, auth_headers, db, seeded_catalog):
 
     localized = next(
         job
-        for job in (
-            await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)
-        ).json()
+        for job in (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()
         if job["id"] == target["id"]
     )
     assert localized["title"] == f"[de] {target['title']}"
@@ -89,9 +81,7 @@ async def test_overlay_fallback_chain(client, auth_headers, db, seeded_catalog):
     assert rejected.status_code == 200
     other_job = next(
         job
-        for job in (
-            await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)
-        ).json()
+        for job in (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()
         if job["id"] == other["entity_id"]
     )
     field = "title" if other["field"] == "label" else "short_description"
@@ -107,9 +97,7 @@ async def test_overlay_edit_then_approve(client, auth_headers, db, seeded_catalo
         headers=auth_headers,
     )
     rows = (
-        await client.get(
-            "/api/v1/admin/i18n/overlays?locale=de&status=draft", headers=auth_headers
-        )
+        await client.get("/api/v1/admin/i18n/overlays?locale=de&status=draft", headers=auth_headers)
     ).json()
     family_rows = [row for row in rows if row["entity_kind"] == "family"]
     assert family_rows
@@ -120,9 +108,7 @@ async def test_overlay_edit_then_approve(client, auth_headers, db, seeded_catalo
         headers=auth_headers,
     )
     assert edited.status_code == 200
-    await client.post(
-        f"/api/v1/admin/i18n/overlays/{row['id']}/approve", headers=auth_headers
-    )
+    await client.post(f"/api/v1/admin/i18n/overlays/{row['id']}/approve", headers=auth_headers)
     tree = (await client.get("/api/v1/jobs/tree", headers=auth_headers)).json()
 
     def labels(nodes):

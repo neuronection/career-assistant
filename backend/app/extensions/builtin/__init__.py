@@ -1,9 +1,11 @@
 """First-party built-in connectors (Phase 26): ATS APIs, JSON-LD, RSS, CSV,
 manual URL — plus the real-content job boards (Arbeitnow, Remotive,
-Jobicy — live public JSON APIs, bundled T1). All legal-and-free sources;
-anything else ships as a plugin over the same SDK. Parsers are pure
-functions of fixture payloads; the injected transport keeps politeness
-(conditional GET, robots, caps) in the runtime, not in connector code.
+Jobicy — live public JSON APIs, bundled T1) and the DACH board pack
+(Personio, JOIN.com, Recruitee, Teamtailor, StepStone/Xing alerts — plan
+122). All legal-and-free sources; anything else ships as a plugin over the
+same SDK. Parsers are pure functions of fixture payloads; the injected
+transport keeps politeness (conditional GET, robots, caps) in the runtime,
+not in connector code.
 """
 
 from __future__ import annotations
@@ -18,6 +20,21 @@ from typing import cast
 
 from pydantic import BaseModel, Field
 
+from app.extensions.builtin.dach_boards import (
+    JoinComConnector as JoinComConnector,
+)
+from app.extensions.builtin.dach_boards import (
+    PersonioConnector as PersonioConnector,
+)
+from app.extensions.builtin.dach_boards import (
+    RecruiteeConnector as RecruiteeConnector,
+)
+from app.extensions.builtin.dach_boards import (
+    StepstoneXingConnector as StepstoneXingConnector,
+)
+from app.extensions.builtin.dach_boards import (
+    TeamtailorConnector as TeamtailorConnector,
+)
 from app.extensions.builtin.job_boards import (
     ArbeitnowConnector as ArbeitnowConnector,
 )

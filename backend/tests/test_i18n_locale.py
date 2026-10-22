@@ -35,9 +35,7 @@ async def test_locale_round_trip(client, auth_headers):
     assert response.status_code == 200
     assert response.json()["locale"] == "en"
 
-    response = await client.put(
-        "/api/v1/me/locale", json={"locale": "de"}, headers=auth_headers
-    )
+    response = await client.put("/api/v1/me/locale", json={"locale": "de"}, headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["locale"] == "de"
 
@@ -46,9 +44,7 @@ async def test_locale_round_trip(client, auth_headers):
     assert bootstrap.json()["locale_source"] == "user"
     assert set(bootstrap.json()["supported_locales"]) == {"en", "de", "el"}
 
-    rejected = await client.put(
-        "/api/v1/me/locale", json={"locale": "fr"}, headers=auth_headers
-    )
+    rejected = await client.put("/api/v1/me/locale", json={"locale": "fr"}, headers=auth_headers)
     assert rejected.status_code == 400
 
 
@@ -82,9 +78,7 @@ async def test_translate_batch_is_audited(client, auth_headers, db):
     rows = (
         (
             await db.execute(
-                select(AIGeneration).where(
-                    AIGeneration.task_type == AITaskType.TRANSLATE.value
-                )
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.TRANSLATE.value)
             )
         )
         .scalars()

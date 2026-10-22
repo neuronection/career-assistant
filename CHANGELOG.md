@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (DACH board pack, 2026-10-22)
+- **Five new German-market job sources** (plan 122 phase 1): **Personio**,
+  **JOIN.com**, **Recruitee** and **Teamtailor** employer career-site feeds
+  plus **StepStone/Xing** job alerts. Each ships as a bundled T1 connector
+  with a file manifest, its own docs tree, captured-truth fixtures and
+  watermark incremental sync; the StepStone/Xing alert URL is a sealed
+  secret slot, never stored in config. Settings → Tools → Connectors lists
+  them with per-source config.
+- **EUR/CHF dot-thousand salaries parse correctly** (plan 122). Strings
+  such as `52.000 - 65.000 €` now read as 52 000–65 000 per year instead of
+  52–65; the parser is currency-aware, handles Swiss apostrophes, German
+  period words (`pro Monat`, `pro Stunde`) and is locked by fixtures.
+
 ### Fixed (desktop upgrade path, 2026-10-22)
 - **A populated desktop database upgrades past the 0051 schema wave**
   (plan 122 commit-zero). `career_path_steps.edge_label` and

@@ -1,0 +1,76 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "search"
+  ],
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "docs": "docs/docs-tree.json",
+  "id": "career-recruitee",
+  "version": "1.0.0",
+  "description": "Recruitee per-tenant public offers API (free, no credentials — no secret slots by design).",
+  "capabilities": [
+    "net",
+    "sync"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "company": {
+        "type": "string",
+        "title": "Recruitee company",
+        "description": "The subdomain before recruitee.com (e.g. acme for acme.recruitee.com)",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+      },
+      "max_items": {
+        "type": "number",
+        "title": "Max items per sync",
+        "default": 100,
+        "minimum": 1,
+        "maximum": 300
+      }
+    },
+    "required": [
+      "company"
+    ]
+  },
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Recruitee careers feed",
+        "summary": "Open roles from a Recruitee career site's public offers API — free, no credentials, no secret slots."
+      }
+    }
+  },
+  "domains": [
+    "*.recruitee.com"
+  ]
+}

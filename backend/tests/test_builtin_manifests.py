@@ -30,6 +30,13 @@ from app.extensions.builtin import (
     ManualUrlConnector,
     RssConnector,
 )
+from app.extensions.builtin.dach_boards import (
+    JoinComConnector,
+    PersonioConnector,
+    RecruiteeConnector,
+    StepstoneXingConnector,
+    TeamtailorConnector,
+)
 from app.extensions.builtin.job_boards import (
     ArbeitnowConnector,
     JobicyConnector,
@@ -50,6 +57,11 @@ BUILTINS = [
     ArbeitnowConnector(),
     RemotiveConnector(),
     JobicyConnector(),
+    PersonioConnector(),
+    JoinComConnector(),
+    StepstoneXingConnector(),
+    RecruiteeConnector(),
+    TeamtailorConnector(),
     McpConnector(),
 ]
 
@@ -63,11 +75,17 @@ DOCUMENTED = {
     "ats_api",
     "manual_url",
     "rss",
+    # plan 122 phase 1: the DACH board pack ships its per-bundle docs tree.
+    "personio",
+    "join_com",
+    "stepstone_xing",
+    "recruitee",
+    "teamtailor",
 }
 
 
 def test_every_builtin_manifest_is_a_file_that_validates():
-    assert len(BUILTINS) == 9
+    assert len(BUILTINS) == 14
     for connector in BUILTINS:
         path = manifest_path(connector)
         assert path.is_file(), f"{connector.key}: manifest.json missing at {path}"

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workzag-jobs>
+
+<position>
+    <id>1676226</id>
+    <office>Remote</office>
+    <recruitingCategory>Festangestellte</recruitingCategory>
+    <name>Initiativbewerbung (Festanstellung)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Ihre Aufgaben</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Ihr Profil</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Warum wir?</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>entry-level</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>lt-1</yearsOfExperience>
+    <occupation>other</occupation>
+    <occupationCategory>other</occupationCategory>
+    <createdAt>2018-07-31T09:25:04+00:00</createdAt>
+</position>
+
+<position>
+    <id>1676223</id>
+    <office>München</office>
+    <recruitingCategory>Festangestellte</recruitingCategory>
+    <name>SEO Marketing Manager</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Ihre Aufgaben</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Ihr Profil</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Warum wir?</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>1-2</yearsOfExperience>
+    <occupation>marketing_production_and_traffic</occupation>
+    <occupationCategory>marketing_and_product</occupationCategory>
+    <createdAt>2016-10-10T11:33:38+00:00</createdAt>
+</position>
+
+<position>
+    <id>1676224</id>
+    <office>München</office>
+    <recruitingCategory>Werkstudenten</recruitingCategory>
+    <name>Social Media (Werkstudent)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Ihre Aufgaben</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Ihr Profil</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Warum wir?</name>
+            <value>
+                <![CDATA[]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>intern</employmentType>
+    <seniority>student</seniority>
+    <schedule>part-time</schedule>
+    <yearsOfExperience>lt-1</yearsOfExperience>
+    <occupation>investor_and_public_and_media_relations</occupation>
+    <occupationCategory>marketing_and_product</occupationCategory>
+    <createdAt>2016-10-31T20:03:06+00:00</createdAt>
+</position>
+
+</workzag-jobs>

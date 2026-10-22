@@ -33,6 +33,13 @@ from app.extensions.builtin import (
     ManualUrlConnector,
     RssConnector,
 )
+from app.extensions.builtin.dach_boards import (
+    JoinComConnector,
+    PersonioConnector,
+    RecruiteeConnector,
+    StepstoneXingConnector,
+    TeamtailorConnector,
+)
 from app.extensions.builtin.job_boards import (
     ArbeitnowConnector,
     JobicyConnector,
@@ -54,6 +61,11 @@ _BUILTINS: list[PostingConnector] = [
     ArbeitnowConnector(),
     RemotiveConnector(),
     JobicyConnector(),
+    PersonioConnector(),
+    JoinComConnector(),
+    StepstoneXingConnector(),
+    RecruiteeConnector(),
+    TeamtailorConnector(),
     McpConnector(),
 ]
 

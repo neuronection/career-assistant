@@ -1947,11 +1947,7 @@ def test_populated_sqlite_upgrades_0050_to_head(tmp_path, monkeypatch):
     assert step_rows == [("Keep me", "")], "the populated step survives with an empty edge label"
 
     proposal_rows = asyncio.run(
-        read(
-            sa.select(proposals.c.source, proposals.c.origin).where(
-                proposals.c.id == proposal_id
-            )
-        )
+        read(sa.select(proposals.c.source, proposals.c.origin).where(proposals.c.id == proposal_id))
     )
     assert proposal_rows[0][0] == "chat"
     assert proposal_rows[0][1] == {}, "the populated proposal keeps an empty origin object"
@@ -1962,9 +1958,7 @@ def test_populated_sqlite_upgrades_0050_to_head(tmp_path, monkeypatch):
     assert source_rows == [("posting", "ok")], "source kind/health defaults fill the populated row"
 
     fit_rows = asyncio.run(
-        read(
-            sa.select(fits.c.computed_at, fits.c.fit_version).where(fits.c.user_id == user_id)
-        )
+        read(sa.select(fits.c.computed_at, fits.c.fit_version).where(fits.c.user_id == user_id))
     )
     assert fit_rows[0][0] is not None, "computed_at is backfilled from updated_at"
     assert fit_rows[0][1] == 5, "fit_version is backfilled"

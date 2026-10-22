@@ -24,6 +24,24 @@ filters: a tag or category focus, a per-sync item cap) and save. Then
 **Sync now** — postings appear on the Postings page and flow into
 Explore, saved-search alerts and your match scores.
 
+## The DACH board pack
+
+The German-speaking market is covered by employer career-site feeds and
+board alerts. All of these read public data; the only personal value is a
+StepStone/Xing alert URL, which is stored in a sealed secret slot.
+
+| Source | What it reads | Needs |
+|---|---|---|
+| **Personio** | A Personio career site's public XML feed (`<tenant>.jobs.personio.de/xml`) | the tenant (the subdomain before `jobs.personio.de`) |
+| **JOIN.com** | JOIN's public company job API | the numeric company id and the public slug |
+| **Recruitee** | A Recruitee career site's public `/api/offers/` feed | the company subdomain |
+| **Teamtailor** | A Teamtailor career site's public JSON Feed | the company subdomain |
+| **StepStone / Xing** | Your signed-in job-alert RSS feed | the personal alert URL (sealed slot) |
+
+Personio, JOIN, Recruitee and Teamtailor carry no credentials; the
+StepStone/Xing alert URL often embeds a per-user token, so it is declared
+as an `x-secret` slot and never written into stored config.
+
 **The Remotive robots caveat, honestly.** Remotive's site-level
 `robots.txt` disallows its API path, and Career Assistant respects
 robots policies by default — so Remotive syncs can surface a clear,

@@ -196,8 +196,19 @@ def _sort_and_cap(items: list[RawPosting], cap: int) -> list[RawPosting]:
 
 
 _CURRENCY_SYMBOLS = {"$": "USD", "€": "EUR", "£": "GBP"}
-_SALARY_NUMBER = re.compile(r"(\d[\d.,]*)\s*(k?)(?![\d])", re.IGNORECASE)
+_CURRENCY_CODES = ("CHF", "EUR", "USD", "GBP")
+_SALARY_NUMBER = re.compile(r"(\d[\d.,']*)\s*(k?)(?![\d])", re.IGNORECASE)
 _SALARY_UNIT_PERIODS = (
+    ("pro stunde", "hour"),
+    ("stündlich", "hour"),
+    ("pro tag", "day"),
+    ("täglich", "day"),
+    ("pro woche", "week"),
+    ("wöchentlich", "week"),
+    ("pro monat", "month"),
+    ("monatlich", "month"),
+    ("pro jahr", "year"),
+    ("jährlich", "year"),
     ("/hour", "hour"),
     ("/hr", "hour"),
     ("per hour", "hour"),
@@ -210,11 +221,68 @@ _SALARY_UNIT_PERIODS = (
 )
 
 
+def _salary_currency(text: str) -> str | None:
+    """ISO code from a ``CHF``/``EUR`` token or a currency symbol."""
+    upper = text.upper()
+    for code in _CURRENCY_CODES:
+        if re.search(rf"\b{code}\b", upper):
+            return code
+    return next((code for symbol, code in _CURRENCY_SYMBOLS.items() if symbol in text), None)
+
+
+def _salary_number(raw: str, *, kilo: bool) -> float | None:
+    """One amount from a free-text salary string.
+
+    Separators are locale-ambiguous. A three-digit tail is a thousands
+    group (``"52.000 €"`` and ``"52,000 EUR"`` both mean 52 000); two
+    separators make the last one decimal (``"1.234,56"``); a ``k`` suffix
+    makes a single separator decimal (``"35,3k"``). Swiss apostrophes are
+    thousands separators.
+    """
+    text = raw.replace("'", "").strip(",.")
+    if not text:
+        return None
+    if kilo:
+        if "," in text and "." in text:
+            decimal = "," if text.rfind(",") > text.rfind(".") else "."
+            thousands = "." if decimal == "," else ","
+            text = text.replace(thousands, "").replace(decimal, ".")
+        elif "," in text:
+            text = text.replace(",", ".")
+        try:
+            return float(text) * 1000
+        except ValueError:
+            return None
+    if "," in text and "." in text:
+        decimal = "," if text.rfind(",") > text.rfind(".") else "."
+        thousands = "." if decimal == "," else ","
+        text = text.replace(thousands, "").replace(decimal, ".")
+    elif text.count(".") > 1:
+        text = text.replace(".", "")
+    elif text.count(",") > 1:
+        text = text.replace(",", "")
+    elif "." in text:
+        head, _, tail = text.partition(".")
+        text = text.replace(".", "") if len(tail) == 3 and 0 < len(head) <= 3 else text
+    elif "," in text:
+        head, _, tail = text.partition(",")
+        if len(tail) == 3 and 0 < len(head) <= 3:
+            text = text.replace(",", "")
+        else:
+            text = text.replace(",", ".")
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
 def parse_salary_text(text: str) -> SalarySpec | None:
     """Best-effort structured salary from free-text board strings
-    (``"$170k - $200k"``, ``"$35,3k- $52k"``, ``"$50-$75 /hour"``).
-    A ``k`` suffix makes commas decimals (``35,3k`` → 35 300); without
-    one, commas are thousands separators. Unparseable text → None."""
+    (``"$170k - $200k"``, ``"$35,3k- $52k"``, ``"$50-$75 /hour"``,
+    ``"52.000 - 65.000 €"``, ``"CHF 90'000"``).
+    A ``k`` suffix makes separators decimal (``35,3k`` → 35 300); without
+    one, a three-digit tail is a thousands group (``52.000`` → 52 000),
+    so EUR/CHF dot-thousands never collapse to 52. Unparseable text → None."""
     if not text or not str(text).strip():
         return None
     lowered = str(text).lower()
@@ -223,17 +291,12 @@ def parse_salary_text(text: str) -> SalarySpec | None:
         if unit in lowered:
             period = mapped
             break
-    currency = next((code for symbol, code in _CURRENCY_SYMBOLS.items() if symbol in text), None)
+    currency = _salary_currency(str(text))
     numbers: list[float] = []
     for match in _SALARY_NUMBER.finditer(str(text)):
-        raw, kilo = match.group(1).strip(",."), match.group(2).lower() == "k"
-        if not raw:
-            continue
-        try:
-            value = float(raw.replace(",", ".") if kilo else raw.replace(",", ""))
-        except ValueError:
-            continue
-        numbers.append(value * 1000 if kilo else value)
+        value = _salary_number(match.group(1), kilo=match.group(2).lower() == "k")
+        if value is not None and value > 0:
+            numbers.append(value)
     if not numbers:
         return None
     return SalarySpec(
