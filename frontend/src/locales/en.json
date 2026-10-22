@@ -697,6 +697,17 @@
   "profileImport": {
     "title": "Import from CV",
     "subtitle": "Upload a CV and confirm what we extract — nothing is added without your tick.",
+    "github": {
+      "title": "GitHub repositories",
+      "hint": "Turn public repositories into project drafts you review before they reach your profile — nothing is written as active.",
+      "loginPlaceholder": "GitHub login (e.g. octocat)",
+      "preview": "Preview",
+      "createDrafts": "Create drafts",
+      "empty": "No public non-fork repositories found for this login.",
+      "selected": "{{count}} selected",
+      "created": "{{created}} drafts created, {{skipped}} already on your profile.",
+      "stars": "{{count}} stars"
+    },
     "backToCvs": "Back to your CVs",
     "backToProfile": "Back to profile",
     "yourCvs": "Your CVs",
@@ -1376,7 +1387,21 @@
         "secretSetShort": "set — leave empty to keep",
         "secretMissingShort": "not set",
         "select": "Select…",
-        "githubTokenPlaceholder": "gh_pat_…"
+        "githubTokenPlaceholder": "gh_pat_…",
+        "statusOk": "Healthy",
+        "statusDegraded": "Degraded",
+        "statusFailing": "Failing",
+        "lastSuccess": "Last success",
+        "pause": "Pause syncing",
+        "resume": "Resume syncing",
+        "paused": "paused",
+        "kind": {
+          "posting": "Job boards",
+          "market": "Market data",
+          "university": "Universities",
+          "search": "Search",
+          "webhook_in": "Inbound webhooks"
+        }
       },
       "extSources": {
         "title": "Extension sources (git import)",

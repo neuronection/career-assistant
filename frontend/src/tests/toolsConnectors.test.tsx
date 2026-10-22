@@ -141,6 +141,40 @@ describe("ConnectorsSection job sources", () => {
     expect(screen.getByTestId("job-sources-block")).toBeTruthy();
   });
 
+  it("groups sources by kind and pauses a source", async () => {
+    const withKinds = [
+      { ...sources[0], kind: "posting", last_status: "ok", paused_at: null },
+      {
+        ...sources[1],
+        id: "src-3",
+        key: "market-demand",
+        connector_key: "demand_data",
+        kind: "market",
+        last_status: "degraded",
+        paused_at: null,
+      },
+    ];
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(withKinds as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    vi.mocked(sourcesApi.updateSource).mockResolvedValue({} as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    expect(
+      await screen.findByText("toolsSettings.connectors.sources.kind.posting"),
+    ).toBeTruthy();
+    expect(screen.getByText("toolsSettings.connectors.sources.kind.market")).toBeTruthy();
+    expect(await screen.findByTestId("integration-instance-src-3")).toBeTruthy();
+
+    const pauseButtons = await screen.findAllByRole("button", {
+      name: "toolsSettings.connectors.sources.pause",
+    });
+    await userEvent.click(pauseButtons[pauseButtons.length - 1]);
+    await waitFor(() => {
+      expect(sourcesApi.updateSource).toHaveBeenCalledWith("src-3", { paused: true });
+    });
+  });
+
   it("runs a typed probe and renders the outcome", async () => {
     vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources.slice(0, 1) as never);
     vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);

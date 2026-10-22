@@ -73,7 +73,17 @@ value echoed back.
 - Sources sync on the scheduler's cadence, or on demand with
   **Sync now**.
 - Each source row shows its status — healthy, degraded or failing —
-  with the last success time.
+  with the last success time. **Pause syncing** stops the scheduled runs
+  without deleting the source; **Resume syncing** restarts them.
+
+## Bring in a GitHub profile
+
+**Profile → Import** also has a **GitHub** card: enter a public GitHub
+login, preview its non-fork repositories, tick the ones worth keeping and
+choose **Create drafts**. Each repository becomes a draft project (with an
+achievement highlight when it has stars or forks) that you review and
+activate in your profile — nothing is ever written as active, and a
+repository already on your profile is skipped.
 
 ## Related
 

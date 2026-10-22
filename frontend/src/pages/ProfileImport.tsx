@@ -16,6 +16,7 @@ import {
 import { Button, ConfirmationModal, EmptyState } from "@neuronection/assistant-ui";
 import { CvIntakeFlow } from "@/components/intake/CvIntakeFlow";
 import { CvDraftViewer } from "@/components/intake/CvDraftViewer";
+import { GithubIntakeCard } from "@/components/intake/GithubIntakeCard";
 import { ReportLines, StatusChip } from "@/components/intake/CvStatus";
 import { useProfileStore } from "@/stores/profileStore";
 import {
@@ -451,6 +452,8 @@ export function ProfileImport() {
               void refresh();
             }}
           />
+
+          <GithubIntakeCard />
 
           <section aria-label={t("profileImport.yourCvs")}>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">

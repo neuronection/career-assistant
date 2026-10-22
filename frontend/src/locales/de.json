@@ -697,6 +697,17 @@
   "profileImport": {
     "title": "Importieren aus Lebenslauf",
     "subtitle": "Laden Sie einen Lebenslauf hoch und bestätigen Sie, was wir extrahieren — nichts wird hinzugefügt, ohne Ihre Bestätigung.",
+    "github": {
+      "title": "GitHub-Repositorys",
+      "hint": "Verwandeln Sie öffentliche Repositorys in Projektentwürfe, die Sie prüfen, bevor sie in Ihr Profil gelangen — nichts wird als aktiv geschrieben.",
+      "loginPlaceholder": "GitHub-Anmeldename (z. B. octocat)",
+      "preview": "Vorschau",
+      "createDrafts": "Entwürfe anlegen",
+      "empty": "Keine öffentlichen Nicht-Fork-Repositorys für diesen Anmeldenamen gefunden.",
+      "selected": "{{count}} ausgewählt",
+      "created": "{{created}} Entwürfe angelegt, {{skipped}} bereits im Profil.",
+      "stars": "{{count}} Sterne"
+    },
     "backToCvs": "Zurück zu Ihren Lebensläufen",
     "backToProfile": "Zurück zum Profil",
     "yourCvs": "Ihre Lebensläufe",
@@ -1376,7 +1387,21 @@
         "secretSetShort": "Festlegen — leer lassen, um beizubehalten",
         "secretMissingShort": "Nicht festgelegt",
         "select": "Auswählen…",
-        "githubTokenPlaceholder": "gh_pat_…"
+        "githubTokenPlaceholder": "gh_pat_…",
+        "statusOk": "Gesund",
+        "statusDegraded": "Beeinträchtigt",
+        "statusFailing": "Fehlerhaft",
+        "lastSuccess": "Letzter Erfolg",
+        "pause": "Synchronisierung pausieren",
+        "resume": "Synchronisierung fortsetzen",
+        "paused": "pausiert",
+        "kind": {
+          "posting": "Jobbörsen",
+          "market": "Marktdaten",
+          "university": "Hochschulen",
+          "search": "Suche",
+          "webhook_in": "Eingehende Webhooks"
+        }
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",

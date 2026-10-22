@@ -33,6 +33,7 @@ FAILURE_ALERT_THRESHOLD = 3
 KIND_TASKS = {
     ScheduleKind.SYSTEM_SOURCE_SYNC.value: BackgroundJobType.POSTING_SYNC.value,
     ScheduleKind.SYSTEM_DIGEST.value: BackgroundJobType.DIGEST.value,
+    ScheduleKind.SYSTEM_DEMAND_IMPORT.value: BackgroundJobType.DEMAND_IMPORT.value,
     ScheduleKind.SYSTEM_REFIT_SWEEP.value: BackgroundJobType.FIT_REFIT.value,
     ScheduleKind.SYSTEM_CATALOG_ENRICH.value: BackgroundJobType.CATALOG_ENRICH.value,
     ScheduleKind.SYSTEM_FOLLOWUPS.value: BackgroundJobType.FOLLOWUP_SWEEP.value,
@@ -104,6 +105,16 @@ class SchedulerService:
                     "params": {"every_minutes": 60 * 24, "jitter_minutes": 60},
                 },
                 {"limit": 500},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_DEMAND_IMPORT,
+                BackgroundJobType.DEMAND_IMPORT.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60 * 24, "jitter_minutes": 60},
+                },
+                {},
                 MisfirePolicy.SKIP.value,
             ),
             (

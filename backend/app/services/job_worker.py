@@ -566,6 +566,16 @@ async def _run_extension_reconcile(db: AsyncSession, job: BackgroundJob, **_kw) 
     return {"report": {key: len(items) for key, items in report.items()}}
 
 
+async def _run_demand_import(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Daily external demand import (plan 122): market sources feed salary
+    and outlook data into `market_snapshots` and `jobs.demand`."""
+    from app.services.demand_import_service import ensure_demand_source, run_demand_import
+
+    await ensure_demand_source(db)
+    await db.commit()
+    return await run_demand_import(db, job.payload or {})
+
+
 async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """A scheduled saved search: evaluate filters, notify on new matches."""
     from app.services.digest_service import run_saved_search
@@ -863,6 +873,7 @@ HANDLERS: dict[str, Handler] = {
     "cv_polish": _run_cv_polish,
     "cv_synth": _run_cv_synth,
     "notification_delivery": _run_notification_delivery,
+    "demand_import": _run_demand_import,
 }
 
 

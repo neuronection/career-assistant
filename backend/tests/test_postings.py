@@ -165,6 +165,9 @@ def test_builtin_connectors_are_listed():
     keys = {c["key"] for c in list_connectors()}
     assert {"ats_api", "jsonld", "rss", "csv", "manual_url"} <= keys
     assert {"arbeitnow", "remotive", "jobicy"} <= keys, "the real job boards are bundled"
+    assert {"personio", "join_com", "stepstone_xing", "recruitee", "teamtailor"} <= keys, (
+        "the DACH board pack is bundled"
+    )
     builtin_keys = {
         "ats_api",
         "jsonld",
@@ -174,6 +177,11 @@ def test_builtin_connectors_are_listed():
         "arbeitnow",
         "remotive",
         "jobicy",
+        "personio",
+        "join_com",
+        "stepstone_xing",
+        "recruitee",
+        "teamtailor",
         "mcp",
     }
     for entry in list_connectors():

@@ -18,6 +18,7 @@ from app.api.v1 import (
     experience,
     extensions,
     feeds,
+    github_intake,
     growth,
     instance,
     interview,
@@ -61,6 +62,7 @@ api_router.include_router(universities.router)
 api_router.include_router(documents.router)
 api_router.include_router(cv_templates.router)
 api_router.include_router(cv_intake.router)
+api_router.include_router(github_intake.router)
 api_router.include_router(cv_synth.router)
 api_router.include_router(cvs.router)
 api_router.include_router(matching.router)

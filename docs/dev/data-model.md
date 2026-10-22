@@ -116,6 +116,13 @@ deletion).
 
 ### Migration notes
 
+- **0053** — plan 122 phase 3: `schedules.task_allowed` gains
+  `demand_import` (the dormant `system_demand_import` slot shipped its
+  schedule kind in 0051 but never its task value). No table/column/index
+  changes. `downgrade()` deletes demand-import schedules (the old CHECK
+  cannot represent them) and restores the previous text. Covered by
+  `tests/test_migrations.py::test_0053_demand_import_task_check_roundtrip`.
+
 - **0052** — plan 113 clean break: every `posting_interactions` row that
   carries application state (`applied_at`, `stage`, `notes`,
   `applied_via_url`) is folded into `applications` — one row per

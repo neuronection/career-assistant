@@ -58,7 +58,8 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "task IS NULL OR task IN ('posting_sync', 'digest', "
             "'saved_search_run', 'fit_refit', 'catalog_enrich', "
             "'autopilot_run', 'followup_sweep', 'market_history_capture', "
-            "'proposal_sweep', 'checkpoint_prune', 'extension_reconcile')",
+            "'proposal_sweep', 'checkpoint_prune', 'extension_reconcile', "
+            "'demand_import')",
             name="task_allowed",
         ),
         Index("ix_schedules_next_run", "next_run_at"),

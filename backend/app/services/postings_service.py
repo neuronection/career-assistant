@@ -75,6 +75,16 @@ def resolve_source_secrets(source: JobSource) -> dict[str, str]:
     return resolved
 
 
+def _record_health(source: JobSource, errors: list[dict]) -> None:
+    """Source health badge: failed / degraded (partial errors) / ok."""
+    from app.models.enums import HealthStatus
+
+    if errors:
+        source.last_status = HealthStatus.DEGRADED.value
+    else:
+        source.last_status = HealthStatus.OK.value
+
+
 async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
     """Fetch via the connector through the polite runtime, upsert postings,
     map, alert.
@@ -92,6 +102,7 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
         connector = await registry.resolve_connector(db, source.connector_key)
     except ValidationError as exc:
         source.error = str(exc)
+        source.last_status = "failed"
         await db.commit()
         return {"synced": 0, "error": str(exc)}
     secrets = resolve_source_secrets(source)
@@ -103,6 +114,7 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
     if missing:
         error = ConnectorError.needs_secret(f"missing secret slot(s): {', '.join(sorted(missing))}")
         source.error = f"{error.code}: {error.detail}"
+        source.last_status = "failed"
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
     runtime_transport = transport or build_transport(
@@ -129,6 +141,7 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
     except PoliteHttpError as exc:
         error = ConnectorError.from_polite(exc)
         source.error = f"{error.code}: {error.detail}"
+        source.last_status = "failed"
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
     except Exception:
@@ -147,6 +160,7 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
             retryable="after-config-change",
         )
         source.error = f"{error.code}: {error.detail}"[:2000]
+        source.last_status = "failed"
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
 
@@ -174,6 +188,7 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
     source.sync_state = result.next_state or {}
     source.last_run_at = _utcnow()
     source.error = "; ".join(f"{error['code']}: {error['detail']}" for error in errors)[:2000]
+    _record_health(source, errors)
     await db.commit()
     # Deep extraction is queued, never blocking the sync path;
     # demand-matched postings enqueue first (oldest-first claim order).
@@ -945,14 +960,31 @@ async def expire_stale(db: AsyncSession) -> int:
 
 
 async def run_sync_job(db: AsyncSession, payload: dict) -> dict:
-    """POSTING_SYNC handler: one source or every enabled source."""
+    """POSTING_SYNC handler: one source or every enabled posting source.
+
+    Paused sources (`paused_at`) and non-posting kinds (market demand
+    sources run through their own handler) are skipped."""
     source_id = payload.get("source_id")
     if source_id:
         rows = await db.execute(select(JobSource).where(JobSource.id == UUID(source_id)))
-        sources = list(rows.scalars().all())
+        sources = [
+            source
+            for source in rows.scalars().all()
+            if source.kind == "posting" and source.paused_at is None
+        ]
     else:
         sources = list(
-            (await db.execute(select(JobSource).where(JobSource.enabled.is_(True)))).scalars().all()
+            (
+                await db.execute(
+                    select(JobSource).where(
+                        JobSource.enabled.is_(True),
+                        JobSource.kind == "posting",
+                        JobSource.paused_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
     totals = {"synced": 0, "sources": len(sources), "errors": []}
     for source in sources:

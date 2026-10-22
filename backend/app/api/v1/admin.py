@@ -5,7 +5,7 @@ auth-kit's §12 surface now — see `nx_auth.user_admin` (plan 16 P3a)."""
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -455,11 +455,14 @@ async def _source_view(db: AsyncSession, source) -> dict:
 
     config = dict(source.config or {})
     secret_hints: dict[str, dict] = {}
-    try:
-        connector = await resolve_connector(db, source.connector_key)
-        slots = connector.secret_slots()
-    except Exception:
+    if source.kind == "market":
         slots = {}
+    else:
+        try:
+            connector = await resolve_connector(db, source.connector_key)
+            slots = connector.secret_slots()
+        except Exception:
+            slots = {}
     for slot in slots:
         sealed = (source.secrets or {}).get(slot)
         value = decrypt_secret(sealed) if isinstance(sealed, str) else None
@@ -472,9 +475,13 @@ async def _source_view(db: AsyncSession, source) -> dict:
         "id": str(source.id),
         "key": source.key,
         "connector_key": source.connector_key,
+        "kind": source.kind,
+        "schedule_kind": source.schedule_kind,
         "config": config,
         "secret_hints": secret_hints,
         "enabled": source.enabled,
+        "paused_at": source.paused_at.isoformat() if source.paused_at else None,
+        "last_status": source.last_status,
         "last_run_at": source.last_run_at.isoformat() if source.last_run_at else None,
         "sync_state": source.sync_state,
         "error": source.error,
@@ -522,15 +529,25 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
 
     key = str(payload.get("key") or "").strip()
     connector_key = str(payload.get("connector_key") or "").strip()
+    kind = str(payload.get("kind") or "posting").strip()
+    if kind not in ("posting", "market"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind: {kind}")
     config = payload.get("config") or {}
-    try:
-        connector = get_connector(connector_key)
-        validated = connector.validate_config(config)
-    except DomainError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    if kind == "market":
+        from app.services.demand_import_service import validate_market_config
+
+        connector_key = connector_key or "demand_data"
+        validated = validate_market_config(config)
+    else:
+        try:
+            connector = get_connector(connector_key)
+            validated = connector.validate_config(config)
+        except DomainError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     source = JobSource(
         key=key,
         connector_key=connector_key,
+        kind=kind,
         config=validated,
         secrets={
             slot: encrypt_secret(str(value))
@@ -564,16 +581,23 @@ async def update_posting_source(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
     if "config" in payload and payload["config"] is not None:
         try:
-            from app.extensions.registry import resolve_connector
+            if source.kind == "market":
+                from app.services.demand_import_service import validate_market_config
 
-            connector = await resolve_connector(db, source.connector_key)
-            source.config = connector.validate_config(payload["config"])
+                source.config = validate_market_config(payload["config"])
+            else:
+                from app.extensions.registry import resolve_connector
+
+                connector = await resolve_connector(db, source.connector_key)
+                source.config = connector.validate_config(payload["config"])
         except DomainError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     if "secrets" in payload and payload["secrets"] is not None:
         _seal_source_secrets(source, payload["secrets"])
     if "enabled" in payload and payload["enabled"] is not None:
         source.enabled = bool(payload["enabled"])
+    if "paused" in payload and payload["paused"] is not None:
+        source.paused_at = datetime.now(UTC) if payload["paused"] else None
     await db.commit()
     return await _source_view(db, source)
 
@@ -585,8 +609,16 @@ async def sync_posting_source(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Manual refresh — queued via."""
+    from app.models.posting_model import JobSource
     from app.services.job_worker import enqueue
 
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
+    )
+    if source is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    if source.kind != "posting":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "this source is not a posting source")
     job = await enqueue(
         db,
         BackgroundJobType.POSTING_SYNC.value,
@@ -619,6 +651,8 @@ async def probe_posting_source(
     )
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    if source.kind != "posting":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "this source is not a posting source")
     connector = get_connector(source.connector_key)
     secrets = resolve_source_secrets(source)
     missing = [

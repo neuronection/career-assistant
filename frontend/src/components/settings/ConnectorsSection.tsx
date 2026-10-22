@@ -210,38 +210,63 @@ function JobSourceConnectors() {
     }
   };
 
-  const groups = useMemo<IntegrationExtensionGroupView[]>(
-    () => [
-      {
-        extension: {
-          id: "job-sources",
-          name: t("toolsSettings.connectors.sources.title"),
-          originClass: "bundled",
-          tier: "T1",
-          categories: ["data"],
-        },
-        instances: sources.map((source) => {
-          const connector = catalogByKey[source.connector_key];
-          const needsSecret = Object.entries(source.secret_hints).some(
-            ([slot, hint]) => connector?.secret_fields.includes(slot) && !hint.set,
-          );
-          return {
-            id: source.id,
-            extensionId: source.connector_key,
-            name: source.key,
-            enabled: source.enabled,
-            status: source.error ? ("failing" as const) : ("ok" as const),
-            conditions: needsSecret ? (["needs-secret"] as const) : [],
-            originClass: "bundled" as const,
-            tier: "T1" as const,
-            digest: null,
-            update: null,
-          };
+  const sourceStatus = (source: PostingSource) => {
+    if (source.last_status === "failed") return "failing" as const;
+    if (source.last_status === "degraded") return "degraded" as const;
+    if (source.error) return "failing" as const;
+    return "ok" as const;
+  };
+
+  const groups = useMemo<IntegrationExtensionGroupView[]>(() => {
+    const kinds = ["posting", "market", "university", "search", "webhook_in"];
+    return kinds
+      .map(
+        (kind): IntegrationExtensionGroupView => ({
+          extension: {
+            id: `job-sources-${kind}`,
+            name: t(`toolsSettings.connectors.sources.kind.${kind}`),
+            originClass: "bundled",
+            tier: "T1",
+            categories: ["data"],
+          },
+          instances: sources
+            .filter((source) => (source.kind || "posting") === kind)
+            .map((source) => {
+              const connector = catalogByKey[source.connector_key];
+              const needsSecret = Object.entries(source.secret_hints).some(
+                ([slot, hint]) => connector?.secret_fields.includes(slot) && !hint.set,
+              );
+              return {
+                id: source.id,
+                extensionId: source.connector_key,
+                name: source.key,
+                enabled: source.enabled,
+                status: sourceStatus(source),
+                lastSuccessAt: source.last_run_at,
+                conditions: needsSecret ? (["needs-secret"] as const) : [],
+                parked: Boolean(source.paused_at),
+                originClass: "bundled" as const,
+                tier: "T1" as const,
+                digest: null,
+                update: null,
+              };
+            }),
         }),
-      },
-    ],
-    [sources, catalogByKey, t],
-  );
+      )
+      .filter((group) => group.instances.length > 0);
+  }, [sources, catalogByKey, t]);
+
+  const setPaused = async (source: PostingSource, paused: boolean) => {
+    setBusy(true);
+    try {
+      await sourcesApi.updateSource(source.id, { paused });
+      await refresh();
+    } catch (err) {
+      setNotice(apiDetail(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
   const draftFields = useMemo(
@@ -278,10 +303,27 @@ function JobSourceConnectors() {
           emptyLabel: t("toolsSettings.connectors.sources.empty"),
           enableAriaLabel: t("toolsSettings.connectors.sources.enabledAria"),
           configureLabel: t("toolsSettings.connectors.sources.edit"),
+          parkLabel: t("toolsSettings.connectors.sources.pause"),
+          restoreLabel: t("toolsSettings.connectors.sources.resume"),
+          parkedLabel: t("toolsSettings.connectors.sources.paused"),
+          lastSuccessLabel: t("toolsSettings.connectors.sources.lastSuccess"),
+          statusLabels: {
+            ok: t("toolsSettings.connectors.sources.statusOk"),
+            degraded: t("toolsSettings.connectors.sources.statusDegraded"),
+            failing: t("toolsSettings.connectors.sources.statusFailing"),
+          },
           conditionLabels: {
             "needs-config": t("toolsSettings.connectors.sources.needsConfig"),
             "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
           },
+        }}
+        onPark={(instance) => {
+          const source = sources.find((row) => row.id === instance.id);
+          if (source) void setPaused(source, true);
+        }}
+        onRestore={(instance) => {
+          const source = sources.find((row) => row.id === instance.id);
+          if (source) void setPaused(source, false);
         }}
         onToggleEnabled={(instance, enabled) => {
           const source = sources.find((row) => row.id === instance.id);
@@ -336,26 +378,30 @@ function JobSourceConnectors() {
                       })}
                 </span>
               ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={probingId === source.id}
-                onClick={() => void probe(source)}
-              >
-                {probingId === source.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : null}
-                {t("toolsSettings.connectors.sources.test")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => void sync(source)}
-              >
-                <RefreshCw className="w-4 h-4" />
-                {t("toolsSettings.connectors.sources.sync")}
-              </Button>
+              {(source.kind || "posting") === "posting" ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={probingId === source.id}
+                    onClick={() => void probe(source)}
+                  >
+                    {probingId === source.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : null}
+                    {t("toolsSettings.connectors.sources.test")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void sync(source)}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    {t("toolsSettings.connectors.sources.sync")}
+                  </Button>
+                </>
+              ) : null}
               {catalogByKey[source.connector_key]?.manifest?.docs ? (
                 <Button
                   variant="outline"

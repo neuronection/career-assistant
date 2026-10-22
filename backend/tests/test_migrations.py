@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0052"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0053"], (
         "revision chain stays linear on one head"
     )
 
@@ -1971,3 +1971,17 @@ def test_populated_sqlite_upgrades_0050_to_head(tmp_path, monkeypatch):
         )
     )
     assert folded == [("interview", "populated note")], "0052 folds the application fields"
+
+
+def test_0053_demand_import_task_check_roundtrip():
+    """Plan 122 phase 3: the dormant demand-import schedule kind gains its
+    task value; downgrade restores the previous CHECK."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert "demand_import" in _schedules_checks()["task_allowed"]
+
+    command.downgrade(config, "0052")
+    assert "demand_import" not in _schedules_checks()["task_allowed"]
+
+    command.upgrade(config, "head")
+    assert "demand_import" in _schedules_checks()["task_allowed"]

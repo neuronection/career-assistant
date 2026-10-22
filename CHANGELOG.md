@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (demand data, GitHub intake, source health, 2026-10-22)
+- **Demand import is live** (plan 122 phase 3): the dormant
+  `system_demand_import` schedule now enqueues a `demand_import` job that
+  reads market-data sources (BLS wage/employment series, Adzuna job-market
+  history) and writes salary/outlook observations into `market_snapshots`
+  and `jobs.demand` with **field-level provenance** (source, dataset,
+  observed date, URL). Market sources live in Settings → Tools →
+  Connectors as **Market data**.
+- **GitHub intake** (Profile → Import → **GitHub**): preview a public
+  GitHub profile, tick repositories and create **draft** projects with
+  achievement highlights — review-first, never auto-written, and
+  repositories already on the profile are skipped.
+- **Source health and pause/resume** (plan 122 phase 3): Settings → Tools
+  → Connectors groups sources by kind (Job boards, Market data,
+  Universities, Search, Inbound webhooks), shows a health badge
+  (healthy / degraded / failing) with the last successful run, and lets
+  an admin pause or resume a source without deleting it.
+
 ### Added (keyed web-search providers, 2026-10-22)
 - **Web search supports five keyed providers** (plan 122 phase 2):
   **Tavily**, **Brave Search**, **Exa**, **Serper** and **Google

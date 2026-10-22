@@ -54,6 +54,14 @@ Programmable Search; the first enabled provider that answers wins, and a
 [Add a job source](add-a-job-source.md) and
 [Import extensions from git](import-extensions-from-git.md).
 
+Connectors are grouped by what they feed — **Job boards**, **Market data**,
+**Universities**, **Search** and **Inbound webhooks** — and each row shows a
+health badge (healthy / degraded / failing) with its last successful run.
+**Pause syncing** parks a source without deleting its configuration;
+**Resume syncing** puts it back on the schedule. Market-data sources feed
+the demand import (salary and outlook provenance on catalog jobs) rather
+than the posting feed, so they run on the daily demand schedule.
+
 Connectors also hosts the **MCP server** surface: the endpoint URL,
 token lifecycle (mint shown once, rotate, revoke), copy-ready client
 snippets, the live tool list with its scopes, and the recent-call

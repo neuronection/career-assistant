@@ -622,6 +622,7 @@ class BackgroundJobType(StrEnum):
     CHECKPOINT_PRUNE = "checkpoint_prune"
     EXTENSION_RECONCILE = "extension_reconcile"
     NOTIFICATION_DELIVERY = "notification_delivery"
+    DEMAND_IMPORT = "demand_import"
 
 
 class ScheduleKind(StrEnum):

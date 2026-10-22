@@ -11,9 +11,13 @@ export type PostingSource = {
   id: string;
   key: string;
   connector_key: string;
+  kind: string;
+  schedule_kind: string | null;
   config: Record<string, string | number | boolean>;
   secret_hints: Record<string, SecretHint>;
   enabled: boolean;
+  paused_at: string | null;
+  last_status: string;
   last_run_at: string | null;
   sync_state: Record<string, unknown>;
   error: string;
@@ -116,6 +120,7 @@ export async function updateSource(
     config?: Record<string, string | number | boolean>;
     secrets?: Record<string, string>;
     enabled?: boolean;
+    paused?: boolean;
   },
 ): Promise<PostingSource> {
   const response = await api.put(`/admin/postings/sources/${id}`, payload);
