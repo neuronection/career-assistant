@@ -95,9 +95,28 @@ Never reorder. Motion lives only in `styles/motion.css`.
 
 ## Internationalization
 
-`lib/i18n.ts` initializes i18next; resources live in `locales/`. User-facing
-strings should go through the i18n layer rather than being hard-coded. The
-`i18n-audit.test.ts` guards coverage.
+`lib/i18n.ts` initializes i18next with the three shipped locales (`en`
+source, `de`, `el`); resources live in `locales/`. The active locale comes
+from the caller's `users.locale` (via `/me/bootstrap`), falls back to the
+instance default (`app_settings` `i18n.default_locale`), then `en`, and
+sets `<html lang>`; changes apply without a reload. Number, date and
+currency formatting goes through `lib/format.ts` so `Intl` follows the same
+locale.
+
+Two gates keep coverage measurable:
+
+- **reverse lint** (`reverse-lint.test.ts`) — raw user-facing English in
+  `src/pages` and `src/components` fails the suite. The allowlist is
+  brands and technical tokens only; CV block `props` defaults are document
+  content and therefore exempt.
+- **catalog audit** (`i18n-audit.test.ts`) — every static `t()` key must
+  exist in `en.json`, and every catalog key must be referenced from app
+  source (dynamic `t(\`ns.${value}\`)` prefixes count).
+
+`scripts/translations/check_translations.py` (no flags) is the CI
+completeness gate for `de`/`el`; it fails on missing or extra keys.
+Catalog entity labels are **not** translated in JSX: they use review-first
+`label_overrides` rows resolved server-side (approved → base → key).
 
 ## Conventions
 

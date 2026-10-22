@@ -242,6 +242,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.TRANSLATE.value,
+        "Locale catalog + catalog-label translation batches",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.DECISION_TOOL_DISPATCH.value,
         "Decision model slot: tool dispatch",
         AICapability.DECISION.value,

@@ -44,7 +44,7 @@ def test_university_catalog_upload_review_and_apply(page) -> None:
 
     card = page.locator("a", has_text=UNIVERSITY).first
     expect(card).to_be_visible(timeout=30_000)
-    expect(page.get_by_text("1 departments")).to_be_visible()
+    expect(page.get_by_text("1 department")).to_be_visible()
 
     documents = page.request.get(f"{API}/documents", headers=api_headers())
     assert documents.ok, documents.text()

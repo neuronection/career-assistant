@@ -328,19 +328,28 @@ async def _resolve_achievements(db: AsyncSession, user_id: uuid.UUID) -> list[Cv
 
 
 async def _resolve_skills(db: AsyncSession, user_id: uuid.UUID) -> list[CvContextItem]:
-    rows = await db.execute(
+    from app.models.enums import LabelEntityKind
+    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.locale_service import effective_locale
+
+    result = await db.execute(
         select(UserSkill)
         .where(UserSkill.user_id == user_id, UserSkill.derive_enabled)
         .options(selectinload(UserSkill.skill))
         .order_by(UserSkill.level.desc(), UserSkill.created_at.asc())
     )
+    rows = list(result.scalars().all())
+    user = (await db.execute(select(User).where(User.id == user_id))).scalars().first()
+    locale = await effective_locale(db, user)
+    skill_ids = [row.skill_id for row in rows if row.skill is not None]
+    overlays = await LabelOverlayService(db).approved_map(LabelEntityKind.SKILL, skill_ids, locale)
     return [
         CvContextItem(
             item_id=str(row.skill_id),
-            label=row.skill.label,
+            label=overlays.get(row.skill_id, {}).get("label") or row.skill.label,
             detail=row.skill.category,
             payload={
-                "label": row.skill.label,
+                "label": overlays.get(row.skill_id, {}).get("label") or row.skill.label,
                 "level": row.level,
                 "category": row.skill.category,
                 # Per-item selection target: block `props.selected`
@@ -349,7 +358,7 @@ async def _resolve_skills(db: AsyncSession, user_id: uuid.UUID) -> list[CvContex
             },
             updated_at=row.updated_at,
         )
-        for row in rows.scalars().all()
+        for row in rows
         if row.skill is not None
     ]
 

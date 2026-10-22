@@ -18,7 +18,6 @@ from app.schemas.engagement import (
     SeenIn,
     UnseenCountOut,
 )
-from app.schemas.job import JobOut
 from app.schemas.matching import MatchInsightOut
 from app.services.deps import get_current_user, get_profile_for_user
 from app.services.engagement_service import EngagementService
@@ -89,16 +88,21 @@ async def feed(
     db: AsyncSession = Depends(get_db),
 ) -> FeedOut:
     """Discovery feed: unseen-first, fit-sorted, with the exploration slot."""
+    from app.services.localized_view import job_outs, resolve_locale
+
     profile = await get_profile_for_user(db, user.id)
     result = await EngagementService(db).feed(
         profile, view=view, sort=sort, page=page, page_size=page_size
+    )
+    localized = await job_outs(
+        db, [item["job"] for item in result["items"]], await resolve_locale(db, user)
     )
     return FeedOut(
         total=result["total"],
         unseen=result["unseen"],
         items=[
             FeedItemOut(
-                job=JobOut.from_model(item["job"]),
+                job=localized[index],
                 fit_score=item["fit_score"],
                 insight=_insight_out(item["insight"]),
                 seen=item["seen"],
@@ -106,7 +110,7 @@ async def feed(
                 user_notes=item["insight"].user_notes,
                 exploration=item["exploration"],
             )
-            for item in result["items"]
+            for index, item in enumerate(result["items"])
         ],
     )
 

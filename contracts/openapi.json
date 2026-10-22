@@ -9438,6 +9438,11 @@
             "title": "Family Key",
             "type": "string"
           },
+          "family_label": {
+            "default": "",
+            "title": "Family Label",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -9825,6 +9830,21 @@
         "title": "KindPrefUpdateOut",
         "type": "object"
       },
+      "LabelEntityKind": {
+        "description": "Catalog entity families a label overlay can target.",
+        "enum": [
+          "job",
+          "skill",
+          "family",
+          "university",
+          "department",
+          "metric_dimension",
+          "assessment_template",
+          "cv_template"
+        ],
+        "title": "LabelEntityKind",
+        "type": "string"
+      },
       "LanguageSkill": {
         "properties": {
           "code": {
@@ -9906,6 +9926,22 @@
           "weight"
         ],
         "title": "LikeDislikeItem",
+        "type": "object"
+      },
+      "LocaleIn": {
+        "description": "A personal or instance-wide locale choice (BCP-47 short form).",
+        "properties": {
+          "locale": {
+            "maxLength": 8,
+            "minLength": 2,
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "LocaleIn",
         "type": "object"
       },
       "LoginIn": {
@@ -10902,6 +10938,52 @@
           "ok"
         ],
         "title": "OpResult",
+        "type": "object"
+      },
+      "OverlayDraftIn": {
+        "description": "Administrator request to draft overlays for taxonomy rows.",
+        "properties": {
+          "entity_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/LabelEntityKind"
+            },
+            "title": "Entity Kinds",
+            "type": "array"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "locale": {
+            "maxLength": 8,
+            "minLength": 2,
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "OverlayDraftIn",
+        "type": "object"
+      },
+      "OverlayPatchIn": {
+        "description": "Reviewer edit of a drafted value (approval stays a separate action).",
+        "properties": {
+          "value": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "OverlayPatchIn",
         "type": "object"
       },
       "PasswordChangeIn": {
@@ -15492,6 +15574,31 @@
         "title": "TranscribeOut",
         "type": "object"
       },
+      "TranslateKeysIn": {
+        "description": "Maintainer batch: source strings to translate into one locale.",
+        "properties": {
+          "entries": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "minProperties": 1,
+            "title": "Entries",
+            "type": "object"
+          },
+          "locale": {
+            "maxLength": 8,
+            "minLength": 2,
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "entries"
+        ],
+        "title": "TranslateKeysIn",
+        "type": "object"
+      },
       "TreeNodeOut": {
         "properties": {
           "active_child_id": {
@@ -17313,6 +17420,392 @@
           }
         },
         "summary": "Sync Extension Source",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/locale": {
+      "get": {
+        "description": "Instance default UI locale plus the supported registry.",
+        "operationId": "get_instance_locale_api_v1_admin_i18n_locale_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Instance Locale Api V1 Admin I18N Locale Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Instance Locale",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Set the instance default UI locale (users keep their own choice).",
+        "operationId": "put_instance_locale_api_v1_admin_i18n_locale_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocaleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Instance Locale Api V1 Admin I18N Locale Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Instance Locale",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/overlays": {
+      "get": {
+        "description": "Catalog-label overlays awaiting (or having completed) review.",
+        "operationId": "overlay_queue_api_v1_admin_i18n_overlays_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Locale"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "draft",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Overlay Queue Api V1 Admin I18N Overlays Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Overlay Queue",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/overlays/draft": {
+      "post": {
+        "description": "AI-draft overlays for taxonomy rows (draft status; never renders).",
+        "operationId": "draft_overlays_api_v1_admin_i18n_overlays_draft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverlayDraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Draft Overlays Api V1 Admin I18N Overlays Draft Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Overlays",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/overlays/{overlay_id}": {
+      "patch": {
+        "description": "Reviewer edit of a drafted overlay value (approval stays separate).",
+        "operationId": "edit_overlay_api_v1_admin_i18n_overlays__overlay_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overlay_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Overlay Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverlayPatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Edit Overlay Api V1 Admin I18N Overlays  Overlay Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Overlay",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/overlays/{overlay_id}/approve": {
+      "post": {
+        "description": "Approve one overlay \u2014 the only route to rendering.",
+        "operationId": "approve_overlay_api_v1_admin_i18n_overlays__overlay_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overlay_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Overlay Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Approve Overlay Api V1 Admin I18N Overlays  Overlay Id  Approve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Overlay",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/overlays/{overlay_id}/reject": {
+      "post": {
+        "description": "Reject one overlay (it never renders).",
+        "operationId": "reject_overlay_api_v1_admin_i18n_overlays__overlay_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overlay_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Overlay Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reject Overlay Api V1 Admin I18N Overlays  Overlay Id  Reject Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Overlay",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/i18n/translate": {
+      "post": {
+        "description": "Audited UI-catalog translation batch (maintainer tooling).",
+        "operationId": "translate_keys_api_v1_admin_i18n_translate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateKeysIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Translate Keys Api V1 Admin I18N Translate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Translate Keys",
         "tags": [
           "admin"
         ]
@@ -30306,6 +30799,72 @@
           }
         },
         "summary": "Patch Followup Rules",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/locale": {
+      "get": {
+        "description": "The caller's effective UI locale and the supported registry.",
+        "operationId": "get_locale_api_v1_me_locale_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Locale Api V1 Me Locale Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Locale",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "description": "Persist the caller's UI locale; the SPA re-initialises i18next from it.",
+        "operationId": "put_locale_api_v1_me_locale_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocaleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Locale Api V1 Me Locale Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Locale",
         "tags": [
           "me"
         ]

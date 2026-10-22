@@ -1091,10 +1091,26 @@ async def quick_assist(
         row = await db.execute(select(Job).where(Job.code == job_code))
         job = row.scalars().first()
         if job:
+            from app.models.enums import LabelEntityKind
+            from app.models.user_model import User
+            from app.services.label_overlay_service import LabelOverlayService
+            from app.services.locale_service import effective_locale
+
+            owner = (await db.execute(select(User).where(User.id == user_id))).scalars().first()
+            locale = await effective_locale(db, owner)
+            overlays = LabelOverlayService(db)
             job_snapshot = {
                 "code": job.code,
-                "title": job.title,
-                "description": job.short_description,
+                "title": await overlays.resolve_one(
+                    LabelEntityKind.JOB, job.id, "label", job.title, locale
+                ),
+                "description": await overlays.resolve_one(
+                    LabelEntityKind.JOB,
+                    job.id,
+                    "short_description",
+                    job.short_description,
+                    locale,
+                ),
             }
     data = {
         "question": question,

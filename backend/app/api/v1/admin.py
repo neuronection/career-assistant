@@ -18,6 +18,12 @@ from app.core.errors import DomainError, ValidationError, sanitize_error_detail
 from app.models.ai_model import AIGeneration
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
+from app.schemas.i18n import (
+    LocaleIn,
+    OverlayDraftIn,
+    OverlayPatchIn,
+    TranslateKeysIn,
+)
 from app.schemas.job import JobOut
 from app.services.deps import get_current_user, require_admin
 from app.services.job_service import JobService
@@ -1029,3 +1035,169 @@ async def admin_run_schedule_now(
         "id": str(schedule.id),
         "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
     }
+
+
+async def _overlay_base_value(db: AsyncSession, overlay) -> str:
+    """The catalog entity's current source-locale display value."""
+    from app.models.enums import LabelEntityKind
+    from app.models.job_model import Job, JobFamily
+    from app.models.taxonomy_model import Skill
+
+    kind = LabelEntityKind(overlay.entity_kind)
+    if kind == LabelEntityKind.JOB:
+        job = (await db.execute(select(Job).where(Job.id == overlay.entity_id))).scalars().first()
+        if job is None:
+            return ""
+        return job.title if overlay.field == "label" else job.short_description
+    if kind == LabelEntityKind.SKILL:
+        skill = (
+            (await db.execute(select(Skill).where(Skill.id == overlay.entity_id))).scalars().first()
+        )
+        if skill is None:
+            return ""
+        return skill.label if overlay.field == "label" else skill.description
+    if kind == LabelEntityKind.FAMILY:
+        family = (
+            (await db.execute(select(JobFamily).where(JobFamily.id == overlay.entity_id)))
+            .scalars()
+            .first()
+        )
+        if family is None:
+            return ""
+        return family.label if overlay.field == "label" else family.description
+    return ""
+
+
+@router.get("/i18n/locale", response_model=dict)
+async def get_instance_locale(db: AsyncSession = Depends(get_db)) -> dict:
+    """Instance default UI locale plus the supported registry."""
+    from app.services.locale_service import (
+        SUPPORTED_LOCALES,
+        instance_default_locale,
+    )
+
+    return {
+        "locale": await instance_default_locale(db),
+        "supported": list(SUPPORTED_LOCALES),
+    }
+
+
+@router.put("/i18n/locale", response_model=dict)
+async def put_instance_locale(body: LocaleIn, db: AsyncSession = Depends(get_db)) -> dict:
+    """Set the instance default UI locale (users keep their own choice)."""
+    from app.services.locale_service import SUPPORTED_LOCALES, set_instance_default_locale
+
+    locale = await set_instance_default_locale(db, body.locale)
+    return {"locale": locale, "supported": list(SUPPORTED_LOCALES)}
+
+
+@router.post("/i18n/translate", response_model=dict)
+async def translate_keys(
+    body: TranslateKeysIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Audited UI-catalog translation batch (maintainer tooling)."""
+    from app.services.translation_service import TranslationService
+
+    translations = await TranslationService(db).translate_keys(
+        body.locale, body.entries, user_id=user.id
+    )
+    return {"locale": body.locale, "translations": translations}
+
+
+@router.get("/i18n/overlays", response_model=list[dict])
+async def overlay_queue(
+    locale: str | None = Query(default=None),
+    overlay_status: str | None = Query(default="draft", alias="status"),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Catalog-label overlays awaiting (or having completed) review."""
+    from app.services.label_overlay_service import LabelOverlayService
+
+    rows = await LabelOverlayService(db).queue(
+        locale=locale, row_status=overlay_status, limit=limit
+    )
+    out = []
+    for row in rows:
+        out.append(
+            {
+                "id": str(row.id),
+                "entity_kind": row.entity_kind,
+                "entity_id": str(row.entity_id),
+                "locale": row.locale,
+                "field": row.field,
+                "value": row.value,
+                "base_value": await _overlay_base_value(db, row),
+                "source": row.source,
+                "status": row.status,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+            }
+        )
+    return out
+
+
+@router.post("/i18n/overlays/draft", response_model=dict)
+async def draft_overlays(
+    body: OverlayDraftIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """AI-draft overlays for taxonomy rows (draft status; never renders)."""
+    from app.core.errors import AINotConfiguredError, DomainError
+    from app.services.translation_service import TranslationService
+
+    try:
+        drafted = await TranslationService(db).draft_catalog_labels(
+            body.locale, body.entity_kinds, body.limit, user_id=user.id
+        )
+    except AINotConfiguredError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"locale": body.locale, "drafted": drafted}
+
+
+@router.patch("/i18n/overlays/{overlay_id}", response_model=dict)
+async def edit_overlay(
+    overlay_id: uuid.UUID, body: OverlayPatchIn, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Reviewer edit of a drafted overlay value (approval stays separate)."""
+    from app.core.errors import NotFoundError
+    from app.services.label_overlay_service import LabelOverlayService
+
+    try:
+        row = await LabelOverlayService(db).edit_value(overlay_id, body.value)
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(row.id), "value": row.value, "status": row.status}
+
+
+@router.post("/i18n/overlays/{overlay_id}/approve", response_model=dict)
+async def approve_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Approve one overlay — the only route to rendering."""
+    from app.core.errors import NotFoundError
+    from app.models.enums import LabelStatus
+    from app.services.label_overlay_service import LabelOverlayService
+
+    try:
+        row = await LabelOverlayService(db).set_status(overlay_id, LabelStatus.APPROVED)
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(row.id), "status": row.status}
+
+
+@router.post("/i18n/overlays/{overlay_id}/reject", response_model=dict)
+async def reject_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Reject one overlay (it never renders)."""
+    from app.core.errors import NotFoundError
+    from app.models.enums import LabelStatus
+    from app.services.label_overlay_service import LabelOverlayService
+
+    try:
+        row = await LabelOverlayService(db).set_status(overlay_id, LabelStatus.REJECTED)
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(row.id), "status": row.status}

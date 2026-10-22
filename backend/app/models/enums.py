@@ -246,6 +246,7 @@ class AITaskType(StrEnum):
     MCP_TOOL_CALL = "mcp_tool_call"
     SANDBOX_CAPABILITY_CALL = "sandbox_capability_call"
     TOOL_RUN = "tool_run"  # D20: one audit row per confirmed tool execution
+    TRANSLATE = "translate"  # plan 121: UI catalog + catalog-label translation batches
     DECISION = "decision"  # ADR-0036: the decision default slot beside the kind overrides
     DECISION_TOOL_DISPATCH = "decision_tool_dispatch"
     DECISION_BOOLEAN_GATE = "decision_boolean_gate"

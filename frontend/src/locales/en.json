@@ -376,7 +376,8 @@
       "travel": "Travel",
       "schedule": "Schedule",
       "organization": "Organization",
-      "sources": "Sources"
+      "sources": "Sources",
+      "posted": "Posted"
     },
     "removeSkill": "Remove {{skill}}",
     "noSources": "No sources connected yet.",
@@ -399,7 +400,14 @@
       "on_call": "On call",
       "nights": "Nights",
       "weekends": "Weekends",
-      "flexible": "Flexible"
+      "flexible": "Flexible",
+      "older": "older",
+      "intern": "Intern",
+      "junior": "Junior",
+      "mid": "Mid-level",
+      "senior": "Senior",
+      "lead": "Lead",
+      "principal": "Principal"
     }
   },
   "applications": {
@@ -1020,7 +1028,13 @@
     "deletePasswordLabel": "Confirm with your password",
     "deleteAccount": "Delete my account",
     "errorWrongPassword": "That password is not correct.",
-    "errorGeneric": "Something went wrong — try again."
+    "errorGeneric": "Something went wrong — try again.",
+    "appearanceTitle": "Appearance",
+    "appearanceDescription": "Choose the language for the interface. Catalog labels follow the same locale once translated.",
+    "instanceLocaleTitle": "Instance default",
+    "instanceLocaleDescription": "Used for people who have not picked a language of their own.",
+    "localeError": "Could not change the language.",
+    "localeInstanceSaved": "Instance default saved."
   },
   "taxonomy": {
     "kind": {
@@ -2980,6 +2994,20 @@
     "cvChatTitle": "CV chat",
     "toolResult": {
       "copyAria": "Copy tool result"
+    },
+    "prompts": {
+      "cvLayout": "Review this CV and fix any layout or overflow issues",
+      "cvSummary": "Rewrite my summary to be sharper and more specific",
+      "cvTemplate": "Switch to a modern template with a sidebar",
+      "cvOnePage": "Fit everything on one page",
+      "cvHideInterests": "Hide interests and shorten experience descriptions",
+      "cvAts": "Which sections are dragging my ATS score down?",
+      "letterShorten": "Tighten the letter to under 300 words",
+      "letterOpening": "Make the opening paragraph more specific to the role",
+      "letterEvidence": "Which profile evidence is missing from the letter?",
+      "entryLevel": "Find entry-level roles that fit my profile",
+      "compareOffers": "Compare two job offers side by side",
+      "nextSkills": "Which skills should I build next?"
     }
   },
   "demand": {
@@ -3588,6 +3616,66 @@
       "configuredHint": "The chat default is assigned — AI features are live.",
       "finish": "Finish setup",
       "settingsHint": "Need an API key first? Pick a provider above, or configure everything in"
+    }
+  },
+  "translations": {
+    "title": "Catalog translations",
+    "description": "AI-drafted labels for catalog entities. Only approved rows render; review the translation against the base label.",
+    "draft": "Draft with AI",
+    "drafted": "{{count}} overlays drafted for review.",
+    "emptyTitle": "Nothing to review",
+    "emptyBody": "Draft translations or switch the status filter.",
+    "base": "Base",
+    "approve": "Approve",
+    "reject": "Reject",
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "kind": {
+      "job": "Job",
+      "skill": "Skill",
+      "family": "Family",
+      "university": "University",
+      "department": "Department",
+      "metric_dimension": "Metric dimension",
+      "assessment_template": "Assessment template",
+      "cv_template": "CV template"
+    }
+  },
+  "settingsNav": {
+    "account": {
+      "label": "Account",
+      "description": "Sessions, password and account deletion"
+    },
+    "ai": {
+      "label": "AI Configuration",
+      "description": "Providers, models and task assignments"
+    },
+    "tools": {
+      "label": "Tools",
+      "description": "Web search and external connectors"
+    },
+    "automations": {
+      "label": "Automations",
+      "description": "Scheduled searches, digests and system rhythm"
+    },
+    "notifications": {
+      "label": "Notifications",
+      "description": "Kinds, channels and quiet hours"
+    },
+    "taxonomy": {
+      "label": "Taxonomy",
+      "description": "Interest & skill vocabularies"
+    },
+    "users": {
+      "label": "Users",
+      "description": "Roles, access and forced sign-out"
+    },
+    "audit": {
+      "label": "AI Audit",
+      "description": "Every AI call, with tokens and latency"
     }
   }
 }

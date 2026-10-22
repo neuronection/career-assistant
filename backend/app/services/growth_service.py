@@ -86,6 +86,17 @@ async def near_miss_radar(db: AsyncSession, user_id: UUID, limit: int = 8) -> li
         .scalars()
         .all()
     }
+    from app.models.enums import LabelEntityKind
+    from app.models.user_model import User
+    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.locale_service import effective_locale
+
+    owner = (await db.execute(select(User).where(User.id == user_id))).scalars().first()
+    locale = await effective_locale(db, owner)
+    overlays = LabelOverlayService(db)
+    job_overlays = await overlays.approved_map(
+        LabelEntityKind.JOB, [job.id for _insight, job in rows], locale
+    )
     radar: list[dict] = []
     for insight, job in rows:
         gates = (insight.fit_breakdown or {}).get("gates") or []
@@ -124,17 +135,18 @@ async def near_miss_radar(db: AsyncSession, user_id: UUID, limit: int = 8) -> li
         core_deficits = [d for d in deficits if d["importance"] == "core"]
         if not deficits or len(core_deficits) > RADAR_MAX_CORE_DEFICITS:
             continue
+        title = job_overlays.get(job.id, {}).get("label") or job.title
         radar.append(
             {
                 "job_id": str(job.id),
                 "code": job.code,
-                "title": job.title,
+                "title": title,
                 "family_key": job.family.key if job.family else "",
                 "fit_score": float(insight.fit_score),
                 "deficits": sorted(deficits, key=lambda d: (-d["delta"], d["label"]))[:4],
                 "headline": (
                     f"{len(deficits)} skill{'s' if len(deficits) != 1 else ''} away"
-                    f" from {job.title}: "
+                    f" from {title}: "
                     + ", ".join(
                         f"{d['label']} +{d['delta']}"
                         for d in sorted(deficits, key=lambda d: -d["delta"])[:3]

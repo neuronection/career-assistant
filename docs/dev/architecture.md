@@ -352,6 +352,28 @@ There is no side door around it.
   dimension (a single pass cannot honor per-dimension self-exclusion)
   instead of one COUNT per value; counts stay live (no approximation).
 
+## Locales and catalog labels
+
+The UI locale is data, not a build setting: `users.locale` (NULL = the
+instance default in `app_settings` `i18n.default_locale`, else `en`).
+`app/services/locale_service.py` is the one resolver; `/me/bootstrap`
+carries the result and the SPA re-initialises i18next and `<html lang>`
+without a reload. UI chrome lives in `frontend/src/locales/`; catalog data
+is never JSON-translated.
+
+Catalog entity labels use **review-first overlays** (`label_overrides`,
+plan 113 shape): `app/services/label_overlay_service.py` resolves an
+approved row per `(entity_kind, entity_id, locale, field)`, then falls
+back to the base label, then the stable key. Draft and rejected rows never
+render. `app/services/localized_view.py` is the single read-model seam for
+jobs (catalog, rankings, feed), family trees, skill lists and the CV
+context — endpoints resolve the locale once and call it. AI drafts land as
+`draft` through the audited `translate` gateway task
+(`app/services/translation_service.py`, also the maintainer batch path for
+locale files); only an admin approval reaches `approved`. University and
+department names stay authoritative — an overlay translates the display
+label only.
+
 ## AI flows are LangGraph graphs
 
 Multi-step AI flows are checkpointed LangGraph

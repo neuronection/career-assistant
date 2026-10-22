@@ -9,6 +9,14 @@ import {
   revokeMySession,
   type UserSession,
 } from "@/api/admin";
+import {
+  fetchInstanceLocale,
+  fetchLocale,
+  setInstanceLocale,
+  setMyLocale,
+} from "@/api/i18n";
+import { LOCALE_LABELS, SUPPORTED_LOCALES, setAppLocale } from "@/lib/i18n";
+import { formatDateTime } from "@/lib/format";
 import { Button, Card, ConfirmationModal, Spinner } from "@/components/ui";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -26,7 +34,7 @@ function errorText(error: unknown, wrongPassword: string, generic: string): stri
 }
 
 function formatDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString() : "—";
+  return iso ? formatDateTime(iso) : "—";
 }
 
 /** Account self-service (identity-auth §12, `/api/v1/me`): the caller's
@@ -45,6 +53,10 @@ export function Account() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
+  const [locale, setLocaleState] = useState("en");
+  const [instanceLocale, setInstanceLocaleState] = useState("en");
+  const isAdmin = useAuthStore((s) => s.user?.is_admin ?? false);
+  const [localeBusy, setLocaleBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -59,6 +71,44 @@ export function Account() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    fetchLocale()
+      .then((state) => setLocaleState(state.locale))
+      .catch(() => undefined);
+    if (isAdmin) {
+      fetchInstanceLocale()
+        .then((state) => setInstanceLocaleState(state.locale))
+        .catch(() => undefined);
+    }
+  }, [isAdmin]);
+
+  const chooseLocale = async (next: string) => {
+    setLocaleBusy(true);
+    try {
+      const state = await setMyLocale(next);
+      setLocaleState(state.locale);
+      await setAppLocale(state.locale as (typeof SUPPORTED_LOCALES)[number]);
+      setError(null);
+    } catch {
+      setError(t("account.localeError"));
+    } finally {
+      setLocaleBusy(false);
+    }
+  };
+
+  const chooseInstanceLocale = async (next: string) => {
+    setLocaleBusy(true);
+    try {
+      const state = await setInstanceLocale(next);
+      setInstanceLocaleState(state.locale);
+      setMessage(t("account.localeInstanceSaved"));
+    } catch {
+      setError(t("account.localeError"));
+    } finally {
+      setLocaleBusy(false);
+    }
+  };
 
   const revoke = async () => {
     const target = pendingRevoke;
@@ -129,6 +179,59 @@ export function Account() {
             </p>
           ) : null}
           {message ? <p className="text-xs text-emerald-600">{message}</p> : null}
+
+          <section
+            aria-label={t("account.appearanceTitle")}
+            className="space-y-2"
+            data-testid="account-appearance"
+          >
+            <div>
+              <h3 className="text-sm font-medium">{t("account.appearanceTitle")}</h3>
+              <p className="text-xs text-slate-500">
+                {t("account.appearanceDescription")}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {SUPPORTED_LOCALES.map((code) => (
+                <Button
+                  key={code}
+                  variant={locale === code ? "default" : "outline"}
+                  size="sm"
+                  disabled={localeBusy}
+                  data-testid={`locale-${code}`}
+                  aria-pressed={locale === code}
+                  onClick={() => void chooseLocale(code)}
+                >
+                  {LOCALE_LABELS[code]}
+                </Button>
+              ))}
+            </div>
+            {isAdmin ? (
+              <div className="space-y-1 border-t border-slate-100 pt-2">
+                <p className="text-xs font-medium text-slate-600">
+                  {t("account.instanceLocaleTitle")}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {t("account.instanceLocaleDescription")}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SUPPORTED_LOCALES.map((code) => (
+                    <Button
+                      key={code}
+                      variant={instanceLocale === code ? "secondary" : "ghost"}
+                      size="sm"
+                      disabled={localeBusy}
+                      data-testid={`instance-locale-${code}`}
+                      aria-pressed={instanceLocale === code}
+                      onClick={() => void chooseInstanceLocale(code)}
+                    >
+                      {LOCALE_LABELS[code]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
 
           <section aria-label={t("account.sessionsTitle")} className="space-y-2">
             <div>

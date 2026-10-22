@@ -157,6 +157,7 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 | assistant-ui drift | `node scripts/audit-assistant-ui-usage.mjs ./frontend/src` | zero local copies of library components |
 | Dependency audit | `python scripts/check-dependency-audit.py` | reviewed exceptions only |
 | Skip list | enforced by `tests/conftest.py` at session end | `tests/skip_allowlist.json` |
+| i18n catalogs | `python3 scripts/translations/check_translations.py` | `de`/`el` complete; reverse lint + key audit in vitest |
 
 **Up-only.** A coverage floor rises to the measured value; a type peg falls
 to the measured value. When your change improves a number, move the pin in

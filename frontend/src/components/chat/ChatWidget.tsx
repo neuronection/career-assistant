@@ -47,7 +47,7 @@ import { fetchChatTree, type ChatTree } from "@/api/universities";
 import { transcribeAudio, classifyDictationError } from "@/api/ai";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { ChatViewSwitcher } from "@/components/chat/ChatViewSwitcher";
-import { cvPromptChips, GENERIC_SUGGESTIONS } from "@/lib/assistantPrompts";
+import { CV_PROMPT_KEYS, GENERIC_SUGGESTION_KEYS } from "@/lib/assistantPrompts";
 import { SessionList } from "@/components/chat/SessionList";
 import { ToolsDialog } from "@/components/chat/ToolsDialog";
 import { renderToolResult } from "@/components/chat/toolResultView";
@@ -242,7 +242,7 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
   const studioMatch = useMatch("/cv/:id");
   const studioCv = studioMatch?.params.id ?? null;
   if (studioCv !== null) {
-    const chips = cvPromptChips("resume");
+    const chips = CV_PROMPT_KEYS.resume.map((key) => t(key));
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
         <span className="flex size-10 items-center justify-center rounded-full bg-primary-50">
@@ -278,15 +278,15 @@ function ChatEmptyState({ compact }: { compact: boolean }) {
       </p>
       <AiSetupPrompt variant="card" className="w-full max-w-xs text-left" />
       <div className="flex flex-col gap-1.5">
-        {GENERIC_SUGGESTIONS.map((suggestion) => (
+        {GENERIC_SUGGESTION_KEYS.map((key) => (
           <button
-            key={suggestion}
+            key={key}
             type="button"
             data-testid="chat-suggestion"
-            onClick={() => chat.setDraft(suggestion)}
+            onClick={() => chat.setDraft(t(key))}
             className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
           >
-            {suggestion}
+            {t(key)}
           </button>
         ))}
       </div>

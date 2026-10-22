@@ -205,6 +205,7 @@ class JobOut(BaseModel):
     code: str
     title: str
     family_key: str = ""
+    family_label: str = ""
     short_description: str
     status: JobStatus
     source: JobSource
@@ -217,14 +218,30 @@ class JobOut(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_model(cls, job: "Job") -> "JobOut":
-        """Build an API representation from the ORM model."""
+    def from_model(
+        cls,
+        job: "Job",
+        overlay: dict[str, str] | None = None,
+        skill_labels: dict | None = None,
+        family_label: str | None = None,
+    ) -> "JobOut":
+        """Build an API representation from the ORM model.
+
+        ``overlay`` carries approved localized field values (``label`` ->
+        title, ``short_description`` -> summary) and ``skill_labels`` maps
+        skill ids to approved localized labels. Base values are untouched.
+        """
+        localized = overlay or {}
+        skill_map = skill_labels or {}
         return cls(
             id=job.id,
             code=job.code,
-            title=job.title,
+            title=localized.get("label") or job.title,
             family_key=job.family.key if job.family else "",
-            short_description=job.short_description,
+            family_label=family_label
+            if family_label is not None
+            else (job.family.label if job.family else ""),
+            short_description=localized.get("short_description") or job.short_description,
             status=JobStatus(job.status),
             source=JobSource(job.source),
             attributes=JobAttributes.model_validate(job.attributes or {}),
@@ -235,7 +252,7 @@ class JobOut(BaseModel):
                 JobSkillOut(
                     skill_id=link.skill_id,
                     key=link.skill.key,
-                    label=link.skill.label,
+                    label=skill_map.get(link.skill_id) or link.skill.label,
                     required_level=link.required_level,
                     importance=JobSkillImportance(link.importance),
                     rationale=link.rationale,

@@ -10,6 +10,7 @@ import { useIsShortViewport } from "@/hooks/useMediaQuery";
 import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { NotificationBell } from "@/components/NotificationBell";
+import { currentLocale, isSupportedLocale, setAppLocale } from "@/lib/i18n";
 import { ProfileSwitcherMenu } from "@/components/ProfileSwitcherMenu";
 import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
@@ -64,6 +65,13 @@ export function Layout() {
   useEffect(() => {
     if (user) void loadBootstrap();
   }, [user, loadBootstrap]);
+
+  useEffect(() => {
+    const locale = bootstrap?.locale;
+    if (locale && isSupportedLocale(locale) && locale !== currentLocale()) {
+      void setAppLocale(locale);
+    }
+  }, [bootstrap?.locale]);
 
   // Close the mobile drawer on navigation (desktop is unaffected — the
   // sidebar is permanently visible at lg+).

@@ -13,8 +13,8 @@ import {
 export interface SettingsNavItem {
   to: string;
   icon: LucideIcon;
-  label: string;
-  description?: string;
+  labelKey: string;
+  descriptionKey?: string;
   /** When true, only admins see the entry. */
   adminOnly?: boolean;
 }
@@ -24,53 +24,53 @@ export const settingsNav: SettingsNavItem[] = [
   {
     to: "/settings/account",
     icon: CircleUser,
-    label: "Account",
-    description: "Sessions, password and account deletion",
+    labelKey: "settingsNav.account.label",
+    descriptionKey: "settingsNav.account.description",
   },
   {
     to: "/settings/ai",
     icon: Cpu,
-    label: "AI Configuration",
-    description: "Providers, models and task assignments",
+    labelKey: "settingsNav.ai.label",
+    descriptionKey: "settingsNav.ai.description",
   },
   {
     to: "/settings/tools",
     icon: Wrench,
-    label: "Tools",
-    description: "Web search and external connectors",
+    labelKey: "settingsNav.tools.label",
+    descriptionKey: "settingsNav.tools.description",
     adminOnly: true,
   },
   {
     to: "/settings/automations",
     icon: CalendarClock,
-    label: "Automations",
-    description: "Scheduled searches, digests and system rhythm",
+    labelKey: "settingsNav.automations.label",
+    descriptionKey: "settingsNav.automations.description",
   },
   {
     to: "/settings/notifications",
     icon: Bell,
-    label: "Notifications",
-    description: "Kinds, channels and quiet hours",
+    labelKey: "settingsNav.notifications.label",
+    descriptionKey: "settingsNav.notifications.description",
   },
   {
     to: "/settings/taxonomy",
     icon: ListTree,
-    label: "Taxonomy",
-    description: "Interest & skill vocabularies",
+    labelKey: "settingsNav.taxonomy.label",
+    descriptionKey: "settingsNav.taxonomy.description",
     adminOnly: true,
   },
   {
     to: "/settings/users",
     icon: Users,
-    label: "Users",
-    description: "Roles, access and forced sign-out",
+    labelKey: "settingsNav.users.label",
+    descriptionKey: "settingsNav.users.description",
     adminOnly: true,
   },
   {
     to: "/settings/audit",
     icon: ScrollText,
-    label: "AI Audit",
-    description: "Every AI call, with tokens and latency",
+    labelKey: "settingsNav.audit.label",
+    descriptionKey: "settingsNav.audit.description",
     adminOnly: true,
   },
 ];

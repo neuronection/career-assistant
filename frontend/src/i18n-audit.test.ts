@@ -4,6 +4,8 @@ import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
+import de from "./locales/de.json";
+import el from "./locales/el.json";
 import catalog from "./locales/en.json";
 
 const literals: Record<string, unknown> = catalog;
@@ -41,6 +43,30 @@ function collectFiles(dir: string): string[] {
 
 const tCallPattern = /\bt\(\s*['"]([a-zA-Z0-9_.]+)['"]/g;
 const srcRoot = join(__dirname);
+
+const LOCALE_CATALOGS: Record<string, Record<string, unknown>> = {
+  en: literals,
+  de: de as Record<string, unknown>,
+  el: el as Record<string, unknown>,
+};
+
+const COMPLETENESS_FLOOR: Record<string, number> = { en: 1, de: 1, el: 1 };
+const TRANSLATED_SHARE_FLOOR: Record<string, number> = { en: 0, de: 0.85, el: 0.85 };
+
+function flattened(node: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (value: unknown, prefix: string) => {
+    if (typeof value === "object" && value !== null) {
+      for (const [key, child] of Object.entries(value)) {
+        walk(child, prefix ? `${prefix}.${key}` : key);
+      }
+      return;
+    }
+    out[prefix] = String(value);
+  };
+  walk(node, "");
+  return out;
+}
 
 function catalogKeys(): string[] {
   const keys: string[] = [];
@@ -129,6 +155,27 @@ describe("translation catalog completeness", () => {
       }
     }
     expect(missing.sort()).toEqual([]);
+  });
+
+  test("every locale completes the source catalog at its ratchet floor", () => {
+    const source = flattened(literals);
+    for (const [locale, contents] of Object.entries(LOCALE_CATALOGS)) {
+      const target = flattened(contents);
+      const missing = Object.keys(source).filter((key) => !(key in target));
+      const share =
+        (Object.keys(source).filter(
+          (key) => target[key] !== undefined && target[key] !== source[key],
+        ).length || 0) / Object.keys(source).length;
+      const coverage = (Object.keys(source).length - missing.length) / Object.keys(source).length;
+      expect({ locale, coverage: coverage >= COMPLETENESS_FLOOR[locale] }).toEqual({
+        locale,
+        coverage: true,
+      });
+      expect({ locale, translated: share >= TRANSLATED_SHARE_FLOOR[locale] }).toEqual({
+        locale,
+        translated: true,
+      });
+    }
   });
 
   test("every catalog key is referenced from app source", () => {

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/lib/format";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -299,7 +300,7 @@ export function Dashboard() {
               <p className="text-xs text-slate-400 uppercase">{t("dashboard.salaryBand")}</p>
               <p className="text-sm font-medium text-slate-900">
                 {target.open_postings.salary_band.min != null
-                  ? `${target.open_postings.salary_band.min.toLocaleString()}–${(target.open_postings.salary_band.max ?? 0).toLocaleString()}`
+                  ? `${formatNumber(target.open_postings.salary_band.min)}–${formatNumber(target.open_postings.salary_band.max ?? 0)}`
                   : "—"}
               </p>
             </div>

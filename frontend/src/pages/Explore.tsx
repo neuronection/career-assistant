@@ -184,8 +184,8 @@ export function Explore() {
 
   return (
     <div className="space-y-6" data-testid="explore">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 flex-1 text-sm text-slate-500">
           {t("explore.intro")}
           {total ? ` ${total} matching.` : ""}
         </p>
@@ -298,7 +298,7 @@ export function Explore() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t("explore.posted")}</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t("explore.facet.posted")}</p>
               <select
                 value={filters.postedWithin}
                 onChange={(e) => patch({ postedWithin: e.target.value })}

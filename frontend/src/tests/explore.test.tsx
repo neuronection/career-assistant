@@ -108,7 +108,7 @@ describe("Explore page", () => {
       "Backend Engineer"
     );
     // facet badges drive the filter sidebar
-    expect(screen.getByText("mid · 2")).toBeInTheDocument();
+    expect(screen.getByText("Mid-level · 2")).toBeInTheDocument();
     expect(screen.getByText("programming · 2")).toBeInTheDocument();
     expect((await screen.findAllByText("synth")).length).toBeGreaterThan(0);
   });

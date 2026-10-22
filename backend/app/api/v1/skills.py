@@ -45,18 +45,27 @@ async def list_skills(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Browse the active ontology (flat; parent_id gives the tree shape)."""
+    from app.models.enums import LabelEntityKind
+    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.locale_service import effective_locale
+
     rows = await SkillService(db).list_skills(q=q, category=category)
+    overlays = await LabelOverlayService(db).approved_map(
+        LabelEntityKind.SKILL,
+        [skill.id for skill in rows],
+        await effective_locale(db, user),
+    )
     return [
         {
-            "id": s.id,
-            "key": s.key,
-            "label": s.label,
-            "category": s.category,
-            "description": s.description,
-            "parent_id": s.parent_id,
-            "level_anchors": s.level_anchors or [],
+            "id": skill.id,
+            "key": skill.key,
+            "label": overlays.get(skill.id, {}).get("label") or skill.label,
+            "category": skill.category,
+            "description": overlays.get(skill.id, {}).get("description") or skill.description,
+            "parent_id": skill.parent_id,
+            "level_anchors": skill.level_anchors or [],
         }
-        for s in rows
+        for skill in rows
     ]
 
 
@@ -70,20 +79,44 @@ async def get_skill(
         skill = await service.require_skill(key)
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    from app.models.enums import LabelEntityKind
+    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.locale_service import effective_locale
+
+    locale = await effective_locale(db, user)
+    overlay = (
+        await LabelOverlayService(db).approved_map(LabelEntityKind.SKILL, [skill.id], locale)
+    ).get(skill.id, {})
+    localized_label = overlay.get("label") or skill.label
+    localized_description = overlay.get("description") or skill.description
     children = [s.key for s in await service.list_skills() if s.parent_id == skill.id]
     links = await service.jobs_for_skill(skill)
     jobs = [
         {
             "skill_id": link.skill_id,
             "key": skill.key,
-            "label": skill.label,
+            "label": localized_label,
             "required_level": link.required_level,
             "importance": link.importance,
             "rationale": link.rationale,
         }
         for link in links
     ]
-    return _skill_out(skill, jobs=jobs, children_keys=children)
+    from app.schemas.job import JobSkillOut
+
+    return SkillJobsOut(
+        id=skill.id,
+        key=skill.key,
+        label=localized_label,
+        category=skill.category,
+        description=localized_description,
+        parent_id=skill.parent_id,
+        level_anchors=skill.level_anchors or [],
+        aliases=skill.aliases or [],
+        status=skill.status,
+        children_keys=children,
+        jobs=[JobSkillOut.model_validate(row) for row in jobs],
+    )
 
 
 @router.get("/me/skills", response_model=list[UserSkillOut])

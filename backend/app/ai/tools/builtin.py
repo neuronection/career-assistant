@@ -8,6 +8,7 @@ autopilot/MCP, execute them through ``run_tool``.
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.ai.tools.base import AITool, ToolContext, ToolRiskClass, ToolScope
 
@@ -545,8 +546,18 @@ async def _my_fit_breakdown(db, ctx: ToolContext, args: FitBreakdownInput):
     profile = await service.profile_for(ctx.user_id)
     item = (await service.compare(profile, job_ids=[job.id]))[0]
     breakdown = item["insight"].fit_breakdown or {}
+    from app.models.enums import LabelEntityKind
+    from app.models.user_model import User
+    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.locale_service import effective_locale
+
+    owner = (await db.execute(select(User).where(User.id == ctx.user_id))).scalars().first()
+    locale = await effective_locale(db, owner)
+    overlay_title = await LabelOverlayService(db).resolve_one(
+        LabelEntityKind.JOB, job.id, "label", job.title, locale
+    )
     return {
-        "target": {"kind": "catalog_job", "code": job.code, "title": job.title},
+        "target": {"kind": "catalog_job", "code": job.code, "title": overlay_title},
         "score": round(float(item["fit_score"]), 1),
         "estimate": False,
         "gated": bool(breakdown.get("gates")),

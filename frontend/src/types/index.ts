@@ -388,6 +388,10 @@ export interface Bootstrap {
   target_families?: string[];
   notification_channels?: NotificationChannel[];
   ai?: AiStatus;
+  locale?: string;
+  locale_source?: "user" | "instance";
+  instance_locale?: string;
+  supported_locales?: string[];
 }
 
 export type NotificationChannel = "in_app" | "desktop" | "browser" | "email" | "webhook";
@@ -1179,4 +1183,40 @@ export interface ScheduleItem {
   misfire_policy?: string;
   error?: string;
   removed?: boolean;
+}
+
+export interface LocaleState {
+  locale: string;
+  supported: string[];
+  source?: "user" | "instance";
+  instance_locale?: string;
+}
+
+export type LabelEntityKind =
+  | "job"
+  | "skill"
+  | "family"
+  | "university"
+  | "department"
+  | "metric_dimension"
+  | "assessment_template"
+  | "cv_template";
+
+export interface LabelOverlay {
+  id: string;
+  entity_kind: LabelEntityKind;
+  entity_id: string;
+  locale: string;
+  field: "label" | "description" | "short_description";
+  value: string;
+  base_value: string;
+  source: "ai_draft" | "human";
+  status: "draft" | "approved" | "rejected";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OverlayDraftResult {
+  locale: string;
+  drafted: Record<string, number>;
 }

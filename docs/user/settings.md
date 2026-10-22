@@ -7,6 +7,11 @@ rail. This page explains each page and its purpose.
 
 Account self-service — every signed-in user, on any instance mode:
 
+- **Appearance** — pick the interface language (English, German or Greek).
+  The choice is personal and applies immediately, including the catalog
+  labels that have an approved translation. Admins also set the
+  **instance default** used by people who have not chosen one.
+
 - **Signed-in devices** — every login opens one session per device
   (shown by its device label). Sign out anything you don't recognize;
   the device you are using is marked, and signing it out returns you to
@@ -60,6 +65,13 @@ aliases, lifecycle). The catalog, profiles and AI outputs all reference the
 taxonomy by stable `key` slugs, so changes here are what keep labels and
 translations from breaking data. Unknown skills introduced by users or the AI
 appear as `proposed` rows for review.
+
+The **Catalog translations** queue at the top drafts translations for jobs,
+skills and job families with the configured AI. Drafts never render: review
+each one against the base label, edit the wording if needed, then approve or
+reject. Approval is the only route to the catalog, search, rankings, chat and
+CV surfaces. University names stay authoritative (an overlay may translate
+the display label, never rewrite the stored name).
 
 ## Users (`/settings/users`)
 

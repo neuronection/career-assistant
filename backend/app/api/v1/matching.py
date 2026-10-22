@@ -7,7 +7,6 @@ from app.core.database import get_db
 from app.core.errors import AINotConfiguredError, DomainError
 from app.models.enums import BackgroundJobType, MatchStatus
 from app.models.matching_model import MatchInsight
-from app.schemas.job import JobOut
 from app.schemas.matching import (
     CandidateOut,
     FitBreakdownOut,
@@ -57,11 +56,13 @@ def _insight_out(insight: MatchInsight) -> MatchInsightOut:
     )
 
 
-def _ranked_item(item: dict) -> RankedJob:
+async def _ranked_item(item: dict, db: AsyncSession, locale: str) -> RankedJob:
     """Serialise a service ranking/compare row (same shape for both)."""
+    from app.services.localized_view import job_out
+
     insight = item["insight"]
     return RankedJob(
-        job=JobOut.from_model(item["job"]),
+        job=await job_out(db, item["job"], locale),
         score=item["score"],
         fit_score=item["fit_score"],
         ai_score=float(insight.ai_score) if insight and insight.ai_score is not None else None,
@@ -87,17 +88,21 @@ async def candidates(
     db: AsyncSession = Depends(get_db),
 ) -> list[CandidateOut]:
     """Top unscored jobs by deterministic fit (not yet AI-explained)."""
+    from app.services.localized_view import job_outs, resolve_locale
+
     profile = await get_profile_for_user(db, user.id)
     items = await MatchingService(db).generate_candidates(profile, limit=limit, family_key=family)
+    locale = await resolve_locale(db, user)
+    localized = await job_outs(db, [c["job"] for c in items], locale)
     return [
         CandidateOut(
-            job=JobOut.from_model(c["job"]),
+            job=localized[index],
             fit_score=c["fit_score"],
             breakdown=FitBreakdownOut.model_validate(c["insight"].fit_breakdown or {})
             if c["insight"].fit_breakdown
             else None,
         )
-        for c in items
+        for index, c in enumerate(items)
     ]
 
 
@@ -235,9 +240,12 @@ async def rankings(
         page=page,
         page_size=page_size,
     )
+    from app.services.localized_view import resolve_locale
+
+    locale = await resolve_locale(db, user)
     return RankingsOut(
         total=result["total"],
-        items=[_ranked_item(item) for item in result["items"]],
+        items=[await _ranked_item(item, db, locale) for item in result["items"]],
     )
 
 
@@ -268,7 +276,10 @@ async def compare_jobs(
         items = await MatchingService(db).compare(profile, job_ids=ids)
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    return [_ranked_item(item) for item in items]
+    from app.services.localized_view import resolve_locale
+
+    locale = await resolve_locale(db, user)
+    return [await _ranked_item(item, db, locale) for item in items]
 
 
 @router.get("/jobs/{ref}/match")
@@ -320,8 +331,10 @@ async def job_match_detail(
                 ],
             }
         )
+    from app.services.localized_view import job_out, resolve_locale
+
     return {
-        "job": JobOut.from_model(job),
+        "job": await job_out(db, job, await resolve_locale(db, user)),
         "insight": _insight_out(insight) if insight else None,
         "university_pathways": pathways,
     }

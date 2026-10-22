@@ -20,7 +20,10 @@ async def family_tree(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> list[dict]:
     """Job families as a nested tree with published job counts."""
-    return await JobService(db).family_tree()
+    from app.services.localized_view import localize_family_tree, resolve_locale
+
+    tree = await JobService(db).family_tree()
+    return await localize_family_tree(db, tree, await resolve_locale(db, user))
 
 
 @router.get("/graph", response_model=JobGraph)
@@ -150,7 +153,9 @@ async def publish_job(
     await service.notify_published(job)
     await service._refit_job(job.id)
     await service._refresh_transferability()
-    return JobOut.from_model(job)
+    from app.services.localized_view import job_out, resolve_locale
+
+    return await job_out(db, job, await resolve_locale(db, user))
 
 
 @router.get("", response_model=list[JobOut])
@@ -182,7 +187,9 @@ async def list_jobs(
         page=page,
         page_size=page_size,
     )
-    return [JobOut.from_model(j) for j in jobs]
+    from app.services.localized_view import job_outs, resolve_locale
+
+    return await job_outs(db, jobs, await resolve_locale(db, user))
 
 
 @router.post("", response_model=JobOut, status_code=201)
@@ -194,7 +201,9 @@ async def create_job(
         job = await JobService(db).create(data, user, source="user")
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    return JobOut.from_model(job)
+    from app.services.localized_view import job_out, resolve_locale
+
+    return await job_out(db, job, await resolve_locale(db, user))
 
 
 @router.get("/{ref}", response_model=JobOut)
@@ -206,7 +215,9 @@ async def get_job(
         job = await JobService(db).require_job(ref)
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    return JobOut.from_model(job)
+    from app.services.localized_view import job_out, resolve_locale
+
+    return await job_out(db, job, await resolve_locale(db, user))
 
 
 @router.put("/{ref}", response_model=JobOut)
@@ -222,7 +233,9 @@ async def update_job(
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     await db.refresh(job)
-    return JobOut.from_model(job)
+    from app.services.localized_view import job_out, resolve_locale
+
+    return await job_out(db, job, await resolve_locale(db, user))
 
 
 @router.delete("/{ref}", response_model=Message)

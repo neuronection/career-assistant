@@ -621,3 +621,52 @@ def mock_ops_draft(schema, user_prompt) -> dict:
 
 
 register_mock_fixture(AITaskType.CHAT_OPS, mock_ops_draft)
+
+
+def mock_translate_batch(schema, user_prompt: str) -> dict:
+    """Deterministic TRANSLATE fixture (plan 121): prefixes every value with
+    the target locale so tests can assert the batch path without a provider."""
+    import re as _re
+
+    locale_match = _re.search(r"Locale:\s*([a-z]{2})", user_prompt)
+    locale = locale_match.group(1) if locale_match else "xx"
+    name = getattr(schema, "__name__", "")
+    if name == "TranslationBatch":
+        translations = []
+        for line in user_prompt.splitlines():
+            match = _re.match(r"^([a-zA-Z0-9_.\-]+):\s*(.+)$", line)
+            if match:
+                translations.append(
+                    {"key": match.group(1), "value": f"[{locale}] {match.group(2)}"}
+                )
+        return {"translations": translations}
+    kind_match = _re.search(r"entity_kind=([a-z_]+)", user_prompt)
+    kind = kind_match.group(1) if kind_match else "job"
+    items = []
+    for line in user_prompt.splitlines():
+        if not line.startswith("- id="):
+            continue
+        fields = dict(part.split("=", 1) for part in line[2:].split(" | ") if "=" in part)
+        entity_id = fields.get("id", "").strip()
+        if not entity_id:
+            continue
+        for source_field, overlay_field in (
+            ("title", "label"),
+            ("label", "label"),
+            ("short_description", "short_description"),
+            ("description", "description"),
+        ):
+            value = fields.get(source_field, "").strip()
+            if value:
+                items.append(
+                    {
+                        "entity_kind": kind,
+                        "entity_id": entity_id,
+                        "field": overlay_field,
+                        "value": f"[{locale}] {value}",
+                    }
+                )
+    return {"items": items}
+
+
+register_mock_fixture(AITaskType.TRANSLATE, mock_translate_batch)

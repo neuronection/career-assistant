@@ -15,6 +15,7 @@ import { FitBars } from "@/pages/Rankings";
 import { EmptyState, RangeBar, Table } from "@/components/ui";
 import { useCompareStore } from "@/stores/compareStore";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/lib/format";
 import { apiDetail } from "@/api/client";
 import type {
   CareerPath,
@@ -469,8 +470,13 @@ export function JobDetail() {
               </p>
               {snapshot.salary_band ? (
                 <p>
-                  p25–p75: {snapshot.salary_band.p25?.toLocaleString()}–
-                  {snapshot.salary_band.p75?.toLocaleString()}
+                  p25–p75: {snapshot.salary_band.p25 != null
+                    ? formatNumber(snapshot.salary_band.p25)
+                    : "—"}
+                  –
+                  {snapshot.salary_band.p75 != null
+                    ? formatNumber(snapshot.salary_band.p75)
+                    : "—"}
                 </p>
               ) : (
                 <p className="text-slate-400">{t("jobDetail.salaryBandHidden", { sample: snapshot.sample_size })}</p>

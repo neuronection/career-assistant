@@ -14,6 +14,7 @@ import {
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
 import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
+import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
 
 interface PathRow {
   id: string;
@@ -159,6 +160,7 @@ export function Taxonomy() {
 
   return (
     <div className="space-y-4" data-testid="settings-taxonomy">
+      <TranslationsPanel />
       <div className="flex items-center justify-between">
         <SegmentedTabs
           ariaLabel={t("taxonomy.tabsAria")}

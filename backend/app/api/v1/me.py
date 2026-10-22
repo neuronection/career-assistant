@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.models.enums import CareerStage, OnboardingPath
 from app.schemas.application import FollowupRuleIn, FollowupRuleOut, FollowupSurfaceOut
 from app.schemas.background_job import EnqueueResponse
+from app.schemas.i18n import LocaleIn
 from app.services.account_service import request_export
 from app.services.deps import get_current_user
 
@@ -135,16 +136,65 @@ async def _bootstrap_payload(db, profile) -> dict:
     }
 
 
+@router.get("/locale")
+async def get_locale(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
+    """The caller's effective UI locale and the supported registry."""
+    from app.services.locale_service import (
+        SUPPORTED_LOCALES,
+        effective_locale,
+        instance_default_locale,
+    )
+
+    locale = await effective_locale(db, user)
+    return {
+        "locale": locale,
+        "supported": list(SUPPORTED_LOCALES),
+        "source": "user" if user.locale else "instance",
+        "instance_locale": await instance_default_locale(db),
+    }
+
+
+@router.put("/locale")
+async def put_locale(
+    body: LocaleIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Persist the caller's UI locale; the SPA re-initialises i18next from it."""
+    from app.services.locale_service import SUPPORTED_LOCALES, normalize_locale
+
+    normalized = normalize_locale(body.locale)
+    if normalized is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Unsupported locale: {body.locale}",
+        )
+    user.locale = normalized
+    db.add(user)
+    await db.commit()
+    return {"locale": normalized, "supported": list(SUPPORTED_LOCALES), "source": "user"}
+
+
 @router.get("/bootstrap")
 async def bootstrap(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """Stage + per-feature flags for the SPA shell."""
     from app.services.deps import get_profile_for_user
 
     profile = await get_profile_for_user(db, user.id)
+    from app.services.locale_service import (
+        SUPPORTED_LOCALES,
+        effective_locale,
+        instance_default_locale,
+    )
     from app.services.scheduler.runner import SchedulerService
 
     await SchedulerService(db).ensure_user_schedules(user.id)
-    return await _bootstrap_payload(db, profile)
+    payload = await _bootstrap_payload(db, profile)
+    payload["locale"] = await effective_locale(db, user)
+    payload["locale_source"] = "user" if user.locale else "instance"
+    payload["instance_locale"] = await instance_default_locale(db)
+    payload["supported_locales"] = list(SUPPORTED_LOCALES)
+    return payload
 
 
 @router.put("/stage")

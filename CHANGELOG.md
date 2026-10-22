@@ -4,6 +4,25 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (German and Greek UI, catalog translations, 2026-10-22)
+- **The interface ships in English, German and Greek** (plan 121).
+  Settings → Account → **Appearance** switches the language per user
+  (admins also set the instance default); the choice applies immediately,
+  sets `<html lang>`, and drives number/date formatting. Every remaining
+  hard-coded UI string moved into the translation catalog — a new reverse
+  lint fails the test suite on raw English in pages/components, and the
+  unused-key detector keeps the catalog honest.
+- **Catalog labels now follow the UI language through review-first
+  overlays** (plan 121.4). Settings → Taxonomy → **Catalog translations**
+  drafts job/skill/family labels with AI; drafts never render, and each
+  one is reviewed against its base label before approval. Approved
+  translations flow through the catalog, rankings, feed, skill lists and
+  the CV context; university names stay authoritative.
+- **Translation batches are an audited AI task** (`translate`): the
+  gateway records every batch in `ai_generations`, and the offline
+  maintainer script writes the locale files. `check_translations.py` is
+  now a blocking CI gate for locale completeness.
+
 ### Fixed (MCP endpoint routing, 2026-10-22)
 - **The MCP endpoint actually answers at `/mcp`** (plan 119.2). The
   mounted Streamable-HTTP app served at its own root while the mount

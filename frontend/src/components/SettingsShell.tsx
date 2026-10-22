@@ -17,11 +17,11 @@ export function SettingsShell() {
   const location = useLocation();
   const visibleNav = settingsNav.filter((item) => !item.adminOnly || user?.is_admin);
 
-  const items = visibleNav.map(({ to, icon, label, description }) => ({
+  const items = visibleNav.map(({ to, icon, labelKey, descriptionKey }) => ({
     id: to,
     icon,
-    label,
-    description,
+    label: t(labelKey),
+    description: descriptionKey ? t(descriptionKey) : undefined,
   }));
 
   // Exact-or-subpath match; longest id wins so nested routes highlight right.
