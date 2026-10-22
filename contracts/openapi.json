@@ -8443,6 +8443,31 @@
         "title": "GapOut",
         "type": "object"
       },
+      "GithubApplyIn": {
+        "properties": {
+          "login": {
+            "maxLength": 39,
+            "minLength": 1,
+            "title": "Login",
+            "type": "string"
+          },
+          "selections": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Selections",
+            "type": "array"
+          }
+        },
+        "required": [
+          "login",
+          "selections"
+        ],
+        "title": "GithubApplyIn",
+        "type": "object"
+      },
       "GraphEdge": {
         "properties": {
           "from_code": {
@@ -13847,6 +13872,18 @@
             ],
             "title": "Enabled"
           },
+          "google_cx": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Cx"
+          },
           "max_results": {
             "anyOf": [
               {
@@ -13871,6 +13908,19 @@
               }
             ],
             "title": "Name"
+          },
+          "timeout_ms": {
+            "anyOf": [
+              {
+                "maximum": 30000.0,
+                "minimum": 500.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout Ms"
           },
           "type": {
             "anyOf": [
@@ -13911,6 +13961,17 @@
             "title": "Enabled",
             "type": "boolean"
           },
+          "google_cx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Cx"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -13939,6 +14000,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "timeout_ms": {
+            "default": 8000,
+            "title": "Timeout Ms",
+            "type": "integer"
           },
           "type": {
             "title": "Type",
@@ -30801,6 +30867,97 @@
         "summary": "Patch Followup Rules",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/v1/me/intake/github/apply": {
+      "post": {
+        "description": "Create draft projects/achievements for the selected repositories.",
+        "operationId": "apply_github_api_v1_me_intake_github_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GithubApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Github Api V1 Me Intake Github Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Github",
+        "tags": [
+          "intake"
+        ]
+      }
+    },
+    "/api/v1/me/intake/github/preview": {
+      "get": {
+        "description": "Draft candidates for one public GitHub profile (no writes).",
+        "operationId": "preview_github_api_v1_me_intake_github_preview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "login",
+            "required": true,
+            "schema": {
+              "maxLength": 39,
+              "minLength": 1,
+              "title": "Login",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Github Api V1 Me Intake Github Preview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Github",
+        "tags": [
+          "intake"
         ]
       }
     },

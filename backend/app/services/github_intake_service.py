@@ -48,7 +48,8 @@ def validate_login(login: str) -> str:
 
 
 def _normalize_repo(row: dict) -> dict:
-    topics = row.get("topics") if isinstance(row.get("topics"), list) else []
+    raw_topics = row.get("topics")
+    topics = raw_topics if isinstance(raw_topics, list) else []
     return {
         "name": str(row.get("name") or "")[:200],
         "full_name": str(row.get("full_name") or "")[:200],

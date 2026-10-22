@@ -22,6 +22,7 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from typing import cast
 from urllib.parse import quote
 
 from pydantic import BaseModel, Field
@@ -45,10 +46,12 @@ from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorError,
     ConnectorResult,
+    EmploymentType,
     LocationSpec,
     PostingConnector,
     RawPosting,
     SalarySpec,
+    SeniorityLevel,
 )
 
 _PERSONIO_EMPLOYMENT = {
@@ -220,10 +223,12 @@ def parse_personio_payload(
                 ),
                 url=(f"https://{tenant}.jobs.personio.de/job/{external_id}" if tenant else ""),
                 posted_at=_parse_iso_utc(node.findtext("createdAt")),
-                employment_type=(
-                    _PERSONIO_EMPLOYMENT.get(employment_raw) or _PERSONIO_SCHEDULE.get(schedule_raw)
+                employment_type=cast(
+                    EmploymentType | None,
+                    _PERSONIO_EMPLOYMENT.get(employment_raw)
+                    or _PERSONIO_SCHEDULE.get(schedule_raw),
                 ),
-                seniority=_PERSONIO_SENIORITY.get(seniority_raw),
+                seniority=cast(SeniorityLevel | None, _PERSONIO_SENIORITY.get(seniority_raw)),
                 skills_raw=[
                     occupation
                     for occupation in [(node.findtext("occupation") or "").strip()]
@@ -333,9 +338,13 @@ def parse_join_payload(
         if not external_id or not title:
             errors.append(_invalid_row(f"join.com row missing id/title (id={external_id!r})"))
             continue
-        currency = _currency((row.get("salaryAmountFrom") or {}).get("currency"))
-        minimum = _money((row.get("salaryAmountFrom") or {}).get("amount"), minor_units=True)
-        maximum = _money((row.get("salaryAmountTo") or {}).get("amount"), minor_units=True)
+        salary_from = row.get("salaryAmountFrom")
+        salary_from = salary_from if isinstance(salary_from, dict) else {}
+        salary_to = row.get("salaryAmountTo")
+        salary_to = salary_to if isinstance(salary_to, dict) else {}
+        currency = _currency(salary_from.get("currency"))
+        minimum = _money(salary_from.get("amount"), minor_units=True)
+        maximum = _money(salary_to.get("amount"), minor_units=True)
         period = _JOIN_FREQUENCY.get(str(row.get("salaryFrequency") or "").upper(), "year")
         salary = (
             SalarySpec(currency=currency, min=minimum, max=maximum, period=period)  # type: ignore[arg-type]
@@ -343,11 +352,16 @@ def parse_join_payload(
             else None
         )
         workplace = str(row.get("workplaceType") or "").upper()
-        city = row.get("city") if isinstance(row.get("city"), dict) else {}
-        country = row.get("country") if isinstance(row.get("country"), dict) else {}
-        employment = (
-            row.get("employmentType") if isinstance(row.get("employmentType"), dict) else {}
-        )
+        raw_city = row.get("city")
+        city = raw_city if isinstance(raw_city, dict) else {}
+        raw_country = row.get("country")
+        country = raw_country if isinstance(raw_country, dict) else {}
+        raw_employment = row.get("employmentType")
+        employment = raw_employment if isinstance(raw_employment, dict) else {}
+        raw_category = row.get("category")
+        category = raw_category if isinstance(raw_category, dict) else {}
+        raw_office = row.get("office")
+        office = raw_office if isinstance(raw_office, dict) else {}
         id_param = str(row.get("idParam") or external_id)
         items.append(
             RawPosting(
@@ -373,14 +387,15 @@ def parse_join_payload(
                     if workplace == "ONSITE"
                     else None
                 ),
-                employment_type=_JOIN_EMPLOYMENT.get(
-                    _normalize_token(str(employment.get("name") or ""))
+                employment_type=cast(
+                    EmploymentType | None,
+                    _JOIN_EMPLOYMENT.get(_normalize_token(str(employment.get("name") or ""))),
                 ),
                 raw={
-                    "category": str((row.get("category") or {}).get("name") or ""),
+                    "category": str(category.get("name") or ""),
                     "employment_type": str(employment.get("name") or ""),
                     "workplace_type": workplace,
-                    "office_id": str((row.get("office") or {}).get("id") or ""),
+                    "office_id": str(office.get("id") or ""),
                 },
             )
         )
@@ -504,7 +519,8 @@ def parse_recruitee_payload(body: str) -> tuple[list[RawPosting], list[Connector
         if not external_id or not title:
             errors.append(_invalid_row(f"recruitee row missing id/title (id={external_id!r})"))
             continue
-        salary_row = row.get("salary") if isinstance(row.get("salary"), dict) else {}
+        raw_salary = row.get("salary")
+        salary_row = raw_salary if isinstance(raw_salary, dict) else {}
         minimum = _money(salary_row.get("min"))
         maximum = _money(salary_row.get("max"))
         salary = None
@@ -541,7 +557,10 @@ def parse_recruitee_payload(body: str) -> tuple[list[RawPosting], list[Connector
                     if row.get("on_site")
                     else None
                 ),
-                employment_type=_employment_type([row.get("employment_type_code")]),
+                employment_type=cast(
+                    EmploymentType | None,
+                    _employment_type([row.get("employment_type_code")]),
+                ),
                 skills_raw=[str(tag) for tag in (row.get("tags") or [])][:60],
                 raw={
                     "description": _recruitee_translation(row, "description")[:8000],
@@ -621,33 +640,37 @@ def teamtailor_feed_url(company: str) -> str:
 
 
 def _jsonld_location(posting: dict) -> LocationSpec:
-    location = posting.get("jobLocation") or {}
-    if isinstance(location, list):
-        location = location[0] if location else {}
-    address = (location or {}).get("address") or {}
-    if isinstance(address, list):
-        address = address[0] if address else {}
+    raw_location = posting.get("jobLocation")
+    if isinstance(raw_location, list):
+        raw_location = raw_location[0] if raw_location else {}
+    location = raw_location if isinstance(raw_location, dict) else {}
+    raw_address = location.get("address")
+    if isinstance(raw_address, list):
+        raw_address = raw_address[0] if raw_address else {}
+    address = raw_address if isinstance(raw_address, dict) else {}
     return LocationSpec(
-        city=str((address or {}).get("addressLocality") or "").strip() or None,
-        country=str((address or {}).get("addressCountry") or "").strip() or None,
+        city=str(address.get("addressLocality") or "").strip() or None,
+        country=str(address.get("addressCountry") or "").strip() or None,
         remote=str(posting.get("jobLocationType") or "").upper() == "TELECOMMUTE",
     )
 
 
 def _jsonld_salary(posting: dict) -> SalarySpec | None:
-    salary_node = posting.get("baseSalary") or {}
-    value = (salary_node or {}).get("value") or {}
-    if isinstance(value, list):
-        value = value[0] if value else {}
-    minimum = _money((value or {}).get("minValue"))
-    maximum = _money((value or {}).get("maxValue"))
+    raw_salary = posting.get("baseSalary")
+    salary_node = raw_salary if isinstance(raw_salary, dict) else {}
+    raw_value = salary_node.get("value")
+    if isinstance(raw_value, list):
+        raw_value = raw_value[0] if raw_value else {}
+    value = raw_value if isinstance(raw_value, dict) else {}
+    minimum = _money(value.get("minValue"))
+    maximum = _money(value.get("maxValue"))
     if minimum is None and maximum is None:
         return None
     return SalarySpec(
         currency=_currency(value.get("currency")),
         min=minimum,
         max=maximum,
-        period=_JSONLD_UNIT.get(str((value or {}).get("unitText") or "").upper(), "year"),  # type: ignore[arg-type]
+        period=_JSONLD_UNIT.get(str(value.get("unitText") or "").upper(), "year"),  # type: ignore[arg-type]
     )
 
 
@@ -669,22 +692,25 @@ def parse_teamtailor_payload(body: str) -> tuple[list[RawPosting], list[Connecto
         if not external_id or not title:
             errors.append(_invalid_row(f"teamtailor row missing id/title (id={external_id!r})"))
             continue
-        posting = row.get("_jobposting") if isinstance(row.get("_jobposting"), dict) else {}
-        hiring = posting.get("hiringOrganization") if isinstance(posting, dict) else {}
-        if isinstance(hiring, list):
-            hiring = hiring[0] if hiring else {}
-        employment = posting.get("employmentType") if isinstance(posting, dict) else None
+        raw_posting = row.get("_jobposting")
+        posting = raw_posting if isinstance(raw_posting, dict) else {}
+        raw_hiring = posting.get("hiringOrganization")
+        if isinstance(raw_hiring, list):
+            raw_hiring = raw_hiring[0] if raw_hiring else {}
+        hiring = raw_hiring if isinstance(raw_hiring, dict) else {}
+        employment = posting.get("employmentType")
         items.append(
             RawPosting(
                 external_id=external_id[:300],
                 title=title[:300],
-                org=str((hiring or {}).get("name") or "")[:200],
+                org=str(hiring.get("name") or "")[:200],
                 location=_jsonld_location(posting),
                 url=str(row.get("url") or "")[:1000],
                 posted_at=_parse_iso_utc(row.get("date_published")),
                 salary=_jsonld_salary(posting),
-                employment_type=_employment_type(
-                    employment if isinstance(employment, list) else [employment]
+                employment_type=cast(
+                    EmploymentType | None,
+                    _employment_type(employment if isinstance(employment, list) else [employment]),
                 ),
                 skills_raw=[
                     str(skill) for skill in (posting.get("skills") or []) if str(skill).strip()

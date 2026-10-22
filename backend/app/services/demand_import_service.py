@@ -387,8 +387,7 @@ async def run_demand_import(
         totals["jobs_updated"] += updated
         totals["snapshots"] += updated
     await db.commit()
-    totals["errors"] = errors[:20]
-    return totals
+    return {**totals, "errors": errors[:20]}
 
 
 async def ensure_demand_source(db: AsyncSession) -> JobSource:
