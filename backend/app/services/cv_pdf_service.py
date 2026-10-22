@@ -138,22 +138,30 @@ async def _get_playwright() -> Any:
 
 async def _launch_browser(p) -> object:
     """Launch with the resolved options; None channel first, then system
-    browsers. A cached channel is trusted until a launch fails."""
+    browsers. A cached channel is trusted until a launch fails.
+
+    A launch failure is retried once across the full channel list: parallel
+    test/render load can make Chromium refuse a launch transiently, and
+    reading that as "no engine on this host" silently degrades every
+    page-count gate. Absence is only declared after both sweeps fail.
+    """
     global _BROWSER_CHANNEL
-    channels = (_BROWSER_CHANNEL,) if _BROWSER_CHANNEL is not _UNRESOLVED else _CHANNEL_CANDIDATES
     last_error: Exception | None = None
-    for channel in channels:
-        kwargs: dict = {"args": ["--disable-dev-shm-usage"]}
-        if channel:
-            kwargs["channel"] = channel
-        try:
-            browser = await p.chromium.launch(**kwargs)
-            _BROWSER_CHANNEL = channel
-            with contextlib.suppress(Exception):
-                browser.on("disconnected", _on_browser_disconnected)
-            return browser
-        except Exception as exc:
-            last_error = exc
+    for attempt in range(2):
+        cached = _BROWSER_CHANNEL is not _UNRESOLVED and attempt == 0
+        channels = (_BROWSER_CHANNEL,) if cached else _CHANNEL_CANDIDATES
+        for channel in channels:
+            kwargs: dict = {"args": ["--disable-dev-shm-usage"]}
+            if channel:
+                kwargs["channel"] = channel
+            try:
+                browser = await p.chromium.launch(**kwargs)
+                _BROWSER_CHANNEL = channel
+                with contextlib.suppress(Exception):
+                    browser.on("disconnected", _on_browser_disconnected)
+                return browser
+            except Exception as exc:
+                last_error = exc
     _BROWSER_CHANNEL = _UNRESOLVED
     raise PDFEngineUnavailable(f"No Chromium-class browser launched: {last_error}")
 

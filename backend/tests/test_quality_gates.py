@@ -98,3 +98,46 @@ def test_matching_skip_passes(monkeypatch) -> None:
     skip_wall.pytest_sessionfinish(session, 0)
     assert session.exitstatus == 0
     assert lines == []
+
+
+def test_dynamic_skip_reports_are_recorded(monkeypatch) -> None:
+    """`pytest.skip()` in a fixture or test body is a `report.skipped`
+    with no marker metadata — the wall must record it the same way it
+    records a marked skip, or capability gaps slip past silently."""
+    monkeypatch.setattr(skip_wall, "_observed_skips", {})
+
+    def _report(nodeid: str, *, skipped: bool, when: str, reason: str | None):
+        longrepr = ("tests/test_x.py", 12, f"Skipped: {reason}") if reason else None
+        return SimpleNamespace(nodeid=nodeid, skipped=skipped, when=when, longrepr=longrepr)
+
+    skip_wall.pytest_runtest_logreport(
+        _report("tests/test_x.py::dynamic", skipped=True, when="call", reason="no PDF engine")
+    )
+    skip_wall.pytest_runtest_logreport(
+        _report("tests/test_x.py::marked", skipped=True, when="setup", reason="dialect only")
+    )
+    skip_wall.pytest_runtest_logreport(
+        _report("tests/test_x.py::passed", skipped=False, when="call", reason=None)
+    )
+    assert skip_wall._observed_skips == {
+        "tests/test_x.py::dynamic": "no PDF engine",
+        "tests/test_x.py::marked": "dialect only",
+    }
+
+
+def test_dynamic_skip_without_marker_still_fails_an_unlisted_run(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "_skip_allowlist", lambda: [])
+    monkeypatch.setattr(skip_wall, "_observed_skips", {})
+    skip_wall.pytest_runtest_logreport(
+        SimpleNamespace(
+            nodeid="tests/test_x.py::dynamic",
+            skipped=True,
+            when="call",
+            longrepr=("tests/test_x.py", 12, "Skipped: no PDF engine on this host"),
+        )
+    )
+    lines: list[str] = []
+    session = _fake_session(full_suite=False, reporter_lines=lines)
+    skip_wall.pytest_sessionfinish(session, 0)
+    assert session.exitstatus == 1
+    assert any("unlisted skip: tests/test_x.py::dynamic" in line for line in lines)

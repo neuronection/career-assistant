@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (PDF engine flake, 2026-10-22)
+- **CV export no longer degrades on a transient Chromium launch failure**
+  (plan 119). The PDF engine retries the launch once across every
+  browser channel before reporting "no engine on this host", so a
+  parallel test/render burst cannot silently turn page-count gates and
+  PDF export into the print-view fallback. The skip wall now also pins
+  that dynamically-raised capability skips (not only marked ones) are
+  recorded against the reviewed allowlist.
+
 ### Changed (Explore & fit performance, 2026-10-22)
 - **Explore stays fast as the job board grows** (plan 120). Filters
   (including minimum education and language requirements), counting and

@@ -18,6 +18,24 @@
       "reason_contains": "perf benchmark runs on demand",
       "when": "always",
       "why": "plan-120 p95 budgets on synthetic 1k/10k fixtures are on-demand only (CAREER_PERF_BENCH=1), never a PR gate"
+    },
+    {
+      "id": "tests/test_cv_templates.py::test_refreshed_bank_lints_and_prints_within_budget",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the bank print budget needs a Chromium-class engine; engine-less hosts cover the lint half only"
+    },
+    {
+      "id": "tests/test_cv_pdf_engine.py::test_running_footer_reaches_printed_pdf_page_2",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: margin-box counters can only be read from a real printed PDF"
+    },
+    {
+      "id": "tests/test_cv_export.py::test_export_all_formats",
+      "reason_contains": "optional server PDF engine not installed",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the PDF leg of the format round-trip answers 503 without the engine; the other formats stay asserted"
     }
   ],
   "sqlite": [
@@ -62,6 +80,24 @@
       "reason_contains": "perf benchmark runs on demand",
       "when": "always",
       "why": "plan-120 p95 budgets on synthetic 1k/10k fixtures are on-demand only (CAREER_PERF_BENCH=1), never a PR gate"
+    },
+    {
+      "id": "tests/test_cv_templates.py::test_refreshed_bank_lints_and_prints_within_budget",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the bank print budget needs a Chromium-class engine; engine-less hosts cover the lint half only"
+    },
+    {
+      "id": "tests/test_cv_pdf_engine.py::test_running_footer_reaches_printed_pdf_page_2",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: margin-box counters can only be read from a real printed PDF"
+    },
+    {
+      "id": "tests/test_cv_export.py::test_export_all_formats",
+      "reason_contains": "optional server PDF engine not installed",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the PDF leg of the format round-trip answers 503 without the engine; the other formats stay asserted"
     }
   ]
 }

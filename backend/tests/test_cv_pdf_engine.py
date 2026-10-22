@@ -287,6 +287,81 @@ def test_frozen_env_untouched_without_bundled_tree(monkeypatch, tmp_path: Path):
     assert os.environ.get("PLAYWRIGHT_BROWSERS_PATH") is None
 
 
+async def test_transient_launch_failure_is_retried_once(monkeypatch):
+    """Parallel render/test load can make a Chromium launch fail
+    transiently. The engine is only declared absent after a second
+    sweep — one flaky launch used to read as "no engine on this host"."""
+
+    class _Browser:
+        def on(self, *_args):
+            return None
+
+    launched: list[dict] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            launched.append(kwargs)
+            if len(launched) == 1:
+                raise RuntimeError("Browser closed")
+            return _Browser()
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    monkeypatch.setattr(pdf_service, "_CHANNEL_CANDIDATES", (None,), raising=False)
+    browser = await pdf_service._launch_browser(_Playwright())
+    assert isinstance(browser, _Browser)
+    assert len(launched) == 2, "the launch was retried once"
+    assert pdf_service._BROWSER_CHANNEL is None
+
+
+async def test_permanent_launch_failure_declares_the_engine_unavailable(monkeypatch):
+    attempts: list[dict] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            attempts.append(kwargs)
+            raise RuntimeError("missing browser")
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    monkeypatch.setattr(pdf_service, "_CHANNEL_CANDIDATES", (None,), raising=False)
+    with pytest.raises(PDFEngineUnavailable) as excinfo:
+        await pdf_service._launch_browser(_Playwright())
+    assert len(attempts) == 2, "absence is declared only after the retry sweep"
+    assert "missing browser" in str(excinfo.value)
+    assert pdf_service._BROWSER_CHANNEL is pdf_service._UNRESOLVED
+
+
+async def test_cached_channel_falls_back_to_the_full_sweep(monkeypatch):
+    """A cached channel is trusted until it fails; the retry sweep then
+    covers the bundled browser and the remaining system channels."""
+
+    class _Browser:
+        def on(self, *_args):
+            return None
+
+    tried: list[dict] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            tried.append(kwargs)
+            if kwargs.get("channel") == "msedge":
+                raise RuntimeError("edge went away")
+            return _Browser()
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    monkeypatch.setattr(pdf_service, "_CHANNEL_CANDIDATES", (None, "msedge"), raising=False)
+    pdf_service._BROWSER_CHANNEL = "msedge"
+    browser = await pdf_service._launch_browser(_Playwright())
+    assert isinstance(browser, _Browser)
+    assert [entry.get("channel") for entry in tried] == ["msedge", None]
+    assert pdf_service._BROWSER_CHANNEL is None
+
+
 def test_running_footer_reaches_printed_pdf_page_2():
     """Margin-box counters land in the printed PDF's own page 2 text
     (the engine is the page-count truth per plan 76). Skips cleanly on
