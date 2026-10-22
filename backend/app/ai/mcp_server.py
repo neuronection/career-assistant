@@ -430,8 +430,17 @@ def _mcp_rate_limit_middleware(asgi_app):
 
 
 def build_mcp_asgi_app():
-    """The rate-limited ASGI app to mount at ``/mcp``."""
-    return _mcp_rate_limit_middleware(build_mcp_server().http_app())
+    """The rate-limited ASGI app to mount at ``/mcp``.
+
+    The inner FastMCP HTTP app serves at its root because Starlette's
+    ``mount`` strips the ``/mcp`` prefix before dispatch; its ``lifespan``
+    is re-attached to the wrapper so the parent app can compose it (the
+    StreamableHTTP session manager's task group lives there).
+    """
+    inner = build_mcp_server().http_app(path="/")
+    wrapped = _mcp_rate_limit_middleware(inner)
+    wrapped.lifespan = inner.lifespan
+    return wrapped
 
 
 def _default_limits() -> tuple[tuple[str, int, int], ...]:

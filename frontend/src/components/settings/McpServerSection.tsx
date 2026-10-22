@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Copy, KeyRound, Loader2, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
 
@@ -74,6 +74,11 @@ export function McpServerSection() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
+  // i18n `t` is not referentially stable in every host (test harnesses and
+  // locale switches recreate it) — read it through a ref so `reload` stays
+  // stable and the mount effect cannot loop.
+  const translate = useRef(t);
+  translate.current = t;
 
   const reload = useCallback(async () => {
     try {
@@ -87,7 +92,7 @@ export function McpServerSection() {
       setAudit(nextAudit);
       setError("");
     } catch (err) {
-      setError(errorText(err, t("toolsSettings.mcp.loadError")));
+      setError(errorText(err, translate.current("toolsSettings.mcp.loadError")));
     }
     try {
       const { proposals: rows } = await fetchProfileProposals("pending");
@@ -95,7 +100,7 @@ export function McpServerSection() {
     } catch {
       setProposals([]);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     void reload();

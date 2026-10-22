@@ -17,6 +17,20 @@ from tests.conftest import _make_posting, _uid
 from tests.mcp_probe import mcp_probe, read_token, tool_payload
 
 
+async def test_mounted_endpoint_routes_mcp_without_a_redirect(client):
+    """The FastAPI mount must reach the MCP app at ``/mcp`` (a 405 here
+    was the mount/trailing-slash bug: the mounted app served at its root
+    while Starlette stripped the prefix)."""
+    from tests.mcp_probe import INITIALIZE
+
+    response = await client.post(
+        "/mcp",
+        json=INITIALIZE,
+        headers={"Accept": "application/json, text/event-stream"},
+    )
+    assert response.status_code == 401, "expected the MCP auth challenge, not a routing error"
+
+
 async def test_anonymous_requests_are_rejected(client, db, monkeypatch):
     async with mcp_probe(db, None, monkeypatch) as probe:
         assert probe.initialize is not None

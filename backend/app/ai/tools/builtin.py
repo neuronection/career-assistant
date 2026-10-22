@@ -467,7 +467,9 @@ async def _market_trend(db, ctx: ToolContext, args: MarketTrendInput):
         job = await JobService(db).get_by_code_or_id(ref)
         if job is None or job.status != "published":
             return {"error": f"job not found: {ref!r}"}
-    scope = {"kind": "family", "key": family} if family else {"kind": "job", "key": job.code}
+        scope = {"kind": "job", "key": job.code}
+    else:
+        scope = {"kind": "family", "key": family}
     trend = await market_history_service.trend(
         db,
         family_key=family or None,

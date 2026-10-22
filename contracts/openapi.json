@@ -10115,6 +10115,38 @@
         "title": "MatchStatus",
         "type": "string"
       },
+      "McpSettingsIn": {
+        "description": "The admin write-scope switch (default OFF).",
+        "properties": {
+          "write_enabled": {
+            "default": false,
+            "title": "Write Enabled",
+            "type": "boolean"
+          }
+        },
+        "title": "McpSettingsIn",
+        "type": "object"
+      },
+      "McpTokenIn": {
+        "description": "Mint request: a human label plus the closed scope list.",
+        "properties": {
+          "label": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Label",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          }
+        },
+        "title": "McpTokenIn",
+        "type": "object"
+      },
       "Message": {
         "description": "Simple message response.",
         "properties": {
@@ -12345,6 +12377,11 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "origin": {
+            "additionalProperties": true,
+            "title": "Origin",
+            "type": "object"
           },
           "payload": {
             "additionalProperties": true,
@@ -19362,6 +19399,57 @@
         ]
       }
     },
+    "/api/v1/ai/mcp/audit": {
+      "get": {
+        "description": "Recent MCP server calls from the audit ledger.",
+        "operationId": "mcp_audit_api_v1_ai_mcp_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Mcp Audit Api V1 Ai Mcp Audit Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mcp Audit",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
     "/api/v1/ai/mcp/servers": {
       "get": {
         "description": "Registered external MCP servers.",
@@ -19604,17 +19692,61 @@
         ]
       }
     },
-    "/api/v1/ai/mcp/token": {
-      "get": {
-        "description": "The instance MCP server token status (never the token itself).",
-        "operationId": "mcp_token_status_api_v1_ai_mcp_token_get",
+    "/api/v1/ai/mcp/settings": {
+      "put": {
+        "description": "Flip the write-scope switch; write tools appear only while it is on.",
+        "operationId": "update_mcp_settings_api_v1_ai_mcp_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Mcp Token Status Api V1 Ai Mcp Token Get",
+                  "title": "Response Update Mcp Settings Api V1 Ai Mcp Settings Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Mcp Settings",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/ai/mcp/status": {
+      "get": {
+        "description": "Endpoint URL, write switch and the projected surface counts.",
+        "operationId": "mcp_status_api_v1_ai_mcp_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mcp Status Api V1 Ai Mcp Status Get",
                   "type": "object"
                 }
               }
@@ -19622,31 +19754,188 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Mcp Token Status",
+        "summary": "Mcp Status",
         "tags": [
-          "ai-settings"
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/ai/mcp/tokens": {
+      "get": {
+        "description": "Token metadata, newest first \u2014 never the hash or plaintext.",
+        "operationId": "list_mcp_tokens_api_v1_ai_mcp_tokens_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Mcp Tokens Api V1 Ai Mcp Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Mcp Tokens",
+        "tags": [
+          "mcp"
         ]
       },
       "post": {
-        "description": "Generate a fresh MCP token bound to the calling admin \u2014 the old\ntoken is invalidated immediately. Shown once.",
-        "operationId": "rotate_mcp_token_api_v1_ai_mcp_token_post",
+        "description": "Mint a token bound to the calling admin; the plaintext is here once.",
+        "operationId": "mint_mcp_token_api_v1_ai_mcp_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mint Mcp Token Api V1 Ai Mcp Tokens Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mint Mcp Token",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/ai/mcp/tokens/{token_id}": {
+      "delete": {
+        "description": "Revoke a token (its next request answers 401).",
+        "operationId": "revoke_mcp_token_api_v1_ai_mcp_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Mcp Token",
+        "tags": [
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/ai/mcp/tokens/{token_id}/rotate": {
+      "post": {
+        "description": "Revoke the token and return its successor's one-time plaintext.",
+        "operationId": "rotate_mcp_token_api_v1_ai_mcp_tokens__token_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Rotate Mcp Token Api V1 Ai Mcp Token Post",
+                  "title": "Response Rotate Mcp Token Api V1 Ai Mcp Tokens  Token Id  Rotate Post",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Rotate Mcp Token",
         "tags": [
-          "ai-settings"
+          "mcp"
+        ]
+      }
+    },
+    "/api/v1/ai/mcp/tools": {
+      "get": {
+        "description": "The live tool list with scopes (write tools only while enabled).",
+        "operationId": "mcp_tools_api_v1_ai_mcp_tools_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Mcp Tools Api V1 Ai Mcp Tools Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Mcp Tools",
+        "tags": [
+          "mcp"
         ]
       }
     },

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -208,11 +209,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.include_router(api_router)
 
-    # MCP server: read-scope tools over Streamable HTTP,
-    # token-authenticated and rate-limited — mounted, not routed.
+    # MCP server: the registry projection over Streamable HTTP,
+    # token-authenticated and rate-limited — mounted, not routed. The
+    # inner app serves at its root (the mount strips `/mcp`), and its
+    # lifespan owns the session manager's task group, so it is composed
+    # into the app lifespan below.
     from app.ai.mcp_server import build_mcp_asgi_app
 
-    application.mount("/mcp", build_mcp_asgi_app())
+    mcp_asgi = build_mcp_asgi_app()
+
+    class _McpSlashMiddleware:
+        """Serve ``/mcp`` without Starlette's trailing-slash redirect."""
+
+        def __init__(self, app) -> None:
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") == "http" and scope.get("path") == "/mcp":
+                scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
+            await self.app(scope, receive, send)
+
+    application.add_middleware(_McpSlashMiddleware)
+    application.mount("/mcp", mcp_asgi)
+
+    _base_lifespan = application.router.lifespan_context
+
+    @contextlib.asynccontextmanager
+    async def _combined_lifespan(scope_app):
+        async with mcp_asgi.lifespan(scope_app), _base_lifespan(scope_app):
+            yield
+
+    application.router.lifespan_context = _combined_lifespan
 
     @application.get("/health", tags=["health"])
     async def health() -> dict:

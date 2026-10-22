@@ -14,6 +14,30 @@ vi.mock("@/api/ai", () => ({
   updateWebSettings: vi.fn(),
 }));
 
+vi.mock("@/api/mcp", () => ({
+  fetchMcpStatus: vi.fn().mockResolvedValue({
+    endpoint: "http://test/mcp",
+    transport: "streamable-http",
+    write_enabled: false,
+    tools: [],
+    read_tools: [],
+    write_tools: [],
+    active_tokens: 0,
+  }),
+  fetchMcpTokens: vi.fn().mockResolvedValue([]),
+  fetchMcpAudit: vi.fn().mockResolvedValue([]),
+  mintMcpToken: vi.fn(),
+  rotateMcpToken: vi.fn(),
+  revokeMcpToken: vi.fn(),
+  setMcpWriteEnabled: vi.fn(),
+}));
+
+vi.mock("@/api/profileProposals", () => ({
+  fetchProfileProposals: vi.fn().mockResolvedValue({ proposals: [], pending_count: 0 }),
+  approveProfileProposal: vi.fn(),
+  rejectProfileProposal: vi.fn(),
+}));
+
 vi.mock("@/api/sources", () => ({
   fetchAdminSources: vi.fn(),
   fetchConnectorCatalog: vi.fn(),

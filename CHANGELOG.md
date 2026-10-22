@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (MCP endpoint routing, 2026-10-22)
+- **The MCP endpoint actually answers at `/mcp`** (plan 119.2). The
+  mounted Streamable-HTTP app served at its own root while the mount
+  stripped the prefix, so `/mcp` returned `405`; the mount now serves at
+  the documented URL (no trailing-slash redirect) and the session
+  manager's lifespan is composed into the app lifespan.
+
 ### Added (MCP connection surface, 2026-10-22)
 - **MCP is now a real connection surface** (plan 119.2). Settings → Tools
   → Connectors → **MCP server** shows the Streamable-HTTP endpoint,

@@ -86,3 +86,5 @@ frontend/coverage/
 
 # OpenChamber browser-panel artifacts (local screenshots)
 .openchamber/
+*.db-shm
+*.db-wal
