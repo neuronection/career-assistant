@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (MCP connection surface, 2026-10-22)
+- **MCP is now a real connection surface** (plan 119.2). Settings → Tools
+  → Connectors → **MCP server** shows the Streamable-HTTP endpoint,
+  manages **tokens** (mint with a label and scopes — the secret is shown
+  exactly once — plus rotate and revoke; rotation kills the predecessor
+  immediately), offers copy-ready **Claude Desktop** and **generic HTTP**
+  client snippets, lists the **live tool surface with its scopes**, and
+  shows **recent MCP calls** from the audit ledger. Tokens are stored as
+  hashes in `mcp_tokens`; every call is budget-checked, per-host
+  rate-limited and audited. An admin **write-access switch** (default
+  off) gates all write tools.
+
 ### Added (assistant read parity, 2026-10-22)
 - **The assistant can now answer questions about your own activity** (plan
   119.1). Alongside the application reads from plan 116, chat and MCP

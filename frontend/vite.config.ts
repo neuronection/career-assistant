@@ -15,6 +15,10 @@ export default defineConfig({
         target: process.env.CA_API_PROXY ?? "http://127.0.0.1:8100",
         changeOrigin: true,
       },
+      "/mcp": {
+        target: process.env.CA_API_PROXY ?? "http://127.0.0.1:8100",
+        changeOrigin: true,
+      },
     },
   },
 });

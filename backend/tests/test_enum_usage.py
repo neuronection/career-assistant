@@ -31,12 +31,7 @@ APP = BACKEND / "app"
 ENUMS_MODULE = APP / "models" / "enums.py"
 
 #: `"Class.MEMBER": "why this member is kept without an app reference"`.
-#: Plan 113's MCP token-scope vocabulary ships ahead of its enforcement
-#: (plan 119's write tools); delete the entries when those land.
-ALLOWED_UNUSED: dict[str, str] = {
-    "McpTokenScope.READ": "plan 113 vocabulary; MCP tool scopes land with 119",
-    "McpTokenScope.WRITE": "plan 113 vocabulary; write scopes land with 119",
-}
+ALLOWED_UNUSED: dict[str, str] = {}
 
 
 def _enum_members() -> dict[str, list[str]]:

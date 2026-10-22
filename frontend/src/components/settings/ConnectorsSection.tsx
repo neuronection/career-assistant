@@ -19,6 +19,7 @@ import type {
 } from "@/components/ui/integrations";
 import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
+import { McpServerSection } from "@/components/settings/McpServerSection";
 
 /**
  * Tools → connectors (ADR-0033, domain tools.connectors — broadened by
@@ -115,6 +116,7 @@ export function ConnectorsSection() {
         </p>
       ) : null}
 
+      <McpServerSection />
       <JobSourceConnectors />
       <ExtensionSourcesSection />
     </div>

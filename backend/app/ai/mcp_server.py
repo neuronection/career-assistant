@@ -1,74 +1,167 @@
-"""MCP server: the app's read-scope AI tools exposed over
-the Model Context Protocol via FastMCP.
+"""MCP server v2 (plan 119): the registry projected over the Model
+Context Protocol — tools, resources and prompts, token-scoped.
 
 Transport = Streamable HTTP mounted at ``/mcp`` (loopback in desktop /
-self-host deployments) so external MCP clients (Claude Desktop, IDE
-agents) can drive career data. Governance:
+self-host deployments). Governance:
 
-- **Token auth** — a locally generated bearer token persisted in the
-  data dir; rotation invalidates the old
-  token. Every verification re-reads the file, so rotation is live.
-- **Read-only by default** — only read-scope registry tools are
-  exposed; write opt-in rides a later admin setting.
+- **Token auth** — bearer secrets live hashed in ``mcp_tokens`` (plan
+  113); rotation revokes the predecessor and links the chain. Every
+  verification re-reads the table, so revoke/rotate is live.
+- **Scopes are typed and enforced per component** — ``read`` exposes the
+  read-scope registry tools and the user-data resources; ``write`` (only
+  when the admin ``mcp.write_enabled`` switch is on) adds the write
+  tools. FastMCP auth checks filter both ``tools/list`` and every call.
 - **Same funnel** — handlers execute through the tool registry's
-  ``run_tool`` with their own DB session; rate limiting (the shared
-  limiter) wraps the ASGI app per client host.
+  ``run_tool`` with their own DB session; every call is audited on the
+  ``mcp_tool_call`` ledger and budget-checked; the shared limiter wraps
+  the ASGI app per client host.
 """
 
-import contextlib
 import inspect
 import json
-import secrets
 import time
 import uuid
-from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
 from app.middleware import RATE_LIMIT_POLICY
+from app.models.enums import McpTokenScope
+
+READ_SCOPE = McpTokenScope.READ.value
+WRITE_SCOPE = McpTokenScope.WRITE.value
 
 
-class MCPTokenStore:
-    """The instance MCP token, persisted in the data dir."""
+def _session():
+    """A fresh session for one MCP request (tests patch this seam so the
+    server shares the test transaction)."""
+    from app.core.database import AsyncSessionLocal
 
-    def __init__(self, directory: Path | None = None):
-        self._path = Path(directory) if directory else None
-
-    def _file(self) -> Path:
-        base = self._path if self._path is not None else settings.data_dir
-        base.mkdir(parents=True, exist_ok=True)
-        return base / "mcp_token.json"
-
-    def read(self) -> dict | None:
-        path = self._file()
-        if not path.exists():
-            return None
-        try:
-            return json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            return None
-
-    def rotate(self, user_id: str | None) -> dict:
-        info = {
-            "token": secrets.token_urlsafe(32),
-            "user_id": user_id,
-            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
-        path = self._file()
-        path.write_text(json.dumps(info))
-        with contextlib.suppress(OSError):
-            path.chmod(0o600)
-        return info
+    return AsyncSessionLocal()
 
 
-_TOKEN_STORE: MCPTokenStore | None = None
+def _access_token():
+    """The current request's AccessToken (None outside an authenticated
+    MCP request)."""
+    from fastmcp.server.dependencies import get_access_token
+
+    return get_access_token()
 
 
-def token_store() -> MCPTokenStore:
-    global _TOKEN_STORE
-    if _TOKEN_STORE is None:
-        _TOKEN_STORE = MCPTokenStore()
-    return _TOKEN_STORE
+def _claims(access=None) -> dict:
+    token = access or _access_token()
+    return dict((token.claims or {}) if token is not None else {})
+
+
+def _bound_user(claims: dict) -> uuid.UUID | None:
+    value = claims.get("user_id")
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except ValueError:
+        return None
+
+
+def _token_of(context):
+    """The AccessToken behind an AuthContext (or None)."""
+    return getattr(context, "token", context)
+
+
+def _read_scope(context) -> bool:
+    token = _token_of(context)
+    return bool(token is not None and READ_SCOPE in (token.scopes or []))
+
+
+def _bound_read_scope(context) -> bool:
+    """Read scope AND a token bound to a user — the user-data resources."""
+    token = _token_of(context)
+    return _read_scope(context) and bool(_bound_user(dict(token.claims or {})))
+
+
+async def _write_scope(context) -> bool:
+    """Write scope AND the admin switch on (default OFF)."""
+    token = _token_of(context)
+    if not (token is not None and WRITE_SCOPE in (token.scopes or [])):
+        return False
+    from app.services import mcp_tokens
+
+    async with _session() as db:
+        return await mcp_tokens.write_enabled(db)
+
+
+def token_verifier():
+    """Build the FastMCP token verifier over the ``mcp_tokens`` table."""
+    from fastmcp.server.auth import TokenVerifier
+
+    class InstanceTokenVerifier(TokenVerifier):
+        async def verify_token(self, token: str):
+            from fastmcp.server.auth.providers.jwt import AccessToken
+
+            from app.services import mcp_tokens
+
+            async with _session() as db:
+                row = await mcp_tokens.resolve(db, token)
+                if row is None:
+                    return None
+                await db.commit()
+                claims = {
+                    "token_id": str(row.id),
+                    "user_id": str(row.user_id) if row.user_id is not None else None,
+                    "label": row.label,
+                }
+                scopes = list(row.scopes or [READ_SCOPE])
+            return AccessToken(
+                token=token,
+                client_id=f"mcp:{row.id}",
+                scopes=scopes,
+                claims=claims,
+            )
+
+    return InstanceTokenVerifier()
+
+
+async def _audit_call(
+    db,
+    *,
+    user_id: uuid.UUID | None,
+    token_label: str,
+    request_id: str,
+    tool_key: str,
+    args: dict,
+    ok: bool,
+    error: str,
+    duration_ms: float,
+) -> None:
+    """One `mcp_tool_call` audit row (the recent-call view reads these)."""
+    from app.ai.gateway import _record
+    from app.models.enums import AITaskType
+
+    try:
+        await _record(
+            db,
+            user_id,
+            AITaskType.MCP_TOOL_CALL,
+            "http",
+            f"mcp-server:{token_label or 'unbound'}:{tool_key}",
+            {
+                "args": json.loads(json.dumps(args, default=str)),
+                "ok": ok,
+                "request_id": request_id,
+                "tool": tool_key,
+            },
+            None,
+            None,
+            duration_ms,
+            "ok" if ok else "error",
+            error,
+            model_name=token_label or "mcp",
+            provider_type="mcp",
+        )
+        await db.commit()
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("mcp tool audit write failed")
 
 
 def _dynamic_handler(tool):
@@ -76,32 +169,61 @@ def _dynamic_handler(tool):
     input model, so FastMCP derives a flat JSON Schema for MCP clients."""
 
     async def handler(**kwargs):
+        from app.ai.budgets import enforce_budgets
         from app.ai.tools import run_tool
-        from app.core.database import AsyncSessionLocal
+        from app.models.enums import AITaskType
 
-        token_info = token_store().read() or {}
-        bound_user = token_info.get("user_id")
-        user_id = uuid.UUID(str(bound_user)) if bound_user else None
+        claims = _claims()
+        user_id = _bound_user(claims)
+        label = str(claims.get("label") or "")
+        request_id = str(uuid.uuid4())
         if tool.requires_user and user_id is None:
             raise ValueError(
-                "This tool requires a bound user; rotate the MCP token "
-                "as a signed-in admin to bind one."
+                "This tool requires a token bound to a user; mint one as a "
+                "signed-in admin in Settings → Tools → Connectors → MCP."
             )
-        async with AsyncSessionLocal() as db:
-            result = await run_tool(db, tool.key, user_id, args=dict(kwargs))
-            return json.loads(json.dumps(result, default=str))
+        started = time.monotonic()
+        async with _session() as db:
+            await enforce_budgets(db, AITaskType.MCP_TOOL_CALL, user_id)
+            try:
+                result = await run_tool(db, tool.key, user_id, args=dict(kwargs))
+                payload = json.loads(json.dumps(result, default=str))
+            except Exception as exc:
+                await _audit_call(
+                    db,
+                    user_id=user_id,
+                    token_label=label,
+                    request_id=request_id,
+                    tool_key=tool.key,
+                    args=kwargs,
+                    ok=False,
+                    error=f"{type(exc).__name__}: {exc}"[:1000],
+                    duration_ms=(time.monotonic() - started) * 1000,
+                )
+                raise
+            await _audit_call(
+                db,
+                user_id=user_id,
+                token_label=label,
+                request_id=request_id,
+                tool_key=tool.key,
+                args=kwargs,
+                ok=True,
+                error="",
+                duration_ms=(time.monotonic() - started) * 1000,
+            )
+            return payload
 
     parameters = []
     annotations: dict[str, Any] = {}
     for name, field_info in tool.input_model.model_fields.items():
         annotations[name] = field_info.annotation
-        default = (
-            field_info.default
-            if field_info.is_required() is False and field_info.default is not None
-            else (field_info.default_factory() if field_info.default_factory is not None else ...)
-        )
-        # Keyword-only: pydantic models allow required-after-optional
-        # fields, plain signatures don't.
+        if field_info.is_required():
+            default = ...
+        elif field_info.default_factory is not None:
+            default = field_info.default_factory()
+        else:
+            default = field_info.default
         parameters.append(
             inspect.Parameter(
                 name,
@@ -116,32 +238,39 @@ def _dynamic_handler(tool):
     return handler
 
 
+def _registry_tool(key: str):
+    from app.ai.tools import get_tool
+
+    try:
+        return get_tool(key)
+    except Exception:
+        return None
+
+
 def build_mcp_server():
-    """The FastMCP server exposing the registry's read-scope tools."""
+    """The FastMCP server: registry tools + resources + prompts."""
     from fastmcp import FastMCP
-    from fastmcp.server.auth import TokenVerifier
-    from fastmcp.server.auth.providers.jwt import AccessToken
 
     from app.ai.tools import list_tools
-
-    class InstanceTokenVerifier(TokenVerifier):
-        async def verify_token(self, token: str):
-            info = token_store().read()
-            if info and info.get("token") and secrets.compare_digest(token, str(info["token"])):
-                return AccessToken(token=token, client_id="local-mcp", scopes=[], expires_at=None)
-            return None
 
     mcp = FastMCP(
         "career-assistant",
         instructions=(
-            "Read-scope career tools: postings search/detail, fit, "
-            "notifications state. Governed by the tool registry."
+            "Career Assistant exposes the user's own career data. Read tools "
+            "cover the catalog, live postings, profile digests, the "
+            "application tracker, deadlines, saved searches, market history "
+            "and fit breakdowns. Write tools appear only for a write-scope "
+            "token while the admin switch is on, and every write is an "
+            "approval card — never a direct mutation."
         ),
-        auth=InstanceTokenVerifier(),
+        auth=token_verifier(),
     )
 
     for tool_data in list_tools():
-        if tool_data["scope"] != "read" or tool_data.get("kind") != "tool":
+        if tool_data.get("kind") != "tool":
+            continue
+        scope = tool_data["scope"]
+        if scope not in (READ_SCOPE, WRITE_SCOPE):
             continue
         tool = _registry_tool(tool_data["key"])
         if tool is None:
@@ -153,18 +282,11 @@ def build_mcp_server():
                 _dynamic_handler(tool),
                 name=tool.key,
                 description=tool.description,
+                auth=_read_scope if scope == READ_SCOPE else _write_scope,
             )
         )
+
     return mcp
-
-
-def _registry_tool(key: str):
-    from app.ai.tools import get_tool
-
-    try:
-        return get_tool(key)
-    except Exception:
-        return None
 
 
 def _mcp_rate_limit_middleware(asgi_app):
@@ -175,8 +297,6 @@ def _mcp_rate_limit_middleware(asgi_app):
             await asgi_app(scope, receive, send)
             return
         client = scope.get("client") or ("unknown", 0)
-        # Raw keyed window (plan 21): the MCP gate keys on its own
-        # ceiling (ratelimit_mcp), independent of the middleware's flag.
         retry_after = await RATE_LIMIT_POLICY.hit(f"mcp:{client[0]}", limit=settings.ratelimit_mcp)
         if retry_after is not None:
             body = json.dumps({"detail": f"rate limited; retry in {retry_after}s"}).encode()

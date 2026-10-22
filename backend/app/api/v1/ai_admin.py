@@ -762,31 +762,6 @@ async def embeddings_status(
 # ------------------------------------------------------- MCP bridge (41b)
 
 
-@router.get("/mcp/token")
-async def mcp_token_status(user: User = Depends(require_admin)) -> dict:
-    """The instance MCP server token status (never the token itself)."""
-    from app.ai.mcp_server import token_store
-
-    info = token_store().read()
-    return {
-        "provisioned": bool(info and info.get("token")),
-        "bound_user_id": (info or {}).get("user_id"),
-        "created_at": (info or {}).get("created_at"),
-    }
-
-
-@router.post("/mcp/token")
-async def rotate_mcp_token(
-    user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Generate a fresh MCP token bound to the calling admin — the old
-    token is invalidated immediately. Shown once."""
-    from app.ai.mcp_server import token_store
-
-    info = token_store().rotate(str(user.id))
-    return {"token": info["token"], "bound_user_id": info["user_id"]}
-
-
 @router.get("/mcp/servers")
 async def list_mcp_servers(
     user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)

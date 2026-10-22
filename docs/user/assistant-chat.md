@@ -66,9 +66,17 @@ Explore" deep-links straight from chat replies.
 Your career data is drivable from external MCP clients (Claude Desktop, IDE
 agents):
 
-- The tool registry's **read-scope tools** expose over Streamable HTTP at
-  `/mcp` with a locally generated token (admin rotation), per-host rate
-  limiting and read-only defaults.
+- The MCP server speaks **Streamable HTTP at `/mcp`**, authenticated by a
+  bearer **token**. Manage tokens in **Settings → Tools → Connectors →
+  MCP server**: mint one (the secret is shown exactly once), label it,
+  **rotate** it (the predecessor dies immediately) or revoke it. Copy-ready
+  snippets for Claude Desktop and generic HTTP clients live next to the
+  endpoint URL.
+- The tool list is the **registry projection** — it always matches the
+  assistant's own tools, with their `read`/`write` scopes shown. Read tools
+  are always exposed; write tools need the admin write switch.
+- **Every call is audited** (`mcp_tool_call`, visible in the recent-call
+  list) and rate-limited per client host.
 - Admins can also register **external MCP servers** — tools are namespaced,
   disabled by default, enabled per tool, and every invocation is audited and
   budgeted.

@@ -46,6 +46,13 @@ state, plus the extension sources imported from git). See
 [Add a job source](add-a-job-source.md) and
 [Import extensions from git](import-extensions-from-git.md).
 
+Connectors also hosts the **MCP server** surface: the endpoint URL,
+token lifecycle (mint shown once, rotate, revoke), copy-ready client
+snippets, the live tool list with its scopes, and the recent-call
+audit. Write access is a separate admin switch — while it is off, MCP
+clients see read tools only. See
+[MCP access](assistant-chat.md#mcp-access).
+
 ## Taxonomy (`/settings/taxonomy`)
 
 Curate the interest tags and the skills ontology (categories, level anchors,

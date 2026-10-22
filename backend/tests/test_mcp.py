@@ -1,94 +1,20 @@
-"""— MCP server (read-scope exposure, token auth, rate
-limiting) and the client bridge (registration, discovery, namespaced +
-audited invocation)."""
+"""MCP server + client bridge (plan 119.2).
 
-import asyncio
-import threading
+Token lifecycle, scope projection and the per-token tool/resource
+surface live in ``test_mcp_surface.py``; this module keeps the client
+bridge (registration, discovery, namespaced + audited invocation) and
+the admin API round-trip.
+"""
+
 from uuid import UUID
 
-import httpx
 import pytest
 from sqlalchemy import select
 
-from app.ai.mcp_server import MCPTokenStore, build_mcp_asgi_app, build_mcp_server
-from app.ai.tools.base import ToolScope
 from app.extensions.mcp_bridge import MCPBridgeService
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from tests.conftest import _uid
-
-
-async def test_server_exposes_exactly_the_read_scope_allowlist():
-    from app.ai.tools import list_tools
-
-    mcp = build_mcp_server()
-    tools = {t.name for t in await mcp.list_tools()}
-    read_tools = {
-        t["key"]
-        for t in list_tools()
-        if t["scope"] == ToolScope.READ.value and t.get("kind") == "tool"
-    }
-    assert tools == read_tools, "MCP surface = read-scope registry tools"
-    assert "cv_set_template" not in tools, "write tools never exposed"
-    assert "propose_profile_edits" not in tools, "capabilities never exposed"
-
-
-async def test_token_store_rotates_and_persists(tmp_path):
-    store = MCPTokenStore(directory=tmp_path)
-    assert store.read() in (None, {})
-    first = store.rotate("11111111-1111-1111-1111-111111111111")
-    assert store.read()["token"] == first["token"]
-    second = store.rotate("22222222-2222-2222-2222-222222222222")
-    assert second["token"] != first["token"], "rotation invalidates the old token"
-    assert store.read()["user_id"] == "22222222-2222-2222-2222-222222222222"
-
-
-async def test_http_transport_rejects_anonymous_and_accepts_token(
-    tmp_path, unused_tcp_port, monkeypatch
-):
-    import uvicorn
-
-    import app.ai.mcp_server as mcp_module
-
-    store = MCPTokenStore(directory=tmp_path)
-    info = store.rotate("11111111-1111-1111-1111-111111111111")
-    monkeypatch.setattr(mcp_module, "_TOKEN_STORE", store)
-
-    app = build_mcp_asgi_app()
-    config = uvicorn.Config(app, host="127.0.0.1", port=unused_tcp_port, log_level="error")
-    server = uvicorn.Server(config)
-    threading.Thread(target=server.run, daemon=True).start()
-    await asyncio.sleep(0.8)
-    try:
-        base = f"http://127.0.0.1:{unused_tcp_port}/mcp"
-        initialize = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "probe", "version": "0"},
-            },
-        }
-        async with httpx.AsyncClient(timeout=10) as http:
-            anon = await http.post(
-                base,
-                json=initialize,
-                headers={"Accept": "application/json, text/event-stream"},
-            )
-            assert anon.status_code == 401, "anonymous must be rejected"
-            authed = await http.post(
-                base,
-                json=initialize,
-                headers={
-                    "Authorization": f"Bearer {info['token']}",
-                    "Accept": "application/json, text/event-stream",
-                },
-            )
-            assert authed.status_code == 200
-    finally:
-        server.should_exit = True
 
 
 async def test_bridge_registration_discovery_and_invoke(
@@ -146,27 +72,55 @@ async def test_bridge_registration_discovery_and_invoke(
     assert audit.model == "external-1"
 
 
-async def test_bridge_admin_api_round_trip(client, auth_headers, profile_ready, seeded_catalog, db):
-    from app.models.user_model import User
-
-    user = (await db.execute(select(User).limit(1))).scalars().first()
-    user.is_admin = True
-    await db.commit()
-
-    from app.ai.mcp_server import token_store
-
-    token_store()._file().unlink(missing_ok=True)
-    status = await client.get("/api/v1/ai/mcp/token", headers=auth_headers)
+async def test_bridge_admin_api_round_trip(
+    client, client_admin_headers, profile_ready, seeded_catalog, db
+):
+    status = await client.get("/api/v1/ai/mcp/status", headers=client_admin_headers)
     assert status.status_code == 200, status.text
-    assert status.json()["provisioned"] is False
+    assert status.json()["write_enabled"] is False
+    assert status.json()["write_tools"] == []
+    assert status.json()["endpoint"].endswith("/mcp")
 
-    rotated = await client.post("/api/v1/ai/mcp/token", headers=auth_headers)
+    minted = await client.post(
+        "/api/v1/ai/mcp/tokens",
+        json={"label": "Desktop", "scopes": ["read"]},
+        headers=client_admin_headers,
+    )
+    assert minted.status_code == 201, minted.text
+    assert minted.json()["token"]
+    assert minted.json()["scopes"] == ["read"]
+
+    write_denied = await client.post(
+        "/api/v1/ai/mcp/tokens",
+        json={"label": "Writer", "scopes": ["read", "write"]},
+        headers=client_admin_headers,
+    )
+    assert write_denied.status_code == 400, "write scope needs the admin switch"
+
+    enabled = await client.put(
+        "/api/v1/ai/mcp/settings",
+        json={"write_enabled": True},
+        headers=client_admin_headers,
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["write_enabled"] is True
+    assert isinstance(enabled.json()["write_tools"], list)
+
+    listed = await client.get("/api/v1/ai/mcp/tokens", headers=client_admin_headers)
+    assert [row["label"] for row in listed.json()] == ["Desktop"]
+    token_id = listed.json()[0]["id"]
+
+    rotated = await client.post(
+        f"/api/v1/ai/mcp/tokens/{token_id}/rotate", headers=client_admin_headers
+    )
     assert rotated.status_code == 200, rotated.text
-    token = rotated.json()["token"]
-    assert token and rotated.json()["bound_user_id"]
+    assert rotated.json()["token"] != minted.json()["token"]
+    assert rotated.json()["rotated_from_id"] == token_id
 
-    after = await client.get("/api/v1/ai/mcp/token", headers=auth_headers)
-    assert after.json()["provisioned"] is True
+    revoked = await client.delete(
+        f"/api/v1/ai/mcp/tokens/{rotated.json()['id']}", headers=client_admin_headers
+    )
+    assert revoked.status_code == 204
 
     registered = await client.post(
         "/api/v1/ai/mcp/servers",
@@ -175,10 +129,22 @@ async def test_bridge_admin_api_round_trip(client, auth_headers, profile_ready, 
             "transport": "http",
             "url": "http://127.0.0.1:9/mcp",
         },
-        headers=auth_headers,
+        headers=client_admin_headers,
     )
     assert registered.status_code == 201, registered.text
-    listing = await client.get("/api/v1/ai/mcp/servers", headers=auth_headers)
+    listing = await client.get("/api/v1/ai/mcp/servers", headers=client_admin_headers)
     names = [s["name"] for s in listing.json()]
     assert names == ["bridge-1"]
     assert listing.json()[0]["enabled"] is False
+
+
+async def test_mcp_admin_surface_requires_an_admin(client):
+    from tests.conftest import auth_kit, mint_session_headers
+
+    member_headers = mint_session_headers(email="mcp-member@example.com")
+    user = auth_kit().users.get_by_email("mcp-member@example.com")
+    if user is not None and user.is_admin:
+        auth_kit().users.set_admin(user.id, False)
+    for path in ("status", "tokens", "tools", "audit"):
+        response = await client.get(f"/api/v1/ai/mcp/{path}", headers=member_headers)
+        assert response.status_code == 403, (path, response.text)

@@ -1330,6 +1330,42 @@
           "dev": "For developers"
         }
       }
+    },
+    "mcp": {
+      "title": "MCP server",
+      "hint": "Drive your career data from Claude Desktop, an IDE agent or any MCP client. The endpoint is token-authenticated; read tools are always available, write tools only while the admin switch is on — and every write is an approval card.",
+      "endpoint": "Endpoint (Streamable HTTP)",
+      "copy": "Copy",
+      "loadError": "Could not load the MCP connection.",
+      "actionError": "The MCP action failed.",
+      "writeTitle": "Write access",
+      "writeOn": "on — write tools create approval cards",
+      "writeOff": "off — read-only tools only",
+      "writeScope": "mint with write scope",
+      "writeScopeHint": "Turn on write access above before minting a write-scope token.",
+      "tokensTitle": "Tokens",
+      "tokenLabel": "Label",
+      "tokenLabelPlaceholder": "Claude Desktop",
+      "defaultLabel": "MCP client",
+      "untitled": "Untitled token",
+      "mint": "Mint token",
+      "shownOnce": "Copy this token now — it is shown exactly once.",
+      "copyToken": "Copy token",
+      "dismiss": "Hide",
+      "active": "active",
+      "revoked": "revoked",
+      "rotate": "Rotate",
+      "revoke": "Revoke",
+      "noTokens": "No tokens yet — mint one to connect a client.",
+      "snippetsTitle": "Client setup",
+      "snippetClaude": "Claude Desktop",
+      "snippetHttp": "Generic HTTP",
+      "snippetHint": "Replace the token placeholder with a minted secret. A rotated token stops working immediately.",
+      "toolsTitle": "Live tools ({{count}})",
+      "writeToolsNote": "Write tools are visible because write access is on. Calls never mutate directly — they produce approval cards below.",
+      "auditTitle": "Recent MCP calls",
+      "refresh": "Refresh",
+      "noCalls": "No MCP calls recorded yet."
     }
   },
   "onboarding": {
