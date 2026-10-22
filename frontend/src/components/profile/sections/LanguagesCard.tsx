@@ -102,7 +102,7 @@ export const LanguagesCard = forwardRef<SectionCardHandle, LanguagesCardProps>(
                     value={lang.level}
                     options={LANGUAGE_LEVELS.map((o) => ({
                       value: o.value,
-                      label: t(o.labelKey, { defaultValue: o.label }),
+                      label: t(o.labelKey),
                     }))}
                     onChange={(level) =>
                       patch({

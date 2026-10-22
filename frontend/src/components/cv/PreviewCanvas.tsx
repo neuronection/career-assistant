@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Maximize, Minus, Plus } from "lucide-react";
 import { Card } from "@/components/ui";
 
@@ -40,6 +41,7 @@ export function PreviewCanvas({
   pageSize?: PageSize;
   pages?: number;
 }) {
+  const { t } = useTranslation();
   const pageWidthPx = PAGE_WIDTHS_PX[pageSize] ?? PAGE_WIDTHS_PX.a4;
   const pageCount = Math.max(1, Math.min(pages, 10));
   const pageHeightPx = PAGE_HEIGHTS_PX[pageSize] ?? PAGE_HEIGHTS_PX.a4;
@@ -95,7 +97,7 @@ export function PreviewCanvas({
           }}
         >
           <iframe
-            title="CV preview"
+            title={t("cvBuilder.preview.title")}
             srcDoc={frameDocument(html)}
             sandbox=""
             scrolling="no"
@@ -112,7 +114,7 @@ export function PreviewCanvas({
               className="absolute inset-x-0 flex items-center justify-end gap-1.5 border-t border-dashed border-[var(--as-accent)] px-2"
             >
               <span className="rounded-full bg-[var(--as-accent)] px-1.5 py-0.5 text-[10px] font-medium text-white">
-                Page {index + 2}
+                {t("cvBuilder.preview.page")} {index + 2}
               </span>
             </div>
           ))}
@@ -128,12 +130,12 @@ export function PreviewCanvas({
       <div
         className="mx-auto mt-2 flex shrink-0 items-center gap-1 rounded-full border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-1 py-0.5 shadow-sm"
         role="group"
-        aria-label="Preview zoom"
+        aria-label={t("cvBuilder.preview.zoom")}
         data-testid="zoom-bar"
       >
         <button
           type="button"
-          aria-label="Zoom out"
+          aria-label={t("cvBuilder.preview.zoomOut")}
           onClick={() => manualStep("out")}
           disabled={zoom <= ZOOM_STEPS[0]}
           data-testid="zoom-out"
@@ -146,7 +148,7 @@ export function PreviewCanvas({
         </span>
         <button
           type="button"
-          aria-label="Zoom in"
+          aria-label={t("cvBuilder.preview.zoomIn")}
           onClick={() => manualStep("in")}
           disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
           data-testid="zoom-in"
@@ -157,11 +159,11 @@ export function PreviewCanvas({
         <span aria-hidden className="mx-0.5 h-4 w-px bg-[var(--as-border)]" />
         <button
           type="button"
-          aria-label="Fit to width"
+          aria-label={t("cvBuilder.preview.fit")}
           aria-pressed={mode === "fit"}
           onClick={enterFitMode}
           data-testid="zoom-fit"
-          title="Fit to width"
+          title={t("cvBuilder.preview.fit")}
           className={`cursor-pointer rounded-full p-1.5 transition-colors ${
             mode === "fit"
               ? "bg-[var(--as-muted)] text-[var(--as-fg)]"

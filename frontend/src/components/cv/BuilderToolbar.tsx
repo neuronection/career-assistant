@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   ChevronDown,
@@ -26,15 +27,16 @@ const AUTOSAVE_LABELS: Record<AutosaveState, string> = {
 export const EXPORT_FORMATS = ["pdf", "docx", "md", "json", "ats_text"] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
-const EXPORT_LABELS: Record<ExportFormat, string> = {
-  pdf: "PDF",
-  docx: "DOCX",
-  md: "Markdown",
-  json: "JSON",
-  ats_text: "ATS text",
+const EXPORT_LABEL_KEYS: Record<ExportFormat, string> = {
+  pdf: "cvBuilder.toolbar.exportPdf",
+  docx: "cvBuilder.toolbar.exportDocx",
+  md: "cvBuilder.toolbar.exportMarkdown",
+  json: "cvBuilder.toolbar.exportJson",
+  ats_text: "cvBuilder.toolbar.exportAts",
 };
 
 function TitleField({ title, onRename }: { title: string; onRename: (title: string) => void }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(title);
 
   useEffect(() => setDraft(title), [title]);
@@ -51,7 +53,7 @@ function TitleField({ title, onRename }: { title: string; onRename: (title: stri
   return (
     <input
       data-testid="cv-title-input"
-      aria-label="CV title"
+      aria-label={t("cvBuilder.toolbar.titleAria")}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
@@ -119,6 +121,7 @@ export function BuilderToolbar({
   onUndo,
   onRedo,
 }: BuilderToolbarProps) {
+  const { t } = useTranslation();
   return (
     <div
       className="flex flex-wrap items-center gap-x-3 gap-y-2"
@@ -129,8 +132,11 @@ export function BuilderToolbar({
         <p className="flex items-center gap-1.5 px-1.5 text-xs text-[var(--as-muted-fg)]">
           <span>
             {versions.length > 0
-              ? `${versions.length} version(s) · latest v${versions[0].version}`
-              : "no versions yet"}
+              ? t("cvBuilder.toolbar.versionsSummary", {
+                  count: versions.length,
+                  version: versions[0].version,
+                })
+              : t("cvBuilder.toolbar.noVersions")}
           </span>
           {saveState !== "idle" && (
             <span
@@ -166,8 +172,8 @@ export function BuilderToolbar({
                     ? "bg-emerald-100 text-emerald-800"
                     : "bg-amber-100 text-amber-800"
                 }`}
-                title={`ATS lint score ${lint.score}`}
-                aria-label={`ATS lint score ${lint.score} — show report`}
+                title={t("cvBuilder.toolbar.atsLintTitle", { score: lint.score })}
+                aria-label={t("cvBuilder.toolbar.atsLintAria", { score: lint.score })}
                 data-testid="ats-chip"
               >
                 ATS {lint.score}
@@ -176,12 +182,14 @@ export function BuilderToolbar({
             <PopoverContent align="start" className="w-72" data-testid="lint-popover">
               <div className="flex items-baseline justify-between gap-2 border-b border-[var(--as-border)] pb-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-                  ATS lint · {lint.score}
+                  {t("cvBuilder.toolbar.atsLint", { score: lint.score })}
                 </p>
                 <p className="text-[11px] tabular-nums text-[var(--as-muted-fg)]">
-                  {lint.checks.filter((check) => check.level === "fail").length} fail ·{" "}
-                  {lint.checks.filter((check) => check.level === "warn").length} warn ·{" "}
-                  {lint.checks.filter((check) => check.level === "pass").length} pass
+                  {t("cvBuilder.toolbar.lintCounts", {
+                    fail: lint.checks.filter((check) => check.level === "fail").length,
+                    warn: lint.checks.filter((check) => check.level === "warn").length,
+                    pass: lint.checks.filter((check) => check.level === "pass").length,
+                  })}
                 </p>
               </div>
               <ul className="space-y-1 pt-1.5 text-xs" data-testid="lint-panel">
@@ -209,36 +217,36 @@ export function BuilderToolbar({
           }`}
           title={
             overflow
-              ? "Content exceeds the page budget"
+              ? t("cvBuilder.toolbar.overflowTitle")
               : pagesSource === "pdf"
-                ? "Page usage measured from the printed PDF"
+                ? t("cvBuilder.toolbar.pagesFromPdf")
                 : pagesSource === "last_export"
-                  ? "Measured at the last export — may have drifted since the latest edits"
-                  : "Estimate only — no PDF engine on this server, so the page count is unverified"
+                  ? t("cvBuilder.toolbar.pagesFromExport")
+                  : t("cvBuilder.toolbar.pagesEstimated")
           }
           data-testid="pages-chip"
         >
           {pagesSource ? "" : "~"}
-          {pages}/{maxPages} page{maxPages > 1 ? "s" : ""}
-          {pagesSource ? "" : " (unverified)"}
-          {overflow ? " — over budget" : ""}
+          {t("cvBuilder.toolbar.pageCount", { count: pages, max: maxPages })}
+          {pagesSource ? "" : ` ${t("cvBuilder.toolbar.unverified")}`}
+          {overflow ? ` ${t("cvBuilder.toolbar.overBudget")}` : ""}
         </span>
 
-        <Button variant="outline" size="sm" onClick={onOpenPalette} data-testid="open-palette" title="Command palette (Ctrl+K)">
-          <Command className="mr-1 h-4 w-4" /> Ctrl+K
+        <Button variant="outline" size="sm" onClick={onOpenPalette} data-testid="open-palette" title={t("cvBuilder.toolbar.paletteTitle")}>
+          <Command className="mr-1 h-4 w-4" /> {t("cvBuilder.toolbar.paletteShortcut")}
         </Button>
         {aiCluster}
-        <Button size="sm" onClick={onOpenAssistant} data-testid="cv-ask-ai" title="Ask the CV assistant">
-          <Sparkles className="mr-1 h-4 w-4" /> Ask AI
+        <Button size="sm" onClick={onOpenAssistant} data-testid="cv-ask-ai" title={t("cvBuilder.toolbar.assistantTitle")}>
+          <Sparkles className="mr-1 h-4 w-4" /> {t("cvBuilder.toolbar.askAi")}
         </Button>
-        <Button variant="outline" size="icon" onClick={onUndo} disabled={!canUndo} data-testid="undo" title="Undo (Ctrl+Z)" aria-label="Undo">
+        <Button variant="outline" size="icon" onClick={onUndo} disabled={!canUndo} data-testid="undo" title={t("cvBuilder.toolbar.undoTitle")} aria-label={t("cvBuilder.toolbar.undo")}>
           <Undo2 className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" onClick={onRedo} disabled={!canRedo} data-testid="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+        <Button variant="outline" size="icon" onClick={onRedo} disabled={!canRedo} data-testid="redo" title={t("cvBuilder.toolbar.redoTitle")} aria-label={t("cvBuilder.toolbar.redo")}>
           <Redo2 className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" onClick={onOpenVersions} data-testid="open-versions">
-          <History className="mr-1 h-4 w-4" /> Versions
+          <History className="mr-1 h-4 w-4" /> {t("cvBuilder.toolbar.versions")}
           {versions.length > 0 ? ` (${versions.length})` : ""}
         </Button>
         <Button
@@ -246,16 +254,16 @@ export function BuilderToolbar({
           size="sm"
           onClick={onOpenRuns}
           data-testid="open-runs"
-          title="Runs & metrics"
+          title={t("cvBuilder.toolbar.runsTitle")}
         >
-          <Activity className="mr-1 h-4 w-4" /> AI runs
-          {onOpenPolish ? " · Notes" : ""}
+          <Activity className="mr-1 h-4 w-4" /> {t("cvBuilder.toolbar.runs")}
+          {onOpenPolish ? ` · ${t("cvBuilder.toolbar.notes")}` : ""}
         </Button>
 
         <Menu>
           <MenuTrigger asChild>
-            <Button variant="outline" size="sm" data-testid="export-dropdown" title="Export this CV">
-              <Download className="mr-1 h-4 w-4" /> Download
+            <Button variant="outline" size="sm" data-testid="export-dropdown" title={t("cvBuilder.toolbar.exportTitle")}>
+              <Download className="mr-1 h-4 w-4" /> {t("cvBuilder.toolbar.download")}
               <ChevronDown className="ml-1 h-3.5 w-3.5 text-[var(--as-muted-fg)]" />
             </Button>
           </MenuTrigger>
@@ -267,7 +275,7 @@ export function BuilderToolbar({
                 disabled={letterBusy}
                 onSelect={onCreateLetter}
               >
-                Matching cover letter
+                {t("cvBuilder.toolbar.matchingLetter")}
               </MenuItem>
             )}
             {EXPORT_FORMATS.map((format) => (
@@ -278,14 +286,14 @@ export function BuilderToolbar({
                 disabled={exportBusy === format}
                 onSelect={() => onExport(format)}
               >
-                {EXPORT_LABELS[format]}
+                {t(EXPORT_LABEL_KEYS[format])}
               </MenuItem>
             ))}
           </MenuContent>
         </Menu>
 
         <Button size="sm" onClick={onSaveVersion} disabled={saveBusy} data-testid="save-version">
-          <Save className="mr-1 h-4 w-4" /> Save version
+          <Save className="mr-1 h-4 w-4" /> {t("cvBuilder.toolbar.saveVersion")}
         </Button>
       </div>
     </div>

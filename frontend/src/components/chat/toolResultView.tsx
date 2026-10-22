@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import i18next from "i18next";
 
 /** Plan-109 traceability: the tool card's result pane gets a legible,
  copyable view scoped to the message; JSON pretty-prints when parseable,
@@ -31,13 +32,13 @@ export function renderToolResult(result: string): ReactNode {
     >
       <button
         type="button"
-        aria-label="Copy tool result"
+        aria-label={i18next.t("chat.toolResult.copyAria")}
         onClick={async () => {
           await navigator.clipboard?.writeText?.(pretty ?? "");
         }}
         className="absolute right-1 top-1 rounded px-1.5 text-[10px] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
       >
-        Copy
+        {i18next.t("common.copy")}
       </button>
       <pre className="whitespace-pre-wrap break-words pr-6 font-mono text-[11px] leading-relaxed text-[var(--as-fg)]">
         {pretty}

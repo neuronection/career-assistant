@@ -145,7 +145,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
                   { value: "google", label: "Google Gemini", description: "generativelanguage.googleapis.com" },
                   { value: "openai_compatible", label: "OpenAI-compatible", description: "OpenRouter / Ollama / LM Studio" },
                   ...(mockAllowed
-                    ? [{ value: "mock", label: "Mock", description: t("aiSettings.providerModal.mockDescription") }]
+                    ? [{ value: "mock", label: t("aiSettings.providerModal.mockLabel"), description: t("aiSettings.providerModal.mockDescription") }]
                     : []),
                 ]}
                 value={providerType}

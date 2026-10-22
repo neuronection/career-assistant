@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
@@ -65,28 +66,35 @@ function isOn(value: unknown): boolean {
 }
 
 const DATE_POSITION_OPTIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "inline", label: "Beside title" },
-  { value: "stacked", label: "Own line" },
+  { value: "auto", labelKey: "templateEditor.date_positions.auto" },
+  { value: "inline", labelKey: "templateEditor.date_positions.inline" },
+  { value: "stacked", labelKey: "templateEditor.date_positions.stacked" },
 ];
 
 const ICON_OPTIONS = [
-  { value: "briefcase", label: "Briefcase" },
-  { value: "gradcap", label: "Graduation cap" },
-  { value: "wrench", label: "Wrench" },
-  { value: "globe", label: "Globe" },
-  { value: "award", label: "Award" },
-  { value: "heart", label: "Heart" },
-  { value: "chat", label: "Chat" },
-  { value: "flag", label: "Flag" },
-  { value: "user", label: "User" },
-  { value: "link", label: "Link" },
-  { value: "github", label: "GitHub" },
-  { value: "linkedin", label: "LinkedIn" },
-  { value: "mail", label: "Mail" },
-  { value: "phone", label: "Phone" },
-  { value: "location", label: "Location" },
+  { value: "briefcase", labelKey: "templateEditor.icons.briefcase" },
+  { value: "gradcap", labelKey: "templateEditor.icons.gradcap" },
+  { value: "wrench", labelKey: "templateEditor.icons.wrench" },
+  { value: "globe", labelKey: "templateEditor.icons.globe" },
+  { value: "award", labelKey: "templateEditor.icons.award" },
+  { value: "heart", labelKey: "templateEditor.icons.heart" },
+  { value: "chat", labelKey: "templateEditor.icons.chat" },
+  { value: "flag", labelKey: "templateEditor.icons.flag" },
+  { value: "user", labelKey: "templateEditor.icons.user" },
+  { value: "link", labelKey: "templateEditor.icons.link" },
+  { value: "github", labelKey: "templateEditor.icons.github" },
+  { value: "linkedin", labelKey: "templateEditor.icons.linkedin" },
+  { value: "mail", labelKey: "templateEditor.icons.mail" },
+  { value: "phone", labelKey: "templateEditor.icons.phone" },
+  { value: "location", labelKey: "templateEditor.icons.location" },
 ];
+
+function localize(
+  t: TFunction,
+  options: { value: string; labelKey: string }[]
+): { value: string; label: string }[] {
+  return options.map((option) => ({ value: option.value, label: t(option.labelKey) }));
+}
 
 function iconValue(value: unknown): string {
   if (value == null) return "default";
@@ -97,15 +105,21 @@ function iconValue(value: unknown): string {
 function IconField({
   icon,
   onUpdate,
+  t,
 }: {
   icon: unknown;
   onUpdate: (patch: Record<string, unknown>) => void;
+  t: TFunction;
 }) {
   return (
     <SelectField
-      label="Heading icon"
+      label={t("cvBuilder.config.headingIcon")}
       value={iconValue(icon)}
-      options={[{ value: "default", label: "Template default" }, { value: "none", label: "None" }, ...ICON_OPTIONS]}
+      options={[
+        { value: "default", label: t("cvBuilder.config.templateDefault") },
+        { value: "none", label: t("common.none") },
+        ...localize(t, ICON_OPTIONS),
+      ]}
       onChange={(next) =>
         onUpdate({ icon: next === "default" ? null : next === "none" ? "" : next })
       }
@@ -114,64 +128,73 @@ function IconField({
 }
 
 function optionLabel(
-  options: { value: string; label: string }[],
+  t: TFunction,
+  options: { value: string; labelKey: string }[],
   value: unknown,
-  fallback: string
+  fallbackKey: string
 ): string {
   const match = options.find((option) => option.value === String(value));
-  return match ? match.label : fallback;
+  return match ? t(match.labelKey) : t(fallbackKey);
 }
 
-export function summaryFor(block: CvBlock): string | null {
+export function summaryFor(block: CvBlock, t: TFunction): string | null {
   const props = (block.props ?? {}) as Record<string, unknown>;
   switch (block.kind) {
     case "items": {
       const parts = [
-        optionLabel(ITEM_SOURCE_OPTIONS, props.source_key ?? "experience", "Items"),
-        String(props.style ?? "list") === "timeline" ? "Timeline" : "List",
-        optionLabel(DATE_FORMAT_OPTIONS, props.date_format ?? "mon_yyyy", "Jan 2025"),
-        `max ${asNumber(props.max_items, 10)}`,
+        optionLabel(t, ITEM_SOURCE_OPTIONS, props.source_key ?? "experience", "templateEditor.item_sources.items"),
+        String(props.style ?? "list") === "timeline"
+          ? t("cvBuilder.config.styleTimeline")
+          : t("cvBuilder.config.styleList"),
+        optionLabel(t, DATE_FORMAT_OPTIONS, props.date_format ?? "mon_yyyy", "templateEditor.date_formats.mon_yyyy"),
+        t("cvBuilder.config.maxItemsShort", { n: asNumber(props.max_items, 10) }),
       ];
       return parts.join(" · ");
     }
     case "skills": {
       const parts = [
-        optionLabel(SKILLS_DISPLAY_OPTIONS, props.display ?? "chips", "Chips"),
-        `max ${asNumber(props.max_items, 18)}`,
+        optionLabel(t, SKILLS_DISPLAY_OPTIONS, props.display ?? "chips", "templateEditor.skills_display.chips"),
+        t("cvBuilder.config.maxItemsShort", { n: asNumber(props.max_items, 18) }),
       ];
-      if (isOn(props.show_levels)) parts.push("levels");
+      if (isOn(props.show_levels)) parts.push(t("cvBuilder.config.levels"));
       return parts.join(" · ");
     }
     case "languages": {
-      const parts = [String(props.display ?? "chips") === "list" ? "Lines" : "Chips"];
-      if (isOn(props.show_cefr)) parts.push("CEFR");
-      if (isOn(props.show_proficiency)) parts.push("certificate");
+      const parts = [
+        String(props.display ?? "chips") === "list"
+          ? t("cvBuilder.config.styleLines")
+          : t("cvBuilder.config.styleChips"),
+      ];
+      if (isOn(props.show_cefr)) parts.push(t("cvBuilder.config.cefr"));
+      if (isOn(props.show_proficiency)) parts.push(t("cvBuilder.config.certificate"));
       return parts.join(" · ");
     }
     case "summary":
-      return `max ${asNumber(props.max_chars, 600)} characters`;
+      return t("cvBuilder.config.maxCharactersShort", { n: asNumber(props.max_chars, 600) });
     case "synth_items": {
       const selected = Array.isArray(props.selected) ? props.selected.length : 0;
       const parts = [
-        selected > 0 ? `${selected} variant${selected === 1 ? "" : "s"}` : "All variants",
-        `max ${asNumber(props.max_items, 6)}`,
+        selected > 0
+          ? t("cvBuilder.config.variantCount", { count: selected })
+          : t("cvBuilder.config.allVariants"),
+        t("cvBuilder.config.maxItemsShort", { n: asNumber(props.max_items, 6) }),
       ];
-      if (isOn(props.show_source_chips)) parts.push("source chips");
+      if (isOn(props.show_source_chips)) parts.push(t("cvBuilder.config.sourceChips"));
       return parts.join(" · ");
     }
     case "achievements": {
       const kinds = Array.isArray(props.kinds)
         ? (props.kinds as string[])
         : ACHIEVEMENT_KIND_OPTIONS.map((option) => option.value);
-      if (kinds.length === ACHIEVEMENT_KIND_OPTIONS.length) return "All types";
+      if (kinds.length === ACHIEVEMENT_KIND_OPTIONS.length) return t("cvBuilder.config.allTypes");
       return kinds
-        .map((kind) => optionLabel(ACHIEVEMENT_KIND_OPTIONS, kind, kind))
+        .map((kind) => optionLabel(t, ACHIEVEMENT_KIND_OPTIONS, kind, kind))
         .join(" · ");
     }
     case "interests":
-      return `max ${asNumber(props.max_items, 6)}`;
+      return t("cvBuilder.config.maxItemsShort", { n: asNumber(props.max_items, 6) });
     case "spacer":
-      return `${asNumber(props.height_mm, 4)} mm`;
+      return t("cvBuilder.config.millimetres", { n: asNumber(props.height_mm, 4) });
     case "custom_text": {
       const text = String(props.text ?? "")
         .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -182,8 +205,8 @@ export function summaryFor(block: CvBlock): string | null {
     }
     case "header": {
       const parts: string[] = [];
-      if (isOn(props.show_links)) parts.push("Contact links");
-      if (isOn(props.show_location)) parts.push("Location");
+      if (isOn(props.show_links)) parts.push(t("cvBuilder.config.contactLinks"));
+      if (isOn(props.show_location)) parts.push(t("cvBuilder.config.location"));
       return parts.length > 0 ? parts.join(" · ") : null;
     }
     default:
@@ -215,17 +238,18 @@ function configFor(
   skillOptions: { id: string; label: string }[] = [],
   itemOptions: { id: string; label: string }[] = [],
   synthOptions: { id: string; label: string; stale?: boolean }[] = [],
-  summary?: SummaryEditContext
+  summary: SummaryEditContext | undefined,
+  t: TFunction
 ): ReactNode {
   const props = block.props ?? {};
   switch (block.kind) {
     case "summary":
       return (
         <>
-          <FieldGroup label="Content">
+          <FieldGroup label={t("cvBuilder.config.content")}>
             {summary?.onChange && (
               <TextareaField
-                label="Summary text"
+                label={t("cvBuilder.config.summaryText")}
                 value={summary.text}
                 onChange={summary.onChange}
                 rows={4}
@@ -234,16 +258,18 @@ function configFor(
                 autoGrow
                 placeholder={
                   summary.fallback
-                    ? `Using profile aspirations — ${summary.fallback}`
-                    : "Write a short, evidence-based summary…"
+                    ? t("cvBuilder.config.summaryPlaceholderFallback", {
+                        text: summary.fallback,
+                      })
+                    : t("cvBuilder.config.summaryPlaceholder")
                 }
-                hint="Leave empty to use your profile aspirations."
+                hint={t("cvBuilder.config.summaryHint")}
                 testId={`summary-text-${summary.index}`}
               />
             )}
-            <IconField icon={props.icon} onUpdate={onUpdate} />
+            <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
             <StepperRow
-              label="Max characters"
+              label={t("cvBuilder.config.maxCharacters")}
               value={asNumber(props.max_chars, 600)}
               min={200}
               max={1200}
@@ -256,19 +282,19 @@ function configFor(
     case "items":
       return (
         <>
-          <FieldGroup label="Content">
-            <IconField icon={props.icon} onUpdate={onUpdate} />
+          <FieldGroup label={t("cvBuilder.config.content")}>
+            <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
             <SegmentedRow
-              label="Data source"
+              label={t("cvBuilder.config.dataSource")}
               value={String(props.source_key ?? "experience")}
-              options={ITEM_SOURCE_OPTIONS}
+              options={localize(t, ITEM_SOURCE_OPTIONS)}
               onChange={(source_key) => onUpdate({ source_key })}
             />
             {String(props.source_key) === "experience" && (
               <ChipTogglesRow
-                label="Include kinds"
+                label={t("cvBuilder.config.includeKinds")}
                 values={Array.isArray(props.kinds) ? (props.kinds as string[]) : []}
-                options={EXPERIENCE_KIND_OPTIONS}
+                options={localize(t, EXPERIENCE_KIND_OPTIONS)}
                 onChange={(kinds) => onUpdate({ kinds })}
               />
             )}
@@ -280,63 +306,63 @@ function configFor(
               />
             )}
           </FieldGroup>
-          <FieldGroup label="Display">
+          <FieldGroup label={t("cvBuilder.config.display")}>
             <SegmentedRow
-              label="Style"
+              label={t("cvBuilder.config.style")}
               value={String(props.style ?? "list")}
               options={[
-                { value: "list", label: "List" },
-                { value: "timeline", label: "Timeline" },
+                { value: "list", label: t("cvBuilder.config.styleList") },
+                { value: "timeline", label: t("cvBuilder.config.styleTimeline") },
               ]}
               onChange={(style) => onUpdate({ style })}
             />
             <SegmentedRow
-              label="Dates"
+              label={t("cvBuilder.config.dates")}
               value={String(props.date_format ?? "mon_yyyy")}
-              options={DATE_FORMAT_OPTIONS}
+              options={localize(t, DATE_FORMAT_OPTIONS)}
               onChange={(date_format) => onUpdate({ date_format })}
             />
             <SegmentedRow
-              label="Date position"
+              label={t("cvBuilder.config.datePosition")}
               value={String(props.date_position ?? "auto")}
-              options={DATE_POSITION_OPTIONS}
+              options={localize(t, DATE_POSITION_OPTIONS)}
               onChange={(date_position) => onUpdate({ date_position })}
             />
             <StepperRow
-              label="Max items"
+              label={t("cvBuilder.config.maxItems")}
               value={asNumber(props.max_items, 10)}
               min={1}
               max={30}
               onChange={(max_items) => onUpdate({ max_items })}
             />
             <ToggleRow
-              label="Show organization"
+              label={t("cvBuilder.config.showOrganization")}
               checked={props.show_org !== false}
               onChange={(show_org) => onUpdate({ show_org })}
             />
             <ToggleRow
-              label="Show description"
+              label={t("cvBuilder.config.showDescription")}
               checked={props.show_description !== false}
               onChange={(show_description) => onUpdate({ show_description })}
             />
             <ToggleRow
-              label="Show skills"
+              label={t("cvBuilder.config.showSkills")}
               checked={props.show_skills !== false}
               onChange={(show_skills) => onUpdate({ show_skills })}
             />
             <ToggleRow
-              label="Show achievements"
+              label={t("cvBuilder.config.showAchievements")}
               checked={props.show_achievements !== false}
               onChange={(show_achievements) => onUpdate({ show_achievements })}
             />
             <ToggleRow
-              label="Show links (repo, demo…)"
+              label={t("cvBuilder.config.showLinks")}
               checked={props.show_links === true}
               onChange={(show_links) => onUpdate({ show_links })}
             />
             {String(props.source_key) === "certifications" && (
               <ToggleRow
-                label="Hide proficiency certificates"
+                label={t("cvBuilder.config.hideProficiency")}
                 checked={props.exclude_proficiency === true}
                 onChange={(exclude_proficiency) => onUpdate({ exclude_proficiency })}
               />
@@ -348,9 +374,9 @@ function configFor(
       return (
         <>
           {synthOptions.length > 0 && (
-            <FieldGroup label="Content">
+            <FieldGroup label={t("cvBuilder.config.content")}>
               <ChipTogglesRow
-                label="Limit to variants"
+                label={t("cvBuilder.config.limitToVariants")}
                 values={Array.isArray(props.selected) ? (props.selected as string[]) : []}
                 options={synthOptions.map((entry) => ({
                   value: entry.id,
@@ -360,15 +386,15 @@ function configFor(
               />
             </FieldGroup>
           )}
-          <FieldGroup label="Display">
-            <IconField icon={props.icon} onUpdate={onUpdate} />
+          <FieldGroup label={t("cvBuilder.config.display")}>
+            <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
             <ToggleRow
-              label="Show source chips"
+              label={t("cvBuilder.config.showSourceChips")}
               checked={props.show_source_chips !== false}
               onChange={(show_source_chips) => onUpdate({ show_source_chips })}
             />
             <StepperRow
-              label="Max items"
+              label={t("cvBuilder.config.maxItems")}
               value={asNumber(props.max_items, 6)}
               min={1}
               max={20}
@@ -379,21 +405,21 @@ function configFor(
       );
     case "skills":
       return (
-        <FieldGroup label="Display">
-          <IconField icon={props.icon} onUpdate={onUpdate} />
+        <FieldGroup label={t("cvBuilder.config.display")}>
+          <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
           <SegmentedRow
-            label="Display"
+            label={t("cvBuilder.config.display")}
             value={String(props.display ?? "chips")}
-            options={SKILLS_DISPLAY_OPTIONS}
+            options={localize(t, SKILLS_DISPLAY_OPTIONS)}
             onChange={(display) => onUpdate({ display })}
           />
           <ToggleRow
-            label="Show levels"
+            label={t("cvBuilder.config.showLevels")}
             checked={props.show_levels === true}
             onChange={(show_levels) => onUpdate({ show_levels })}
           />
           <StepperRow
-            label="Max items"
+            label={t("cvBuilder.config.maxItems")}
             value={asNumber(props.max_items, 18)}
             min={1}
             max={40}
@@ -401,7 +427,7 @@ function configFor(
           />
           {skillOptions.length > 0 && (
             <ChipTogglesRow
-              label="Limit to skills"
+              label={t("cvBuilder.config.limitToSkills")}
               values={Array.isArray(props.selected) ? (props.selected as string[]) : []}
               options={skillOptions.map((skill) => ({ value: skill.id, label: skill.label }))}
               onChange={(selected) => onUpdate({ selected })}
@@ -411,24 +437,24 @@ function configFor(
       );
     case "languages":
       return (
-        <FieldGroup label="Display">
-          <IconField icon={props.icon} onUpdate={onUpdate} />
+        <FieldGroup label={t("cvBuilder.config.display")}>
+          <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
           <SegmentedRow
-            label="Format"
+            label={t("cvBuilder.config.format")}
             value={String(props.display ?? "chips")}
             options={[
-              { value: "chips", label: "Chips" },
-              { value: "list", label: "Lines" },
+              { value: "chips", label: t("cvBuilder.config.styleChips") },
+              { value: "list", label: t("cvBuilder.config.styleLines") },
             ]}
             onChange={(display) => onUpdate({ display })}
           />
           <ToggleRow
-            label="Show CEFR band"
+            label={t("cvBuilder.config.showCefr")}
             checked={props.show_cefr === true}
             onChange={(show_cefr) => onUpdate({ show_cefr })}
           />
           <ToggleRow
-            label="Latest proficiency certificate"
+            label={t("cvBuilder.config.latestCertificate")}
             checked={props.show_proficiency === true}
             onChange={(show_proficiency) => onUpdate({ show_proficiency })}
           />
@@ -439,12 +465,12 @@ function configFor(
         ? (props.kinds as string[])
         : ACHIEVEMENT_KIND_OPTIONS.map((option) => option.value);
       return (
-        <FieldGroup label="Types">
-          <IconField icon={props.icon} onUpdate={onUpdate} />
+        <FieldGroup label={t("cvBuilder.config.types")}>
+          <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
           <ChipTogglesRow
-            label="Types"
+            label={t("cvBuilder.config.types")}
             values={kinds}
-            options={ACHIEVEMENT_KIND_OPTIONS}
+            options={localize(t, ACHIEVEMENT_KIND_OPTIONS)}
             onChange={(kinds) => onUpdate({ kinds })}
           />
         </FieldGroup>
@@ -452,10 +478,10 @@ function configFor(
     }
     case "interests":
       return (
-        <FieldGroup label="Display">
-          <IconField icon={props.icon} onUpdate={onUpdate} />
+        <FieldGroup label={t("cvBuilder.config.display")}>
+          <IconField icon={props.icon} onUpdate={onUpdate} t={t} />
           <StepperRow
-            label="Max items"
+            label={t("cvBuilder.config.maxItems")}
             value={asNumber(props.max_items, 6)}
             min={1}
             max={20}
@@ -465,9 +491,9 @@ function configFor(
       );
     case "spacer":
       return (
-        <FieldGroup label="Size">
+        <FieldGroup label={t("cvBuilder.config.size")}>
           <StepperRow
-            label="Height"
+            label={t("cvBuilder.config.height")}
             value={asNumber(props.height_mm, 4)}
             min={2}
             max={20}
@@ -478,19 +504,19 @@ function configFor(
       );
     case "qr":
       return (
-        <FieldGroup label="Display">
+        <FieldGroup label={t("cvBuilder.config.display")}>
           <SegmentedRow
-            label="Link"
+            label={t("cvBuilder.config.link")}
             value={String(props.link_kind ?? "web")}
             options={[
-              { value: "web", label: "Website" },
+              { value: "web", label: t("cvBuilder.config.website") },
               { value: "github", label: "GitHub" },
               { value: "linkedin", label: "LinkedIn" },
             ]}
             onChange={(link_kind) => onUpdate({ link_kind })}
           />
           <StepperRow
-            label="Size"
+            label={t("cvBuilder.config.size")}
             value={asNumber(props.size_mm, 24)}
             min={10}
             max={40}
@@ -501,14 +527,14 @@ function configFor(
       );
     case "header":
       return (
-        <FieldGroup label="Display">
+        <FieldGroup label={t("cvBuilder.config.display")}>
           <ToggleRow
-            label="Show contact links"
+            label={t("cvBuilder.config.showContactLinks")}
             checked={props.show_links === true}
             onChange={(show_links) => onUpdate({ show_links })}
           />
           <ToggleRow
-            label="Show location"
+            label={t("cvBuilder.config.showLocation")}
             checked={props.show_location === true}
             onChange={(show_location) => onUpdate({ show_location })}
           />
@@ -517,7 +543,7 @@ function configFor(
     default:
       return (
         <p className="text-xs text-[var(--as-muted-fg)]">
-          Nothing to configure — content comes from your profile.
+          {t("cvBuilder.config.nothingToConfigure")}
         </p>
       );
   }
@@ -608,7 +634,7 @@ function SectionCard({
   } else if (block.kind === "summary" && summaryEdit?.text.trim()) {
     summary = summaryEdit.text.trim();
   } else {
-    summary = summaryFor(block);
+    summary = summaryFor(block, t);
   }
 
   return (
@@ -644,8 +670,8 @@ function SectionCard({
           className={`flex shrink-0 cursor-grab items-center rounded px-0.5 py-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)] focus-visible:outline focus-visible:outline-[var(--as-accent)] ${
             dragging ? "cursor-grabbing" : ""
           }`}
-          aria-label="Drag to reorder — use up and down arrow keys"
-          title="Drag, or focus and use ↑/↓"
+          aria-label={t("cvBuilder.config.dragAria")}
+          title={t("cvBuilder.config.dragTitle")}
           data-testid={`section-handle-${index}`}
         >
           <GripVertical className="h-3.5 w-3.5" aria-hidden />
@@ -658,7 +684,7 @@ function SectionCard({
         </span>
         {titled ? (
           <input
-            aria-label="Section title"
+            aria-label={t("cvBuilder.config.sectionTitleAria")}
             className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-0.5 py-0.5 text-sm font-medium outline-none transition-colors placeholder:text-[var(--as-muted-fg)] hover:border-[var(--as-border)] focus:border-[var(--as-accent)]"
             value={String(block.props?.title ?? "")}
             placeholder={t(labelKey, { defaultValue: labelKey })}
@@ -672,8 +698,8 @@ function SectionCard({
         <button
           type="button"
           aria-pressed={hidden}
-          aria-label={hidden ? "Show section" : "Hide section"}
-          title={hidden ? "Show section" : "Hide section"}
+          aria-label={hidden ? t("cvBuilder.config.showSection") : t("cvBuilder.config.hideSection")}
+          title={hidden ? t("cvBuilder.config.showSection") : t("cvBuilder.config.hideSection")}
           data-testid={`section-hide-${index}`}
           onClick={() => onSetBlockHidden(index, !hidden)}
           className={`${actionButton} ${hidden ? "text-[var(--as-accent)]" : ""}`}
@@ -688,8 +714,8 @@ function SectionCard({
           <MenuTrigger asChild>
             <button
               type="button"
-              aria-label="Section actions"
-              title="More actions"
+              aria-label={t("cvBuilder.config.sectionActionsAria")}
+              title={t("cvBuilder.config.moreActions")}
               data-testid={`section-menu-${index}`}
               className={actionButton}
             >
@@ -703,7 +729,7 @@ function SectionCard({
               onSelect={() => onMoveBlock(index, -1)}
             >
               <ArrowUp className="mr-2 h-3.5 w-3.5" aria-hidden />
-              Move up
+              {t("cvBuilder.config.moveUp")}
             </MenuItem>
             <MenuItem
               data-testid={`section-move-down-${index}`}
@@ -711,7 +737,7 @@ function SectionCard({
               onSelect={() => onMoveBlock(index, 1)}
             >
               <ArrowDown className="mr-2 h-3.5 w-3.5" aria-hidden />
-              Move down
+              {t("cvBuilder.config.moveDown")}
             </MenuItem>
             <MenuSeparator />
             <MenuItem
@@ -719,7 +745,7 @@ function SectionCard({
               onSelect={() => onDuplicateBlock(index)}
             >
               <Copy className="mr-2 h-3.5 w-3.5" aria-hidden />
-              Duplicate
+              {t("cvBuilder.config.duplicate")}
             </MenuItem>
             <MenuSeparator />
             <MenuItem
@@ -728,7 +754,7 @@ function SectionCard({
               onSelect={() => onRemoveBlock(index)}
             >
               <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden />
-              Remove
+              {t("cvBuilder.config.remove")}
             </MenuItem>
           </MenuContent>
         </Menu>
@@ -739,8 +765,8 @@ function SectionCard({
             <button
               type="button"
               aria-expanded={open}
-              aria-label="Configure section"
-              title={open ? "Collapse" : "Configure"}
+              aria-label={t("cvBuilder.config.configureAria")}
+              title={open ? t("cvBuilder.config.collapse") : t("cvBuilder.config.configure")}
               data-testid={`configure-section-${index}`}
               onClick={onToggle}
               className={`${actionButton} ${
@@ -786,10 +812,11 @@ function SectionCard({
               skillOptions,
               itemOptions,
               synthOptions,
-              summaryEdit
+              summaryEdit,
+              t
             )}
             {block.kind !== "header" && block.kind !== "spacer" && (
-              <FieldGroup label="Container">
+              <FieldGroup label={t("cvBuilder.config.container")}>
                 <ContainerEditor
                   box={(block.props?.container ?? {}) as Record<string, unknown>}
                   fallbackBackground="#ffffff"
@@ -825,6 +852,7 @@ export function SectionsPanel({
   dragIndexRef,
   onDragReorder,
 }: SectionsPanelProps) {
+  const { t } = useTranslation();
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverArea, setDragOverArea] = useState<CvAreaId | null>(null);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -838,7 +866,7 @@ export function SectionsPanel({
     const transfer = event.dataTransfer;
     if (!transfer) return;
     transfer.effectAllowed = "move";
-    transfer.setData("text/plain", "Section");
+    transfer.setData("text/plain", t("cvBuilder.config.sectionDrag"));
     try {
       const card = event.currentTarget;
       const ghost = makeDragGhost(card, 320);
@@ -956,7 +984,7 @@ export function SectionsPanel({
               <div className="flex items-center gap-1.5 border-b border-[var(--as-border)] px-2 py-1.5">
                 <Columns2 className="h-3.5 w-3.5 shrink-0 text-[var(--as-accent)]" aria-hidden />
                 <span className="text-[11px] font-semibold text-[var(--as-muted-fg)]">
-                  {area.label}
+                  {t(area.labelKey)}
                 </span>
                 <span
                   className="rounded-full bg-[var(--as-muted)] px-1.5 text-[10px] font-medium tabular-nums text-[var(--as-muted-fg)]"
@@ -979,7 +1007,7 @@ export function SectionsPanel({
                     className="rounded-lg border border-dashed border-[var(--as-border)] px-2 py-2.5 text-center text-[11px] text-[var(--as-muted-fg)]"
                     data-testid={`area-empty-${area.id}`}
                   >
-                    Drop a section here
+                    {t("cvBuilder.config.dropHere")}
                   </p>
                 ) : (
                   indexes.map((index) => card(blocks[index], index))
@@ -1000,7 +1028,7 @@ export function SectionsPanel({
       </ul>
       {blocks.length === 0 && (
         <p className="text-xs text-[var(--as-muted-fg)]">
-          No sections yet — add one above to start building.
+          {t("cvBuilder.config.empty")}
         </p>
       )}
     </div>

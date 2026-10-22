@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ImageOff, Star } from "lucide-react";
 import { UploadDropzone } from "@neuronection/assistant-ui";
 import { fetchPhotoBlobUrl, type GalleryPhoto } from "@/api/mePhoto";
@@ -23,6 +24,7 @@ export function PhotoPicker({
   onUpload,
   onError,
 }: PhotoPickerProps) {
+  const { t } = useTranslation();
   const [thumbs, setThumbs] = useState<ThumbMap>({});
   const selected = photos.find((photo) => photo.document_id === photoId);
 
@@ -57,7 +59,7 @@ export function PhotoPicker({
           {photoId && thumbs[photoId] ? (
             <img
               src={thumbs[photoId]}
-              alt={selected?.filename ?? "Selected photo"}
+              alt={selected?.filename ?? t("cvBuilder.photo.selected")}
               className="h-full w-full object-cover"
               data-testid="photo-preview"
             />
@@ -67,7 +69,7 @@ export function PhotoPicker({
         </div>
         <div className="min-w-0 flex-1 text-xs">
           <p className="font-medium text-[var(--as-fg)]">
-            {photoId ? (selected?.filename ?? "Selected photo") : "No photo on this CV"}
+            {photoId ? (selected?.filename ?? t("cvBuilder.photo.selected")) : t("cvBuilder.photo.none")}
           </p>
           <button
             type="button"
@@ -76,7 +78,7 @@ export function PhotoPicker({
             disabled={!photoId}
             data-testid="photo-use-default"
           >
-            Use profile default
+            {t("cvBuilder.photo.useDefault")}
           </button>
         </div>
       </div>
@@ -89,8 +91,12 @@ export function PhotoPicker({
               type="button"
               onClick={() => onSelect(photo.document_id)}
               aria-pressed={photo.document_id === photoId}
-              aria-label={`Use ${photo.filename}`}
-              title={photo.is_default ? `${photo.filename} (profile default)` : photo.filename}
+              aria-label={t("cvBuilder.photo.useAria", { name: photo.filename })}
+              title={
+                photo.is_default
+                  ? t("cvBuilder.photo.defaultTitle", { name: photo.filename })
+                  : photo.filename
+              }
               data-testid={`photo-choice-${photo.document_id}`}
               className={`relative h-11 w-11 overflow-hidden rounded-lg border-2 transition-colors ${
                 photo.document_id === photoId
@@ -112,7 +118,7 @@ export function PhotoPicker({
               {photo.is_default && (
                 <Star
                   className="absolute bottom-0.5 right-0.5 h-3 w-3 fill-amber-400 text-amber-500"
-                  aria-label="Profile default"
+                  aria-label={t("cvBuilder.photo.profileDefault")}
                 />
               )}
             </button>
@@ -125,8 +131,8 @@ export function PhotoPicker({
         multiple={false}
         accept="image/png,image/jpeg,image/webp"
         uploading={uploading}
-        label="Drop a photo or click to upload"
-        hint="PNG, JPEG or WebP · max 2 MB — added to your gallery"
+        label={t("cvBuilder.photo.drop")}
+        hint={t("cvBuilder.photo.hint")}
         onFiles={(files) => {
           const file = files[0];
           if (file) onUpload(file);
@@ -141,7 +147,7 @@ export function PhotoPicker({
           onClick={() => onSelect("")}
           data-testid="photo-clear"
         >
-          Remove photo from this CV
+          {t("cvBuilder.photo.remove")}
         </Button>
       )}
     </div>

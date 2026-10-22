@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 export interface ItemOption {
@@ -24,6 +25,7 @@ export function ItemsOrderEditor({
   order: string[];
   onChange: (order: string[]) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -70,14 +72,14 @@ export function ItemsOrderEditor({
         className="flex w-full cursor-pointer items-center justify-between px-2 py-1.5 text-xs font-medium text-[var(--as-fg)] transition-colors duration-150 hover:bg-[var(--as-muted)]"
       >
         <span>
-          Reorder items
+          {t("cvBuilder.items.reorder")}
           {untouched ? (
-            <span className="ml-1.5 text-[var(--as-muted-fg)]">· default order</span>
+            <span className="ml-1.5 text-[var(--as-muted-fg)]">· {t("cvBuilder.items.defaultOrder")}</span>
           ) : (
             <span
               className="ml-1.5 rounded-full bg-[color-mix(in_srgb,var(--as-accent)_12%,transparent)] px-1.5 py-0.5 text-[10px] text-[var(--as-accent)]"
             >
-              custom
+              {t("cvBuilder.items.custom")}
             </span>
           )}
         </span>
@@ -131,8 +133,8 @@ export function ItemsOrderEditor({
                 className={`select-none cursor-grab px-0.5 text-[var(--as-muted-fg)] ${
                   dragId === id ? "cursor-grabbing" : ""
                 }`}
-                aria-label={`Reorder ${labelOf(id)} — use up and down arrow keys`}
-                title="Drag, or focus and use ↑/↓"
+                aria-label={t("cvBuilder.items.reorderAria", { name: labelOf(id) })}
+                title={t("cvBuilder.items.dragTitle")}
                 data-testid={`items-order-handle-${id}`}
               >
                 ⠿
@@ -142,16 +144,16 @@ export function ItemsOrderEditor({
                 {options.find((option) => option.id === id)?.stale ? (
                   <span
                     className="ml-1 text-[10px] text-amber-700"
-                    title="The CV's captured text no longer matches the profile for this item"
+                    title={t("cvBuilder.items.staleTitle")}
                     data-testid={`items-order-stale-${id}`}
                   >
-                    (profile changed)
+                    {t("cvBuilder.items.profileChanged")}
                   </span>
                 ) : null}
               </span>
               <button
                 type="button"
-                aria-label={`Move ${labelOf(id)} up`}
+                aria-label={t("cvBuilder.items.moveUpAria", { name: labelOf(id) })}
                 data-testid={`items-order-up-${id}`}
                 disabled={index === 0}
                 onClick={() => move(id, -1)}
@@ -161,7 +163,7 @@ export function ItemsOrderEditor({
               </button>
               <button
                 type="button"
-                aria-label={`Move ${labelOf(id)} down`}
+                aria-label={t("cvBuilder.items.moveDownAria", { name: labelOf(id) })}
                 data-testid={`items-order-down-${id}`}
                 disabled={index === ids.length - 1}
                 onClick={() => move(id, 1)}

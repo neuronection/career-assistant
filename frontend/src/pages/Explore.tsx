@@ -12,11 +12,11 @@ import { EmptyState, SearchableDropdown } from "@/components/ui";
 import type { ExploreFacets, JobPostingItem, PostingSourceInfo } from "@/types";
 
 const POSTED_WINDOWS = [
-  { value: "", label: "any time" },
-  { value: "24h", label: "last 24h" },
-  { value: "7d", label: "last 7 days" },
-  { value: "30d", label: "last 30 days" },
-  { value: "90d", label: "last 90 days" },
+  { value: "", labelKey: "explore.posted.any" },
+  { value: "24h", labelKey: "explore.posted.h24" },
+  { value: "7d", labelKey: "explore.posted.d7" },
+  { value: "30d", labelKey: "explore.posted.d30" },
+  { value: "90d", labelKey: "explore.posted.d90" },
 ];
 
 const EMPTY_FACETS: ExploreFacets = {};
@@ -186,7 +186,7 @@ export function Explore() {
     <div className="space-y-6" data-testid="explore">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          Every open vacancy across your sources — filter, facet, deep-extract.
+          {t("explore.intro")}
           {total ? ` ${total} matching.` : ""}
         </p>
         <button
@@ -195,7 +195,7 @@ export function Explore() {
           className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40"
           data-testid="save-search"
         >
-          <Bookmark className="w-3.5 h-3.5" /> Save this search
+          <Bookmark className="w-3.5 h-3.5" /> {t("explore.saveSearch")}
         </button>
       </div>
       {savedNote && <p className="text-sm text-emerald-600" data-testid="saved-note">{savedNote}</p>}
@@ -215,7 +215,9 @@ export function Explore() {
             </label>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Skills</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+              {t("explore.facet.skills")}
+            </p>
               <div className="flex gap-1.5">
                 <div className="flex-1 min-w-0">
                   <SearchableDropdown
@@ -269,7 +271,7 @@ export function Explore() {
                           onClick={() =>
                             patch({ skills: filters.skills.filter((f) => f.key !== s.key) })
                           }
-                          aria-label={`Remove ${s.key}`}
+                          aria-label={t("explore.removeSkill", { skill: s.key })}
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -304,7 +306,7 @@ export function Explore() {
                 data-testid="posted-within"
               >
                 {POSTED_WINDOWS.map((w) => (
-                  <option key={w.value} value={w.value}>{w.label}</option>
+                  <option key={w.value} value={w.value}>{t(w.labelKey)}</option>
                 ))}
               </select>
               {!active && (
@@ -346,14 +348,16 @@ export function Explore() {
                         : "border-slate-200 text-slate-600"
                     }`}
                   >
-                    {value} · {count}
+                    {t(`explore.facetValue.${value}`, { defaultValue: value })} · {count}
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Work mode</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+                {t("explore.facet.workMode")}
+              </p>
               <div className="flex flex-wrap gap-1">
                 {Object.entries(facets.remote_policy ?? {}).map(([value, count]) => (
                   <button
@@ -365,14 +369,16 @@ export function Explore() {
                         : "border-slate-200 text-slate-600"
                     }`}
                   >
-                    {value} · {count}
+                    {t(`explore.facetValue.${value}`, { defaultValue: value })} · {count}
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Contract</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+                {t("explore.facet.contract")}
+              </p>
               <div className="flex flex-wrap gap-1">
                 {["permanent", "temporary", "contract", "freelance", "b2b", "internship", "apprenticeship"].map(
                   (value) => (
@@ -386,7 +392,7 @@ export function Explore() {
                       }`}
                       data-testid={`contract-${value}`}
                     >
-                      {value.replace(/_/g, " ")}
+                      {t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") })}
                     </button>
                   ),
                 )}
@@ -394,7 +400,9 @@ export function Explore() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Travel</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+                {t("explore.facet.travel")}
+              </p>
               <div className="flex flex-wrap gap-1">
                 {["none", "occasional", "frequent"].map((value) => (
                   <button
@@ -407,14 +415,16 @@ export function Explore() {
                     }`}
                     data-testid={`travel-${value}`}
                   >
-                    {value}
+                    {t(`explore.facetValue.${value}`, { defaultValue: value })}
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Schedule</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+                {t("explore.facet.schedule")}
+              </p>
               <div className="flex flex-wrap gap-1">
                 {["shift_work", "on_call", "nights", "weekends", "flexible"].map((value) => (
                   <button
@@ -427,14 +437,16 @@ export function Explore() {
                     }`}
                     data-testid={`schedule-${value}`}
                   >
-                    {value.replace(/_/g, " ")}
+                    {t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") })}
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Organization</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+                {t("explore.facet.organization")}
+              </p>
               <input
                 value={filters.org}
                 onChange={(e) => patch({ org: e.target.value })}
@@ -445,7 +457,9 @@ export function Explore() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Sources</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
+                {t("explore.facet.sources")}
+              </p>
               <div className="space-y-1">
                 {sources.map((s) => (
                   <label key={s.key} className="flex items-center justify-between text-xs text-slate-600">
@@ -463,7 +477,7 @@ export function Explore() {
                   </label>
                 ))}
                 {sources.length === 0 && (
-                  <p className="text-xs text-slate-400">No sources connected yet.</p>
+                  <p className="text-xs text-slate-400">{t("explore.noSources")}</p>
                 )}
               </div>
             </div>
@@ -493,7 +507,7 @@ export function Explore() {
                 className="text-xs text-slate-400 hover:text-slate-600"
                 data-testid="clear-filters"
               >
-                Clear all filters
+                {t("explore.clearAllFilters")}
               </button>
             )}
           </div>

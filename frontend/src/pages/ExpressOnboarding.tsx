@@ -144,7 +144,7 @@ export function ExpressOnboarding() {
           <input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="Athens"
+            placeholder={t("profileSection.placeholderCity")}
             className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
           />
         </label>

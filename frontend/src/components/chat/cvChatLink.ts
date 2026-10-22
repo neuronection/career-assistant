@@ -1,3 +1,5 @@
+import i18next from "i18next";
+
 import { createChatSession } from "@/api/universities";
 import { writeDraft } from "@/components/chat/drafts";
 import { useChatStore, type ChatMode } from "@/stores/chatStore";
@@ -30,7 +32,7 @@ export async function openCvChat(
   if (normal) {
     sessionId = normal.id;
   } else {
-    const session = await createChatSession({ title: "CV chat" });
+    const session = await createChatSession({ title: i18next.t("chat.cvChatTitle") });
     useChatStore.setState({
       sessions: [session, ...useChatStore.getState().sessions],
     });

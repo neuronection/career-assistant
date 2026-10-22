@@ -1370,7 +1370,7 @@ export function CvBuilder() {
   }
 
   const commands: CommandItem[] = [
-    { id: "save-version", label: t("templateEditor.saveVersion"), hint: "Ctrl+S", run: () => void saveVersion() },
+    { id: "save-version", label: t("templateEditor.saveVersion"), hint: t("cvBuilder.saveHint"), run: () => void saveVersion() },
     { id: "open-versions", label: t("cvBuilder.showVersions"), run: () => setVersionsOpen(true) },
     { id: "open-runs", label: t("cvBuilder.runs.title"), run: () => setRunsOpen(true) },
     { id: "browse-templates", label: t("cvBuilder.browseTemplates"), run: () => setGalleryOpen(true) },
@@ -1623,8 +1623,8 @@ export function CvBuilder() {
               />
               <button
                 type="button"
-                aria-label="Dismiss critique"
-                title="Dismiss"
+                aria-label={t("cvBuilder.dismissCritique")}
+                title={t("cvBuilder.dismiss")}
                 onClick={() => setCritiqueDismissed(true)}
                 data-testid="dismiss-critique"
                 className="absolute right-1.5 top-1.5 cursor-pointer rounded p-0.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
@@ -1757,7 +1757,7 @@ export function CvBuilder() {
               data-testid="duplicate-cv"
             >
               <Copy className="mr-1 h-3.5 w-3.5" />
-              {isLetter ? "Duplicate letter" : "Duplicate CV"}
+              {isLetter ? t("cvBuilder.duplicateLetter") : t("cvBuilder.duplicateCv")}
             </Button>
           </div>
         </ModalContent>

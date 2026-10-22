@@ -44,10 +44,10 @@ export function Growth() {
     <div className="space-y-6 max-w-4xl mx-auto" data-testid="growth">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Route className="w-6 h-6 text-primary-600" /> Growth
+          <Route className="w-6 h-6 text-primary-600" /> {t("nav.growth")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Where next, what&apos;s missing, how&apos;s your market — private by design.
+          {t("growth.intro")}
         </p>
       </div>
 
@@ -59,21 +59,20 @@ export function Growth() {
           <div className="flex items-center gap-2">
             <CalendarCheck className="w-4 h-4 text-amber-600" />
             <p className="text-sm text-amber-900">
-              Quarterly check-in: confirm your stage, refresh a few skill
-              levels, review your roadmap.
+              {t("growth.checkinBody")}
             </p>
           </div>
           <button
             onClick={() => void skipCheckin().then(load)}
             className="text-xs text-amber-700 border border-amber-300 rounded-lg px-3 py-1.5"
           >
-            Remind me in 3 months
+            {t("growth.remindLater")}
           </button>
         </div>
       )}
 
       <section>
-        <h2 className="font-semibold text-slate-900 mb-3">Your roadmaps</h2>
+        <h2 className="font-semibold text-slate-900 mb-3">{t("growth.roadmapsTitle")}</h2>
         {loaded && plans.length === 0 ? (
           <EmptyState
             title={t("growth.noRoadmapTitle")}
@@ -112,13 +111,13 @@ export function Growth() {
                             data-testid={`step-done-${step.id}`}
                             title={t("growth.markDoneTitle")}
                           >
-                            <Check className="w-3 h-3" /> done
+                            <Check className="w-3 h-3" /> {t("growth.done")}
                           </button>
                           <button
                             onClick={() => skipStep(step.id)}
                             className="text-xs border border-slate-200 rounded-lg px-2.5 py-1"
                           >
-                            skip
+                            {t("growth.skip")}
                           </button>
                         </span>
                       )}
@@ -127,7 +126,7 @@ export function Growth() {
                 </ol>
                 {plan.steps.some((s) => s.resources.length > 0) && (
                   <p className="text-xs text-slate-400 mt-2">
-                    Close gaps with:{" "}
+                    {t("growth.closeGaps")}{" "}
                     {plan.steps
                       .flatMap((s) => s.resources)
                       .slice(0, 3)
@@ -143,14 +142,14 @@ export function Growth() {
 
       <section>
         <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-          <Radar className="w-4 h-4 text-primary-600" /> Near-miss radar
+          <Radar className="w-4 h-4 text-primary-600" /> {t("growth.radarTitle")}
         </h2>
         <p className="text-xs text-slate-400 mb-3">
-          You&apos;re closer than you think — adjacent roles a few skills away.
+          {t("growth.radarIntro")}
         </p>
         {radar.length === 0 ? (
           <p className="text-sm text-slate-400">
-            Nothing in range yet — rate a few skills and your radar fills in.
+            {t("growth.radarEmpty")}
           </p>
         ) : (
           <div className="grid md:grid-cols-2 gap-3">
@@ -162,7 +161,7 @@ export function Growth() {
                 data-testid="radar-card"
               >
                 <p className="text-xs text-slate-400">
-                  fit {entry.fit_score.toFixed(1)} · {entry.family_key.replace(/-/g, " ")}
+                  {t("growth.fitScore", { score: entry.fit_score.toFixed(1) })} · {entry.family_key.replace(/-/g, " ")}
                 </p>
                 <p className="font-medium text-slate-900 mt-0.5">{entry.headline}</p>
               </Link>

@@ -391,7 +391,7 @@ export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabP
     // "Decision kinds" group below.
     const defaultsTasks: TaskAssignmentSection["tasks"] = slots.map((slot) => ({
       id: slot.value,
-      label: t(`aiSettings.caps.${slot.value}`, { defaultValue: slot.label }),
+      label: t(`aiSettings.caps.${slot.value}`),
       requires: slot.value,
       icon: SLOT_ICONS[slot.value],
       secondaryOnly: true,

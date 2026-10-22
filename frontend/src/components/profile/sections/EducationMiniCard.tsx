@@ -107,7 +107,7 @@ export const EducationMiniCard = forwardRef<SectionCardHandle>(
             value={level}
             options={EDUCATION_OPTIONS.map((o) => ({
               value: o.value,
-              label: t(o.labelKey, { defaultValue: o.label }),
+              label: t(o.labelKey),
             }))}
             onChange={(v) => setLevel(v as EducationLevel)}
             testId="education-mini-level"

@@ -89,7 +89,7 @@ export function ConnectorsSection() {
             type="password"
             value={githubToken}
             onChange={(e) => setGithubToken(e.target.value)}
-            placeholder="gh_pat_…"
+            placeholder={t("toolsSettings.connectors.sources.githubTokenPlaceholder")}
             autoComplete="off"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />

@@ -37,10 +37,10 @@ import { CV_LANGUAGES } from "@/lib/cvLanguages";
 
 export type InspectorTab = "context" | "design" | "sections";
 
-const TABS: { id: InspectorTab; label: string; icon: typeof Layers }[] = [
-  { id: "sections", label: "Sections", icon: LayoutList },
-  { id: "context", label: "Context", icon: Layers },
-  { id: "design", label: "Design", icon: Palette },
+const TABS: { id: InspectorTab; labelKey: string; icon: typeof Layers }[] = [
+  { id: "sections", labelKey: "cvBuilder.pane.sections", icon: LayoutList },
+  { id: "context", labelKey: "cvBuilder.pane.context", icon: Layers },
+  { id: "design", labelKey: "cvBuilder.pane.design", icon: Palette },
 ];
 
 interface InspectorPanelProps {
@@ -107,20 +107,22 @@ interface InspectorPanelProps {
   onApplyProposal: (entry: CvProposal) => void;
 }
 
-const TAB_ITEMS = TABS.map((entry) => ({
-  value: entry.id,
-  label: entry.label,
-  icon: entry.icon,
-}));
+
 
 export function InspectorPanel(props: InspectorPanelProps) {
+  const { t } = useTranslation();
   const { tab, onTabChange } = props;
+  const tabItems = TABS.map((entry) => ({
+    value: entry.id,
+    label: t(entry.labelKey),
+    icon: entry.icon,
+  }));
 
   return (
     <div className="flex min-h-0 flex-col" data-testid="inspector-panel">
       <SegmentedTabs
-        ariaLabel="Inspector panels"
-        items={TAB_ITEMS}
+        ariaLabel={t("cvBuilder.inspectorAria")}
+        items={tabItems}
         value={tab}
         onValueChange={(next) => onTabChange(next as InspectorTab)}
         className="mb-2 bg-[color-mix(in_srgb,var(--as-fg)_7%,transparent)]"
@@ -237,7 +239,7 @@ function DesignTab({
         data-testid="design-scroll"
       >
         <section className="space-y-1.5">
-          <h3 className={sectionLabel}>Template</h3>
+          <h3 className={sectionLabel}>{t("cvBuilder.templateLabel")}</h3>
           {designTemplateMeta && (
             <div
               className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-2 text-xs"
@@ -253,23 +255,23 @@ function DesignTab({
             </div>
           )}
           <select
-            aria-label="CV template"
+            aria-label={t("cvBuilder.templateLabel")}
             className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-1.5 text-sm"
             value={templateId}
             onChange={(event) => onTemplate(event.target.value)}
             data-testid="template-picker"
           >
-            <option value="">Bank default</option>
+            <option value="">{t("cvBuilder.bankDefault")}</option>
             {templates.map((template) => (
               <option key={template.id} value={template.id}>
                 {template.title}
-                {template.ats_safe ? "" : " (not ATS-safe)"}
+                {template.ats_safe ? "" : ` (${t("cvBuilder.notAtsSafe")})`}
               </option>
             ))}
           </select>
           <div className="flex gap-1.5">
             <Button variant="outline" size="sm" className="flex-1" onClick={onBrowseTemplates} data-testid="browse-templates">
-              Browse…
+              {t("common.browse")}
             </Button>
             <Button
               variant="outline"
@@ -277,17 +279,21 @@ function DesignTab({
               className="flex-1"
               onClick={onCustomizeTemplate}
               disabled={!templateId}
-              title={templateId ? "Open this template in the style editor" : "Pick a template first"}
+              title={
+                templateId
+                  ? t("cvBuilder.openInStyleEditor")
+                  : t("cvBuilder.pickTemplateFirst")
+              }
               data-testid="customize-template"
             >
-              Customize
+              {t("cvBuilder.customize")}
             </Button>
           </div>
         </section>
 
         {mode !== "cover_letter" && (
           <section className="space-y-1.5">
-            <h3 className={sectionLabel}>Photo</h3>
+            <h3 className={sectionLabel}>{t("cvBuilder.photo")}</h3>
             <PhotoPicker
               photos={photos}
               photoId={photoId}
@@ -300,7 +306,7 @@ function DesignTab({
         )}
 
         <section className="space-y-1.5">
-          <h3 className={sectionLabel}>Style</h3>
+          <h3 className={sectionLabel}>{t("cvBuilder.style")}</h3>
           <DesignTokenEditor design={design} onChange={onDesignChange} />
           <SelectField
             label={t("cvBuilder.pageSize", { defaultValue: "Page size" })}
@@ -308,7 +314,7 @@ function DesignTab({
             onChange={onPageSize}
             options={[
               { value: "a4", label: "A4" },
-              { value: "letter", label: "Letter" },
+              { value: "letter", label: t("cvBuilder.pageSizeLetter") },
             ]}
             testId="page-size-select"
           />
@@ -406,6 +412,7 @@ function ProposalsSlideOver({
   onClose: () => void;
   onApply: (entry: CvProposal) => void;
 }) {
+  const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -438,18 +445,18 @@ function ProposalsSlideOver({
       />
       <div
         role="dialog"
-        aria-label={`${suggestion.action} proposals — review then apply`}
+        aria-label={t("cvBuilder.proposalsReviewAria", { action: suggestion.action })}
         onKeyDown={handleKeyDown}
         className="cv-slideover-in absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-[var(--as-border)] bg-[var(--as-surface)] shadow-xl"
         data-testid="proposals-slideover"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--as-border)] p-3">
           <p className="text-xs font-semibold uppercase text-[var(--as-muted-fg)]">
-            {suggestion.action} proposals — ↑/↓ + Enter to apply
+            {t("cvBuilder.proposalsKeyHint", { action: suggestion.action })}
           </p>
           <button
             type="button"
-            aria-label="Close proposals"
+            aria-label={t("cvBuilder.closeProposals")}
             onClick={onClose}
             className="rounded p-0.5 hover:bg-[var(--as-muted)]"
           >
@@ -474,7 +481,7 @@ function ProposalsSlideOver({
                 <p className="mt-1 text-xs text-[var(--as-muted-fg)]">{entry.proposal.rationale}</p>
               )}
               {!entry.verified && (
-                <p className="mt-1 text-xs text-amber-700">Flagged: cites items not in this CV&apos;s context.</p>
+                <p className="mt-1 text-xs text-amber-700">{t("cvBuilder.flaggedContext")}</p>
               )}
               <div className="mt-2 flex gap-2">
                 <Button
@@ -484,13 +491,15 @@ function ProposalsSlideOver({
                   disabled={!entry.verified}
                   onClick={() => onApply(entry.proposal)}
                 >
-                  <Check className="mr-1 h-3 w-3" /> Apply
+                  <Check className="mr-1 h-3 w-3" /> {t("cvBuilder.apply")}
                 </Button>
               </div>
             </div>
           ))}
           {suggestion.proposals.length === 0 && suggestion.gaps.length === 0 && (
-            <p className="text-xs text-[var(--as-muted-fg)]">No proposals for this action.</p>
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {t("cvBuilder.noProposals")}
+            </p>
           )}
         </div>
       </div>

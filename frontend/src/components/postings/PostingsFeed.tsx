@@ -92,7 +92,7 @@ export function PostingsFeed() {
     <div className="space-y-6" data-testid="postings">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          Real vacancies from your connected sources, mapped onto your catalog
+          {t("postings.intro")}
           {feed && feed.unseen > 0 ? ` — ${feed.unseen} new` : ""}.
         </p>
         <div className="flex gap-2 items-center">
@@ -103,7 +103,7 @@ export function PostingsFeed() {
             }`}
             data-testid="postings-saved-toggle"
           >
-            <Bookmark className="w-3.5 h-3.5" /> Saved
+            <Bookmark className="w-3.5 h-3.5" /> {t("jobDetail.saved")}
           </button>
           <button
             onClick={() => setView("all")}
@@ -111,7 +111,7 @@ export function PostingsFeed() {
               view === "all" ? "bg-primary-600 text-white border-primary-600" : "border-slate-200"
             }`}
           >
-            Discover
+            {t("postings.discover")}
           </button>
           <select
             value={sort}
@@ -148,7 +148,7 @@ export function PostingsFeed() {
           <option value="">{t("postings.anyLevel")}</option>
           {Array.from({ length: 10 }, (_, i) => (
             <option key={i + 1} value={i + 1}>
-              level ≥ {i + 1}
+              {t("postings.levelAtLeast")} {i + 1}
             </option>
           ))}
         </select>
@@ -158,7 +158,7 @@ export function PostingsFeed() {
           className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-600 text-white disabled:opacity-40"
           data-testid="add-skill-filter"
         >
-          <Plus className="w-3.5 h-3.5" /> Add
+          <Plus className="w-3.5 h-3.5" /> {t("common.add")}
         </button>
         {skillFilters.length > 0 && (
           <>
@@ -191,7 +191,7 @@ export function PostingsFeed() {
                 onChange={(e) => setMatchProfile(e.target.checked)}
                 data-testid="match-profile-toggle"
               />
-              match my profile
+              {t("postings.matchProfile")}
             </label>
             {skillFilters.map((filter) => (
               <span
@@ -205,7 +205,7 @@ export function PostingsFeed() {
                   onClick={() =>
                     setSkillFilters((prev) => prev.filter((f) => f.key !== filter.key))
                   }
-                  aria-label={`Remove ${filter.key}`}
+                  aria-label={t("postings.removeFilter", { name: filter.key })}
                 >
                   <X className="w-3 h-3" />
                 </button>

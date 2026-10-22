@@ -51,18 +51,18 @@ export const WorkStyleCard = forwardRef<SectionCardHandle, WorkStyleCardProps>(
       >
         <div className="space-y-6">
           <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-            {WORK_SCALES.map(({ key, labelKey, lowKey, highKey, label, low, high }) => (
+            {WORK_SCALES.map(({ key, labelKey, lowKey, highKey }) => (
               <div key={key} data-testid={`workstyle-${key}`}>
                 <RangeField
-                  label={t(labelKey, { defaultValue: label })}
+                  label={t(labelKey)}
                   value={draft[key] as number}
                   min={1}
                   max={5}
                   onChange={(v) => patch({ [key]: v } as Partial<Profile["work_preferences"]>)}
                 />
                 <div className="flex justify-between text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">
-                  <span>{t(lowKey, { defaultValue: low })}</span>
-                  <span>{t(highKey, { defaultValue: high })}</span>
+                  <span>{t(lowKey)}</span>
+                  <span>{t(highKey)}</span>
                 </div>
               </div>
             ))}
@@ -81,7 +81,7 @@ export const WorkStyleCard = forwardRef<SectionCardHandle, WorkStyleCardProps>(
             value={draft.physical_activity}
             options={PHYSICAL_ACTIVITY_OPTIONS.map((o) => ({
               value: o.value,
-              label: t(o.labelKey, { defaultValue: o.label }),
+              label: t(o.labelKey),
             }))}
             onChange={(v) =>
               patch({ physical_activity: v as Profile["work_preferences"]["physical_activity"] })
@@ -96,7 +96,7 @@ export const WorkStyleCard = forwardRef<SectionCardHandle, WorkStyleCardProps>(
               {t("profileSection.focusBody")}
             </p>
             <div className="grid gap-2 sm:grid-cols-2" data-testid="focus-areas">
-              {FOCUS_AREAS.map(({ key, labelKey, label, hint }) => {
+              {FOCUS_AREAS.map(({ key, labelKey, hintKey }) => {
                 const Icon = FOCUS_ICONS[key];
                 const active = draft.focus_areas.includes(key);
                 return (
@@ -123,10 +123,10 @@ export const WorkStyleCard = forwardRef<SectionCardHandle, WorkStyleCardProps>(
                     />
                     <span className="block">
                       <span className="block text-sm font-medium text-[var(--as-fg)]">
-                        {t(labelKey, { defaultValue: label })}
+                        {t(labelKey)}
                       </span>
                       <span className="mt-0.5 block text-xs text-[var(--as-muted-fg)]">
-                        {hint}
+                        {t(hintKey)}
                       </span>
                     </span>
                   </button>

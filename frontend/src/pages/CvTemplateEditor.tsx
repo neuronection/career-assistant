@@ -41,38 +41,39 @@ import {
 import { DesignTokenEditor } from "@/components/cv/DesignTokenEditor";
 import { ContainerEditor } from "@/components/cv/ContainerEditor";
 import { BlockTypePicker } from "@/components/cv/BlockTypePicker";
+import { EXPERIENCE_KIND_OPTIONS, SKILLS_DISPLAY_OPTIONS } from "@/components/cv/blockTypes";
 import { CustomTextEditor } from "@/components/cv/CustomTextEditor";
 
 const ITEM_SOURCES = [
-  { value: "Experience", label: "experience", labelKey: "templateEditor.item_sources.experience" },
-  { value: "Education", label: "education", labelKey: "templateEditor.item_sources.education" },
-  { value: "Certifications", label: "certifications", labelKey: "templateEditor.item_sources.certifications" },
-  { value: "Projects", label: "projects", labelKey: "templateEditor.item_sources.projects" },
+  { value: "Experience", labelKey: "templateEditor.item_sources.experience" },
+  { value: "Education", labelKey: "templateEditor.item_sources.education" },
+  { value: "Certifications", labelKey: "templateEditor.item_sources.certifications" },
+  { value: "Projects", labelKey: "templateEditor.item_sources.projects" },
 ];
 const ITEM_STYLES = [
-  { value: "List", label: "list", labelKey: "templateEditor.item_styles.list" },
-  { value: "Timeline", label: "timeline", labelKey: "templateEditor.item_styles.timeline" },
+  { value: "List", labelKey: "templateEditor.item_styles.list" },
+  { value: "Timeline", labelKey: "templateEditor.item_styles.timeline" },
 ];
 const DATE_FORMATS = [
-  { value: "mon_yyyy", label: "Jun 2024" },
-  { value: "iso", label: "2024-06" },
-  { value: "eu", label: "06/2024" },
-  { value: "year", label: "2024" },
+  { value: "mon_yyyy", labelKey: "templateEditor.date_formats.mon_yyyy" },
+  { value: "iso", labelKey: "templateEditor.date_formats.iso" },
+  { value: "eu", labelKey: "templateEditor.date_formats.eu" },
+  { value: "year", labelKey: "templateEditor.date_formats.year" },
 ];
 const DATE_POSITIONS = [
-  { value: "auto", labelKey: "templateEditor.date_positions.auto", label: "Auto" },
-  { value: "inline", labelKey: "templateEditor.date_positions.inline", label: "Beside title" },
-  { value: "stacked", labelKey: "templateEditor.date_positions.stacked", label: "Own line" },
+  { value: "auto", labelKey: "templateEditor.date_positions.auto", },
+  { value: "inline", labelKey: "templateEditor.date_positions.inline", },
+  { value: "stacked", labelKey: "templateEditor.date_positions.stacked", },
 ];
 const OVERFLOW_POLICIES = [
-  { value: "Warn", label: "warn", labelKey: "templateEditor.overflow_policies.warn" },
-  { value: "Shrink to fit", label: "shrink", labelKey: "templateEditor.overflow_policies.shrink" },
-  { value: "Truncate", label: "truncate", labelKey: "templateEditor.overflow_policies.truncate" },
+  { value: "Warn", labelKey: "templateEditor.overflow_policies.warn" },
+  { value: "Shrink to fit", labelKey: "templateEditor.overflow_policies.shrink" },
+  { value: "Truncate", labelKey: "templateEditor.overflow_policies.truncate" },
 ];
 const HEADER_BLOCK: BlockTypeSpec = {
   value: "header",
-  label: "templateEditor.header.label",
-  description: "templateEditor.header.description",
+  labelKey: "templateEditor.header.label",
+  descriptionKey: "templateEditor.header.description",
   icon: blockTypeOf("summary")!.icon,
   props: {},
 };
@@ -123,6 +124,7 @@ const EMPTY_CONTENT: TemplateContent = {
 };
 
 function VersionHistoryCard({ templateId }: { templateId: string }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<TemplateVersionRow[]>([]);
   const [diff, setDiff] = useState<TemplateDiff | null>(null);
@@ -162,17 +164,17 @@ function VersionHistoryCard({ templateId }: { templateId: string }) {
         data-testid="template-history-toggle"
       >
         <span className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-          Version history
+          {t("templateEditor.versionHistory")}
         </span>
         <span className="text-xs text-[var(--as-muted-fg)]">{open ? "−" : "+"}</span>
       </button>
       {open && (
         <div className="space-y-2">
           {error && <p className="text-xs text-red-600">{error}</p>}
-          {busy && <p className="text-xs text-[var(--as-muted-fg)]">Loading…</p>}
+          {busy && <p className="text-xs text-[var(--as-muted-fg)]">{t("common.loading")}</p>}
           {!busy && versions.length === 0 && (
             <p className="text-xs text-[var(--as-muted-fg)]" data-testid="template-history-empty">
-              No versions yet.
+              {t("templateEditor.noVersions")}
             </p>
           )}
           <ul className="space-y-1">
@@ -195,13 +197,16 @@ function VersionHistoryCard({ templateId }: { templateId: string }) {
               data-testid="template-history-diff"
             >
               <p className="font-medium text-[var(--as-fg)]">
-                Changes v{diff.from_version} → v{diff.to_version}
+                {t("templateEditor.changesTitle", {
+                  from: diff.from_version,
+                  to: diff.to_version,
+                })}
               </p>
               {diff.token_changes.length === 0 &&
                 diff.block_changes.added.length === 0 &&
                 diff.block_changes.removed.length === 0 &&
                 diff.block_changes.props_changed.length === 0 && (
-                  <p className="text-[var(--as-muted-fg)]">No differences.</p>
+                  <p className="text-[var(--as-muted-fg)]">{t("templateEditor.noDifferences")}</p>
                 )}
               {diff.token_changes.map((change) => (
                 <p key={change.path} className="text-[var(--as-muted-fg)]">
@@ -283,7 +288,7 @@ export function CvTemplateEditor() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, t]);
 
   const refreshPreview = useCallback(async (draft: TemplateContent) => {
     try {
@@ -439,7 +444,7 @@ export function CvTemplateEditor() {
             <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">{t("templateEditor.typography")}</h2>
             <DesignTokenEditor design={content.design} onChange={setDesign} />
             <RangeField label={t("templateEditor.maxPages")} value={content.pages.default_max_pages} min={1} max={3} onChange={(default_max_pages) => setPages({ default_max_pages })} />
-            <SelectField label={t("templateEditor.overflowPolicy")} value={content.pages.overflow_policy} onChange={(overflow_policy) => setPages({ overflow_policy: overflow_policy as TemplateContent["pages"]["overflow_policy"] })} options={OVERFLOW_POLICIES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
+            <SelectField label={t("templateEditor.overflowPolicy")} value={content.pages.overflow_policy} onChange={(overflow_policy) => setPages({ overflow_policy: overflow_policy as TemplateContent["pages"]["overflow_policy"] })} options={OVERFLOW_POLICIES.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
           </Card>
 
           <Card className="space-y-2 p-3">
@@ -567,25 +572,24 @@ export function CvTemplateEditor() {
                           )}
                           {block.kind === "items" && (
                             <div className="space-y-2">
-                              <SelectField label={t("templateEditor.dataSource")} value={String(bp.source_key ?? "experience")} onChange={(source_key) => setBlockProps(index, { source_key })} options={ITEM_SOURCES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
+                              <SelectField label={t("templateEditor.dataSource")} value={String(bp.source_key ?? "experience")} onChange={(source_key) => setBlockProps(index, { source_key })} options={ITEM_SOURCES.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
                               {String(bp.source_key ?? "experience") === "experience" && (
                                 <ChipTogglesRow
                                   label={t("templateEditor.kinds", { defaultValue: "Include kinds" })}
                                   values={Array.isArray(bp.kinds) ? (bp.kinds as string[]) : []}
-                                  options={[
-                                    { value: "job", label: "Jobs" },
-                                    { value: "internship", label: "Internships" },
-                                    { value: "freelance", label: "Freelance" },
-                                  ]}
+                                  options={EXPERIENCE_KIND_OPTIONS.map((o) => ({
+                                    value: o.value,
+                                    label: t(o.labelKey),
+                                  }))}
                                   onChange={(kinds) => setBlockProps(index, { kinds })}
                                 />
                               )}
                               {String(bp.source_key) === "certifications" && (
                                 <ToggleRow label={t("templateEditor.excludeProficiency", { defaultValue: "Hide proficiency certificates" })} checked={bp.exclude_proficiency === true} onChange={(exclude_proficiency) => setBlockProps(index, { exclude_proficiency })} />
                               )}
-                              <SelectField label={t("templateEditor.styleLabel")} value={String(bp.style ?? "list")} onChange={(style) => setBlockProps(index, { style })} options={ITEM_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} />
-                              <SelectField label={t("templateEditor.datesLabel")} value={String(bp.date_format ?? "mon_yyyy")} onChange={(date_format) => setBlockProps(index, { date_format })} options={DATE_FORMATS} testId={`date-format-${index}`} />
-                              <SelectField label={t("templateEditor.datePositionLabel", { defaultValue: "Date position" })} value={String(bp.date_position ?? "auto")} onChange={(date_position) => setBlockProps(index, { date_position })} options={DATE_POSITIONS.map((o) => ({ value: o.value, label: t(o.labelKey, { defaultValue: o.label }) }))} testId={`date-position-${index}`} />
+                              <SelectField label={t("templateEditor.styleLabel")} value={String(bp.style ?? "list")} onChange={(style) => setBlockProps(index, { style })} options={ITEM_STYLES.map((o) => ({ value: o.value, label: t(o.labelKey) }))} />
+                              <SelectField label={t("templateEditor.datesLabel")} value={String(bp.date_format ?? "mon_yyyy")} onChange={(date_format) => setBlockProps(index, { date_format })} options={DATE_FORMATS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} testId={`date-format-${index}`} />
+                              <SelectField label={t("templateEditor.datePositionLabel", { defaultValue: "Date position" })} value={String(bp.date_position ?? "auto")} onChange={(date_position) => setBlockProps(index, { date_position })} options={DATE_POSITIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} testId={`date-position-${index}`} />
                               <ToggleRow label={t("templateEditor.showOrg")} checked={bp.show_org !== false} onChange={(show_org) => setBlockProps(index, { show_org })} />
                               <ToggleRow label={t("templateEditor.showDescription")} checked={bp.show_description !== false} onChange={(show_description) => setBlockProps(index, { show_description })} />
                               <ToggleRow label={t("templateEditor.showSkills")} checked={bp.show_skills !== false} onChange={(show_skills) => setBlockProps(index, { show_skills })} />
@@ -606,12 +610,7 @@ export function CvTemplateEditor() {
                           )}
                           {block.kind === "skills" && (
                             <div className="space-y-2">
-                              <SelectField label="Display" value={String(bp.display ?? "chips")} onChange={(display) => setBlockProps(index, { display })} options={[
-                                { value: "chips", label: "Chips" },
-                                { value: "list", label: "List" },
-                                { value: "grouped", label: "Grouped" },
-                                { value: "bars", label: "Bars" },
-                              ]} testId={`skills-display-${index}`} />
+                              <SelectField label={t("templateEditor.displayLabel")} value={String(bp.display ?? "chips")} onChange={(display) => setBlockProps(index, { display })} options={SKILLS_DISPLAY_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))} testId={`skills-display-${index}`} />
                               <ToggleRow label={t("templateEditor.showLevels")} checked={bp.show_levels !== false} onChange={(show_levels) => setBlockProps(index, { show_levels })} />
                               <StepperRow label={t("templateEditor.maxItems")} value={Number(bp.max_items ?? 18)} min={1} max={40} onChange={(max_items) => setBlockProps(index, { max_items })} />
                             </div>

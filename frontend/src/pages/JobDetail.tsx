@@ -173,21 +173,31 @@ export function JobDetail() {
   };
 
   if (error && !job) return <p className="text-rose-600">{error}</p>;
-  if (!job) return <p className="text-slate-400">Loading…</p>;
+  if (!job) return <p className="text-slate-400">{t("common.loading")}</p>;
   const attrs = job.attributes;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto" data-testid="job-detail">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <button onClick={() => navigate(-1)} className="text-sm text-slate-400 hover:text-slate-600">← back</button>
+          <button onClick={() => navigate(-1)} className="text-sm text-slate-400 hover:text-slate-600">{t("common.back")}</button>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
             {job.title} <DemandBadge outlook={attrs?.demand?.outlook} />
           </h1>
           <p className="text-slate-500 mt-1 max-w-2xl">{job.short_description}</p>
           <div className="mt-2 flex gap-2 items-center">
-            <AiButton page="job_detail" jobCode={job.code} question="Why does this match me?" label="Why me?" />
-            <AiButton page="job_detail" jobCode={job.code} question="What would I study for this?" label="Study path?" />
+            <AiButton
+              page="job_detail"
+              jobCode={job.code}
+              question={t("jobDetail.aiWhyQuestion")}
+              label={t("jobDetail.aiWhyLabel")}
+            />
+            <AiButton
+              page="job_detail"
+              jobCode={job.code}
+              question={t("jobDetail.aiStudyQuestion")}
+              label={t("jobDetail.aiStudyLabel")}
+            />
             <button
               onClick={() => void toggleSaved()}
               className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1 ${
@@ -256,7 +266,7 @@ export function JobDetail() {
             </button>
           ) : (
             <button onClick={() => void score()} disabled={busy} className="mt-3 w-full text-xs text-primary-700">
-              re-score
+              {t("jobDetail.rescore")}
             </button>
           )}
         </div>
@@ -270,7 +280,7 @@ export function JobDetail() {
             <h3 className="font-medium">{t("jobDetail.whyThisFits")}</h3>
             {insight.fit_breakdown.specialist_dimension && (
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                Strong in {insight.fit_breakdown.specialist_dimension}
+                {t("jobDetail.strongIn")} {insight.fit_breakdown.specialist_dimension}
               </span>
             )}
           </div>
@@ -340,7 +350,7 @@ export function JobDetail() {
                     <span className="font-medium">{g.label}</span>
                     <span className="text-xs text-slate-400">
                       {g.importance}
-                      {g.importance !== "bonus" ? ` · level ${g.required_level}/10` : ""}
+                      {g.importance !== "bonus" ? ` · ${t("jobDetail.levelSuffix", { level: g.required_level })}` : ""}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -359,12 +369,12 @@ export function JobDetail() {
                       />
                     </div>
                     <span className={`text-xs ${g.user_level == null ? "text-slate-400" : (g.delta ?? 0) < 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                      you: {g.user_level ?? "–"}/{g.required_level}
+                      {t("jobDetail.youVsRequired", { you: g.user_level ?? "–", required: g.required_level })}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">{g.suggestion}</p>
                   {g.next_step && (
-                    <p className="text-xs text-primary-700 mt-0.5">Next step: {g.next_step}</p>
+                    <p className="text-xs text-primary-700 mt-0.5">{t("jobDetail.nextStep", { step: g.next_step })}</p>
                   )}
                 </li>
               ))}
@@ -376,7 +386,7 @@ export function JobDetail() {
           )}
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4" data-testid="job-paths">
-          <h3 className="font-medium mb-2">Your path to this job</h3>
+          <h3 className="font-medium mb-2">{t("jobDetail.yourPath")}</h3>
           {paths.length > 0 ? (
             <div className="space-y-3">
               {paths.slice(0, 2).map((path) => (
@@ -390,7 +400,7 @@ export function JobDetail() {
                         </span>
                         <span>
                           {step.label || step.kind}
-                          {step.optional && <span className="text-slate-400"> (optional)</span>}
+                          {step.optional && <span className="text-slate-400"> {t("jobDetail.optional")}</span>}
                           {step.skill_label && (
                             <span className="text-slate-400"> · {step.skill_label}</span>
                           )}
@@ -403,7 +413,7 @@ export function JobDetail() {
             </div>
           ) : pathNodes.length > 0 ? (
             <div>
-              <p className="text-xs text-slate-500 mb-2">Jobs that commonly lead here:</p>
+              <p className="text-xs text-slate-500 mb-2">{t("jobDetail.commonlyLeadsHere")}</p>
               <div className="flex flex-wrap gap-2">
                 {pathNodes.map((n) => (
                   <Link
@@ -447,9 +457,14 @@ export function JobDetail() {
           {snapshot && snapshot.sample_size > 0 ? (
             <div className="text-sm space-y-0.5" data-testid="market-snapshot">
               <p>
-                {snapshot.sample_size} live posting{snapshot.sample_size !== 1 ? "s" : ""}
+                {t("jobDetail.livePostings", { count: snapshot.sample_size })}
                 {snapshot.months.length > 0 && (
-                  <span className="text-slate-400"> · last 30d: {snapshot.months[snapshot.months.length - 1].postings}</span>
+                  <span className="text-slate-400">
+                    {" · "}
+                    {t("jobDetail.last30d", {
+                      count: snapshot.months[snapshot.months.length - 1].postings,
+                    })}
+                  </span>
                 )}
               </p>
               {snapshot.salary_band ? (
@@ -462,7 +477,8 @@ export function JobDetail() {
               )}
               {snapshot.top_skills.length > 0 && (
                 <p className="text-slate-500">
-                  demanded: {snapshot.top_skills.slice(0, 4).map((s) => s.key).join(", ")}
+                  {t("jobDetail.demanded")}{" "}
+                  {snapshot.top_skills.slice(0, 4).map((s) => s.key).join(", ")}
                 </p>
               )}
               <MarketTrendStrip history={trend} />
@@ -473,7 +489,7 @@ export function JobDetail() {
         </InfoBlock>
         <InfoBlock title={t("jobDetail.salary")}>
           <RangeBar
-            label="median"
+            label={t("jobDetail.salaryMedian")}
             low={attrs?.salary?.median?.[0] ?? 0}
             high={attrs?.salary?.median?.[1] ?? 1}
             min={0}
@@ -481,7 +497,7 @@ export function JobDetail() {
             className="mb-2"
           />
           <RangeBar
-            label="entry → senior"
+            label={t("jobDetail.salaryRange")}
             low={attrs?.salary?.entry?.[0] ?? 0}
             high={attrs?.salary?.senior?.[1] ?? attrs?.salary?.median?.[1] ?? 1}
             min={0}
@@ -542,7 +558,7 @@ export function JobDetail() {
           <span className="text-lg font-semibold w-8 text-center">{userScore ?? "–"}</span>
         </div>
         <label className="block mt-3">
-          <span className="text-xs font-medium text-slate-400 uppercase">Your notes</span>
+          <span className="text-xs font-medium text-slate-400 uppercase">{t("jobDetail.yourNotes")}</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -556,7 +572,7 @@ export function JobDetail() {
       </section>
 
       <section>
-        <h3 className="font-medium mb-2">Related jobs</h3>
+        <h3 className="font-medium mb-2">{t("jobDetail.relatedJobs")}</h3>
         {relations.length === 0 ? (
           <EmptyState compact title={t("jobDetail.noRelationsTitle")} description={t("jobDetail.noRelationsBody")} />
         ) : (
@@ -584,7 +600,7 @@ export function JobDetail() {
             }}
             className="mt-3 text-sm bg-emerald-600 text-white rounded-lg px-3 py-1.5"
           >
-            Publish to catalog
+            {t("jobDetail.publishToCatalog")}
           </button>
         )}
       </section>
@@ -603,7 +619,7 @@ export function JobDetail() {
                     <p className="text-sm text-slate-500">
                       {p.department.name} · {p.department.degree} · {p.department.duration_years}y
                       {p.department.application_deadline && (
-                        <span className="text-amber-700"> · applies by {p.department.application_deadline}</span>
+                        <span className="text-amber-700"> · {t("jobDetail.appliesBy", { date: p.department.application_deadline })}</span>
                       )}
                     </p>
                   </div>

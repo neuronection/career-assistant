@@ -189,7 +189,7 @@ export function Dashboard() {
               className={`text-sm flex items-center gap-1 ${feedView === "saved" ? "text-primary-700 font-medium" : "text-slate-500"}`}
               data-testid="feed-saved-toggle"
             >
-              <Bookmark className="w-3.5 h-3.5" /> Saved
+              <Bookmark className="w-3.5 h-3.5" /> {t("jobDetail.saved")}
             </button>
             <button
               onClick={() => {
@@ -198,7 +198,7 @@ export function Dashboard() {
               }}
               className={`text-sm ${feedView === "all" ? "text-primary-700 font-medium" : "text-slate-500"}`}
             >
-              Discover
+              {t("postings.discover")}
             </button>
           </div>
         </div>
@@ -277,7 +277,7 @@ export function Dashboard() {
                     <span className="text-slate-400"> · {p.org}</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       {p.source_key}
-                      {p.fit != null && p.fit > 0 ? ` · fit ${p.fit.toFixed(1)}` : ""}
+                      {p.fit != null && p.fit > 0 ? ` · ${t("growth.fitScore", { score: p.fit.toFixed(1) })}` : ""}
                     </span>
                   </a>
                 ))}
@@ -287,16 +287,16 @@ export function Dashboard() {
 
           <div className="grid md:grid-cols-3 gap-3 mt-3">
             <div className="bg-white border border-slate-200 rounded-lg p-3">
-              <p className="text-xs text-slate-400 uppercase">Open postings</p>
+              <p className="text-xs text-slate-400 uppercase">{t("dashboard.openPostings")}</p>
               <p className="text-xl font-bold text-slate-900">
                 {target.open_postings.total}
                 {target.open_postings.unseen > 0 && (
-                  <span className="text-xs text-primary-600 ml-2">{target.open_postings.unseen} new</span>
+                  <span className="text-xs text-primary-600 ml-2">{t("dashboard.newCount", { count: target.open_postings.unseen })}</span>
                 )}
               </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-3">
-              <p className="text-xs text-slate-400 uppercase">Salary band</p>
+              <p className="text-xs text-slate-400 uppercase">{t("dashboard.salaryBand")}</p>
               <p className="text-sm font-medium text-slate-900">
                 {target.open_postings.salary_band.min != null
                   ? `${target.open_postings.salary_band.min.toLocaleString()}–${(target.open_postings.salary_band.max ?? 0).toLocaleString()}`
@@ -304,7 +304,7 @@ export function Dashboard() {
               </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-3">
-              <p className="text-xs text-slate-400 uppercase">Top employers</p>
+              <p className="text-xs text-slate-400 uppercase">{t("dashboard.topEmployers")}</p>
               <p className="text-sm text-slate-700 truncate">
                 {target.open_postings.top_employers.map((e) => e.org).join(", ") || "—"}
               </p>
@@ -313,7 +313,7 @@ export function Dashboard() {
 
           {target.adjacent_targets.length > 0 && (
             <div className="mt-3">
-              <p className="text-xs font-medium text-slate-400 uppercase mb-1">Expand your career</p>
+              <p className="text-xs font-medium text-slate-400 uppercase mb-1">{t("dashboard.expandCareer")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {target.adjacent_targets.map((adjacent) => (
                   <Link
@@ -336,7 +336,7 @@ export function Dashboard() {
               />
             </div>
             <span className="text-xs text-slate-500">
-              profile {target.completeness.percent}%
+              {t("dashboard.profilePercent", { percent: target.completeness.percent })}
             </span>
           </div>
           {target.completeness.segments
@@ -354,7 +354,7 @@ export function Dashboard() {
 
       {candidates.length > 0 && (
         <section>
-          <h2 className="font-semibold text-slate-900 mb-3">Suggested to score next</h2>
+          <h2 className="font-semibold text-slate-900 mb-3">{t("dashboard.suggestedNext")}</h2>
           <div className="grid md:grid-cols-2 gap-3">
             {candidates.map((c) => (
               <JobCard key={c.job.id} job={c.job} />

@@ -402,7 +402,7 @@ export function VariantEditor({
                 className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
                 data-testid="synth-editor-holder-variant-key"
               >
-                {initial?.variant_key ?? "default"}
+                {initial?.variant_key ?? t("cvBuilder.ai.default")}
               </span>
               <span
                 className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
@@ -559,7 +559,7 @@ export function VariantEditor({
                   <select
                     value={genTargetLanguage}
                     onChange={(event) => setGenTargetLanguage(event.target.value)}
-                    aria-label="Target language"
+                    aria-label={t("cvBuilder.variant.targetLanguage")}
                     data-testid="synth-editor-gen-target-language"
                     className="w-24 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
                   >
@@ -612,15 +612,15 @@ export function VariantEditor({
                     className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
                   >
                     <option value="none">{t("cvSynth.editor.toneNone", { defaultValue: "No tone" })}</option>
-                    <option value="professional">professional</option>
-                    <option value="warm">warm</option>
-                    <option value="concise">concise</option>
-                    <option value="confident">confident</option>
+                    <option value="professional">{t("cvGenerate.toneProfessional")}</option>
+                    <option value="warm">{t("cvGenerate.toneWarm")}</option>
+                    <option value="concise">{t("cvGenerate.toneConcise")}</option>
+                    <option value="confident">{t("cvGenerate.toneConfident")}</option>
                   </select>
                   <select
                     value={genLength}
                     onChange={(event) => setGenLength(event.target.value)}
-                    aria-label="Length"
+                    aria-label={t("cvBuilder.ai.length")}
                     data-testid="synth-editor-gen-length"
                     className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs outline-none"
                   >
@@ -714,7 +714,7 @@ export function VariantEditor({
                       <Button
                         size="icon"
                         variant="ghost"
-                        aria-label="Previous variant"
+                        aria-label={t("cvBuilder.variant.previous")}
                         data-testid="synth-editor-slot-prev"
                         onClick={() => stepSlot(-1)}
                       >
@@ -729,7 +729,7 @@ export function VariantEditor({
                       <Button
                         size="icon"
                         variant="ghost"
-                        aria-label="Next variant"
+                        aria-label={t("cvBuilder.variant.next")}
                         data-testid="synth-editor-slot-next"
                         onClick={() => stepSlot(1)}
                       >
@@ -778,7 +778,7 @@ export function VariantEditor({
                     </span>
                     {row.stale && (
                       <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-800">
-                        stale
+                        {t("cvBuilder.context.stale")}
                       </span>
                     )}
                     <span className="min-w-0 flex-1 truncate text-xs text-[var(--as-muted-fg)]">
@@ -845,7 +845,7 @@ export function VariantEditor({
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label={`Remove bullet ${index + 1}`}
+                    aria-label={t("cvBuilder.variant.removeBullet", { n: index + 1 })}
                     data-testid={`synth-editor-bullet-remove-${index}`}
                     onClick={() =>
                       setBullets((current) =>

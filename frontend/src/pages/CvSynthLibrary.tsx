@@ -473,7 +473,7 @@ export function CvSynthLibrary() {
                         className="mt-1 accent-[var(--as-accent)]"
                         data-testid={`synth-select-${item.id}`}
                         checked={selected.has(item.id)}
-                        aria-label={`Select variant ${item.id}`}
+                        aria-label={t("cvSynth.selectAria", { id: item.id })}
                         onChange={(event) => {
                           const next = new Set(selected);
                           if (event.target.checked) next.add(item.id);

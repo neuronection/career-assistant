@@ -1,8 +1,6 @@
 {
   "app": {
-    "name": "Career Assistant",
-    "tagline": "Find the career that fits you",
-    "logoAlt": "Career Assistant logo"
+    "name": "Career Assistant"
   },
   "demo": {
     "badge": "Demo — synthetic data",
@@ -24,13 +22,13 @@
     "sectionJobHunt": "Job hunt",
     "sectionPrepare": "Prepare",
     "sectionAccount": "Account",
-    "extensions": "Extensions",
     "sectionExtensions": "Extensions"
   },
   "shell": {
     "skipToContent": "Skip to content",
     "openNavigation": "Open navigation",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "backToApp": "Back to app"
   },
   "profiles": {
     "trigger": "Switch profile",
@@ -58,7 +56,6 @@
   "auth": {
     "email": "Email",
     "password": "Password",
-    "passwordMin": "Password (min 10 chars)",
     "passwordHint": "At least 10 characters.",
     "fullName": "Full name",
     "signIn": "Sign in",
@@ -151,7 +148,7 @@
     "scoreToUnlock": "Score this job to unlock its AI breakdown.",
     "emptyTitle": "Nothing to compare",
     "emptyBodyShort": "Pick 2–4 jobs to compare — add them from rankings or a job page.",
-    "emptyBodyError": "Couldn't load the comparison — one of the jobs may not exist."
+    "fitScore": "fit {{score}} · you {{you}}"
   },
   "tray": {
     "remove": "Remove",
@@ -200,7 +197,25 @@
     "noRelationsTitle": "No relations yet",
     "noRelationsBody": "AI-suggested relations will appear here.",
     "noPostingsData": "No live postings data for this job yet.",
-    "salaryBandHidden": "salary band hidden (thin sample: {{sample}})"
+    "salaryBandHidden": "salary band hidden (thin sample: {{sample}})",
+    "rescore": "re-score",
+    "strongIn": "Strong in",
+    "levelSuffix": "level {{level}}/10",
+    "youVsRequired": "you: {{you}}/{{required}}",
+    "nextStep": "Next step: {{step}}",
+    "yourPath": "Your path to this job",
+    "optional": "(optional)",
+    "commonlyLeadsHere": "Jobs that commonly lead here:",
+    "livePostings_one": "{{count}} live posting",
+    "livePostings_other": "{{count}} live postings",
+    "last30d": "last 30d: {{count}}",
+    "demanded": "demanded:",
+    "salaryMedian": "median",
+    "salaryRange": "entry → senior",
+    "yourNotes": "Your notes",
+    "relatedJobs": "Related jobs",
+    "publishToCatalog": "Publish to catalog",
+    "appliesBy": "applies by {{date}}"
   },
   "families": {
     "technology": "technology",
@@ -265,7 +280,15 @@
     "targetMode": "Target mode",
     "liveTab": "Live tab →",
     "microRun": "5-min micro-run",
-    "openTargetJobs": "Open jobs for your targets"
+    "openTargetJobs": "Open jobs for your targets",
+    "expandCareer": "Expand your career",
+    "newCount_one": "{{count}} new",
+    "newCount_other": "{{count}} new",
+    "openPostings": "Open postings",
+    "profilePercent": "profile {{percent}}%",
+    "salaryBand": "Salary band",
+    "suggestedNext": "Suggested to score next",
+    "topEmployers": "Top employers"
   },
   "catalog": {
     "title": "Job Catalog",
@@ -297,13 +320,25 @@
   "growth": {
     "noRoadmapTitle": "No roadmap yet",
     "noRoadmapBody": "Open a job you're aiming for and create a growth plan — gaps become steps.",
-    "markDoneTitle": "Mark done at the target level"
+    "markDoneTitle": "Mark done at the target level",
+    "checkinBody": "Quarterly check-in: confirm your stage, refresh a few skill levels, review your roadmap.",
+    "closeGaps": "Close gaps with:",
+    "done": "done",
+    "fitScore": "fit {{score}}",
+    "intro": "Where next, what's missing, how's your market — private by design.",
+    "radarEmpty": "Nothing in range yet — rate a few skills and your radar fills in.",
+    "radarIntro": "You're closer than you think — adjacent roles a few skills away.",
+    "radarTitle": "Near-miss radar",
+    "remindLater": "Remind me in 3 months",
+    "roadmapsTitle": "Your roadmaps",
+    "skip": "skip"
   },
   "about": {
     "tagline": "Open-source, self-hosted career explorer",
     "description": "Career Assistant is an open-source, self-hosted career explorer: an AI job catalog with a family tree and relation graph, transparent AI match scoring and university pathways for students deciding their future. Runs with Docker, brings your own AI.",
     "linksTitle": "Contact & Connect",
-    "sponsorTitle": "Help this project grow"
+    "sponsorTitle": "Help this project grow",
+    "clickToCopy": "Click to copy"
   },
   "explore": {
     "searchPlaceholder": "Search title or company…",
@@ -314,7 +349,13 @@
     "skillMatchMode": "Skill match mode",
     "allMustMatch": "all skills must match",
     "anyMatches": "any skill matches",
-    "posted": "Posted",
+    "posted": {
+      "any": "any time",
+      "h24": "last 24h",
+      "d7": "last 7 days",
+      "d30": "last 30 days",
+      "d90": "last 90 days"
+    },
     "salaryFrom": "Salary from",
     "salaryExample": "e.g. 30000",
     "seniority": "Seniority",
@@ -325,7 +366,41 @@
     "nothingMatchesBody": "Loosen a filter or ask an admin to connect more posting sources.",
     "loadMore": "Load more",
     "searchSaved": "Search saved — schedule it in Settings → Scheduler.",
-    "saveFailed": "Could not save the search"
+    "saveFailed": "Could not save the search",
+    "intro": "Every open vacancy across your sources — filter, facet, deep-extract.",
+    "saveSearch": "Save this search",
+    "facet": {
+      "skills": "Skills",
+      "workMode": "Work mode",
+      "contract": "Contract",
+      "travel": "Travel",
+      "schedule": "Schedule",
+      "organization": "Organization",
+      "sources": "Sources"
+    },
+    "removeSkill": "Remove {{skill}}",
+    "noSources": "No sources connected yet.",
+    "clearAllFilters": "Clear all filters",
+    "facetValue": {
+      "remote": "Remote",
+      "hybrid": "Hybrid",
+      "onsite": "On-site",
+      "permanent": "Permanent",
+      "temporary": "Temporary",
+      "contract": "Contract",
+      "freelance": "Freelance",
+      "b2b": "B2B",
+      "internship": "Internship",
+      "apprenticeship": "Apprenticeship",
+      "none": "None",
+      "occasional": "Occasional",
+      "frequent": "Frequent",
+      "shift_work": "Shift work",
+      "on_call": "On call",
+      "nights": "Nights",
+      "weekends": "Weekends",
+      "flexible": "Flexible"
+    }
   },
   "applications": {
     "title": "My applications",
@@ -437,7 +512,12 @@
     "nothingSavedYet": "Nothing saved yet",
     "noLivePostings": "No live postings yet",
     "bookmarkHint": "Bookmark postings to keep them here.",
-    "connectSourceHint": "Ask an admin to connect a posting source (ATS feed, RSS, CSV) to see real vacancies here."
+    "connectSourceHint": "Ask an admin to connect a posting source (ATS feed, RSS, CSV) to see real vacancies here.",
+    "discover": "Discover",
+    "intro": "Real vacancies from your connected sources, mapped onto your catalog",
+    "levelAtLeast": "level ≥",
+    "matchProfile": "match my profile",
+    "removeFilter": "Remove {{name}}"
   },
   "universities": {
     "subtitle": "Upload your country’s admissions/prospectus PDF. The AI extracts departments and yearly entry baselines, which then connect to jobs on each job page.",
@@ -447,7 +527,15 @@
     "parsingCatalog": "Parsing catalog",
     "yourUniversities": "Your universities",
     "noneYetTitle": "No universities yet",
-    "noneYetBody": "Add them here by uploading an admissions PDF — departments and baselines are extracted automatically."
+    "noneYetBody": "Add them here by uploading an admissions PDF — departments and baselines are extracted automatically.",
+    "applyToCatalog": "Apply to catalog",
+    "departmentCount_one": "{{count}} department",
+    "departmentCount_other": "{{count}} departments",
+    "hideExtraction": "Hide extraction",
+    "noDocuments": "No documents uploaded yet.",
+    "pdfMeta": "{{pages}} pages · {{kb}} KB",
+    "reviewExtraction": "Review extraction",
+    "yourDocuments": "Your documents"
   },
   "universityDetail": {
     "noDepartmentsTitle": "No departments yet",
@@ -462,7 +550,18 @@
     "deptNamePlaceholder": "School of Computing",
     "fieldKeyPlaceholder": "computer-science",
     "pickDate": "Pick a date…",
-    "baselinePlaceholder": "82.5"
+    "baselinePlaceholder": "82.5",
+    "allUniversities": "All universities",
+    "applicationDeadline": "Application deadline",
+    "baselineScore": "Baseline score",
+    "deadline": "deadline {{date}}",
+    "deadlineHint": "Amber days are application deadlines extracted from your documents (or added manually).",
+    "degreeYears": "{{degree}} · {{years}} years",
+    "fieldKey": "Field key",
+    "name": "Name",
+    "saveDepartment": "Save department",
+    "saving": "Saving…",
+    "year": "Year"
   },
   "common": {
     "add": "Add",
@@ -471,7 +570,6 @@
     "close": "Close",
     "copy": "Copy",
     "delete": "Delete",
-    "empty": "Empty",
     "hide": "Hide",
     "loading": "Loading…",
     "noFilterMatches": "No entries match these filters.",
@@ -481,8 +579,9 @@
     "searchPlaceholder": "Search…",
     "selectAll": "Select all",
     "selectedCount": "{{count}} selected",
-    "show": "Show",
-    "undo": "Undo"
+    "undo": "Undo",
+    "none": "None",
+    "browse": "Browse…"
   },
   "validation": {
     "required": "{{field}} is required.",
@@ -556,9 +655,6 @@
     "accountBody": "Your data is yours — take it with you or delete it for good.",
     "preparingExport": "Preparing export…",
     "exportData": "Export my data (zip)",
-    "signingOut": "Signing out…",
-    "signOutEverywhere": "Sign out everywhere",
-    "revokeTitle": "Invalidates every issued session for your account",
     "deleteAccount": "Delete account…",
     "deleteWarning": "This permanently deletes your profile, matches, chats, documents and uploads. It cannot be undone.",
     "confirmPassword": "Confirm your password",
@@ -599,7 +695,6 @@
     "noCvsTitle": "No CVs yet",
     "noCvsBody": "Upload your first CV above — it stays here so you can re-import or re-process it any time.",
     "updated": "Profile updated.",
-    "open": "Open",
     "panel": {
       "empty": "No CV imported yet",
       "summary": "{{count}} CVs on file · latest: {{filename}}"
@@ -864,7 +959,10 @@
     "feedRevoke": "Revoke",
     "feedMintFailed": "Could not mint a feed token.",
     "feedRotateFailed": "Could not rotate the token.",
-    "feedRevokeFailed": "Could not revoke the token."
+    "feedRevokeFailed": "Could not revoke the token.",
+    "webhook": {
+      "urlPlaceholder": "https://hooks.example/…"
+    }
   },
   "users": {
     "tableCaption": "Users",
@@ -1015,23 +1113,17 @@
       "inactive": "inactive",
       "hostingLocal": "local",
       "hostingCloud": "cloud",
-      "keyNotSet": "key: not set",
       "noKey": "no key",
-      "keySet": "key set",
-      "connection": "Connection",
       "test": "Test",
       "testOk": "Connected",
       "testFail": "Failed",
       "modelsCount": "{{count}} models",
       "noModelsHint": "Register a model first — the connection test sends a tiny completion.",
-      "editAria": "Edit {{name}}",
-      "deleteAria": "Delete {{name}}",
       "deleteTitle": "Delete {{name}}?",
       "deleteDescription": "Its models and task assignments will be removed too.",
       "deleteConfirm": "Delete",
       "actionsAria": "Actions for {{name}}",
-      "edit": "Edit",
-      "rerunAria": "Set up {{name}} automatically"
+      "edit": "Edit"
     },
     "providerModal": {
       "editTitle": "Edit provider",
@@ -1052,7 +1144,8 @@
       "cloudKind": "Cloud",
       "country": "Country",
       "countryPlaceholder": "Select a country…",
-      "saveProvider": "Save provider"
+      "saveProvider": "Save provider",
+      "mockLabel": "Mock"
     },
     "models": {
       "noCatalogHint": "This provider type doesn't expose a model catalog — enter the model id manually.",
@@ -1095,7 +1188,6 @@
       "personal": "Personal",
       "defaultModelsTitle": "Default models",
       "defaultModelsHint": "One default per capability — tasks without their own assignment inherit it.",
-      "decisionGroupTitle": "Decision models",
       "decisionGroupPrivacy": "Decision models run in the cloud: your prompt and the candidate tools for the step are sent to the assigned provider (e.g. TypeSafe or OpenRouter). Your API key stays on this device.",
       "tasksSection": "Per-task assignments",
       "tasksSectionHint": "Overrides the fallback model above for that task.",
@@ -1255,9 +1347,6 @@
         "add": "Add source",
         "connector": "Connector",
         "key": "Source key (unique)",
-        "secret": "{{name}} (secret — leave empty to keep)",
-        "secretSet": "{{slot}}: {{hint}}",
-        "secretMissing": "{{slot}}: not set",
         "needsSecret": "needs secret",
         "enabledAria": "Toggle source {{key}}",
         "test": "Test",
@@ -1271,7 +1360,8 @@
         "needsConfig": "needs config",
         "secretSetShort": "set — leave empty to keep",
         "secretMissingShort": "not set",
-        "select": "Select…"
+        "select": "Select…",
+        "githubTokenPlaceholder": "gh_pat_…"
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -1295,15 +1385,12 @@
         "fieldLicense": "License",
         "fieldRepository": "Repository",
         "fieldDigest": "Pinned content digest",
-        "enabledAria": "Enable imported extension {{id}}",
         "parked": "parked",
         "tombstoned": "tombstoned",
         "park": "Park",
         "tombstone": "Tombstone",
-        "updateAvailable": "Update available ({{version}})",
         "needsReconsent": "re-consent required",
         "applyUpdate": "Apply update (re-consent)",
-        "digestDrift": "Digest drift on pinned ref {{ref}} — refused, verify the source",
         "listed": "listed",
         "gitops": "gitops",
         "incompatible": "incompatible",
@@ -1509,7 +1596,44 @@
     "atsSafe": "ATS-safe",
     "decorative": "decorative",
     "useNoTemplate": "use the studio default instead",
-    "noTemplateNote": "No template chosen — the CV will use the studio default. Choose one below, or let AI pick for you."
+    "noTemplateNote": "No template chosen — the CV will use the studio default. Choose one below, or let AI pick for you.",
+    "gallery": {
+      "filterAll": "All",
+      "filterTwoColumn": "Two-column",
+      "filterSingle": "Single",
+      "filterOnePage": "One page",
+      "filterAtsSafe": "ATS-safe",
+      "previewUnavailable": "Preview unavailable",
+      "pageCount_one": "{{count}} page",
+      "pageCount_other": "{{count}} pages",
+      "overBudget": "over budget",
+      "fits": "fits",
+      "current": "Current",
+      "atsSafe": "ATS-safe",
+      "decorative": "decorative",
+      "addToCompare": "Add to template comparison",
+      "selected": "Selected",
+      "compare": "Compare",
+      "customizeBank": "Customize a copy of this bank template",
+      "customize": "Customize",
+      "title": "CV templates",
+      "available_one": "{{count}} available",
+      "available_other": "{{count}} available",
+      "twoSelected": "Two templates selected",
+      "pickOneMore": "Pick one more template to compare",
+      "comparePreview": "Compare preview",
+      "clearCompare": "Clear template comparison",
+      "briefPlaceholder": "Describe a style: “serif, teal accent, roomy, two-page allowed”",
+      "draftWithAi": "Draft with AI",
+      "noMatches": "No templates match this filter.",
+      "compareTitle": "Template comparison · your data",
+      "use": "Use",
+      "currentTemplate": "Current template",
+      "currentTitle": "{{title}} (current template)",
+      "previewTitle": "Preview of {{title}}",
+      "previewTitleWithData": "Preview of {{title}} with your data",
+      "useTitle": "Use {{title}}"
+    }
   },
   "cvGenerate": {
     "title": "Generate my CV",
@@ -1537,9 +1661,6 @@
     "maxPages": "Max pages",
     "template": "Template",
     "templateAuto": "Best for me (AI picks)",
-    "templateAutoPicking": "Letting AI pick the best template…",
-    "templateAutoPick": "AI chose the {{title}} template for this CV.",
-    "templateAutoFallback": "AI template pick unavailable — using the studio default.",
     "templateDefault": "Studio default",
     "includePhoto": "Include profile photo",
     "sections": "Sections",
@@ -1552,16 +1673,8 @@
     "failed": "Generation failed.",
     "sparseHint": "Your profile has nothing to generate from yet — add experience, education, or skills first (or import your CV).",
     "preview": "Live draft",
-    "previewPending": "The live preview appears once the first pages are drafted…",
     "resumePolish": "Resume polish",
     "openBuilder": "Open the builder",
-    "preferSynth": "Prefer synthesized items",
-    "synthMatchCount": "{{n}} of your synthesized variants will replace their profile text in this CV.",
-    "synthMatchNone": "No matching synthesized variants for this target — the library rows will stay unapplied.",
-    "synthSuccess": "CV drafted.",
-    "synthAppliedCount": "{{n}} of your synthesized variants were used in this CV.",
-    "synthProposedCount": "{{n}} draft variants were created for this posting — review them to reuse them in other CVs.",
-    "reviewVariants": "Review variants",
     "polish": {
       "running": "AI polish pass {{n}} — reviewing the rendered pages…",
       "iteration": "Polish pass {{n}}",
@@ -1673,7 +1786,8 @@
     "pageUnavailable": "Page preview unavailable.",
     "sourcePageAlt": "Source page {{page}}",
     "importAll": "Import all {{label}}",
-    "importItem": "Import “{{title}}”"
+    "importItem": "Import “{{title}}”",
+    "levelUnknown": "Level unknown"
   },
   "profile": {
     "save": {
@@ -1758,7 +1872,11 @@
       "things": "Things",
       "data": "Data",
       "ideas": "Ideas",
-      "linkedin": "LinkedIn"
+      "linkedin": "LinkedIn",
+      "teaching_hint": "teaching, selling, caring, leading teams",
+      "tools_hint": "tools, machines, building and fixing",
+      "numbers_hint": "numbers, code, patterns, analysis",
+      "design_hint": "design, writing, inventing, storytelling"
     }
   },
   "profileSection": {
@@ -1791,7 +1909,6 @@
     "favoriteSubjects": "Favorite subjects",
     "subjectWeight": "{{subject}} weight",
     "removeSubject": "Remove {{subject}}",
-    "languages": "Languages",
     "language": "Language",
     "removeLanguage": "Remove language",
     "addLanguage": "+ Add language",
@@ -1841,7 +1958,6 @@
     "adding": "Adding…",
     "addSkill": "Add a skill",
     "skillSearchPlaceholder": "Search the catalog or type a new skill…",
-    "skillAddHint": "Selecting adds it at level 5 — adjust below. New names are suggested for the catalog.",
     "aspirationsBody": "Scenarios you imagine yourself in — dream jobs count.",
     "aspirationN": "Aspiration {{index}}",
     "aspirationName": "aspiration {{index}}",
@@ -1870,7 +1986,17 @@
     "languagesTitle": "Languages",
     "languagesBody": "Spoken languages and levels — used by your CV and the AI assistant. Add a certificate to prove a level.",
     "addCertificate": "Certificate",
-    "addCertificateFor": "Add a certificate for {{language}}"
+    "addCertificateFor": "Add a certificate for {{language}}",
+    "noInterestsMatch": "No interests match",
+    "noPreference": "No preference recorded",
+    "noShifts": "No shifts or on-call",
+    "occasionalShifts": "Occasional shifts are fine",
+    "placeholderCity": "Athens",
+    "placeholderCountry": "Greece",
+    "placeholderGithub": "https://github.com/…",
+    "placeholderPortfolio": "Portfolio",
+    "regularShifts": "Regular shifts are fine",
+    "selected": "selected"
   },
   "cvBuilder": {
     "bulletsTitle": "Edit bullets",
@@ -1897,10 +2023,7 @@
     "copilotActivity": {
       "askAssistant": "Ask the assistant"
     },
-    "polishReview": {
-      "title": "AI polish notes",
-      "empty": "No AI polish notes for this CV yet — polish it to generate notes."
-    },
+    "polishReview": {},
     "sectionRemoved": "Section removed",
     "sectionAdded": "Section added",
     "sectionDuplicated": "Section duplicated",
@@ -1921,17 +2044,25 @@
     "aiTightenText": "AI: tighten text",
     "aiFindGaps": "AI: find gaps",
     "aiTranslateTo": "AI: translate to {{lang}}",
-    "translateTo": "Translate → {{lang}}",
     "exportFormat": "Export {{format}}",
     "pane": {
       "context": "Context",
       "preview": "Preview",
-      "inspector": "Inspector"
+      "inspector": "Inspector",
+      "sections": "Sections",
+      "design": "Design"
     },
     "versions": "Versions",
     "versionsEmpty": "Save a version to snapshot this state — exports also create versions automatically.",
     "diffVersion": "Diff v{{version}}",
-    "preview": "Preview",
+    "preview": {
+      "fit": "Fit to width",
+      "page": "Page",
+      "title": "CV preview",
+      "zoom": "Preview zoom",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out"
+    },
     "restore": "Restore",
     "previewVersion": "Preview v{{version}}",
     "previewVersionTitle": "Preview of version {{version}}",
@@ -2016,7 +2147,293 @@
     "printedReviewRun": "Review pages",
     "printedReviewRunning": "Reviewing…",
     "applyCritiqueFixes": "Apply suggested fixes",
-    "critiqueTitle": "Visual review"
+    "critiqueTitle": "Visual review",
+    "config": {
+      "allTypes": "All types",
+      "allVariants": "All variants",
+      "cefr": "CEFR",
+      "certificate": "certificate",
+      "configureAria": "Configure section",
+      "contactLinks": "Contact links",
+      "container": "Container",
+      "content": "Content",
+      "dataSource": "Data source",
+      "datePosition": "Date position",
+      "dates": "Dates",
+      "display": "Display",
+      "dragAria": "Drag to reorder — use up and down arrow keys",
+      "dragTitle": "Drag, or focus and use ↑/↓",
+      "dropHere": "Drop a section here",
+      "duplicate": "Duplicate",
+      "empty": "No sections yet — add one above to start building.",
+      "format": "Format",
+      "headingIcon": "Heading icon",
+      "height": "Height",
+      "hideProficiency": "Hide proficiency certificates",
+      "hideSection": "Hide section",
+      "includeKinds": "Include kinds",
+      "latestCertificate": "Latest proficiency certificate",
+      "levels": "levels",
+      "limitToSkills": "Limit to skills",
+      "limitToVariants": "Limit to variants",
+      "link": "Link",
+      "location": "Location",
+      "maxCharacters": "Max characters",
+      "maxCharactersShort": "max {{n}} characters",
+      "maxItems": "Max items",
+      "maxItemsShort": "max {{n}}",
+      "millimetres": "{{n}} mm",
+      "moreActions": "More actions",
+      "moveDown": "Move down",
+      "moveUp": "Move up",
+      "nothingToConfigure": "Nothing to configure — content comes from your profile.",
+      "remove": "Remove",
+      "sectionActionsAria": "Section actions",
+      "sectionDrag": "Section",
+      "sectionTitleAria": "Section title",
+      "showAchievements": "Show achievements",
+      "showCefr": "Show CEFR band",
+      "showContactLinks": "Show contact links",
+      "showDescription": "Show description",
+      "showLevels": "Show levels",
+      "showLinks": "Show links (repo, demo…)",
+      "showLocation": "Show location",
+      "showOrganization": "Show organization",
+      "showSection": "Show section",
+      "showSkills": "Show skills",
+      "showSourceChips": "Show source chips",
+      "size": "Size",
+      "sourceChips": "source chips",
+      "style": "Style",
+      "styleChips": "Chips",
+      "styleLines": "Lines",
+      "styleList": "List",
+      "styleTimeline": "Timeline",
+      "summaryText": "Summary text",
+      "templateDefault": "Template default",
+      "types": "Types",
+      "variantCount": "{{count}} variant",
+      "variantCount_one": "{{count}} variant",
+      "variantCount_other": "{{count}} variants",
+      "website": "Website",
+      "summaryPlaceholder": "Write a short, evidence-based summary…",
+      "summaryPlaceholderFallback": "Using profile aspirations — {{text}}",
+      "summaryHint": "Leave empty to use your profile aspirations.",
+      "collapse": "Collapse",
+      "configure": "Configure"
+    },
+    "toolbar": {
+      "versionsSummary_one": "{{count}} version · latest v{{version}}",
+      "versionsSummary_other": "{{count}} versions · latest v{{version}}",
+      "noVersions": "no versions yet",
+      "atsLint": "ATS lint · {{score}}",
+      "lintCounts": "{{fail}} fail · {{warn}} warn · {{pass}} pass",
+      "pageCount_one": "{{count}}/{{max}} page",
+      "pageCount_other": "{{count}}/{{max}} pages",
+      "unverified": "(unverified)",
+      "overBudget": "— over budget",
+      "paletteTitle": "Command palette (Ctrl+K)",
+      "paletteShortcut": "Ctrl+K",
+      "assistantTitle": "Ask the CV assistant",
+      "askAi": "Ask AI",
+      "undoTitle": "Undo (Ctrl+Z)",
+      "undo": "Undo",
+      "redoTitle": "Redo (Ctrl+Shift+Z)",
+      "redo": "Redo",
+      "versions": "Versions",
+      "runsTitle": "Runs & metrics",
+      "runs": "AI runs",
+      "notes": "Notes",
+      "exportTitle": "Export this CV",
+      "download": "Download",
+      "matchingLetter": "Matching cover letter",
+      "exportPdf": "PDF",
+      "exportDocx": "DOCX",
+      "exportMarkdown": "Markdown",
+      "exportJson": "JSON",
+      "exportAts": "ATS text",
+      "saveVersion": "Save version",
+      "titleAria": "CV title",
+      "atsLintAria": "ATS lint score {{score}} — show report",
+      "atsLintTitle": "ATS lint score {{score}}",
+      "overflowTitle": "Content exceeds the page budget",
+      "pagesFromPdf": "Page usage measured from the printed PDF",
+      "pagesFromExport": "Measured at the last export — may have drifted since the latest edits",
+      "pagesEstimated": "Estimate only — no PDF engine on this server, so the page count is unverified"
+    },
+    "ai": {
+      "presetsAria": "AI tone and length",
+      "presetsTitle": "Tone: {{tone}} · Length: {{length}}",
+      "tone": {
+        "professional": "Professional",
+        "warm": "Warm",
+        "concise": "Concise",
+        "confident": "Confident"
+      },
+      "length": "Length",
+      "default": "default",
+      "lengthValue": {
+        "short": "Short",
+        "medium": "Medium",
+        "long": "Long"
+      },
+      "draftLetterTitle": "Draft the letter with AI",
+      "draftLetterDisabled": "This cover letter has no target posting yet — pick one in Explore",
+      "drafting": "Drafting…",
+      "draftWithAi": "Draft with AI",
+      "actions": "AI writing actions",
+      "improveSummary": "Improve summary",
+      "tighten": "Tighten text",
+      "findGaps": "Find gaps",
+      "tailorSaved": "Tailor to saved posting",
+      "usesSelected": "Uses the selected posting",
+      "pickFirst": "Pick a posting first",
+      "more": "More AI actions",
+      "tailorTitle": "Tailor to posting",
+      "targetPosting": "Target posting",
+      "pickPosting": "Pick a posting…",
+      "tailor": "Tailor",
+      "noSavedPostings": "Save a posting in Explore to tailor this CV against it."
+    },
+    "context": {
+      "markReviewed": "Mark variant {{variant}} reviewed",
+      "editVariantAria": "Edit variant {{variant}}",
+      "includeAll": "Include all {{name}}",
+      "openGroupAria": "Open {{name}} in profile",
+      "addAria": "Add {{name}}",
+      "editItemAria": "Edit {{name}}",
+      "editBulletsAria": "Edit the bullets of {{name}} on this CV",
+      "openItemAria": "Open {{name}} in profile",
+      "writeVariantAria": "Write a variant for {{name}}",
+      "pinnedInactive": "Pinned but not rendering — language, posting or status mismatch",
+      "unpinVar": "Unpin {{kind}} {{variant}} for this item",
+      "makeDefaultVar": "Make {{kind}} {{variant}} the default for this item",
+      "unpinBullets": "Unpin — profile bullets render again",
+      "makeDefaultBullets": "Make default bullets for this item",
+      "unpinText": "Unpin — the best matching variant applies again",
+      "makeDefault": "Make default for this item",
+      "bulletsVariant": "bullets variant",
+      "variant": "variant",
+      "addItem": "Add {{name}}",
+      "nothingRecorded": "Nothing recorded yet",
+      "editProfileEntry": "Edit profile entry",
+      "editBullets": "Edit bullets on this CV",
+      "openInProfile": "Open in profile",
+      "addVariant": "Add variant",
+      "itemsOnCv": "items on the CV",
+      "filterPlaceholder": "Filter context…",
+      "filterAria": "Filter context items",
+      "noMatch": "No context matches “{{query}}”.",
+      "bullets": "bullets",
+      "stale": "stale",
+      "gone": "gone",
+      "notRendering": "not rendering",
+      "archived": "archived",
+      "resetTitle": "Source changed but the text still fits — mark reviewed",
+      "editText": "Edit text"
+    },
+    "templateLabel": "Template",
+    "bankDefault": "Bank default",
+    "openInStyleEditor": "Open this template in the style editor",
+    "pickTemplateFirst": "Pick a template first",
+    "customize": "Customize",
+    "photo": {
+      "defaultTitle": "{{name}} (profile default)",
+      "drop": "Drop a photo or click to upload",
+      "hint": "PNG, JPEG or WebP · max 2 MB — added to your gallery",
+      "none": "No photo on this CV",
+      "profileDefault": "Profile default",
+      "remove": "Remove photo from this CV",
+      "selected": "Selected photo",
+      "useAria": "Use {{name}}",
+      "useDefault": "Use profile default"
+    },
+    "style": "Style",
+    "pageSizeLetter": "Letter",
+    "proposalsReviewAria": "{{action}} proposals — review then apply",
+    "proposalsKeyHint": "{{action}} proposals — ↑/↓ + Enter to apply",
+    "closeProposals": "Close proposals",
+    "flaggedContext": "Flagged: cites items not in this CV's context.",
+    "apply": "Apply",
+    "noProposals": "No proposals for this action.",
+    "inspectorAria": "Inspector panels",
+    "commandPalette": {
+      "noMatch": "No matching command",
+      "placeholder": "Type a command…"
+    },
+    "customText": {
+      "aria": "Section text",
+      "edit": "Edit"
+    },
+    "dismiss": "Dismiss",
+    "dismissCritique": "Dismiss critique",
+    "duplicateCv": "Duplicate CV",
+    "duplicateLetter": "Duplicate letter",
+    "items": {
+      "custom": "custom",
+      "defaultOrder": "default order",
+      "dragTitle": "Drag, or focus and use ↑/↓",
+      "moveDownAria": "Move {{name}} down",
+      "moveUpAria": "Move {{name}} up",
+      "profileChanged": "(profile changed)",
+      "reorder": "Reorder items",
+      "reorderAria": "Reorder {{name}} — use up and down arrow keys",
+      "staleTitle": "The CV's captured text no longer matches the profile for this item"
+    },
+    "letter": {
+      "addParagraph": "Add paragraph",
+      "applyCount_one": "Apply {{count}} paragraph",
+      "applyCount_other": "Apply {{count}} paragraphs",
+      "closeDraft": "Close draft review",
+      "closing": "Closing",
+      "covered": "covered",
+      "dateLine": "Date line",
+      "datePlaceholder": "e.g. September 2026",
+      "draftAria": "Cover-letter draft — review then apply",
+      "draftTitle": "Draft paragraphs — untick what to leave out",
+      "estimated": "(est.)",
+      "feedDraft": "feed the draft.",
+      "flaggedNoEvidence": "Flagged: no evidence behind this paragraph.",
+      "flaggedOutside": "Flagged: cites items outside your profile.",
+      "hideQuote": "Hide quote",
+      "includeAria": "Include paragraph {{n}}",
+      "missing": "missing",
+      "moveDownAria": "Move paragraph {{n}} down",
+      "moveUpAria": "Move paragraph {{n}} up",
+      "mustHaves": "Must-haves",
+      "noDeepExtraction": "This posting has no deep extraction yet — the draft grounds on your profile evidence alone.",
+      "noMustHaves": "No must-have skills extracted for this posting.",
+      "noTarget": "No target posting on this cover letter.",
+      "nothingGrounded": "The model returned nothing grounded — try again or write the letter manually.",
+      "profileFit": "Profile fit",
+      "profileItem": "profile item",
+      "recipientName": "Recipient name",
+      "recipientOrg": "Recipient organisation",
+      "removeAria": "Remove paragraph {{n}}",
+      "requiredLevelAria": "required level {{level}}",
+      "salutation": "Salutation",
+      "signWithName": "Sign with my name",
+      "subject": "Subject",
+      "targetPosting": "Target posting",
+      "whyQuote": "Why? (quote)"
+    },
+    "notSet": "Not set",
+    "richText": {
+      "bold": "Bold (**bold**)",
+      "code": "Code (not rendered in CVs)",
+      "italic": "Italic (*italic*)",
+      "strike": "Strikethrough (not rendered in CVs)",
+      "toolbar": "Formatting"
+    },
+    "richTextHint": "**bold** · *italic* · [text](url) — rendered in the CV, stripped from ATS exports.",
+    "saveHint": "Ctrl+S",
+    "unsetAria": "Unset {{name}}",
+    "variant": {
+      "next": "Next variant",
+      "previous": "Previous variant",
+      "removeBullet": "Remove bullet {{n}}",
+      "targetLanguage": "Target language"
+    }
   },
   "templateEditor": {
     "notFound": "Template not found",
@@ -2078,7 +2495,6 @@
     "sidebarWidth": "Sidebar width",
     "mainPadding": "Main column padding",
     "sidebarPadding": "Sidebar padding",
-    "group": "Colors",
     "headings": "Headings",
     "lineHeight": "Line height",
     "page": "Page",
@@ -2115,12 +2531,15 @@
       "sans": "Sans",
       "serif": "Serif",
       "mixed": "Mixed",
-      "geometric": "Geometric"
+      "geometric": "Geometric",
+      "embedded-sans": "Embedded Sans",
+      "embedded-serif": "Embedded Serif"
     },
     "header_styles": {
       "left": "Left",
       "centered": "Centered",
-      "banner": "Banner"
+      "banner": "Banner",
+      "band": "Accent band"
     },
     "densities": {
       "compact": "Compact",
@@ -2145,7 +2564,9 @@
       "experience": "Experience",
       "education": "Education",
       "certifications": "Certifications",
-      "projects": "Projects"
+      "projects": "Projects",
+      "volunteer": "Volunteering",
+      "items": "Items"
     },
     "item_styles": {
       "list": "List",
@@ -2194,7 +2615,8 @@
       "spacer": "Spacer",
       "spacer_desc": "Extra breathing room between sections",
       "qr": "QR code",
-      "qr_desc": "Scannable code linking to your site or profile"
+      "qr_desc": "Scannable code linking to your site or profile",
+      "header": "Header"
     },
     "excludeProficiency": "Hide proficiency certificates",
     "kinds": "Include kinds",
@@ -2205,7 +2627,87 @@
     "elevationLabel": "Elevation",
     "chipStyle": "Chip style",
     "chipTint": "Chip tint",
-    "runningFooter": "Running footer"
+    "runningFooter": "Running footer",
+    "addSection": "Add section",
+    "addTo": "Add to",
+    "changesTitle": "Changes v{{from}} → v{{to}}",
+    "custom": "Custom",
+    "displayLabel": "Display",
+    "noDifferences": "No differences.",
+    "noVersions": "No versions yet.",
+    "sectionType": "Section type",
+    "versionHistory": "Version history",
+    "date_formats": {
+      "eu": "06/2024",
+      "iso": "2024-06",
+      "mon_yyyy": "Jun 2024",
+      "year": "2024"
+    },
+    "elevations": {
+      "none": "None",
+      "soft": "Soft",
+      "raised": "Raised"
+    },
+    "running_footers": {
+      "none": "None",
+      "name": "Name (from page 2)",
+      "numbers": "Page numbers (from page 2)"
+    },
+    "chip_styles": {
+      "tint": "Tint",
+      "outline": "Outline",
+      "solid": "Solid",
+      "plain": "Plain"
+    },
+    "name_styles": {
+      "plain": "Plain",
+      "accent_surname": "Accent surname"
+    },
+    "photo_shapes": {
+      "circle": "Circle",
+      "rounded": "Rounded",
+      "square": "Square",
+      "arch": "Arch"
+    },
+    "experience_kinds": {
+      "job": "Jobs",
+      "internship": "Internships",
+      "freelance": "Freelance"
+    },
+    "skills_display": {
+      "chips": "Chips",
+      "list": "List",
+      "grouped": "Grouped",
+      "bars": "Bars"
+    },
+    "achievement_kinds": {
+      "award": "Awards",
+      "honor": "Honors",
+      "publication": "Publications",
+      "extracurricular": "Extracurricular"
+    },
+    "icons": {
+      "briefcase": "Briefcase",
+      "gradcap": "Graduation cap",
+      "wrench": "Wrench",
+      "globe": "Globe",
+      "award": "Award",
+      "heart": "Heart",
+      "chat": "Chat",
+      "flag": "Flag",
+      "user": "User",
+      "link": "Link",
+      "github": "GitHub",
+      "linkedin": "LinkedIn",
+      "mail": "Mail",
+      "phone": "Phone",
+      "location": "Location"
+    },
+    "area": {
+      "main": "Main",
+      "leftPanel": "Left panel",
+      "rightPanel": "Right panel"
+    }
   },
   "shared": {
     "scoreAria": "Score {{score}} of 10",
@@ -2307,7 +2809,6 @@
     "loadingPosting": "Loading posting…",
     "coverage": "profile coverage {{score}}/10",
     "originalPosting": "original posting",
-    "creating": "Creating…",
     "draftLetter": "Draft cover letter",
     "practiceInterview": "Practice interview",
     "trackApplication": "Track application",
@@ -2475,6 +2976,10 @@
       "rate_limit": "Too many AI requests in a row — wait a moment and try again.",
       "unavailable": "The AI service is unavailable right now — try again in a moment.",
       "error": "The AI call failed — try again."
+    },
+    "cvChatTitle": "CV chat",
+    "toolResult": {
+      "copyAria": "Copy tool result"
     }
   },
   "demand": {
@@ -2664,7 +3169,8 @@
     "deadlineLabel": "Application deadline",
     "deptDescriptionPlaceholder": "What the department covers (optional).",
     "saveDepartment": "Save department",
-    "emptyAll": "Nothing here yet — add your first entry."
+    "emptyAll": "Nothing here yet — add your first entry.",
+    "urlPlaceholder": "https://…"
   },
   "interviews": {
     "title": "Interview practice",
@@ -2857,7 +3363,8 @@
     "claimIncreaseAria": "Increase claimed level",
     "claimClearAria": "Clear claimed level",
     "claimClear": "Not claimed",
-    "derivedHint": "These estimates update automatically after you save, delete or restore entries — based on kind, hours, roles and claimed levels. Manage (edit/disable) them on your Profile → Skills."
+    "derivedHint": "These estimates update automatically after you save, delete or restore entries — based on kind, hours, roles and claimed levels. Manage (edit/disable) them on your Profile → Skills.",
+    "levelShort": "lvl"
   },
   "assessment": {
     "conflictsTitle": "We spotted conflicts",
@@ -2866,13 +3373,39 @@
     "startScenarios": "Start scenarios →",
     "saveContinue": "Save & continue →",
     "seeRankings": "see rankings →",
-    "fit": "fit"
+    "fit": "fit",
+    "resultsTitle": "Your results",
+    "skillsTitle": "Skills the scenarios revealed",
+    "noSkillSignal": "No skill signal from this run.",
+    "interestsTitle": "Interests touched",
+    "shortlistTitle": "Your shortlist (refreshed fit)",
+    "rerunFocus": "Re-run with focus (phases 2–4)",
+    "import": "Import",
+    "draftWithAi": "Draft with AI",
+    "draftPrompt": "What should the assessment measure?",
+    "draftPlaceholder": "e.g. A 12-question growth mindset scale for first-year students",
+    "drafting": "Drafting…",
+    "draftTemplate": "Draft template",
+    "noTemplates": "No templates yet — bank templates and imports appear here.",
+    "bankTag": "bank",
+    "kindTitle": "{{kind}} assessment",
+    "cancelRun": "cancel run",
+    "phaseLabel": "Phase {{number}}",
+    "phaseOneHint": "Phase 1 reuses your profile — basics, interests and school details you already entered. Update them any time from your",
+    "progress": "{{answered}} answered · progress saves as you go",
+    "ask": "Ask",
+    "saved": "saved ✓",
+    "skip": "skip this one",
+    "moveUp": "move up",
+    "moveDown": "move down",
+    "exportTemplate": "Export {{title}}",
+    "allocationTotal": "total: {{total}}% (must be 100)",
+    "testLibrary": "Test library"
   },
   "cvSynth": {
     "title": "Synthesized variants",
     "subtitle": "AI-written or manual variants of your profile items — reusable across every CV.",
     "backToStudio": "Back to CV Studio",
-    "unknownSource": "Unknown source",
     "bulk": {
       "select": "Select",
       "done": "Done",
@@ -2927,7 +3460,6 @@
     "regenerate": "Regenerate",
     "regenerated": "A fresh draft was generated.",
     "edit": "Edit",
-    "editTitle": "Edit variant text",
     "saved": "Variant saved.",
     "delete": "Delete",
     "deleteConfirm": "Delete this variant?",
@@ -2976,10 +3508,8 @@
       "languageLabel": "Language",
       "languageHint": "Variants only apply to CVs written in this language.",
       "postingLabel": "Aim at posting",
-      "postingReadonly": "Posting scope cannot change after creation.",
       "postingAny": "All CVs (generic)",
       "create": "Create variant",
-      "supersedeHint": "Activating this variant replaces the active variant for the same items and key.",
       "subtitle": "Write tailored text once — star it on a CV to use it there.",
       "instructionLabel": "Custom instruction",
       "toneNone": "No tone",
@@ -2994,7 +3524,8 @@
       "standard": "Standard",
       "detailed": "Detailed"
     },
-    "noDraft": "No draft was generated."
+    "noDraft": "No draft was generated.",
+    "selectAria": "Select variant {{id}}"
   },
   "instance": {
     "title": "Access mode",
@@ -3025,8 +3556,7 @@
       "missingDescription": "The extension may have been disabled or uninstalled.",
       "backToTools": "Open extensions settings",
       "degraded": "{{surface}} surface degrades to this page on this device",
-      "degradedHint": "The extension asked for a surface kind this device does not host; the charter degrade rules rendered this page instead.",
-      "navHint": "Installed extension pages live here"
+      "degradedHint": "The extension asked for a surface kind this device does not host; the charter degrade rules rendered this page instead."
     }
   },
   "aiSetup": {

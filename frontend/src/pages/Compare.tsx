@@ -117,7 +117,10 @@ export function Compare() {
                     {r.job.title}
                   </Link>
                   <span className="text-xs text-slate-400">
-                    fit {Number(r.fit_score).toFixed(1)} · you {r.user_score ?? "–"}
+                    {t("compare.fitScore", {
+                      score: Number(r.fit_score).toFixed(1),
+                      you: r.user_score ?? "–",
+                    })}
                   </span>
                   {r.gated && r.gate_reasons.length > 0 && (
                     <span className="mt-1 block w-fit rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700">
@@ -217,7 +220,7 @@ export function Compare() {
           ))}
 
           <div className="grid gap-3 p-4" style={{ gridTemplateColumns: gridCols }}>
-            <span className="self-center text-xs font-medium uppercase text-slate-400">AI notes</span>
+            <span className="self-center text-xs font-medium uppercase text-slate-400">{t("compare.aiNotes")}</span>
             {rows.map((r) => (
               <details key={r.job.id} data-testid={`compare-ai-${r.job.id}`}>
                 <summary className="cursor-pointer text-xs text-primary-700">

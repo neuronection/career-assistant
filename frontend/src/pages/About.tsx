@@ -22,7 +22,7 @@ export function About() {
         links={[
           { group: "Project", href: "https://github.com/neuronection/career-assistant", label: "GitHub", subtitle: "neuronection/career-assistant", icon: Github },
           { group: "Creator", href: "https://www.linkedin.com/in/ilias-chatzopoulos-aabb22163/", label: "LinkedIn", subtitle: "Ilias Chatzopoulos", icon: Linkedin },
-          { group: "Creator", copyValue: "constliakos@gmail.com", label: "constliakos@gmail.com", subtitle: "Click to copy", icon: Mail },
+          { group: "Creator", copyValue: "constliakos@gmail.com", label: "constliakos@gmail.com", subtitle: t("about.clickToCopy"), icon: Mail },
         ]}
         creator={{
           name: "Ilias Chatzopoulos",

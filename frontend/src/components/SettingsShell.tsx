@@ -3,6 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { settingsNav } from "@/config/settingsNav";
 import { useAuthStore } from "@/stores/authStore";
 import { SettingsShell as LibrarySettingsShell } from "@neuronection/assistant-ui";
+import { useTranslation } from "react-i18next";
 
 /**
  * Two-pane settings shell: sticky left nav + right content outlet.
@@ -10,6 +11,7 @@ import { SettingsShell as LibrarySettingsShell } from "@neuronection/assistant-u
  * hidden for non-admins).
  */
 export function SettingsShell() {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,7 +36,7 @@ export function SettingsShell() {
         onClick={() => navigate("/")}
         className="text-sm text-slate-400 hover:text-slate-600 inline-flex items-center gap-1 mb-4"
       >
-        <ChevronLeft className="w-4 h-4" /> Back to app
+        <ChevronLeft className="w-4 h-4" /> {t("shell.backToApp")}
       </button>
       <LibrarySettingsShell
         nav={items}
@@ -45,7 +47,7 @@ export function SettingsShell() {
             .getElementById("main")
             ?.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
         }}
-        header={{ title: "Settings" }}
+        header={{ title: t("nav.settings") }}
         navClassName="lg:top-0 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto"
       >
         <Outlet />

@@ -130,10 +130,10 @@ function TypeCard({ spec, onAdd }: { spec: BlockTypeSpec; onAdd: (kind: string) 
       <span className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--as-fg)]">
           <spec.icon className="h-3.5 w-3.5 text-[var(--as-accent)]" aria-hidden />
-          {t(spec.label, { defaultValue: spec.label })}
+          {t(spec.labelKey)}
         </span>
         <span className="text-xs leading-snug text-[var(--as-muted-fg)]">
-          {t(spec.description, { defaultValue: spec.description })}
+          {t(spec.descriptionKey)}
         </span>
       </span>
     </button>
@@ -155,6 +155,7 @@ export function BlockTypePicker({
   testId?: string;
   iconOnly?: boolean;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [targetArea, setTargetArea] = useState<CvAreaId>("main");
   const types = [...BLOCK_TYPES, ...extraTypes];
@@ -175,8 +176,8 @@ export function BlockTypePicker({
             type="button"
             data-testid={testId}
             aria-expanded={open}
-            aria-label="Add section"
-            title="Add section"
+            aria-label={t("templateEditor.addSection")}
+            title={t("templateEditor.addSection")}
             className="flex cursor-pointer items-center gap-1 rounded-md p-1 text-[var(--as-muted-fg)] transition-colors duration-150 hover:bg-[var(--as-muted)] hover:text-[var(--as-accent)]"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -189,7 +190,7 @@ export function BlockTypePicker({
             className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-xs font-medium text-[var(--as-muted-fg)] transition-colors duration-150 hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
-            Add section
+            {t("templateEditor.addSection")}
           </button>
         )}
       </PopoverTrigger>
@@ -199,7 +200,7 @@ export function BlockTypePicker({
         data-testid="add-section-menu"
       >
         <p className="px-0.5 pb-0.5 text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-          Section type
+          {t("templateEditor.sectionType")}
         </p>
         <div className="grid max-h-72 grid-cols-1 gap-1.5 overflow-y-auto">
           {types.map((spec) => (
@@ -216,9 +217,9 @@ export function BlockTypePicker({
         {grouped && !presetArea && (
           <div className="border-t border-[var(--as-border)] pt-1.5">
             <SegmentedRow
-              label="Add to"
+              label={t("templateEditor.addTo")}
               value={effectiveArea!}
-              options={areas!.map((area) => ({ value: area.id, label: area.label }))}
+              options={areas!.map((area) => ({ value: area.id, label: t(area.labelKey) }))}
               onChange={(area) => setTargetArea(area as CvAreaId)}
             />
           </div>

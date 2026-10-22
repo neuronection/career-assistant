@@ -128,7 +128,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
                 value={draft.career_stage ?? ""}
                 options={STAGE_OPTIONS.map((o) => ({
                   value: o.value,
-                  label: t(o.labelKey, { defaultValue: o.label }),
+                  label: t(o.labelKey),
                 }))}
                 testId="basics-stage"
                 onChange={(v) => {
@@ -178,7 +178,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
             value={draft.city}
             onChange={(v) => patch({ city: v })}
             maxLength={80}
-            placeholder="Athens"
+            placeholder={t("profileSection.placeholderCity")}
             testId="basics-city"
           />
           <TextField
@@ -186,7 +186,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
             value={draft.country}
             onChange={(v) => patch({ country: v })}
             maxLength={80}
-            placeholder="Greece"
+            placeholder={t("profileSection.placeholderCountry")}
             testId="basics-country"
           />
           <div className="sm:col-span-2 space-y-2">
@@ -204,7 +204,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
                       value={link.kind}
                       options={LINK_KIND_OPTIONS.map((o) => ({
                         value: o.value,
-                        label: t(o.labelKey, { defaultValue: o.label }),
+                        label: t(o.labelKey),
                       }))}
                       testId={`link-kind-${i}`}
                       onChange={(v) =>
@@ -218,7 +218,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
                       value={link.url}
                       onChange={(v) => patchLink(i, { url: v })}
                       maxLength={500}
-                      placeholder="https://github.com/…"
+                      placeholder={t("profileSection.placeholderGithub")}
                       testId={`link-url-${i}`}
                     />
                   </div>
@@ -228,7 +228,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
                       value={link.label}
                       onChange={(v) => patchLink(i, { label: v })}
                       maxLength={120}
-                      placeholder="Portfolio"
+                      placeholder={t("profileSection.placeholderPortfolio")}
                       testId={`link-label-${i}`}
                     />
                   </div>
@@ -280,7 +280,7 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
             value={draft.education_level}
             options={EDUCATION_OPTIONS.map((o) => ({
               value: o.value,
-              label: t(o.labelKey, { defaultValue: o.label }),
+              label: t(o.labelKey),
             }))}
             testId="basics-education-level"
             onChange={(v) =>

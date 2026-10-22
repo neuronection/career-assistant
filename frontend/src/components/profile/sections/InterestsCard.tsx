@@ -136,12 +136,12 @@ export const InterestsCard = forwardRef<SectionCardHandle, InterestsCardProps>(
             ))}
             {filtered.length === 0 && (
               <p className="col-span-full py-4 text-center text-xs text-[var(--as-muted-fg)]">
-                No interests match “{query}”.
+                {t("profileSection.noInterestsMatch")}{" "}{query}”.
               </p>
             )}
           </div>
           <p className="text-xs text-[var(--as-muted-fg)]" data-testid="interests-count">
-            {draft.length} selected
+            {draft.length} {t("profileSection.selected")}
           </p>
         </div>
       </ProfileSectionCard>

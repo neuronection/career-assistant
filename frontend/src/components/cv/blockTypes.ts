@@ -15,8 +15,8 @@ import {
 
 export interface BlockTypeSpec {
   value: string;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   icon: LucideIcon;
   props: Record<string, unknown>;
 }
@@ -24,8 +24,8 @@ export interface BlockTypeSpec {
 export const BLOCK_TYPES: BlockTypeSpec[] = [
   {
     value: "items",
-    label: "templateEditor.block.items",
-    description: "templateEditor.block.items_desc",
+    labelKey: "templateEditor.block.items",
+    descriptionKey: "templateEditor.block.items_desc",
     icon: Briefcase,
     props: {
       title: "Work Experience",
@@ -42,50 +42,50 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
   },
   {
     value: "summary",
-    label: "templateEditor.block.summary",
-    description: "templateEditor.block.summary_desc",
+    labelKey: "templateEditor.block.summary",
+    descriptionKey: "templateEditor.block.summary_desc",
     icon: AlignLeft,
     props: { title: "Summary", max_chars: 600 },
   },
   {
     value: "custom_text",
-    label: "templateEditor.block.custom_text",
-    description: "templateEditor.block.custom_text_desc",
+    labelKey: "templateEditor.block.custom_text",
+    descriptionKey: "templateEditor.block.custom_text_desc",
     icon: PenLine,
     props: { title: "About me", text: "" },
   },
   {
     value: "skills",
-    label: "templateEditor.block.skills",
-    description: "templateEditor.block.skills_desc",
+    labelKey: "templateEditor.block.skills",
+    descriptionKey: "templateEditor.block.skills_desc",
     icon: Wrench,
     props: { title: "Skills", display: "chips", max_items: 18, show_levels: false },
   },
   {
     value: "languages",
-    label: "templateEditor.block.languages",
-    description: "templateEditor.block.languages_desc",
+    labelKey: "templateEditor.block.languages",
+    descriptionKey: "templateEditor.block.languages_desc",
     icon: Languages,
     props: { title: "Languages", display: "chips", show_cefr: false, show_proficiency: false },
   },
   {
     value: "achievements",
-    label: "templateEditor.block.achievements",
-    description: "templateEditor.block.achievements_desc",
+    labelKey: "templateEditor.block.achievements",
+    descriptionKey: "templateEditor.block.achievements_desc",
     icon: Trophy,
     props: { title: "Achievements" },
   },
   {
     value: "interests",
-    label: "templateEditor.block.interests",
-    description: "templateEditor.block.interests_desc",
+    labelKey: "templateEditor.block.interests",
+    descriptionKey: "templateEditor.block.interests_desc",
     icon: Heart,
     props: { title: "Interests", max_items: 6 },
   },
   {
     value: "synth_items",
-    label: "cvSynth.block.label",
-    description: "cvSynth.block.description",
+    labelKey: "cvSynth.block.label",
+    descriptionKey: "cvSynth.block.description",
     icon: Sparkles,
     props: {
       title: "Highlights",
@@ -96,15 +96,15 @@ export const BLOCK_TYPES: BlockTypeSpec[] = [
   },
   {
     value: "spacer",
-    label: "templateEditor.block.spacer",
-    description: "templateEditor.block.spacer_desc",
+    labelKey: "templateEditor.block.spacer",
+    descriptionKey: "templateEditor.block.spacer_desc",
     icon: MoveVertical,
     props: { height_mm: 4 },
   },
   {
     value: "qr",
-    label: "templateEditor.block.qr",
-    description: "templateEditor.block.qr_desc",
+    labelKey: "templateEditor.block.qr",
+    descriptionKey: "templateEditor.block.qr_desc",
     icon: QrCode,
     props: { link_kind: "web", size_mm: 24 },
   },
@@ -120,8 +120,8 @@ const KIND_FALLBACK_ICONS: Record<string, LucideIcon> = {
 };
 
 const KIND_FALLBACK_LABELS: Record<string, string> = {
-  header: "Header",
-  qr: "QR code",
+  header: "templateEditor.block.header",
+  qr: "templateEditor.block.qr",
 };
 
 export function blockIconOf(kind: string): LucideIcon {
@@ -130,7 +130,7 @@ export function blockIconOf(kind: string): LucideIcon {
 
 export function blockLabelOf(kind: string): string {
   const spec = blockTypeOf(kind);
-  return spec ? spec.label : KIND_FALLBACK_LABELS[kind] ?? kind;
+  return spec ? spec.labelKey : KIND_FALLBACK_LABELS[kind] ?? kind;
 }
 
 export function blockHasTitle(kind: string): boolean {
@@ -139,36 +139,36 @@ export function blockHasTitle(kind: string): boolean {
 }
 
 export const ITEM_SOURCE_OPTIONS = [
-  { value: "experience", label: "Work Experience" },
-  { value: "education", label: "Education" },
-  { value: "certifications", label: "Certifications" },
-  { value: "projects", label: "Projects" },
-  { value: "volunteer", label: "Volunteering" },
+  { value: "experience", labelKey: "templateEditor.item_sources.experience" },
+  { value: "education", labelKey: "templateEditor.item_sources.education" },
+  { value: "certifications", labelKey: "templateEditor.item_sources.certifications" },
+  { value: "projects", labelKey: "templateEditor.item_sources.projects" },
+  { value: "volunteer", labelKey: "templateEditor.item_sources.volunteer" },
 ];
 
 export const EXPERIENCE_KIND_OPTIONS = [
-  { value: "job", label: "Jobs" },
-  { value: "internship", label: "Internships" },
-  { value: "freelance", label: "Freelance" },
+  { value: "job", labelKey: "templateEditor.experience_kinds.job" },
+  { value: "internship", labelKey: "templateEditor.experience_kinds.internship" },
+  { value: "freelance", labelKey: "templateEditor.experience_kinds.freelance" },
 ];
 
 export const SKILLS_DISPLAY_OPTIONS = [
-  { value: "chips", label: "Chips" },
-  { value: "list", label: "List" },
-  { value: "grouped", label: "Grouped" },
-  { value: "bars", label: "Bars" },
+  { value: "chips", labelKey: "templateEditor.skills_display.chips" },
+  { value: "list", labelKey: "templateEditor.skills_display.list" },
+  { value: "grouped", labelKey: "templateEditor.skills_display.grouped" },
+  { value: "bars", labelKey: "templateEditor.skills_display.bars" },
 ];
 
 export const DATE_FORMAT_OPTIONS = [
-  { value: "mon_yyyy", label: "Jan 2025" },
-  { value: "eu", label: "01/2025" },
-  { value: "year", label: "2025" },
-  { value: "iso", label: "2025-01" },
+  { value: "mon_yyyy", labelKey: "templateEditor.date_formats.mon_yyyy" },
+  { value: "eu", labelKey: "templateEditor.date_formats.eu" },
+  { value: "year", labelKey: "templateEditor.date_formats.year" },
+  { value: "iso", labelKey: "templateEditor.date_formats.iso" },
 ];
 
 export const ACHIEVEMENT_KIND_OPTIONS = [
-  { value: "award", label: "Awards" },
-  { value: "honor", label: "Honors" },
-  { value: "publication", label: "Publications" },
-  { value: "extracurricular", label: "Extracurricular" },
+  { value: "award", labelKey: "templateEditor.achievement_kinds.award" },
+  { value: "honor", labelKey: "templateEditor.achievement_kinds.honor" },
+  { value: "publication", labelKey: "templateEditor.achievement_kinds.publication" },
+  { value: "extracurricular", labelKey: "templateEditor.achievement_kinds.extracurricular" },
 ];

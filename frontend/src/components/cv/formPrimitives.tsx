@@ -404,6 +404,7 @@ export function OptionalStepper({
   clearAria?: string;
   clearTitle?: string;
 }) {
+  const { t } = useTranslation();
   const clamp = (next: number) => Math.min(Math.max(next, min), max);
   const testPrefix = testIdPrefix ?? `stepper-${slug(label)}`;
   if (compact) {
@@ -497,8 +498,8 @@ export function OptionalStepper({
         type="button"
         onClick={() => onChange(null)}
         className="shrink-0 cursor-pointer rounded-md px-1 py-0.5 text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
-        aria-label={`Unset ${label.toLowerCase()}`}
-        title="Not set"
+        aria-label={clearAria ?? t("cvBuilder.unsetAria", { name: label.toLowerCase() })}
+        title={clearTitle ?? t("cvBuilder.notSet")}
         data-testid={`stepper-${slug(label)}-clear`}
       >
         <Plus className="h-3 w-3 rotate-45" aria-hidden />

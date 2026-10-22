@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Check, GitCompare, Pencil, Sparkles, X } from "lucide-react";
 import { Button, Card, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
@@ -14,12 +15,12 @@ import type { CvTemplateSummary } from "@/types/cvTemplate";
 
 type GalleryFilter = "all" | "sidebar" | "single" | "one-page" | "ats-safe";
 
-const FILTERS: { value: GalleryFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "sidebar", label: "Two-column" },
-  { value: "single", label: "Single" },
-  { value: "one-page", label: "One page" },
-  { value: "ats-safe", label: "ATS-safe" },
+const FILTERS: { value: GalleryFilter; labelKey: string }[] = [
+  { value: "all", labelKey: "cvStudio.gallery.filterAll" },
+  { value: "sidebar", labelKey: "cvStudio.gallery.filterTwoColumn" },
+  { value: "single", labelKey: "cvStudio.gallery.filterSingle" },
+  { value: "one-page", labelKey: "cvStudio.gallery.filterOnePage" },
+  { value: "ats-safe", labelKey: "cvStudio.gallery.filterAtsSafe" },
 ];
 
 export function galleryFilter(template: CvTemplateSummary, filter: GalleryFilter): boolean {
@@ -39,6 +40,7 @@ function OwnSnapshotPreviewFrame({
   template: CvTemplateSummary;
   cvId?: string | null;
 }) {
+  const { t } = useTranslation();
   const [html, setHtml] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<PreviewMetrics | null>(null);
   const [failed, setFailed] = useState(false);
@@ -68,13 +70,13 @@ function OwnSnapshotPreviewFrame({
     <div className="relative">
       {failed ? (
         <div className={`flex ${aspect} w-full items-center justify-center border-b bg-white text-xs text-[var(--as-muted-fg)]`}>
-          Preview unavailable
+          {t("cvStudio.gallery.previewUnavailable")}
         </div>
       ) : html === null ? (
         <div className={`${aspect} w-full cv-shimmer border-b bg-[var(--as-muted)]`} />
       ) : (
         <iframe
-          title={`Preview of ${template.title} with your data`}
+          title={t("cvStudio.gallery.previewTitleWithData", { title: template.title })}
           srcDoc={html}
           sandbox=""
           loading="lazy"
@@ -92,8 +94,10 @@ function OwnSnapshotPreviewFrame({
               : "bg-emerald-100 text-emerald-800"
           }`}
         >
-          ~{metrics.estimated_pages} page{metrics.estimated_pages === 1 ? "" : "s"}
-          {metrics.overflow ? " · over budget" : " · fits"}
+          {t("cvStudio.gallery.pageCount", { count: metrics.estimated_pages })}
+          {metrics.overflow
+            ? ` · ${t("cvStudio.gallery.overBudget")}`
+            : ` · ${t("cvStudio.gallery.fits")}`}
         </span>
       )}
     </div>
@@ -102,6 +106,7 @@ function OwnSnapshotPreviewFrame({
 
 export function TemplatePreviewFrame({ template }: { template: CvTemplateSummary }) {
   const [html, setHtml] = useState<string | null>(null);
+  const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   const aspect =
     template.page_size === "letter" ? "aspect-[216/279]" : "aspect-[210/297]";
@@ -125,7 +130,7 @@ export function TemplatePreviewFrame({ template }: { template: CvTemplateSummary
   if (failed) {
     return (
       <div className={`flex ${aspect} w-full items-center justify-center border-b bg-white text-xs text-[var(--as-muted-fg)]`}>
-        Preview unavailable
+        {t("cvStudio.gallery.previewUnavailable")}
       </div>
     );
   }
@@ -134,7 +139,7 @@ export function TemplatePreviewFrame({ template }: { template: CvTemplateSummary
   }
   return (
     <iframe
-      title={`Preview of ${template.title}`}
+      title={t("cvStudio.gallery.previewTitle", { title: template.title })}
       srcDoc={html}
       sandbox=""
       loading="lazy"
@@ -162,6 +167,7 @@ function TemplateCard({
   compareSelected: boolean;
   onToggleCompare: () => void;
 }) {
+  const { t } = useTranslation();
   const isBank = template.author_key === "bank";
   return (
     <Card
@@ -179,14 +185,22 @@ function TemplateCard({
             type="button"
             onClick={onUse}
             disabled={current}
-            aria-label={current ? `${template.title} (current template)` : `Use ${template.title}`}
-            title={current ? "Current template" : `Use ${template.title}`}
+            aria-label={
+              current
+                ? t("cvStudio.gallery.currentTitle", { title: template.title })
+                : t("cvStudio.gallery.useTitle", { title: template.title })
+            }
+            title={
+              current
+                ? t("cvStudio.gallery.currentTemplate")
+                : t("cvStudio.gallery.useTitle", { title: template.title })
+            }
             className="absolute inset-0 z-10 cursor-pointer"
             data-testid={`use-template-${template.id}`}
           />
           {current && (
             <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[var(--as-accent)] px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-              <Check className="h-3 w-3" aria-hidden /> Current
+              <Check className="h-3 w-3" aria-hidden /> {t("cvStudio.gallery.current")}
             </span>
           )}
           {!current && (
@@ -211,7 +225,7 @@ function TemplateCard({
                     : "bg-amber-100 text-amber-800"
                 }`}
               >
-                {template.ats_safe ? "ATS-safe" : "decorative"}
+                {template.ats_safe ? t("cvStudio.gallery.atsSafe") : t("cvStudio.gallery.decorative")}
               </span>
             </span>
           </div>
@@ -225,20 +239,20 @@ function TemplateCard({
               aria-pressed={compareSelected}
               data-testid={`compare-template-${template.id}`}
               onClick={onToggleCompare}
-              title="Add to template comparison"
+              title={t("cvStudio.gallery.addToCompare")}
             >
               <GitCompare className={`mr-1 h-3 w-3 ${compareSelected ? "" : "opacity-60"}`} aria-hidden />
-              {compareSelected ? "Selected" : "Compare"}
+              {compareSelected ? t("cvStudio.gallery.selected") : t("cvStudio.gallery.compare")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               data-testid={`edit-template-${template.id}`}
               onClick={onCustomize}
-              title={isBank ? "Customize a copy of this bank template" : "Customize this template"}
+              title={isBank ? t("cvStudio.gallery.customizeBank") : t("cvStudio.gallery.customize")}
             >
               <Pencil className="mr-1 h-3 w-3" aria-hidden />
-              Customize
+              {t("cvStudio.gallery.customize")}
             </Button>
           </div>
         </div>
@@ -318,6 +332,7 @@ export function TemplateGallery({
     });
   }
 
+  const { t } = useTranslation();
   const compared = templates.filter((template) => compareIds.includes(template.id));
   const visible = templates.filter((template) => galleryFilter(template, filter));
 
@@ -331,10 +346,10 @@ export function TemplateGallery({
         <ModalHeader>
           <div className="flex w-full items-center justify-between pr-6">
             <ModalTitle>
-              CV templates
+              {t("cvStudio.gallery.title")}
               {templates.length > 0 && (
                 <span className="ml-2 text-xs font-normal text-[var(--as-muted-fg)]">
-                  {templates.length} available
+                  {t("cvStudio.gallery.available", { count: templates.length })}
                 </span>
               )}
             </ModalTitle>
@@ -355,7 +370,7 @@ export function TemplateGallery({
                     : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:border-[var(--as-accent)] hover:text-[var(--as-fg)]"
                 }`}
               >
-                {item.label}
+                {t(item.labelKey)}
               </button>
             ))}
           </div>
@@ -364,8 +379,8 @@ export function TemplateGallery({
             <div className="flex items-center justify-between rounded-lg border border-[var(--as-border)] bg-[var(--as-muted)] p-2" data-testid="compare-tray">
               <p className="pl-1 text-xs text-[var(--as-muted-fg)]">
                 {compared.length === 2
-                  ? "Two templates selected"
-                  : "Pick one more template to compare"}
+                  ? t("cvStudio.gallery.twoSelected")
+                  : t("cvStudio.gallery.pickOneMore")}
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -375,12 +390,12 @@ export function TemplateGallery({
                   onClick={() => setCompareOpen(true)}
                 >
                   <GitCompare className="mr-1 h-3 w-3" aria-hidden />
-                  Compare preview
+                  {t("cvStudio.gallery.comparePreview")}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label="Clear template comparison"
+                  aria-label={t("cvStudio.gallery.clearCompare")}
                   data-testid="compare-clear"
                   onClick={() => setCompareIds([])}
                 >
@@ -394,7 +409,7 @@ export function TemplateGallery({
             <input
               value={draftBrief}
               onChange={(event) => setDraftBrief(event.target.value)}
-              placeholder="Describe a style: “serif, teal accent, roomy, two-page allowed”"
+              placeholder={t("cvStudio.gallery.briefPlaceholder")}
               className="flex-1 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm outline-none transition-colors focus:border-[var(--as-accent)]"
               data-testid="template-brief"
             />
@@ -404,7 +419,7 @@ export function TemplateGallery({
               disabled={drafting || !draftBrief.trim()}
             >
               <Sparkles className="mr-1 h-4 w-4" aria-hidden />
-              {drafting ? "Drafting…" : "Draft with AI"}
+              {drafting ? t("assessment.drafting") : t("cvStudio.gallery.draftWithAi")}
             </Button>
           </div>
 
@@ -428,7 +443,7 @@ export function TemplateGallery({
             </div>
           ) : visible.length === 0 ? (
             <p className="text-sm text-[var(--as-muted-fg)]">
-              No templates match this filter.
+              {t("cvStudio.gallery.noMatches")}
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="gallery-grid">
@@ -459,7 +474,7 @@ export function TemplateGallery({
           aria-describedby={undefined}
         >
           <ModalHeader>
-            <ModalTitle>Template comparison · your data</ModalTitle>
+            <ModalTitle>{t("cvStudio.gallery.compareTitle")}</ModalTitle>
           </ModalHeader>
           <div
             className="max-h-[82vh] overflow-y-auto p-4 pt-0"
@@ -480,7 +495,7 @@ export function TemplateGallery({
                       }}
                     >
                       <Check className="mr-1 h-3 w-3" aria-hidden />
-                      Use
+                      {t("cvStudio.gallery.use")}
                     </Button>
                   </div>
                   <OwnSnapshotPreviewFrame template={template} cvId={cvId} />

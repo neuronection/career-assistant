@@ -55,7 +55,7 @@ export const ConstraintsCard = forwardRef<
           values={draft.physical_conditions}
           options={CONDITION_OPTIONS.map((o) => ({
             value: o.value,
-            label: t(o.labelKey, { defaultValue: o.label }),
+            label: t(o.labelKey),
           }))}
           onChange={(values) => patch({ physical_conditions: values })}
         />
@@ -129,10 +129,10 @@ export const ConstraintsCard = forwardRef<
               })
             }
             options={[
-              { value: "", label: "No preference recorded" },
-              { value: "none", label: "No shifts or on-call" },
-              { value: "occasional", label: "Occasional shifts are fine" },
-              { value: "regular", label: "Regular shifts are fine" },
+              { value: "", label: t("profileSection.noPreference") },
+              { value: "none", label: t("profileSection.noShifts") },
+              { value: "occasional", label: t("profileSection.occasionalShifts") },
+              { value: "regular", label: t("profileSection.regularShifts") },
             ]}
             testId="shift-tolerance-select"
           />

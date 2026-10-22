@@ -516,7 +516,7 @@ export function EducationEditor({
             { value: "", label: t("education.gradeUnspecified") },
             ...GPA_BAND_OPTIONS.filter((o) => o.value !== "unknown").map((o) => ({
               value: o.value,
-              label: t(`education.grade.${o.value}`, { defaultValue: o.label }),
+              label: t(`education.grade.${o.value}`),
             })),
           ]}
           testId="education-grade-band"
@@ -663,7 +663,7 @@ export function CertificationEditor({
         value={form.link}
         onChange={(v) => patch({ link: v })}
         maxLength={500}
-        placeholder="https://…"
+        placeholder={t("education.urlPlaceholder")}
         testId="certification-link"
       />
     </EditorFrame>
@@ -758,7 +758,7 @@ export function AchievementEditor({
         value={form.link}
         onChange={(v) => patch({ link: v })}
         maxLength={500}
-        placeholder="https://…"
+        placeholder={t("education.urlPlaceholder")}
         testId="achievement-link"
       />
       <TextareaField
@@ -881,7 +881,7 @@ function AddUniversityModal({
             value={website}
             onChange={setWebsite}
             maxLength={300}
-            placeholder="https://…"
+            placeholder={t("education.urlPlaceholder")}
             testId="university-website"
           />
           {error && (

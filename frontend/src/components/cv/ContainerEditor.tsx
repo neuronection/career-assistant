@@ -2,12 +2,12 @@ import { useTranslation } from "react-i18next";
 import { ColorField, SelectField, StepperRow } from "@/components/cv/formPrimitives";
 
 const CONTAINER_STYLES = [
-  { value: "inherit", label: "Inherit" },
-  { value: "flat", label: "Flat" },
-  { value: "tinted", label: "Tinted" },
-  { value: "card", label: "Card" },
-  { value: "outline", label: "Outline" },
-  { value: "accent-bar", label: "Accent bar" },
+  { value: "inherit", labelKey: "templateEditor.container_styles.inherit" },
+  { value: "flat", labelKey: "templateEditor.container_styles.flat" },
+  { value: "tinted", labelKey: "templateEditor.container_styles.tinted" },
+  { value: "card", labelKey: "templateEditor.container_styles.card" },
+  { value: "outline", labelKey: "templateEditor.container_styles.outline" },
+  { value: "accent-bar", labelKey: "templateEditor.container_styles.accent-bar" },
 ];
 
 export function containerActive(box: Record<string, unknown> | undefined): boolean {
@@ -28,13 +28,17 @@ export function ContainerEditor({
   testId?: string;
 }) {
   const { t } = useTranslation();
+  const containerOptions = CONTAINER_STYLES.map((option) => ({
+    value: option.value,
+    label: t(option.labelKey),
+  }));
   return (
     <div className="space-y-2" data-testid={testId}>
       <SelectField
         label={t("templateEditor.container")}
         value={String(box.container ?? "inherit")}
         onChange={(value) => onChange({ container: { ...box, container: value } })}
-        options={CONTAINER_STYLES}
+        options={containerOptions}
       />
       {containerActive(box) && (
         <div className="grid grid-cols-2 gap-2">

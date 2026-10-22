@@ -46,7 +46,7 @@ import type {
 const DEVICE_ID = "web";
 
 const WEBHOOK_TEMPLATES = [
-  { value: "generic", label: "Generic JSON" },
+  { value: "generic", labelKey: "notifications.webhook.generic" },
   { value: "slack", label: "Slack" },
   { value: "teams", label: "Microsoft Teams" },
   { value: "telegram", label: "Telegram" },
@@ -586,7 +586,7 @@ export function Notifications() {
               <Input
                 value={webhookUrl}
                 data-testid="webhook-url"
-                placeholder="https://hooks.example/…"
+                placeholder={t("notifications.webhook.urlPlaceholder")}
                 onChange={(event) => setWebhookUrl(event.target.value)}
                 className="mt-1 w-full"
               />
@@ -597,7 +597,7 @@ export function Notifications() {
               onChange={setWebhookTemplate}
               options={WEBHOOK_TEMPLATES.map((preset) => ({
                 value: preset.value,
-                label: preset.label,
+                label: preset.labelKey ? t(preset.labelKey) : (preset.label as string),
               }))}
               testId="webhook-template"
             />

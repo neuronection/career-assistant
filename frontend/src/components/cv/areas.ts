@@ -5,20 +5,23 @@ export type { CvAreaId };
 
 export interface CvArea {
   id: CvAreaId;
-  label: string;
+  labelKey: string;
 }
 
 export function areasForDesign(design: Partial<CvDesignTokens> | null | undefined): CvArea[] {
-  if (!design || design.layout !== "sidebar") return [{ id: "main", label: "Main" }];
-  const sidebarLabel = design.sidebar_side === "right" ? "Right panel" : "Left panel";
+  if (!design || design.layout !== "sidebar") return [{ id: "main", labelKey: "templateEditor.area.main" }];
+  const sidebarLabelKey =
+    design.sidebar_side === "right"
+      ? "templateEditor.area.rightPanel"
+      : "templateEditor.area.leftPanel";
   return design.sidebar_side === "right"
     ? [
-        { id: "main", label: "Main" },
-        { id: "sidebar", label: sidebarLabel },
+        { id: "main", labelKey: "templateEditor.area.main" },
+        { id: "sidebar", labelKey: sidebarLabelKey },
       ]
     : [
-        { id: "sidebar", label: sidebarLabel },
-        { id: "main", label: "Main" },
+        { id: "sidebar", labelKey: sidebarLabelKey },
+        { id: "main", labelKey: "templateEditor.area.main" },
       ];
 }
 

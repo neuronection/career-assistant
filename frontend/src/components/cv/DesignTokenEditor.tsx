@@ -8,69 +8,78 @@ import {
   ToggleRow,
 } from "@/components/cv/formPrimitives";
 
-const FONTS = [
-  { value: "sans", label: "Sans" },
-  { value: "serif", label: "Serif" },
-  { value: "mixed", label: "Mixed" },
-  { value: "geometric", label: "Geometric" },
-  { value: "embedded-sans", label: "Embedded Sans" },
-  { value: "embedded-serif", label: "Embedded Serif" },
+type TokenOption = { value: string; labelKey: string };
+
+const FONTS: TokenOption[] = [
+  { value: "sans", labelKey: "templateEditor.fonts.sans" },
+  { value: "serif", labelKey: "templateEditor.fonts.serif" },
+  { value: "mixed", labelKey: "templateEditor.fonts.mixed" },
+  { value: "geometric", labelKey: "templateEditor.fonts.geometric" },
+  { value: "embedded-sans", labelKey: "templateEditor.fonts.embedded-sans" },
+  { value: "embedded-serif", labelKey: "templateEditor.fonts.embedded-serif" },
 ];
-const HEADER_STYLES = [
-  { value: "left", label: "Left" },
-  { value: "centered", label: "Centered" },
-  { value: "banner", label: "Banner" },
-  { value: "band", label: "Accent band" },
+const HEADER_STYLES: TokenOption[] = [
+  { value: "left", labelKey: "templateEditor.header_styles.left" },
+  { value: "centered", labelKey: "templateEditor.header_styles.centered" },
+  { value: "banner", labelKey: "templateEditor.header_styles.banner" },
+  { value: "band", labelKey: "templateEditor.header_styles.band" },
 ];
-const DENSITIES = [
-  { value: "compact", label: "Compact" },
-  { value: "normal", label: "Normal" },
-  { value: "roomy", label: "Roomy" },
+const DENSITIES: TokenOption[] = [
+  { value: "compact", labelKey: "templateEditor.densities.compact" },
+  { value: "normal", labelKey: "templateEditor.densities.normal" },
+  { value: "roomy", labelKey: "templateEditor.densities.roomy" },
 ];
-const SECTION_STYLES = [
-  { value: "flat", label: "Flat" },
-  { value: "card", label: "Card" },
+const SECTION_STYLES: TokenOption[] = [
+  { value: "flat", labelKey: "templateEditor.section_styles.flat" },
+  { value: "card", labelKey: "templateEditor.section_styles.card" },
 ];
-const ELEVATIONS = [
-  { value: "none", label: "None" },
-  { value: "soft", label: "Soft" },
-  { value: "raised", label: "Raised" },
+const ELEVATIONS: TokenOption[] = [
+  { value: "none", labelKey: "templateEditor.elevations.none" },
+  { value: "soft", labelKey: "templateEditor.elevations.soft" },
+  { value: "raised", labelKey: "templateEditor.elevations.raised" },
 ];
-const HEADING_CASES = [
-  { value: "uppercase", label: "UPPERCASE" },
-  { value: "title", label: "Title" },
-  { value: "none", label: "Normal" },
+const HEADING_CASES: TokenOption[] = [
+  { value: "uppercase", labelKey: "templateEditor.heading_cases.uppercase" },
+  { value: "title", labelKey: "templateEditor.heading_cases.title" },
+  { value: "none", labelKey: "templateEditor.heading_cases.none" },
 ];
-const HEADING_RULES = [
-  { value: "line", label: "Line" },
-  { value: "accent", label: "Accent line" },
-  { value: "none", label: "None" },
+const HEADING_RULES: TokenOption[] = [
+  { value: "line", labelKey: "templateEditor.heading_rules.line" },
+  { value: "accent", labelKey: "templateEditor.heading_rules.accent" },
+  { value: "none", labelKey: "templateEditor.heading_rules.none" },
 ];
-const LAYOUTS = [
-  { value: "single", label: "Single column" },
-  { value: "sidebar", label: "Two-column sidebar" },
+const LAYOUTS: TokenOption[] = [
+  { value: "single", labelKey: "templateEditor.layouts.single" },
+  { value: "sidebar", labelKey: "templateEditor.layouts.sidebar" },
 ];
-const SIDEBAR_SIDES = [
-  { value: "left", label: "Left" },
-  { value: "right", label: "Right" },
+const SIDEBAR_SIDES: TokenOption[] = [
+  { value: "left", labelKey: "templateEditor.sidebar_sides.left" },
+  { value: "right", labelKey: "templateEditor.sidebar_sides.right" },
 ];
 
-const RUNNING_FOOTERS = [
-  { value: "none", label: "None" },
-  { value: "name", label: "Name (from page 2)" },
-  { value: "numbers", label: "Page numbers (from page 2)" },
+const RUNNING_FOOTERS: TokenOption[] = [
+  { value: "none", labelKey: "templateEditor.running_footers.none" },
+  { value: "name", labelKey: "templateEditor.running_footers.name" },
+  { value: "numbers", labelKey: "templateEditor.running_footers.numbers" },
 ];
 
-const CHIP_STYLES = [
-  { value: "tint", label: "Tint" },
-  { value: "outline", label: "Outline" },
-  { value: "solid", label: "Solid" },
-  { value: "plain", label: "Plain" },
+const CHIP_STYLES: TokenOption[] = [
+  { value: "tint", labelKey: "templateEditor.chip_styles.tint" },
+  { value: "outline", labelKey: "templateEditor.chip_styles.outline" },
+  { value: "solid", labelKey: "templateEditor.chip_styles.solid" },
+  { value: "plain", labelKey: "templateEditor.chip_styles.plain" },
 ];
 
-const NAME_STYLES = [
-  { value: "plain", label: "Plain" },
-  { value: "accent_surname", label: "Accent surname" },
+const NAME_STYLES: TokenOption[] = [
+  { value: "plain", labelKey: "templateEditor.name_styles.plain" },
+  { value: "accent_surname", labelKey: "templateEditor.name_styles.accent_surname" },
+];
+
+const PHOTO_SHAPES: TokenOption[] = [
+  { value: "circle", labelKey: "templateEditor.photo_shapes.circle" },
+  { value: "rounded", labelKey: "templateEditor.photo_shapes.rounded" },
+  { value: "square", labelKey: "templateEditor.photo_shapes.square" },
+  { value: "arch", labelKey: "templateEditor.photo_shapes.arch" },
 ];
 
 function Group({
@@ -102,6 +111,8 @@ export function DesignTokenEditor({
   showLayout?: boolean;
 }) {
   const { t } = useTranslation();
+  const localize = (options: TokenOption[]) =>
+    options.map((option) => ({ value: option.value, label: t(option.labelKey) }));
   return (
     <div className="space-y-3" data-testid="design-token-editor">
       <Group title={t("templateEditor.color.group", { defaultValue: "Colors" })} testId="token-colors">
@@ -114,7 +125,7 @@ export function DesignTokenEditor({
       </Group>
 
       <Group title={t("templateEditor.typography", { defaultValue: "Typography" })} testId="token-typography">
-        <SelectField label={t("templateEditor.fontLabel")} value={design.font_stack} onChange={(font_stack) => onChange({ font_stack: font_stack as CvDesignTokens["font_stack"] })} options={FONTS} />
+        <SelectField label={t("templateEditor.fontLabel")} value={design.font_stack} onChange={(font_stack) => onChange({ font_stack: font_stack as CvDesignTokens["font_stack"] })} options={localize(FONTS)} />
         <RangeField label={t("templateEditor.baseSize")} value={design.base_size_pt} min={7} max={14} onChange={(base_size_pt) => onChange({ base_size_pt })} suffix="pt" />
         <RangeField
           label={t("templateEditor.lineHeight", { defaultValue: "Line height" })}
@@ -135,22 +146,22 @@ export function DesignTokenEditor({
       </Group>
 
       <Group title={t("templateEditor.headings", { defaultValue: "Headings" })} testId="token-headings">
-        <SelectField label={t("templateEditor.headerStyleLabel")} value={design.header_style} onChange={(header_style) => onChange({ header_style: header_style as CvDesignTokens["header_style"] })} options={HEADER_STYLES} />
-        <SelectField label={t("templateEditor.nameStyle")} value={design.name_style} onChange={(name_style) => onChange({ name_style: name_style as CvDesignTokens["name_style"] })} options={NAME_STYLES} testId="name-style-select" />
+        <SelectField label={t("templateEditor.headerStyleLabel")} value={design.header_style} onChange={(header_style) => onChange({ header_style: header_style as CvDesignTokens["header_style"] })} options={localize(HEADER_STYLES)} />
+        <SelectField label={t("templateEditor.nameStyle")} value={design.name_style} onChange={(name_style) => onChange({ name_style: name_style as CvDesignTokens["name_style"] })} options={localize(NAME_STYLES)} testId="name-style-select" />
         <ToggleRow
           label={t("templateEditor.headingIcons", { defaultValue: "Heading icons" })}
           checked={design.show_heading_icons}
           onChange={(show_heading_icons) => onChange({ show_heading_icons })}
         />
-        <SelectField label={t("templateEditor.headingCaseLabel")} value={design.heading_case} onChange={(heading_case) => onChange({ heading_case: heading_case as CvDesignTokens["heading_case"] })} options={HEADING_CASES} />
+        <SelectField label={t("templateEditor.headingCaseLabel")} value={design.heading_case} onChange={(heading_case) => onChange({ heading_case: heading_case as CvDesignTokens["heading_case"] })} options={localize(HEADING_CASES)} />
         <RangeField label={t("templateEditor.headingWeight")} value={design.heading_weight} min={400} max={800} step={100} onChange={(heading_weight) => onChange({ heading_weight })} />
-        <SelectField label={t("templateEditor.headingRuleLabel")} value={design.heading_rule} onChange={(heading_rule) => onChange({ heading_rule: heading_rule as CvDesignTokens["heading_rule"] })} options={HEADING_RULES} />
+        <SelectField label={t("templateEditor.headingRuleLabel")} value={design.heading_rule} onChange={(heading_rule) => onChange({ heading_rule: heading_rule as CvDesignTokens["heading_rule"] })} options={localize(HEADING_RULES)} />
       </Group>
 
       <Group title={t("templateEditor.sections", { defaultValue: "Sections" })} testId="token-sections">
-        <SelectField label={t("templateEditor.sectionStyleLabel")} value={design.section_style} onChange={(section_style) => onChange({ section_style: section_style as CvDesignTokens["section_style"] })} options={SECTION_STYLES} />
+        <SelectField label={t("templateEditor.sectionStyleLabel")} value={design.section_style} onChange={(section_style) => onChange({ section_style: section_style as CvDesignTokens["section_style"] })} options={localize(SECTION_STYLES)} />
         {design.section_style === "card" && (
-          <SelectField label={t("templateEditor.elevationLabel", { defaultValue: "Elevation" })} value={design.elevation ?? "none"} onChange={(elevation) => onChange({ elevation: elevation as CvDesignTokens["elevation"] })} options={ELEVATIONS} testId="elevation-select" />
+          <SelectField label={t("templateEditor.elevationLabel", { defaultValue: "Elevation" })} value={design.elevation ?? "none"} onChange={(elevation) => onChange({ elevation: elevation as CvDesignTokens["elevation"] })} options={localize(ELEVATIONS)} testId="elevation-select" />
         )}
         <RangeField label={t("templateEditor.cornerRadius")} value={design.corner_radius} min={0} max={6} onChange={(corner_radius) => onChange({ corner_radius })} suffix="mm" />
         <GapsField label={t("templateEditor.sectionGap")} value={design.section_gap_mm} options={[2, 4, 6, 8, 10, 12]} onChange={(section_gap_mm) => onChange({ section_gap_mm })} />
@@ -159,7 +170,7 @@ export function DesignTokenEditor({
           label={t("templateEditor.chipStyle", { defaultValue: "Chip style" })}
           value={design.chip_style ?? "tint"}
           onChange={(chip_style) => onChange({ chip_style: chip_style as CvDesignTokens["chip_style"] })}
-          options={CHIP_STYLES}
+          options={localize(CHIP_STYLES)}
           testId="chip-style-select"
         />
         {(!design.chip_style || design.chip_style === "tint") && (
@@ -182,7 +193,7 @@ export function DesignTokenEditor({
           }
           options={[
             { value: "auto", label: t("templateEditor.auto") },
-            { value: "custom", label: "Custom" },
+            { value: "custom", label: t("templateEditor.custom") },
           ]}
           testId="chip-text-select"
         />
@@ -196,23 +207,23 @@ export function DesignTokenEditor({
       </Group>
 
       <Group title={t("templateEditor.page", { defaultValue: "Page" })} testId="token-page">
-        <SelectField label={t("templateEditor.densityLabel")} value={design.density} onChange={(density) => onChange({ density: density as CvDesignTokens["density"] })} options={DENSITIES} />
+        <SelectField label={t("templateEditor.densityLabel")} value={design.density} onChange={(density) => onChange({ density: density as CvDesignTokens["density"] })} options={localize(DENSITIES)} />
         <GapsField label={t("templateEditor.pageMargin")} value={design.margin_mm} options={[0, 5, 8, 12, 16, 20, 25]} onChange={(margin_mm) => onChange({ margin_mm })} />
         <SelectField
           label={t("templateEditor.runningFooter", { defaultValue: "Running footer" })}
           value={design.running_footer ?? "none"}
           onChange={(running_footer) => onChange({ running_footer: running_footer as CvDesignTokens["running_footer"] })}
-          options={RUNNING_FOOTERS}
+          options={localize(RUNNING_FOOTERS)}
           testId="running-footer-select"
         />
       </Group>
 
       {showLayout && (
         <Group title={t("templateEditor.layoutLabel", { defaultValue: "Layout" })} testId="token-layout">
-          <SelectField label={t("templateEditor.layoutLabel")} value={design.layout} onChange={(layout) => onChange({ layout: layout as CvDesignTokens["layout"] })} options={LAYOUTS} testId="layout-select" />
+          <SelectField label={t("templateEditor.layoutLabel")} value={design.layout} onChange={(layout) => onChange({ layout: layout as CvDesignTokens["layout"] })} options={localize(LAYOUTS)} testId="layout-select" />
           {design.layout === "sidebar" && (
             <div className="space-y-2" data-testid="sidebar-controls">
-              <SelectField label={t("templateEditor.sidebarSide")} value={design.sidebar_side} onChange={(sidebar_side) => onChange({ sidebar_side: sidebar_side as CvDesignTokens["sidebar_side"] })} options={SIDEBAR_SIDES} />
+              <SelectField label={t("templateEditor.sidebarSide")} value={design.sidebar_side} onChange={(sidebar_side) => onChange({ sidebar_side: sidebar_side as CvDesignTokens["sidebar_side"] })} options={localize(SIDEBAR_SIDES)} />
               <ColorField label={t("templateEditor.color.sidebar")} value={design.sidebar_color} onChange={(sidebar_color) => onChange({ sidebar_color })} />
               <ColorField label={t("templateEditor.color.sidebarText")} value={design.sidebar_text_color} onChange={(sidebar_text_color) => onChange({ sidebar_text_color })} />
               <RangeField label={t("templateEditor.sidebarWidth")} value={design.sidebar_width_pct} min={25} max={45} onChange={(sidebar_width_pct) => onChange({ sidebar_width_pct })} suffix="%" />
@@ -238,12 +249,7 @@ export function DesignTokenEditor({
                 label={t("templateEditor.shape")}
                 value={design.photo_shape}
                 onChange={(photo_shape) => onChange({ photo_shape: photo_shape as CvDesignTokens["photo_shape"] })}
-                options={[
-                  { value: "circle", label: "Circle" },
-                  { value: "rounded", label: "Rounded" },
-                  { value: "square", label: "Square" },
-                  { value: "arch", label: "Arch" },
-                ]}
+                options={localize(PHOTO_SHAPES)}
               />
               <RangeField label={t("templateEditor.size")} value={design.photo_size_mm} min={10} max={40} onChange={(photo_size_mm) => onChange({ photo_size_mm })} suffix="mm" />
             </>

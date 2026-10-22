@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui";
 import { FormRow, TextField, ToggleRow } from "@/components/cv/formPrimitives";
 import { CvRichTextEditor } from "@/components/cv/CvRichTextEditor";
@@ -31,6 +32,7 @@ export function LetterSectionsEditor({
   props: LetterProps;
   onChange: (patch: Record<string, unknown>) => void;
 }) {
+  const { t } = useTranslation();
   const paragraphs = letter.paragraphs ?? [];
 
   const setParagraph = (index: number, text: string) =>
@@ -52,36 +54,36 @@ export function LetterSectionsEditor({
   return (
     <div className="space-y-3" data-testid="letter-editor">
       <TextField
-        label="Recipient name"
+        label={t("cvBuilder.letter.recipientName")}
         value={letter.recipient_name ?? ""}
         onChange={(value) => onChange({ recipient_name: value })}
         maxLength={120}
         testId="letter-recipient-name"
       />
       <TextField
-        label="Recipient organisation"
+        label={t("cvBuilder.letter.recipientOrg")}
         value={letter.recipient_org ?? ""}
         onChange={(value) => onChange({ recipient_org: value })}
         maxLength={120}
         testId="letter-recipient-org"
       />
       <TextField
-        label="Date line"
+        label={t("cvBuilder.letter.dateLine")}
         value={letter.date_label ?? ""}
         onChange={(value) => onChange({ date_label: value })}
         maxLength={40}
-        placeholder="e.g. September 2026"
+        placeholder={t("cvBuilder.letter.datePlaceholder")}
         testId="letter-date"
       />
       <TextField
-        label="Subject"
+        label={t("cvBuilder.letter.subject")}
         value={letter.subject ?? ""}
         onChange={(value) => onChange({ subject: value })}
         maxLength={200}
         testId="letter-subject"
       />
       <TextField
-        label="Salutation"
+        label={t("cvBuilder.letter.salutation")}
         value={letter.salutation ?? ""}
         onChange={(value) => onChange({ salutation: value })}
         maxLength={80}
@@ -101,7 +103,7 @@ export function LetterSectionsEditor({
               <Button
                 variant="ghost"
                 size="sm"
-                aria-label={`Move paragraph ${index + 1} up`}
+                aria-label={t("cvBuilder.letter.moveUpAria", { n: index + 1 })}
                 disabled={index === 0}
                 onClick={() => moveParagraph(index, -1)}
                 data-testid={`letter-para-up-${index}`}
@@ -111,7 +113,7 @@ export function LetterSectionsEditor({
               <Button
                 variant="ghost"
                 size="sm"
-                aria-label={`Move paragraph ${index + 1} down`}
+                aria-label={t("cvBuilder.letter.moveDownAria", { n: index + 1 })}
                 disabled={index === paragraphs.length - 1}
                 onClick={() => moveParagraph(index, 1)}
                 data-testid={`letter-para-down-${index}`}
@@ -121,7 +123,7 @@ export function LetterSectionsEditor({
               <Button
                 variant="ghost"
                 size="sm"
-                aria-label={`Remove paragraph ${index + 1}`}
+                aria-label={t("cvBuilder.letter.removeAria", { n: index + 1 })}
                 onClick={() => removeParagraph(index)}
                 data-testid={`letter-para-remove-${index}`}
               >
@@ -137,19 +139,19 @@ export function LetterSectionsEditor({
           onClick={() => onChange({ paragraphs: [...paragraphs, ""] })}
           data-testid="add-paragraph"
         >
-          <Plus className="mr-1 h-3.5 w-3.5" /> Add paragraph
+          <Plus className="mr-1 h-3.5 w-3.5" /> {t("cvBuilder.letter.addParagraph")}
         </Button>
       </div>
 
       <TextField
-        label="Closing"
+        label={t("cvBuilder.letter.closing")}
         value={letter.closing ?? ""}
         onChange={(value) => onChange({ closing: value })}
         maxLength={80}
         testId="letter-closing"
       />
       <ToggleRow
-        label="Sign with my name"
+        label={t("cvBuilder.letter.signWithName")}
         checked={letter.show_signature !== false}
         onChange={(checked) => onChange({ show_signature: checked })}
       />

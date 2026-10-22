@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal, ModalContent } from "@/components/ui";
 
 export interface CommandItem {
@@ -20,6 +21,7 @@ interface CommandPaletteProps {
  * family library when a second app needs one.
  */
 export function CommandPalette({ open, onClose, commands }: CommandPaletteProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +64,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
             ref={inputRef}
             autoFocus
             value={query}
-            placeholder="Type a command…"
+            placeholder={t("cvBuilder.commandPalette.placeholder")}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") {
@@ -87,7 +89,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
           />
           <ul className="max-h-80 overflow-y-auto p-1">
             {filtered.length === 0 && (
-              <li className="p-3 text-sm text-[var(--as-muted-fg)]">No matching command</li>
+              <li className="p-3 text-sm text-[var(--as-muted-fg)]">{t("cvBuilder.commandPalette.noMatch")}</li>
             )}
             {filtered.map((command, index) => (
               <li key={command.id}>

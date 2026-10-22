@@ -97,7 +97,7 @@ export function Universities() {
               >
                 <p className="font-medium">{u.name}</p>
                 <p className="text-sm text-slate-500">{[u.city, u.country].filter(Boolean).join(", ")}</p>
-                <p className="text-xs text-slate-400 mt-1">{u.department_count} departments</p>
+                <p className="text-xs text-slate-400 mt-1">{t("universities.departmentCount", { count: u.department_count })}</p>
               </Link>
             ))}
           </div>
@@ -105,8 +105,8 @@ export function Universities() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-semibold">Your documents</h2>
-        {documents.length === 0 && <p className="text-sm text-slate-400">No documents uploaded yet.</p>}
+        <h2 className="font-semibold">{t("universities.yourDocuments")}</h2>
+        {documents.length === 0 && <p className="text-sm text-slate-400">{t("universities.noDocuments")}</p>}
         {documents.map((doc) => (
           <DocumentRow key={doc.id} doc={doc} onApply={() => void apply(doc.id)} />
         ))}
@@ -116,6 +116,7 @@ export function Universities() {
 }
 
 function DocumentRow({ doc, onApply }: { doc: DocumentRecord; onApply: () => void }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const uniCount = doc.extraction?.universities?.length ?? 0;
 
@@ -126,18 +127,21 @@ function DocumentRow({ doc, onApply }: { doc: DocumentRecord; onApply: () => voi
         <div className="flex-1">
           <p className="font-medium text-sm">{doc.filename}</p>
           <p className="text-xs text-slate-400">
-            {doc.page_count} pages · {(doc.size_bytes / 1024).toFixed(0)} KB
+            {t("universities.pdfMeta", {
+              pages: doc.page_count,
+              kb: (doc.size_bytes / 1024).toFixed(0),
+            })}
           </p>
         </div>
         <StatusBadge status={doc.status} />
         {doc.status === "parsed" && (
           <button onClick={onApply} className="text-sm bg-emerald-600 text-white rounded-lg px-3 py-1.5">
-            Apply to catalog
+            {t("universities.applyToCatalog")}
           </button>
         )}
         {uniCount > 0 && (
           <button onClick={() => setExpanded(!expanded)} className="text-sm text-primary-700">
-            {expanded ? "Hide" : "Review"} extraction
+            {expanded ? t("universities.hideExtraction") : t("universities.reviewExtraction")}
           </button>
         )}
       </div>

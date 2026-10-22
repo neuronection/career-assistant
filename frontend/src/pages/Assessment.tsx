@@ -181,12 +181,12 @@ export function Assessment() {
   const [assistText, setAssistText] = useState<Record<string, string>>({});
 
   if (error && !state && !results) return <p className="text-rose-600">{error}</p>;
-  if (busy && !state && !results) return <p className="text-slate-400">Loading…</p>;
+  if (busy && !state && !results) return <p className="text-slate-400">{t("common.loading")}</p>;
 
   if (results) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto" data-testid="assessment-results">
-        <h1 className="text-2xl font-bold text-slate-900">Your results</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t("assessment.resultsTitle")}</h1>
         {effects && (effects.skill_conflicts as unknown[])?.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
             <p className="font-medium text-amber-800 mb-1">{t("assessment.conflictsTitle")}</p>
@@ -201,9 +201,9 @@ export function Assessment() {
           </div>
         )}
         <section className="bg-white border border-slate-200 rounded-xl p-4">
-          <h2 className="font-medium mb-2">Skills the scenarios revealed</h2>
+          <h2 className="font-medium mb-2">{t("assessment.skillsTitle")}</h2>
           {results.skill_levels.length === 0 ? (
-            <p className="text-sm text-slate-400">No skill signal from this run.</p>
+            <p className="text-sm text-slate-400">{t("assessment.noSkillSignal")}</p>
           ) : (
             <ul className="space-y-1 text-sm">
               {results.skill_levels.map((s) => (
@@ -219,7 +219,7 @@ export function Assessment() {
           )}
         </section>
         <section className="bg-white border border-slate-200 rounded-xl p-4">
-          <h2 className="font-medium mb-2">Interests touched</h2>
+          <h2 className="font-medium mb-2">{t("assessment.interestsTitle")}</h2>
           <div className="flex flex-wrap gap-1">
             {results.interest_keys.map((k) => (
               <span key={k} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{k}</span>
@@ -227,7 +227,7 @@ export function Assessment() {
           </div>
         </section>
         <section className="bg-white border border-slate-200 rounded-xl p-4">
-          <h2 className="font-medium mb-2">Your shortlist (refreshed fit)</h2>
+          <h2 className="font-medium mb-2">{t("assessment.shortlistTitle")}</h2>
           <ol className="text-sm space-y-1">
             {results.shortlist.slice(0, 5).map((s, i) => (
               <li key={s.job_id} className="flex items-center gap-2">
@@ -243,7 +243,7 @@ export function Assessment() {
           disabled={busy}
           className="text-sm bg-primary-600 text-white rounded-lg px-4 py-2 disabled:opacity-50"
         >
-          Re-run with focus (phases 2–4)
+          {t("assessment.rerunFocus")}
         </button>
       </div>
     );
@@ -263,7 +263,7 @@ export function Assessment() {
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-            <Library className="w-4 h-4" /> Test library
+            <Library className="w-4 h-4" /> {t("assessment.testLibrary")}
           </h2>
           <div className="flex items-center gap-2">
             {templateNote && (
@@ -288,7 +288,7 @@ export function Assessment() {
               className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
               data-testid="import-template"
             >
-              <FileUp className="w-3.5 h-3.5" /> Import
+              <FileUp className="w-3.5 h-3.5" /> {t("assessment.import")}
             </button>
             <button
               type="button"
@@ -296,14 +296,14 @@ export function Assessment() {
               className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
               data-testid="draft-template-ai"
             >
-              <Sparkles className="w-3.5 h-3.5" /> Draft with AI
+              <Sparkles className="w-3.5 h-3.5" /> {t("assessment.draftWithAi")}
             </button>
           </div>
         </div>
         {draftOpen && (
           <div className="mt-3 space-y-2 rounded-lg border border-slate-200 p-3" data-testid="draft-template-form">
             <label className="block text-xs font-medium text-slate-700" htmlFor="draft-brief">
-              What should the assessment measure?
+              {t("assessment.draftPrompt")}
             </label>
             <textarea
               id="draft-brief"
@@ -311,7 +311,7 @@ export function Assessment() {
               rows={3}
               value={draftBrief}
               onChange={(e) => setDraftBrief(e.target.value)}
-              placeholder="e.g. A 12-question growth mindset scale for first-year students"
+              placeholder={t("assessment.draftPlaceholder")}
               data-testid="draft-brief-input"
             />
             <div className="flex justify-end gap-2">
@@ -320,7 +320,7 @@ export function Assessment() {
                 onClick={() => setDraftOpen(false)}
                 className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -329,7 +329,7 @@ export function Assessment() {
                 className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs text-white disabled:opacity-50"
                 data-testid="draft-template-submit"
               >
-                {draftBusy ? "Drafting…" : "Draft template"}
+                {draftBusy ? t("assessment.drafting") : t("assessment.draftTemplate")}
               </button>
             </div>
           </div>
@@ -337,31 +337,31 @@ export function Assessment() {
         <div className="mt-3 flex flex-wrap gap-2">
           {templates.length === 0 && (
             <p className="text-xs text-slate-400">
-              No templates yet — bank templates and imports appear here.
+              {t("assessment.noTemplates")}
             </p>
           )}
-          {templates.map((t) => (
+          {templates.map((template) => (
             <div
-              key={t.id}
+              key={template.id}
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5"
               data-testid="template-chip"
             >
               <button
                 type="button"
-                onClick={() => void startTemplate(t)}
+                onClick={() => void startTemplate(template)}
                 className="text-xs text-slate-800 hover:text-primary-700"
-                title={t.description || t.title}
+                title={template.description || template.title}
               >
-                {t.title}
+                {template.title}
                 <span className="ml-1 text-slate-400">
-                  v{t.version}
-                  {t.is_bank ? " · bank" : ""}
+                  v{template.version}
+                  {template.is_bank ? ` · ${t("assessment.bankTag")}` : ""}
                 </span>
               </button>
               <button
                 type="button"
-                aria-label={`Export ${t.title}`}
-                onClick={() => void exportTemplate(t.id)}
+                aria-label={t("assessment.exportTemplate", { title: template.title })}
+                onClick={() => void exportTemplate(template.id)}
                 className="text-slate-300 hover:text-slate-600"
               >
                 <FileDown className="w-3.5 h-3.5" />
@@ -372,7 +372,9 @@ export function Assessment() {
       </section>
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900 capitalize">{state.kind} assessment</h1>
+        <h1 className="text-2xl font-bold text-slate-900 capitalize">
+          {t("assessment.kindTitle", { kind: state.kind })}
+        </h1>
         <button
           onClick={async () => {
             if (!state) return;
@@ -382,7 +384,7 @@ export function Assessment() {
           }}
           className="text-sm text-slate-400 hover:text-rose-600"
         >
-          cancel run
+          {t("assessment.cancelRun")}
         </button>
       </div>
 
@@ -398,7 +400,7 @@ export function Assessment() {
                 current ? "border-primary-500 bg-primary-50" : "border-slate-200 bg-white"
               }`}
             >
-              <span className="font-medium">Phase {phase}</span>
+              <span className="font-medium">{t("assessment.phaseLabel", { number: phase })}</span>
               <span className="block text-slate-400 truncate">{p.title}</span>
               {p.total > 0 && (
                 <span className="text-slate-400">{p.answered}/{p.total}</span>
@@ -410,9 +412,8 @@ export function Assessment() {
 
       {state.phase_one_form && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 text-sm text-slate-600">
-          Phase 1 reuses your profile — basics, interests and school details you
-          already entered. Update them any time from your{" "}
-          <Link to="/profile" className="text-primary-700">profile</Link>.
+          {t("assessment.phaseOneHint")}{" "}
+          <Link to="/profile" className="text-primary-700">{t("nav.profile")}</Link>.
         </div>
       )}
 
@@ -433,7 +434,7 @@ export function Assessment() {
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">
-          {answeredTotal} answered · progress saves as you go
+          {t("assessment.progress", { answered: answeredTotal })}
         </p>
         <button
           onClick={() => void saveAndAdvance()}
@@ -461,13 +462,14 @@ function QuestionCard({
   onChange: (answer: Record<string, unknown> | null) => void;
   onAsk: () => void;
 }) {
+  const { t } = useTranslation();
   const answered = value != null && Object.keys(value).length > 0;
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4" data-testid="question-card">
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium text-sm">{question.prompt}</p>
         <button onClick={onAsk} className="text-xs text-primary-700 shrink-0 hover:underline">
-          Ask
+          {t("assessment.ask")}
         </button>
       </div>
       {question.help && <p className="text-xs text-slate-400 mt-0.5">{question.help}</p>}
@@ -526,10 +528,10 @@ function QuestionCard({
 
       <p className="text-xs mt-2">
         {answered ? (
-          <span className="text-emerald-600">saved ✓</span>
+          <span className="text-emerald-600">{t("assessment.saved")}</span>
         ) : (
           <button onClick={() => onChange({})} className="text-slate-400 hover:text-slate-600">
-            skip this one
+            {t("assessment.skip")}
           </button>
         )}
       </p>
@@ -546,6 +548,7 @@ function AllocationSliders({
   value: { weights?: Record<string, number> } | null;
   onChange: (answer: Record<string, unknown> | null) => void;
 }) {
+  const { t } = useTranslation();
   const weights = value?.weights ?? {};
   const total = options.reduce((acc, o) => acc + (weights[o.id] ?? 0), 0);
   const setWeight = (id: string, v: number) => {
@@ -568,7 +571,7 @@ function AllocationSliders({
         </div>
       ))}
       <p className={`text-xs ${total === 100 ? "text-emerald-600" : "text-slate-400"}`}>
-        total: {total}% (must be 100)
+        {t("assessment.allocationTotal", { total })}
       </p>
     </div>
   );
@@ -583,6 +586,7 @@ function RankList({
   value: { order?: string[] } | null;
   onChange: (answer: Record<string, unknown> | null) => void;
 }) {
+  const { t } = useTranslation();
   const [order, setOrder] = useState<string[]>(
     value?.order ?? options.map((o) => o.id),
   );
@@ -601,8 +605,8 @@ function RankList({
         <li key={id} className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-1.5 text-sm">
           <span className="text-slate-400">{index + 1}.</span>
           <span className="flex-1">{label(id)}</span>
-          <button onClick={() => move(index, -1)} aria-label="move up" className="text-slate-400 hover:text-primary-700">↑</button>
-          <button onClick={() => move(index, 1)} aria-label="move down" className="text-slate-400 hover:text-primary-700">↓</button>
+          <button onClick={() => move(index, -1)} aria-label={t("assessment.moveUp")} className="text-slate-400 hover:text-primary-700">↑</button>
+          <button onClick={() => move(index, 1)} aria-label={t("assessment.moveDown")} className="text-slate-400 hover:text-primary-700">↓</button>
         </li>
       ))}
     </ul>

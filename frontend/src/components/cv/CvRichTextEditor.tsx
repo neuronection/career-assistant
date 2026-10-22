@@ -1,4 +1,5 @@
 import { useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { RichTextEditor } from "@neuronection/assistant-ui/rich-text-editor";
 
 /**
@@ -25,17 +26,18 @@ export function CvRichTextEditor({
   minHeight?: string;
   testId?: string;
 }) {
+  const { t } = useTranslation();
   const labels = useMemo(
     () => ({
-      toolbar: "Formatting",
-      bold: "Bold (**bold**)",
-      italic: "Italic (*italic*)",
-      strike: "Strikethrough (not rendered in CVs)",
-      code: "Code (not rendered in CVs)",
-      undo: "Undo",
-      redo: "Redo",
+      toolbar: t("cvBuilder.richText.toolbar"),
+      bold: t("cvBuilder.richText.bold"),
+      italic: t("cvBuilder.richText.italic"),
+      strike: t("cvBuilder.richText.strike"),
+      code: t("cvBuilder.richText.code"),
+      undo: t("cvBuilder.toolbar.undo"),
+      redo: t("cvBuilder.toolbar.redo"),
     }),
-    []
+    [t]
   );
   const holderRef = useRef<HTMLDivElement>(null);
   return (
@@ -60,8 +62,7 @@ export function CvRichTextEditor({
         }}
       />
       <p className="mt-1 text-[11px] text-[var(--as-muted-fg)]">
-        **bold** · *italic* · [text](url) — rendered in the CV, stripped
-        from ATS exports.
+        {t("cvBuilder.richTextHint")}
       </p>
     </div>
   );

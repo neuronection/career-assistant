@@ -26,7 +26,7 @@ export function UniversityDetail() {
     return university.departments
       .filter((d) => d.application_deadline)
       .map((d) => ({ date: d.application_deadline as string, label: `${t("universityDetail.apply")}: ${d.name}` }));
-  }, [university]);
+  }, [university, t]);
 
   if (error) return <p className="text-rose-600">{error}</p>;
   if (!university) return <p className="text-slate-400">{t("common.loading")}</p>;
@@ -35,7 +35,7 @@ export function UniversityDetail() {
     <div className="max-w-5xl mx-auto space-y-6" data-testid="university-detail">
       <div>
         <Link to="/catalog/universities" className="text-sm text-slate-400 hover:text-slate-600 inline-flex items-center gap-1">
-          <ArrowLeft className="w-3.5 h-3.5" /> All universities
+          <ArrowLeft className="w-3.5 h-3.5" /> {t("universityDetail.allUniversities")}
         </Link>
         <div className="flex items-start justify-between mt-2">
           <div>
@@ -64,10 +64,10 @@ export function UniversityDetail() {
                   <div>
                     <p className="font-medium">{d.name}</p>
                     <p className="text-sm text-slate-500">
-                      {d.degree} · {d.duration_years} years
+                      {t("universityDetail.degreeYears", { degree: d.degree, years: d.duration_years })}
                       {d.language ? ` · ${d.language}` : ""}
                       {d.application_deadline && (
-                        <span className="text-amber-700"> · deadline {d.application_deadline}</span>
+                        <span className="text-amber-700"> · {t("universityDetail.deadline", { date: d.application_deadline })}</span>
                       )}
                     </p>
                   </div>
@@ -97,7 +97,7 @@ export function UniversityDetail() {
         <aside>
           <DeadlineCalendar deadlines={deadlines} />
           <p className="text-xs text-slate-400 mt-2">
-            Amber days are application deadlines extracted from your documents (or added manually).
+            {t("universityDetail.deadlineHint")}
           </p>
         </aside>
       </div>
@@ -171,7 +171,7 @@ function AddDepartmentModal({
         </ModalHeader>
         <div className="space-y-4 px-6 pb-6">
           <label className="block text-sm">
-            Name
+            {t("universityDetail.name")}
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -180,7 +180,7 @@ function AddDepartmentModal({
             />
           </label>
           <label className="block text-sm">
-            Field key
+            {t("universityDetail.fieldKey")}
             <input
               value={fieldKey}
               onChange={(e) => setFieldKey(e.target.value)}
@@ -189,14 +189,14 @@ function AddDepartmentModal({
             />
           </label>
           <div className="text-sm">
-            Application deadline
+            {t("universityDetail.applicationDeadline")}
             <div className="mt-1">
               <DatePicker value={deadline} onChange={setDeadline} allowClear placeholder={t("universityDetail.pickDate")} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-sm">
-              Baseline score
+              {t("universityDetail.baselineScore")}
               <input
                 value={baseline}
                 onChange={(e) => setBaseline(e.target.value)}
@@ -205,7 +205,7 @@ function AddDepartmentModal({
               />
             </label>
             <label className="block text-sm">
-              Year
+              {t("universityDetail.year")}
               <input
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
@@ -217,10 +217,10 @@ function AddDepartmentModal({
         </div>
         <ModalFooter>
           <Button variant="secondary" size="sm" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button size="sm" onClick={() => void save()} disabled={busy || name.trim().length < 2}>
-            {busy ? "Saving…" : "Save department"}
+            {busy ? t("universityDetail.saving") : t("universityDetail.saveDepartment")}
           </Button>
         </ModalFooter>
       </ModalContent>

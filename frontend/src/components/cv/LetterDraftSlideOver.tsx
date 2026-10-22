@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { CoverLetterSuggestionOut } from "@/types/cv";
@@ -14,6 +15,7 @@ export function LetterDraftSlideOver({
   onClose: () => void;
   onApply: (paragraphs: string[], draft: CoverLetterSuggestionOut["draft"]) => void;
 }) {
+  const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const [included, setIncluded] = useState<boolean[]>(() =>
     suggestion.paragraphs.map((paragraph) => paragraph.verified)
@@ -36,17 +38,17 @@ export function LetterDraftSlideOver({
       <div className="absolute inset-0 bg-black/20" onClick={onClose} aria-hidden />
       <div
         role="dialog"
-        aria-label="Cover-letter draft — review then apply"
+        aria-label={t("cvBuilder.letter.draftAria")}
         className="cv-slideover-in absolute inset-y-0 right-0 flex w-full max-w-sm flex-col border-l border-[var(--as-border)] bg-[var(--as-surface)] shadow-xl"
         data-testid="letter-slideover"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--as-border)] p-3">
           <p className="text-xs font-semibold uppercase text-[var(--as-muted-fg)]">
-            Draft paragraphs — untick what to leave out
+            {t("cvBuilder.letter.draftTitle")}
           </p>
           <button
             type="button"
-            aria-label="Close draft review"
+            aria-label={t("cvBuilder.letter.closeDraft")}
             onClick={onClose}
             className="rounded p-0.5 hover:bg-[var(--as-muted)]"
           >
@@ -67,7 +69,7 @@ export function LetterDraftSlideOver({
                   checked={included[index] ?? false}
                   disabled={!paragraph.verified}
                   onChange={() => toggle(index)}
-                  aria-label={`Include paragraph ${index + 1}`}
+                  aria-label={t("cvBuilder.letter.includeAria", { n: index + 1 })}
                   data-testid={`include-paragraph-${index}`}
                 />
                 <span>{paragraph.text}</span>
@@ -76,16 +78,15 @@ export function LetterDraftSlideOver({
                 <p className="mt-1 text-xs text-amber-700" data-testid={`letter-flag-${index}`}>
                   <AlertTriangle className="mr-1 inline h-3 w-3" />
                   {paragraph.evidence_refs.length > 0
-                    ? "Flagged: cites items outside your profile."
-                    : "Flagged: no evidence behind this paragraph."}
+                    ? t("cvBuilder.letter.flaggedOutside")
+                    : t("cvBuilder.letter.flaggedNoEvidence")}
                 </p>
               )}
             </div>
           ))}
           {suggestion.paragraphs.length === 0 && (
             <p className="text-xs text-[var(--as-muted-fg)]">
-              The model returned nothing grounded — try again or write the
-              letter manually.
+              {t("cvBuilder.letter.nothingGrounded")}
             </p>
           )}
         </div>
@@ -97,7 +98,7 @@ export function LetterDraftSlideOver({
             data-testid="apply-letter-draft"
           >
             <Check className="mr-1 h-4 w-4" />
-            Apply {chosen.length} paragraph{chosen.length === 1 ? "" : "s"}
+            {t("cvBuilder.letter.applyCount", { count: chosen.length })}
           </Button>
         </div>
       </div>

@@ -215,7 +215,7 @@ export function ExperienceItemCard({
                     {s.skill_label}
                     {full && s.role_in_item ? ` · ${s.role_in_item}` : ""}
                     {full && typeof s.level_claim === "number"
-                      ? ` · lvl ${s.level_claim}`
+                      ? ` · ${t("experience.levelShort")} ${s.level_claim}`
                       : ""}
                   </span>
                 ))}

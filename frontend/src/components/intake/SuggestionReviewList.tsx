@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 import { CheckIndicator } from "@neuronection/assistant-ui/check-indicator";
 import { fetchCvPageImageUrl } from "@/api/cvIntake";
-import { EDUCATION_LEVEL_LABEL } from "@/components/profile/sections/options";
+import { EDUCATION_LEVEL_LABEL_KEY } from "@/components/profile/sections/options";
 import { isStatusSection } from "./CvStatus";
 import type {
   CvExtractPayload,
@@ -101,7 +101,7 @@ export function sectionViews(payload: CvExtractPayload): SectionView[] {
       items: payload.education.map((item) => ({
         title: [item.program, item.institution].filter(Boolean).join(" — "),
         detail: [
-          EDUCATION_LEVEL_LABEL[item.level] || item.level,
+          t(EDUCATION_LEVEL_LABEL_KEY[item.level] ?? "intake.levelUnknown", { defaultValue: item.level }),
           period(item.start, item.end),
         ]
           .filter(Boolean)

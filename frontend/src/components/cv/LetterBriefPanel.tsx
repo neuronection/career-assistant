@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Briefcase, Check, MapPin, Sparkles } from "lucide-react";
 import type { CoverLetterBriefOut } from "@/types/cv";
 
 function LevelDots({ level }: { level: number }) {
+  const { t } = useTranslation();
   return (
-    <span className="inline-flex gap-0.5" aria-label={`required level ${level}`}>
+    <span className="inline-flex gap-0.5" aria-label={t("cvBuilder.letter.requiredLevelAria", { level })}>
       {Array.from({ length: 10 }, (_, i) => (
         <span
           key={i}
@@ -24,6 +26,7 @@ function BriefSkillRow({
   skill: CoverLetterBriefOut["must_have"][number];
   testId: string;
 }) {
+  const { t } = useTranslation();
   const [showQuote, setShowQuote] = useState(false);
   const covered = skill.user_level != null;
   return (
@@ -33,9 +36,9 @@ function BriefSkillRow({
     >
       <div className="flex items-center gap-1.5">
         {covered ? (
-          <Check className="h-3 w-3 shrink-0 text-emerald-600" aria-label="covered" />
+          <Check className="h-3 w-3 shrink-0 text-emerald-600" aria-label={t("cvBuilder.letter.covered")} />
         ) : (
-          <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" aria-label="missing" />
+          <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" aria-label={t("cvBuilder.letter.missing")} />
         )}
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--as-fg)]">
           {skill.label || skill.skill_key}
@@ -51,7 +54,7 @@ function BriefSkillRow({
             className="mt-1 text-[10px] font-medium text-[var(--as-muted-fg)] underline-offset-2 hover:underline"
             data-testid={`${testId}-quote-toggle`}
           >
-            {showQuote ? "Hide quote" : "Why? (quote)"}
+            {showQuote ? t("cvBuilder.letter.hideQuote") : t("cvBuilder.letter.whyQuote")}
           </button>
           {showQuote && (
             <em
@@ -74,6 +77,7 @@ export function LetterBriefPanel({
   brief: CoverLetterBriefOut | null;
   loading: boolean;
 }) {
+  const { t } = useTranslation();
   if (loading) {
     return (
       <div className="space-y-2 p-1" data-testid="letter-brief-loading">
@@ -86,7 +90,7 @@ export function LetterBriefPanel({
   if (!brief) {
     return (
       <p className="p-2 text-xs text-[var(--as-muted-fg)]" data-testid="letter-brief-empty">
-        No target posting on this cover letter.
+        {t("cvBuilder.letter.noTarget")}
       </p>
     );
   }
@@ -101,18 +105,18 @@ export function LetterBriefPanel({
           {brief.posting_title}
         </h3>
         <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
-          {[brief.org, brief.location].filter(Boolean).join(" · ") || "Target posting"}
+          {[brief.org, brief.location].filter(Boolean).join(" · ") || t("cvBuilder.letter.targetPosting")}
         </p>
       </section>
 
       {fitPct != null && (
         <section data-testid="brief-fit">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[var(--as-muted-fg)]">Profile fit</span>
+            <span className="text-[var(--as-muted-fg)]">{t("cvBuilder.letter.profileFit")}</span>
             <span className="font-semibold text-[var(--as-fg)]">
               {brief.fit.score?.toFixed(1)}/10
               {brief.fit.estimate && (
-                <span className="ml-1 font-normal text-[var(--as-muted-fg)]">(est.)</span>
+                <span className="ml-1 font-normal text-[var(--as-muted-fg)]">{t("cvBuilder.letter.estimated")}</span>
               )}
             </span>
           </div>
@@ -140,9 +144,9 @@ export function LetterBriefPanel({
       {brief.extract_ready ? (
         <section>
           <p className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-            Must-haves
+            {t("cvBuilder.letter.mustHaves")}
             <span className="font-normal normal-case">
-              {covered} covered · {missing} missing
+              {covered} {t("cvBuilder.letter.covered")} · {missing} {t("cvBuilder.letter.missing")}
             </span>
           </p>
           <ul className="space-y-1.5">
@@ -156,7 +160,7 @@ export function LetterBriefPanel({
           </ul>
           {brief.must_have.length === 0 && (
             <p className="text-xs text-[var(--as-muted-fg)]">
-              No must-have skills extracted for this posting.
+              {t("cvBuilder.letter.noMustHaves")}
             </p>
           )}
         </section>
@@ -165,14 +169,13 @@ export function LetterBriefPanel({
           className="rounded-lg border border-[var(--as-border)] p-2 text-xs text-[var(--as-muted-fg)]"
           data-testid="brief-no-extract"
         >
-          This posting has no deep extraction yet — the draft grounds on your
-          profile evidence alone.
+          {t("cvBuilder.letter.noDeepExtraction")}
         </section>
       )}
 
       <p className="flex items-center gap-1.5 text-[11px] text-[var(--as-muted-fg)]">
         <MapPin className="h-3 w-3" />
-        {brief.evidence_items} profile item{brief.evidence_items === 1 ? "" : "s"} feed the draft.
+        {brief.evidence_items} {t("cvBuilder.letter.profileItem")}{brief.evidence_items === 1 ? "" : "s"} {t("cvBuilder.letter.feedDraft")}
       </p>
     </div>
   );

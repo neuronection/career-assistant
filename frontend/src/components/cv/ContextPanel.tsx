@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   Pencil,
@@ -89,26 +90,30 @@ function PinStar({
     slot?: PinSlot
   ) => void;
 }) {
-  const kind = slot === "bullets" ? "bullets variant" : "variant";
+  const { t } = useTranslation();
+  const kind =
+    slot === "bullets"
+      ? t("cvBuilder.context.bulletsVariant")
+      : t("cvBuilder.context.variant");
   return (
     <button
       type="button"
       aria-pressed={pinned}
       aria-label={
         pinned
-          ? `Unpin ${kind} ${variant.variant_key} for this item`
-          : `Make ${kind} ${variant.variant_key} the default for this item`
+          ? t("cvBuilder.context.unpinVar", { kind, variant: variant.variant_key })
+          : t("cvBuilder.context.makeDefaultVar", { kind, variant: variant.variant_key })
       }
       title={
         inactive
-          ? "Pinned but not rendering — language, posting or status mismatch"
+          ? t("cvBuilder.context.pinnedInactive")
           : slot === "bullets"
             ? pinned
-              ? "Unpin — profile bullets render again"
-              : "Make default bullets for this item"
+              ? t("cvBuilder.context.unpinBullets")
+              : t("cvBuilder.context.makeDefaultBullets")
             : pinned
-              ? "Unpin — the best matching variant applies again"
-              : "Make default for this item"
+              ? t("cvBuilder.context.unpinText")
+              : t("cvBuilder.context.makeDefault")
       }
       data-testid={`context-pin-star-${variant.id}`}
       data-inactive={inactive ? "true" : undefined}
@@ -171,6 +176,7 @@ function VariantsForItem({
   /** Plan 102: re-snapshot a stale variant's source hashes (review button). */
   onResetVariant?: (variant: CvSynthItem) => void;
 }) {
+  const { t } = useTranslation();
   const appliedId = appliedPins?.[refKeyOf(sourceKey, itemId)];
   const hasResolution = appliedPins != null;
   const rows = variants.filter((variant) =>
@@ -203,26 +209,34 @@ function VariantsForItem({
                   className="shrink-0 rounded-full border border-[var(--as-border)] px-1.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
                   data-testid={`context-variant-bullets-${variant.id}`}
                 >
-                  bullets
+                  {t("cvBuilder.context.bullets")}
                 </span>
               )}
-              {variant.stale && <AmberBadge testId="context-variant-stale">stale</AmberBadge>}
+              {variant.stale && (
+                <AmberBadge testId="context-variant-stale">
+                  {t("cvBuilder.context.stale")}
+                </AmberBadge>
+              )}
               {variant.stale && onResetVariant && (
                 <button
                   type="button"
                   className="shrink-0 cursor-pointer rounded-full border border-[var(--as-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)]"
-                  aria-label={`Mark variant ${variant.variant_key} reviewed`}
-                  title="Source changed but the text still fits — mark reviewed"
+                  aria-label={t("cvBuilder.context.markReviewed", { variant: variant.variant_key })}
+                  title={t("cvBuilder.context.resetTitle")}
                   data-testid={`context-variant-reset-${variant.id}`}
                   onClick={() => onResetVariant(variant)}
                 >
-                  Reset
+                  {t("common.reset")}
                 </button>
               )}
-              {variant.orphaned && <AmberBadge testId="context-variant-orphan">gone</AmberBadge>}
+              {variant.orphaned && (
+                <AmberBadge testId="context-variant-orphan">
+                  {t("cvBuilder.context.gone")}
+                </AmberBadge>
+              )}
               {pinnedId === variant.id && hasResolution && appliedId !== variant.id && (
                 <AmberBadge testId={`context-variant-inactive-${variant.id}`}>
-                  not rendering
+                  {t("cvBuilder.context.notRendering")}
                 </AmberBadge>
               )}
             </span>
@@ -247,8 +261,8 @@ function VariantsForItem({
             <button
               type="button"
               className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--as-accent)] transition-colors hover:bg-[var(--as-muted)]"
-              aria-label={`Edit variant ${variant.variant_key}`}
-              title="Edit text"
+              aria-label={t("cvBuilder.context.editVariantAria", { variant: variant.variant_key })}
+              title={t("cvBuilder.context.editText")}
               data-testid={`context-variant-edit-${variant.id}`}
               onClick={() => onEditVariant(variant)}
             >
@@ -273,14 +287,14 @@ function VariantsForItem({
                   className="shrink-0 rounded-full border border-[var(--as-border)] px-1.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
                   data-testid={`context-variant-archived-bullets-${variant.id}`}
                 >
-                  bullets
+                  {t("cvBuilder.context.bullets")}
                 </span>
               )}
               <span
                 className="shrink-0 rounded-full border border-[var(--as-border)] px-1.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
                 data-testid={`context-variant-archived-badge-${variant.id}`}
               >
-                archived
+                {t("cvBuilder.context.archived")}
               </span>
             </span>
             {variantText(variant) && (
@@ -338,6 +352,7 @@ function GroupRow({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const items = source.items ?? [];
   const includedCount = items.filter((item) => selected.has(refKeyOf(source.key, item.item_id))).length;
   const allIncluded = items.length > 0 && includedCount === items.length;
@@ -351,7 +366,7 @@ function GroupRow({
           <CheckIndicator
             checked={allIncluded}
             mixed={someIncluded}
-            label={`Include all ${source.label}`}
+            label={t("cvBuilder.context.includeAll", { name: source.label })}
             onToggle={() => onToggleGroup(source, !allIncluded)}
           />
         )}
@@ -385,8 +400,8 @@ function GroupRow({
           <Link
             to={contextSourceLink(source.key)}
             className="shrink-0 rounded p-0.5 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
-            aria-label={`Open ${source.label} in profile`}
-            title={`Open in profile`}
+            aria-label={t("cvBuilder.context.openGroupAria", { name: source.label })}
+            title={t("cvBuilder.context.openInProfile")}
             data-testid={`context-open-group-${source.key}`}
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -396,8 +411,8 @@ function GroupRow({
           <button
             type="button"
             className="shrink-0 cursor-pointer rounded p-0.5 text-[var(--as-accent)] transition-colors hover:bg-[var(--as-muted)]"
-            aria-label={`Add ${source.label}`}
-            title={`Add ${source.label}`}
+            aria-label={t("cvBuilder.context.addAria", { name: source.label })}
+            title={t("cvBuilder.context.addAria", { name: source.label })}
             data-testid={`context-add-${source.key}`}
             onClick={() => onAddItem(source.key)}
           >
@@ -415,10 +430,12 @@ function GroupRow({
               onClick={() => onAddItem(source.key)}
             >
               <Plus className="h-3 w-3" aria-hidden />
-              Add {source.label.toLowerCase()}
+              {t("cvBuilder.context.addItem", { name: source.label.toLowerCase() })}
             </button>
           ) : (
-            <p className="py-1.5 text-xs text-[var(--as-muted-fg)]">Nothing recorded yet</p>
+            <p className="py-1.5 text-xs text-[var(--as-muted-fg)]">
+              {t("cvBuilder.context.nothingRecorded")}
+            </p>
           )}
         </div>
       ) : (
@@ -453,8 +470,8 @@ function GroupRow({
                           <button
                             type="button"
                             className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
-                            aria-label={`Edit ${item.label}`}
-                            title="Edit profile entry"
+                            aria-label={t("cvBuilder.context.editItemAria", { name: item.label })}
+                            title={t("cvBuilder.context.editProfileEntry")}
                             data-testid={`context-edit-item-${key}`}
                             onClick={() => onEditItem(source.key, item.item_id)}
                           >
@@ -465,8 +482,8 @@ function GroupRow({
                           <button
                             type="button"
                             className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
-                            aria-label={`Edit the bullets of ${item.label} on this CV`}
-                            title="Edit bullets on this CV"
+                            aria-label={t("cvBuilder.context.editBulletsAria", { name: item.label })}
+                            title={t("cvBuilder.context.editBullets")}
                             data-testid={`context-bullets-${key}`}
                             onClick={() => onEditBullets(source.key, item.item_id)}
                           >
@@ -476,8 +493,8 @@ function GroupRow({
                         <Link
                           to={contextSourceLink(source.key, item.item_id)}
                           className="rounded p-1 text-[var(--as-muted-fg)] transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
-                          aria-label={`Open ${item.label} in profile`}
-                          title="Open in profile"
+                          aria-label={t("cvBuilder.context.openItemAria", { name: item.label })}
+                          title={t("cvBuilder.context.openInProfile")}
                           data-testid={`context-open-item-${key}`}
                         >
                           <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -490,8 +507,8 @@ function GroupRow({
                           <button
                             type="button"
                             className="rounded p-1 text-[var(--as-accent)] hover:bg-[var(--as-muted)]"
-                            aria-label={`Write a variant for ${item.label}`}
-                            title="Add variant"
+                            aria-label={t("cvBuilder.context.writeVariantAria", { name: item.label })}
+                            title={t("cvBuilder.context.addVariant")}
                             data-testid={`ai-add-variant-${item.item_id}`}
                             onClick={() => onAddVariant(source.key)}
                           >
@@ -557,6 +574,7 @@ export function ContextPanel({
       .filter((source) => source.items.length > 0 || source.originalCount === 0);
   }, [sources, query]);
 
+  const { t } = useTranslation();
   const isEmpty = (source: CvContextSourceOut) => (source.items ?? []).length === 0;
 
   const { totalItems, includedItems } = useMemo(() => {
@@ -580,7 +598,8 @@ export function ContextPanel({
         <span className="font-semibold tabular-nums text-[var(--as-accent)]">{includedItems}</span>
         {" / "}
         <span className="font-semibold tabular-nums">{totalItems}</span>
-        {" items on the CV"}
+        {" "}
+        {t("cvBuilder.context.itemsOnCv")}
       </p>
       <div className="relative mb-2 shrink-0">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--as-muted-fg)]" />
@@ -588,8 +607,8 @@ export function ContextPanel({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter context…"
-          aria-label="Filter context items"
+          placeholder={t("cvBuilder.context.filterPlaceholder")}
+          aria-label={t("cvBuilder.context.filterAria")}
           data-testid="context-search"
           className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:border-[var(--as-accent)]"
         />
@@ -626,7 +645,7 @@ export function ContextPanel({
         ))}
         {query.trim() !== "" && filtered.every((source) => (source.items ?? []).length === 0) && (
           <p className="px-1 py-2 text-xs text-[var(--as-muted-fg)]" data-testid="context-no-match">
-            No context matches “{query}”.
+            {t("cvBuilder.context.noMatch", { query })}
           </p>
         )}
       </div>
