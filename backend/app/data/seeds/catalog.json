@@ -1,0 +1,4525 @@
+{
+  "FAMILIES": [
+    {
+      "key": "technology",
+      "label": "Technology & IT",
+      "parent": null,
+      "description": "Software, data, hardware and digital infrastructure."
+    },
+    {
+      "key": "technology-software",
+      "label": "Software Development",
+      "parent": "technology"
+    },
+    {
+      "key": "technology-data",
+      "label": "Data & AI",
+      "parent": "technology"
+    },
+    {
+      "key": "technology-ops",
+      "label": "IT Operations & Security",
+      "parent": "technology"
+    },
+    {
+      "key": "healthcare",
+      "label": "Healthcare",
+      "parent": null,
+      "description": "Diagnosing, treating and caring for people."
+    },
+    {
+      "key": "healthcare-clinical",
+      "label": "Clinical Care",
+      "parent": "healthcare"
+    },
+    {
+      "key": "healthcare-therapy",
+      "label": "Therapy & Rehabilitation",
+      "parent": "healthcare"
+    },
+    {
+      "key": "healthcare-pharma",
+      "label": "Pharmacy & Lab",
+      "parent": "healthcare"
+    },
+    {
+      "key": "education",
+      "label": "Education & Training",
+      "parent": null,
+      "description": "Teaching, coaching and knowledge sharing."
+    },
+    {
+      "key": "engineering",
+      "label": "Engineering & Trades",
+      "parent": null,
+      "description": "Designing, building and maintaining the physical world."
+    },
+    {
+      "key": "engineering-civil",
+      "label": "Civil & Construction",
+      "parent": "engineering"
+    },
+    {
+      "key": "engineering-mechanical",
+      "label": "Mechanical & Electrical",
+      "parent": "engineering"
+    },
+    {
+      "key": "business",
+      "label": "Business & Finance",
+      "parent": null,
+      "description": "Markets, money, sales and organisations."
+    },
+    {
+      "key": "business-creative",
+      "label": "Marketing & Media",
+      "parent": "business"
+    },
+    {
+      "key": "creative",
+      "label": "Arts & Design",
+      "parent": null,
+      "description": "Visual, performing and media arts."
+    },
+    {
+      "key": "public-safety",
+      "label": "Public Safety & Law",
+      "parent": null,
+      "description": "Protecting people and upholding the law."
+    },
+    {
+      "key": "science",
+      "label": "Science & Environment",
+      "parent": null,
+      "description": "Research and understanding of nature."
+    },
+    {
+      "key": "agriculture",
+      "label": "Agriculture & Animals",
+      "parent": null,
+      "description": "Farming, food production and animal care."
+    },
+    {
+      "key": "hospitality",
+      "label": "Hospitality & Tourism",
+      "parent": null,
+      "description": "Food, travel and guest experiences."
+    }
+  ],
+  "JOBS": [
+    {
+      "code": "software-developer",
+      "title": "Software Developer",
+      "family": "technology-software",
+      "description": "Designs, writes and maintains applications and systems.",
+      "interests": [
+        "technology-software",
+        "technology-ai",
+        "technology-games"
+      ],
+      "skills": [
+        "programming",
+        "problem-solving",
+        "critical-thinking"
+      ],
+      "subjects": [
+        "mathematics",
+        "computer-science"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "computer-science",
+          "software-engineering"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          35000,
+          55000
+        ],
+        "median": [
+          60000,
+          95000
+        ],
+        "senior": [
+          100000,
+          160000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "Demand spans every industry.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "High pay",
+          "detail": "Among the strongest entry salaries."
+        },
+        {
+          "title": "Remote-friendly",
+          "detail": "Work from almost anywhere."
+        },
+        {
+          "title": "Constant learning",
+          "detail": "New tools keep the work fresh."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Screen fatigue",
+          "detail": "Long hours at a desk."
+        },
+        {
+          "title": "Always changing",
+          "detail": "Skills can feel outdated quickly."
+        }
+      ]
+    },
+    {
+      "code": "data-scientist",
+      "title": "Data Scientist",
+      "family": "technology-data",
+      "description": "Turns raw data into models and insights that guide decisions.",
+      "interests": [
+        "technology-data",
+        "technology-ai",
+        "science-mathematics"
+      ],
+      "skills": [
+        "data-analysis",
+        "mathematics",
+        "programming"
+      ],
+      "subjects": [
+        "mathematics",
+        "statistics"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "statistics",
+          "computer-science",
+          "mathematics"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          40000,
+          60000
+        ],
+        "median": [
+          70000,
+          110000
+        ],
+        "senior": [
+          110000,
+          170000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "AI adoption keeps expanding the field.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Intellectually rich",
+          "detail": "Mix of math, code and domain puzzles."
+        },
+        {
+          "title": "Strong salaries",
+          "detail": "Top of the tech pay scale."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Abstract work",
+          "detail": "Results can feel far from people."
+        },
+        {
+          "title": "Data cleaning grind",
+          "detail": "Much time spent preparing data."
+        }
+      ]
+    },
+    {
+      "code": "ml-engineer",
+      "title": "Machine Learning Engineer",
+      "family": "technology-data",
+      "description": "Builds and deploys AI models into production systems.",
+      "interests": [
+        "technology-ai",
+        "technology-software"
+      ],
+      "skills": [
+        "programming",
+        "mathematics",
+        "data-analysis"
+      ],
+      "subjects": [
+        "mathematics",
+        "computer-science"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "computer-science",
+          "ai"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          50000,
+          75000
+        ],
+        "median": [
+          85000,
+          130000
+        ],
+        "senior": [
+          130000,
+          200000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "Core role of the AI boom.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Frontier work",
+          "detail": "Build with the latest AI tech."
+        },
+        {
+          "title": "Very high pay",
+          "detail": "One of the best-paid engineering roles."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Steep learning curve",
+          "detail": "Heavy math and engineering."
+        },
+        {
+          "title": "On-call pressure",
+          "detail": "Production models need care."
+        }
+      ]
+    },
+    {
+      "code": "cybersecurity-analyst",
+      "title": "Cybersecurity Analyst",
+      "family": "technology-ops",
+      "description": "Protects networks and systems from attacks and intrusions.",
+      "interests": [
+        "technology-networks",
+        "technology-software"
+      ],
+      "skills": [
+        "network-admin",
+        "problem-solving",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "computer-science"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "cybersecurity",
+          "computer-science"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          38000,
+          55000
+        ],
+        "median": [
+          65000,
+          100000
+        ],
+        "senior": [
+          105000,
+          160000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "Attacks grow; defenders are scarce.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Purposeful",
+          "detail": "Directly stops crime and damage."
+        },
+        {
+          "title": "Job security",
+          "detail": "Chronic talent shortage."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Alert fatigue",
+          "detail": "Monitoring can be stressful."
+        },
+        {
+          "title": "Incident nights",
+          "detail": "Breaches do not wait for morning."
+        }
+      ]
+    },
+    {
+      "code": "devops-engineer",
+      "title": "DevOps Engineer",
+      "family": "technology-ops",
+      "description": "Automates infrastructure and keeps online services running.",
+      "interests": [
+        "technology-software",
+        "technology-networks"
+      ],
+      "skills": [
+        "programming",
+        "network-admin",
+        "problem-solving"
+      ],
+      "subjects": [
+        "computer-science"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "computer-science",
+          "information-systems"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          38000,
+          55000
+        ],
+        "median": [
+          65000,
+          100000
+        ],
+        "senior": [
+          110000,
+          165000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Cloud migration continues.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Automation wins",
+          "detail": "You make machines do the boring parts."
+        },
+        {
+          "title": "High pay",
+          "detail": "Scarce skill set."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "On-call rotations",
+          "detail": "Outages can wake you at night."
+        },
+        {
+          "title": "Invisible work",
+          "detail": "Good ops often goes unnoticed."
+        }
+      ]
+    },
+    {
+      "code": "game-developer",
+      "title": "Game Developer",
+      "family": "technology-software",
+      "description": "Creates video games: gameplay, graphics and tools.",
+      "interests": [
+        "technology-games",
+        "technology-software",
+        "arts-visual"
+      ],
+      "skills": [
+        "programming",
+        "problem-solving",
+        "visual-design"
+      ],
+      "subjects": [
+        "mathematics",
+        "art"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "computer-science",
+          "game-design"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          45000
+        ],
+        "median": [
+          55000,
+          85000
+        ],
+        "senior": [
+          90000,
+          140000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Competitive but passionate field.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Dream work for gamers",
+          "detail": "You build worlds people love."
+        },
+        {
+          "title": "Creative + technical",
+          "detail": "Art meets engineering."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Crunch culture",
+          "detail": "Shipping can mean long nights."
+        },
+        {
+          "title": "Lower pay than big tech",
+          "detail": "Passion subsidises salaries."
+        }
+      ]
+    },
+    {
+      "code": "nurse",
+      "title": "Nurse (RN)",
+      "family": "healthcare-clinical",
+      "description": "Cares for patients, administers treatment and monitors recovery.",
+      "interests": [
+        "people-health",
+        "people-helping",
+        "science-biology"
+      ],
+      "skills": [
+        "empathy",
+        "first-aid",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry"
+      ],
+      "work_style": {
+        "teamwork": 5,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "active"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "nursing"
+        ]
+      },
+      "physical": {
+        "activity": "active",
+        "requirements": [
+          "standing-long",
+          "shift-work"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          40000,
+          55000
+        ],
+        "median": [
+          60000,
+          85000
+        ],
+        "senior": [
+          85000,
+          120000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "Global nursing shortage.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic"
+      ],
+      "positives": [
+        {
+          "title": "Deep purpose",
+          "detail": "You directly save and comfort lives."
+        },
+        {
+          "title": "Jobs everywhere",
+          "detail": "Needed in every town and country."
+        },
+        {
+          "title": "Clear advancement",
+          "detail": "Specialisations and leadership paths."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Physically hard",
+          "detail": "Long shifts on your feet."
+        },
+        {
+          "title": "Emotional strain",
+          "detail": "Loss and emergencies are part of it."
+        }
+      ]
+    },
+    {
+      "code": "physician",
+      "title": "Physician (Doctor)",
+      "family": "healthcare-clinical",
+      "description": "Diagnoses and treats illness; leads patient care.",
+      "interests": [
+        "people-health",
+        "science-biology",
+        "science-chemistry"
+      ],
+      "skills": [
+        "critical-thinking",
+        "empathy",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 4,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "doctorate",
+        "fields": [
+          "medicine"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": [
+          "long-education"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          55000,
+          75000
+        ],
+        "median": [
+          120000,
+          220000
+        ],
+        "senior": [
+          200000,
+          400000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Ageing populations need doctors.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic"
+      ],
+      "positives": [
+        {
+          "title": "Prestige and purpose",
+          "detail": "Among the most trusted roles."
+        },
+        {
+          "title": "Excellent pay",
+          "detail": "Top-tier lifetime earnings."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Very long training",
+          "detail": "A decade or more of study."
+        },
+        {
+          "title": "Heavy responsibility",
+          "detail": "Life-and-death decisions."
+        }
+      ]
+    },
+    {
+      "code": "paramedic",
+      "title": "Paramedic",
+      "family": "healthcare-clinical",
+      "description": "Provides emergency medical care on the scene and in transit.",
+      "interests": [
+        "people-health",
+        "people-public-safety",
+        "sports-fitness"
+      ],
+      "skills": [
+        "first-aid",
+        "physical-stamina",
+        "problem-solving"
+      ],
+      "subjects": [
+        "biology"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 5,
+        "leadership": 3,
+        "physical_activity": "physical_intense"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "emergency-medical-care"
+        ]
+      },
+      "physical": {
+        "activity": "physical_intense",
+        "requirements": [
+          "heavy-lifting",
+          "shift-work"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          40000,
+          60000
+        ],
+        "senior": [
+          60000,
+          85000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Emergency services are expanding.",
+        "sources": {}
+      },
+      "environments": [
+        "vehicle",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Adrenaline and purpose",
+          "detail": "Every shift matters."
+        },
+        {
+          "title": "Fast entry",
+          "detail": "Vocational path into healthcare."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Trauma exposure",
+          "detail": "Sees accidents and loss."
+        },
+        {
+          "title": "Weather and nights",
+          "detail": "All conditions, all hours."
+        }
+      ]
+    },
+    {
+      "code": "physiotherapist",
+      "title": "Physiotherapist",
+      "family": "healthcare-therapy",
+      "description": "Restores movement and manages pain through exercise and therapy.",
+      "interests": [
+        "people-health",
+        "sports-fitness",
+        "science-biology"
+      ],
+      "skills": [
+        "empathy",
+        "teaching",
+        "physical-stamina"
+      ],
+      "subjects": [
+        "biology",
+        "sports-science"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "physiotherapy"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "hands-on"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          35000,
+          50000
+        ],
+        "median": [
+          55000,
+          80000
+        ],
+        "senior": [
+          80000,
+          110000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Sports and ageing drive demand.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic"
+      ],
+      "positives": [
+        {
+          "title": "Visible progress",
+          "detail": "Patients recover week by week."
+        },
+        {
+          "title": "Active workplace",
+          "detail": "Not a desk job."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Slow cases",
+          "detail": "Some patients plateau."
+        },
+        {
+          "title": "Master's required",
+          "detail": "Long study path."
+        }
+      ]
+    },
+    {
+      "code": "psychologist",
+      "title": "Psychologist",
+      "family": "healthcare-therapy",
+      "description": "Studies behaviour and helps people with mental health.",
+      "interests": [
+        "people-helping",
+        "science-biology",
+        "people-teaching"
+      ],
+      "skills": [
+        "empathy",
+        "critical-thinking",
+        "writing"
+      ],
+      "subjects": [
+        "psychology",
+        "biology"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "psychology"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          35000,
+          50000
+        ],
+        "median": [
+          60000,
+          90000
+        ],
+        "senior": [
+          90000,
+          130000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Mental health awareness rises.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic",
+        "office"
+      ],
+      "positives": [
+        {
+          "title": "Meaningful impact",
+          "detail": "Changes the course of lives."
+        },
+        {
+          "title": "Flexible practice",
+          "detail": "Private clinic or organisations."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Emotional load",
+          "detail": "Carries others' trauma."
+        },
+        {
+          "title": "Long qualification",
+          "detail": "Licensing takes years."
+        }
+      ]
+    },
+    {
+      "code": "pharmacist",
+      "title": "Pharmacist",
+      "family": "healthcare-pharma",
+      "description": "Dispenses medicines and advises on their safe use.",
+      "interests": [
+        "science-chemistry",
+        "people-health"
+      ],
+      "skills": [
+        "attention-to-detail",
+        "memory-accuracy",
+        "empathy"
+      ],
+      "subjects": [
+        "chemistry",
+        "biology"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 4,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "pharmacy"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          45000,
+          60000
+        ],
+        "median": [
+          75000,
+          105000
+        ],
+        "senior": [
+          105000,
+          140000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Steady healthcare staple.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic"
+      ],
+      "positives": [
+        {
+          "title": "Stable and respected",
+          "detail": "Clear licensed profession."
+        },
+        {
+          "title": "Chemistry in action",
+          "detail": "Science you use daily."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Repetitive",
+          "detail": "Many similar prescriptions."
+        },
+        {
+          "title": "Long degree",
+          "detail": "Five-plus years of study."
+        }
+      ]
+    },
+    {
+      "code": "medical-lab-technician",
+      "title": "Medical Laboratory Technician",
+      "family": "healthcare-pharma",
+      "description": "Runs tests on samples that guide diagnosis.",
+      "interests": [
+        "science-biology",
+        "science-chemistry"
+      ],
+      "skills": [
+        "lab-techniques",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 4,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "biomedical-science"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          45000,
+          65000
+        ],
+        "senior": [
+          65000,
+          90000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Backbone of diagnostics.",
+        "sources": {}
+      },
+      "environments": [
+        "lab"
+      ],
+      "positives": [
+        {
+          "title": "Behind-the-scenes hero",
+          "detail": "Your results drive treatment."
+        },
+        {
+          "title": "Ordered work",
+          "detail": "Clear procedures and structure."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Little patient contact",
+          "detail": "Samples, not people."
+        },
+        {
+          "title": "Repetitive testing",
+          "detail": "Routine can dominate."
+        }
+      ]
+    },
+    {
+      "code": "teacher",
+      "title": "School Teacher",
+      "family": "education",
+      "description": "Teaches and mentors students in a subject area.",
+      "interests": [
+        "people-teaching",
+        "arts-writing",
+        "society-history"
+      ],
+      "skills": [
+        "teaching",
+        "public-speaking",
+        "empathy"
+      ],
+      "subjects": [
+        "any"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "education",
+          "subject-field"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "standing-long"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          42000,
+          65000
+        ],
+        "senior": [
+          65000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Persistent shortages in STEM.",
+        "sources": {}
+      },
+      "environments": [
+        "classroom"
+      ],
+      "positives": [
+        {
+          "title": "Shape young minds",
+          "detail": "Rare daily impact on others."
+        },
+        {
+          "title": "Holidays",
+          "detail": "Long breaks each year."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Heavy marking",
+          "detail": "Evenings spent grading."
+        },
+        {
+          "title": "Classroom stress",
+          "detail": "Managing 30 teenagers is hard."
+        }
+      ]
+    },
+    {
+      "code": "special-education-teacher",
+      "title": "Special Education Teacher",
+      "family": "education",
+      "description": "Adapts teaching for students with special needs.",
+      "interests": [
+        "people-teaching",
+        "people-helping"
+      ],
+      "skills": [
+        "empathy",
+        "teaching",
+        "problem-solving"
+      ],
+      "subjects": [
+        "psychology"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "special-education"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          42000
+        ],
+        "median": [
+          45000,
+          68000
+        ],
+        "senior": [
+          68000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "High-need specialisation.",
+        "sources": {}
+      },
+      "environments": [
+        "classroom"
+      ],
+      "positives": [
+        {
+          "title": "Profound difference",
+          "detail": "Progress changes whole families."
+        },
+        {
+          "title": "Small groups",
+          "detail": "Closer student relationships."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Emotionally demanding",
+          "detail": "Slow progress can frustrate."
+        },
+        {
+          "title": "Paperwork",
+          "detail": "Plans and reviews per student."
+        }
+      ]
+    },
+    {
+      "code": "civil-engineer",
+      "title": "Civil Engineer",
+      "family": "engineering-civil",
+      "description": "Designs and oversees bridges, roads and buildings.",
+      "interests": [
+        "hands-building",
+        "science-physics",
+        "technology-software"
+      ],
+      "skills": [
+        "engineering-design",
+        "mathematics",
+        "problem-solving"
+      ],
+      "subjects": [
+        "mathematics",
+        "physics"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "civil-engineering"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "site-visits"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          35000,
+          50000
+        ],
+        "median": [
+          60000,
+          90000
+        ],
+        "senior": [
+          90000,
+          130000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Infrastructure spending persists.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Monuments to your work",
+          "detail": "Structures outlive you."
+        },
+        {
+          "title": "Mix of office and site",
+          "detail": "Variety of settings."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Liability pressure",
+          "detail": "Safety rests on your calcs."
+        },
+        {
+          "title": "Site weather",
+          "detail": "Outdoor inspections in winter."
+        }
+      ]
+    },
+    {
+      "code": "electrician",
+      "title": "Electrician",
+      "family": "engineering-mechanical",
+      "description": "Installs and repairs electrical systems.",
+      "interests": [
+        "hands-electricity",
+        "hands-building"
+      ],
+      "skills": [
+        "dexterity",
+        "problem-solving",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "physics"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "electrical-installation"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "physical-labor",
+          "heights"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          45000,
+          70000
+        ],
+        "senior": [
+          70000,
+          100000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Electrification and renewables boom.",
+        "sources": {}
+      },
+      "environments": [
+        "workshop",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Earn while learning",
+          "detail": "Paid apprenticeships."
+        },
+        {
+          "title": "Evergreen trade",
+          "detail": "Every building needs power."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Physical strain",
+          "detail": "Ladders, crawlspaces, tools."
+        },
+        {
+          "title": "Shock risk",
+          "detail": "Safety discipline is vital."
+        }
+      ]
+    },
+    {
+      "code": "mechanical-engineer",
+      "title": "Mechanical Engineer",
+      "family": "engineering-mechanical",
+      "description": "Designs machines, engines and mechanical systems.",
+      "interests": [
+        "hands-machines",
+        "science-physics",
+        "technology-robots"
+      ],
+      "skills": [
+        "engineering-design",
+        "mathematics",
+        "problem-solving"
+      ],
+      "subjects": [
+        "mathematics",
+        "physics"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "mechanical-engineering"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          35000,
+          50000
+        ],
+        "median": [
+          60000,
+          90000
+        ],
+        "senior": [
+          95000,
+          135000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Broad industrial applicability.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "workshop"
+      ],
+      "positives": [
+        {
+          "title": "Tangible products",
+          "detail": "You can hold what you designed."
+        },
+        {
+          "title": "Versatile degree",
+          "detail": "Doors in many industries."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Documentation",
+          "detail": "Specs and compliance paperwork."
+        },
+        {
+          "title": "Slow iterations",
+          "detail": "Prototypes take time."
+        }
+      ]
+    },
+    {
+      "code": "robotics-technician",
+      "title": "Robotics Technician",
+      "family": "engineering-mechanical",
+      "description": "Builds, programs and maintains industrial robots.",
+      "interests": [
+        "technology-robots",
+        "hands-machines",
+        "technology-software"
+      ],
+      "skills": [
+        "electronics",
+        "programming",
+        "mechanical-repair"
+      ],
+      "subjects": [
+        "physics",
+        "computer-science"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "mechatronics"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "physical-labor"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          45000
+        ],
+        "median": [
+          50000,
+          75000
+        ],
+        "senior": [
+          75000,
+          105000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "Factory automation accelerates.",
+        "sources": {}
+      },
+      "environments": [
+        "workshop"
+      ],
+      "positives": [
+        {
+          "title": "Future-facing",
+          "detail": "Robots are the growth story."
+        },
+        {
+          "title": "Hands + code",
+          "detail": "Perfect blend of interests."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Factory hours",
+          "detail": "Production schedules rule."
+        },
+        {
+          "title": "Troubleshooting pressure",
+          "detail": "Down robots cost money."
+        }
+      ]
+    },
+    {
+      "code": "architect",
+      "title": "Architect",
+      "family": "engineering-civil",
+      "description": "Designs buildings that are safe, useful and beautiful.",
+      "interests": [
+        "arts-design",
+        "hands-building",
+        "arts-visual"
+      ],
+      "skills": [
+        "engineering-design",
+        "visual-design",
+        "critical-thinking"
+      ],
+      "subjects": [
+        "art",
+        "mathematics",
+        "physics"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "architecture"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          32000,
+          45000
+        ],
+        "median": [
+          55000,
+          85000
+        ],
+        "senior": [
+          85000,
+          130000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Tied to construction cycles.",
+        "sources": {}
+      },
+      "environments": [
+        "studio"
+      ],
+      "positives": [
+        {
+          "title": "Art meets engineering",
+          "detail": "Creative and technical."
+        },
+        {
+          "title": "Lasting legacy",
+          "detail": "Buildings define skylines."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Long qualification",
+          "detail": "School plus internship years."
+        },
+        {
+          "title": "Client compromises",
+          "detail": "Vision meets budget."
+        }
+      ]
+    },
+    {
+      "code": "accountant",
+      "title": "Accountant",
+      "family": "business",
+      "description": "Keeps financial records accurate and prepares reports.",
+      "interests": [
+        "business-finance",
+        "technology-data"
+      ],
+      "skills": [
+        "attention-to-detail",
+        "organization",
+        "data-analysis"
+      ],
+      "subjects": [
+        "mathematics",
+        "economics"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 5,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "accounting",
+          "finance"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          32000,
+          45000
+        ],
+        "median": [
+          50000,
+          75000
+        ],
+        "senior": [
+          75000,
+          120000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Every company needs one.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Rock-solid demand",
+          "detail": "Recession-resistant profession."
+        },
+        {
+          "title": "Clear career ladder",
+          "detail": "Certificates map to raises."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Deadline seasons",
+          "detail": "Quarter-ends get intense."
+        },
+        {
+          "title": "Perceived as boring",
+          "detail": "Structure over novelty."
+        }
+      ]
+    },
+    {
+      "code": "financial-analyst",
+      "title": "Financial Analyst",
+      "family": "business",
+      "description": "Evaluates investments and guides financial decisions.",
+      "interests": [
+        "business-finance",
+        "technology-data",
+        "business-entrepreneurship"
+      ],
+      "skills": [
+        "data-analysis",
+        "critical-thinking",
+        "negotiation"
+      ],
+      "subjects": [
+        "mathematics",
+        "economics"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "finance",
+          "economics"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          40000,
+          60000
+        ],
+        "median": [
+          65000,
+          100000
+        ],
+        "senior": [
+          100000,
+          180000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Capital markets keep humming.",
+        "sources": {}
+      },
+      "environments": [
+        "office"
+      ],
+      "positives": [
+        {
+          "title": "High earnings",
+          "detail": "Bonuses on top of salary."
+        },
+        {
+          "title": "Markets every day",
+          "detail": "Follow the real economy."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Market stress",
+          "detail": "Downturns mean pressure."
+        },
+        {
+          "title": "Long hours in banking",
+          "detail": "Culture varies by firm."
+        }
+      ]
+    },
+    {
+      "code": "marketing-specialist",
+      "title": "Marketing Specialist",
+      "family": "business-creative",
+      "description": "Promotes products through campaigns, content and analysis.",
+      "interests": [
+        "business-marketing",
+        "arts-writing",
+        "technology-data"
+      ],
+      "skills": [
+        "writing",
+        "visual-design",
+        "data-analysis"
+      ],
+      "subjects": [
+        "economics",
+        "media-studies"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "marketing",
+          "communications"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          42000
+        ],
+        "median": [
+          45000,
+          70000
+        ],
+        "senior": [
+          70000,
+          110000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Digital channels multiply.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Creative + analytic",
+          "detail": "Left and right brain."
+        },
+        {
+          "title": "Trendy industry",
+          "detail": "Fast-moving and social."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Metric pressure",
+          "detail": "Campaigns are judged by numbers."
+        },
+        {
+          "title": "Trend treadmill",
+          "detail": "What worked yesterday fades."
+        }
+      ]
+    },
+    {
+      "code": "sales-representative",
+      "title": "Sales Representative",
+      "family": "business",
+      "description": "Sells products and builds client relationships.",
+      "interests": [
+        "business-sales",
+        "business-entrepreneurship"
+      ],
+      "skills": [
+        "negotiation",
+        "empathy",
+        "public-speaking"
+      ],
+      "subjects": [
+        "any"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 2,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "high_school",
+        "fields": []
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": [
+          "travel"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          25000,
+          40000
+        ],
+        "median": [
+          45000,
+          80000
+        ],
+        "senior": [
+          80000,
+          150000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Always needed; commission-heavy.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "vehicle"
+      ],
+      "positives": [
+        {
+          "title": "Uncapped earnings",
+          "detail": "Great sellers print money."
+        },
+        {
+          "title": "Low entry bar",
+          "detail": "Skill matters more than degree."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Rejection daily",
+          "detail": "Thick skin required."
+        },
+        {
+          "title": "Target pressure",
+          "detail": "Quotas follow you home."
+        }
+      ]
+    },
+    {
+      "code": "graphic-designer",
+      "title": "Graphic Designer",
+      "family": "creative",
+      "description": "Creates visual identities, layouts and campaign art.",
+      "interests": [
+        "arts-design",
+        "arts-visual",
+        "technology-software"
+      ],
+      "skills": [
+        "visual-design",
+        "storytelling",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "art"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "graphic-design"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          25000,
+          38000
+        ],
+        "median": [
+          40000,
+          65000
+        ],
+        "senior": [
+          65000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "AI tools reshape the craft.",
+        "sources": {}
+      },
+      "environments": [
+        "studio",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Creative daily",
+          "detail": "Your eye is the product."
+        },
+        {
+          "title": "Freelance-friendly",
+          "detail": "Easy independent path."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Subjective feedback",
+          "detail": "Endless revisions."
+        },
+        {
+          "title": "AI competition",
+          "detail": "Commoditised basics."
+        }
+      ]
+    },
+    {
+      "code": "ux-designer",
+      "title": "UX Designer",
+      "family": "creative",
+      "description": "Designs how apps and websites feel and flow for users.",
+      "interests": [
+        "arts-design",
+        "technology-software",
+        "people-helping"
+      ],
+      "skills": [
+        "visual-design",
+        "empathy",
+        "problem-solving"
+      ],
+      "subjects": [
+        "psychology",
+        "art"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "interaction-design",
+          "psychology"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          32000,
+          48000
+        ],
+        "median": [
+          55000,
+          85000
+        ],
+        "senior": [
+          85000,
+          125000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Digital products need human-centred design.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "remote"
+      ],
+      "positives": [
+        {
+          "title": "Psychology + design",
+          "detail": "Understand people, then draw."
+        },
+        {
+          "title": "Strong tech salaries",
+          "detail": "Design is valued in tech."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Stakeholder tug-of-war",
+          "detail": "Opinions clash on taste."
+        },
+        {
+          "title": "Research grind",
+          "detail": "User testing takes patience."
+        }
+      ]
+    },
+    {
+      "code": "journalist",
+      "title": "Journalist",
+      "family": "business-creative",
+      "description": "Researches and reports news stories for the public.",
+      "interests": [
+        "society-media",
+        "arts-writing",
+        "society-politics"
+      ],
+      "skills": [
+        "writing",
+        "critical-thinking",
+        "public-speaking"
+      ],
+      "subjects": [
+        "history",
+        "literature"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 2,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "journalism",
+          "communications"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": [
+          "deadlines"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          24000,
+          35000
+        ],
+        "median": [
+          40000,
+          65000
+        ],
+        "senior": [
+          65000,
+          100000
+        ]
+      },
+      "demand": {
+        "outlook": "declining",
+        "note": "Traditional media shrinking; niches grow.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Truth-telling",
+          "detail": "Democracy's front line."
+        },
+        {
+          "title": "Every day differs",
+          "detail": "New stories constantly."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Shrinking jobs",
+          "detail": "Newsroom cuts continue."
+        },
+        {
+          "title": "Deadline treadmill",
+          "detail": "Constant time pressure."
+        }
+      ]
+    },
+    {
+      "code": "police-officer",
+      "title": "Police Officer",
+      "family": "public-safety",
+      "description": "Enforces laws and protects the public.",
+      "interests": [
+        "people-public-safety",
+        "sports-fitness",
+        "people-law-justice"
+      ],
+      "skills": [
+        "physical-stamina",
+        "conflict-resolution",
+        "first-aid"
+      ],
+      "subjects": [
+        "any"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "active"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "police-academy"
+        ]
+      },
+      "physical": {
+        "activity": "active",
+        "requirements": [
+          "physical-fitness",
+          "shift-work"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          42000
+        ],
+        "median": [
+          45000,
+          70000
+        ],
+        "senior": [
+          70000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Constant public need.",
+        "sources": {}
+      },
+      "environments": [
+        "outdoors",
+        "vehicle"
+      ],
+      "positives": [
+        {
+          "title": "Serve the community",
+          "detail": "Direct protection of people."
+        },
+        {
+          "title": "Pension and stability",
+          "detail": "Strong public benefits."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Dangerous",
+          "detail": "Confrontation is possible."
+        },
+        {
+          "title": "Shift work",
+          "detail": "Nights, weekends, holidays."
+        }
+      ]
+    },
+    {
+      "code": "firefighter",
+      "title": "Firefighter",
+      "family": "public-safety",
+      "description": "Fights fires and rescues people from emergencies.",
+      "interests": [
+        "people-public-safety",
+        "sports-fitness",
+        "people-helping"
+      ],
+      "skills": [
+        "physical-stamina",
+        "first-aid",
+        "teamwork"
+      ],
+      "subjects": [
+        "any"
+      ],
+      "work_style": {
+        "teamwork": 5,
+        "environment": 3,
+        "structure": 3,
+        "pace": 5,
+        "leadership": 3,
+        "physical_activity": "physical_intense"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "fire-science"
+        ]
+      },
+      "physical": {
+        "activity": "physical_intense",
+        "requirements": [
+          "heavy-lifting",
+          "physical-fitness",
+          "shift-work"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          45000,
+          65000
+        ],
+        "senior": [
+          65000,
+          90000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Municipal staple.",
+        "sources": {}
+      },
+      "environments": [
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Elite teamwork",
+          "detail": "Crew bonds run deep."
+        },
+        {
+          "title": "Heroic work",
+          "detail": "Rescue people at their worst."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Extreme physicality",
+          "detail": "Heavy gear in heat."
+        },
+        {
+          "title": "Trauma risk",
+          "detail": "Rescue can end in loss."
+        }
+      ]
+    },
+    {
+      "code": "lawyer",
+      "title": "Lawyer",
+      "family": "public-safety",
+      "description": "Advises and represents clients on legal matters.",
+      "interests": [
+        "people-law-justice",
+        "arts-writing",
+        "society-politics"
+      ],
+      "skills": [
+        "critical-thinking",
+        "negotiation",
+        "public-speaking"
+      ],
+      "subjects": [
+        "history",
+        "literature"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 2,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "law"
+        ]
+      },
+      "physical": {
+        "activity": "sedentary",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          40000,
+          60000
+        ],
+        "median": [
+          70000,
+          120000
+        ],
+        "senior": [
+          120000,
+          250000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Legal needs never vanish.",
+        "sources": {}
+      },
+      "environments": [
+        "office"
+      ],
+      "positives": [
+        {
+          "title": "Prestige and pay",
+          "detail": "Top-tier profession."
+        },
+        {
+          "title": "Argument craft",
+          "detail": "Logic as a sport."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Billable-hour grind",
+          "detail": "Long documented hours."
+        },
+        {
+          "title": "Expensive training",
+          "detail": "Law school costs."
+        }
+      ]
+    },
+    {
+      "code": "social-worker",
+      "title": "Social Worker",
+      "family": "public-safety",
+      "description": "Supports families and individuals through hard times.",
+      "interests": [
+        "people-helping",
+        "society-politics",
+        "people-teaching"
+      ],
+      "skills": [
+        "empathy",
+        "conflict-resolution",
+        "organization"
+      ],
+      "subjects": [
+        "psychology",
+        "sociology"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "social-work"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "field-visits"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          38000
+        ],
+        "median": [
+          42000,
+          60000
+        ],
+        "senior": [
+          60000,
+          85000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Social services expanding.",
+        "sources": {}
+      },
+      "environments": [
+        "office",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Lifeline role",
+          "detail": "Help where it's needed most."
+        },
+        {
+          "title": "Variety of cases",
+          "detail": "No two families alike."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Heavy caseloads",
+          "detail": "Systemic underfunding."
+        },
+        {
+          "title": "Hard stories",
+          "detail": "Abuse and poverty daily."
+        }
+      ]
+    },
+    {
+      "code": "environmental-scientist",
+      "title": "Environmental Scientist",
+      "family": "science",
+      "description": "Studies ecosystems and pollution to protect nature.",
+      "interests": [
+        "society-environment",
+        "science-earth",
+        "science-biology"
+      ],
+      "skills": [
+        "data-analysis",
+        "lab-techniques",
+        "critical-thinking"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry",
+        "geography"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "environmental-science"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "fieldwork"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          42000
+        ],
+        "median": [
+          50000,
+          75000
+        ],
+        "senior": [
+          75000,
+          105000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Climate agenda fuels roles.",
+        "sources": {}
+      },
+      "environments": [
+        "lab",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Mission-driven",
+          "detail": "Work for the planet."
+        },
+        {
+          "title": "Lab + field mix",
+          "detail": "Indoor and outdoor balance."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Policy frustration",
+          "detail": "Science vs politics."
+        },
+        {
+          "title": "Grant cycles",
+          "detail": "Funding insecurity."
+        }
+      ]
+    },
+    {
+      "code": "biologist",
+      "title": "Biologist (Research)",
+      "family": "science",
+      "description": "Researches living systems, from cells to ecosystems.",
+      "interests": [
+        "science-biology",
+        "nature-animals"
+      ],
+      "skills": [
+        "lab-techniques",
+        "critical-thinking",
+        "data-analysis"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "biology"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          45000,
+          70000
+        ],
+        "senior": [
+          70000,
+          110000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Biotech growth offsets academia.",
+        "sources": {}
+      },
+      "environments": [
+        "lab",
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Discover the unknown",
+          "detail": "Real research frontiers."
+        },
+        {
+          "title": "Curiosity-driven",
+          "detail": "Follow fascinating questions."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Modest academic pay",
+          "detail": "PhD path is long."
+        },
+        {
+          "title": "Repetition",
+          "detail": "Experiments fail often."
+        }
+      ]
+    },
+    {
+      "code": "chemist",
+      "title": "Chemist",
+      "family": "science",
+      "description": "Analyses substances and develops new materials.",
+      "interests": [
+        "science-chemistry",
+        "technology-data"
+      ],
+      "skills": [
+        "lab-techniques",
+        "attention-to-detail",
+        "critical-thinking"
+      ],
+      "subjects": [
+        "chemistry",
+        "mathematics"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 4,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "chemistry"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          42000
+        ],
+        "median": [
+          50000,
+          75000
+        ],
+        "senior": [
+          75000,
+          110000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Industry, pharma and materials.",
+        "sources": {}
+      },
+      "environments": [
+        "lab"
+      ],
+      "positives": [
+        {
+          "title": "Molecular detective",
+          "detail": "Understand matter itself."
+        },
+        {
+          "title": "Industrial relevance",
+          "detail": "Products need chemists."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Safety protocols",
+          "detail": "Hazardous materials."
+        },
+        {
+          "title": "Precise routines",
+          "detail": "Little improvisation."
+        }
+      ]
+    },
+    {
+      "code": "wildlife-biologist",
+      "title": "Wildlife Biologist",
+      "family": "science",
+      "description": "Studies animals in their natural habitats.",
+      "interests": [
+        "nature-animals",
+        "science-biology",
+        "sports-outdoors"
+      ],
+      "skills": [
+        "data-analysis",
+        "physical-stamina",
+        "critical-thinking"
+      ],
+      "subjects": [
+        "biology",
+        "geography"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 2,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "active"
+      },
+      "education": {
+        "level": "master",
+        "fields": [
+          "zoology",
+          "ecology"
+        ]
+      },
+      "physical": {
+        "activity": "active",
+        "requirements": [
+          "fieldwork",
+          "outdoor-conditions"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          26000,
+          38000
+        ],
+        "median": [
+          42000,
+          65000
+        ],
+        "senior": [
+          65000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Conservation funding dependent.",
+        "sources": {}
+      },
+      "environments": [
+        "outdoors",
+        "lab"
+      ],
+      "positives": [
+        {
+          "title": "Live with nature",
+          "detail": "Fieldwork in wild places."
+        },
+        {
+          "title": "Conservation impact",
+          "detail": "Protect species directly."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Modest pay",
+          "detail": "Passion-driven field."
+        },
+        {
+          "title": "Remote postings",
+          "detail": "Far from cities."
+        }
+      ]
+    },
+    {
+      "code": "veterinarian",
+      "title": "Veterinarian",
+      "family": "agriculture",
+      "description": "Diagnoses and treats animals.",
+      "interests": [
+        "nature-animals-care",
+        "science-biology",
+        "people-health"
+      ],
+      "skills": [
+        "critical-thinking",
+        "empathy",
+        "dexterity"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "doctorate",
+        "fields": [
+          "veterinary-medicine"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "animal-handling"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          45000,
+          60000
+        ],
+        "median": [
+          75000,
+          110000
+        ],
+        "senior": [
+          110000,
+          160000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Pet care spending booms.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic"
+      ],
+      "positives": [
+        {
+          "title": "Heal animals",
+          "detail": "Patients everyone loves."
+        },
+        {
+          "title": "Diverse cases",
+          "detail": "From hamsters to horses."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Long training",
+          "detail": "Very competitive admission."
+        },
+        {
+          "title": "Emotional euthanasia",
+          "detail": "Hard moments weekly."
+        }
+      ]
+    },
+    {
+      "code": "veterinary-technician",
+      "title": "Veterinary Technician",
+      "family": "agriculture",
+      "description": "Assists vets with animal care and procedures.",
+      "interests": [
+        "nature-animals-care",
+        "people-health"
+      ],
+      "skills": [
+        "empathy",
+        "dexterity",
+        "attention-to-detail"
+      ],
+      "subjects": [
+        "biology"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "veterinary-technology"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "animal-handling"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          24000,
+          34000
+        ],
+        "median": [
+          35000,
+          52000
+        ],
+        "senior": [
+          52000,
+          70000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Fast entry into animal care.",
+        "sources": {}
+      },
+      "environments": [
+        "clinic"
+      ],
+      "positives": [
+        {
+          "title": "Animals all day",
+          "detail": "Direct care work."
+        },
+        {
+          "title": "Two-year entry",
+          "detail": "Quick qualification."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Bites and scratches",
+          "detail": "Patients bite."
+        },
+        {
+          "title": "Modest pay",
+          "detail": "Above-minimum wage only."
+        }
+      ]
+    },
+    {
+      "code": "agronomist",
+      "title": "Agronomist",
+      "family": "agriculture",
+      "description": "Improves crop production and soil health.",
+      "interests": [
+        "nature-plants",
+        "science-biology",
+        "society-environment"
+      ],
+      "skills": [
+        "data-analysis",
+        "problem-solving",
+        "lab-techniques"
+      ],
+      "subjects": [
+        "biology",
+        "chemistry"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "agronomy"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "fieldwork"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          45000,
+          68000
+        ],
+        "senior": [
+          68000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Food security + sustainability.",
+        "sources": {}
+      },
+      "environments": [
+        "outdoors",
+        "lab"
+      ],
+      "positives": [
+        {
+          "title": "Feed the world",
+          "detail": "Fundamental human mission."
+        },
+        {
+          "title": "Science outdoors",
+          "detail": "Fields are your lab."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Seasonal pressure",
+          "detail": "Harvest waits for no one."
+        },
+        {
+          "title": "Rural locations",
+          "detail": "Often away from cities."
+        }
+      ]
+    },
+    {
+      "code": "farmer",
+      "title": "Farmer",
+      "family": "agriculture",
+      "description": "Grows crops or raises livestock for food.",
+      "interests": [
+        "nature-plants",
+        "hands-machines",
+        "business-entrepreneurship"
+      ],
+      "skills": [
+        "physical-stamina",
+        "organization",
+        "mechanical-repair"
+      ],
+      "subjects": [
+        "biology"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 4,
+        "physical_activity": "physical_intense"
+      },
+      "education": {
+        "level": "no_formal",
+        "fields": []
+      },
+      "physical": {
+        "activity": "physical_intense",
+        "requirements": [
+          "physical-labor",
+          "early-mornings"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          20000,
+          35000
+        ],
+        "median": [
+          35000,
+          60000
+        ],
+        "senior": [
+          60000,
+          120000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Consolidation; organic niches grow.",
+        "sources": {}
+      },
+      "environments": [
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Be your own boss",
+          "detail": "Independent livelihood."
+        },
+        {
+          "title": "Tangible results",
+          "detail": "Harvest you can touch."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Weather gamble",
+          "detail": "Nature can ruin a year."
+        },
+        {
+          "title": "No days off",
+          "detail": "Animals eat daily."
+        }
+      ]
+    },
+    {
+      "code": "chef",
+      "title": "Chef",
+      "family": "hospitality",
+      "description": "Leads kitchen teams and creates dishes.",
+      "interests": [
+        "hands-cooking",
+        "business-entrepreneurship",
+        "arts-design"
+      ],
+      "skills": [
+        "cooking",
+        "leadership",
+        "problem-solving"
+      ],
+      "subjects": [
+        "any"
+      ],
+      "work_style": {
+        "teamwork": 5,
+        "environment": 3,
+        "structure": 3,
+        "pace": 5,
+        "leadership": 3,
+        "physical_activity": "active"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "culinary-arts"
+        ]
+      },
+      "physical": {
+        "activity": "active",
+        "requirements": [
+          "standing-long",
+          "hot-environment"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          24000,
+          35000
+        ],
+        "median": [
+          40000,
+          65000
+        ],
+        "senior": [
+          65000,
+          120000
+        ]
+      },
+      "demand": {
+        "outlook": "stable",
+        "note": "Restaurants always need talent.",
+        "sources": {}
+      },
+      "environments": [
+        "kitchen"
+      ],
+      "positives": [
+        {
+          "title": "Creative craft",
+          "detail": "Food as art."
+        },
+        {
+          "title": "Fast growth",
+          "detail": "Skill beats credentials."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Brutal hours",
+          "detail": "Evenings, weekends, holidays."
+        },
+        {
+          "title": "High heat and stress",
+          "detail": "Service rush is intense."
+        }
+      ]
+    },
+    {
+      "code": "hotel-manager",
+      "title": "Hotel Manager",
+      "family": "hospitality",
+      "description": "Runs hotel operations and guest experience.",
+      "interests": [
+        "business-management",
+        "people-helping",
+        "society-languages"
+      ],
+      "skills": [
+        "leadership",
+        "customer-service",
+        "organization"
+      ],
+      "subjects": [
+        "economics"
+      ],
+      "work_style": {
+        "teamwork": 4,
+        "environment": 3,
+        "structure": 3,
+        "pace": 4,
+        "leadership": 5,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "hospitality-management"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          45000
+        ],
+        "median": [
+          50000,
+          80000
+        ],
+        "senior": [
+          80000,
+          120000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Travel keeps rebounding.",
+        "sources": {}
+      },
+      "environments": [
+        "office"
+      ],
+      "positives": [
+        {
+          "title": "People + business",
+          "detail": "Lead teams, host guests."
+        },
+        {
+          "title": "Global industry",
+          "detail": "Work anywhere."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Always on",
+          "detail": "Guest issues at 2am."
+        },
+        {
+          "title": "Weekend work",
+          "detail": "Peak times are yours."
+        }
+      ]
+    },
+    {
+      "code": "logistics-coordinator",
+      "title": "Logistics Coordinator",
+      "family": "business",
+      "description": "Moves goods efficiently through supply chains.",
+      "interests": [
+        "business-logistics",
+        "technology-data"
+      ],
+      "skills": [
+        "organization",
+        "problem-solving",
+        "negotiation"
+      ],
+      "subjects": [
+        "economics",
+        "geography"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 4,
+        "pace": 4,
+        "leadership": 3,
+        "physical_activity": "light"
+      },
+      "education": {
+        "level": "bachelor",
+        "fields": [
+          "logistics",
+          "business"
+        ]
+      },
+      "physical": {
+        "activity": "light",
+        "requirements": []
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          45000,
+          68000
+        ],
+        "senior": [
+          68000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "E-commerce logistics boom.",
+        "sources": {}
+      },
+      "environments": [
+        "office"
+      ],
+      "positives": [
+        {
+          "title": "Global puzzle",
+          "detail": "Orchestrate world trade."
+        },
+        {
+          "title": "E-commerce tailwind",
+          "detail": "Sector keeps growing."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Firefighting",
+          "detail": "Delays cascade daily."
+        },
+        {
+          "title": "Time-zone calls",
+          "detail": "Early or late meetings."
+        }
+      ]
+    },
+    {
+      "code": "pilot",
+      "title": "Pilot (Commercial)",
+      "family": "hospitality",
+      "description": "Flies aircraft for airlines or cargo.",
+      "interests": [
+        "hands-driving",
+        "science-physics",
+        "sports-outdoors"
+      ],
+      "skills": [
+        "driving",
+        "attention-to-detail",
+        "problem-solving"
+      ],
+      "subjects": [
+        "physics",
+        "mathematics"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 4,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "aviation"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "medical-certificate",
+          "shift-work"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          30000,
+          50000
+        ],
+        "median": [
+          70000,
+          120000
+        ],
+        "senior": [
+          120000,
+          200000
+        ]
+      },
+      "demand": {
+        "outlook": "growing",
+        "note": "Pilot shortage projected.",
+        "sources": {}
+      },
+      "environments": [
+        "vehicle"
+      ],
+      "positives": [
+        {
+          "title": "Views and travel",
+          "detail": "Office above the clouds."
+        },
+        {
+          "title": "Elite pay",
+          "detail": "Senior pilots earn large."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Expensive licence",
+          "detail": "Training costs a fortune."
+        },
+        {
+          "title": "Circadian grind",
+          "detail": "Jet lag and red-eyes."
+        }
+      ]
+    },
+    {
+      "code": "electric-vehicle-technician",
+      "title": "EV Technician",
+      "family": "engineering-mechanical",
+      "description": "Services and repairs electric vehicles.",
+      "interests": [
+        "hands-electricity",
+        "hands-machines",
+        "technology-hardware"
+      ],
+      "skills": [
+        "electronics",
+        "mechanical-repair",
+        "problem-solving"
+      ],
+      "subjects": [
+        "physics"
+      ],
+      "work_style": {
+        "teamwork": 2,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "moderate"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "automotive-technology"
+        ]
+      },
+      "physical": {
+        "activity": "moderate",
+        "requirements": [
+          "physical-labor"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          28000,
+          40000
+        ],
+        "median": [
+          48000,
+          70000
+        ],
+        "senior": [
+          70000,
+          95000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "EV fleet grows yearly.",
+        "sources": {}
+      },
+      "environments": [
+        "workshop"
+      ],
+      "positives": [
+        {
+          "title": "Ride the EV wave",
+          "detail": "Skills of the future."
+        },
+        {
+          "title": "Trade security",
+          "detail": "Hard to offshore."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "High-voltage risk",
+          "detail": "Serious safety training."
+        },
+        {
+          "title": "Physical work",
+          "detail": "Under the car, again."
+        }
+      ]
+    },
+    {
+      "code": "renewable-energy-technician",
+      "title": "Wind Turbine Technician",
+      "family": "engineering-mechanical",
+      "description": "Installs and maintains wind turbines.",
+      "interests": [
+        "hands-electricity",
+        "society-environment",
+        "hands-machines"
+      ],
+      "skills": [
+        "mechanical-repair",
+        "physical-stamina",
+        "electronics"
+      ],
+      "subjects": [
+        "physics"
+      ],
+      "work_style": {
+        "teamwork": 3,
+        "environment": 3,
+        "structure": 3,
+        "pace": 3,
+        "leadership": 3,
+        "physical_activity": "active"
+      },
+      "education": {
+        "level": "vocational",
+        "fields": [
+          "wind-energy"
+        ]
+      },
+      "physical": {
+        "activity": "active",
+        "requirements": [
+          "heights",
+          "physical-labor",
+          "outdoor-conditions"
+        ]
+      },
+      "salary": {
+        "currency": "USD",
+        "entry": [
+          32000,
+          45000
+        ],
+        "median": [
+          55000,
+          80000
+        ],
+        "senior": [
+          80000,
+          105000
+        ]
+      },
+      "demand": {
+        "outlook": "hot",
+        "note": "Fastest-growing US job class.",
+        "sources": {}
+      },
+      "environments": [
+        "outdoors"
+      ],
+      "positives": [
+        {
+          "title": "Green mission",
+          "detail": "Build the energy transition."
+        },
+        {
+          "title": "Climbing pay",
+          "detail": "Demand outstrips supply."
+        }
+      ],
+      "negatives": [
+        {
+          "title": "Height work",
+          "detail": "100m ladders in wind."
+        },
+        {
+          "title": "Remote sites",
+          "detail": "Travel to turbines."
+        }
+      ]
+    }
+  ],
+  "RELATIONS": [
+    {
+      "from": "software-developer",
+      "to": "ml-engineer",
+      "type": "specialises_into",
+      "weight": 0.8,
+      "rationale": "Strong programming base leads into AI engineering."
+    },
+    {
+      "from": "data-scientist",
+      "to": "ml-engineer",
+      "type": "alternative_to",
+      "weight": 0.7,
+      "rationale": "Both model data; engineering vs analysis emphasis."
+    },
+    {
+      "from": "software-developer",
+      "to": "data-scientist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Shared coding and statistics core."
+    },
+    {
+      "from": "software-developer",
+      "to": "game-developer",
+      "type": "alternative_to",
+      "weight": 0.6,
+      "rationale": "Same coding skills, different product passion."
+    },
+    {
+      "from": "software-developer",
+      "to": "devops-engineer",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Devs who love infrastructure become DevOps."
+    },
+    {
+      "from": "devops-engineer",
+      "to": "cybersecurity-analyst",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Systems knowledge transfers to security."
+    },
+    {
+      "from": "nurse",
+      "to": "physician",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Clinical experience can motivate medical school."
+    },
+    {
+      "from": "paramedic",
+      "to": "nurse",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Common bridge from emergency care into nursing."
+    },
+    {
+      "from": "nurse",
+      "to": "physiotherapist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Patient-centred care in adjacent modalities."
+    },
+    {
+      "from": "psychologist",
+      "to": "physician",
+      "type": "prerequisite_of",
+      "weight": 0.2,
+      "rationale": "Different paths; psychology is not a medical prerequisite."
+    },
+    {
+      "from": "medical-lab-technician",
+      "to": "pharmacist",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Lab foundation supports pharmacy studies."
+    },
+    {
+      "from": "teacher",
+      "to": "special-education-teacher",
+      "type": "specialises_into",
+      "weight": 0.8,
+      "rationale": "General teaching specialises into SEN."
+    },
+    {
+      "from": "civil-engineer",
+      "to": "architect",
+      "type": "alternative_to",
+      "weight": 0.5,
+      "rationale": "Built environment; engineering vs design lead."
+    },
+    {
+      "from": "electrician",
+      "to": "electric-vehicle-technician",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Electrical mastery extends to EV systems."
+    },
+    {
+      "from": "mechanical-engineer",
+      "to": "robotics-technician",
+      "type": "prerequisite_of",
+      "weight": 0.5,
+      "rationale": "Mechanical fundamentals underpin robotics."
+    },
+    {
+      "from": "electrician",
+      "to": "renewable-energy-technician",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Wiring skills transfer to wind/solar."
+    },
+    {
+      "from": "accountant",
+      "to": "financial-analyst",
+      "type": "leads_to",
+      "weight": 0.6,
+      "rationale": "Accounting feeds into investment analysis."
+    },
+    {
+      "from": "marketing-specialist",
+      "to": "graphic-designer",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Campaigns pair copy with visuals."
+    },
+    {
+      "from": "graphic-designer",
+      "to": "ux-designer",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Visual craft evolves into product design."
+    },
+    {
+      "from": "journalist",
+      "to": "marketing-specialist",
+      "type": "alternative_to",
+      "weight": 0.5,
+      "rationale": "Writing skills monetise in content marketing."
+    },
+    {
+      "from": "social-worker",
+      "to": "psychologist",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Case work inspires clinical training."
+    },
+    {
+      "from": "police-officer",
+      "to": "lawyer",
+      "type": "leads_to",
+      "weight": 0.3,
+      "rationale": "Field experience precedes law school for some."
+    },
+    {
+      "from": "biologist",
+      "to": "wildlife-biologist",
+      "type": "specialises_into",
+      "weight": 0.8,
+      "rationale": "Biology specialises into ecology/zoology."
+    },
+    {
+      "from": "chemist",
+      "to": "pharmacist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Chemistry core, applied vs clinical."
+    },
+    {
+      "from": "environmental-scientist",
+      "to": "agronomist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Soil, sustainability and science overlap."
+    },
+    {
+      "from": "veterinary-technician",
+      "to": "veterinarian",
+      "type": "leads_to",
+      "weight": 0.6,
+      "rationale": "Tech experience strengthens vet applications."
+    },
+    {
+      "from": "farmer",
+      "to": "agronomist",
+      "type": "alternative_to",
+      "weight": 0.4,
+      "rationale": "Practical vs scientific crop expertise."
+    },
+    {
+      "from": "chef",
+      "to": "hotel-manager",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Kitchen leadership grows into broader hospitality."
+    },
+    {
+      "from": "logistics-coordinator",
+      "to": "hotel-manager",
+      "type": "alternative_to",
+      "weight": 0.3,
+      "rationale": "Operations management in different sectors."
+    },
+    {
+      "from": "pilot",
+      "to": "firefighter",
+      "type": "alternative_to",
+      "weight": 0.2,
+      "rationale": "Shared fitness and duty culture, different fields."
+    },
+    {
+      "from": "mechanical-engineer",
+      "to": "renewable-energy-technician",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Machines and energy systems."
+    },
+    {
+      "from": "teacher",
+      "to": "psychologist",
+      "type": "leads_to",
+      "weight": 0.3,
+      "rationale": "Educators often retrain in child psychology."
+    },
+    {
+      "from": "data-scientist",
+      "to": "accountant",
+      "type": "alternative_to",
+      "weight": 0.3,
+      "rationale": "Numeric roles with different cultures."
+    },
+    {
+      "from": "ux-designer",
+      "to": "marketing-specialist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "User empathy serves campaigns too."
+    }
+  ],
+  "PATHS": [
+    {
+      "job": "software-developer",
+      "title": "The classic study route",
+      "description": "Secondary school → CS degree → junior developer role.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Focus on mathematics and computer science",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "programming",
+          "label": "Build small projects and join a coding club",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "technology-software",
+          "education_level": "bachelor",
+          "label": "BSc in computer science or software engineering",
+          "optional": false
+        },
+        {
+          "kind": "certification",
+          "skill_key": "programming",
+          "label": "Earn an entry-level programming certificate",
+          "optional": true
+        },
+        {
+          "kind": "job",
+          "family_key": "technology-software",
+          "label": "Junior developer / internship role",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "job": "software-developer",
+      "title": "The self-taught route",
+      "description": "Skip the degree: portfolio-first entry via bootcamps and open source.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Finish secondary school",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "programming",
+          "label": "Learn through online courses and open-source contributions",
+          "optional": false
+        },
+        {
+          "kind": "certification",
+          "skill_key": "problem-solving",
+          "label": "Complete a recognised bootcamp or certification track",
+          "optional": false
+        },
+        {
+          "kind": "job",
+          "family_key": "technology-software",
+          "label": "Apprentice / junior developer role",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "job": "data-scientist",
+      "title": "The quantitative route",
+      "description": "Strong maths foundation, then statistics or data science.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Excel at mathematics and statistics courses",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "technology-data",
+          "education_level": "bachelor",
+          "label": "BSc in statistics, mathematics or data science",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "data-analysis",
+          "label": "Portfolio projects analysing real datasets",
+          "optional": false
+        },
+        {
+          "kind": "job",
+          "family_key": "technology-data",
+          "label": "Junior data analyst position",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "job": "physician",
+      "title": "The medical school route",
+      "description": "The long but direct path into clinical medicine.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Strong grades in biology and chemistry",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "healthcare-clinical",
+          "education_level": "master",
+          "label": "Medical degree (MD or equivalent)",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "empathy",
+          "label": "Hospital volunteering and clinical rotations",
+          "optional": false
+        },
+        {
+          "kind": "certification",
+          "skill_key": "first-aid",
+          "label": "Medical licensing exams",
+          "optional": false
+        },
+        {
+          "kind": "job",
+          "family_key": "healthcare-clinical",
+          "label": "Residency placement",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "job": "nurse",
+      "title": "The caring professional route",
+      "description": "Nursing degree with early patient exposure.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Biology and care-related electives",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "empathy",
+          "label": "Care-home or first-aid volunteering",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "healthcare-clinical",
+          "education_level": "bachelor",
+          "label": "BSc in nursing",
+          "optional": false
+        },
+        {
+          "kind": "certification",
+          "skill_key": "first-aid",
+          "label": "Registered nurse licensing",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "job": "civil-engineer",
+      "title": "The built-environment route",
+      "description": "From physics class to construction sites.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Mathematics and physics focus",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "engineering-civil",
+          "education_level": "bachelor",
+          "label": "BSc in civil engineering",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "engineering-design",
+          "label": "CAD practice and site internships",
+          "optional": false
+        },
+        {
+          "kind": "certification",
+          "skill_key": "engineering-design",
+          "label": "Professional engineering licence",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "job": "ux-designer",
+      "title": "The design-thinker route",
+      "description": "Human-centred design skills built through practice.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Art, psychology and technology mix",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "visual-design",
+          "label": "Redesign familiar apps; build a case-study portfolio",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "business-creative",
+          "education_level": "bachelor",
+          "label": "Degree in design, HCI or related field",
+          "optional": true
+        },
+        {
+          "kind": "certification",
+          "skill_key": "visual-design",
+          "label": "UX certification or design-bootcamp certificate",
+          "optional": true
+        },
+        {
+          "kind": "job",
+          "family_key": "business-creative",
+          "label": "Junior product/UX designer role",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "job": "veterinarian",
+      "title": "The animal-care route",
+      "description": "From shelter volunteering to veterinary medicine.",
+      "steps": [
+        {
+          "kind": "education",
+          "education_level": "high_school",
+          "label": "Biology emphasis and animal-handling experience",
+          "optional": false
+        },
+        {
+          "kind": "experience",
+          "skill_key": "empathy",
+          "label": "Volunteer at shelters or vet clinics",
+          "optional": false
+        },
+        {
+          "kind": "education",
+          "family_key": "agriculture",
+          "education_level": "master",
+          "label": "Veterinary medicine degree",
+          "optional": false
+        },
+        {
+          "kind": "certification",
+          "skill_key": "first-aid",
+          "label": "Veterinary licensing exam",
+          "optional": false
+        }
+      ]
+    }
+  ],
+  "EXPERIENCE_YEARS": {
+    "software-developer": [
+      0,
+      2
+    ],
+    "data-scientist": [
+      1,
+      3
+    ],
+    "ml-engineer": [
+      2,
+      5
+    ],
+    "cybersecurity-analyst": [
+      1,
+      4
+    ],
+    "devops-engineer": [
+      2,
+      5
+    ],
+    "game-developer": [
+      0,
+      3
+    ],
+    "nurse": [
+      0,
+      2
+    ],
+    "physician": [
+      2,
+      6
+    ],
+    "paramedic": [
+      0,
+      3
+    ],
+    "physiotherapist": [
+      0,
+      3
+    ],
+    "psychologist": [
+      2,
+      5
+    ],
+    "pharmacist": [
+      0,
+      3
+    ],
+    "medical-lab-technician": [
+      0,
+      2
+    ],
+    "teacher": [
+      0,
+      2
+    ],
+    "special-education-teacher": [
+      1,
+      4
+    ],
+    "civil-engineer": [
+      1,
+      4
+    ],
+    "electrician": [
+      0,
+      4
+    ],
+    "mechanical-engineer": [
+      1,
+      4
+    ],
+    "robotics-technician": [
+      0,
+      3
+    ],
+    "architect": [
+      2,
+      5
+    ],
+    "accountant": [
+      0,
+      3
+    ],
+    "financial-analyst": [
+      1,
+      4
+    ],
+    "marketing-specialist": [
+      0,
+      3
+    ],
+    "sales-representative": [
+      0,
+      2
+    ],
+    "graphic-designer": [
+      0,
+      3
+    ],
+    "ux-designer": [
+      0,
+      3
+    ],
+    "journalist": [
+      0,
+      3
+    ],
+    "police-officer": [
+      0,
+      2
+    ],
+    "firefighter": [
+      0,
+      2
+    ],
+    "lawyer": [
+      2,
+      5
+    ],
+    "social-worker": [
+      0,
+      3
+    ],
+    "environmental-scientist": [
+      1,
+      4
+    ],
+    "biologist": [
+      1,
+      4
+    ],
+    "chemist": [
+      1,
+      4
+    ],
+    "wildlife-biologist": [
+      1,
+      4
+    ],
+    "veterinarian": [
+      1,
+      4
+    ],
+    "veterinary-technician": [
+      0,
+      2
+    ],
+    "agronomist": [
+      0,
+      3
+    ],
+    "farmer": [
+      0,
+      5
+    ],
+    "chef": [
+      1,
+      5
+    ],
+    "hotel-manager": [
+      1,
+      5
+    ],
+    "logistics-coordinator": [
+      0,
+      3
+    ],
+    "pilot": [
+      2,
+      6
+    ],
+    "electric-vehicle-technician": [
+      0,
+      3
+    ],
+    "renewable-energy-technician": [
+      0,
+      3
+    ]
+  }
+}
