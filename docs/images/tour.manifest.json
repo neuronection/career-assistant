@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "templateVersion": "1.2.2",
+  "version": 2,
+  "templateVersion": "1.3.0",
   "project": "Career Assistant",
   "generatedBy": "scripts/ui-capture (Neuronection family template)",
   "gallery": {
@@ -151,6 +151,78 @@
       ],
       "files": {
         "desktop": "onboarding-desktop.png"
+      }
+    },
+    {
+      "name": "postings",
+      "group": "Career exploration",
+      "caption": "Live postings feed from connected sources.",
+      "narration": "Live postings arrive from connected boards, deduplicated and linked to catalog roles.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "postings-desktop.png"
+      }
+    },
+    {
+      "name": "posting-detail",
+      "group": "Career exploration",
+      "caption": "Posting detail — extracted skills, provenance and fit for a seeded demo posting.",
+      "narration": "Every posting is parsed: extracted skills, provenance and how it fits you.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "posting-detail-desktop.png"
+      }
+    },
+    {
+      "name": "autopilot",
+      "group": "Working life",
+      "caption": "Career Autopilot — goal-driven agent searches with budgets.",
+      "narration": "Career Autopilot runs goal-driven searches in the background — with budgets and explainable shortlists.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "autopilot-desktop.png"
+      }
+    },
+    {
+      "name": "interviews",
+      "group": "Working life",
+      "caption": "Interview prep — posting-grounded mock interviews.",
+      "narration": "Interview prep runs mock interviews grounded in the actual posting.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "interviews-desktop.png"
+      }
+    },
+    {
+      "name": "growth",
+      "group": "Working life",
+      "caption": "Growth toolkit — roadmaps, radar and check-ins.",
+      "narration": "The growth toolkit keeps the long game visible — roadmaps, near-miss radar and check-ins.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "growth-desktop.png"
+      }
+    },
+    {
+      "name": "career-paths",
+      "group": "Working life",
+      "caption": "Career paths — every route to a target job as graph, tree or list.",
+      "narration": "The career-path explorer shows every route to your target jobs — mark what interests you and dismiss the rest.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "career-paths-desktop.png"
       }
     },
     {

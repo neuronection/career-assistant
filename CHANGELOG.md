@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (wave residuals, 2026-10-25)
+- **Tour screenshots regenerated** against the seeded demo workspace —
+  first capture set including the career-paths explorer and the four
+  beta surfaces (postings, autopilot, interviews, growth); gallery,
+  manifest and the animated tour GIF rebuilt.
+- **Family settings-map re-vendored** from the dev canonical (ADR-0033):
+  career's Account → Appearance locale switcher, the notifications tab
+  channel surfaces, the connectors-hosted MCP server section, and the
+  `tools.translation` alignment note are now canonically recorded
+  (byte-identical re-copy; `verify-wiring.sh` sm probe green).
+
+
 ### Added (career path explorer, 2026-10-24)
 - **Plan 125 — career paths are a destination.** New `/paths` explorer
   (beta, sidebar entry "Career paths"): curated + your own paths +

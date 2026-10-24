@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "contract": "settings-map",
-  "updated": "2026-10-16",
+  "updated": "2026-10-25",
   "purpose": "One family taxonomy for settings surfaces: what a setting IS decides where it LIVES. Canonical per ADR-0033 / ADR-0031 (sync-and-gate): this file is the master; product repos vendor it byte-identical under contracts/ and scripts/verify-wiring.sh flags drift. A setting may not ship (or move) in any product without a domain entry (or adopter line) here.",
 
   "groups": {
@@ -114,7 +114,7 @@
       "home": { "tab": "tools", "section": "translation" },
       "secrets": "product secret store",
       "scope": "profile",
-      "adopters": { "desktop-assistant": "aligned (section id 'translation')" }
+      "adopters": { "desktop-assistant": "aligned (section id 'translation')", "career-assistant": "n/a (no provider surface: the TRANSLATE gateway task and offline local-model batches cover generation — plan 121; the catalog-overlay review queue lives in the Taxonomy admin page, not settings)" }
     },
     {
       "id": "tools.decisions",
@@ -156,7 +156,8 @@
       "scope": "user",
       "adopters": {
         "study-assistant": "aligned (connectors section manages MCP server instances — D19 rows with keyring token/env slots, per-tool allowlists, explicit refresh — plus the read-only MCP resource-server info card, ADR-0012; plan 32 Phase 7)",
-        "career-assistant": "aligned (admin tools tab → connectors section: MCP GitHub token + job-source connector instances with x-secret slots and per-source probes, plan 32 Phase 1; extension sources — git import, consent, pins — ride the same section since Phase 3)"
+        "career-assistant": "aligned (admin tools tab → connectors section: MCP GitHub token + job-source connector instances with x-secret slots and per-source probes, plan 32 Phase 1; extension sources — git import, consent, pins — ride the same section since Phase 3)",
+        "health-assistant/core": "n/a (data-source connectors — the extension integrations — live in the user-tier Integrations page: config-flow instances with sealed credential slots, not the tools tab; the tools tab hosts only tools.agent)"
       }
     },
     {
@@ -229,7 +230,8 @@
           { "id": "translation", "domains": ["tools.translation"] },
           { "id": "decisions", "domains": ["tools.decisions"] }
         ] },
-        { "id": "apps", "group": "app", "note": "mini-app packs (ADR-0029); hosts the extension Sources block since plan 32 Phase 8 (git/local import, consent with origin chips, pins/updates/park)" },
+        { "id": "apps", "group": "app", "note": "Integrations umbrella (plan 38 D1): subsection 'MCP apps' (tool apps, T3 external process), 'Packs' (mini-app packs, ADR-0029) and 'Commands' (custom + command packs); hosts the extension Sources block since plan 32 Phase 8 (git/local import, consent with origin chips, pins/updates/park)" },
+        { "id": "notifications", "group": "app", "note": "Inbox (plan 42 S2): persisted notification records, unread filter, mark-read/clear, and the closed click-action deep links; the tray badge rides the same records" },
         { "id": "automation", "group": "automations", "domains": ["automations.runs"] },
         { "id": "commands", "group": "app" },
         { "id": "hotkeys", "group": "app" },
@@ -259,7 +261,7 @@
     },
     "career-assistant": {
       "tabs": [
-        { "id": "account", "group": "app" },
+        { "id": "account", "group": "app", "note": "Appearance section (plan 121): UI language switcher (en/de/el); admins also set the instance default locale here" },
         { "id": "ai", "group": "ai", "sections": [
           { "id": "providers", "domains": ["ai.providers"] },
           { "id": "models", "domains": ["ai.models"] },
@@ -268,9 +270,9 @@
         { "id": "tools", "group": "tools", "admin": true, "sections": [
           { "id": "web-search", "domains": ["tools.web-search"] },
           { "id": "connectors", "domains": ["tools.connectors"] }
-        ], "note": "plan 27 Phase 3: the former AI-config web tab split into web-search (SearXNG URL) + connectors (GitHub token); plan 32 Phase 1 broadened connectors to also host job-source connector instances (manifest catalog + x-secret slots + probes)" },
+        ], "note": "plan 27 Phase 3: the former AI-config web tab split into web-search (SearXNG URL) + connectors (GitHub token); plan 32 Phase 1 broadened connectors to also host job-source connector instances (manifest catalog + x-secret slots + probes); plan 119 added the MCP server section (endpoint + token lifecycle, per-scope tool/resource visibility, opt-in write switch)" },
         { "id": "automations", "group": "automations", "domains": ["automations.runs"], "note": "renamed from 'scheduler' in plan 27 Phase 3; legacy route redirects" },
-        { "id": "notifications", "group": "app" },
+        { "id": "notifications", "group": "app", "note": "plan 117: email + webhook channel configs (sealed secrets, double opt-in / test delivery), feed tokens (.ics/RSS lifecycle), per-kind routing + quiet hours, follow-up channel overrides (plan 116)" },
         { "id": "taxonomy", "group": "app", "admin": true },
         { "id": "users", "group": "app", "admin": true },
         { "id": "audit", "group": "app", "admin": true }
