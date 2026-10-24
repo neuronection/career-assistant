@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (codebase restructure, 2026-10-24)
+- **Plan 123 — structure-only wave, zero behavior change.** The 2,660-line
+  `profile_proposal_service` is now the `app/services/proposals/` package
+  (kinds / anchors / diff / snapshots / apply / preview / telemetry +
+  lifecycle core); `app.services.profile_proposal_service` stays as the
+  stable import surface. Backend domain packages, frontend feature
+  folders, generated wire types, JSON seeds and the enum split land in
+  the following commits of this series. No route, schema or API changes.
+
 ### Added (demand data, GitHub intake, source health, 2026-10-22)
 - **Demand import is live** (plan 122 phase 3): the dormant
   `system_demand_import` schedule now enqueues a `demand_import` job that
