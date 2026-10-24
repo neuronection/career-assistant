@@ -68,7 +68,7 @@ them.
 
 ## Add a CV block kind
 
-1. Register the kind in `app/services/cv_blocks.py`
+1. Register the kind in `app/services/cv/cv_blocks.py`
    (`register_block_kind`): a props schema + renderer behavior + `area` mark.
 2. Handle it in `cv_renderer.py` and in the exports
    (`cv_export_service.py` `_visible_blocks`) so every format matches.

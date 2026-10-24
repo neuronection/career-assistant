@@ -11,7 +11,7 @@ from uuid import UUID
 
 from app.ai.tools import list_tools, run_tool
 from app.models.market_model import MarketSnapshot
-from app.services.engagement_service import EngagementService
+from app.services.postings.engagement_service import EngagementService
 from tests.conftest import _uid
 
 
@@ -105,7 +105,7 @@ async def test_market_trend_empty_history_is_honest(client, auth_headers, db):
 async def test_my_fit_breakdown_catalog_job(
     client, auth_headers, db, profile_ready, seeded_catalog
 ):
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     jobs, _ = await JobService(db).list_jobs(status="published", page_size=1)
     assert jobs, "seeded catalog must publish at least one job"
@@ -132,8 +132,8 @@ async def test_my_fit_breakdown_unknown_target_points_at_the_entry_point(
 async def test_my_fit_breakdown_reads_a_mapped_posting(
     client, auth_headers, db, source, profile_ready, seeded_catalog
 ):
-    from app.services.job_service import JobService
-    from app.services.postings_service import resolve_posting
+    from app.services.catalog.job_service import JobService
+    from app.services.postings.postings_service import resolve_posting
     from tests.conftest import _make_posting
 
     jobs, _ = await JobService(db).list_jobs(status="published", page_size=1)

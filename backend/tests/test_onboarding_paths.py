@@ -1,7 +1,7 @@
 """: onboarding start paths + scope-aware completeness."""
 
 from app.models.enums import CareerStage
-from app.services.stages_service import feature_flags, required_sections
+from app.services.profile.stages_service import feature_flags, required_sections
 from tests.conftest import session_headers
 
 # ------------------------------------------------------- required mapping

@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import EducationLevel
-from app.services.rich_text import validate_rich_text
+from app.services.cv.rich_text import validate_rich_text
 
 _Date = date  # annotation alias: the `date` field name shadows the type in pydantic's resolution namespace
 

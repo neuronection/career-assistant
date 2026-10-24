@@ -19,9 +19,9 @@ from app.schemas.cv_assistant import (
     UpdateDesignOp,
 )
 from app.seeds.cv_templates import seed_cv_template_bank
-from app.services.cv_builder_service import CvBuilderService
-from app.services.cv_pdf_service import PDFEngineUnavailable
-from app.services.cv_service import CvService
+from app.services.cv.cv_builder_service import CvBuilderService
+from app.services.cv.cv_pdf_service import PDFEngineUnavailable
+from app.services.cv.cv_service import CvService
 from tests.conftest import session_headers
 
 
@@ -117,7 +117,7 @@ async def test_write_tool_requires_user(db):
 async def test_apply_theme_duplicates_bank_template(client, db, auth_headers):
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     original = await CvBuilderService(db).template_row(cv)
 
@@ -125,7 +125,7 @@ async def test_apply_theme_duplicates_bank_template(client, db, auth_headers):
     assert result.ok, result.detail
     assert cv.template_id is not None and cv.template_id != original.id
 
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     row = await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
     assert row.author_user_id == cv.user_id
@@ -138,11 +138,11 @@ async def test_second_customize_session_on_same_bank_template_appends(client, db
     """A later run styling the SAME bank template again duplicates it
     under the same private slug — the version must chain (v2), never
     collide with the first copy's v1 (uq_cv_templates_version)."""
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     bank = await CvBuilderService(db).template_row(cv)
 
@@ -181,7 +181,7 @@ async def test_update_design_on_owned_template_publishes_version(client, db, aut
     assert themed.ok
     owned_id = cv.template_id
 
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     before = await CvTemplateService(db).get_readable(owned_id, cv.user_id)
     result = await apply_operation(
@@ -223,7 +223,7 @@ async def test_read_state_flags_stale_selection_refs(client, db, auth_headers):
     must name the stale refs so the copilot can repair them."""
     from app.ai.agents.cv_builder_chat import build_builder_context
     from app.schemas.cv import CvContextRef, CvContextSelection
-    from app.services.cv_context_service import resolve_sources
+    from app.services.cv.cv_context_service import resolve_sources
 
     cv, _json = await _owned_cv(db, client, auth_headers)
     resolved = await resolve_sources(db, cv.user_id)

@@ -15,7 +15,7 @@ from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
-from app.services.chat_digest_cache import (
+from app.services.chat.chat_digest_cache import (
     context_without_cache,
     entity_signature,
     fresh_entry,
@@ -24,7 +24,7 @@ from app.services.chat_digest_cache import (
     read_cache_key,
     save,
 )
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
 from tests.test_chat_profile_ops import _auth_user, _send, _session
 
@@ -115,7 +115,7 @@ async def test_read_profile_item_rejects_bad_targets(db, auth_headers):
 
 
 async def test_read_profile_section_returns_full_json(db, auth_headers):
-    from app.services.profile_service import ProfileService
+    from app.services.profile.profile_service import ProfileService
 
     user = await _auth_user(db)
     profile = await ProfileService(db).get(user.id)

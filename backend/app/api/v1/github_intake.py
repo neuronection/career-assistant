@@ -29,7 +29,7 @@ async def preview_github(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Draft candidates for one public GitHub profile (no writes)."""
-    from app.services.github_intake_service import preview
+    from app.services.integrations.github_intake_service import preview
 
     return await preview(db, login)
 
@@ -41,6 +41,6 @@ async def apply_github(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create draft projects/achievements for the selected repositories."""
-    from app.services.github_intake_service import apply
+    from app.services.integrations.github_intake_service import apply
 
     return await apply(db, user.id, data.login, data.selections)

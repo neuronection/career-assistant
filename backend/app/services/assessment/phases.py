@@ -90,7 +90,7 @@ class StandardScenarios(Phase):
     async def build_questions(
         self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
-        from app.services.stages_service import stage_for_user
+        from app.services.profile.stages_service import stage_for_user
 
         stage, _source = await stage_for_user(db, run.user_id)
         rows = (
@@ -128,15 +128,15 @@ class AIScenarios(Phase):
         self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
         from app.ai.agents.assessment_designer import generate_question_set
-        from app.services.profile_service import ProfileService
-        from app.services.taxonomy_service import TaxonomyService
+        from app.services.catalog.taxonomy_service import TaxonomyService
+        from app.services.profile.profile_service import ProfileService
 
         profile = await ProfileService(db).get(run.user_id)
         snapshot = await ProfileService(db).snapshot(profile)
         top_families = await _top_families(db, run.user_id)
         skills = await TaxonomyService(db).skills(status="active")
         skill_keys = [s.key for s in skills]
-        from app.services.stages_service import stage_for_user
+        from app.services.profile.stages_service import stage_for_user
 
         stage, _source = await stage_for_user(db, run.user_id)
 
@@ -282,7 +282,7 @@ class PersonalizedSelection(Phase):
     async def build_questions(
         self, db: AsyncSession, run: AssessmentRun, ctx: dict
     ) -> list[AssessmentQuestion]:
-        from app.services.job_service import JobService
+        from app.services.catalog.job_service import JobService
 
         job_service = JobService(db)
         jobs, _ = await job_service.list_jobs(page_size=200)

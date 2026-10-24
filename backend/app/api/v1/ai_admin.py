@@ -713,7 +713,7 @@ async def test_search_provider(
     import time
 
     from app.extensions.search_providers import list_providers, provider_api_key
-    from app.services.webfetch import probe_searxng
+    from app.services.integrations.webfetch import probe_searxng
 
     provider = next(
         (entry for entry in await list_providers(db) if entry["id"] == provider_id), None

@@ -83,7 +83,7 @@ async def _write_scope(context) -> bool:
     token = _token_of(context)
     if not (token is not None and WRITE_SCOPE in (token.scopes or [])):
         return False
-    from app.services import mcp_tokens
+    from app.services.admin import mcp_tokens
 
     async with _session() as db:
         return await mcp_tokens.write_enabled(db)
@@ -97,7 +97,7 @@ def token_verifier():
         async def verify_token(self, token: str):
             from fastmcp.server.auth.providers.jwt import AccessToken
 
-            from app.services import mcp_tokens
+            from app.services.admin import mcp_tokens
 
             async with _session() as db:
                 row = await mcp_tokens.resolve(db, token)

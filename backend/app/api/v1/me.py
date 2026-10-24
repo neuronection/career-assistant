@@ -7,8 +7,8 @@ from app.models.enums import CareerStage, OnboardingPath
 from app.schemas.application import FollowupRuleIn, FollowupRuleOut, FollowupSurfaceOut
 from app.schemas.background_job import EnqueueResponse
 from app.schemas.i18n import LocaleIn
-from app.services.account_service import request_export
 from app.services.deps import get_current_user
+from app.services.profile.account_service import request_export
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -38,7 +38,7 @@ async def _fit_stale(db, user_id) -> bool:
     from app.models.background_job_model import BackgroundJob
     from app.models.enums import BackgroundJobStatus, BackgroundJobType
     from app.models.matching_model import MatchInsight
-    from app.services.fit.dimensions import FIT_VERSION
+    from app.services.postings.fit.dimensions import FIT_VERSION
 
     pending = (
         (
@@ -86,9 +86,9 @@ async def _bootstrap_payload(db, profile) -> dict:
     from app.ai.status import ai_status
     from app.models.engagement_model import NotificationRule
     from app.models.enums import NotificationRuleKind
-    from app.services.experience_service import ExperienceService
     from app.services.notification_channels import available_channels
-    from app.services.stages_service import (
+    from app.services.profile.experience_service import ExperienceService
+    from app.services.profile.stages_service import (
         effective_stage,
         feature_flags,
         stage_preset,
@@ -210,7 +210,7 @@ async def put_stage(
     from app.models.enums import BackgroundJobType
     from app.services.deps import get_profile_for_user
     from app.services.job_worker import enqueue
-    from app.services.profile_service import ProfileService
+    from app.services.profile.profile_service import ProfileService
 
     profile = await get_profile_for_user(db, user.id)
     basics = {**(profile.basics or {})}
@@ -263,7 +263,7 @@ async def put_scoring_weights(
     """Store fit-dimension weight sliders (1-5) and refit (deterministic only)."""
     from app.schemas.profile import ScoringWeights
     from app.services.deps import get_profile_for_user
-    from app.services.fit.service import FitService
+    from app.services.postings.fit.service import FitService
 
     try:
         validated = ScoringWeights(**{k: int(v) for k, v in (weights or {}).items()})
@@ -315,7 +315,7 @@ async def get_followups(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> FollowupSurfaceOut:
     """Follow-up rules plus per-application state."""
-    from app.services.followups_service import list_followups
+    from app.services.postings.followups_service import list_followups
 
     return FollowupSurfaceOut(**await list_followups(db, user.id))
 
@@ -327,7 +327,7 @@ async def patch_followup_rules(
     db: AsyncSession = Depends(get_db),
 ) -> FollowupRuleOut:
     """Adjust the follow-up cadence and switches."""
-    from app.services.followups_service import update_rules
+    from app.services.postings.followups_service import update_rules
 
     return FollowupRuleOut(**await update_rules(db, user.id, rules.model_dump(exclude_unset=True)))
 

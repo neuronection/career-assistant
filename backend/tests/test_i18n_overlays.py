@@ -121,7 +121,7 @@ async def test_overlay_edit_then_approve(client, auth_headers, db, seeded_catalo
 
 async def test_apply_ignores_drafts_and_maps_fields(db):
     from app.models.enums import LabelEntityKind
-    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.catalog.label_overlay_service import LabelOverlayService
     from app.services.locale_service import normalize_locale
 
     entity_id = uuid.uuid4()

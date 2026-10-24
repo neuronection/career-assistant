@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.models.metric_model import UserMetricProfile
+from app.services.catalog.metric_service import MetricService
 from app.services.deps import get_current_user
-from app.services.metric_service import MetricService
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 

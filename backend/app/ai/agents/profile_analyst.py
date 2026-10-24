@@ -54,7 +54,7 @@ register_mock_fixture(AITaskType.PROFILE_ANALYZE, _mock_profile_insight)
 
 async def analyze_profile(db: AsyncSession, user_id, profile: Profile) -> ProfileInsight:
     """Produce a structured insight summary for a student profile."""
-    from app.services.profile_service import ProfileService
+    from app.services.profile.profile_service import ProfileService
 
     interest_rows = (await db.execute(select(InterestTag.key))).scalars().all()
     skill_rows = (

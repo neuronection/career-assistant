@@ -64,7 +64,7 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     `preferences`, timestamps) plus career's product shape: every section
     is pydantic-validated StructuredJSON on the profile row (§6
     "product meaning"). Exactly one `is_default` per user is
-    service-enforced (`app.services.profiles_service`).
+    service-enforced (`app.services.profile.profiles_service`).
     """
 
     __tablename__ = "profiles"

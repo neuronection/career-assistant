@@ -230,7 +230,7 @@ class ApplyMixin(DiffMixin):
         ids surface as a resolve_error.
         """
         from app.schemas.cv_synth import CvSynthItemGenerate, CvSynthItemUpdate
-        from app.services.cv_synth_service import SYNC_LIMIT, CvSynthService
+        from app.services.cv.cv_synth_service import SYNC_LIMIT, CvSynthService
 
         service = CvSynthService(self.db)
         request = CvSynthItemGenerate.model_validate(payload)
@@ -279,10 +279,10 @@ class ApplyMixin(DiffMixin):
         user_id: uuid.UUID,
     ) -> dict | None:
         """One dispatch table: the same calls the REST routers make."""
-        from app.services.experience_service import ExperienceService
-        from app.services.profile_entities_service import ProfileEntitiesService
-        from app.services.profile_service import ProfileService
-        from app.services.skills_service import SkillService
+        from app.services.catalog.skills_service import SkillService
+        from app.services.profile.experience_service import ExperienceService
+        from app.services.profile.profile_entities_service import ProfileEntitiesService
+        from app.services.profile.profile_service import ProfileService
 
         entity: Any = None
         if kind == ProposalKind.CV_SYNTH.value:
@@ -399,8 +399,8 @@ class ApplyMixin(DiffMixin):
             CvSynthPayload,
             CvSynthVoice,
         )
-        from app.services.cv_service import CvService
-        from app.services.cv_synth_service import CvSynthService
+        from app.services.cv.cv_service import CvService
+        from app.services.cv.cv_synth_service import CvSynthService
 
         cv = await CvService(self.db).get_owned(uuid.UUID(str(payload["cv_id"])), user_id)
         source_key = payload["source_key"]
@@ -453,7 +453,7 @@ class ApplyMixin(DiffMixin):
     async def _cv_bullets_conflict_diff(self, cv: Any, payload: dict) -> list[dict]:
         """Fresh before-side when the CV moved since the card was
         proposed — the resolver's stored `before` is stale."""
-        from app.services.cv_synth_service import CvSynthService
+        from app.services.cv.cv_synth_service import CvSynthService
 
         selection = CvContextSelection.model_validate(cv.context or {})
         pinned_id = (selection.synth_pins or {}).get(
@@ -521,7 +521,7 @@ class ApplyMixin(DiffMixin):
             profile = await self._load_profile(user_id)
             return profile, profile.updated_at
         if kind == ProposalKind.CV_SET_BULLETS.value:
-            from app.services.cv_service import CvService
+            from app.services.cv.cv_service import CvService
 
             assert entity_id is not None
             cv = await CvService(self.db).get_owned(entity_id, user_id)
@@ -556,7 +556,7 @@ class ApplyMixin(DiffMixin):
         return row
 
     async def _load_profile(self, user_id: uuid.UUID) -> Profile:
-        from app.services.profile_service import ProfileService
+        from app.services.profile.profile_service import ProfileService
 
         return await ProfileService(self.db).get(user_id)
 

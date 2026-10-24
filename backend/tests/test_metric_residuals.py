@@ -16,7 +16,7 @@ from app.models.posting_model import JobPosting, PostingInteraction
 from app.models.taxonomy_model import InterestTag
 from app.models.user_model import Profile
 from app.seeds.metrics import riasec_of_category, seed_metric_templates
-from app.services.metric_service import MetricService, revealed_prefs
+from app.services.catalog.metric_service import MetricService, revealed_prefs
 from tests.conftest import _make_posting, _uid
 
 

@@ -13,7 +13,7 @@ from app.models.enums import (
     PhysicalCondition,
     TagSource,
 )
-from app.services.stages_service import max_birth_year
+from app.services.profile.stages_service import max_birth_year
 
 WeightedTag = Field(ge=1, le=5)
 

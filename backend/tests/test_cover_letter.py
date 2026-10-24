@@ -10,8 +10,8 @@ from app.models.ai_model import AIGeneration
 from app.models.taxonomy_model import Skill
 from app.models.user_model import UserSkill
 from app.schemas.cv_template import TemplateContent
-from app.services.cv_builder_service import FALLBACK_CONTENT
-from app.services.cv_renderer import render_cv
+from app.services.cv.cv_builder_service import FALLBACK_CONTENT
+from app.services.cv.cv_renderer import render_cv
 from tests.conftest import _make_posting, _uid
 
 
@@ -196,7 +196,7 @@ async def test_draft_returns_verified_paragraphs(
 async def test_draft_verification_flags_unknown_refs():
     from app.schemas.cover_letter import CoverLetterDraft, LetterParagraph
     from app.schemas.cv_suggest import CvEvidenceRef
-    from app.services.cover_letter_service import _verified
+    from app.services.cv.cover_letter_service import _verified
 
     allowlist = {("experience", "item-1")}
     ok = LetterParagraph(

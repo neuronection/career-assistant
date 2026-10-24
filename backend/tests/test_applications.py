@@ -13,7 +13,7 @@ from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.models.application_model import Application, ApplicationEvent
 from app.models.cv_model import CvDocument
 from app.models.followup_model import FollowupRule
-from app.services.applications_service import ApplicationService
+from app.services.postings.applications_service import ApplicationService
 from tests.conftest import _make_posting, _uid
 
 

@@ -21,7 +21,7 @@ from app.models.enums import AITaskType, LabelEntityKind, LabelSource
 from app.models.job_model import Job, JobFamily
 from app.models.taxonomy_model import Skill
 from app.schemas.i18n import OverlayDraftBatch, TranslationBatch
-from app.services.label_overlay_service import LabelOverlayService
+from app.services.catalog.label_overlay_service import LabelOverlayService
 from app.services.locale_service import (
     LOCALE_NAMES,
     SOURCE_LOCALE,

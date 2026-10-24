@@ -18,7 +18,7 @@ from app.core.errors import ValidationError
 from app.extensions.intake import list_intake
 from app.models.experience_model import ExperienceAchievement, ExperienceItem
 from app.models.user_model import User
-from app.services import github_intake_service as service
+from app.services.integrations import github_intake_service as service
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "intake"
 REPOS_BODY = (FIXTURES / "github_repos.json").read_text(encoding="utf-8")
@@ -144,7 +144,7 @@ async def test_preview_route_returns_candidates(client, auth_headers, monkeypatc
     async def fake_preview(db, login, *, transport=None):
         return {"login": login, "repos": [{"index": 0, "name": "linux", "stars": 1}]}
 
-    monkeypatch.setattr("app.services.github_intake_service.preview", fake_preview)
+    monkeypatch.setattr("app.services.integrations.github_intake_service.preview", fake_preview)
     response = await client.get(
         "/api/v1/me/intake/github/preview?login=torvalds", headers=auth_headers
     )
@@ -156,7 +156,7 @@ async def test_apply_route_creates_drafts(client, auth_headers, db, monkeypatch)
     async def fake_apply(db, user_id, login, selections, *, transport=None):
         return {"created": len(selections), "skipped": 0, "draft_ids": [str(uuid.uuid4())]}
 
-    monkeypatch.setattr("app.services.github_intake_service.apply", fake_apply)
+    monkeypatch.setattr("app.services.integrations.github_intake_service.apply", fake_apply)
     response = await client.post(
         "/api/v1/me/intake/github/apply",
         headers=auth_headers,

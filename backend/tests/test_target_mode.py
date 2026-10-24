@@ -121,7 +121,7 @@ async def test_express_end_to_end(
 ):
     from app.models.posting_model import JobSource
     from app.services.notification_service import NotificationService
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     response = await client.post(
         "/api/v1/onboarding/express",
@@ -212,7 +212,7 @@ async def test_sparse_profile_target_dashboard(client, auth_headers, seeded_cata
     db.add(source)
     await db.commit()
     await db.refresh(source)
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     await sync_source(db, source)
 

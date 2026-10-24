@@ -13,7 +13,7 @@ from app.models.experience_model import (
 from app.models.experience_model import (
     ExperienceSkill as ExperienceSkillLink,
 )
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
 from tests.test_profile_edit_grounding import _auth_user, _rich_item
 

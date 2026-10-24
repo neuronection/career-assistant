@@ -334,8 +334,8 @@ async def test_translate_creates_language_sibling(client, db, auth_headers):
         )
     ).json()
     from app.schemas.cv_synth import CvSynthItemUpdate
-    from app.services.cv_service import CvService
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_service import CvService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     service = CvSynthService(db)
     doc = await CvService(db).get_owned(uuid.UUID(cv["id"]), uuid.UUID(_uid(auth_headers)))
@@ -358,7 +358,7 @@ async def test_invalid_citation_falls_back_to_request_refs(client, db, auth_head
     """The model citing nothing/other refs never severs the link: on a
     single-ref request the row persists under the authoritative request
     refs (unverified — the citation produced no usable evidence)."""
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     item = (await _make_items(db, _uid(auth_headers)))[0]
     service = CvSynthService(db)
@@ -403,7 +403,7 @@ async def test_invalid_citation_falls_back_to_request_refs(client, db, auth_head
 async def test_valid_citation_subset_is_kept_verbatim(client, db, auth_headers):
     """A citation inside the allowlist persists as the model wrote it."""
     from app.schemas.cv_synth import CvSynthPayload
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     items = await _make_items(db, _uid(auth_headers), count=2)
     service = CvSynthService(db)
@@ -449,7 +449,7 @@ async def test_ambiguous_multi_ref_citation_dropped(client, db, auth_headers):
     """A multi-ref request whose item cites only out-of-allowlist refs
     has no resolvable target — the row never persists."""
     from app.schemas.cv_synth import CvSynthPayload
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     items = await _make_items(db, _uid(auth_headers), count=2)
     service = CvSynthService(db)
@@ -482,7 +482,7 @@ async def test_ambiguous_multi_ref_citation_dropped(client, db, auth_headers):
 
 async def test_textless_batch_dropped(client, db, auth_headers):
     """An item with no text content at all never becomes a row."""
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     item = (await _make_items(db, _uid(auth_headers)))[0]
     service = CvSynthService(db)
@@ -524,7 +524,7 @@ async def test_generate_base_texts_ground_on_caller_current_text(
         return await real(*args, **kwargs)
 
     monkeypatch.setattr(synthetizer, "ainvoke_structured", _spy)
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     service = CvSynthService(db)
     rows = await service.generate(

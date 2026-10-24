@@ -9,14 +9,14 @@ from sqlalchemy import select
 from app.models.engagement_model import Notification
 from app.models.matching_model import MatchInsight
 from app.seeds.run import seed_notification_kinds
-from app.services.engagement_service import (
+from app.services.catalog.job_service import JobService
+from app.services.notification_service import NotificationService
+from app.services.postings.engagement_service import (
     EngagementService,
     with_exploration_slot,
 )
-from app.services.fit.dimensions import FitResult
-from app.services.fit.service import FitService
-from app.services.job_service import JobService
-from app.services.notification_service import NotificationService
+from app.services.postings.fit.dimensions import FitResult
+from app.services.postings.fit.service import FitService
 
 
 @pytest.fixture

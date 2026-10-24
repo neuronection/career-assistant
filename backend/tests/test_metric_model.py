@@ -5,11 +5,11 @@ import pytest
 from app.core.errors import ValidationError
 from app.models.enums import UserMetricSource
 from app.seeds.metrics import seed_metric_dimensions
-from app.services.fit.dimensions import (
+from app.services.catalog.metric_service import MetricService
+from app.services.postings.fit.dimensions import (
     evaluate_gates,
     interests_dimension,
 )
-from app.services.metric_service import MetricService
 from tests.conftest import _uid
 
 
@@ -224,7 +224,7 @@ async def test_metrics_api_surface(client, auth_headers, profile_ready, seeded_c
 
 
 def test_job_values_signal_rules():
-    from app.services.fit.dimensions import job_values_signal
+    from app.services.postings.fit.dimensions import job_values_signal
 
     attrs = {
         "work_style": {"structure": 1, "pace": 5},
@@ -249,7 +249,7 @@ def test_job_values_signal_rules():
 
 
 def test_values_dimension_math():
-    from app.services.fit.dimensions import values_dimension
+    from app.services.postings.fit.dimensions import values_dimension
 
     identical = values_dimension(
         job_values={"values.autonomy": 8.0},

@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from app.models.enums import CareerStage
-from app.services.stages_service import (
+from app.services.profile.stages_service import (
     derive_career_stage,
     effective_stage,
     feature_flags,
@@ -95,7 +95,7 @@ def test_derived_education_level_shifts_the_student_fast_path():
 async def test_stage_for_user_derives_level_from_education_items(
     client, auth_headers, profile_ready, db
 ):
-    from app.services.stages_service import stage_for_user
+    from app.services.profile.stages_service import stage_for_user
 
     education = await client.post(
         "/api/v1/me/education",
@@ -205,7 +205,7 @@ async def test_fit_uses_stage_preset_until_user_overrides(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     from app.services.deps import get_profile_for_user
-    from app.services.fit.service import FitService
+    from app.services.postings.fit.service import FitService
 
     profile = await get_profile_for_user(db, _user_id(auth_headers))
     derived_weights = await FitService(db).scoring_weights(profile)

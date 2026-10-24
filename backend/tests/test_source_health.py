@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.posting_model import JobSource
-from app.services.postings_service import sync_source
+from app.services.postings.postings_service import sync_source
 
 
 async def _create_source(client, headers, *, key: str, connector_key: str = "rss") -> dict:

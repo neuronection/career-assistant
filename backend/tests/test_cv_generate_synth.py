@@ -16,8 +16,8 @@ from sqlalchemy import select
 
 from app.models.cv_model import CvDocument, CvVersion
 from app.schemas.cv_generate import CvGenerateRequest
-from app.services.cv_generate_service import CvGenerateService
-from app.services.cv_synth_service import CvSynthService
+from app.services.cv.cv_generate_service import CvGenerateService
+from app.services.cv.cv_synth_service import CvSynthService
 from tests.conftest import _uid
 
 
@@ -172,7 +172,7 @@ async def test_match_for_user_parity_with_match_for_cv(client, db, auth_headers)
 async def test_apply_to_items_pins_only(client, db, auth_headers):
     item = await _make_item(db, auth_headers)
     variant = await _active_variant(client, auth_headers, db, item)
-    from app.services.cv_context_service import resolve
+    from app.services.cv.cv_context_service import resolve
 
     uid = UUID(_uid(auth_headers))
     from app.schemas.cv import CvContextSelection
@@ -299,7 +299,7 @@ async def test_proposal_clamps_drop_ungroundable_rows(
 async def test_proposal_failure_falls_back_to_source_text(
     client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
 ):
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     item = await _make_item(db, auth_headers)
 

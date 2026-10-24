@@ -44,7 +44,7 @@ async def test_put_scoring_weights_refits_without_ai(
     assert {i["job_id"]: i["ai_score"] for i in after if i["ai_score"]} == ai_before
     # every job carries a current fit
     assert all(i["fit_score"] is not None for i in after)
-    from app.services.fit.dimensions import FIT_VERSION
+    from app.services.postings.fit.dimensions import FIT_VERSION
 
     assert all(i["fit_version"] == FIT_VERSION for i in after)
 

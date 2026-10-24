@@ -10,9 +10,9 @@ from app.models.background_job_model import BackgroundJob
 from app.models.engagement_model import NotificationDelivery, UserChannelConfig
 from app.models.user_model import User
 from app.services import notification_email, notification_webhook
-from app.services.followups_service import update_rules
 from app.services.notification_channels import utcnow
 from app.services.notification_service import NotificationService
+from app.services.postings.followups_service import update_rules
 from tests.conftest import user_id_from_headers
 
 

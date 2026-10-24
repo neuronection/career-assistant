@@ -11,7 +11,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.models.experience_model import ExperienceItem, ExperienceSkill
 from app.models.user_model import User
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import (
     _REVERT_TOLERANCE,
     ProfileProposalService,
@@ -168,7 +168,7 @@ async def test_snapshot_values_survive_2000_char_description(db, auth_headers):
 async def test_preview_404_for_non_snapshot_kinds(db, auth_headers):
     user = await _auth_user(db)
     service = ProfileProposalService(db)
-    from app.services.skills_service import SkillService
+    from app.services.catalog.skills_service import SkillService
 
     skill_row = await SkillService(db).upsert_user_skill(user.id, "python", 5)
     for kind, action, payload, entity_id in (

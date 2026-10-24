@@ -233,7 +233,7 @@ async def _run_document_parse(
     progress: ProgressCb,
     cancelled: CancelledCb,
 ) -> dict:
-    from app.services.document_service import DocumentService
+    from app.services.profile.document_service import DocumentService
 
     document_id = uuid.UUID(str(job.payload["document_id"]))
     user_id = _require_user(job)
@@ -257,7 +257,7 @@ async def _run_job_generate(
     progress: ProgressCb,
     cancelled: CancelledCb,
 ) -> dict:
-    from app.services.generation_service import run_generation
+    from app.services.catalog.generation_service import run_generation
 
     result = await run_generation(
         db, _require_user(job), job.payload, progress=progress, cancelled=cancelled
@@ -276,7 +276,7 @@ async def _run_match_score(
     progress: ProgressCb,
     cancelled: CancelledCb,
 ) -> dict:
-    from app.services.matching_service import MatchingService
+    from app.services.catalog.matching_service import MatchingService
 
     user_id = _require_user(job)
     payload = job.payload
@@ -318,7 +318,7 @@ async def _run_data_export(
     cancelled: CancelledCb,
 ) -> dict:
     from app.models.user_model import User
-    from app.services.export_service import build_export
+    from app.services.admin.export_service import build_export
 
     await progress(20, "collecting your data")
     user = await db.get(User, _require_user(job))
@@ -347,8 +347,8 @@ async def _run_path_suggest(
     from app.models.career_path_model import CareerPath, CareerPathStep
     from app.models.enums import PathSource, PathStatus
     from app.models.taxonomy_model import Skill
-    from app.services.job_service import JobService
-    from app.services.taxonomy_service import TaxonomyService
+    from app.services.catalog.job_service import JobService
+    from app.services.catalog.taxonomy_service import TaxonomyService
 
     payload = job.payload or {}
     job_service = JobService(db)
@@ -439,7 +439,7 @@ async def _run_fit_refit(
     are on an old fit_version and backfills/refreshes the posting-fit
     cache within a row budget (the refit sweep); the default refits the
     job's user."""
-    from app.services.fit.service import FitService
+    from app.services.postings.fit.service import FitService
 
     await progress(10, "recomputing fit")
     payload = job.payload or {}
@@ -447,7 +447,7 @@ async def _run_fit_refit(
         from sqlalchemy import select
 
         from app.models.matching_model import MatchInsight
-        from app.services.fit.dimensions import FIT_VERSION
+        from app.services.postings.fit.dimensions import FIT_VERSION
 
         stale_users = (
             (
@@ -470,7 +470,7 @@ async def _run_fit_refit(
             )
         from datetime import timedelta
 
-        from app.services.posting_fit_service import (
+        from app.services.postings.posting_fit_service import (
             POSTING_FIT_SWEEP_AGE,
             POSTING_FIT_SWEEP_BUDGET,
             sweep_posting_fits,
@@ -500,7 +500,7 @@ async def _run_fit_refit(
 
 async def _run_posting_sync(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Fetch every (or one) enabled source; expire stale postings after."""
-    from app.services.postings_service import run_sync_job
+    from app.services.postings.postings_service import run_sync_job
 
     return await run_sync_job(db, job.payload or {})
 
@@ -510,7 +510,7 @@ async def _run_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     notification through the machinery."""
     from datetime import datetime
 
-    from app.services.digest_service import build_and_emit_digest
+    from app.services.postings.digest_service import build_and_emit_digest
 
     payload = job.payload or {}
     user_id = payload.get("user_id") or _require_user(job)
@@ -519,7 +519,7 @@ async def _run_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
 
 async def _run_followup_sweep(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Daily follow-up sweep: nudges for applied postings."""
-    from app.services.followups_service import sweep
+    from app.services.postings.followups_service import sweep
 
     emitted = await sweep(db)
     await db.commit()
@@ -529,7 +529,7 @@ async def _run_followup_sweep(db: AsyncSession, job: BackgroundJob, **_kw) -> di
 async def _run_market_history_capture(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Daily demand-history capture: one snapshot per family
     and job scope with live postings; analytics only, never a fit input."""
-    from app.services.market_history_service import capture_all
+    from app.services.postings.market_history_service import capture_all
 
     payload = job.payload or {}
     captured = await capture_all(db, limit=int(payload.get("limit") or 500))
@@ -569,7 +569,7 @@ async def _run_extension_reconcile(db: AsyncSession, job: BackgroundJob, **_kw) 
 async def _run_demand_import(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Daily external demand import (plan 122): market sources feed salary
     and outlook data into `market_snapshots` and `jobs.demand`."""
-    from app.services.demand_import_service import ensure_demand_source, run_demand_import
+    from app.services.postings.demand_import_service import ensure_demand_source, run_demand_import
 
     await ensure_demand_source(db)
     await db.commit()
@@ -578,7 +578,7 @@ async def _run_demand_import(db: AsyncSession, job: BackgroundJob, **_kw) -> dic
 
 async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """A scheduled saved search: evaluate filters, notify on new matches."""
-    from app.services.digest_service import run_saved_search
+    from app.services.postings.digest_service import run_saved_search
 
     payload = job.payload or {}
     return await run_saved_search(db, payload)
@@ -587,7 +587,7 @@ async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
 async def _run_posting_extract(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Deep posting extraction: one structured AI call per
     posting, normalized into posting_skills + typed columns."""
-    from app.services.extract_service import run_extract_job
+    from app.services.postings.extract_service import run_extract_job
 
     return await run_extract_job(db, job.payload or {})
 
@@ -600,7 +600,7 @@ async def _run_cv_extract_text(
     cancelled: CancelledCb,
 ) -> dict:
     """CV source processing: text layer + OCR fallback."""
-    from app.services.cv_source_service import process_cv_document
+    from app.services.cv.cv_source_service import process_cv_document
 
     document_id = uuid.UUID(str(job.payload["document_id"]))
     user_id = _require_user(job)
@@ -632,7 +632,7 @@ async def _run_cv_ocr(
     cancelled: CancelledCb,
 ) -> dict:
     """Re-run OCR on every renderable page."""
-    from app.services.cv_source_service import process_cv_document
+    from app.services.cv.cv_source_service import process_cv_document
 
     document_id = uuid.UUID(str(job.payload["document_id"]))
     user_id = _require_user(job)
@@ -657,7 +657,7 @@ async def _run_cv_parse(
     cancelled: CancelledCb,
 ) -> dict:
     """CV field extraction: text → review-first CvParseDraft."""
-    from app.services.cv_intake_service import CvIntakeService
+    from app.services.cv.cv_intake_service import CvIntakeService
 
     document_id = uuid.UUID(str(job.payload["document_id"]))
     user_id = _require_user(job)
@@ -689,7 +689,7 @@ async def _run_catalog_enrich(
 ) -> dict:
     """sweep: propose v2 lifestyle attributes for archetypes
     missing them; proposals wait in ai_metadata for moderation."""
-    from app.services.catalog_enrich_service import CatalogEnrichService
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
 
     return await CatalogEnrichService(db).run_sweep(
         limit=int((job.payload or {}).get("limit") or 5)
@@ -704,7 +704,7 @@ async def _run_autopilot(
     cancelled: CancelledCb,
 ) -> dict:
     """One autopilot goal run: LangGraph flow on the queue."""
-    from app.services.autopilot_service import AutopilotService
+    from app.services.growth.autopilot_service import AutopilotService
 
     goal_id = uuid.UUID(str(job.payload["goal_id"]))
     user_id = _require_user(job)
@@ -727,7 +727,7 @@ async def _run_cv_generate(
 ) -> dict:
     """One-shot CV generation: LangGraph flow on the queue."""
     from app.schemas.cv_generate import CvGenerateRequest
-    from app.services.cv_generate_service import CvGenerateService
+    from app.services.cv.cv_generate_service import CvGenerateService
 
     request = CvGenerateRequest.model_validate((job.payload or {}).get("request") or {})
     return await CvGenerateService(db).generate(
@@ -749,7 +749,7 @@ async def _run_cv_synth(
     """Bulk synthesized-variant generation on the queue (plan 62)."""
     from app.models.enums import CvSynthStatus
     from app.schemas.cv_synth import CvSynthItemGenerate
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     request = CvSynthItemGenerate.model_validate((job.payload or {}).get("request") or {})
     service = CvSynthService(db)
@@ -824,7 +824,7 @@ async def _run_cv_polish(
     cancelled: CancelledCb,
 ) -> dict:
     """Polish-only run over a committed CV (plan 64 resume path)."""
-    from app.services.cv_generate_service import CvGenerateService
+    from app.services.cv.cv_generate_service import CvGenerateService
 
     payload = job.payload or {}
     return await CvGenerateService(db).polish(
@@ -883,7 +883,7 @@ async def start_workers(worker_count: int) -> list[asyncio.Task]:
         recovered = await JobWorker(db).recover_orphans()
         if recovered:
             logger.info("Recovered %d orphaned background job(s)", recovered)
-    from app.services.export_service import cleanup_old_exports
+    from app.services.admin.export_service import cleanup_old_exports
 
     purged = cleanup_old_exports()
     if purged:

@@ -7,7 +7,7 @@ import app.ai.agents.cv_build_reviewer  # noqa: F401 — registers the mock fixt
 from app.ai.gateway import ainvoke_structured
 from app.ai.schemas import CvBuildCritique
 from app.models.enums import AITaskType
-from app.services.cv_context_service import CvContextItem, build_coverage_matrix
+from app.services.cv.cv_context_service import CvContextItem, build_coverage_matrix
 
 UPDATED_AT = datetime.now(UTC)
 

@@ -44,11 +44,11 @@ from app.schemas.cv_synth import (
     CvSynthVoice,
 )
 from app.schemas.cv_template import DesignTokens, TemplateContent
-from app.services.cv_blocks import block_area
-from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
-from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
-from app.services.cv_template_service import slugify_key
-from app.services.cv_themes import CV_THEMES, THEMES_BY_KEY
+from app.services.cv.cv_blocks import block_area
+from app.services.cv.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
+from app.services.cv.cv_pdf_service import PDFEngineUnavailable, measure_pages
+from app.services.cv.cv_template_service import slugify_key
+from app.services.cv.cv_themes import CV_THEMES, THEMES_BY_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -389,7 +389,7 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
     props AND non-empty content) plus section counts. The visual
     critique anchors its content claims here instead of guessing from
     pixels."""
-    from app.services.cv_export_service import _visible_blocks
+    from app.services.cv.cv_export_service import _visible_blocks
 
     sections: list[dict] = []
     for kind, props, data in _visible_blocks(blocks, effective):
@@ -455,9 +455,9 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
 
 async def build_builder_context(db: AsyncSession, cv) -> dict:
     """The full builder state digest grounding the copilot."""
-    from app.services.cv_builder_service import CvBuilderService
-    from app.services.cv_export_service import CvExportService
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_export_service import CvExportService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     builder = CvBuilderService(db)
     template = await builder.template_row(cv)
@@ -622,8 +622,8 @@ async def _styled_template(
     template's own earlier DRAFT version, that version is updated in
     place instead of stacking an immutable row per AI op. A stale or
     foreign pointer falls through to a fresh version."""
-    from app.services.cv_builder_service import CvBuilderService
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     template = await CvBuilderService(db).template_row(cv)
     if template is None:
@@ -707,7 +707,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
     kind = op.op
     try:
         if kind == "set_template":
-            from app.services.cv_template_service import CvTemplateService
+            from app.services.cv.cv_template_service import CvTemplateService
 
             template = await CvTemplateService(db).get_readable(UUID(op.template_id), cv.user_id)
             design = TemplateContent.model_validate(template.content).design
@@ -741,7 +741,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
             )
 
         if kind == "update_design":
-            from app.services.cv_builder_service import CvBuilderService
+            from app.services.cv.cv_builder_service import CvBuilderService
 
             template_row = await CvBuilderService(db).template_row(cv)
             if template_row is None:
@@ -779,7 +779,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
                 if ref_key not in known_pin_keys:
                     raise ValidationError(f"Unknown synth pin target {ref_key}")
             if op.synth_pins:
-                from app.services.cv_synth_service import CvSynthService
+                from app.services.cv.cv_synth_service import CvSynthService
 
                 service = CvSynthService(db)
                 for synth_id in {value for value in op.synth_pins.values() if value}:
@@ -798,7 +798,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
             # EVERYTHING (custom with an empty include, none without one,
             # or an exclude that eats every item) leaves the CV with
             # nothing to render — refuse instead of wiping the context.
-            from app.services.cv_context_service import select_items
+            from app.services.cv.cv_context_service import select_items
 
             kept = select_items(resolved, selection)
             if not any(kept.values()):
@@ -841,7 +841,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
         overrides = copy.deepcopy(working.get("overrides") or {})
         blocks = copy.deepcopy(working.get("blocks") or [])
         if not blocks:
-            from app.services.cv_builder_service import (
+            from app.services.cv.cv_builder_service import (
                 FALLBACK_CONTENT,
                 CvBuilderService,
             )
@@ -850,7 +850,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
             blocks = copy.deepcopy(_content.blocks or FALLBACK_CONTENT["blocks"])
 
         if kind == "add_block":
-            from app.services.cv_blocks import validate_blocks
+            from app.services.cv.cv_blocks import validate_blocks
 
             validated = validate_blocks([{"kind": op.kind, "props": op.props}])
             position = op.position if op.position is not None else len(blocks)
@@ -889,7 +889,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
             if op.block_index >= len(blocks):
                 raise ValidationError(f"block_index {op.block_index} out of range")
             blocks[op.block_index] = {**blocks[op.block_index], "area": op.area}
-            from app.services.cv_blocks import validate_blocks
+            from app.services.cv.cv_blocks import validate_blocks
 
             validate_blocks(blocks)
             _save_working(cv, blocks, overrides)
@@ -898,7 +898,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
             return OpResult(op=kind, ok=True, detail=detail)
 
         if kind == "update_block_props":
-            from app.services.cv_blocks import validate_blocks
+            from app.services.cv.cv_blocks import validate_blocks
 
             if op.block_index >= len(blocks):
                 raise ValidationError(f"block_index {op.block_index} out of range")
@@ -923,7 +923,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
                 CvSynthItemGenerate,
                 CvSynthItemUpdate,
             )
-            from app.services.cv_synth_service import CvSynthService
+            from app.services.cv.cv_synth_service import CvSynthService
 
             service = CvSynthService(db)
             rows = await service.generate(
@@ -958,7 +958,7 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
             )
 
         if kind == "set_override":
-            from app.services.cv_builder_service import CvBuilderService
+            from app.services.cv.cv_builder_service import CvBuilderService
 
             resolution = await CvBuilderService(db).resolution(cv)
             ids = (resolution.snapshot_index or {}).get(
@@ -975,8 +975,8 @@ async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = N
         if kind == "set_bullets":
             # Two-layer model: the bullets land in a bullets VARIANT
             # pinned on this CV — never the removed overrides layer.
-            from app.services.cv_builder_service import CvBuilderService
-            from app.services.cv_synth_service import CvSynthService
+            from app.services.cv.cv_builder_service import CvBuilderService
+            from app.services.cv.cv_synth_service import CvSynthService
 
             resolution = await CvBuilderService(db).resolution(cv)
             ids = (resolution.snapshot_index or {}).get(op.source_key) or []
@@ -1052,7 +1052,7 @@ async def _critique_preview(
     rides along as the deterministic what-actually-prints ground truth."""
     from app.ai.agents.cv_template_designer import critique_pages
     from app.ai.providers.resolution import resolve_task_model
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     try:
         resolved = await resolve_task_model(db, AITaskType.CV_TEMPLATE_REVIEW.value, user_id)
@@ -1097,7 +1097,7 @@ async def styled_after(db: AsyncSession, cv) -> dict:
     the applied template's factual layout, the page fit of the user's
     content under it and the rendered layers — the tool result's ground
     truth so a switch is narrated from the render, never from a name."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     builder = CvBuilderService(db)
     _html, payload, _res, metrics = await builder.render_state(cv)
@@ -1131,7 +1131,7 @@ async def builder_state_payload(
     One helper for both the copilot turn path and the UI-driven ops
     endpoint, so the terminal payload never drifts between the two
     consumers."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     html, metrics, resolution, blocks = await CvBuilderService(db).preview(cv)
     return {
@@ -1185,7 +1185,7 @@ async def _template_previews(
     chat-renderable preview URLs."""
     if not _is_template_preview_intent(message):
         return None
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     service = CvTemplateService(db)
     started = time.monotonic()
@@ -1243,7 +1243,7 @@ async def builder_turn_events(
     Event vocabulary matches the chat SSE contract plus `builder_state`
     (the full post-turn builder state the page re-syncs from).
     """
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     # The user message is only flushed at this point — ops commit MID-TURN
     # and every op failure path rolls back, which would wipe the parent
@@ -1458,7 +1458,7 @@ async def builder_turn_events(
             if critique is None or not critique.issues:
                 break
 
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         version_number: int | None = None
         if any(result["ok"] for result in all_results):

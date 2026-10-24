@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.models.growth_model import LearningResource
 from app.models.user_model import User
 from app.services.deps import get_current_user
-from app.services.growth_service import (
+from app.services.growth.growth_service import (
     checkin_status,
     complete_checkin,
     create_plan,
@@ -104,7 +104,7 @@ async def get_market_trend(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Persisted demand history for one scope, oldest first."""
-    from app.services import market_history_service
+    from app.services.postings import market_history_service
 
     if (family_key is None) == (job_id is None):
         raise HTTPException(

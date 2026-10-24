@@ -200,7 +200,7 @@ class ProfileBindingMiddleware:
             if raw:
                 profile = None
                 if user_id is not None:
-                    from app.services.profiles_service import get_owned_profile
+                    from app.services.profile.profiles_service import get_owned_profile
 
                     profile = await get_owned_profile(session, user_id, raw)
                 if profile is None:
@@ -216,7 +216,7 @@ class ProfileBindingMiddleware:
                 if str(settings.identity_mode) != "desktop":
                     await _send_json_error(send, 400, "X-Profile-Id required")
                     return
-                from app.services.profiles_service import (
+                from app.services.profile.profiles_service import (
                     get_or_create_default,
                     last_used_profile,
                 )
@@ -226,7 +226,7 @@ class ProfileBindingMiddleware:
                     profile = await get_or_create_default(session, user_id)
                 profile_id = str(profile.id)
             if profile_id is not None and str(settings.identity_mode) == "desktop" and raw:
-                from app.services.profiles_service import touch_last_used
+                from app.services.profile.profiles_service import touch_last_used
 
                 await touch_last_used(session, profile_id)
             await session.commit()

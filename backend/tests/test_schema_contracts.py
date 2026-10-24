@@ -147,6 +147,6 @@ def test_every_mirrored_check_matches_its_enum():
 
 def test_posting_fit_default_tracks_the_engine_version():
     from app.models.posting_model import current_fit_version
-    from app.services.fit.dimensions import FIT_VERSION
+    from app.services.postings.fit.dimensions import FIT_VERSION
 
     assert current_fit_version() == FIT_VERSION

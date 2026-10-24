@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import delete, insert, select
 
 from app.models.posting_model import JobPosting
-from app.services.explore_service import explore
+from app.services.postings.explore_service import explore
 from tests.conftest import _uid
 
 pytestmark = [

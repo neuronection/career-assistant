@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.ai.tools import run_tool
 from app.models.application_model import ApplicationEvent
 from app.models.university_model import Department, University
-from app.services.applications_service import ApplicationService
+from app.services.postings.applications_service import ApplicationService
 from app.services.profile_proposal_service import ProfileProposalService
 from tests.conftest import _make_posting, _uid
 

@@ -12,8 +12,8 @@ from app.models.cv_synth_model import CvSynthItem
 from app.models.experience_model import ExperienceItem
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
-from app.services.cv_service import CvService
-from app.services.experience_service import ExperienceService
+from app.services.cv.cv_service import CvService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
 from tests.test_profile_proposals import _auth_user
 

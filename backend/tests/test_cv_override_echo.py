@@ -9,7 +9,7 @@ drops certification description patches entirely — the profile carries no
 cert description, so AI text under the heading is fluff by construction.
 """
 
-from app.services.cv_context_service import apply_overrides
+from app.services.cv.cv_context_service import apply_overrides
 
 
 def _experience_snapshot() -> tuple[dict, dict]:

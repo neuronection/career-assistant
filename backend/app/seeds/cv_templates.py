@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.models.cv_template_model import CvTemplate
 from app.models.enums import CvTemplateSource, CvTemplateStatus
 from app.schemas.cv_template import TemplateContent
-from app.services.engagement_service import canonical_hash
+from app.services.postings.engagement_service import canonical_hash
 
 DESIGN_A4_SANS: dict[str, object] = {}
 

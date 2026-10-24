@@ -17,8 +17,8 @@ from app.schemas.cv_template import (
     CvTemplateOut,
     TemplateContent,
 )
-from app.services.cv_service import CvService
-from app.services.cv_template_service import CvTemplateService
+from app.services.cv.cv_service import CvService
+from app.services.cv.cv_template_service import CvTemplateService
 from app.services.deps import get_current_user, require_admin
 
 router = APIRouter(prefix="/cv/templates", tags=["cv-templates"])
@@ -112,7 +112,7 @@ async def list_themes(
     user=Depends(get_current_user),
 ) -> list[dict]:
     """Predefined color/layout themes for the template editor."""
-    from app.services.cv_themes import CV_THEMES
+    from app.services.cv.cv_themes import CV_THEMES
 
     return [
         {
@@ -134,7 +134,7 @@ async def preview_draft(
 ) -> HTMLResponse:
     """Render an UNSAVED content package over the sample snapshot."""
     content = _validate_content(payload.content)
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     html, _metrics = CvTemplateService.preview_html_content(content)
     return HTMLResponse(html)
@@ -286,7 +286,7 @@ async def preview_template_png(
     """First-page PNG thumbnail (plan 83): content-hash cached, printed
     through the PDF engine — 503 with the capability message when it is
     missing."""
-    from app.services.cv_pdf_service import PDFEngineUnavailable
+    from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
     service = CvTemplateService(db)
     try:
@@ -315,7 +315,7 @@ async def preview_template_with_cv(
     `body.cv_id` optionally selects one of the caller's CVs; an empty
     or unknown-selection CV falls back to the deterministic sample so
     the gallery preview is never blank."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     service = CvTemplateService(db)
     template = await service.get_readable(template_id, user.id)

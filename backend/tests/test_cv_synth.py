@@ -63,13 +63,13 @@ async def _seed_variant(client, auth_headers: dict, item: ExperienceItem, **kw) 
 
 
 def _service(db):
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     return CvSynthService(db)
 
 
 async def _owned_cv(client, db, auth_headers, cv_id: str):
-    from app.services.cv_service import CvService
+    from app.services.cv.cv_service import CvService
 
     return await CvService(db).get_owned(uuid.UUID(cv_id), uuid.UUID(_uid(auth_headers)))
 

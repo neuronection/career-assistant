@@ -9,8 +9,8 @@ from app.models.enums import ScheduleKind
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.schedule_model import Schedule
 from app.models.user_model import User
-from app.services.experience_service import ExperienceService
 from app.services.job_worker import JobWorker
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
 from app.services.scheduler.runner import SchedulerService
 from tests.conftest import decode_session_token

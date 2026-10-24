@@ -366,7 +366,7 @@ async def test_education_dates_gap_fill_and_level_inference(client, db, auth_hea
 def test_parse_date_gap_filling_matches_real_cv_formats():
     from datetime import date
 
-    from app.services.cv_intake_service import _parse_date
+    from app.services.cv.cv_intake_service import _parse_date
 
     cases = {
         "2020-09": date(2020, 9, 1),

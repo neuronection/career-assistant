@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.services.rich_text import validate_rich_text
+from app.services.cv.rich_text import validate_rich_text
 
 
 class ExperienceSkillIn(BaseModel):

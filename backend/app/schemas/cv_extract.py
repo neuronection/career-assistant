@@ -14,7 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import AchievementMetricKind, ExperienceKind
-from app.services.stages_service import max_birth_year
+from app.services.profile.stages_service import max_birth_year
 
 
 class FieldEvidence(BaseModel):
@@ -125,7 +125,7 @@ class CvExtract(BaseModel):
     @field_validator("summary")
     @classmethod
     def _rich(cls, value: str) -> str:
-        from app.services.rich_text import validate_rich_text
+        from app.services.cv.rich_text import validate_rich_text
 
         return validate_rich_text(value, 2000)
 

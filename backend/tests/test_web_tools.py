@@ -4,7 +4,7 @@ import pytest
 
 from app.ai.tools import run_tool
 from app.core.encryption import encrypt_secret
-from app.services import webfetch
+from app.services.integrations import webfetch
 
 _PUBLIC = "93.184.216.34"
 

@@ -12,8 +12,8 @@ from app.schemas.autopilot import (
     AutopilotGoalCreate,
     AutopilotGoalUpdate,
 )
-from app.services.autopilot_service import AutopilotService
 from app.services.deps import get_current_user
+from app.services.growth.autopilot_service import AutopilotService
 
 router = APIRouter(prefix="/autopilot", tags=["autopilot"])
 

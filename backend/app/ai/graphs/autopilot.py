@@ -29,7 +29,7 @@ from app.ai.schemas import Curation, SearchPlan
 from app.core.errors import sanitize_error_detail
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType, AutopilotRunStatus
-from app.services.explore_service import explore, parse_explore_filters
+from app.services.postings.explore_service import explore, parse_explore_filters
 
 logger = logging.getLogger(__name__)
 
@@ -451,7 +451,7 @@ def make_evaluate_node(deps: GraphDeps):
             await _report(deps, 70, "evaluated fit")
             return {}
         from app.models.posting_model import JobPosting
-        from app.services.posting_fit_service import get_posting_fits_batch
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
 
         ids = [UUID(c["posting_id"]) for c in candidates]
         rows = await deps.db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))

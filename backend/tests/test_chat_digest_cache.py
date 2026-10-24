@@ -3,9 +3,9 @@
 from sqlalchemy import select
 
 from app.models.chat_model import ChatSession
-from app.services import chat_digest_cache
-from app.services.experience_service import ExperienceService
-from app.services.profile_service import ProfileService
+from app.services.chat import chat_digest_cache
+from app.services.profile.experience_service import ExperienceService
+from app.services.profile.profile_service import ProfileService
 from tests.test_chat_profile_ops import _auth_user
 
 
@@ -45,7 +45,7 @@ async def test_education_sig_tracks_certifications(db, auth_headers):
         "my_education"
     ]
     from app.schemas.profile_entities import CertificationIn
-    from app.services.profile_entities_service import ProfileEntitiesService
+    from app.services.profile.profile_entities_service import ProfileEntitiesService
 
     service = ProfileEntitiesService(db)
     cert = await service.create_certification(

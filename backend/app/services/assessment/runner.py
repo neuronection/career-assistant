@@ -20,7 +20,7 @@ from app.services.assessment.phases import (
     resolve_phase,
 )
 from app.services.assessment.question_kinds import handler_for
-from app.services.fit.service import FitService
+from app.services.postings.fit.service import FitService
 
 DEFAULT_ORDER = [1, 2, 3, 4]
 CUSTOM_ORDER = [2, 3, 4]
@@ -396,7 +396,7 @@ class AssessmentService:
                     )
 
         if interest_keys:
-            from app.services.profile_service import ProfileService
+            from app.services.profile.profile_service import ProfileService
 
             rows = await ProfileService(self.db).interest_rows(run.user_id)
             existing_keys = {row.tag.key for row in rows}
@@ -407,7 +407,7 @@ class AssessmentService:
                 if key not in existing_keys:
                     payload.append({"tag_key": key, "weight": 3, "source": "ai"})
             await ProfileService(self.db)._write_interests(run.user_id, payload)
-            from app.services.metric_service import MetricService
+            from app.services.catalog.metric_service import MetricService
 
             await MetricService(self.db).recompute_interest_affinity(run.user_id)
 
@@ -415,7 +415,7 @@ class AssessmentService:
         applied_dimensions = 0
         skipped_dimensions = []
         if dimension_levels:
-            from app.services.metric_service import MetricService
+            from app.services.catalog.metric_service import MetricService
 
             service = MetricService(self.db)
             for key, value in sorted(dimension_levels.items()):

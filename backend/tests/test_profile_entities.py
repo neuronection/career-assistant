@@ -13,8 +13,8 @@ from app.models.profile_entities_model import (
 )
 from app.models.university_model import Department, University
 from app.models.user_model import Profile, User
-from app.services.fit.service import FitService
-from app.services.profile_entities_service import effective_education_level
+from app.services.postings.fit.service import FitService
+from app.services.profile.profile_entities_service import effective_education_level
 from tests.conftest import session_headers
 
 

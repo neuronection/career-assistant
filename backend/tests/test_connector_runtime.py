@@ -17,7 +17,7 @@ import pytest
 from app.extensions.registry import reset_registry
 from app.extensions.runtime.http import build_transport
 from app.models.posting_model import JobSource
-from app.services.postings_service import sync_source
+from app.services.postings.postings_service import sync_source
 
 RESOLVER_MAP = {
     "boards-api.greenhouse.io": ["93.184.216.34"],

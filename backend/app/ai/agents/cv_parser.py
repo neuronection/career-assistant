@@ -17,7 +17,7 @@ from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import UniversityExtraction  # noqa: F401 - pattern parity
 from app.models.enums import AITaskType
 from app.schemas.cv_extract import CvExtract
-from app.services.cv_field_map import build_extraction_prompt
+from app.services.cv.cv_field_map import build_extraction_prompt
 
 _DATE = r"(?:(\d{4}-\d{2}(?:-\d{2})?|\d{2}/\d{2}/\d{4}|\d{2}/\d{4}|\d{4}))"
 

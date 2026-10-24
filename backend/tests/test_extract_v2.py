@@ -12,8 +12,8 @@ from app.ai.agents.posting_extractor import (
     PostingExtract,
     extract_posting,
 )
-from app.services.extract_service import EXTRACT_VERSION, apply_extract
-from app.services.posting_fit_service import lifestyle_gates
+from app.services.postings.extract_service import EXTRACT_VERSION, apply_extract
+from app.services.postings.posting_fit_service import lifestyle_gates
 from tests.conftest import _make_posting, _uid
 
 # ------------------------------------------------------------- schema v2

@@ -271,7 +271,7 @@ def current_fit_version() -> int:
     Imported lazily: ORM models never depend on the services layer at
     module import time.
     """
-    from app.services.fit.dimensions import FIT_VERSION
+    from app.services.postings.fit.dimensions import FIT_VERSION
 
     return FIT_VERSION
 

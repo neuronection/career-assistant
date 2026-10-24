@@ -105,7 +105,7 @@ async def _application_transition(db, ctx: ToolContext, args: ApplicationTransit
 
     from app.core.errors import ValidationError
     from app.models.enums import ApplicationActor
-    from app.services.applications_service import ApplicationService
+    from app.services.postings.applications_service import ApplicationService
 
     assert ctx.user_id is not None, "application_transition requires a user"
     if args.stage is None and not args.note.strip():

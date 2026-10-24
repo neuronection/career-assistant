@@ -182,7 +182,7 @@ class ProfileProposalService(PreviewMixin):
             # leads from the proposed bullets (deterministic, same funnel
             # as the CV generator); a bullet that says nothing BEYOND the
             # heading is dropped entirely.
-            from app.services.cv_context_service import (
+            from app.services.cv.cv_context_service import (
                 _heading_echo_lead_only,
                 _strip_subject_echo,
             )

@@ -12,9 +12,10 @@ from app.models.enums import ApplicationEventKind
 from app.models.posting_model import JobPosting
 from app.models.university_model import Department, University
 from app.models.user_model import User
-from app.services import calendar_feed, feed_tokens, rss_feed
-from app.services.applications_service import ApplicationService, record_event
+from app.services.integrations import calendar_feed, feed_tokens
 from app.services.notification_channels import utcnow
+from app.services.postings import rss_feed
+from app.services.postings.applications_service import ApplicationService, record_event
 from tests.conftest import user_id_from_headers
 
 

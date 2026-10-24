@@ -15,7 +15,7 @@ from app.ai.schemas import CvDraftStructure, CvDraftTexts
 from app.models.ai_model import AIGeneration
 from app.models.cv_model import CvDocument, CvVersion
 from app.schemas.cv_generate import CvGenerateRequest
-from app.services.cv_generate_service import CvGenerateService
+from app.services.cv.cv_generate_service import CvGenerateService
 from app.services.job_worker import JobWorker
 from tests.conftest import _uid, session_headers
 
@@ -744,7 +744,7 @@ async def test_api_generate_flow_202_to_builder(
     client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
 ):
     """POST /cv/generate → 202 job → queue → CV list + status result."""
-    import app.services.cv_generate_service as service_module
+    import app.services.cv.cv_generate_service as service_module
 
     async def memory_checkpointer():
         return InMemorySaver()
@@ -819,7 +819,7 @@ async def test_api_generate_unconfigured_503(
     client, auth_headers, profile_ready, seeded_catalog, monkeypatch
 ):
     """Production contract: nothing configured → 503 at enqueue time."""
-    import app.services.cv_generate_service as service_module
+    import app.services.cv.cv_generate_service as service_module
 
     async def unconfigured(db, task, user_id=None):
         return None
@@ -854,7 +854,7 @@ async def test_cv_runs_endpoint_assembles_the_run_ledger(
     its LLM-call ledger (task + stage linked via run_id), aggregates,
     the polish trace and the outcome; empty for a CV without runs and
     404 for a foreign CV."""
-    import app.services.cv_generate_service as service_module
+    import app.services.cv.cv_generate_service as service_module
 
     async def memory_checkpointer():
         return InMemorySaver()

@@ -14,7 +14,7 @@ from app.models.enums import AITaskType
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from tests.test_chat_streaming import _parse_sse
 
 
@@ -638,7 +638,7 @@ async def test_mock_education_update_flow(client, db, auth_headers):
     finished date) drafts one card, previews as the school card, applies
     through the form service and reverts from the 99 snapshot."""
     from app.schemas.profile_entities import EducationItemIn
-    from app.services.profile_entities_service import ProfileEntitiesService
+    from app.services.profile.profile_entities_service import ProfileEntitiesService
 
     user = await _auth_user(db)
     education = await ProfileEntitiesService(db).create_education(

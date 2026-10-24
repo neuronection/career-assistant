@@ -16,8 +16,8 @@ from app.core.errors import sanitize_error_detail
 from app.models.enums import AITaskType
 from app.models.job_model import Job
 from app.models.posting_model import JobSource
-from app.services import chat_tool_memory
-from app.services.chat_digest_cache import context_without_cache
+from app.services.chat import chat_tool_memory
+from app.services.chat.chat_digest_cache import context_without_cache
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +301,7 @@ def _web_result_summary(key: str, result) -> list[str]:
 
 async def _detect_posting_ref(db: AsyncSession, message: str) -> str | None:
     """An 8-char Crockford token that actually resolves to a posting."""
-    from app.services.postings_service import resolve_posting
+    from app.services.postings.postings_service import resolve_posting
 
     for token in message.upper().split():
         token = token.strip(".,!?;:()[]\"'")
@@ -320,7 +320,7 @@ async def search_postings_tool(
     short ref, source attribution and the per-posting match score."""
     from urllib.parse import urlencode
 
-    from app.services.explore_service import explore, parse_explore_filters
+    from app.services.postings.explore_service import explore, parse_explore_filters
 
     try:
         merged = dict(filters or {})
@@ -379,7 +379,7 @@ async def search_postings_tool(
 
 async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
     """Structured summary of one posting (extract + provenance + source)."""
-    from app.services.postings_service import resolve_posting
+    from app.services.postings.postings_service import resolve_posting
 
     posting = await resolve_posting(db, ref)
     if posting is None:
@@ -441,8 +441,8 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
 
 async def similar_postings_tool(db: AsyncSession, ref: str) -> dict:
     """Skill-ID Jaccard neighbours of one posting."""
-    from app.services.explore_service import similar_postings
-    from app.services.postings_service import resolve_posting
+    from app.services.postings.explore_service import similar_postings
+    from app.services.postings.postings_service import resolve_posting
 
     posting = await resolve_posting(db, ref)
     if posting is None:
@@ -501,10 +501,10 @@ async def my_profile_digest_tool(
     db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP
 ) -> dict:
     """Privacy-minimized profile overview for edit grounding."""
-    from app.services.experience_service import ExperienceService
-    from app.services.profile_entities_service import ProfileEntitiesService
-    from app.services.profile_service import ProfileService
-    from app.services.skills_service import SkillService
+    from app.services.catalog.skills_service import SkillService
+    from app.services.profile.experience_service import ExperienceService
+    from app.services.profile.profile_entities_service import ProfileEntitiesService
+    from app.services.profile.profile_service import ProfileService
 
     profile = await ProfileService(db).get(user_id)
     basics = profile.basics or {}
@@ -530,7 +530,7 @@ async def my_profile_digest_tool(
 
 async def my_experience_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP) -> dict:
     """The user's experience items: ids + key fields (edit grounding)."""
-    from app.services.experience_service import ExperienceService
+    from app.services.profile.experience_service import ExperienceService
 
     items = (await ExperienceService(db).list_items(user_id))[:limit]
     return {
@@ -556,7 +556,7 @@ async def my_experience_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_I
 
 async def my_skills_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP) -> dict:
     """The user's claimed skills with row ids (edit grounding)."""
-    from app.services.skills_service import SkillService
+    from app.services.catalog.skills_service import SkillService
 
     rows = [r for r in await SkillService(db).user_skills(user_id) if not r.hidden]
     return {
@@ -577,7 +577,7 @@ async def my_skills_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_
 
 async def my_education_tool(db: AsyncSession, user_id, *, limit: int = DIGEST_ITEM_CAP) -> dict:
     """Education + certifications + achievements (edit grounding)."""
-    from app.services.profile_entities_service import ProfileEntitiesService
+    from app.services.profile.profile_entities_service import ProfileEntitiesService
 
     service = ProfileEntitiesService(db)
     education = await service.list_education(user_id)
@@ -838,8 +838,8 @@ async def ground_digests(
     refreshed: dict[str, dict] = {}
     cached_names: list[str] = []
     if user_id is not None:
-        from app.services import chat_digest_cache
-        from app.services.chat_digest_cache import DIGEST_SEQUENCE
+        from app.services.chat import chat_digest_cache
+        from app.services.chat.chat_digest_cache import DIGEST_SEQUENCE
 
         digest_plan: list[tuple[str, set[str]]] = [
             ("my_experience", EXPERIENCE_KEYWORDS),
@@ -1009,7 +1009,7 @@ async def prepare_chat_prompt(
             fresh=digest_mode == "full",
         )
         if refreshed and session is not None:
-            from app.services import chat_digest_cache
+            from app.services.chat import chat_digest_cache
 
             chat_digest_cache.save(session, refreshed)
 
@@ -1093,7 +1093,7 @@ async def quick_assist(
         if job:
             from app.models.enums import LabelEntityKind
             from app.models.user_model import User
-            from app.services.label_overlay_service import LabelOverlayService
+            from app.services.catalog.label_overlay_service import LabelOverlayService
             from app.services.locale_service import effective_locale
 
             owner = (await db.execute(select(User).where(User.id == user_id))).scalars().first()

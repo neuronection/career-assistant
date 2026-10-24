@@ -8,7 +8,7 @@ user-data resources — wall-tested here over the ASGI transport.
 
 from uuid import UUID
 
-from app.services.applications_service import ApplicationService
+from app.services.postings.applications_service import ApplicationService
 from tests.conftest import _make_posting, _uid
 from tests.mcp_probe import mcp_probe, read_token
 
@@ -32,7 +32,7 @@ async def test_resources_and_prompts_are_scoped_to_a_bound_read_token(
 
 
 async def test_instance_token_sees_no_user_data_resources(client, db, monkeypatch):
-    from app.services import mcp_tokens
+    from app.services.admin import mcp_tokens
 
     _row, plaintext = await mcp_tokens.mint(db, None, label="Unbound", scopes=["read"])
     await db.commit()

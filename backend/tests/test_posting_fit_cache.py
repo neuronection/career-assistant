@@ -12,8 +12,8 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 
 from app.models.posting_model import PostingFit
-from app.services.fit.dimensions import FIT_VERSION
-from app.services.posting_fit_service import (
+from app.services.postings.fit.dimensions import FIT_VERSION
+from app.services.postings.posting_fit_service import (
     get_posting_fit,
     get_posting_fits_batch,
     sweep_posting_fits,

@@ -355,7 +355,7 @@ async def test_pin_applies_for_project_items(client, db, auth_headers):
 async def test_pin_applies_for_activated_ai_project_variant(client, db, auth_headers, monkeypatch):
     """Plan 83 follow-up: the exact user flow — AI-generate a project
     variant, Activate it, star it — must swap the rendered text."""
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     uid = _uid_of(auth_headers)
     item = ExperienceItem(

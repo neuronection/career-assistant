@@ -14,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import DomainError
 from app.models.enums import BackgroundJobType, DocumentStatus
-from app.services.cv_intake_service import CvIntakeService
+from app.services.cv.cv_intake_service import CvIntakeService
 from app.services.deps import get_current_user
-from app.services.document_service import DocumentService
 from app.services.job_worker import enqueue
+from app.services.profile.document_service import DocumentService
 
 router = APIRouter(prefix="/cv/intake", tags=["cv"])
 

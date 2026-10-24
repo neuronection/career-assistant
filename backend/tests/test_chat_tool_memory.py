@@ -6,7 +6,7 @@ import json
 from sqlalchemy import select
 
 from app.models.chat_model import ChatSession
-from app.services import chat_tool_memory
+from app.services.chat import chat_tool_memory
 from tests.test_chat_profile_ops import _auth_user
 
 
@@ -50,7 +50,7 @@ async def test_save_load_and_ttl(db, auth_headers):
     assert next(iter(loaded.values()))["payload"]["full_name"].endswith("career-assistant")
 
     # Outward echo strips the reserved key (assistant-ui page context).
-    from app.services.chat_digest_cache import context_without_cache
+    from app.services.chat.chat_digest_cache import context_without_cache
 
     echo = context_without_cache(session.context)
     assert "chat_tool_memory" not in echo and "tool_memory" not in echo

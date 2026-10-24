@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.models.application_model import ApplicationEvent
-from app.services.postings_service import sync_source
+from app.services.postings.postings_service import sync_source
 from tests.conftest import _make_posting, _uid
 
 

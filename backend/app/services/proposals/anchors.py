@@ -55,7 +55,7 @@ def _strip_entity_heading_echo(kind: str, entity: Any, stored_payload: dict) -> 
     }
 
     def _strip(text: str) -> str:
-        from app.services.cv_context_service import _strip_subject_echo
+        from app.services.cv.cv_context_service import _strip_subject_echo
 
         return _strip_subject_echo(row, text)
 
@@ -104,7 +104,7 @@ async def resolve_cv_synth_payload(db: AsyncSession, user_id: uuid.UUID, payload
         by_key.setdefault(ref["source_key"], set()).add(ref["item_id"])
     labels: dict[str, str] = {}
     if by_key:
-        from app.services.cv_context_service import CV_CONTEXT_SOURCES
+        from app.services.cv.cv_context_service import CV_CONTEXT_SOURCES
 
         for source_key, item_ids in by_key.items():
             definition = CV_CONTEXT_SOURCES.get(source_key)
@@ -171,8 +171,8 @@ async def resolve_cv_set_bullets(db: AsyncSession, user_id: uuid.UUID, payload: 
     list otherwise — so the card renders an informed before/after and
     revert can restore exactly what was there.
     """
-    from app.services.cv_builder_service import CvBuilderService
-    from app.services.cv_service import CvService
+    from app.services.cv.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_service import CvService
 
     cv = await CvService(db).get_owned(payload["cv_id"], user_id)
     source_key = payload["source_key"]
@@ -193,7 +193,7 @@ async def resolve_cv_set_bullets(db: AsyncSession, user_id: uuid.UUID, payload: 
     pinned_id = (selection.synth_pins or {}).get(f"{source_key}:{item_id}")
     variant_entries: list[dict] | None = None
     if pinned_id:
-        from app.services.cv_synth_service import CvSynthService
+        from app.services.cv.cv_synth_service import CvSynthService
 
         variant = await CvSynthService(db).get_owned(uuid.UUID(str(pinned_id)), user_id)
         entries = (variant.payload or {}).get("achievements") or []

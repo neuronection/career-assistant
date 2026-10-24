@@ -11,8 +11,8 @@ from sqlalchemy import select
 from app.ai.tools import list_tools
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
-from app.services import mcp_tokens
-from app.services.applications_service import ApplicationService
+from app.services.admin import mcp_tokens
+from app.services.postings.applications_service import ApplicationService
 from tests.conftest import _make_posting, _uid
 from tests.mcp_probe import mcp_probe, read_token, tool_payload
 

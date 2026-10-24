@@ -19,7 +19,7 @@ from app.models.cv_model import CvDocument, CvVersion
 from app.models.cv_template_model import CvTemplate
 from app.models.enums import AITaskType, BackgroundJobStatus, BackgroundJobType
 from app.schemas.cv_generate import CvGenerateRequest
-from app.services.cv_generate_service import CvGenerateService
+from app.services.cv.cv_generate_service import CvGenerateService
 from tests.conftest import _uid, session_headers
 from tests.test_cv_generate import _experience
 
@@ -170,7 +170,7 @@ def test_public_request_lifts_the_user_prompt():
 
 
 async def _generate(db, auth_headers, run_id: uuid.UUID | None = None) -> dict:
-    from app.services.cv_generate_service import CvGenerateService
+    from app.services.cv.cv_generate_service import CvGenerateService
 
     return await CvGenerateService(db).generate(
         UUID(_uid(auth_headers)),
@@ -388,11 +388,11 @@ async def test_polish_without_png_engine_degrades_to_lint_only(
     """PNG engine 503 → review degrades; the run still completes."""
 
     async def _unavailable(*_args, **_kwargs):
-        from app.services.cv_pdf_service import PDFEngineUnavailable
+        from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
         raise PDFEngineUnavailable("Server PDF engine not installed")
 
-    monkeypatch.setattr("app.services.cv_pdf_service.measure_pages", _unavailable)
+    monkeypatch.setattr("app.services.cv.cv_pdf_service.measure_pages", _unavailable)
     await _experience(client, auth_headers)
     result = await _generate(db, auth_headers)
     await db.commit()
@@ -751,7 +751,7 @@ async def test_resume_polish_endpoint_runs_the_loop_to_finalize(
 ):
     """POST /cv/{id}/polish queues a polish-only run; finalize compiles
     a third ai_apply version chaining the resume link (plan 64 §3)."""
-    import app.services.cv_generate_service as service_module
+    import app.services.cv.cv_generate_service as service_module
 
     async def memory_checkpointer():
         return InMemorySaver()
@@ -819,7 +819,7 @@ async def test_runs_endpoint_splits_resumed_runs(
 ):
     """The runs endpoint lists the generation run plus its polish re-run
     separately, each carrying only its own audited calls (plan 65.3)."""
-    import app.services.cv_generate_service as service_module
+    import app.services.cv.cv_generate_service as service_module
 
     async def memory_checkpointer():
         return InMemorySaver()
@@ -905,7 +905,7 @@ async def test_page_budget_is_a_hard_cap_and_notes_reach_the_review(
     """The reviewer judges against the user's brief (user_notes) and can
     never raise the page budget: the fix applier rejects a suggested
     set_doc_options raise — the budget stays 1 while safe trims ride."""
-    import app.services.cv_generate_service as service_module
+    import app.services.cv.cv_generate_service as service_module
     from app.ai.agents.context import parse_context
 
     async def memory_checkpointer():
@@ -1046,8 +1046,8 @@ async def test_lint_measures_live_pages_when_engine_present(
     """The estimate lies for dense two-column layouts — with the PDF
     engine present, lint measures the REAL page count and the budget
     fail stands (a 1.5-page CV is never 'fits in 1')."""
-    import app.services.cv_pdf_service as pdf_service
-    from app.services.cv_export_service import CvExportService
+    import app.services.cv.cv_pdf_service as pdf_service
+    from app.services.cv.cv_export_service import CvExportService
 
     await _experience(client, auth_headers)
     result = await CvGenerateService(db).generate(
@@ -1063,7 +1063,7 @@ async def test_lint_measures_live_pages_when_engine_present(
             pages=2, source="pdf", images=[("image/png", b"a"), ("image/png", b"b")]
         )
 
-    monkeypatch.setattr("app.services.cv_export_service.measure_pages", _two_pages)
+    monkeypatch.setattr("app.services.cv.cv_export_service.measure_pages", _two_pages)
 
     report = await CvExportService(db).lint_report(cv)
     metrics = report["metrics"]
@@ -1085,8 +1085,8 @@ async def test_lint_prefers_the_live_measure_over_a_stale_export_stamp(
 ):
     """The last export's stamp ages with every edit — a live print of the
     CURRENT state always wins when the engine is present (plan 76)."""
-    import app.services.cv_pdf_service as pdf_service
-    from app.services.cv_export_service import CvExportService
+    import app.services.cv.cv_pdf_service as pdf_service
+    from app.services.cv.cv_export_service import CvExportService
 
     await _experience(client, auth_headers)
     result = await CvGenerateService(db).generate(
@@ -1103,7 +1103,7 @@ async def test_lint_prefers_the_live_measure_over_a_stale_export_stamp(
     async def _stale(self, cv):
         return 1
 
-    monkeypatch.setattr("app.services.cv_export_service.measure_pages", _live)
+    monkeypatch.setattr("app.services.cv.cv_export_service.measure_pages", _live)
     monkeypatch.setattr(CvExportService, "_measured_pages", _stale)
     metrics = (await CvExportService(db).lint_report(cv))["metrics"]
     assert metrics["pages_actual"] == 2, "the live measure beats the stale stamp"
@@ -1115,7 +1115,7 @@ async def test_lint_falls_back_to_the_export_stamp_without_an_engine(
 ):
     """Engine absent → the last export's real measurement still speaks
     (flagged as aging), never a silent guess."""
-    from app.services.cv_export_service import CvExportService
+    from app.services.cv.cv_export_service import CvExportService
 
     await _experience(client, auth_headers)
     result = await CvGenerateService(db).generate(
@@ -1127,14 +1127,14 @@ async def test_lint_falls_back_to_the_export_stamp_without_an_engine(
     cv = await db.get(CvDocument, UUID(result["cv_id"]))
 
     async def _unavailable(*_args, **_kwargs):
-        from app.services.cv_pdf_service import PDFEngineUnavailable
+        from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
         raise PDFEngineUnavailable("Server PDF engine not installed")
 
     async def _stale(self, cv):
         return 1
 
-    monkeypatch.setattr("app.services.cv_export_service.measure_pages", _unavailable)
+    monkeypatch.setattr("app.services.cv.cv_export_service.measure_pages", _unavailable)
     monkeypatch.setattr(CvExportService, "_measured_pages", _stale)
     metrics = (await CvExportService(db).lint_report(cv))["metrics"]
     assert metrics["pages_actual"] == 1

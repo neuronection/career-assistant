@@ -11,8 +11,8 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.models.profile_proposal_model import ProfileProposal
-from app.services import mcp_tokens
-from app.services.applications_service import ApplicationService
+from app.services.admin import mcp_tokens
+from app.services.postings.applications_service import ApplicationService
 from app.services.profile_proposal_service import ProfileProposalService
 from tests.conftest import _make_posting, _uid
 from tests.mcp_probe import mcp_probe, read_token, tool_payload, write_token

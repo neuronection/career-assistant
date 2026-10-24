@@ -45,7 +45,7 @@ from app.core.errors import sanitize_error_detail
 from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType, ProposalKind
 from app.models.user_model import User
-from app.services import chat_tool_memory
+from app.services.chat import chat_tool_memory
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +426,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         if call["name"] in DIGEST_TOOLS:
             # plan 81 continuity: a model-pulled digest persists into the
             # session cache so later turns without keywords stay grounded.
-            from app.services import chat_digest_cache
+            from app.services.chat import chat_digest_cache
 
             sigs = await chat_digest_cache.digest_signatures(deps.db, deps.user.id, [call["name"]])
             sig = sigs.get(call["name"])
@@ -456,7 +456,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
             # plan 99.1: full-content reads ground this turn's
             # read-before-edit gate and persist per entity, so a later
             # turn editing the same (unchanged) item need not re-read.
-            from app.services import chat_digest_cache
+            from app.services.chat import chat_digest_cache
 
             read_results.append(result)
             if isinstance(result, dict) and result.get("error") is None:
@@ -635,7 +635,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
     from app.ai.agents.context import context_json, parse_context
     from app.ai.agents.prompts import CHAT_OPS
     from app.ai.schemas import ProfileOpsDraft
-    from app.services import chat_digest_cache
+    from app.services.chat import chat_digest_cache
     from app.services.profile_proposal_service import drop_code, resolve_ops
 
     prompt = state["prompt"]
@@ -791,7 +791,7 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
     created: list = []
     dropped: list = []
     if ops_dicts:
-        from app.services import chat_digest_cache
+        from app.services.chat import chat_digest_cache
 
         grounding = await chat_digest_cache.grounded_read_keys(
             deps.db, deps.session, state.get("read_keys") or []
@@ -840,7 +840,7 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
 async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
     """Persist the turn + terminal events (meta/proposals/flow/done)."""
     from app.ai.schemas import ChatReply
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     reply = ChatReply.model_validate(state["reply"])
     tool_metadata = dict(state.get("tool_metadata") or {})

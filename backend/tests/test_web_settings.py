@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from app.core.encryption import decrypt_secret
-from app.services import webfetch
+from app.services.integrations import webfetch
 from tests.conftest import session_headers
 
 

@@ -290,14 +290,14 @@ class CvDraftItemText(BaseModel):
     @field_validator("text")
     @classmethod
     def _rich_text(cls, value: str) -> str:
-        from app.services.rich_text import validate_rich_text
+        from app.services.cv.rich_text import validate_rich_text
 
         return validate_rich_text(value, 2000)
 
     @field_validator("bullets")
     @classmethod
     def _rich_bullets(cls, bullets: list[str]) -> list[str]:
-        from app.services.rich_text import validate_rich_text
+        from app.services.cv.rich_text import validate_rich_text
 
         return [validate_rich_text(bullet, 500) for bullet in bullets]
 
@@ -319,7 +319,7 @@ class CvDraftSectionText(BaseModel):
     @field_validator("text")
     @classmethod
     def _rich_text(cls, value: str) -> str:
-        from app.services.rich_text import validate_rich_text
+        from app.services.cv.rich_text import validate_rich_text
 
         return validate_rich_text(value, 2000)
 

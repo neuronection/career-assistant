@@ -45,8 +45,8 @@ from app.models.enums import AITaskType, CvVersionCreator
 from app.models.posting_model import JobPosting
 from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.cv_generate import CvGenerateRequest
-from app.services.cv_context_service import resolve
-from app.services.cv_themes import CV_THEMES
+from app.services.cv.cv_context_service import resolve
+from app.services.cv.cv_themes import CV_THEMES
 
 
 def _run_ref(state: Mapping[str, Any], stage: str) -> RunRef:
@@ -202,7 +202,7 @@ def _default_plan(enabled: list[str], items_by_kind: dict[str, list[dict]]) -> d
 def _clamp_title(title: str, target: dict) -> str:
     """The planner's CV title, sanitized + bounded (fallback: target
     role, else "My CV")."""
-    from app.services.rich_text import normalize_rich_text
+    from app.services.cv.rich_text import normalize_rich_text
 
     clean = normalize_rich_text(title, 120).strip().rstrip(" -")
     if clean:
@@ -361,7 +361,7 @@ def make_collect_node(deps: GraphDeps):
         resolution = await resolve(deps.db, UUID(state["user_id"]), selection)
         synth_applied: dict[str, str] = {}
         if selection.synth_pins:
-            from app.services.cv_synth_service import CvSynthService
+            from app.services.cv.cv_synth_service import CvSynthService
 
             synth_applied = await CvSynthService(deps.db).apply_to_items(
                 UUID(state["user_id"]),
@@ -625,7 +625,7 @@ def make_synthesize_node(deps: GraphDeps):
         if await _is_cancelled(deps):
             return {"abort_reason": "cancelled"}
         from app.schemas.cv_synth import CvSynthAction, CvSynthItemGenerate
-        from app.services.cv_synth_service import CvSynthService, swap_variant_payload
+        from app.services.cv.cv_synth_service import CvSynthService, swap_variant_payload
 
         request = _request(state)
         context = state.get("context") or {}
@@ -836,7 +836,7 @@ async def _resolve_template_for_run(
     try:
         from types import SimpleNamespace
 
-        from app.services.cv_template_service import CvTemplateService
+        from app.services.cv.cv_template_service import CvTemplateService
 
         follow_target = context.get("target") or {}
         posting = (
@@ -864,8 +864,8 @@ def make_assemble_node(deps: GraphDeps):
         """Deterministic: blocks + overrides → CvDocument → ai_apply
         version → lint report (the same builder services the API uses)."""
         from app.models.cv_model import CvDocument
-        from app.services.cv_builder_service import CvBuilderService
-        from app.services.cv_export_service import CvExportService
+        from app.services.cv.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_export_service import CvExportService
 
         request = _request(state)
         plan = state.get("plan") or {}
@@ -949,7 +949,7 @@ def make_assemble_node(deps: GraphDeps):
         template_skeleton: list[dict] = []
         if template_id is not None:
             from app.schemas.cv_template import TemplateContent
-            from app.services.cv_template_service import CvTemplateService
+            from app.services.cv.cv_template_service import CvTemplateService
 
             try:
                 row = await CvTemplateService(deps.db).get_readable(
@@ -1108,7 +1108,7 @@ def coverage_matrix_for(state: CvDraftState, working: dict | None) -> dict:
     everything else — the actionable gap the fix loop works on.
     """
     from app.schemas.cv import CvCoverageRef
-    from app.services.cv_context_service import CvContextItem, build_coverage_matrix
+    from app.services.cv.cv_context_service import CvContextItem, build_coverage_matrix
 
     context = state.get("context") or {}
     plan = state.get("plan") or {}
@@ -1312,9 +1312,9 @@ def make_review_node(deps: GraphDeps):
             _trace_stage(polish, "review", "run cancelled")
             return {"abort_reason": "cancelled", "polish": polish}
         from app.ai.agents.cv_build_reviewer import review_build
-        from app.services.cv_builder_service import CvBuilderService
-        from app.services.cv_export_service import CvExportService
-        from app.services.cv_pdf_service import measure_pages
+        from app.services.cv.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_export_service import CvExportService
+        from app.services.cv.cv_pdf_service import measure_pages
 
         polish = dict(state.get("polish") or {})
         polish.setdefault("run", {})
@@ -1557,7 +1557,7 @@ def make_fix_node(deps: GraphDeps):
             try:
                 from app.schemas.cv import CvContextSelection
                 from app.schemas.cv_synth import CvSynthItemUpdate
-                from app.services.cv_synth_service import CvSynthService
+                from app.services.cv.cv_synth_service import CvSynthService
 
                 selection = (
                     CvContextSelection.model_validate(cv.context)
@@ -1590,7 +1590,7 @@ def make_fix_node(deps: GraphDeps):
             )
             if pending.get("synth_item_id"):
                 from app.schemas.cv_synth import CvSynthItemUpdate
-                from app.services.cv_synth_service import CvSynthService
+                from app.services.cv.cv_synth_service import CvSynthService
 
                 await CvSynthService(deps.db).update(
                     UUID(str(pending["synth_item_id"])),
@@ -1605,7 +1605,7 @@ def make_fix_node(deps: GraphDeps):
         if candidate is None:
             return None
         from app.schemas.cv_synth import CvSynthItemGenerate
-        from app.services.cv_synth_service import CvSynthService
+        from app.services.cv.cv_synth_service import CvSynthService
 
         request = CvSynthItemGenerate(
             refs=[
@@ -1709,8 +1709,8 @@ def make_fix_node(deps: GraphDeps):
 
         from app.ai.agents.cv_template_designer import draft_template
         from app.models.enums import CvTemplateSource
-        from app.services.cv_builder_service import CvBuilderService
-        from app.services.cv_template_service import CvTemplateService
+        from app.services.cv.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_template_service import CvTemplateService
 
         request = _request(state)
         message = (
@@ -1782,7 +1782,7 @@ def make_fix_node(deps: GraphDeps):
             polish = dict(state.get("polish") or {})
             polish["outcome"] = polish_outcome("cancelled")
             return {"abort_reason": "cancelled", "polish": polish}
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         polish = dict(state.get("polish") or {})
         critique = dict(state.get("critique") or {})
@@ -1913,7 +1913,7 @@ async def _star_groundings(db, cv, state, proposals: list[dict]) -> None:
     write their pins into the CV's `synth_pins`."""
     from app.schemas.cv import CvContextSelection
     from app.schemas.cv_synth import CvSynthItemUpdate
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     try:
         selection = (
@@ -1951,7 +1951,7 @@ def make_finalize_node(deps: GraphDeps):
         from sqlalchemy.orm.attributes import flag_modified
 
         from app.models.enums import CvVersionCreator
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         cv = await _load_cv(deps, state)
         builder = CvBuilderService(deps.db)

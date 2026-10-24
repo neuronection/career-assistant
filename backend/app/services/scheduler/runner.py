@@ -21,7 +21,7 @@ from app.models.enums import (
     ScheduleStatus,
 )
 from app.models.schedule_model import Schedule
-from app.services.engagement_service import canonical_hash
+from app.services.postings.engagement_service import canonical_hash
 from app.services.scheduler import triggers as trigger_registry
 
 logger = logging.getLogger(__name__)

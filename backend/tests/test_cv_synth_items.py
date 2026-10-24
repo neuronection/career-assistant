@@ -8,8 +8,8 @@ from sqlalchemy import select
 
 from app.models.cv_model import CvVersion
 from app.models.experience_model import ExperienceItem
-from app.services.cv_export_service import to_ats_text, to_markdown
-from app.services.cv_renderer import _block_lines
+from app.services.cv.cv_export_service import to_ats_text, to_markdown
+from app.services.cv.cv_renderer import _block_lines
 
 
 async def _make_item(
@@ -336,8 +336,8 @@ async def test_items_ordering_full_partial_and_truncation(client, db, auth_heade
 
 
 async def test_estimator_honors_order_and_synth():
-    from app.services.cv_blocks import ItemsBlockProps, SynthItemsProps
-    from app.services.cv_renderer import DesignTokens
+    from app.services.cv.cv_blocks import ItemsBlockProps, SynthItemsProps
+    from app.services.cv.cv_renderer import DesignTokens
 
     design = DesignTokens()
     props = ItemsBlockProps(title="Work", source_key="experience", max_items=1, order=["a", "b"])

@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
 from app.middleware import RATE_LIMIT_POLICY
-from app.services import webfetch
-from app.services.webfetch import (
+from app.services.integrations import webfetch
+from app.services.integrations.webfetch import (
     DEFAULT_TEXT_CAP,
     SearxngProbeStatus,
     WebFetchBlocked,

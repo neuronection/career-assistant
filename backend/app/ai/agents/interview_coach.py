@@ -422,8 +422,8 @@ async def interview_turn_events(
     flow events + `delta`/`meta`); the turn state persists onto the
     assistant message metadata.
     """
-    from app.services.chat_service import ChatService
-    from app.services.interview_service import InterviewService
+    from app.services.chat.chat_service import ChatService
+    from app.services.chat.interview_service import InterviewService
 
     turn_started = time.monotonic()
     steps = [

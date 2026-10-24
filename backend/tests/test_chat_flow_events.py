@@ -115,7 +115,7 @@ async def test_stream_maps_budget_and_rate_limit_failures_to_typed_codes(
     """Plan 118.3: budget/limiter failures carry their own codes so the SPA
     renders typed copy instead of the raw domain message."""
     import app.ai.graphs.chat_turn as chat_turn
-    from app.api.v1.chat import chat_failure_code
+    from app.api.v1.chat.chat import chat_failure_code
     from app.core.errors import DomainError
 
     async def broke(state, deps):
@@ -263,7 +263,7 @@ async def test_interrupted_turn_persists_partial_trace(
     """The persisted-trace wave: an aborted turn keeps the tool + node
     trace gathered so far (not just the stream_interrupted flag)."""
     from app.models.chat_model import ChatSession as ChatSessionRow
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     created = (
         await client.post(

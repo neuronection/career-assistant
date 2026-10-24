@@ -24,7 +24,7 @@ class GithubIntake(PostingConnector):
 
     The manifest is the law: ``builtin/github_intake/manifest.json`` declares
     the ``api.github.com`` scope. Fetching happens in
-    :mod:`app.services.github_intake_service` over the guarded transport;
+    :mod:`app.services.integrations.github_intake_service` over the guarded transport;
     this class exists so registration validates the bundle like every other
     bundled extension.
     """

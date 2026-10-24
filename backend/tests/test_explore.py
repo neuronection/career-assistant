@@ -14,7 +14,7 @@ from app.ai.agents.chatbot import (
     similar_postings_tool,
 )
 from app.models.posting_model import PostingFit
-from app.services.posting_fit_service import (
+from app.services.postings.posting_fit_service import (
     get_posting_fit,
 )
 from tests.conftest import (
@@ -249,7 +249,7 @@ async def test_posting_fit_extracted_dimensions_and_cache(
         ExtractSkill,
         PostingExtract,
     )
-    from app.services.extract_service import apply_extract
+    from app.services.postings.extract_service import apply_extract
 
     posting = await _make_posting(db, source, external_id="fit-1")
     await apply_extract(
@@ -310,7 +310,7 @@ async def test_posting_fit_stale_when_weights_change(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
     from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
-    from app.services.extract_service import apply_extract
+    from app.services.postings.extract_service import apply_extract
 
     posting = await _make_posting(db, source)
     await apply_extract(
@@ -469,7 +469,7 @@ async def test_saved_search_round_trip_runs_explore_filters(
     await _make_posting(db, source, external_id="run-1", seniority="mid")
     # control: same skills but junior — must not count for the mid filter
     await _make_posting(db, source, external_id="run-2", seniority="junior")
-    from app.services.digest_service import run_saved_search
+    from app.services.postings.digest_service import run_saved_search
 
     result = await run_saved_search(db, {"search_id": search_id, "user_id": _uid(auth_headers)})
     assert result.get("new_matches") == 1
@@ -559,7 +559,7 @@ async def test_explore_org_filter(
     source,
     search_fixtures,
 ):
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     a, _b, _c = search_fixtures
     org, _created = await OrganizationService(db).find_or_propose("AnalystCo")

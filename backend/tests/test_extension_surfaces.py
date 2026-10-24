@@ -356,7 +356,7 @@ async def test_the_surface_api_serves_enabled_pages_only(
     )
     from fastapi import HTTPException
 
-    from app.api.v1 import extensions as surface_api
+    from app.api.v1.integrations import extensions as surface_api
     from app.extensions import surface_host
     from app.models.user_model import User
 

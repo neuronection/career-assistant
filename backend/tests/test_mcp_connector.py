@@ -46,7 +46,7 @@ from app.extensions.registry import (
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.models.posting_model import JobPosting, JobSource
-from app.services.postings_service import sync_source
+from app.services.postings.postings_service import sync_source
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[2].parent / "career-connector-template"
 FIXTURE_SERVER = Path(__file__).resolve().parent / "fixtures" / "mcp_template_server.py"

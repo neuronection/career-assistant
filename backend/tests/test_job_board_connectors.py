@@ -39,7 +39,7 @@ from app.extensions.polite_http import NetGuardConfig, PoliteHttpConfig
 from app.extensions.registry import get_connector, list_connectors, reset_registry
 from app.extensions.runtime.http import build_transport, reset_runtime
 from app.models.posting_model import JobPosting, JobSource
-from app.services.postings_service import sync_source
+from app.services.postings.postings_service import sync_source
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "connectors"
 ARBEITNOW_BODY = (FIXTURES / "arbeitnow_job_board.json").read_text(encoding="utf-8")

@@ -712,7 +712,7 @@ def _raw_posting(**kw) -> RawPosting:
 
 async def _make_posting(db, source, **kw) -> JobPosting:
     """Sync one raw posting through the real fast pass."""
-    from app.services.postings_service import upsert_posting
+    from app.services.postings.postings_service import upsert_posting
 
     posting = await upsert_posting(db, source, _raw_posting(**kw))
     await db.commit()

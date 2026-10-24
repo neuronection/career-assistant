@@ -3,8 +3,8 @@
 import httpx
 import pytest
 
-from app.services import webfetch
-from app.services.webfetch import (
+from app.services.integrations import webfetch
+from app.services.integrations.webfetch import (
     WebFetchBlocked,
     assert_public_url,
     fetch_text,

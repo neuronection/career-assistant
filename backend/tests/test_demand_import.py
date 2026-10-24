@@ -18,7 +18,8 @@ from app.models.job_model import Job
 from app.models.market_model import MarketSnapshot
 from app.models.posting_model import JobSource
 from app.models.schedule_model import Schedule
-from app.services.demand_import_service import (
+from app.services.job_worker import JobWorker, enqueue
+from app.services.postings.demand_import_service import (
     MarketSourceConfig,
     dataset_request,
     ensure_demand_source,
@@ -26,8 +27,7 @@ from app.services.demand_import_service import (
     parse_bls_payload,
     run_demand_import,
 )
-from app.services.job_worker import JobWorker, enqueue
-from app.services.postings_service import run_sync_job
+from app.services.postings.postings_service import run_sync_job
 from app.services.scheduler.runner import KIND_TASKS, SchedulerService
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "demand"
@@ -210,7 +210,9 @@ async def test_demand_import_worker_path(db, seeded_catalog, monkeypatch):
     async def no_fetch(source, *, transport=None):
         return [], []
 
-    monkeypatch.setattr("app.services.demand_import_service.fetch_demand_observations", no_fetch)
+    monkeypatch.setattr(
+        "app.services.postings.demand_import_service.fetch_demand_observations", no_fetch
+    )
     source = JobSource(
         key="market-demand",
         connector_key="demand_data",

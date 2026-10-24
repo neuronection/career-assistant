@@ -21,7 +21,7 @@ IS_SQLITE = settings.database_url.startswith("sqlite")
 
 
 def test_canonical_hash_is_key_order_invariant():
-    from app.services.engagement_service import canonical_hash
+    from app.services.postings.engagement_service import canonical_hash
 
     base = canonical_hash({"b": 2, "a": 1, "c": {"y": [1, {"k": "v"}], "x": 0}})
     assert base == canonical_hash({"a": 1, "b": 2, "c": {"x": 0, "y": [1, {"k": "v"}]}})
@@ -30,7 +30,7 @@ def test_canonical_hash_is_key_order_invariant():
 
 
 def test_canonical_hash_unicode_stability():
-    from app.services.engagement_service import canonical_hash
+    from app.services.postings.engagement_service import canonical_hash
 
     payload = {"title": "Data Analyst - Datenanalyse παρθένα 🧭", "tags": ["β", "α"]}  # noqa: RUF001 -- intentional multilingual hash input
     first = canonical_hash(payload)
@@ -41,7 +41,7 @@ def test_canonical_hash_unicode_stability():
 
 
 def test_canonical_hash_type_policy():
-    from app.services.engagement_service import canonical_hash
+    from app.services.postings.engagement_service import canonical_hash
 
     # Types are part of the contract: int vs float vs bool never collide.
     assert canonical_hash({"n": 1}) != canonical_hash({"n": 1.0})
@@ -60,8 +60,8 @@ def test_canonical_hash_type_policy():
 def test_hash_helpers_agree_across_modules():
     """One canonical-JSON policy — every helper digests identically."""
     from app.services.assessment.assessment_templates import _canonical_hash as template_hash
-    from app.services.engagement_service import canonical_hash
-    from app.services.posting_fit_service import _canonical_hash as fit_hash
+    from app.services.postings.engagement_service import canonical_hash
+    from app.services.postings.posting_fit_service import _canonical_hash as fit_hash
     from app.services.scheduler.runner import payload_hash
 
     payload = {"z": [3, 1], "a": {"nested": True, "other": "παρθένα"}}

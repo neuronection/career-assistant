@@ -10,7 +10,7 @@ from tests.conftest import session_headers
 
 
 def test_custom_text_docx_runs_bullets_and_ats_stripping():
-    from app.services.cv_export_service import to_ats_text, to_docx
+    from app.services.cv.cv_export_service import to_ats_text, to_docx
 
     text = (
         "Curious **engineer** from Athens.\n- *Ships* fast\n- Loves [Python](https://python.org)\n"
@@ -43,7 +43,7 @@ def test_custom_text_docx_runs_bullets_and_ats_stripping():
 
 
 def test_language_line_cefr_upgrades_to_certificate_band():
-    from app.services.cv_export_service import _language_line
+    from app.services.cv.cv_export_service import _language_line
 
     lang = {"label": "English", "code": "en", "level": "advanced", "cefr": "C1"}
     ecpe = {
@@ -258,7 +258,7 @@ async def test_lint_flags_non_standard_heading(client, auth_headers, profile_rea
 async def test_pdf_export_downloads_real_pdf_bytes(
     client, auth_headers, profile_ready, seeded_catalog, monkeypatch
 ):
-    import app.services.cv_export_service as export_module
+    import app.services.cv.cv_export_service as export_module
 
     async def _fake_pdf(html: str) -> bytes:
         return b"%PDF-1.4 fake-bytes"
@@ -278,8 +278,8 @@ async def test_pdf_export_downloads_real_pdf_bytes(
 async def test_pdf_export_503_when_engine_unavailable(
     client, auth_headers, profile_ready, seeded_catalog, monkeypatch
 ):
-    import app.services.cv_export_service as export_module
-    from app.services.cv_pdf_service import PDFEngineUnavailable
+    import app.services.cv.cv_export_service as export_module
+    from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
     async def _unavailable(html: str) -> bytes:
         raise PDFEngineUnavailable("Server PDF engine not installed — use print")
@@ -300,7 +300,7 @@ def test_lint_section_order_is_area_aware():
     the stored block order (the AI redesigns assign sidebar areas)."""
     from types import SimpleNamespace
 
-    from app.services.cv_export_service import lint
+    from app.services.cv.cv_export_service import lint
 
     blocks = [
         {"kind": "header", "props": {}},
@@ -341,8 +341,8 @@ def test_hidden_blocks_skip_exports_and_keep_lint_order_pass():
     from dataclasses import asdict
 
     from app.schemas.cv_template import TemplateContent
-    from app.services.cv_export_service import lint, to_ats_text, to_docx, to_markdown
-    from app.services.cv_renderer import render_cv
+    from app.services.cv.cv_export_service import lint, to_ats_text, to_docx, to_markdown
+    from app.services.cv.cv_renderer import render_cv
 
     payload = {
         "snapshot": {},
@@ -378,7 +378,7 @@ def test_hidden_blocks_skip_exports_and_keep_lint_order_pass():
 
 
 def test_item_description_honors_hard_breaks_in_exports():
-    from app.services.cv_export_service import to_docx, to_markdown
+    from app.services.cv.cv_export_service import to_docx, to_markdown
 
     payload = {
         "snapshot": {

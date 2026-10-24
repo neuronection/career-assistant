@@ -33,8 +33,8 @@ from app.models.engagement_model import (
 )
 from app.models.enums import BackgroundJobType, DeliveryStatus
 from app.models.user_model import User
+from app.services.integrations.webfetch import WebFetchBlocked, assert_public_url, parse_web_url
 from app.services.notification_channels import DeliveryContext, utcnow
-from app.services.webfetch import WebFetchBlocked, assert_public_url, parse_web_url
 
 logger = logging.getLogger(__name__)
 

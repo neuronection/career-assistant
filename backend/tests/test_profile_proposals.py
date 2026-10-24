@@ -13,9 +13,9 @@ from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.models.experience_model import ExperienceItem
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User, UserSkill
-from app.services.experience_service import ExperienceService
+from app.services.catalog.skills_service import SkillService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
-from app.services.skills_service import SkillService
 
 
 async def _auth_user(db) -> User:
@@ -241,7 +241,7 @@ async def test_section_patch_updates_profile_with_conflict(db, auth_headers):
 
     resolved, _, _ = await service.approve(user.id, proposal.id)
     assert resolved.status == "approved"
-    from app.services.profile_service import ProfileService
+    from app.services.profile.profile_service import ProfileService
 
     profile = await ProfileService(db).get(user.id)
     assert profile.academics["languages"] == [{"code": "de", "level": "native"}]
@@ -279,7 +279,7 @@ async def test_certification_and_education_kinds_apply(db, auth_headers):
     assert applied["label"] == "AWS Cloud Practitioner"
 
     from app.schemas.profile_entities import EducationItemIn
-    from app.services.profile_entities_service import ProfileEntitiesService
+    from app.services.profile.profile_entities_service import ProfileEntitiesService
 
     education = await ProfileEntitiesService(db).create_education(
         user.id,
@@ -751,7 +751,7 @@ async def test_cv_synth_card_validates_shape(db, auth_headers):
 
 async def _education_row(db, user, in_progress: bool = True):
     from app.schemas.profile_entities import EducationItemIn
-    from app.services.profile_entities_service import ProfileEntitiesService
+    from app.services.profile.profile_entities_service import ProfileEntitiesService
 
     return await ProfileEntitiesService(db).create_education(
         user.id,

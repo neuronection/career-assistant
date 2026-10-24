@@ -11,7 +11,8 @@ from app.models.experience_model import (
     SkillEvidence,
 )
 from app.models.user_model import User, UserSkill
-from app.services.experience_derivation import (
+from app.services.postings.fit.dimensions import compute_fit
+from app.services.profile.experience_derivation import (
     KIND_WEIGHT,
     ROLE_WEIGHT,
     derive_skill_months,
@@ -19,7 +20,6 @@ from app.services.experience_derivation import (
     months_to_level,
     years_of_experience,
 )
-from app.services.fit.dimensions import compute_fit
 from tests.conftest import session_headers
 
 
@@ -316,10 +316,10 @@ async def test_claim_conflicts_leaf_row_untouched(client, auth_headers, seeded_c
 
 
 async def test_claim_confirmed_raises_confidence(client, auth_headers, seeded_catalog, db):
-    from app.services.experience_service import CONFLICT_STEP
+    from app.services.profile.experience_service import CONFLICT_STEP
 
     months = _months_between(date(2024, 1, 1), date(2024, 6, 30)) + 1
-    from app.services.experience_derivation import months_to_level
+    from app.services.profile.experience_derivation import months_to_level
 
     target = round(months_to_level(months))
     await _apply_claim_case(client, auth_headers, db, seeded_catalog, claimed=target)
@@ -607,7 +607,7 @@ async def test_skill_evidence_one_source_check(db, seeded_catalog):
 
 async def test_postings_org_backfill_shape(db, seeded_catalog):
     """_resolve_org find-or-proposes by slug; reuse does not duplicate."""
-    from app.services.experience_service import slugify_org
+    from app.services.profile.experience_service import slugify_org
 
     assert slugify_org("Acme Cloud GmbH!") == "acme-cloud-gmbh"
 

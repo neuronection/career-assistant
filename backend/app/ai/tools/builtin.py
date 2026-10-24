@@ -166,7 +166,7 @@ async def _run_autopilot(db, ctx: ToolContext, args: AutopilotGoalRefInput):
     an application; applying stays a user click)."""
     from uuid import UUID
 
-    from app.services.autopilot_service import AutopilotService
+    from app.services.growth.autopilot_service import AutopilotService
 
     try:
         goal_id = UUID(args.ref)
@@ -195,7 +195,7 @@ async def _run_autopilot(db, ctx: ToolContext, args: AutopilotGoalRefInput):
 
 async def _my_autopilot(db, ctx: ToolContext, args: AutopilotGoalRefInput):
     """The caller's goals + open findings summary."""
-    from app.services.autopilot_service import AutopilotService
+    from app.services.growth.autopilot_service import AutopilotService
 
     assert ctx.user_id is not None, "my_autopilot requires a user"
     service = AutopilotService(db)
@@ -260,8 +260,8 @@ async def _read_profile_section(db, ctx: ToolContext, args: ReadProfileSectionIn
 async def _compare_jobs(db, ctx: ToolContext, args: CompareJobsInput):
     """Grounded side-by-side fit comparison — deterministic
     layer only; the model narrates, never invents, the numbers."""
-    from app.services.job_service import JobService
-    from app.services.matching_service import MatchingService
+    from app.services.catalog.job_service import JobService
+    from app.services.catalog.matching_service import MatchingService
 
     job_service = JobService(db)
     job_ids = []
@@ -302,7 +302,7 @@ async def _compare_jobs(db, ctx: ToolContext, args: CompareJobsInput):
 
 async def _my_applications(db, ctx: ToolContext, args: MyApplicationsInput):
     """The caller's application pipeline with the tracker's own ids."""
-    from app.services.applications_service import ApplicationService
+    from app.services.postings.applications_service import ApplicationService
 
     assert ctx.user_id is not None, "my_applications requires a user"
     rows = await ApplicationService(db).list_applications(
@@ -341,7 +341,7 @@ async def _my_application_timeline(db, ctx: ToolContext, args: ApplicationRefInp
     """One application's full event timeline (newest first)."""
     import uuid as uuid_mod
 
-    from app.services.applications_service import ApplicationService
+    from app.services.postings.applications_service import ApplicationService
 
     assert ctx.user_id is not None, "my_application_timeline requires a user"
     service = ApplicationService(db)
@@ -373,7 +373,7 @@ async def _my_deadlines(db, ctx: ToolContext, args: ProfileDigestInput):
     from sqlalchemy import select
 
     from app.models.university_model import Department, University
-    from app.services.applications_service import ApplicationService
+    from app.services.postings.applications_service import ApplicationService
 
     assert ctx.user_id is not None, "my_deadlines requires a user"
     today = datetime.now(UTC).date()
@@ -418,7 +418,7 @@ async def _my_saved_searches(db, ctx: ToolContext, args: SavedSearchesInput):
     """The caller's saved searches — the reusable queries behind alerts
     and RSS feeds — with the search ids the feed-token scope points at."""
     from app.models.enums import SearchScope
-    from app.services.engagement_service import EngagementService
+    from app.services.postings.engagement_service import EngagementService
 
     assert ctx.user_id is not None, "my_saved_searches requires a user"
     scope = SearchScope(args.scope) if args.scope else None
@@ -456,8 +456,8 @@ async def _my_saved_searches(db, ctx: ToolContext, args: SavedSearchesInput):
 async def _market_trend(db, ctx: ToolContext, args: MarketTrendInput):
     """Persisted demand history for one family or catalog job, oldest
     first — thin samples are surfaced as thin, never smoothed."""
-    from app.services import market_history_service
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
+    from app.services.postings import market_history_service
 
     family = (args.family_key or "").strip()
     ref = (args.job_ref or "").strip()
@@ -500,10 +500,10 @@ async def _market_trend(db, ctx: ToolContext, args: MarketTrendInput):
 async def _my_fit_breakdown(db, ctx: ToolContext, args: FitBreakdownInput):
     """The deterministic dimensions behind ONE fit score, resolved over
     the live posting first and the catalog archetype second."""
-    from app.services.job_service import JobService
-    from app.services.matching_service import MatchingService
-    from app.services.posting_fit_service import get_posting_fit
-    from app.services.postings_service import resolve_posting
+    from app.services.catalog.job_service import JobService
+    from app.services.catalog.matching_service import MatchingService
+    from app.services.postings.posting_fit_service import get_posting_fit
+    from app.services.postings.postings_service import resolve_posting
 
     assert ctx.user_id is not None, "my_fit_breakdown requires a user"
     posting = await resolve_posting(db, args.target)
@@ -548,7 +548,7 @@ async def _my_fit_breakdown(db, ctx: ToolContext, args: FitBreakdownInput):
     breakdown = item["insight"].fit_breakdown or {}
     from app.models.enums import LabelEntityKind
     from app.models.user_model import User
-    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.catalog.label_overlay_service import LabelOverlayService
     from app.services.locale_service import effective_locale
 
     owner = (await db.execute(select(User).where(User.id == ctx.user_id))).scalars().first()
@@ -581,7 +581,7 @@ async def _set_application_stage(db, ctx: ToolContext, args: ApplicationStageInp
     import uuid as uuid_mod
 
     from app.models.enums import ApplicationActor
-    from app.services.applications_service import ApplicationService
+    from app.services.postings.applications_service import ApplicationService
 
     assert ctx.user_id is not None, "set_application_stage requires a user"
     application = await ApplicationService(db).transition(
@@ -599,7 +599,7 @@ async def _add_application_note(db, ctx: ToolContext, args: ApplicationNoteInput
     import uuid as uuid_mod
 
     from app.models.enums import ApplicationActor
-    from app.services.applications_service import ApplicationService
+    from app.services.postings.applications_service import ApplicationService
 
     assert ctx.user_id is not None, "add_application_note requires a user"
     event = await ApplicationService(db).add_note(

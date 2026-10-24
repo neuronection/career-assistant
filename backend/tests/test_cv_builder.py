@@ -3,7 +3,7 @@
 import uuid
 
 from app.schemas.cv_template import TemplateContent
-from app.services.cv_renderer import render_cv
+from app.services.cv.cv_renderer import render_cv
 from tests.conftest import session_headers
 
 
@@ -567,8 +567,8 @@ async def test_preview_png_cached_and_capability_gated(
     from pathlib import Path
 
     from app.core.config import settings
-    from app.services import cv_pdf_service
-    from app.services.cv_pdf_service import PageMeasure, PDFEngineUnavailable
+    from app.services.cv import cv_pdf_service
+    from app.services.cv.cv_pdf_service import PageMeasure, PDFEngineUnavailable
 
     monkeypatch.setattr(settings, "data_dir", str(tmp_path))
     await _experience(client, auth_headers)

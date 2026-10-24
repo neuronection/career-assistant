@@ -219,7 +219,7 @@ async def install_t2(
 async def enable_and_sync(db, install: ExtensionInstall, **secrets) -> dict:
     """Enable (the explicit admin act) + one postings sync through the
     sandbox."""
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     await _set_enabled(db, install)
     row = await _job_source(db, install)
@@ -664,7 +664,7 @@ async def test_reference_extension_e2e(db, t2_env, mock_net):
     source = await _job_source(db, install)
     assert source.sync_state.get("fetched") == len(SAMPLE_ROWS), "next_state round-trips"
 
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     second = await sync_source(db, source)
     assert second["synced"] == 0, "the dedupe state short-circuits the second run"

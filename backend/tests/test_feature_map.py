@@ -4,14 +4,14 @@ generation, registry discipline."""
 from typing import get_args
 
 from app.ai.agents.posting_extractor import PostingExtract
-from app.services.extract_service import FIELD_NAMES
 from app.services.feature_map import (
     CONSUMERS,
     FEATURE_MAP,
     PROMPT_FEATURES,
     generated_feature_instructions,
 )
-from app.services.posting_fit_service import lifestyle_gates
+from app.services.postings.extract_service import FIELD_NAMES
+from app.services.postings.posting_fit_service import lifestyle_gates
 
 
 def test_registry_discipline_consumers_are_closed_vocabulary():
@@ -105,7 +105,7 @@ async def test_prompt_is_generated_from_the_map_and_audited(db, auth_headers, se
 
 async def test_values_cues_stored_inert(db, client, auth_headers, seeded_catalog, source):
     from app.ai.agents.posting_extractor import PostingExtract
-    from app.services.extract_service import apply_extract
+    from app.services.postings.extract_service import apply_extract
     from tests.conftest import _make_posting
 
     posting = await _make_posting(db, source)

@@ -130,7 +130,7 @@ async def _owned_cv(db, ctx: ToolContext, cv_id: str):
     from uuid import UUID
 
     from app.core.errors import PermissionDeniedError
-    from app.services.cv_service import CvService
+    from app.services.cv.cv_service import CvService
 
     if ctx.user_id is None:
         raise PermissionDeniedError("A signed-in user is required")
@@ -141,7 +141,7 @@ async def _owned_variant(db, ctx: ToolContext, item_id: str):
     from uuid import UUID
 
     from app.core.errors import PermissionDeniedError
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         raise PermissionDeniedError("A signed-in user is required")
@@ -177,7 +177,7 @@ def _applicability_verdict(
 
 
 async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -195,7 +195,7 @@ async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
     cv = None
     override_patch_keys: set[str] = set()
     if args.cv_id:
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         cv = await _owned_cv(db, ctx, args.cv_id)
         resolution = await CvBuilderService(db).resolution(cv)
@@ -230,7 +230,7 @@ async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
 
 async def _list_variants(db, ctx: ToolContext, args: VariantListInput):
     """Chat-audience variant digest (plan 104): slim rows + verdicts."""
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -249,7 +249,7 @@ async def _list_variants(db, ctx: ToolContext, args: VariantListInput):
     override_patch_keys: set[str] = set()
     if args.cv_id:
         cv = await _owned_cv(db, ctx, args.cv_id)
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         resolution = await CvBuilderService(db).resolution(cv)
         applied_ids = resolution.synth_applied or {}
@@ -289,8 +289,8 @@ async def _pin_variant(db, ctx: ToolContext, args: VariantPinInput):
     preserved."""
     from app.core.errors import ValidationError
     from app.schemas.cv import CvDocumentUpdate
-    from app.services.cv_service import CvService
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_service import CvService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -388,7 +388,7 @@ async def _read_synth(db, ctx: ToolContext, args: CvSynthReadInput):
 async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
     from uuid import UUID
 
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -445,7 +445,7 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
 
         raise PermissionDeniedError("A signed-in user is required")
     row = await _owned_variant(db, ctx, args.item_id)
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     service = CvSynthService(db)
     payload_patch = None
@@ -480,7 +480,7 @@ class CvReadItemsInput(BaseModel):
 
 async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
     """Plan 107 grounding: read BEFORE proposing bullet rewrites."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError

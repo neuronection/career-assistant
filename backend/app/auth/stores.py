@@ -219,7 +219,7 @@ class CareerUserStore:
     @staticmethod
     def _delete_uploaded_files(session: Session, user_id: uuid.UUID) -> None:
         from app.models.document_model import Document
-        from app.services.document_service import DocumentService
+        from app.services.profile.document_service import DocumentService
 
         documents = session.scalars(select(Document).where(Document.user_id == user_id)).all()
         for document in documents:

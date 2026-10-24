@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
             task.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
         try:
-            from app.services.cv_pdf_service import shutdown_engine
+            from app.services.cv.cv_pdf_service import shutdown_engine
 
             await shutdown_engine()
         except Exception:

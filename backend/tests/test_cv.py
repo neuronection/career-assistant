@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.enums import CvVersionCreator
-from app.services.cv_source_service import content_sha256
+from app.services.cv.cv_source_service import content_sha256
 from app.services.job_worker import JobWorker, enqueue
 from tests.conftest import session_headers
 
@@ -298,7 +298,7 @@ async def test_cv_version_unique_constraint(db, client, auth_headers):
 
 
 def _cv_service(db):
-    from app.services.cv_service import CvService
+    from app.services.cv.cv_service import CvService
 
     return CvService(db)
 

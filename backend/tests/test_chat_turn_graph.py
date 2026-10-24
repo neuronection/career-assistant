@@ -20,7 +20,7 @@ from app.ai.mock_chat import mock_chat_reply
 from app.models.ai_model import AIGeneration
 from app.models.chat_model import ChatMessage
 from app.models.enums import AITaskType
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from tests.test_ai_funnel import _assign_real_model, provider_module
 from tests.test_chat_profile_ops import _auth_user
 

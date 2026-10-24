@@ -13,10 +13,10 @@ from app.models.cv_model import CvDocument
 from app.models.cv_template_model import CvTemplate
 from app.schemas.cv_template import CvTemplateExport, TemplateContent
 from app.seeds.cv_templates import BANK_TEMPLATES, seed_cv_template_bank
-from app.services.cv_blocks import REGISTRY, SAMPLE_SNAPSHOT, validate_blocks
-from app.services.cv_renderer import render_cv
-from app.services.cv_template_service import CvTemplateService
-from app.services.engagement_service import canonical_hash
+from app.services.cv.cv_blocks import REGISTRY, SAMPLE_SNAPSHOT, validate_blocks
+from app.services.cv.cv_renderer import render_cv
+from app.services.cv.cv_template_service import CvTemplateService
+from app.services.postings.engagement_service import canonical_hash
 from tests.conftest import _uid, session_headers
 
 VALID_CONTENT = {
@@ -375,7 +375,7 @@ def test_skills_block_renders_only_selected_ids():
     """`SkillsProps.selected` lists context item ids (plan 68): only the
     chosen skills render; an empty/absent list keeps all skills."""
     from app.schemas.cv_template import TemplateContent
-    from app.services.cv_renderer import render_cv
+    from app.services.cv.cv_renderer import render_cv
 
     snapshot = {
         "basics": {"name": "Jane Doe", "email": "j@x.io"},
@@ -547,7 +547,7 @@ async def test_new_reference_templates_seed_and_render(db):
     """The bank grows with photo + skill-bar layouts inspired by popular
     magazine CVs: a coral banner (header band in the main column) and a
     charcoal-amber split (header living inside the dark sidebar)."""
-    from app.services.cv_renderer import render_cv
+    from app.services.cv.cv_renderer import render_cv
 
     await seed_cv_template_bank(db)
     for key in ("coral-banner", "charcoal-amber"):
@@ -642,7 +642,7 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
     sample renders ride to the ranking as page images; the metadata-only
     path stays the fallback (engine off → no images)."""
     import app.ai.agents.cv_template_advisor as advisor
-    import app.services.cv_pdf_service as pdf_service
+    import app.services.cv.cv_pdf_service as pdf_service
     from tests.conftest import _uid
 
     await seed_cv_template_bank(db)
@@ -666,7 +666,7 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
     assert images and all(mime == "image/png" for mime, _data in images)
 
     async def _unavailable(*_args, **_kwargs):
-        from app.services.cv_pdf_service import PDFEngineUnavailable
+        from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
         raise PDFEngineUnavailable("Server PDF engine not installed")
 
@@ -780,7 +780,7 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
     an empty profile falls back to the deterministic sample (the gallery
     never renders a blank page) and a filled one renders THAT data."""
     from app.models.user_model import Profile
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     await seed_cv_template_bank(db)
     listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
@@ -877,7 +877,7 @@ async def test_refreshed_bank_lints_and_prints_within_budget(db):
     page budget on a real engine (plan-76 truth; skips without one)."""
     import pytest as _pytest
 
-    from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
+    from app.services.cv.cv_pdf_service import PDFEngineUnavailable, measure_pages
 
     refreshed = {"navy-sidebar", "teal-sidebar", "coral-banner", "charcoal-amber"}
     for spec in BANK_TEMPLATES:
@@ -949,7 +949,7 @@ def test_items_block_links_opt_in_and_print_safe():
     """`show_links` renders per-item links print-first (short urls, max 3)
     and defaults OFF so existing templates never shift."""
     from app.schemas.cv_template import TemplateContent
-    from app.services.cv_renderer import render_cv
+    from app.services.cv.cv_renderer import render_cv
 
     snapshot = {
         "basics": {"name": "Jane Doe"},
@@ -992,8 +992,8 @@ def test_items_block_links_opt_in_and_print_safe():
 async def test_preview_png_cached_and_capability_gated(client, db, auth_headers, monkeypatch):
     """Plan 83B: the PNG route renders once, caches by content hash, and
     answers 503 with the capability message when the engine is missing."""
-    from app.services.cv_pdf_service import PDFEngineUnavailable
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_pdf_service import PDFEngineUnavailable
+    from app.services.cv.cv_template_service import CvTemplateService
 
     await seed_cv_template_bank(db)
     listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
@@ -1050,7 +1050,7 @@ async def test_preview_png_hides_foreign_templates(db, auth_headers):
     route exactly like the HTML preview (404, not 403)."""
     from app.core.errors import NotFoundError
     from app.models.user_model import User
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     owner_rows = await db.execute(select(User).where(User.email == "student@example.com"))
     owner = owner_rows.scalars().first()

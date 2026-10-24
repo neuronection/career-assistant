@@ -12,9 +12,9 @@ from app.models.enums import BackgroundJobStatus, ScheduleKind
 from app.models.matching_model import MatchInsight
 from app.models.posting_model import JobPosting
 from app.models.schedule_model import Schedule
-from app.services.fit.dimensions import FIT_VERSION, FitResult
-from app.services.fit.service import FitService
 from app.services.job_worker import JobWorker
+from app.services.postings.fit.dimensions import FIT_VERSION, FitResult
+from app.services.postings.fit.service import FitService
 from app.services.scheduler import triggers as trigger_registry
 from app.services.scheduler.runner import SchedulerService
 from tests.conftest import decode_session_token
@@ -455,7 +455,7 @@ async def test_checkin_uses_scheduler(client, auth_headers, profile_ready, seede
 
 
 async def test_stale_refit_sweep(client, auth_headers, profile_ready, seeded_catalog, db):
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     job = await JobService(db).get_by_code_or_id("software-developer")
     await FitService(db).upsert_fit(

@@ -299,8 +299,8 @@ async def test_upsert_insight_survives_raced_insert(
     from app.models.job_model import Job
     from app.models.matching_model import MatchInsight
     from app.models.user_model import User
-    from app.services.job_service import JOB_LOAD_OPTIONS
-    from app.services.matching_service import MatchingService
+    from app.services.catalog.job_service import JOB_LOAD_OPTIONS
+    from app.services.catalog.matching_service import MatchingService
 
     result = SimpleNamespace(
         score=7.0,
@@ -358,9 +358,9 @@ async def test_upsert_fit_survives_raced_insert(db, auth_headers, profile_ready,
     from app.models.job_model import Job
     from app.models.matching_model import MatchInsight
     from app.models.user_model import User
-    from app.services.fit.dimensions import FitResult
-    from app.services.fit.service import FitService
-    from app.services.job_service import JOB_LOAD_OPTIONS
+    from app.services.catalog.job_service import JOB_LOAD_OPTIONS
+    from app.services.postings.fit.dimensions import FitResult
+    from app.services.postings.fit.service import FitService
 
     user = (
         (await db.execute(select(User).where(User.email == "student@example.com"))).scalars().one()

@@ -177,7 +177,7 @@ async def test_ai_service_direct_invocation_raises_when_unconfigured(
     db, client, auth_headers, seeded_catalog, monkeypatch
 ):
     from app.ai.agents import score_match
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     _production(monkeypatch)
     job = await JobService(db).require_job("nurse")

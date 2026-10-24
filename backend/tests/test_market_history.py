@@ -11,8 +11,8 @@ from app.models.enums import BackgroundJobType, ScheduleKind
 from app.models.job_model import Job
 from app.models.market_model import MarketSnapshot
 from app.models.posting_model import JobPosting, JobSource
-from app.services import market_history_service as mhs
 from app.services.job_worker import JobWorker
+from app.services.postings import market_history_service as mhs
 
 
 async def _add_posting(db, job: Job, index: int = 0) -> None:

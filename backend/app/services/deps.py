@@ -61,7 +61,7 @@ async def get_profile_for_user(db: AsyncSession, user_id: UUID) -> Profile:
     jobs, account surfaces) resolves the auto-provisioned Default
     profile. Fetch-or-create keeps the pre-P3b contract for callers.
     """
-    from app.services.profiles_service import ensure_default_profile
+    from app.services.profile.profiles_service import ensure_default_profile
 
     return await ensure_default_profile(db, user_id)
 

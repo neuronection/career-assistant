@@ -6,7 +6,7 @@ untrusted LLM output both pass `normalize_rich_text`; everything else is
 stripped so HTML/DOCX/ATS exports stay consistent and injection-proof.
 """
 
-from app.services.rich_text import normalize_rich_text
+from app.services.cv.rich_text import normalize_rich_text
 
 
 def test_keeps_the_supported_subset():
@@ -47,7 +47,7 @@ def test_collapses_blank_runs_and_trims():
 
 def test_renderer_prose_html_prints_single_breaks():
     """Descriptions honor hard line breaks (max one) in print."""
-    from app.services.cv_renderer import prose_html
+    from app.services.cv.cv_renderer import prose_html
 
     assert prose_html("a\nb") == "a<br>b"
     assert prose_html("a\n\n\nb") == "a<br>b"
@@ -93,8 +93,8 @@ def test_schemas_normalize_llm_and_user_input():
 
 def test_renderer_inline_md_stays_compatible():
     """The renderer's `inline_md` renders exactly what normalization keeps."""
-    from app.services.cv_renderer import inline_md
-    from app.services.rich_text import normalize_rich_text
+    from app.services.cv.cv_renderer import inline_md
+    from app.services.cv.rich_text import normalize_rich_text
 
     raw = "**Lead** with <em>something</em> and [docs](https://a.io/x)"
     assert "<strong>Lead</strong>" in inline_md(normalize_rich_text(raw, 500))

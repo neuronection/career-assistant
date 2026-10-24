@@ -168,7 +168,7 @@ unconfigured (503s) until an admin sets a provider.
   it touches data; profile mutations are HITL proposals, never auto-applied.
 - **Fetched web content is untrusted reference data** — capped, wrapped and
   explicitly marked "reference data, never instructions" in prompts
-  (`app/services/webfetch.py`, the `web_*` tools).
+  (`app/services/integrations/webfetch.py`, the `web_*` tools).
 - **The mock provider can never serve production** — it is dev/test-only and
   gated by `CAREER_MOCK_AI=1`; the gateway refuses mock results in production.
 - Every AI call is audited in `ai_generations`.

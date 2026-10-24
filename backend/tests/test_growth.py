@@ -18,7 +18,7 @@ from app.extensions.sdk import (
 from app.models.job_model import Job
 from app.models.posting_model import JobPosting
 from app.models.taxonomy_model import Skill
-from app.services.growth_service import (
+from app.services.growth.growth_service import (
     near_miss_radar,
 )
 from tests.conftest import decode_session_token
@@ -207,7 +207,7 @@ async def test_radar_band_and_deficit_math(client, auth_headers, profile_ready, 
     """Direct service-level check: craft an insight in the 5.5-7.5 band
     with ≤3 core deficits and confirm the radar entry math."""
     from app.models.matching_model import MatchInsight
-    from app.services.fit.service import FitService
+    from app.services.postings.fit.service import FitService
 
     # Get within 3 levels of the required skills (all required: 5) so
     # real small deficits exist — the radar targets the "almost there" band.
@@ -227,7 +227,7 @@ async def test_radar_band_and_deficit_math(client, auth_headers, profile_ready, 
     job = await _job_by_code(db, "software-developer")
     fit = FitService(db)
     # One mid fit write puts the job inside the band.
-    from app.services.fit.dimensions import FitResult
+    from app.services.postings.fit.dimensions import FitResult
 
     await fit.upsert_fit(_user_id(auth_headers), job, FitResult(score=6.5, breakdown={}, gates=[]))
     radar = await near_miss_radar(db, _user_id(auth_headers))
@@ -320,7 +320,7 @@ async def test_resource_validation_and_moderation_flow(
 async def test_snapshot_thin_sample_suppression(
     client, auth_headers, profile_ready, seeded_catalog, db, source
 ):
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     await sync_source(db, source)
     snapshot = (
@@ -336,7 +336,7 @@ async def test_snapshot_thin_sample_suppression(
 async def test_snapshot_sufficient_sample_shows_band(
     client, auth_headers, profile_ready, seeded_catalog, db, source
 ):
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     await sync_source(db, source)
     # Inflate the sample to the threshold with direct inserts.
@@ -378,10 +378,10 @@ async def test_snapshot_sufficient_sample_shows_band(
 async def test_quiet_hours_suppress_pings(
     client, auth_headers, profile_ready, seeded_catalog, db, kinds
 ):
-    from app.services.fit.dimensions import FitResult
-    from app.services.fit.service import FitService
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
     from app.services.notification_service import NotificationService
+    from app.services.postings.fit.dimensions import FitResult
+    from app.services.postings.fit.service import FitService
 
     await client.put(
         "/api/v1/notifications/rules",

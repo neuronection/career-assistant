@@ -1,7 +1,7 @@
 """CV template content schemas: the validated template package.
 
 A template is data: ordered blocks (validated against the block-kind
-registry in `app.services.cv_blocks`), design tokens emitted as CSS custom
+registry in `app.services.cv.cv_blocks`), design tokens emitted as CSS custom
 properties, page rules, and optional per-field AI prompt overrides merged
 over global defaults at AI-call time.
 """
@@ -110,14 +110,14 @@ class TemplateContent(BaseModel):
     @field_validator("blocks")
     @classmethod
     def _blocks_must_validate(cls, value: list[dict]) -> list[dict]:
-        from app.services.cv_blocks import validate_blocks
+        from app.services.cv.cv_blocks import validate_blocks
 
         validate_blocks(value)
         return value
 
     def merged_prompts(self) -> dict[str, str]:
         """Template overrides layered over the global field defaults."""
-        from app.services.cv_blocks import GLOBAL_FIELD_PROMPTS
+        from app.services.cv.cv_blocks import GLOBAL_FIELD_PROMPTS
 
         merged = dict(GLOBAL_FIELD_PROMPTS)
         for path, guidance in self.prompts.field_prompts.items():

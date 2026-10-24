@@ -174,7 +174,7 @@ async def test_e2e_import_from_a_local_git_repo(db, seeded_catalog, local_roots,
     instance → managed-spawn server.py from the CLONED content → postings
     land with attribution; the etag short-circuits sync two; audit rows
     exist for every tool call."""
-    from app.services.postings_service import sync_source as sync_job_source
+    from app.services.postings.postings_service import sync_source as sync_job_source
 
     repo = make_repo(local_roots)
     source = await _add(db, local_descriptor(repo))
@@ -359,7 +359,7 @@ async def test_a_losing_writer_gets_a_typed_error(db, local_roots, mcp_allowlist
 async def test_t3_spawn_refuses_a_drifted_content_tree(db, local_roots, mcp_allowlist):
     """F15/T3: the managed spawn re-hashes the pinned tree before running
     server.py; drifted bytes are a typed error, never executed."""
-    from app.services.postings_service import sync_source as sync_job_source
+    from app.services.postings.postings_service import sync_source as sync_job_source
 
     repo = make_repo(local_roots)
     source = await _add(db, local_descriptor(repo))
@@ -1103,7 +1103,7 @@ async def test_e2e_import_runs_against_the_canonical_template_too(
 ):
     """The full import e2e against the template's own bytes (CI-safe: the
     fixture-copy parametrization always runs)."""
-    from app.services.postings_service import sync_source as sync_job_source
+    from app.services.postings.postings_service import sync_source as sync_job_source
 
     source = await _add(db, local_descriptor(template_repo))
     report = await sync_source(db, source.id)

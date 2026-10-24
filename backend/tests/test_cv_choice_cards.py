@@ -13,7 +13,7 @@ from app.core.errors import ValidationError
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User
 from app.schemas.profile_proposal import CvChoiceOpPayload
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import (
     ProfileProposalService,
     proposal_event,

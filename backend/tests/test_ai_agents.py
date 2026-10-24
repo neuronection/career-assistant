@@ -76,7 +76,7 @@ async def test_match_scorer_bounds_and_prereqs(db, client, auth_headers, seeded_
 
     from app.models.taxonomy_model import InterestTag
     from app.models.user_model import Profile, User, UserInterest
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     user = User(email="scorer@example.com", password_hash=hash_password("password123"))
     db.add(user)
@@ -106,7 +106,7 @@ async def test_match_scorer_bounds_and_prereqs(db, client, auth_headers, seeded_
 
 
 async def test_relation_suggester_valid_codes(db, client, auth_headers, seeded_catalog):
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     service = JobService(db)
     jobs, _ = await service.list_jobs(family_key="technology", page_size=5)
@@ -135,7 +135,7 @@ async def test_ai_generations_audited(db, client, auth_headers, seeded_catalog):
     from nx_auth.passwords import hash_password
 
     from app.models.user_model import Profile, User
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     user = User(email="audit@example.com", password_hash=hash_password("password123"))
     db.add(user)

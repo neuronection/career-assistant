@@ -12,8 +12,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import and_, text
 
-from app.services import explore_service
-from app.services.explore_service import _base_select, _keyset_conditions
+from app.services.postings import explore_service
+from app.services.postings.explore_service import _base_select, _keyset_conditions
 from tests.conftest import IS_SQLITE, _make_posting, _uid
 
 

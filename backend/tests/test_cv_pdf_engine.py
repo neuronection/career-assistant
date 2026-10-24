@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from app.services import cv_pdf_service as pdf_service
-from app.services.cv_pdf_service import PDFEngineUnavailable
+from app.services.cv import cv_pdf_service as pdf_service
+from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
 
 def _blank_pdf(pages: int) -> bytes:
@@ -238,7 +238,7 @@ def test_bundled_browsers_path_checks_the_internal_layout(monkeypatch, tmp_path)
 
 
 def test_page_overflow_message_carries_the_real_budget():
-    from app.services.cv_export_service import lint
+    from app.services.cv.cv_export_service import lint
 
     report = lint(
         {"snapshot": {}, "blocks": []},
@@ -253,9 +253,9 @@ def test_page_overflow_message_carries_the_real_budget():
 
 def test_render_metrics_expose_max_pages():
     from app.schemas.cv_template import TemplateContent
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
-    from app.services.cv_builder_service import FALLBACK_CONTENT
-    from app.services.cv_renderer import render_cv
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_builder_service import FALLBACK_CONTENT
+    from app.services.cv.cv_renderer import render_cv
 
     content = TemplateContent.model_validate(FALLBACK_CONTENT)
     result = render_cv(content, SAMPLE_SNAPSHOT, max_pages=2)
@@ -371,7 +371,7 @@ def test_running_footer_reaches_printed_pdf_page_2():
 
     import pypdfium2 as pdfium
 
-    from app.services.cv_pdf_service import (
+    from app.services.cv.cv_pdf_service import (
         PDFEngineUnavailable,
         html_to_pdf,
     )

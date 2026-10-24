@@ -11,8 +11,8 @@ from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.chat import ChatAttachmentIn
 from app.schemas.cv import CvDocumentCreate
-from app.services.chat_attachments import resolve_attachments
-from app.services.cv_service import CvService
+from app.services.chat.chat_attachments import resolve_attachments
+from app.services.cv.cv_service import CvService
 from tests.conftest import session_headers
 from tests.test_chat_streaming import _parse_sse
 

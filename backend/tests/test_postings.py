@@ -22,7 +22,7 @@ from app.extensions.sdk import (
     RawPosting,
 )
 from app.models.posting_model import JobPosting
-from app.services.postings_service import (
+from app.services.postings.postings_service import (
     expire_stale,
     posting_fit,
     sync_source,
@@ -312,7 +312,7 @@ async def test_manual_mapping_wins(client, auth_headers, profile_ready, seeded_c
     await sync_source(db, source)
     posting = (await db.execute(select(JobPosting))).scalars().first()
     await _admin(client, auth_headers, db)
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     job = await JobService(db).get_by_code_or_id("nurse")
     response = await client.post(
@@ -443,7 +443,7 @@ async def test_apply_writes_pipeline_row_and_first_stage_event(
     """Plan 113: the apply path owns the pipeline row; the first
     `stage_change` event is written exactly once per real transition."""
     from app.models.application_model import Application, ApplicationEvent
-    from app.services.applications_service import transition_stage
+    from app.services.postings.applications_service import transition_stage
 
     await sync_source(db, source)
     posting_id = (await client.get("/api/v1/postings", headers=auth_headers)).json()["items"][0][

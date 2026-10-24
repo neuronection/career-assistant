@@ -2,7 +2,7 @@
 
 An `experience_items` row is one role/project; `experience_skills` binds
 its skills with role-in-item and optional self-claimed level (the derived
-months live in `app.services.experience_derivation`, never hand-entered);
+months live in `app.services.profile.experience_derivation`, never hand-entered);
 `experience_achievements` carries metric-bearing outcomes.
 `skill_evidence` is the per-user evidence ledger every source
 (assessments, experience, CV parse) writes — exactly one source per row.

@@ -15,9 +15,9 @@ from app.models.enums import BackgroundJobType, ScheduleKind
 from app.models.followup_model import FollowupRule
 from app.models.posting_model import JobPosting, PostingInteraction
 from app.models.schedule_model import Schedule
-from app.services.applications_service import normalize_cadence
-from app.services.followups_service import sweep
 from app.services.job_worker import JobWorker
+from app.services.postings.applications_service import normalize_cadence
+from app.services.postings.followups_service import sweep
 from app.services.scheduler.runner import SchedulerService
 from tests.conftest import _make_posting, _uid
 

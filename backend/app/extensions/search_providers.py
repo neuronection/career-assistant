@@ -260,7 +260,7 @@ async def search_with_fallback(
     guarded search transport (``transport`` is the test seam).
     """
     from app.extensions.search_adapters import run_search
-    from app.services.webfetch import search_web
+    from app.services.integrations.webfetch import search_web
 
     providers = [entry for entry in await list_providers(db) if entry["enabled"]]
     if not providers:

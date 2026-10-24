@@ -85,7 +85,7 @@ KNOWN_UNRESOLVED_KNOBS = {
 READ_ELSEWHERE = {
     "CAREER_SHELL": ("app/auth/install.py",),
     "XDG_DATA_HOME": ("app/core/config.py",),
-    "PLAYWRIGHT_BROWSERS_PATH": ("app/services/cv_pdf_service.py",),
+    "PLAYWRIGHT_BROWSERS_PATH": ("app/services/cv/cv_pdf_service.py",),
     "JWT_SECRET": ("alembic/versions/0044_data_key_family.py",),
 }
 

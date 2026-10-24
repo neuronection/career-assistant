@@ -2,8 +2,8 @@
 benefits-driven values hints, moderation-reviewed enrichment sweep."""
 
 from app.models.enums import ScheduleKind
-from app.services.catalog_enrich_service import CatalogEnrichService
-from app.services.fit.dimensions import FIT_VERSION, job_values_signal
+from app.services.catalog.catalog_enrich_service import CatalogEnrichService
+from app.services.postings.fit.dimensions import FIT_VERSION, job_values_signal
 from app.services.scheduler.runner import KIND_TASKS
 
 

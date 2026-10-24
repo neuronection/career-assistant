@@ -25,9 +25,9 @@ from app.schemas.i18n import (
     TranslateKeysIn,
 )
 from app.schemas.job import JobOut
+from app.services.catalog.job_service import JobService
+from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.deps import get_current_user, require_admin
-from app.services.job_service import JobService
-from app.services.taxonomy_service import TaxonomyService
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ async def path_moderation_queue(
 ) -> list[dict]:
     """All paths by status (default: AI drafts awaiting review)."""
     from app.models.career_path_model import CareerPath
-    from app.services.paths_service import PathService
+    from app.services.catalog.paths_service import PathService
 
     rows = (
         (
@@ -217,7 +217,7 @@ async def publish_path(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Publish a drafted path."""
-    from app.services.paths_service import PathService
+    from app.services.catalog.paths_service import PathService
 
     try:
         path = await PathService(db).publish(path_id)
@@ -232,7 +232,7 @@ async def reject_path(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Delete a draft (published paths are withdrawn to draft instead)."""
-    from app.services.paths_service import PathService
+    from app.services.catalog.paths_service import PathService
 
     try:
         await PathService(db).reject(path_id)
@@ -331,7 +331,7 @@ async def admin_organizations(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Organizations with live posting counts (matcher review surface)."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     return await OrganizationService(db).list_orgs(status=status, q=q)
 
@@ -339,7 +339,7 @@ async def admin_organizations(
 @router.post("/organizations/{org_id}/promote", response_model=dict)
 async def promote_organization(org_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """proposed → active (the only promotion path, like skills)."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     try:
         org = await OrganizationService(db).promote(org_id)
@@ -355,7 +355,7 @@ async def add_organization_alias(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Register another label that resolves to this organization."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     try:
         org = await OrganizationService(db).add_alias(org_id, str(payload.get("alias") or ""))
@@ -371,7 +371,7 @@ async def merge_organization(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Re-point all references to the target; the duplicate is deprecated."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     try:
         target_id = uuid.UUID(str(payload.get("target_id")))
@@ -388,7 +388,7 @@ async def merge_organization(
 @router.post("/organizations/backfill", response_model=dict)
 async def backfill_organizations(db: AsyncSession = Depends(get_db)) -> dict:
     """Run the matcher over postings ingested before it existed."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     return await OrganizationService(db).backfill_postings()
 
@@ -396,7 +396,7 @@ async def backfill_organizations(db: AsyncSession = Depends(get_db)) -> dict:
 @router.get("/jobs/enrichment", response_model=list[dict])
 async def enrichment_queue(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Catalog v2-enrichment proposals awaiting moderation."""
-    from app.services.catalog_enrich_service import CatalogEnrichService
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
 
     return [
         {
@@ -415,7 +415,7 @@ async def apply_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)
     """Merge the proposal's v2 fields into the curated attributes."""
     from app.core.errors import NotFoundError
     from app.models.job_model import Job
-    from app.services.catalog_enrich_service import CatalogEnrichService
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
 
     service = CatalogEnrichService(db)
     job = (await db.execute(select(Job).where(Job.id == job_id))).scalars().first()
@@ -433,7 +433,7 @@ async def reject_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db
     """Discard the proposal without touching curated attributes."""
     from app.core.errors import NotFoundError
     from app.models.job_model import Job
-    from app.services.catalog_enrich_service import CatalogEnrichService
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
 
     service = CatalogEnrichService(db)
     job = (await db.execute(select(Job).where(Job.id == job_id))).scalars().first()
@@ -534,7 +534,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind: {kind}")
     config = payload.get("config") or {}
     if kind == "market":
-        from app.services.demand_import_service import validate_market_config
+        from app.services.postings.demand_import_service import validate_market_config
 
         connector_key = connector_key or "demand_data"
         validated = validate_market_config(config)
@@ -582,7 +582,7 @@ async def update_posting_source(
     if "config" in payload and payload["config"] is not None:
         try:
             if source.kind == "market":
-                from app.services.demand_import_service import validate_market_config
+                from app.services.postings.demand_import_service import validate_market_config
 
                 source.config = validate_market_config(payload["config"])
             else:
@@ -644,7 +644,7 @@ async def probe_posting_source(
     from app.extensions.runtime.http import build_transport
     from app.extensions.sdk import ConnectorError
     from app.models.posting_model import JobSource
-    from app.services.postings_service import resolve_source_secrets
+    from app.services.postings.postings_service import resolve_source_secrets
 
     source = (
         (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
@@ -1004,7 +1004,7 @@ async def admin_list_postings(
 async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Re-run the deep extraction for one posting now (admin)."""
     from app.models.posting_model import JobPosting
-    from app.services.extract_service import extract_posting_now
+    from app.services.postings.extract_service import extract_posting_now
 
     posting = (
         (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
@@ -1148,7 +1148,7 @@ async def overlay_queue(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Catalog-label overlays awaiting (or having completed) review."""
-    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.catalog.label_overlay_service import LabelOverlayService
 
     rows = await LabelOverlayService(db).queue(
         locale=locale, row_status=overlay_status, limit=limit
@@ -1200,7 +1200,7 @@ async def edit_overlay(
 ) -> dict:
     """Reviewer edit of a drafted overlay value (approval stays separate)."""
     from app.core.errors import NotFoundError
-    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.catalog.label_overlay_service import LabelOverlayService
 
     try:
         row = await LabelOverlayService(db).edit_value(overlay_id, body.value)
@@ -1214,7 +1214,7 @@ async def approve_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_
     """Approve one overlay — the only route to rendering."""
     from app.core.errors import NotFoundError
     from app.models.enums import LabelStatus
-    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.catalog.label_overlay_service import LabelOverlayService
 
     try:
         row = await LabelOverlayService(db).set_status(overlay_id, LabelStatus.APPROVED)
@@ -1228,7 +1228,7 @@ async def reject_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_d
     """Reject one overlay (it never renders)."""
     from app.core.errors import NotFoundError
     from app.models.enums import LabelStatus
-    from app.services.label_overlay_service import LabelOverlayService
+    from app.services.catalog.label_overlay_service import LabelOverlayService
 
     try:
         row = await LabelOverlayService(db).set_status(overlay_id, LabelStatus.REJECTED)

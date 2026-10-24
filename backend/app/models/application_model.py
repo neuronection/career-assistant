@@ -5,7 +5,7 @@
 everything about an actual application — stage, dates, documents sent,
 notes — lives here. Every stage transition writes exactly one
 `stage_change` event (service-enforced in
-`app.services.applications_service`).
+`app.services.postings.applications_service`).
 """
 
 import uuid

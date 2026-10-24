@@ -72,7 +72,7 @@ There is no side door around it.
 - **Notifications** always flow through `NotificationService.emit` (single
   funnel; alert rules and their triggers live on `EngagementService`).
 - **CV context sources** register in
-  `app/services/cv_context_service.py` (`register_context_source`): each
+  `app/services/cv/cv_context_service.py` (`register_context_source`): each
   source binds a profile entity to a typed resolver; selection resolves
   deterministically into the renderer snapshot with per-item traceability.
   Ineligible profile data is not registered — it cannot reach a CV.
@@ -82,7 +82,7 @@ There is no side door around it.
   machinery's `section kind == source_key` invariant, so generated CVs
   emit separate Work Experience / Projects / Volunteering sections.
 - **Synthesized CV variants** (plan 62) live in the user-level
-  `cv_synth_items` library (`app/services/cv_synth_service.py`), not in
+  `cv_synth_items` library (`app/services/cv/cv_synth_service.py`), not in
   the profile: each variant cites typed source refs + source content
   hashes (staleness/orphan detection) and applies through the per-CV
   `context.synth_mode` overlay BEFORE editor overrides — precedence is
@@ -152,7 +152,7 @@ There is no side door around it.
   the SectionsPanel reorder disclosure; `snapshot` rows carry their
   context item id (stamped in `resolution`) to make `order` robust
   against removed items.
-- **CV block kinds** register in `app/services/cv_blocks.py`
+- **CV block kinds** register in `app/services/cv/cv_blocks.py`
   (`register_block_kind`): a kind binds a props schema + renderer
   behavior; blocks carry an `area` mark (`main`/`sidebar`, legacy
   `column` accepted) that sidebar layouts honor when grouping columns
@@ -202,7 +202,7 @@ There is no side door around it.
   (`POST /cv/templates/{id}/visual-review`), and the copilot's
   structured critique renders in the AI tab with one-click
   `safe_token_fixes` apply.
-- **Language-display registries** live in `app/services/cv_languages.py`:
+- **Language-display registries** live in `app/services/cv/cv_languages.py`:
   ISO code → human name (30 languages, on-demand values render via
   title-cased fallback when the extraction/combobox vocabulary grows),
   profile level → representative CEFR band, and
@@ -302,7 +302,7 @@ There is no side door around it.
   semantic is a ranking signal, never a filter gate.
 - **Follow-up automation** is a scheduler slot
   (`system_followups` → `followup_sweep` job,
-  `app/services/followups_service.py`): a stateless sweep over applied
+  `app/services/postings/followups_service.py`): a stateless sweep over applied
   `applications` (+7d/+14d nudges, interview/offer check-ins)
   emitting through the notification funnel; sent-state lives in
   notification dedup keys, prefs in `preferences["followups"]`
@@ -310,7 +310,7 @@ There is no side door around it.
 - **Applications are an event-sourced pipeline** (plan 113): the
   `applications` row holds the current stage and the typed refs, while
   `application_events` is the append-only timeline — every stage
-  transition goes through `app/services/applications_service.py` and
+  transition goes through `app/services/postings/applications_service.py` and
   writes exactly one `stage_change` event. Future writers (116's
   follow-up sweep, 119's MCP proposals, 122's inbound webhooks) append
   events instead of introducing status columns.
@@ -323,7 +323,7 @@ There is no side door around it.
 
 ## Postings & Explore read path
 
-- **Filtering and paging happen in SQL** (`app/services/explore_service.py`,
+- **Filtering and paging happen in SQL** (`app/services/postings/explore_service.py`,
   plan 120). Every filter dimension — including `education_min` (normalized
   education tokens ranked by `EducationLevelOrder`) and `languages` (the
   posting's extracted language list) — compiles to a SQL predicate, so the
@@ -339,7 +339,7 @@ There is no side door around it.
   filtered count and cursors pin the window frontier (same cursor ⇒ same
   window across writes). Relevance keeps hybrid RRF as a ranking signal
   over that window — semantic never becomes a filter gate.
-- **`posting_fits` is the fit cache** (`app/services/posting_fit_service.py`):
+- **`posting_fits` is the fit cache** (`app/services/postings/posting_fit_service.py`):
   detail, Explore's fit window and the feed read it; misses/stale rows
   recompute and write through (the feed bounds its writes with
   `FEED_FIT_WRITE_BUDGET`). Staleness is still derived — `inputs_hash`
@@ -362,10 +362,10 @@ without a reload. UI chrome lives in `frontend/src/locales/`; catalog data
 is never JSON-translated.
 
 Catalog entity labels use **review-first overlays** (`label_overrides`,
-plan 113 shape): `app/services/label_overlay_service.py` resolves an
+plan 113 shape): `app/services/catalog/label_overlay_service.py` resolves an
 approved row per `(entity_kind, entity_id, locale, field)`, then falls
 back to the base label, then the stable key. Draft and rejected rows never
-render. `app/services/localized_view.py` is the single read-model seam for
+render. `app/services/catalog/localized_view.py` is the single read-model seam for
 jobs (catalog, rankings, feed), family trees, skill lists and the CV
 context — endpoints resolve the locale once and call it. AI drafts land as
 `draft` through the audited `translate` gateway task

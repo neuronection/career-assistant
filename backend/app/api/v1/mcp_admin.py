@@ -18,7 +18,7 @@ from app.core.errors import ValidationError
 from app.models.ai_model import AIGeneration
 from app.models.enums import McpTokenScope
 from app.models.user_model import User
-from app.services import mcp_tokens
+from app.services.admin import mcp_tokens
 from app.services.deps import require_admin
 
 router = APIRouter(prefix="/ai/mcp", tags=["mcp"])

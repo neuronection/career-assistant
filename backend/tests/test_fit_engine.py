@@ -1,6 +1,6 @@
 """Phase 22: deterministic fit engine — formulas, fairness, weights, staleness."""
 
-from app.services.fit.dimensions import (
+from app.services.postings.fit.dimensions import (
     FIT_VERSION,
     compute_fit,
     education_dimension,

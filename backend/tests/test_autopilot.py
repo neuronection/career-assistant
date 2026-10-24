@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
 from app.models.enums import BackgroundJobType, ScheduleKind
-from app.services.autopilot_service import AutopilotService
+from app.services.growth.autopilot_service import AutopilotService
 from app.services.scheduler.runner import KIND_TASKS
 from tests.conftest import session_headers
 

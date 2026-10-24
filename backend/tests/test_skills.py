@@ -260,7 +260,7 @@ async def test_disabled_skill_excluded_from_cv_context_and_fit(
 ):
     """CV Studio context and the fit engine ignore opted-out rows."""
     from app.models.user_model import Profile
-    from app.services.fit.service import FitService
+    from app.services.postings.fit.service import FitService
 
     saved = await client.put(
         "/api/v1/me/skills",
@@ -276,7 +276,7 @@ async def test_disabled_skill_excluded_from_cv_context_and_fit(
     profile = (
         (await db.execute(select(Profile).where(Profile.user_id == user.id))).scalars().first()
     )
-    from app.services.cv_context_service import _resolve_skills
+    from app.services.cv.cv_context_service import _resolve_skills
 
     items = await _resolve_skills(db, user.id)
     assert [i.item_id for i in items] == [row["skill_id"]]

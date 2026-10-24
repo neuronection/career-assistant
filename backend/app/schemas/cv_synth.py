@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.cv import CvContextRef, CvContextSelection
-from app.services.rich_text import validate_rich_text
+from app.services.cv.rich_text import validate_rich_text
 
 CvSynthAction = Literal["summarize", "detail", "restyle", "posting_fit", "translate"]
 CvSynthScope = Literal["item", "summary", "bullets"]

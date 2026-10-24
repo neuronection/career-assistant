@@ -12,7 +12,7 @@ from uuid import UUID
 
 import httpx
 
-from app.services import mcp_tokens
+from app.services.admin import mcp_tokens
 from tests.conftest import _uid
 
 INITIALIZE = {

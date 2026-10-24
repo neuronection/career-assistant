@@ -10,15 +10,15 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobStatus
 from app.models.posting_model import JobPosting, PostingSkill
 from app.models.taxonomy_model import Skill
-from app.services import extract_service
-from app.services.extract_service import (
+from app.services.postings import extract_service
+from app.services.postings.extract_service import (
     EXTRACT_VERSION,
     apply_extract,
     extract_posting_now,
     queue_posting_extract,
     run_extract_job,
 )
-from app.services.postings_service import sync_source, upsert_posting
+from app.services.postings.postings_service import sync_source, upsert_posting
 from tests.conftest import _make_posting, _raw_posting
 
 
@@ -318,7 +318,7 @@ async def test_demand_posting_claims_before_backlog(
 ):
     """A demand posting enqueued after backlog rows still claims first via
     insertion order: plan_extractions appends backlog after demand rows."""
-    from app.services.extract_service import plan_extractions
+    from app.services.postings.extract_service import plan_extractions
 
     demand_posting = await _make_posting(db, source)
     stale = JobPosting(

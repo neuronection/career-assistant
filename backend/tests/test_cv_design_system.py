@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.cv_template import TemplateContent
-from app.services.cv_renderer import format_period, render_cv
+from app.services.cv.cv_renderer import format_period, render_cv
 
 
 def _content(**design) -> TemplateContent:
@@ -54,7 +54,7 @@ async def test_card_style_radius_and_heading_tokens():
         heading_weight=700,
         accent_color="#0f766e",
     )
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(content, SAMPLE_SNAPSHOT).html
     assert "class='cv-block cv-card'" in html
@@ -66,7 +66,7 @@ async def test_card_style_radius_and_heading_tokens():
 
 async def test_flat_default_has_no_cards():
     content = _content()
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(content, SAMPLE_SNAPSHOT).html
     assert "class='cv-block cv-card'" not in html
@@ -77,7 +77,7 @@ async def test_flat_default_has_no_cards():
     [("compact", 8), ("normal", 12), ("roomy", 16)],
 )
 def test_page_margin_mirrored_in_screen_media(density, margin_mm):
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(_content(density=density), SAMPLE_SNAPSHOT).html
     assert f"@page {{ size: 210mm 297mm; margin: {margin_mm}mm; }}" in html
@@ -88,7 +88,7 @@ def test_page_margin_mirrored_in_screen_media(density, margin_mm):
 
 
 def test_template_margin_override_beats_density():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(_content(density="roomy", margin_mm=5), SAMPLE_SNAPSHOT).html
     assert "@page { size: 210mm 297mm; margin: 5mm; }" in html
@@ -103,7 +103,7 @@ def test_margin_mm_out_of_bounds_rejected():
 
 
 def test_margin_override_feeds_pagination_heuristic():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     zero = render_cv(_content(margin_mm=0), SAMPLE_SNAPSHOT)
     default = render_cv(_content(), SAMPLE_SNAPSHOT)
@@ -113,7 +113,7 @@ def test_margin_override_feeds_pagination_heuristic():
 def test_contact_fields_are_links_and_schemes_are_allowlisted():
     import copy
 
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
     snapshot["basics"]["links"] = [
@@ -134,7 +134,7 @@ def test_contact_fields_are_links_and_schemes_are_allowlisted():
 def test_generic_link_labels_print_the_bare_address():
     import copy
 
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
     snapshot["basics"]["links"] = [
@@ -154,7 +154,7 @@ def test_generic_link_labels_print_the_bare_address():
 
 
 def test_items_render_org_on_own_line_with_period_on_head_row():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(_content(), SAMPLE_SNAPSHOT).html
     head = html.split("<div class='item-head'>", 1)[1].split("</div>", 1)[0]
@@ -196,7 +196,7 @@ def test_item_descriptions_print_single_hard_breaks():
 def test_date_position_prop_switches_item_layout():
     import copy
 
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     def content_for(date_position=None):
         props = {
@@ -240,7 +240,7 @@ async def test_custom_text_inline_markup_is_escaped():
             ]
         }
     )
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(content, SAMPLE_SNAPSHOT).html
     assert "<strong>bold</strong>" in html
@@ -269,7 +269,7 @@ def test_custom_text_paragraphs_bullets_and_links():
             ]
         }
     )
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     html = render_cv(content, SAMPLE_SNAPSHOT).html
     assert "<p>Curious <strong>engineer</strong> from Athens.</p>" in html
@@ -289,7 +289,7 @@ def test_custom_text_blank_is_skipped_and_validates_empty():
             ]
         }
     )
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     result = render_cv(content, SAMPLE_SNAPSHOT)
     assert "About me" not in result.html
@@ -297,7 +297,7 @@ def test_custom_text_blank_is_skipped_and_validates_empty():
 
 
 def test_hidden_block_is_skipped_from_render_and_metrics():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -322,7 +322,7 @@ def test_hidden_block_is_skipped_from_render_and_metrics():
 
 
 def test_hidden_block_defaults_to_visible_when_absent_or_false():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT, block_hidden
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT, block_hidden
 
     assert block_hidden({"kind": "header"}) is False
     assert block_hidden({"kind": "header", "hidden": False}) is False
@@ -373,8 +373,8 @@ async def test_preview_draft_renders_unsaved_content(client, auth_headers):
 def test_sidebar_columns_fill_page_height():
     import re
 
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
-    from app.services.cv_renderer import _page_margin_mm
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_renderer import _page_margin_mm
 
     content = TemplateContent.model_validate(
         {
@@ -393,7 +393,7 @@ def test_sidebar_columns_fill_page_height():
 
 
 def test_sidebar_layout_renders_two_columns():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -414,7 +414,7 @@ def test_sidebar_layout_renders_two_columns():
 
 
 def test_single_layout_ignores_column_marks():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -426,7 +426,7 @@ def test_single_layout_ignores_column_marks():
 
 
 def test_area_mark_renders_sidebar_and_orders_before_main():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -443,7 +443,7 @@ def test_area_mark_renders_sidebar_and_orders_before_main():
 
 
 def test_single_layout_ignores_area_marks():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -455,7 +455,7 @@ def test_single_layout_ignores_area_marks():
 
 
 def test_overflow_css_keeps_semantic_units_on_one_page():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -469,7 +469,7 @@ def test_overflow_css_keeps_semantic_units_on_one_page():
 
 
 def test_columns_fragment_across_print_pages_as_table_cells():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -487,7 +487,7 @@ def test_columns_fragment_across_print_pages_as_table_cells():
 
 
 def test_page_estimate_fills_columns_side_by_side_not_stacked():
-    from app.services.cv_renderer import _pages_for
+    from app.services.cv.cv_renderer import _pages_for
 
     # Two columns flow side by side: max, not the sum, decides pages.
     assert _pages_for(57, 1, 57, two_columns=True) == 1  # sum-model would say 2
@@ -499,7 +499,7 @@ def test_page_estimate_fills_columns_side_by_side_not_stacked():
 
 
 def test_truncate_drops_from_the_overflowing_column():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -524,7 +524,7 @@ def test_truncate_drops_from_the_overflowing_column():
 
 
 def test_pdf_page_count_reads_chromium_page_tree():
-    from app.services.cv_pdf_service import pdf_page_count
+    from app.services.cv.cv_pdf_service import pdf_page_count
 
     assert pdf_page_count(b"%PDF-1.4 ... /Type /Pages /Kids [...] /Count 5") == 5
     assert pdf_page_count(b"garbage") is None
@@ -536,8 +536,8 @@ def test_overflow_css_keeps_semantic_units_on_one_page_unused():
 
 def test_estimation_counts_descriptions_and_narrows_sidebar_columns():
     from app.schemas.cv_template import DesignTokens
-    from app.services.cv_blocks import ItemsBlockProps
-    from app.services.cv_renderer import _block_lines
+    from app.services.cv.cv_blocks import ItemsBlockProps
+    from app.services.cv.cv_renderer import _block_lines
 
     props = ItemsBlockProps.model_validate(
         {"source_key": "experience", "show_skills": False, "show_achievements": False}
@@ -570,7 +570,7 @@ def test_estimation_counts_descriptions_and_narrows_sidebar_columns():
 
 
 def test_timeline_items_and_skill_bars():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -608,7 +608,7 @@ CERTS = [
 
 
 def _languages_cv(certs: list[dict] | None = None, **props) -> str:
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -658,7 +658,7 @@ def test_chip_style_default_matches_legacy_tint():
 
 def test_chip_style_variants_change_the_chip_rule():
     from app.schemas.cv_template import DesignTokens
-    from app.services.cv_renderer import _chip_rules
+    from app.services.cv.cv_renderer import _chip_rules
 
     solid, sidebar = _chip_rules(DesignTokens.model_validate({"chip_style": "solid"}), 10)
     assert "background: var(--accent); color: #ffffff" in solid
@@ -675,7 +675,7 @@ def test_chip_style_variants_change_the_chip_rule():
 
 def test_chip_text_color_derives_by_default_and_overrides():
     from app.schemas.cv_template import DesignTokens
-    from app.services.cv_renderer import _chip_rules
+    from app.services.cv.cv_renderer import _chip_rules
 
     derived, _ = _chip_rules(DesignTokens.model_validate({}), 10)
     assert "color: var(--heading);" in derived
@@ -692,7 +692,7 @@ def test_chip_text_color_derives_by_default_and_overrides():
 
 def test_explicit_chip_text_color_wins_in_the_sidebar():
     from app.schemas.cv_template import DesignTokens
-    from app.services.cv_renderer import _chip_rules
+    from app.services.cv.cv_renderer import _chip_rules
 
     # Derived: the sidebar keeps its own text color.
     _, sidebar = _chip_rules(DesignTokens.model_validate({"chip_style": "outline"}), 10)
@@ -724,7 +724,7 @@ def test_chip_tint_pct_scales_the_tint_wash():
             "design": {"chip_tint_pct": 30},
         }
     )
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     snapshot = {**SAMPLE_SNAPSHOT, "languages": LANGS, "certifications": CERTS}
     html = render_cv(content, snapshot).html
@@ -763,7 +763,7 @@ def test_cefr_band_never_downgrades_and_native_stays():
 
 
 def test_cefr_band_fills_missing_level():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -790,7 +790,7 @@ def test_cefr_band_fills_missing_level():
 
 
 def test_cefr_band_helpers():
-    from app.services.cv_languages import cefr_band_of, display_cefr
+    from app.services.cv.cv_languages import cefr_band_of, display_cefr
 
     assert cefr_band_of(ECPE) == "C2"
     assert cefr_band_of({"title": "Cambridge B2 First", "org": ""}) == "B2"
@@ -809,7 +809,7 @@ def test_cefr_band_helpers():
 
 
 def test_explicit_language_link_beats_derived_matching():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -842,7 +842,7 @@ def test_explicit_language_link_beats_derived_matching():
 
 
 def test_proficiency_matching_prefers_first_issued_language_certificate():
-    from app.services.cv_languages import (
+    from app.services.cv.cv_languages import (
         cefr_of,
         is_proficiency_cert,
         language_name,
@@ -887,7 +887,7 @@ def test_proficiency_matching_prefers_first_issued_language_certificate():
 def test_offered_language_codes_are_catalog_subset():
     """ADR-0024: the profile offer (Greek first) must resolve inside the
     family language catalog the name map loads from."""
-    from app.services.cv_languages import LANGUAGE_NAMES, OFFERED_LANGUAGE_CODES
+    from app.services.cv.cv_languages import LANGUAGE_NAMES, OFFERED_LANGUAGE_CODES
 
     assert OFFERED_LANGUAGE_CODES[0] == "el"
     assert len(OFFERED_LANGUAGE_CODES) == 30
@@ -895,7 +895,7 @@ def test_offered_language_codes_are_catalog_subset():
 
 
 def test_certifications_block_dedupes_proficiency_items():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -920,7 +920,7 @@ def test_certifications_block_dedupes_proficiency_items():
 
 
 def test_per_block_containers_override_design():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -959,7 +959,7 @@ def test_per_block_containers_override_design():
 
 
 def test_spacing_tokens_and_icons():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -987,7 +987,7 @@ def test_spacing_tokens_and_icons():
 
 
 def test_icon_size_token_controls_css():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {"blocks": [{"kind": "header"}], "design": {"icon_size_mm": 5.0}}
@@ -1023,7 +1023,7 @@ async def test_profile_photo_upload_render_and_unset(
 
 
 def test_photo_renders_when_enabled_with_shape_and_size():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     snapshot = dict(SAMPLE_SNAPSHOT)
     snapshot["basics"] = {
@@ -1199,7 +1199,7 @@ async def test_gallery_upload_keeps_profile_default_unchanged(
 
 def test_area_padding_tokens_default_to_legacy():
     """Plan 70: unset area paddings keep the legacy renderer defaults."""
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1219,7 +1219,7 @@ def test_area_padding_tokens_default_to_legacy():
 
 
 def test_area_padding_tokens_emit_per_area_css():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1253,7 +1253,7 @@ def test_area_padding_out_of_bounds_rejected():
 
 def test_area_padding_feeds_pagination_heuristic():
     """Padded columns have less text width — the line estimate must drop."""
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     blocks = [
         {"kind": "header"},
@@ -1284,7 +1284,7 @@ def test_area_padding_feeds_pagination_heuristic():
 
 
 def test_grouped_skills_render_by_category():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1299,7 +1299,7 @@ def test_grouped_skills_render_by_category():
 
 
 def test_grouped_skills_feed_the_overflow_estimate():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1321,7 +1321,7 @@ def test_grouped_skills_feed_the_overflow_estimate():
 
 
 def test_heading_icons_default_and_clearing():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1380,7 +1380,7 @@ def test_heading_icons_default_and_clearing():
 def test_arch_photo_and_accent_surname():
     from copy import deepcopy
 
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     snapshot = deepcopy(SAMPLE_SNAPSHOT)
     snapshot["basics"]["photo"] = "data:image/svg+xml,svg"
@@ -1413,7 +1413,7 @@ def test_arch_photo_and_accent_surname():
 
 
 def test_embedded_font_stack_emits_inline_face():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1435,7 +1435,7 @@ def test_embedded_font_stack_emits_inline_face():
 
 
 def test_main_columns_tokens_flow_into_css_and_estimate():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     long_snapshot = {**SAMPLE_SNAPSHOT, "summary": "word " * 400}
     single = render_cv(
@@ -1462,7 +1462,7 @@ def test_main_columns_tokens_flow_into_css_and_estimate():
 def test_qr_block_renders_deterministically_and_hides():
     from copy import deepcopy
 
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1481,7 +1481,7 @@ def test_qr_block_renders_deterministically_and_hides():
 
 
 def test_running_footer_margin_boxes():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
 
     content = TemplateContent.model_validate(
         {
@@ -1502,7 +1502,7 @@ def test_running_footer_margin_boxes():
 
 
 def test_default_section_titles_fallback_chain():
-    from app.services.cv_renderer import default_section_title
+    from app.services.cv.cv_renderer import default_section_title
 
     assert default_section_title("experience", "el") == "Εργασιακή Εμπειρία"
     assert default_section_title("experience", "de") == "Berufserfahrung"

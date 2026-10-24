@@ -1,7 +1,7 @@
 """Print-SVG icon registry sanity: every registered glyph must be
 well-formed, self-contained stroke geometry."""
 
-from app.services.cv_icons import PATHS, SECTION_KIND_ICONS, icon
+from app.services.cv.cv_icons import PATHS, SECTION_KIND_ICONS, icon
 
 
 def test_every_section_kind_maps_to_a_registered_icon():

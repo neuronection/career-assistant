@@ -4,12 +4,12 @@ from sqlalchemy import select
 
 from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting
-from app.services.organization_service import (
+from app.services.catalog.organization_service import (
     MATCH_THRESHOLD,
     OrganizationService,
     trigram_similarity,
 )
-from app.services.postings_service import upsert_posting
+from app.services.postings.postings_service import upsert_posting
 from tests.conftest import _make_posting, _raw_posting
 
 
@@ -26,7 +26,7 @@ def test_trigram_similarity_is_dialect_free():
 
 
 async def test_legal_suffixes_normalize_to_one_org(db, auth_headers, seeded_catalog):
-    from app.services.organization_service import _canonical
+    from app.services.catalog.organization_service import _canonical
 
     assert _canonical("Acme Cloud GmbH") == _canonical("acme cloud ltd")
     service = OrganizationService(db)

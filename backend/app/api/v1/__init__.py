@@ -4,43 +4,43 @@ from app.api.v1 import (
     admin,
     ai,
     ai_admin,
-    applications,
     assessments,
     autopilot,
     background_jobs,
-    chat,
     cv_intake,
-    cv_synth,
     cv_templates,
-    cvs,
-    documents,
-    engagement,
-    experience,
-    extensions,
-    feeds,
     github_intake,
     growth,
     instance,
-    interview,
-    jobs,
-    matching,
     mcp_admin,
     me,
-    me_cv_data,
-    me_photo,
     metrics,
-    notifications,
-    onboarding,
-    paths,
-    postings,
-    profile,
-    profile_proposals,
     profiles,
     scheduler,
-    skills,
-    taxonomy,
-    universities,
 )
+from app.api.v1.catalog import jobs as jobs
+from app.api.v1.catalog import matching as matching
+from app.api.v1.catalog import paths as paths
+from app.api.v1.catalog import skills as skills
+from app.api.v1.catalog import taxonomy as taxonomy
+from app.api.v1.catalog import universities as universities
+from app.api.v1.chat import chat as chat
+from app.api.v1.chat import interview as interview
+from app.api.v1.cv import cv_synth as cv_synth
+from app.api.v1.cv import cvs as cvs
+from app.api.v1.integrations import extensions as extensions
+from app.api.v1.integrations import feeds as feeds
+from app.api.v1.postings import applications as applications
+from app.api.v1.postings import engagement as engagement
+from app.api.v1.postings import postings as postings
+from app.api.v1.profile import documents as documents
+from app.api.v1.profile import experience as experience
+from app.api.v1.profile import me_cv_data as me_cv_data
+from app.api.v1.profile import me_photo as me_photo
+from app.api.v1.profile import notifications as notifications
+from app.api.v1.profile import onboarding as onboarding
+from app.api.v1.profile import profile as profile
+from app.api.v1.profile import profile_proposals as profile_proposals
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(instance.router)

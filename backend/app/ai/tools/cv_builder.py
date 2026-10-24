@@ -125,7 +125,7 @@ async def _owned_cv(db, ctx: ToolContext, cv_id: str):
     from uuid import UUID
 
     from app.core.errors import PermissionDeniedError
-    from app.services.cv_service import CvService
+    from app.services.cv.cv_service import CvService
 
     if ctx.user_id is None:
         raise PermissionDeniedError("A signed-in user is required")

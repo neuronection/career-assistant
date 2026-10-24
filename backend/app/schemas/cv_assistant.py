@@ -136,7 +136,7 @@ class SetOverrideOp(BaseModel):
     @field_validator("value")
     @classmethod
     def _rich(cls, value: str) -> str:
-        from app.services.rich_text import validate_rich_text
+        from app.services.cv.rich_text import validate_rich_text
 
         return validate_rich_text(value, 4000)
 

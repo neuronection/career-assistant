@@ -405,7 +405,7 @@ async def run() -> None:
         logger.info("taxonomy: +%d interests, +%d skills", i, s)
         j, r = await seed_catalog(db)
         logger.info("catalog: +%d jobs, +%d relations", j, r)
-        from app.services.metric_service import MetricService
+        from app.services.catalog.metric_service import MetricService
 
         t_count = await MetricService(db).recompute_skill_transferability()
         logger.info("catalog: transferability for %d skills", t_count)

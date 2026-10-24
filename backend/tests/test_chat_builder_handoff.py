@@ -11,7 +11,7 @@ from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
 from app.seeds.cv_templates import seed_cv_template_bank
-from app.services.cv_service import CvService
+from app.services.cv.cv_service import CvService
 from tests.test_chat_streaming import _parse_sse
 
 
@@ -175,7 +175,7 @@ async def test_preview_intent_persists_and_emits(
     from app.ai.agents.cv_builder_chat import _mock_builder_turn
     from app.ai.gateway import register_mock_fixture
     from app.models.enums import AITaskType
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     async def fake_first_page_png(self, template):
         return b"fake-png"
@@ -228,7 +228,7 @@ async def test_preview_intent_persists_and_emits(
 
 
 async def test_no_preview_intent_skips_previews(client, db, auth_headers, builder_env, monkeypatch):
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     calls = {"n": 0}
 
