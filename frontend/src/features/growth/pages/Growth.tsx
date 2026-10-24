@@ -149,9 +149,8 @@ export function Growth() {
         ) : (
           <div className="grid md:grid-cols-2 gap-3">
             {radar.map((entry) => (
-              <Link
+              <div
                 key={entry.job_id}
-                to={`/jobs/${entry.code}`}
                 className="bg-white border border-slate-200 rounded-xl p-4 hover:border-primary-400"
                 data-testid="radar-card"
               >
@@ -159,7 +158,23 @@ export function Growth() {
                   {t("growth.fitScore", { score: entry.fit_score.toFixed(1) })} · {entry.family_key.replace(/-/g, " ")}
                 </p>
                 <p className="font-medium text-slate-900 mt-0.5">{entry.headline}</p>
-              </Link>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <Link
+                    to={`/jobs/${entry.code}`}
+                    className="rounded-lg border border-slate-200 px-2 py-1 hover:border-primary-400"
+                    data-testid={`radar-job-${entry.code}`}
+                  >
+                    {t("growth.radarOpenJob")}
+                  </Link>
+                  <Link
+                    to={`/paths?job=${entry.code}`}
+                    className="rounded-lg border border-slate-200 px-2 py-1 hover:border-primary-400"
+                    data-testid={`radar-paths-${entry.code}`}
+                  >
+                    {t("growth.radarOpenPaths")}
+                  </Link>
+                </div>
+              </div>
             ))}
           </div>
         )}

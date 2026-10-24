@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Compass, Map as MapIcon, Plus, Route as RouteIcon, Sparkles } from "lucide-react";
 
@@ -56,7 +56,8 @@ export function PathExplorer() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [families, setFamilies] = useState<JobFamilyNode[]>([]);
-  const [jobQuery, setJobQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const [jobQuery, setJobQuery] = useState(searchParams.get("job") ?? "");
   const [familyKey, setFamilyKey] = useState("");
   const [stage, setStage] = useState("");
   const [loading, setLoading] = useState(true);

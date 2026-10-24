@@ -205,7 +205,6 @@
     "youVsRequired": "εσείς: {{you}}/{{required}}",
     "nextStep": "Επόμενο βήμα: {{step}}",
     "yourPath": "Ο δρόμος σας προς αυτή τη θέση",
-    "optional": "(προαιρετικό)",
     "commonlyLeadsHere": "Θέσεις εργασίας που συνήθως οδηγούν εδώ:",
     "livePostings_one": "{{count}} ενεργές θέσεις",
     "livePostings_other": "{{count}} ενεργές θέσεις",
@@ -216,7 +215,8 @@
     "yourNotes": "Οι σημειώσεις σας",
     "relatedJobs": "Σχετικές θέσεις",
     "publishToCatalog": "Δημοσίευση στον κατάλογο",
-    "appliesBy": "εφαρμόζεται έως {{date}}"
+    "appliesBy": "εφαρμόζεται έως {{date}}",
+    "openInPaths": "Εξερεύνηση στις διαδρομές"
   },
   "families": {
     "technology": "τεχνολογία",
@@ -332,7 +332,9 @@
     "radarTitle": "Περιοχή με σχετικές θέσεις",
     "remindLater": "Ενημέρωμαι σε 3 μήνες",
     "roadmapsTitle": "Οι δικές σας διαδρομές",
-    "skip": "Περνάω"
+    "skip": "Περνάω",
+    "radarOpenJob": "Άνοιγμα επαγγέλματος",
+    "radarOpenPaths": "Δες τις διαδρομές"
   },
   "about": {
     "tagline": "Ανοιχτού κώδικα, αυτο-υποστηριζόμενος εξερευνητής καριέρας",

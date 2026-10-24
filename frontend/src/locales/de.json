@@ -205,7 +205,6 @@
     "youVsRequired": "Sie: {{you}}/{{required}}",
     "nextStep": "Nächster Schritt: {{step}}",
     "yourPath": "Ihr Weg zu dieser Stelle",
-    "optional": "(optional)",
     "commonlyLeadsHere": "Stellen, die häufig hier führen:",
     "livePostings_one": "{{count}} aktive Stellen",
     "livePostings_other": "{{count}} aktive Stellen",
@@ -216,7 +215,8 @@
     "yourNotes": "Ihre Notizen",
     "relatedJobs": "Ähnliche Stellen",
     "publishToCatalog": "Veröffentlichen im Katalog",
-    "appliesBy": "bevor {{date}}"
+    "appliesBy": "bevor {{date}}",
+    "openInPaths": "In Karrierepfaden erkunden"
   },
   "families": {
     "technology": "Technologie",
@@ -332,7 +332,9 @@
     "radarTitle": "Radar für ähnliche Stellen",
     "remindLater": "Erinnern Sie mich in 3 Monaten",
     "roadmapsTitle": "Ihre Karrierepläne",
-    "skip": "überspringen"
+    "skip": "überspringen",
+    "radarOpenJob": "Beruf öffnen",
+    "radarOpenPaths": "Karrierepfade ansehen"
   },
   "about": {
     "tagline": "Open-Source, selbst gehosteter Karriere-Explorer",

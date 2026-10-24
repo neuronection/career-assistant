@@ -205,7 +205,6 @@
     "youVsRequired": "you: {{you}}/{{required}}",
     "nextStep": "Next step: {{step}}",
     "yourPath": "Your path to this job",
-    "optional": "(optional)",
     "commonlyLeadsHere": "Jobs that commonly lead here:",
     "livePostings_one": "{{count}} live posting",
     "livePostings_other": "{{count}} live postings",
@@ -216,7 +215,8 @@
     "yourNotes": "Your notes",
     "relatedJobs": "Related jobs",
     "publishToCatalog": "Publish to catalog",
-    "appliesBy": "applies by {{date}}"
+    "appliesBy": "applies by {{date}}",
+    "openInPaths": "Explore in Career paths"
   },
   "families": {
     "technology": "technology",
@@ -332,7 +332,9 @@
     "radarTitle": "Near-miss radar",
     "remindLater": "Remind me in 3 months",
     "roadmapsTitle": "Your roadmaps",
-    "skip": "skip"
+    "skip": "skip",
+    "radarOpenJob": "Open job",
+    "radarOpenPaths": "See career paths"
   },
   "about": {
     "tagline": "Open-source, self-hosted career explorer",

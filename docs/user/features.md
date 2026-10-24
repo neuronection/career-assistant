@@ -127,6 +127,29 @@ goal's constraints, dismissing a whole shortlist pauses it, and three empty
 runs trigger a refine-the-goal nudge — never wasted spend, never
 auto-applying.
 
+## Career paths
+
+Every route to a target job in one place (beta):
+
+- **Path explorer** (`/paths`) — curated routes, your own path copies and
+  computed "roads into this job" relations, filterable by target job,
+  family or career stage.
+- **One renderer, three views** — graph (default; tree is the
+  reduced-motion fallback), tree and list render the same typed path.
+- **Marks** — interested / pinned / dismissed on every path and step,
+  with an optional note; dismissed steps leave the completeness count.
+  Marks are preferences — they never feed fit or rankings.
+- **Editing** — fork a curated path into your own copy, add or branch
+  steps (parent + edge label), reorder within a branch, mark optional;
+  your copy activates only after you review it.
+- **Chat drafts** — ask the assistant to draft a route; the draft renders
+  in chat for review and "Save to my paths" creates a draft you activate
+  on the paths page. Missing jobs route through the catalog moderation
+  queue (never auto-created as active).
+- **Handoffs** — JobDetail's path section and the near-miss radar link
+  into the explorer; a path header adds its target job to a growth
+  roadmap.
+
 ## Growth toolkit
 
 The product works after you're hired:

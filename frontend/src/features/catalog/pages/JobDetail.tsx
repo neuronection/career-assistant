@@ -4,6 +4,8 @@ import { Bookmark, ExternalLink, EyeOff } from "lucide-react";
 import { fetchJob, fetchJobRelations, publishJob } from "@/api/jobs";
 import { fetchJobMatchDetail, rateJob, scoreJobForMe } from "@/api/matching";
 import { fetchJobPathGraph, fetchJobPaths } from "@/api/paths";
+import { PathRenderer } from "@/features/paths/PathRenderer";
+import { buildPathView } from "@/features/paths/viewModel";
 import { fetchSkillGaps } from "@/api/skills";
 import { hideJob, markSeen, saveJob } from "@/api/engagement";
 import { fetchMarketSnapshot, fetchMarketTrend, type MarketTrendPoint } from "@/api/growth";
@@ -384,23 +386,19 @@ export function JobDetail() {
             <div className="space-y-3">
               {paths.slice(0, 2).map((path) => (
                 <div key={path.id}>
-                  <p className="text-sm font-medium">{path.title}</p>
-                  <ol className="mt-1 space-y-1">
-                    {(path.steps ?? []).map((step, i) => (
-                      <li key={i} className="text-xs text-slate-600 flex gap-2">
-                        <span className="w-4 h-4 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-                          {i + 1}
-                        </span>
-                        <span>
-                          {step.label || step.kind}
-                          {step.optional && <span className="text-slate-400"> {t("jobDetail.optional")}</span>}
-                          {step.skill_label && (
-                            <span className="text-slate-400"> · {step.skill_label}</span>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{path.title}</p>
+                    <Link
+                      to="/paths"
+                      className="text-xs font-medium text-primary-700 hover:underline"
+                      data-testid="job-paths-open"
+                    >
+                      {t("jobDetail.openInPaths")}
+                    </Link>
+                  </div>
+                  <div className="mt-1">
+                    <PathRenderer view={buildPathView(path)} compact />
+                  </div>
                 </div>
               ))}
             </div>

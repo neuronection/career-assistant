@@ -4,6 +4,36 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (career path explorer, 2026-10-24)
+- **Plan 125 — career paths are a destination.** New `/paths` explorer
+  (beta, sidebar entry "Career paths"): curated + your own paths +
+  computed routes, filtered by target job / family / stage. One typed
+  `PathView` renders through a modular `PathRenderer` in three views —
+  graph (default), tree (reduced-motion fallback) and list — with
+  keyboard navigation and reduced-motion support.
+- Marks on paths and steps (`interested` / `pinned` / `dismissed` +
+  note) stored in `user_path_flags`; marks are preferences and never
+  feed fit or rankings (wall-tested). Dismissed steps leave the path
+  header's profile-completeness count.
+- Path editing with fork-on-edit: curating is ours, editing is yours —
+  "Fork to my paths" copies a curated route into a personal one; add,
+  branch (`parent_step_id` + `edge_label`), reorder, optional-mark and
+  remove steps on your own copies. Chat-created paths and manual
+  creation are review-first drafts: nothing activates automatically.
+- Chat creation flow: a checkpointed LangGraph draft flow
+  (`app/ai/graphs/path_draft.py`, task `path_draft`) grounds the request
+  with `search_jobs`, proposes missing jobs through the existing catalog
+  moderation queue (never auto-activated), and renders the structured
+  draft in chat as an embedded path preview with "Save to my paths".
+  `my_paths` joins the read tool registry (chat + MCP projection).
+- Product integration: JobDetail's path rows render through the same
+  `PathRenderer`; the growth near-miss radar and growth handoffs link
+  into the explorer; JobDetail paths and the explorer share the
+  `/jobs/{ref}/paths` family of endpoints (now including your own
+  copies).
+- Docs: `docs/user/career-paths.md`, feature-registry row (`/paths`,
+  beta) with a demo-tour scene, README feature-status row.
+
 ### Changed (generated wire types, 2026-10-24)
 - **Plan 123.4 — the wire contract is now generated.** The SPA's API
   types come from `contracts/openapi.json` via openapi-typescript
