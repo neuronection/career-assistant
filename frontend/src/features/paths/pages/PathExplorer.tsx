@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Compass, Map as MapIcon, Route as RouteIcon, Sparkles } from "lucide-react";
+import { Compass, Map as MapIcon, Plus, Route as RouteIcon, Sparkles } from "lucide-react";
 
 import { Badge } from "@neuronection/assistant-ui";
 import { Button, ConfirmationModal, EmptyState } from "@/components/ui";
@@ -9,6 +9,7 @@ import { fetchFamilyTree } from "@/api/jobs";
 import {
   activatePath,
   addPathStep,
+  createPath,
   deletePath,
   deletePathStep,
   forkPath,
@@ -71,6 +72,9 @@ export function PathExplorer() {
   const [stepLabel, setStepLabel] = useState("");
   const [stepEdge, setStepEdge] = useState("");
   const [stepOptional, setStepOptional] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newJob, setNewJob] = useState("");
   const [activePane, setActivePane] = useState<"rail" | "detail">("rail");
   const initialView = useMemo(defaultViewMode, []);
   const [viewMode, setViewMode] = useState(initialView);
@@ -322,6 +326,14 @@ export function PathExplorer() {
           <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">{t("paths.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            data-testid="paths-new"
+            aria-pressed={createOpen}
+            onClick={() => setCreateOpen((open) => !open)}
+          >
+            <Plus className="mr-1 size-4" aria-hidden /> {t("paths.newPath")}
+          </Button>
           <input
             value={jobQuery}
             onChange={(event) => setJobQuery(event.target.value)}
@@ -368,6 +380,57 @@ export function PathExplorer() {
           {error}
         </p>
       )}
+
+      {createOpen ? (
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-dashed border-[var(--as-border)] p-3"
+          data-testid="paths-create-form"
+        >
+          <input
+            value={newTitle}
+            onChange={(event) => setNewTitle(event.target.value)}
+            placeholder={t("paths.titleLabel")}
+            aria-label={t("paths.titleLabel")}
+            data-testid="paths-new-title"
+            className="min-w-0 flex-1 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+          />
+          <input
+            value={newJob}
+            onChange={(event) => setNewJob(event.target.value)}
+            placeholder={t("paths.searchPlaceholder")}
+            aria-label={t("paths.searchPlaceholder")}
+            data-testid="paths-new-job"
+            className="w-48 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+          />
+          <Button
+            variant="default"
+            disabled={busy || !newTitle.trim() || !newJob.trim()}
+            data-testid="paths-new-submit"
+            onClick={() => {
+              setBusy(true);
+              void createPath({
+                job_ref: newJob.trim(),
+                title: newTitle.trim(),
+                steps: [],
+              })
+                .then((created) => {
+                  setCreateOpen(false);
+                  setNewTitle("");
+                  setNewJob("");
+                  setBusy(false);
+                  refreshIndex();
+                  return openDetail(created.id);
+                })
+                .catch(() => {
+                  setError(t("paths.editError"));
+                  setBusy(false);
+                });
+            }}
+          >
+            {t("common.save")}
+          </Button>
+        </div>
+      ) : null}
 
       {selectedId && detail ? (
         <div

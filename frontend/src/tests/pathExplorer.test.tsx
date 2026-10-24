@@ -15,6 +15,7 @@ vi.mock("@/api/paths", async (importOriginal) => {
     fetchPaths: vi.fn(),
     fetchPathDetail: vi.fn(),
     setPathFlag: vi.fn(),
+    createPath: vi.fn(),
     forkPath: vi.fn(),
     activatePath: vi.fn(),
     updatePath: vi.fn(),
@@ -217,5 +218,34 @@ describe("PathExplorer", () => {
         parent_step_id: "step-1",
       }),
     );
+  });
+
+  it("creates a review-first path from the explorer and opens it", async () => {
+    const created = {
+      ...detail,
+      id: "path-new",
+      source: "user",
+      status: "draft",
+      my_flag: "pinned",
+      steps: [],
+      skills_total: 0,
+    } as unknown as PathDetail;
+    vi.mocked(pathsApi.createPath).mockResolvedValue(created);
+    vi.mocked(pathsApi.fetchPathDetail).mockResolvedValue(created);
+    mount();
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByTestId("paths-new")).toBeInTheDocument());
+    await user.click(screen.getByTestId("paths-new"));
+    await user.type(screen.getByTestId("paths-new-title"), "My own route");
+    await user.type(screen.getByTestId("paths-new-job"), "data-scientist");
+    await user.click(screen.getByTestId("paths-new-submit"));
+    await waitFor(() =>
+      expect(pathsApi.createPath).toHaveBeenCalledWith({
+        job_ref: "data-scientist",
+        title: "My own route",
+        steps: [],
+      }),
+    );
+    expect(await screen.findByTestId("path-activate")).toBeInTheDocument();
   });
 });

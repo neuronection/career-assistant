@@ -49,9 +49,7 @@ async def test_create_is_review_first_draft(client, db, auth_headers, seeded_cat
 async def test_activate_moves_draft_to_active(client, db, auth_headers, seeded_catalog):
     detail = await _create(client, auth_headers)
     assert detail["status"] == "draft"
-    activated = await client.post(
-        f"/api/v1/paths/{detail['id']}/activate", headers=auth_headers
-    )
+    activated = await client.post(f"/api/v1/paths/{detail['id']}/activate", headers=auth_headers)
     assert activated.status_code == 200
     assert activated.json()["status"] == "active"
     again = await client.post(f"/api/v1/paths/{detail['id']}/activate", headers=auth_headers)
@@ -60,17 +58,23 @@ async def test_activate_moves_draft_to_active(client, db, auth_headers, seeded_c
 
 async def test_curated_paths_are_not_mutable(client, db, auth_headers, seeded_catalog):
     rows = (
-        await db.execute(select(CareerPath).where(CareerPath.source == PathSource.SEED.value))
-    ).scalars().all()
+        (await db.execute(select(CareerPath).where(CareerPath.source == PathSource.SEED.value)))
+        .scalars()
+        .all()
+    )
     assert rows, "seeded catalog should carry curated paths"
     curated = rows[0]
     first_step = (
-        await db.execute(
-            select(CareerPathStep)
-            .where(CareerPathStep.path_id == curated.id)
-            .order_by(CareerPathStep.position)
+        (
+            await db.execute(
+                select(CareerPathStep)
+                .where(CareerPathStep.path_id == curated.id)
+                .order_by(CareerPathStep.position)
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     patched = await client.patch(
         f"/api/v1/paths/{curated.id}", json={"title": "hijacked"}, headers=auth_headers
     )
@@ -103,8 +107,10 @@ async def test_fork_copies_branches_and_keeps_curated_intact(
     client, db, auth_headers, seeded_catalog
 ):
     rows = (
-        await db.execute(select(CareerPath).where(CareerPath.source == PathSource.SEED.value))
-    ).scalars().all()
+        (await db.execute(select(CareerPath).where(CareerPath.source == PathSource.SEED.value)))
+        .scalars()
+        .all()
+    )
     curated = rows[0]
     before_steps = [
         (s.id, s.position, s.label)
@@ -114,7 +120,9 @@ async def test_fork_copies_branches_and_keeps_curated_intact(
                 .where(CareerPathStep.path_id == curated.id)
                 .order_by(CareerPathStep.position)
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     ]
     forked = await client.post(f"/api/v1/paths/{curated.id}/fork", headers=auth_headers)
     assert forked.status_code == 201, forked.text
@@ -133,12 +141,14 @@ async def test_fork_copies_branches_and_keeps_curated_intact(
                 .where(CareerPathStep.path_id == curated.id)
                 .order_by(CareerPathStep.position)
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     ]
     assert after_steps == before_steps
     source_row = (
-        await db.execute(select(CareerPath).where(CareerPath.id == curated.id))
-    ).scalars().one()
+        (await db.execute(select(CareerPath).where(CareerPath.id == curated.id))).scalars().one()
+    )
     assert source_row.source == PathSource.SEED.value
 
     reforked = await client.post(f"/api/v1/paths/{curated.id}/fork", headers=auth_headers)
@@ -148,8 +158,10 @@ async def test_fork_copies_branches_and_keeps_curated_intact(
 
 async def test_forked_copy_can_be_edited_by_its_owner(client, db, auth_headers, seeded_catalog):
     rows = (
-        await db.execute(select(CareerPath).where(CareerPath.source == PathSource.SEED.value))
-    ).scalars().all()
+        (await db.execute(select(CareerPath).where(CareerPath.source == PathSource.SEED.value)))
+        .scalars()
+        .all()
+    )
     forked = (await client.post(f"/api/v1/paths/{rows[0].id}/fork", headers=auth_headers)).json()
     assert forked["steps"]
     renamed = await client.patch(
@@ -160,8 +172,8 @@ async def test_forked_copy_can_be_edited_by_its_owner(client, db, auth_headers, 
     assert renamed.status_code == 200
     assert renamed.json()["title"] == "My edited route"
     original = (
-        await db.execute(select(CareerPath).where(CareerPath.id == rows[0].id))
-    ).scalars().first()
+        (await db.execute(select(CareerPath).where(CareerPath.id == rows[0].id))).scalars().first()
+    )
     assert original.title != "My edited route"
 
 

@@ -3803,6 +3803,7 @@
     "addStep": "Schritt hinzufügen…",
     "stepKindLabel": "Schrittart",
     "stepLabelPlaceholder": "Was passiert in diesem Schritt?",
-    "edgeLabelPlaceholder": "Warum dieser Zweig? (z. B. oder: Forschung)"
+    "edgeLabelPlaceholder": "Warum dieser Zweig? (z. B. oder: Forschung)",
+    "newPath": "Neuer Pfad"
   }
 }

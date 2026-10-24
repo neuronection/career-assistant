@@ -232,7 +232,6 @@ class PathService:
         )
         self.db.add(copy)
         await self.db.flush()
-        source_positions = {step.id: step.position for step in source.steps}
         id_map: dict[UUID, UUID] = {}
         for offset, step in enumerate(sorted(source.steps, key=lambda s: s.position)):
             new_step = CareerPathStep(
