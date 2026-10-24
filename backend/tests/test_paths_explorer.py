@@ -242,3 +242,17 @@ async def test_family_filter_scopes_the_index(client, db, auth_headers, seeded_c
     )
     rows = (await client.get(f"/api/v1/paths?family={family.key}", headers=auth_headers)).json()
     assert all(row["job_code"] for row in rows)
+
+
+async def test_created_draft_rides_the_index_with_its_pin(client, db, auth_headers, seeded_catalog):
+    other = await register_user(client, "rail-check@example.com")
+    created = await client.post(
+        "/api/v1/paths",
+        json={"job_ref": "software-developer", "title": "Rail check route", "steps": []},
+        headers=other,
+    )
+    assert created.status_code == 201, created.text
+    rows = (await client.get("/api/v1/paths", headers=other)).json()
+    mine = [row for row in rows if row["source"] == "user"]
+    assert mine and mine[0]["title"] == "Rail check route"
+    assert mine[0]["my_flag"] == "pinned"

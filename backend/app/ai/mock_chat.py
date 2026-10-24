@@ -535,6 +535,19 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         for name, keywords in plan
         if name not in tools and any(keyword in lowered for keyword in keywords)
     ]
+    if "create_career_path" not in tools and _re.search(
+        r"\bcareer path\b|\bpath to\b|\broute to\b|\bbecome a\b|\bi want to be\b", lowered
+    ):
+        return {
+            "content": "",
+            "tool_calls": [
+                {
+                    "name": "create_career_path",
+                    "args": {"request": message[:300]},
+                    "id": "call-path-0",
+                }
+            ],
+        }
     if "my_applications" not in tools and _re.search(
         r"\bapplications?\b|\btracker\b|\bpipeline\b|\bdeadlines?\b", lowered
     ):

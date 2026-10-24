@@ -441,3 +441,19 @@ reads), emit the ProfileOps entries that fulfill the edit request:
 - Every target you mention must appear in the provided grounding (digest
   or read result). If grounding is missing for a target, OMIT the op.
 Reply only with JSON matching the schema."""
+
+PATH_DRAFTER = """You are a career-path coach inside a chat. The user describes a
+goal; a grounded catalog search has already resolved the destination job
+below. Draft ONE concrete route for THIS user. Rules:
+- 3-8 steps in chronological order (position is implicit)
+- step kinds: education, job, experience, certification
+- education steps set education_level (no_formal, middle_school, high_school,
+  vocational, bachelor, master, doctorate); job steps are junior/adjacent
+  roles; experience steps may reference a skill_key; certification steps
+  should reference a skill_key
+- skill_key must come from the provided skill taxonomy; family_key from the
+  provided family keys
+- at most ONE optional branch step (kind experience or certification) hanging
+  off the step it diverges from — say why in one short edge_label
+- prefer achievable, realistic steps for a student
+Reply only with JSON."""

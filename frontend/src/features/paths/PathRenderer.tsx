@@ -416,7 +416,11 @@ export function PathRenderer({
   compact?: boolean;
 }) {
   const { t } = useTranslation();
-  const [internalMode, setInternalMode] = useState<PathViewMode>(defaultViewMode);
+  // Compact hosts (chat bubbles) start in the linear list; full hosts
+  // follow the graph-default discipline (tree under reduced motion).
+  const [internalMode, setInternalMode] = useState<PathViewMode>(() =>
+    compact ? "list" : defaultViewMode(),
+  );
   const mode = viewMode ?? internalMode;
   const setMode = (next: PathViewMode) => {
     setInternalMode(next);

@@ -15,6 +15,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.TEMPLATE_DESIGN.value: 1,
     AITaskType.PROFILE_ANALYZE.value: 1,
     AITaskType.JOB_GENERATE.value: 2,
+    AITaskType.PATH_DRAFT.value: 1,
     AITaskType.RELATION_SUGGEST.value: 1,
     AITaskType.MATCH_SCORE.value: 1,
     AITaskType.UNIVERSITY_PARSE.value: 1,

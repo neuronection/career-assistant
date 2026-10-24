@@ -85,6 +85,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.STRONG.value,
     ),
     TaskDef(
+        AITaskType.PATH_DRAFT.value,
+        "Chat career-path draft flow (grounded, review-first)",
+        AICapability.TEXT.value,
+        AITaskTier.STRONG.value,
+    ),
+    TaskDef(
         AITaskType.POSTING_MAP.value,
         "Fast-pass posting-to-catalog mapping",
         AICapability.TEXT.value,

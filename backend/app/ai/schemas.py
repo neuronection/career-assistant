@@ -193,7 +193,10 @@ class ProfileOpsDraft(BaseModel):
 
 
 class DraftPathStep(BaseModel):
-    """One step of an AI-drafted path; typed refs are resolved server-side."""
+    """One step of an AI-drafted path; typed refs are resolved server-side.
+
+    `parent` indexes the steps list when this step is an optional branch
+    hanging off an earlier step (None = main chain)."""
 
     kind: Literal["education", "job", "experience", "certification"]
     family_key: str | None = Field(default=None, max_length=80)
@@ -201,6 +204,8 @@ class DraftPathStep(BaseModel):
     education_level: str | None = Field(default=None, max_length=30)
     label: str = Field(default="", max_length=200)
     optional: bool = False
+    parent: int | None = Field(default=None, ge=0)
+    edge_label: str = Field(default="", max_length=120)
 
 
 class DraftPath(BaseModel):

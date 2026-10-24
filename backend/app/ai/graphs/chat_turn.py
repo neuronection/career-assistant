@@ -376,6 +376,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     metadata_tools = list((state.get("tool_metadata") or {}).get("tools", []))
     dropped: list[dict] = []
     confirmations: list[dict] = []
+    path_draft_meta: dict | None = None
     executed_total = state.get("tools_executed", 0)
     executed = 0
     read_keys = list(state.get("read_keys") or [])
@@ -415,6 +416,15 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                 deps.user.id, uuid.UUID(str(result["proposal_id"]))
             )
             confirmations.append(proposal_event(proposal))
+        if call["name"] == "create_career_path" and isinstance(result, dict):
+            # Plan 125: the draft rides the message metadata so the chat
+            # renders the embedded PathRenderer review preview (and
+            # "save to my paths") across reloads.
+            path_draft_meta = {
+                "draft": result.get("path_draft"),
+                "proposed_job": result.get("proposed_job"),
+                "note": result.get("note"),
+            }
         # Trace honesty (plan 109 follow-up): a registry tool's trace row
         # carries what actually ran and returned — a bare tool name hid
         # the grounding the reply was built on.
@@ -508,6 +518,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     tool_metadata["tools"] = metadata_tools
     if dropped:
         tool_metadata["tools_dropped"] = dropped
+    if path_draft_meta is not None:
+        tool_metadata["path_draft"] = path_draft_meta
     deps.tool_metadata = tool_metadata
     # Observations re-enter the prompt immediately: the next round (and
     # the synth step) must see the results in the same context JSON.

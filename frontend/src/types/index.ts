@@ -135,6 +135,31 @@ export interface DocumentRecord {
 
 // ---------------------------------------------------------------- chat
 
+/** One assistant-drafted career path riding the message metadata
+ * (plan 125) — the chat-side review artifact. */
+export interface ChatPathDraftStep {
+  kind: string;
+  label?: string;
+  optional?: boolean;
+  parent?: number | null;
+  edge_label?: string;
+  skill_key?: string | null;
+  family_key?: string | null;
+  education_level?: string | null;
+}
+
+export interface ChatPathDraftMeta {
+  draft: {
+    title: string;
+    description?: string;
+    steps: ChatPathDraftStep[];
+    job_code?: string | null;
+    job_title?: string | null;
+  } | null;
+  proposed_job?: { code: string; title: string; status: string } | null;
+  note?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -191,6 +216,7 @@ export interface ChatMessage {
     attachments?: ChatCvAttachment[];
     referenced_cv_ids?: string[];
     template_previews?: ChatTemplatePreview[];
+    path_draft?: ChatPathDraftMeta;
   } | null;
   created_at: string;
 }

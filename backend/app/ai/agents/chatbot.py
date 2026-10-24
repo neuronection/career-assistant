@@ -682,6 +682,8 @@ async def read_profile_section_tool(db: AsyncSession, user_id, section: str) -> 
 
 
 TOOL_TITLES = {
+    "create_career_path": "Drafting a career path",
+    "my_paths": "Reading your career paths",
     "search_jobs": "Searching the job catalog",
     "get_posting": "Fetching a live posting",
     "my_notifications": "Checking notifications",

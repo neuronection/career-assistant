@@ -52,6 +52,7 @@ import { CV_PROMPT_KEYS, GENERIC_SUGGESTION_KEYS } from "@/lib/assistantPrompts"
 import { SessionList } from "@/features/chat/components/chat/SessionList";
 import { ToolsDialog } from "@/features/chat/components/chat/ToolsDialog";
 import { renderToolResult } from "@/features/chat/components/chat/toolResultView";
+import { MessagePathDraft } from "@/features/chat/components/chat/PathDraftCard";
 import {
   CareerChatProvider,
   useCareerChatContext,
@@ -405,6 +406,7 @@ function MessageList({
             <>
               <MessageTrace message={raw} />
               <MessageTemplatePreviews message={raw} />
+              <MessagePathDraft message={raw} />
               <MessageProposals message={raw} density={density} />
             </>
           ) : undefined

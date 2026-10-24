@@ -3035,6 +3035,14 @@
       "entryLevel": "Find entry-level roles that fit my profile",
       "compareOffers": "Compare two job offers side by side",
       "nextSkills": "Which skills should I build next?"
+    },
+    "pathDraft": {
+      "reviewHint": "Review this draft — nothing is applied until you save it.",
+      "save": "Save to my paths",
+      "saveHint": "Saves as a draft you activate on the paths page.",
+      "saved": "Saved as a draft",
+      "saveError": "Couldn't save — try again.",
+      "openPaths": "Open career paths"
     }
   },
   "demand": {

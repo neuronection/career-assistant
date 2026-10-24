@@ -33,6 +33,9 @@ def test_builtin_registry_declarations():
     assert set(listed) == {
         "search_jobs",
         "search_postings",
+        # — career-path explorer family (plan 125)
+        "create_career_path",
+        "my_paths",
         "get_posting",
         "similar_postings",
         "my_notifications",

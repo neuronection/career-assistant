@@ -108,6 +108,12 @@ class MyApplicationsInput(BaseModel):
     open_only: bool = False
 
 
+class PathDraftInput(BaseModel):
+    """The user's career goal in their own words; the flow grounds it."""
+
+    request: str = Field(min_length=3, max_length=500)
+
+
 class ApplicationRefInput(BaseModel):
     """One application id (from my_applications)."""
 
@@ -611,7 +617,123 @@ async def _add_application_note(db, ctx: ToolContext, args: ApplicationNoteInput
     return {"event_id": str(event.id), "kind": event.kind}
 
 
+async def _create_career_path(db, ctx: ToolContext, args: PathDraftInput):
+    """Grounded draft flow: search → (missing-job proposal) → structured
+    draft. Returns the REVIEW payload — the path exists only after the
+    user saves it."""
+    from app.ai.graphs.path_draft import run_path_draft_flow
+
+    assert ctx.user_id is not None, "create_career_path requires a user"
+    payload = await run_path_draft_flow(db, ctx.user_id, args.request)
+    draft = payload.get("draft")
+    return {
+        "path_draft": draft,
+        "proposed_job": payload.get("proposed_job"),
+        "candidates": payload.get("candidates") or [],
+        "note": payload.get("note") or (payload.get("error") or "No draft was produced."),
+    }
+
+
+async def _my_paths(db, ctx: ToolContext, args: ProfileDigestInput):
+    """The caller's paths (registry projection, read-only)."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.career_path_model import CareerPath, UserPathFlag
+    from app.models.enums import PathSource, PathStatus
+
+    assert ctx.user_id is not None, "my_paths requires a user"
+    owned = select(UserPathFlag.path_id).where(
+        UserPathFlag.user_id == ctx.user_id,
+        UserPathFlag.step_id.is_(None),
+    )
+    rows = (
+        (
+            await db.execute(
+                select(CareerPath)
+                .options(selectinload(CareerPath.steps), selectinload(CareerPath.job))
+                .where(
+                    CareerPath.status == PathStatus.PUBLISHED.value,
+                    CareerPath.source != PathSource.USER.value,
+                )
+                .order_by(CareerPath.created_at.desc())
+                .limit(args.limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    own = (
+        (
+            await db.execute(
+                select(CareerPath)
+                .options(selectinload(CareerPath.steps), selectinload(CareerPath.job))
+                .where(CareerPath.source == PathSource.USER.value, CareerPath.id.in_(owned))
+                .order_by(CareerPath.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        "my_paths": [
+            {
+                "id": str(path.id),
+                "title": path.title,
+                "status": path.status,
+                "source": path.source,
+                "target_job": path.job.code if path.job else None,
+                "steps": len(path.steps),
+                "flag": "pinned",
+            }
+            for path in own
+        ],
+        "curated_paths": [
+            {
+                "id": str(path.id),
+                "title": path.title,
+                "target_job": path.job.code if path.job else None,
+                "steps": len(path.steps),
+            }
+            for path in rows
+        ],
+        "note": (
+            "Draft paths must be reviewed and activated on the /paths page "
+            "— never describe a draft as active."
+        ),
+    }
+
+
 BUILTIN_TOOLS: list[AITool] = [
+    AITool(
+        key="create_career_path",
+        title="Draft a career path",
+        description=(
+            "Draft ONE career path to a goal the user describes ('I want to "
+            "become a data scientist'). Grounded against the catalog; a "
+            "missing job is proposed through the moderation queue. The "
+            "result is a REVIEW DRAFT — the user saves it to their paths "
+            "after reading it; nothing is activated."
+        ),
+        input_model=PathDraftInput,
+        handler=_create_career_path,
+        scope=ToolScope.READ,
+        cost_hint="expensive",
+        requires_user=True,
+    ),
+    AITool(
+        key="my_paths",
+        title="My career paths",
+        description=(
+            "The user's own paths (drafts included) plus the curated "
+            "catalog routes — a read-only overview."
+        ),
+        input_model=ProfileDigestInput,
+        handler=_my_paths,
+        scope=ToolScope.READ,
+        cost_hint="cheap",
+        requires_user=True,
+    ),
     AITool(
         key="search_jobs",
         title="Search catalog jobs",

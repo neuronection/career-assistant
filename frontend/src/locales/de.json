@@ -3034,6 +3034,14 @@
       "entryLevel": "Finden Sie Einstiegspositionen, die zu meinem Profil passen",
       "compareOffers": "Vergleichen Sie zwei Stellenangebote nebeneinander",
       "nextSkills": "Welche Fähigkeiten sollte ich als nächstes erlernen?"
+    },
+    "pathDraft": {
+      "reviewHint": "Prüfe diesen Entwurf — nichts wird übernommen, bis du ihn speicherst.",
+      "save": "In meine Pfade speichern",
+      "saveHint": "Wird als Entwurf gespeichert, den du auf der Pfade-Seite aktivierst.",
+      "saved": "Als Entwurf gespeichert",
+      "saveError": "Speichern fehlgeschlagen — versuche es erneut.",
+      "openPaths": "Karrierepfade öffnen"
     }
   },
   "demand": {
