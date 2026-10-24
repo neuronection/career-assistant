@@ -3703,5 +3703,23 @@
       "label": "AI Audit",
       "description": "Every AI call, with tokens and latency"
     }
+  },
+  "paths": {
+    "renderer": {
+      "viewGraph": "Graph",
+      "viewTree": "Tree",
+      "viewList": "List",
+      "viewSwitcherAria": "Path view",
+      "optional": "optional",
+      "empty": "This path has no steps yet.",
+      "graphAria": "Graph view of the path {{title}}",
+      "treeAria": "Tree view of the path {{title}}",
+      "listAria": "List view of the path {title}",
+      "targetAria": "Open target job {{job}}",
+      "leadsTo": "Leads to: {{job}}",
+      "branchesHeading": "Branches",
+      "viaBranch": "Branch: {{label}}",
+      "branchFallback": "alternative route"
+    }
   }
 }

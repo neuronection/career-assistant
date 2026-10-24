@@ -3702,5 +3702,23 @@
       "label": "KI-Audit",
       "description": "Jeder KI-Aufruf, mit Token und Latenz"
     }
+  },
+  "paths": {
+    "renderer": {
+      "viewGraph": "Graph",
+      "viewTree": "Baum",
+      "viewList": "Liste",
+      "viewSwitcherAria": "Pfadansicht",
+      "optional": "optional",
+      "empty": "Dieser Pfad hat noch keine Schritte.",
+      "graphAria": "Graphansicht des Pfads {{title}}",
+      "treeAria": "Baumansicht des Pfads {{title}}",
+      "listAria": "Listenansicht des Pfads {title}",
+      "targetAria": "Zielberuf {{job}} öffnen",
+      "leadsTo": "Führt zu: {{job}}",
+      "branchesHeading": "Zweige",
+      "viaBranch": "Zweig: {{label}}",
+      "branchFallback": "alternativer Weg"
+    }
   }
 }

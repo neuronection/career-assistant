@@ -3702,5 +3702,23 @@
       "label": "Έλεγχος AI",
       "description": "Κάθε κλήση AI, με tokens και καθυστέρηση"
     }
+  },
+  "paths": {
+    "renderer": {
+      "viewGraph": "Γράφημα",
+      "viewTree": "Δέντρο",
+      "viewList": "Λίστα",
+      "viewSwitcherAria": "Προβολή διαδρομής",
+      "optional": "προαιρετικό",
+      "empty": "Αυτή η διαδρομή δεν έχει ακόμη βήματα.",
+      "graphAria": "Προβολή γραφήματος της διαδρομής {{title}}",
+      "treeAria": "Προβολή δέντρου της διαδρομής {{title}}",
+      "listAria": "Προβολή λίστας της διαδρομής {title}",
+      "targetAria": "Άνοιγμα επαγγέλματος-στόχου {{job}}",
+      "leadsTo": "Οδηγεί σε: {{job}}",
+      "branchesHeading": "Κλάδοι",
+      "viaBranch": "Κλάδος: {{label}}",
+      "branchFallback": "εναλλακτική πορεία"
+    }
   }
 }

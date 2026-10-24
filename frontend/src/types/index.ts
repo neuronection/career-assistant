@@ -391,4 +391,65 @@ export interface Profile {
   };
 }
 
-// --------------------------------------------------------- profile form
+// --------------------------------------------------------- career paths
+
+/** One mark a user can put on a path or a step (the backend `PathFlag`
+ * vocabulary — marks are preferences, never scoring inputs). */
+export type PathMark = "interested" | "dismissed" | "pinned";
+
+/** Structural step input for the view builder — the wire `PathStepOut`
+ * shape plus the branch fields the detail API adds. */
+export interface PathStepInput {
+  id?: string | null;
+  position: number;
+  kind: string;
+  label: string;
+  optional?: boolean;
+  family_key?: string | null;
+  family_label?: string | null;
+  skill_key?: string | null;
+  skill_label?: string | null;
+  education_level?: string | null;
+  parent_step_id?: string | null;
+  edge_label?: string | null;
+}
+
+/** One rendered step of a career path (a view-model node). */
+export interface PathViewNode {
+  stepId: string;
+  position: number;
+  kind: string;
+  label: string;
+  optional: boolean;
+  familyKey: string | null;
+  familyLabel: string | null;
+  skillKey: string | null;
+  skillLabel: string | null;
+  educationLevel: string | null;
+  /** Why this branch exists ("or: research track") — incoming edge label. */
+  edgeLabel: string | null;
+  /** True when the step hangs off the chain via an explicit parent. */
+  branch: boolean;
+}
+
+/** A rendered edge; `from`/`to` reference step ids or the reserved
+ * `__start__` / `__target__` sentinels. */
+export interface PathViewEdge {
+  from: string;
+  to: string;
+  label: string;
+  branch: boolean;
+}
+
+/** The one typed view model every path projection consumes. */
+export interface PathView {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  source: string;
+  /** The destination job every step leads into. */
+  target: { code: string | null; title: string };
+  nodes: PathViewNode[];
+  edges: PathViewEdge[];
+}
