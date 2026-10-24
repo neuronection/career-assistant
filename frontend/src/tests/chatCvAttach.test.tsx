@@ -3,8 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
-import { ChatDock } from "@/components/chat/ChatWidget";
-import { openCvChat } from "@/components/chat/cvChatLink";
+import { ChatDock } from "@/features/chat/components/chat/ChatWidget";
+import { openCvChat } from "@/features/chat/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 

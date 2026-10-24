@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 // Tools → connectors → extension sources (plan 32 Phase 3 / ADR-0040
 // D13+D22): the git import layer — sources, consent-gated installs,

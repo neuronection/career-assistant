@@ -3,8 +3,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Link, Route, Routes } from "react-router-dom";
 
-import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
-import { ChatPage } from "@/pages/ChatPage";
+import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
+import { ChatPage } from "@/features/chat/pages/ChatPage";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
@@ -550,7 +550,7 @@ describe("opt-in bubble launcher (plan 75)", () => {
 
   it("opens the launcher again from the docked close button", async () => {
     const user = userEvent.setup();
-    const { ChatDock } = await import("@/components/chat/ChatWidget");
+    const { ChatDock } = await import("@/features/chat/components/chat/ChatWidget");
     render(
       <MemoryRouter>
         <ChatDock />
@@ -561,7 +561,7 @@ describe("opt-in bubble launcher (plan 75)", () => {
   });
 
   it("stays width-aware: page floor above lg, full-screen overlay below lg", async () => {
-    const { ChatDock } = await import("@/components/chat/ChatWidget");
+    const { ChatDock } = await import("@/features/chat/components/chat/ChatWidget");
     render(
       <MemoryRouter>
         <ChatDock />

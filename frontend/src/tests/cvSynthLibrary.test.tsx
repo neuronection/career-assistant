@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { CvSynthLibrary } from "@/pages/CvSynthLibrary";
+import { CvSynthLibrary } from "@/features/cv/pages/CvSynthLibrary";
 
 const fetchSynthItems = vi.fn();
 const generateSynthItems = vi.fn();

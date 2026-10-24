@@ -3,7 +3,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";

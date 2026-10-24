@@ -5,7 +5,7 @@ import * as aiApi from "@/api/ai";
 import type { AIProvider, ProviderPreset, ProviderSetupErrorDetail } from "@/api/ai";
 import { Button, SetupReview, type SetupReviewOptions } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import { SetupErrorPanel } from "./setupErrors";
+import { SetupErrorPanel } from "@/components/settings/setupErrors";
 
 // ADR-0036 §3: setup binds the decision DEFAULT slot only (task id
 // `decision`); kind slots inherit.

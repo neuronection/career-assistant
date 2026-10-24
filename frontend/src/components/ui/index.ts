@@ -1,10 +1,10 @@
-export { Portal } from "./Portal";
+export { Portal } from "@/components/ui/Portal";
 export {
   Popover,
   PopoverTrigger,
   PopoverContent,
   PopoverButton,
-} from "./Popover";
+} from "@/components/ui/Popover";
 export {
   Modal,
   PanelModal,
@@ -14,34 +14,34 @@ export {
   ModalDescription,
   ModalFooter,
   type PanelModalProps,
-} from "./Modal";
-export { SearchableDropdown } from "./SearchableDropdown";
-export type { DropdownOption } from "./SearchableDropdown";
-export { DatePicker } from "./DatePicker";
-export { ScaleSlider, scaleColorForValue } from "./ScaleSlider";
-export { ChipInput } from "./ChipInput";
-export { ChipList } from "./ChipList";
-export { default as Button } from "./Button";
-export { default as Card } from "./Card";
-export { ConfirmationModal } from "./ConfirmationModal";
-export { EmptyState } from "./EmptyState";
+} from "@/components/ui/Modal";
+export { SearchableDropdown } from "@/components/ui/SearchableDropdown";
+export type { DropdownOption } from "@/components/ui/SearchableDropdown";
+export { DatePicker } from "@/components/ui/DatePicker";
+export { ScaleSlider, scaleColorForValue } from "@/components/ui/ScaleSlider";
+export { ChipInput } from "@/components/ui/ChipInput";
+export { ChipList } from "@/components/ui/ChipList";
+export { default as Button } from "@/components/ui/Button";
+export { default as Card } from "@/components/ui/Card";
+export { ConfirmationModal } from "@/components/ui/ConfirmationModal";
+export { EmptyState } from "@/components/ui/EmptyState";
 export { Spinner } from "@neuronection/assistant-ui";
 export { SegmentedTabs, type SegmentedTabsItem } from "@neuronection/assistant-ui";
-export { default as Table } from "./Table";
-export { RangeBar } from "./RangeBar";
-export { InfoTooltip } from "./InfoTooltip";
+export { default as Table } from "@/components/ui/Table";
+export { RangeBar } from "@/components/ui/RangeBar";
+export { InfoTooltip } from "@/components/ui/InfoTooltip";
 export { ProviderForm } from "@neuronection/assistant-ui";
 export { ModelPicker } from "@neuronection/assistant-ui";
 export { TaskAssignmentPicker } from "@neuronection/assistant-ui";
 export { ConnectionTestRow } from "@neuronection/assistant-ui";
-export { ModelRegistry } from "./ModelRegistry";
+export { ModelRegistry } from "@/components/ui/ModelRegistry";
 export { AiButton } from "@neuronection/assistant-ui";
 export {
   ProviderSetupManualTile,
   ProviderSetupTiles,
   type ProviderSetupTileData,
   type ProviderSetupTilesProps,
-} from "./provider-setup-tiles";
+} from "@/components/ui/provider-setup-tiles";
 export {
   ProviderSetupForm,
   SETUP_ERROR_CODES,
@@ -50,7 +50,7 @@ export {
   type ProviderSetupFormProps,
   type ProviderSetupFormValue,
   type SetupErrorCode,
-} from "./provider-setup-form";
+} from "@/components/ui/provider-setup-form";
 export {
   SetupReview,
   type SetupReviewModel,
@@ -58,17 +58,17 @@ export {
   type SetupReviewOptionsKey,
   type SetupReviewProps,
   type SetupReviewSlot,
-} from "./setup-review";
+} from "@/components/ui/setup-review";
 export {
   SetupSteps,
   type SetupStep,
   type SetupStepsProps,
-} from "./setup-steps";
+} from "@/components/ui/setup-steps";
 export {
   SetupAssignments,
   type SetupAssignmentRow,
   type SetupAssignmentsProps,
-} from "./setup-assignments";
+} from "@/components/ui/setup-assignments";
 export {
   ActionMenu,
   type ActionMenuItem,
@@ -78,26 +78,26 @@ export {
   MenuContent,
   MenuItem,
   type MenuItemProps,
-} from "./menu";
-export { SwitchRow, type SwitchRowProps } from "./switch-row";
+} from "@/components/ui/menu";
+export { SwitchRow, type SwitchRowProps } from "@/components/ui/switch-row";
 export {
   ProviderCard,
   type ProviderCardAction,
   type ProviderCardBadge,
   type ProviderCardProps,
-} from "./provider-card";
-export { ProviderLogo, type ProviderLogoProps } from "./provider-logo";
+} from "@/components/ui/provider-card";
+export { ProviderLogo, type ProviderLogoProps } from "@/components/ui/provider-logo";
 export {
   SetupFirstRunCard,
   type SetupFirstRunCardProps,
-} from "./setup-first-run-card";
+} from "@/components/ui/setup-first-run-card";
 export {
   FlowStatusCard,
   type FlowError,
   type FlowStatusCardProps,
   type FlowStep,
   type FlowStepStatus,
-} from "./FlowStatusCard";
+} from "@/components/ui/FlowStatusCard";
 export {
   FlowTraceCard,
   FlowTelemetryStrip,
@@ -109,7 +109,7 @@ export {
   type FlowTraceStage,
   type FlowTelemetryStripProps,
   type FlowTraceToolOp,
-} from "./FlowTrace";
+} from "@/components/ui/FlowTrace";
 export {
   SurfaceRenderer,
   SURFACE_NODE_TYPES,
@@ -129,7 +129,7 @@ export {
   type SurfaceRendererProps,
   type SurfaceRow,
   type SurfaceView,
-} from "./SurfaceRenderer";
+} from "@/components/ui/SurfaceRenderer";
 export {
   AddIntegrationSourceDialog,
   ConsentDialog,
@@ -162,4 +162,4 @@ export {
   type IntegrationInstanceView,
   type IntegrationSourceDraft,
   type IntegrationSourceRowView,
-} from "./integrations";
+} from "@/components/ui/integrations";

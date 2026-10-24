@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 import type { FitBreakdown } from "@/types";
 
 export type AssessmentQuestionKind =

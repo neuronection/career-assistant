@@ -2,10 +2,10 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
-import { expectNoA11yViolations } from "./a11y";
+import { expectNoA11yViolations } from "@/tests/a11y";
 import { Layout } from "@/components/Layout";
 import { SettingsShell } from "@/components/SettingsShell";
-import { FormRow, SelectField, TextField } from "@/components/cv/formPrimitives";
+import { FormRow, SelectField, TextField } from "@/features/cv/components/cv/formPrimitives";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { useChatStore } from "@/stores/chatStore";

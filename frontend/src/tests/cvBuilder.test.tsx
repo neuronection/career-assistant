@@ -3,11 +3,11 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
-import { aiAction, compileCv, createAssistantSession, createCoverLetter, cv, exportCv, fetchAssistantMessages, fetchCv, fetchCvRuns, fetchLint, fetchPhotoBlobUrl, fetchPhotoGallery, fetchTemplatePreview, fetchTemplates, fetchVersionPreview, fetchVersions, lint, openInspectorTab, patchCv, preview, previewCv, resetCvStudioMocks, restoreVersion, setContext, sidebarTemplate, typeIntoRichText, uploadGalleryPhoto } from "./cvStudioHarness";
-import { CvBuilder } from "@/pages/CvBuilder";
+import { aiAction, compileCv, createAssistantSession, createCoverLetter, cv, exportCv, fetchAssistantMessages, fetchCv, fetchCvRuns, fetchLint, fetchPhotoBlobUrl, fetchPhotoGallery, fetchTemplatePreview, fetchTemplates, fetchVersionPreview, fetchVersions, lint, openInspectorTab, patchCv, preview, previewCv, resetCvStudioMocks, restoreVersion, setContext, sidebarTemplate, typeIntoRichText, uploadGalleryPhoto } from "@/tests/cvStudioHarness";
+import { CvBuilder } from "@/features/cv/pages/CvBuilder";
 import { useChatStore } from "@/stores/chatStore";
-import { CvStudio } from "@/pages/CvStudio";
-import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
+import { CvTemplateEditor } from "@/features/cv/pages/CvTemplateEditor";
 
 function renderBuilder() {
   return render(

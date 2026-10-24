@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CvStudio } from "@/pages/CvStudio";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
 import { useChatStore } from "@/stores/chatStore";
 
 const fetchCvs = vi.fn();

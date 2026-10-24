@@ -5,7 +5,7 @@ import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
 const SRC = __dirname;
-const SCANNED_ROOTS = ["pages", "components"];
+const SCANNED_ROOTS = ["pages", "components", "features"];
 
 const USER_FACING_ATTRIBUTES = new Set([
   "alt",

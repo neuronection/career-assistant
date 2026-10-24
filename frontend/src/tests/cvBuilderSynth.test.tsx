@@ -3,10 +3,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
-import { bulletsVariantRow, cv, deleteSynthItem, fetchCv, fetchSynthItems, generateSynthItems, openInspectorTab, patchCv, patchSynthItem, preview, previewCv, refreshSynthSourceState, resetCvStudioMocks, setContext, setSynthPin, typeIntoRichText } from "./cvStudioHarness";
-import { CvBuilder } from "@/pages/CvBuilder";
-import { CvStudio } from "@/pages/CvStudio";
-import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
+import { bulletsVariantRow, cv, deleteSynthItem, fetchCv, fetchSynthItems, generateSynthItems, openInspectorTab, patchCv, patchSynthItem, preview, previewCv, refreshSynthSourceState, resetCvStudioMocks, setContext, setSynthPin, typeIntoRichText } from "@/tests/cvStudioHarness";
+import { CvBuilder } from "@/features/cv/pages/CvBuilder";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
+import { CvTemplateEditor } from "@/features/cv/pages/CvTemplateEditor";
 
 function renderBuilder() {
   return render(

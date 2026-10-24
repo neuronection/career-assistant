@@ -3,8 +3,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { Applications } from "@/pages/Applications";
-import { ApplicationsFunnel } from "@/components/applications/ApplicationsFunnel";
+import { Applications } from "@/features/postings/pages/Applications";
+import { ApplicationsFunnel } from "@/features/postings/components/applications/ApplicationsFunnel";
 import { markSeen } from "@/lib/applicationSeen";
 import { api } from "@/api/client";
 import type { ApplicationDetail, ApplicationList } from "@/types/application";

@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
+import { MessageProposals, ProposalCards } from "@/features/chat/components/chat/MessageProposals";
 import type { ChatMessage, ProfileProposalCardData } from "@/types";
 
 const approveApi = vi.hoisted(() => vi.fn());

@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ExtensionSurfacePage } from "@/pages/ExtensionSurface";
+import { ExtensionSurfacePage } from "@/features/integrations/pages/ExtensionSurface";
 import { extensionNavItems } from "@/config/nav";
 import {
   SURFACE_ITEM_ACTION_IDS,

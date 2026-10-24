@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { Autopilot } from "@/pages/Autopilot";
+import { Autopilot } from "@/features/growth/pages/Autopilot";
 import {
   createGoal,
   deleteGoal,

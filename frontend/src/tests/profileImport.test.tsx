@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AxiosError } from "axios";
-import { ProfileImport } from "@/pages/ProfileImport";
+import { ProfileImport } from "@/features/profile/pages/ProfileImport";
 import {
   deleteCvDocument,
   fetchCvFileUrl,

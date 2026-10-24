@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { Dashboard } from "@/pages/Dashboard";
+import { Dashboard } from "@/features/profile/pages/Dashboard";
 import { useProfileStore } from "@/stores/profileStore";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore, } from "@/stores/bootstrapStore";

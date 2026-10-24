@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 import type { Job, JobFamilyNode, JobGraph, Relation } from "@/types";
 
 export async function fetchFamilyTree(): Promise<JobFamilyNode[]> {

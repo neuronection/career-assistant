@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { Explore } from "@/pages/Explore";
+import { Explore } from "@/features/catalog/pages/Explore";
 import { explorePostings, fetchPostingDetail } from "@/api/postings";
 import { recordSearch, saveSearch } from "@/api/engagement";
-import { PostingDetail } from "@/components/PostingDetail";
+import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import type { ExploreResponse, JobPostingItem } from "@/types";
 
 vi.mock("@/api/postings", async (importOriginal) => {

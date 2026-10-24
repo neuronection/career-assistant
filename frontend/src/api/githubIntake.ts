@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 // Profile → Import → GitHub (plan 122 phase 3): preview a public GitHub
 // profile's repositories, then create DRAFT projects/achievements. Nothing

@@ -26,9 +26,9 @@ import {
   updateWebhookChannelConfig,
   verifyEmailAddress,
 } from "@/api/engagement";
-import { FollowupRulesCard } from "@/components/applications/FollowupRulesCard";
+import { FollowupRulesCard } from "@/features/postings/components/applications/FollowupRulesCard";
 import { Button, Spinner } from "@/components/ui";
-import { SelectField, ToggleRow } from "@/components/cv/formPrimitives";
+import { SelectField, ToggleRow } from "@/features/cv/components/cv/formPrimitives";
 import { apiDetail } from "@/api/client";
 import { hasChannel } from "@/lib/desktop";
 import { useAuthStore } from "@/stores/authStore";

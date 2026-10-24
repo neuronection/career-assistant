@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURES, betaFeatures, featureFor, isVisible } from "./features";
+import { FEATURES, betaFeatures, featureFor, isVisible } from "@/config/features";
 
 describe("feature registry", () => {
   it("resolves a route to its longest matching prefix", () => {

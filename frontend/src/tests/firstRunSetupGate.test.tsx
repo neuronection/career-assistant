@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import {
   FirstRunSetupGate,
   shouldRedirectToSetup,
-} from "@/components/onboarding/FirstRunSetupGate";
+} from "@/features/profile/components/onboarding/FirstRunSetupGate";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import type { AiStatus, Bootstrap } from "@/types";
 

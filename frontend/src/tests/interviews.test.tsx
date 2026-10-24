@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { Interviews } from "@/pages/Interviews";
+import { Interviews } from "@/features/interviews/pages/Interviews";
 import {
   createInterviewSession,
   debriefInterviewSession,

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { MarketTrendStrip } from "@/components/MarketTrendStrip";
+import { MarketTrendStrip } from "@/features/postings/components/MarketTrendStrip";
 import type { MarketTrendPoint } from "@/api/growth";
 
 vi.mock("recharts", async (importOriginal) => {

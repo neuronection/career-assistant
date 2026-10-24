@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 
-import { Compare } from "@/pages/Compare";
-import { CompareTray } from "@/components/CompareTray";
+import { Compare } from "@/features/catalog/pages/Compare";
+import { CompareTray } from "@/features/catalog/components/CompareTray";
 import { compareJobs } from "@/api/matching";
 import { COMPARE_LIMIT, useCompareStore } from "@/stores/compareStore";
 import type { RankedJob } from "@/types";

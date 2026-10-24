@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { Growth } from "@/pages/Growth";
+import { Growth } from "@/features/growth/pages/Growth";
 import {
   fetchCheckinStatus,
   fetchGrowthPlans,

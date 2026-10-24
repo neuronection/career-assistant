@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ToolsDialog } from "@/components/chat/ToolsDialog";
+import { ToolsDialog } from "@/features/chat/components/chat/ToolsDialog";
 import * as aiApi from "@/api/ai";
 import { initI18n } from "@/lib/i18n";
 

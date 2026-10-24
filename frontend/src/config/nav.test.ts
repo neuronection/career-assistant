@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Briefcase, LayoutDashboard } from "lucide-react";
-import { FEATURES, isVisible } from "./features";
-import { NAV, resolveActiveId, toNavItem, type AppNavItem } from "./nav";
+import { FEATURES, isVisible } from "@/config/features";
+import { NAV, resolveActiveId, toNavItem, type AppNavItem } from "@/config/nav";
 
 describe("resolveActiveId", () => {
   it("matches the root only exactly", () => {

@@ -3,8 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError } from "axios";
 import { MemoryRouter } from "react-router-dom";
-import { CvIntakeFlow } from "@/components/intake/CvIntakeFlow";
-import { SuggestionReviewList } from "@/components/intake/SuggestionReviewList";
+import { CvIntakeFlow } from "@/features/cv/components/intake/CvIntakeFlow";
+import { SuggestionReviewList } from "@/features/cv/components/intake/SuggestionReviewList";
 import {
   applyCvDraft,
   discardCvDraft,

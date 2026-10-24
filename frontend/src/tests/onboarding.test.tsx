@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { Onboarding } from "@/pages/Onboarding";
+import { Onboarding } from "@/features/profile/pages/Onboarding";
 import { useProfileStore } from "@/stores/profileStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { fetchProfile, saveProfileSection, analyzeProfile } from "@/api/profile";

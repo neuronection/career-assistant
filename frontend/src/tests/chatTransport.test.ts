@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { createChatTransport } from "@/components/chat/chatTransport";
+import { createChatTransport } from "@/features/chat/components/chat/chatTransport";
 import type { ChatStreamEvent } from "@/components/ui/chat";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 

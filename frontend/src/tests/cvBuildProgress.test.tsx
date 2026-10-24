@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { BuildProgressCard } from "@/components/cv/BuildProgress";
+import { BuildProgressCard } from "@/features/cv/components/cv/BuildProgress";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 
 const api = vi.hoisted(() => ({

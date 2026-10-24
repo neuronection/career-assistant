@@ -2,8 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import { Postings } from "@/pages/Postings";
-import { PostingsFeed } from "@/components/postings/PostingsFeed";
+import { Postings } from "@/features/postings/pages/Postings";
+import { PostingsFeed } from "@/features/postings/components/postings/PostingsFeed";
 import {
   fetchPostings,
   fetchPostingDetail,

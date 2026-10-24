@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-import { Education } from "@/pages/Education";
+import { Education } from "@/features/profile/pages/Education";
 import {
   createAchievement,
   createCertification,

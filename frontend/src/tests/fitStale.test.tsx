@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { FitStaleBadge } from "@/components/FitStaleBadge";
+import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import type { Bootstrap } from "@/types";
 

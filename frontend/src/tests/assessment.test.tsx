@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Assessment } from "@/pages/Assessment";
+import { Assessment } from "@/features/assessment/pages/Assessment";
 import type { AssessmentState } from "@/api/assessments";
 
 const createAssessment = vi.fn();

@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 // Extension surfaces (plan 32 Phase 4 / ADR-0040 clause 16): installed,
 // enabled mini-app extensions declaring ui:page / ui:panel declarative

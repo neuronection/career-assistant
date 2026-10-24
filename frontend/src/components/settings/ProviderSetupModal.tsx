@@ -1,4 +1,4 @@
-import { ProviderSetupWizard } from "./ProviderSetupWizard";
+import { ProviderSetupWizard } from "@/components/settings/ProviderSetupWizard";
 
 interface ProviderSetupModalProps {
   canUseSystemScope: boolean;

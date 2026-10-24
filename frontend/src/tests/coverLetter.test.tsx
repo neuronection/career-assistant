@@ -3,9 +3,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
-import { CvStudio } from "@/pages/CvStudio";
-import { CvBuilder } from "@/pages/CvBuilder";
-import { PostingDetail } from "@/components/PostingDetail";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
+import { CvBuilder } from "@/features/cv/pages/CvBuilder";
+import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import type { CvDocumentOut } from "@/types/cv";
 
 const fetchCvs = vi.fn();

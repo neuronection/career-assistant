@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 /** Public instance facts (`GET /api/v1/instance/config`) — readable
  * without a session so the demo badge renders before login

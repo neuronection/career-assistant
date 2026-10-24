@@ -7,14 +7,14 @@ import { SidebarNav, UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { useIsShortViewport } from "@/hooks/useMediaQuery";
-import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { NotificationBell } from "@/components/NotificationBell";
 import { currentLocale, isSupportedLocale, setAppLocale } from "@/lib/i18n";
 import { ProfileSwitcherMenu } from "@/components/ProfileSwitcherMenu";
 import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
-import { CompareTray } from "@/components/CompareTray";
+import { CompareTray } from "@/features/catalog/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
 import {
   extensionNavItems,
@@ -27,7 +27,7 @@ import { useExtensionSurfacesStore } from "@/stores/extensionSurfacesStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useProfilesStore } from "@/stores/profilesStore";
 import { BetaBanner } from "@/components/BetaBanner";
-import { FirstRunSetupGate } from "@/components/onboarding/FirstRunSetupGate";
+import { FirstRunSetupGate } from "@/features/profile/components/onboarding/FirstRunSetupGate";
 import { AiMockChip } from "@/components/ai/AiSetupPrompt";
 
 export function Layout() {

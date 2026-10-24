@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 import { copyText } from "@/lib/clipboard";

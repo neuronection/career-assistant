@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { JobCard } from "@/components/JobCard";
+import { JobCard } from "@/features/catalog/components/JobCard";
 import { NotificationBell } from "@/components/NotificationBell";
-import { RecentSearches } from "@/components/RecentSearches";
+import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import {
   deleteSearch,
   fetchFeed,
@@ -95,7 +95,7 @@ vi.mock("@/api/jobs", () => ({
   fetchGraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
 }));
 
-import { Dashboard } from "@/pages/Dashboard";
+import { Dashboard } from "@/features/profile/pages/Dashboard";
 import { useProfileStore } from "@/stores/profileStore";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";

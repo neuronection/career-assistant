@@ -18,8 +18,8 @@ import {
 } from "@/components/ui";
 import type { ModelPickerProvider } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
-import { CAP_ICONS, guessCaps } from "./ReRunSetupDialog";
-import { SetupErrorPanel } from "./setupErrors";
+import { CAP_ICONS, guessCaps } from "@/components/settings/ReRunSetupDialog";
+import { SetupErrorPanel } from "@/components/settings/setupErrors";
 
 const TILE_ORDER = [
   "openai",

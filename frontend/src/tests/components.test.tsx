@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { ScoreRing } from "@/components/ScoreRing";
-import { JobCard } from "@/components/JobCard";
+import { ScoreRing } from "@/features/catalog/components/ScoreRing";
+import { JobCard } from "@/features/catalog/components/JobCard";
 import { AiButton } from "@/components/AiButton";
-import { DemandBadge } from "@/components/DemandBadge";
+import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import { quickAssist } from "@/api/universities";
 import type { Job } from "@/types";
 

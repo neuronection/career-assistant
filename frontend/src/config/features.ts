@@ -1,4 +1,4 @@
-import registry from "./features.json";
+import registry from "@/config/features.json";
 
 /**
  * Support level of one user-facing surface.

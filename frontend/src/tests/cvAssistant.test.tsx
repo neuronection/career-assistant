@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
-import { openCvChat } from "@/components/chat/cvChatLink";
+import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
+import { openCvChat } from "@/features/chat/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import type { CvAssistantState } from "@/types/cvAssistant";

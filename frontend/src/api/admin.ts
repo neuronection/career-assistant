@@ -1,5 +1,5 @@
 import axios from "axios";
-import { api } from "./client";
+import { api } from "@/api/client";
 import type { Job } from "@/types";
 
 /** `PublicUser` (identity-auth §12) — what `/auth/me` and

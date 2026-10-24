@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import { PolishPreviewIframe, PolishTraceCard } from "@/components/cv/PolishTrace";
+import { PolishPreviewIframe, PolishTraceCard } from "@/features/cv/components/cv/PolishTrace";
 import type { CvPolishTrace, CvVersionOut } from "@/types/cv";
 
 vi.mock("@/lib/i18n", async () => ({ initI18n: vi.fn() }));

@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
-import { applyCvOps, openInspectorTab, patchCv, preview, resetCvStudioMocks } from "./cvStudioHarness";
-import { CvBuilder } from "@/pages/CvBuilder";
-import { CvStudio } from "@/pages/CvStudio";
-import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
+import { applyCvOps, openInspectorTab, patchCv, preview, resetCvStudioMocks } from "@/tests/cvStudioHarness";
+import { CvBuilder } from "@/features/cv/pages/CvBuilder";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
+import { CvTemplateEditor } from "@/features/cv/pages/CvTemplateEditor";
 
 function renderBuilder() {
   return render(

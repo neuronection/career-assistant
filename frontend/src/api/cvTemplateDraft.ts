@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
 import type { TemplateContent } from "@/types/cvTemplate";
 

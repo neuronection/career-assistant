@@ -3,11 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import { Catalog } from "@/pages/Catalog";
-import { CatalogGraph } from "@/components/catalog/CatalogGraph";
-import { CatalogTree } from "@/components/catalog/CatalogTree";
-import { Generate } from "@/pages/Generate";
-import { Universities } from "@/pages/Universities";
+import { Catalog } from "@/features/catalog/pages/Catalog";
+import { CatalogGraph } from "@/features/catalog/components/catalog/CatalogGraph";
+import { CatalogTree } from "@/features/catalog/components/catalog/CatalogTree";
+import { Generate } from "@/features/catalog/pages/Generate";
+import { Universities } from "@/features/university/pages/Universities";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import * as jobsApi from "@/api/jobs";

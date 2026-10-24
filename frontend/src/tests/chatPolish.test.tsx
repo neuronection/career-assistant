@@ -3,10 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { ChatWidget } from "@/components/chat/ChatWidget";
-import { useCareerChatContext, CareerChatProvider } from "@/components/chat/useCareerChat";
-import { buildChatMarkdownFromRows } from "@/components/chat/exportChat";
-import { getDraft, writeDraft } from "@/components/chat/drafts";
+import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
+import { useCareerChatContext, CareerChatProvider } from "@/features/chat/components/chat/useCareerChat";
+import { buildChatMarkdownFromRows } from "@/features/chat/components/chat/exportChat";
+import { getDraft, writeDraft } from "@/features/chat/components/chat/drafts";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { api, apiDetail } from "./client";
+import { api, apiDetail } from "@/api/client";
 
 export interface AIProvider {
   id: string;

@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 // Tools → connectors → job sources (ADR-0033 domain tools.connectors,
 // broadened by plan 32 Phase 1): posting-source connector instances —

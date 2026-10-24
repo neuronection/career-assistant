@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
-import { createTemplate, fetchTemplateDiff, fetchTemplateVersions, fetchTemplates, previewTemplateDraft, publishTemplateVersion, resetCvStudioMocks, sidebarTemplate, template } from "./cvStudioHarness";
-import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
+import { createTemplate, fetchTemplateDiff, fetchTemplateVersions, fetchTemplates, previewTemplateDraft, publishTemplateVersion, resetCvStudioMocks, sidebarTemplate, template } from "@/tests/cvStudioHarness";
+import { CvTemplateEditor } from "@/features/cv/pages/CvTemplateEditor";
 
 function renderEditor() {
   return render(

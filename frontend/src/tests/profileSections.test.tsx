@@ -3,17 +3,17 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import { useRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { BasicsCard } from "@/components/profile/sections/BasicsCard";
-import { AcademicsCard } from "@/components/profile/sections/AcademicsCard";
-import { LanguagesCard } from "@/components/profile/sections/LanguagesCard";
-import { ConstraintsCard } from "@/components/profile/sections/ConstraintsCard";
-import { InterestsCard } from "@/components/profile/sections/InterestsCard";
-import { TastesCard } from "@/components/profile/sections/TastesCard";
-import { AspirationsCard } from "@/components/profile/sections/AspirationsCard";
-import { WorkStyleCard } from "@/components/profile/sections/WorkStyleCard";
-import { WeightsCard } from "@/components/profile/sections/WeightsCard";
-import { ProfileSectionCard } from "@/components/profile/ProfileSectionCard";
-import { ProfileEdit } from "@/pages/ProfileEdit";
+import { BasicsCard } from "@/features/profile/components/profile/sections/BasicsCard";
+import { AcademicsCard } from "@/features/profile/components/profile/sections/AcademicsCard";
+import { LanguagesCard } from "@/features/profile/components/profile/sections/LanguagesCard";
+import { ConstraintsCard } from "@/features/profile/components/profile/sections/ConstraintsCard";
+import { InterestsCard } from "@/features/profile/components/profile/sections/InterestsCard";
+import { TastesCard } from "@/features/profile/components/profile/sections/TastesCard";
+import { AspirationsCard } from "@/features/profile/components/profile/sections/AspirationsCard";
+import { WorkStyleCard } from "@/features/profile/components/profile/sections/WorkStyleCard";
+import { WeightsCard } from "@/features/profile/components/profile/sections/WeightsCard";
+import { ProfileSectionCard } from "@/features/profile/components/profile/ProfileSectionCard";
+import { ProfileEdit } from "@/features/profile/pages/ProfileEdit";
 import { useProfileStore } from "@/stores/profileStore";
 import { fetchProfile } from "@/api/profile";
 import {
@@ -23,8 +23,8 @@ import {
   setSkillDeriveEnabled,
   deleteMySkill,
 } from "@/api/skills";
-import { SkillsCard } from "@/components/profile/sections/SkillsCard";
-import type { SectionCardHandle } from "@/components/profile/sections/shared";
+import { SkillsCard } from "@/features/profile/components/profile/sections/SkillsCard";
+import type { SectionCardHandle } from "@/features/profile/components/profile/sections/shared";
 import type { Profile } from "@/types";
 
 vi.mock("@/api/profile", async (importOriginal) => {

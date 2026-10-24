@@ -4,9 +4,9 @@ import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
-import de from "./locales/de.json";
-import el from "./locales/el.json";
-import catalog from "./locales/en.json";
+import de from "@/locales/de.json";
+import el from "@/locales/el.json";
+import catalog from "@/locales/en.json";
 
 const literals: Record<string, unknown> = catalog;
 
