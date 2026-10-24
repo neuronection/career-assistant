@@ -128,18 +128,21 @@ class TestArbeitnowConformance(ConnectorConformanceTests):
     connector = get_connector("arbeitnow")
     config = {}  # noqa: RUF012 -- zero-config by design
     body = ARBEITNOW_BODY
+    invalid_config = {"max_items": 0}  # noqa: RUF012 -- every field defaults; probe a bound
 
 
 class TestRemotiveConformance(ConnectorConformanceTests):
     connector = get_connector("remotive")
     config = {}  # noqa: RUF012 -- zero-config by design
     body = REMOTIVE_BODY
+    invalid_config = {"max_items": 0}  # noqa: RUF012 -- every field defaults; probe a bound
 
 
 class TestJobicyConformance(ConnectorConformanceTests):
     connector = get_connector("jobicy")
     config = {}  # noqa: RUF012 -- zero-config by design
     body = JOBICY_BODY
+    invalid_config = {"max_items": 0}  # noqa: RUF012 -- every field defaults; probe a bound
 
 
 # ------------------------------------------------------- registration law

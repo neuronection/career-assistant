@@ -117,6 +117,21 @@ class TestSyntheticConnector(ConnectorConformanceTests):
     body = ""
     initial_state = {}  # noqa: RUF012 -- test fixture data
 
+    def test_invalid_config_rejected(self):
+        # EmptyConfig declares no schema — pydantic accepts (and ignores)
+        # ANY config, so no invalid probe exists. Pin the acceptance
+        # contract instead: the zero-config round-trips to {}.
+        assert self.connector.validate_config({}) == {}
+
+    def test_conditional_get_validators_forwarded(self):
+        # The synthetic connector is offline by design: fetch fabricates
+        # its one posting and never calls the transport, so there is no
+        # conditional-GET passthrough to verify. Pin the cached-state
+        # short-circuit instead: an etag state yields an empty success.
+        result = asyncio.run(self.connector.fetch(self.config, {"etag": '"abc"'}, transport=None))
+        assert list(result.items) == []
+        assert result.next_state == {"etag": '"abc"'}
+
     def test_incremental_state_yields_no_duplicates(self):
         async def _run():
             first = await self.connector.fetch(self.config, {}, transport=None)
