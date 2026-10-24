@@ -47,6 +47,8 @@ for gone in \
 done
 if [ -f "$ROOT/backend/app/services/postings_service.py" ]; then
   ok "postings sync orchestration stays in services/ (postings_service.py)"
+elif [ -f "$ROOT/backend/app/services/postings/postings_service.py" ]; then
+  ok "postings sync orchestration stays in services/ (postings/postings_service.py, plan 123.2 domain package)"
 else
   note "services/postings_service.py missing — sync orchestration belongs in services/ (D24 rule 1)"
 fi
