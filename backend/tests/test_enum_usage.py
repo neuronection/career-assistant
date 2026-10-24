@@ -28,27 +28,31 @@ from tests.test_schema_contracts import CHECKS
 
 BACKEND = Path(__file__).resolve().parents[1]
 APP = BACKEND / "app"
-ENUMS_MODULE = APP / "models" / "enums.py"
+ENUMS_MODULE = APP / "models" / "enums"  # plan 123.6: package directory
 
 #: `"Class.MEMBER": "why this member is kept without an app reference"`.
 ALLOWED_UNUSED: dict[str, str] = {}
 
 
 def _enum_members() -> dict[str, list[str]]:
-    tree = ast.parse(ENUMS_MODULE.read_text())
     enums: dict[str, list[str]] = {}
-    for node in tree.body:
-        if not isinstance(node, ast.ClassDef):
-            continue
-        members = [
-            statement.targets[0].id
-            for statement in node.body
-            if isinstance(statement, ast.Assign)
-            and isinstance(statement.targets[0], ast.Name)
-            and statement.targets[0].id.isupper()
-        ]
-        if members:
-            enums[node.name] = members
+    # Plan 123.6: the registry is the ``app/models/enums/`` package; the
+    # AST walk covers every module file (same liveness rules as when the
+    # registry was one file).
+    for module_file in sorted(ENUMS_MODULE.glob("*.py")):
+        tree = ast.parse(module_file.read_text())
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            members = [
+                statement.targets[0].id
+                for statement in node.body
+                if isinstance(statement, ast.Assign)
+                and isinstance(statement.targets[0], ast.Name)
+                and statement.targets[0].id.isupper()
+            ]
+            if members:
+                enums[node.name] = members
     return enums
 
 
