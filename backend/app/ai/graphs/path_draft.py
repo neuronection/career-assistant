@@ -57,6 +57,7 @@ def build_path_draft_graph(db: AsyncSession, checkpointer: Any | None = None):
     from app.ai.agents.chatbot import search_jobs_tool
     from app.ai.agents.job_generator import generate_jobs
     from app.ai.agents.path_drafter import draft_chat_path
+    from app.models.enums import JobSkillImportance
     from app.schemas.job import JobCreate, JobSkillIn
     from app.services.catalog.job_service import JobService
     from app.services.catalog.taxonomy_service import TaxonomyService
@@ -122,7 +123,10 @@ def build_path_draft_graph(db: AsyncSession, checkpointer: Any | None = None):
                 short_description=job_draft.short_description,
                 interest_keys=job_draft.interest_keys,
                 skills=[
-                    JobSkillIn(skill_key=link.skill_key, importance=link.importance)
+                    JobSkillIn(
+                        skill_key=link.skill_key,
+                        importance=JobSkillImportance(link.importance),
+                    )
                     for link in job_draft.skills
                 ],
             ),

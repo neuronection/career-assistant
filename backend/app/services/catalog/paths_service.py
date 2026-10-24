@@ -509,22 +509,24 @@ class PathService:
         skill_ids = [step.skill_id for step in path.steps if step.skill_id is not None]
         levels: dict[UUID, int] = {}
         if skill_ids:
-            rows = await self.db.execute(
+            user_rows = await self.db.execute(
                 select(UserSkill).where(
                     UserSkill.user_id == user.id,
                     UserSkill.skill_id.in_(skill_ids),
                 )
             )
-            levels = {row.skill_id: row.level for row in rows.scalars().all()}
+            levels = {row.skill_id: row.level for row in user_rows.scalars().all()}
         required: dict[UUID, int] = {}
         if skill_ids:
-            rows = await self.db.execute(
+            job_rows = await self.db.execute(
                 select(JobSkill).where(
                     JobSkill.job_id == path.job_id,
                     JobSkill.skill_id.in_(skill_ids),
                 )
             )
-            required = {row.skill_id: row.required_level for row in rows.scalars().all()}
+            required = {
+                row.skill_id: row.required_level for row in job_rows.scalars().all()
+            }
         steps: list[PathStepDetailOut] = []
         total = 0
         met = 0
