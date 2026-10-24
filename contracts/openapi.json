@@ -361,6 +361,82 @@
         "title": "AiSetupPrefsIn",
         "type": "object"
       },
+      "AiStatusOut": {
+        "description": "The bootstrap ``ai`` key: derived server-side from the DB config;\nnothing here is an env setting.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          },
+          "mock_active": {
+            "default": false,
+            "title": "Mock Active",
+            "type": "boolean"
+          },
+          "provider_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Type"
+          },
+          "setup_dismissed": {
+            "default": false,
+            "title": "Setup Dismissed",
+            "type": "boolean"
+          },
+          "task_coverage": {
+            "$ref": "#/components/schemas/AiTaskCoverageOut"
+          }
+        },
+        "required": [
+          "configured",
+          "task_coverage"
+        ],
+        "title": "AiStatusOut",
+        "type": "object"
+      },
+      "AiTaskCoverageOut": {
+        "properties": {
+          "assigned": {
+            "title": "Assigned",
+            "type": "integer"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assigned",
+          "total",
+          "missing"
+        ],
+        "title": "AiTaskCoverageOut",
+        "type": "object"
+      },
       "AnswersIn": {
         "properties": {
           "answers": {
@@ -1829,6 +1905,166 @@
         "title": "Body_visual_review_api_v1_cv_templates__template_id__visual_review_post",
         "type": "object"
       },
+      "BootstrapOut": {
+        "description": "Stage, feature flags, weights and locale state for one caller.\n\n``refit_*`` ride only the PUT /me/stage response (the in-flight\nrefit window); the GET omits them.",
+        "properties": {
+          "ai": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "career_stage": {
+            "$ref": "#/components/schemas/CareerStage"
+          },
+          "effective_scoring_weights": {
+            "$ref": "#/components/schemas/ScoringWeights"
+          },
+          "features": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Features",
+            "type": "object"
+          },
+          "fit_stale": {
+            "default": false,
+            "title": "Fit Stale",
+            "type": "boolean"
+          },
+          "instance_locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Locale"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
+          "locale_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale Source"
+          },
+          "notification_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notification Channels",
+            "type": "array"
+          },
+          "onboarding_path": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnboardingPath"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refit_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refit Job Id"
+          },
+          "refit_queued": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refit Queued"
+          },
+          "refitted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refitted"
+          },
+          "stage_source": {
+            "enum": [
+              "derived",
+              "explicit"
+            ],
+            "title": "Stage Source",
+            "type": "string"
+          },
+          "suggested_scoring_weights": {
+            "$ref": "#/components/schemas/ScoringWeights"
+          },
+          "supported_locales": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported Locales",
+            "type": "array"
+          },
+          "target_families": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Target Families",
+            "type": "array"
+          },
+          "target_mode": {
+            "default": false,
+            "title": "Target Mode",
+            "type": "boolean"
+          },
+          "weights_overridden": {
+            "title": "Weights Overridden",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "career_stage",
+          "stage_source",
+          "features",
+          "suggested_scoring_weights",
+          "effective_scoring_weights",
+          "weights_overridden"
+        ],
+        "title": "BootstrapOut",
+        "type": "object"
+      },
       "BriefFit": {
         "properties": {
           "dimensions": {
@@ -2607,6 +2843,48 @@
         "title": "ChatAttachmentIn",
         "type": "object"
       },
+      "CheckinCompleteOut": {
+        "properties": {
+          "applied_skills": {
+            "title": "Applied Skills",
+            "type": "integer"
+          },
+          "conflicts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "boolean"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skipped",
+          "applied_skills",
+          "stage"
+        ],
+        "title": "CheckinCompleteOut",
+        "type": "object"
+      },
       "CheckinIn": {
         "properties": {
           "skills": {
@@ -2642,6 +2920,41 @@
           }
         },
         "title": "CheckinIn",
+        "type": "object"
+      },
+      "CheckinStatusOut": {
+        "properties": {
+          "due": {
+            "title": "Due",
+            "type": "boolean"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "next_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next At"
+          }
+        },
+        "required": [
+          "due"
+        ],
+        "title": "CheckinStatusOut",
         "type": "object"
       },
       "CompactionItem": {
@@ -8601,6 +8914,209 @@
         "title": "GraphNodeOut",
         "type": "object"
       },
+      "GrowthPlanOut": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GrowthPlanStatus"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/GrowthStepOut"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "target_job": {
+            "$ref": "#/components/schemas/TargetJobRef"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "target_job"
+        ],
+        "title": "GrowthPlanOut",
+        "type": "object"
+      },
+      "GrowthPlanStatus": {
+        "enum": [
+          "active",
+          "completed",
+          "abandoned"
+        ],
+        "title": "GrowthPlanStatus",
+        "type": "string"
+      },
+      "GrowthResourceOut": {
+        "properties": {
+          "cost": {
+            "title": "Cost",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "provider",
+          "url",
+          "cost"
+        ],
+        "title": "GrowthResourceOut",
+        "type": "object"
+      },
+      "GrowthStepOut": {
+        "properties": {
+          "completed_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed Level"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/GrowthResourceOut"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GrowthStepStatus"
+          },
+          "target_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Level"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "kind",
+          "label",
+          "status"
+        ],
+        "title": "GrowthStepOut",
+        "type": "object"
+      },
+      "GrowthStepRefOut": {
+        "description": "The patched step's post-write state (minimal envelope).",
+        "properties": {
+          "completed_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed Level"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GrowthStepStatus"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "status"
+        ],
+        "title": "GrowthStepRefOut",
+        "type": "object"
+      },
+      "GrowthStepStatus": {
+        "enum": [
+          "todo",
+          "doing",
+          "done",
+          "skipped"
+        ],
+        "title": "GrowthStepStatus",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -10040,6 +10556,183 @@
           "password"
         ],
         "title": "LoginIn",
+        "type": "object"
+      },
+      "MarketMonthPointOut": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "postings": {
+            "title": "Postings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "postings"
+        ],
+        "title": "MarketMonthPointOut",
+        "type": "object"
+      },
+      "MarketSalaryBandOut": {
+        "properties": {
+          "p25": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P25"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          }
+        },
+        "title": "MarketSalaryBandOut",
+        "type": "object"
+      },
+      "MarketSnapshotOut": {
+        "description": "Posting analytics for one scope (never a fit input).",
+        "properties": {
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MarketMonthPointOut"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "salary_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketSalaryBandOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_size": {
+            "title": "Sample Size",
+            "type": "integer"
+          },
+          "thin_sample": {
+            "title": "Thin Sample",
+            "type": "boolean"
+          },
+          "top_employers": {
+            "items": {
+              "$ref": "#/components/schemas/MarketTopEmployerOut"
+            },
+            "title": "Top Employers",
+            "type": "array"
+          },
+          "top_skills": {
+            "items": {
+              "$ref": "#/components/schemas/MarketTopSkillOut"
+            },
+            "title": "Top Skills",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sample_size",
+          "thin_sample"
+        ],
+        "title": "MarketSnapshotOut",
+        "type": "object"
+      },
+      "MarketTopEmployerOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "org": {
+            "title": "Org",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org",
+          "count"
+        ],
+        "title": "MarketTopEmployerOut",
+        "type": "object"
+      },
+      "MarketTopSkillOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ],
+        "title": "MarketTopSkillOut",
+        "type": "object"
+      },
+      "MarketTrendPointOut": {
+        "properties": {
+          "capture_date": {
+            "title": "Capture Date",
+            "type": "string"
+          },
+          "captured_at": {
+            "title": "Captured At",
+            "type": "string"
+          },
+          "months": {
+            "items": {},
+            "title": "Months",
+            "type": "array"
+          },
+          "salary_band": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Band"
+          },
+          "sample_size": {
+            "title": "Sample Size",
+            "type": "integer"
+          },
+          "thin_sample": {
+            "title": "Thin Sample",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "capture_date",
+          "captured_at",
+          "sample_size",
+          "thin_sample"
+        ],
+        "title": "MarketTrendPointOut",
         "type": "object"
       },
       "MatchInsightOut": {
@@ -13277,6 +13970,94 @@
         "title": "QuietHoursIn",
         "type": "object"
       },
+      "RadarDeficitOut": {
+        "properties": {
+          "current_level": {
+            "title": "Current Level",
+            "type": "integer"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "integer"
+          },
+          "importance": {
+            "title": "Importance",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required_level": {
+            "title": "Required Level",
+            "type": "integer"
+          },
+          "skill_id": {
+            "title": "Skill Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill_id",
+          "key",
+          "label",
+          "current_level",
+          "required_level",
+          "delta",
+          "importance"
+        ],
+        "title": "RadarDeficitOut",
+        "type": "object"
+      },
+      "RadarEntryOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "deficits": {
+            "items": {
+              "$ref": "#/components/schemas/RadarDeficitOut"
+            },
+            "title": "Deficits",
+            "type": "array"
+          },
+          "family_key": {
+            "title": "Family Key",
+            "type": "string"
+          },
+          "fit_score": {
+            "title": "Fit Score",
+            "type": "number"
+          },
+          "headline": {
+            "title": "Headline",
+            "type": "string"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "code",
+          "title",
+          "family_key",
+          "fit_score",
+          "headline"
+        ],
+        "title": "RadarEntryOut",
+        "type": "object"
+      },
       "RankedJob": {
         "properties": {
           "ai_score": {
@@ -15306,6 +16087,31 @@
         "title": "StepPatchIn",
         "type": "object"
       },
+      "StepPatchOut": {
+        "properties": {
+          "conflicts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "refitted": {
+            "default": 0,
+            "title": "Refitted",
+            "type": "integer"
+          },
+          "step": {
+            "$ref": "#/components/schemas/GrowthStepRefOut"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "title": "StepPatchOut",
+        "type": "object"
+      },
       "SubscriptionIn": {
         "description": "A browser PushSubscription (endpoint + keys) for VAPID delivery.",
         "properties": {
@@ -15589,6 +16395,29 @@
           "completeness"
         ],
         "title": "TargetDashboardOut",
+        "type": "object"
+      },
+      "TargetJobRef": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "code"
+        ],
+        "title": "TargetJobRef",
         "type": "object"
       },
       "TemplateDraftAiIn": {
@@ -27849,8 +28678,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/GrowthPlanOut"
                   },
                   "title": "Response Get Growth Plans Api V1 Growth Plans Get",
                   "type": "array"
@@ -27883,9 +28711,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Growth Plan Api V1 Growth Plans Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GrowthPlanOut"
                 }
               }
             },
@@ -27918,8 +28744,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/RadarEntryOut"
                   },
                   "title": "Response Growth Radar Api V1 Growth Radar Get",
                   "type": "array"
@@ -27966,9 +28791,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Patch Growth Step Api V1 Growth Steps  Step Id  Patch",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StepPatchOut"
                 }
               }
             },
@@ -29208,9 +30031,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Market Snapshot Api V1 Market Snapshot Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MarketSnapshotOut"
                 }
               }
             },
@@ -29278,8 +30099,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/MarketTrendPointOut"
                   },
                   "title": "Response Get Market Trend Api V1 Market Trend Get",
                   "type": "array"
@@ -30248,9 +31068,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Bootstrap Api V1 Me Bootstrap Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/BootstrapOut"
                 }
               }
             },
@@ -30470,9 +31288,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Checkin Api V1 Me Checkin Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CheckinStatusOut"
                 }
               }
             },
@@ -30502,9 +31318,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Checkin Api V1 Me Checkin Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CheckinCompleteOut"
                 }
               }
             },
@@ -32836,9 +33650,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Stage Api V1 Me Stage Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/BootstrapOut"
                 }
               }
             },

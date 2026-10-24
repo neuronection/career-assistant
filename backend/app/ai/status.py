@@ -9,6 +9,11 @@ This module only reads. It resolves with ``allow_dev_bootstrap=False``
 so asking "is AI configured?" never provisions the dev mock carrier.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.schemas.ai_status import AiStatusOut
+
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -32,20 +37,22 @@ class AiStatus:
     mock_active: bool = False
     setup_dismissed: bool = False
 
-    def payload(self) -> dict:
+    def payload(self) -> "AiStatusOut":
         """Bootstrap JSON shape (``/me`` bootstrap ``ai`` key)."""
-        return {
-            "configured": self.configured,
-            "provider_type": self.provider_type,
-            "default_model": self.default_model,
-            "task_coverage": {
-                "assigned": self.assigned_slots,
-                "total": self.total_slots,
-                "missing": list(self.missing_slots),
-            },
-            "mock_active": self.mock_active,
-            "setup_dismissed": self.setup_dismissed,
-        }
+        from app.schemas.ai_status import AiStatusOut, AiTaskCoverageOut
+
+        return AiStatusOut(
+            configured=self.configured,
+            provider_type=self.provider_type,
+            default_model=self.default_model,
+            task_coverage=AiTaskCoverageOut(
+                assigned=self.assigned_slots,
+                total=self.total_slots,
+                missing=list(self.missing_slots),
+            ),
+            mock_active=self.mock_active,
+            setup_dismissed=self.setup_dismissed,
+        )
 
 
 async def ai_status(

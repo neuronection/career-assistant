@@ -7585,6 +7585,39 @@ export interface components {
              */
             dismissed: boolean;
         };
+        /**
+         * AiStatusOut
+         * @description The bootstrap ``ai`` key: derived server-side from the DB config;
+         *     nothing here is an env setting.
+         */
+        AiStatusOut: {
+            /** Configured */
+            configured: boolean;
+            /** Default Model */
+            default_model?: string | null;
+            /**
+             * Mock Active
+             * @default false
+             */
+            mock_active: boolean;
+            /** Provider Type */
+            provider_type?: string | null;
+            /**
+             * Setup Dismissed
+             * @default false
+             */
+            setup_dismissed: boolean;
+            task_coverage: components["schemas"]["AiTaskCoverageOut"];
+        };
+        /** AiTaskCoverageOut */
+        AiTaskCoverageOut: {
+            /** Assigned */
+            assigned: number;
+            /** Missing */
+            missing: string[];
+            /** Total */
+            total: number;
+        };
         /** AnswersIn */
         AnswersIn: {
             /** Answers */
@@ -8234,6 +8267,59 @@ export interface components {
              */
             files: string[];
         };
+        /**
+         * BootstrapOut
+         * @description Stage, feature flags, weights and locale state for one caller.
+         *
+         *     ``refit_*`` ride only the PUT /me/stage response (the in-flight
+         *     refit window); the GET omits them.
+         */
+        BootstrapOut: {
+            ai?: components["schemas"]["AiStatusOut"] | null;
+            career_stage: components["schemas"]["CareerStage"];
+            effective_scoring_weights: components["schemas"]["ScoringWeights"];
+            /** Features */
+            features: {
+                [key: string]: boolean;
+            };
+            /**
+             * Fit Stale
+             * @default false
+             */
+            fit_stale: boolean;
+            /** Instance Locale */
+            instance_locale?: string | null;
+            /** Locale */
+            locale?: string | null;
+            /** Locale Source */
+            locale_source?: string | null;
+            /** Notification Channels */
+            notification_channels?: string[];
+            onboarding_path?: components["schemas"]["OnboardingPath"] | null;
+            /** Refit Job Id */
+            refit_job_id?: string | null;
+            /** Refit Queued */
+            refit_queued?: boolean | null;
+            /** Refitted */
+            refitted?: number | null;
+            /**
+             * Stage Source
+             * @enum {string}
+             */
+            stage_source: "derived" | "explicit";
+            suggested_scoring_weights: components["schemas"]["ScoringWeights"];
+            /** Supported Locales */
+            supported_locales?: string[];
+            /** Target Families */
+            target_families?: string[];
+            /**
+             * Target Mode
+             * @default false
+             */
+            target_mode: boolean;
+            /** Weights Overridden */
+            weights_overridden: boolean;
+        };
         /** BriefFit */
         BriefFit: {
             /** Dimensions */
@@ -8527,6 +8613,21 @@ export interface components {
              */
             kind: "cv";
         };
+        /** CheckinCompleteOut */
+        CheckinCompleteOut: {
+            /** Applied Skills */
+            applied_skills: number;
+            /** Conflicts */
+            conflicts?: {
+                [key: string]: unknown;
+            }[];
+            /** Next At */
+            next_at?: string | null;
+            /** Skipped */
+            skipped: boolean;
+            /** Stage */
+            stage: string;
+        };
         /** CheckinIn */
         CheckinIn: {
             /** Skills */
@@ -8540,6 +8641,15 @@ export interface components {
             skipped: boolean;
             /** Stage */
             stage?: string | null;
+        };
+        /** CheckinStatusOut */
+        CheckinStatusOut: {
+            /** Due */
+            due: boolean;
+            /** Last At */
+            last_at?: string | null;
+            /** Next At */
+            next_at?: string | null;
         };
         /** CompactionItem */
         CompactionItem: {
@@ -10883,6 +10993,75 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** GrowthPlanOut */
+        GrowthPlanOut: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Id */
+            id: string;
+            status: components["schemas"]["GrowthPlanStatus"];
+            /** Steps */
+            steps?: components["schemas"]["GrowthStepOut"][];
+            target_job: components["schemas"]["TargetJobRef"];
+        };
+        /**
+         * GrowthPlanStatus
+         * @enum {string}
+         */
+        GrowthPlanStatus: "active" | "completed" | "abandoned";
+        /** GrowthResourceOut */
+        GrowthResourceOut: {
+            /** Cost */
+            cost: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Provider */
+            provider: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** GrowthStepOut */
+        GrowthStepOut: {
+            /** Completed Level */
+            completed_level?: number | null;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Position */
+            position: number;
+            /** Resources */
+            resources?: components["schemas"]["GrowthResourceOut"][];
+            /** Skill Id */
+            skill_id?: string | null;
+            status: components["schemas"]["GrowthStepStatus"];
+            /** Target Level */
+            target_level?: number | null;
+        };
+        /**
+         * GrowthStepRefOut
+         * @description The patched step's post-write state (minimal envelope).
+         */
+        GrowthStepRefOut: {
+            /** Completed Level */
+            completed_level?: number | null;
+            /** Id */
+            id: string;
+            /** Position */
+            position: number;
+            status: components["schemas"]["GrowthStepStatus"];
+        };
+        /**
+         * GrowthStepStatus
+         * @enum {string}
+         */
+        GrowthStepStatus: "todo" | "doing" | "done" | "skipped";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -11441,6 +11620,68 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MarketMonthPointOut */
+        MarketMonthPointOut: {
+            /** Month */
+            month: string;
+            /** Postings */
+            postings: number;
+        };
+        /** MarketSalaryBandOut */
+        MarketSalaryBandOut: {
+            /** P25 */
+            p25?: number | null;
+            /** P75 */
+            p75?: number | null;
+        };
+        /**
+         * MarketSnapshotOut
+         * @description Posting analytics for one scope (never a fit input).
+         */
+        MarketSnapshotOut: {
+            /** Months */
+            months?: components["schemas"]["MarketMonthPointOut"][];
+            salary_band?: components["schemas"]["MarketSalaryBandOut"] | null;
+            /** Sample Size */
+            sample_size: number;
+            /** Thin Sample */
+            thin_sample: boolean;
+            /** Top Employers */
+            top_employers?: components["schemas"]["MarketTopEmployerOut"][];
+            /** Top Skills */
+            top_skills?: components["schemas"]["MarketTopSkillOut"][];
+        };
+        /** MarketTopEmployerOut */
+        MarketTopEmployerOut: {
+            /** Count */
+            count: number;
+            /** Org */
+            org: string;
+        };
+        /** MarketTopSkillOut */
+        MarketTopSkillOut: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+        };
+        /** MarketTrendPointOut */
+        MarketTrendPointOut: {
+            /** Capture Date */
+            capture_date: string;
+            /** Captured At */
+            captured_at: string;
+            /** Months */
+            months?: unknown[];
+            /** Salary Band */
+            salary_band?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sample Size */
+            sample_size: number;
+            /** Thin Sample */
+            thin_sample: boolean;
         };
         /** MatchInsightOut */
         MatchInsightOut: {
@@ -12621,6 +12862,40 @@ export interface components {
             /** Start */
             start: string;
         };
+        /** RadarDeficitOut */
+        RadarDeficitOut: {
+            /** Current Level */
+            current_level: number;
+            /** Delta */
+            delta: number;
+            /** Importance */
+            importance: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Required Level */
+            required_level: number;
+            /** Skill Id */
+            skill_id: string;
+        };
+        /** RadarEntryOut */
+        RadarEntryOut: {
+            /** Code */
+            code: string;
+            /** Deficits */
+            deficits?: components["schemas"]["RadarDeficitOut"][];
+            /** Family Key */
+            family_key: string;
+            /** Fit Score */
+            fit_score: number;
+            /** Headline */
+            headline: string;
+            /** Job Id */
+            job_id: string;
+            /** Title */
+            title: string;
+        };
         /** RankedJob */
         RankedJob: {
             /** Ai Score */
@@ -13423,6 +13698,19 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /** StepPatchOut */
+        StepPatchOut: {
+            /** Conflicts */
+            conflicts?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Refitted
+             * @default 0
+             */
+            refitted: number;
+            step: components["schemas"]["GrowthStepRefOut"];
+        };
         /**
          * SubscriptionIn
          * @description A browser PushSubscription (endpoint + keys) for VAPID delivery.
@@ -13527,6 +13815,15 @@ export interface components {
             open_postings: {
                 [key: string]: unknown;
             };
+        };
+        /** TargetJobRef */
+        TargetJobRef: {
+            /** Code */
+            code: string;
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
         };
         /** TemplateDraftAiIn */
         TemplateDraftAiIn: {
@@ -21779,9 +22076,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["GrowthPlanOut"][];
                 };
             };
         };
@@ -21805,9 +22100,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["GrowthPlanOut"];
                 };
             };
             /** @description Validation Error */
@@ -21836,9 +22129,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["RadarEntryOut"][];
                 };
             };
         };
@@ -21864,9 +22155,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StepPatchOut"];
                 };
             };
             /** @description Validation Error */
@@ -22618,9 +22907,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MarketSnapshotOut"];
                 };
             };
             /** @description Validation Error */
@@ -22652,9 +22939,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["MarketTrendPointOut"][];
                 };
             };
             /** @description Validation Error */
@@ -23301,9 +23586,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["BootstrapOut"];
                 };
             };
         };
@@ -23471,9 +23754,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CheckinStatusOut"];
                 };
             };
         };
@@ -23497,9 +23778,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CheckinCompleteOut"];
                 };
             };
             /** @description Validation Error */
@@ -25236,9 +25515,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["BootstrapOut"];
                 };
             };
             /** @description Validation Error */

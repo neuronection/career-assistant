@@ -1,5 +1,6 @@
 """Growth toolkit endpoints (Phase 28)."""
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.enums import GrowthPlanStatus, GrowthStepStatus
 from app.models.growth_model import LearningResource
 from app.models.user_model import User
 from app.services.deps import get_current_user
@@ -20,6 +22,131 @@ from app.services.growth.growth_service import (
     near_miss_radar,
     patch_step,
 )
+
+
+class TargetJobRef(BaseModel):
+    id: str
+    title: str
+    code: str
+
+
+class GrowthResourceOut(BaseModel):
+    id: str
+    kind: str
+    title: str
+    provider: str
+    url: str
+    cost: str
+
+
+class GrowthStepOut(BaseModel):
+    id: str
+    position: int
+    kind: str
+    label: str
+    skill_id: str | None = None
+    target_level: int | None = None
+    status: GrowthStepStatus
+    completed_level: int | None = None
+    resources: list[GrowthResourceOut] = Field(default_factory=list)
+
+
+class GrowthStepRefOut(BaseModel):
+    """The patched step's post-write state (minimal envelope)."""
+
+    id: str
+    position: int
+    status: GrowthStepStatus
+    completed_level: int | None = None
+
+
+class StepPatchOut(BaseModel):
+    step: GrowthStepRefOut
+    conflicts: list[dict] = Field(default_factory=list)
+    refitted: int = 0
+
+
+class GrowthPlanOut(BaseModel):
+    id: str
+    status: GrowthPlanStatus
+    target_job: TargetJobRef
+    completed_at: datetime | None = None
+    steps: list[GrowthStepOut] = Field(default_factory=list)
+
+
+class RadarDeficitOut(BaseModel):
+    skill_id: str
+    key: str
+    label: str
+    current_level: int
+    required_level: int
+    delta: int
+    importance: str
+
+
+class RadarEntryOut(BaseModel):
+    job_id: str
+    code: str
+    title: str
+    family_key: str
+    fit_score: float
+    deficits: list[RadarDeficitOut] = Field(default_factory=list)
+    headline: str
+
+
+class MarketMonthPointOut(BaseModel):
+    month: str
+    postings: int
+
+
+class MarketSalaryBandOut(BaseModel):
+    p25: float | None = None
+    p75: float | None = None
+
+
+class MarketTopEmployerOut(BaseModel):
+    org: str
+    count: int
+
+
+class MarketTopSkillOut(BaseModel):
+    key: str
+    count: int
+
+
+class MarketSnapshotOut(BaseModel):
+    """Posting analytics for one scope (never a fit input)."""
+
+    sample_size: int
+    thin_sample: bool
+    months: list[MarketMonthPointOut] = Field(default_factory=list)
+    salary_band: MarketSalaryBandOut | None = None
+    top_employers: list[MarketTopEmployerOut] = Field(default_factory=list)
+    top_skills: list[MarketTopSkillOut] = Field(default_factory=list)
+
+
+class MarketTrendPointOut(BaseModel):
+    capture_date: str
+    captured_at: str
+    sample_size: int
+    thin_sample: bool
+    salary_band: dict | None = None
+    months: list = Field(default_factory=list)
+
+
+class CheckinStatusOut(BaseModel):
+    due: bool
+    next_at: str | None = None
+    last_at: str | None = None
+
+
+class CheckinCompleteOut(BaseModel):
+    skipped: bool
+    applied_skills: int
+    conflicts: list[dict] = Field(default_factory=list)
+    stage: str
+    next_at: str | None = None
+
 
 router = APIRouter(tags=["growth"])
 
@@ -40,7 +167,7 @@ class CheckinIn(BaseModel):
     skipped: bool = False
 
 
-@router.post("/growth/plans")
+@router.post("/growth/plans", response_model=GrowthPlanOut)
 async def post_growth_plan(
     data: PlanCreateIn,
     user: User = Depends(get_current_user),
@@ -50,7 +177,7 @@ async def post_growth_plan(
     return await create_plan(db, user.id, data.target_job_id)
 
 
-@router.get("/growth/plans")
+@router.get("/growth/plans", response_model=list[GrowthPlanOut])
 async def get_growth_plans(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> list[dict]:
@@ -58,7 +185,7 @@ async def get_growth_plans(
     return await list_plans(db, user.id)
 
 
-@router.patch("/growth/steps/{step_id}")
+@router.patch("/growth/steps/{step_id}", response_model=StepPatchOut)
 async def patch_growth_step(
     step_id: UUID,
     data: StepPatchIn,
@@ -77,7 +204,7 @@ async def patch_growth_step(
     )
 
 
-@router.get("/growth/radar")
+@router.get("/growth/radar", response_model=list[RadarEntryOut])
 async def growth_radar(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> list[dict]:
@@ -85,7 +212,7 @@ async def growth_radar(
     return await near_miss_radar(db, user.id)
 
 
-@router.get("/market/snapshot")
+@router.get("/market/snapshot", response_model=MarketSnapshotOut)
 async def get_market_snapshot(
     family_key: str | None = Query(default=None),
     job_id: UUID | None = Query(default=None),
@@ -96,7 +223,7 @@ async def get_market_snapshot(
     return await market_snapshot(db, family_key=family_key, job_id=job_id)
 
 
-@router.get("/market/trend")
+@router.get("/market/trend", response_model=list[MarketTrendPointOut])
 async def get_market_trend(
     family_key: str | None = Query(default=None),
     job_id: UUID | None = Query(default=None),
@@ -114,7 +241,7 @@ async def get_market_trend(
     return await market_history_service.trend(db, family_key=family_key, job_id=job_id)
 
 
-@router.get("/me/checkin")
+@router.get("/me/checkin", response_model=CheckinStatusOut)
 async def get_checkin(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -122,7 +249,7 @@ async def get_checkin(
     return await checkin_status(db, user.id)
 
 
-@router.post("/me/checkin")
+@router.post("/me/checkin", response_model=CheckinCompleteOut)
 async def post_checkin(
     data: CheckinIn,
     user: User = Depends(get_current_user),

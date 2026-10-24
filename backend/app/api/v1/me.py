@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.models.enums import CareerStage, OnboardingPath
 from app.schemas.application import FollowupRuleIn, FollowupRuleOut, FollowupSurfaceOut
 from app.schemas.background_job import EnqueueResponse
+from app.schemas.bootstrap import BootstrapOut
 from app.schemas.i18n import LocaleIn
 from app.services.deps import get_current_user
 from app.services.profile.account_service import request_export
@@ -175,7 +176,7 @@ async def put_locale(
     return {"locale": normalized, "supported": list(SUPPORTED_LOCALES), "source": "user"}
 
 
-@router.get("/bootstrap")
+@router.get("/bootstrap", response_model=BootstrapOut)
 async def bootstrap(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """Stage + per-feature flags for the SPA shell."""
     from app.services.deps import get_profile_for_user
@@ -197,7 +198,7 @@ async def bootstrap(user=Depends(get_current_user), db: AsyncSession = Depends(g
     return payload
 
 
-@router.put("/stage")
+@router.put("/stage", response_model=BootstrapOut)
 async def put_stage(
     body: StageIn, user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict:
