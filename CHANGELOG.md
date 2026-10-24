@@ -33,6 +33,14 @@ All notable changes to **Career Assistant** are documented here.
   copies).
 - Docs: `docs/user/career-paths.md`, feature-registry row (`/paths`,
   beta) with a demo-tour scene, README feature-status row.
+### Fixed (manual_url 304, connector conformance v1, 2026-10-24)
+- **`manual_url` no longer treats HTTP 304 as an error.** A conditional
+  GET answered "Not Modified" (the cached page is still current) was
+  surfaced as a typed `provider-error`, failing the source sync for
+  perfectly healthy sources. It now short-circuits to an empty success
+  that re-stamps the cache state — the same shape every other builtin
+  connector already had. Caught by the hardened family conformance kit
+  (contracts v1: the new 304 floor).
 
 ### Changed (generated wire types, 2026-10-24)
 - **Plan 123.4 — the wire contract is now generated.** The SPA's API

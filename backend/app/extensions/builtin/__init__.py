@@ -560,6 +560,10 @@ class ManualUrlConnector(PostingConnector):
         if transport is None:
             return _not_ready()
         resp = await transport(str(cfg.url), conditional_headers(state or {}))
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
+            )
         if resp.status != 200:
             return ConnectorResult(
                 partial_errors=[_provider_error(f"manual fetch failed with status {resp.status}")]
