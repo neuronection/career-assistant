@@ -11,7 +11,7 @@ import {
   setSystemScheduleEnabled,
 } from "@/api/scheduler";
 import { useAuthStore } from "@/stores/authStore";
-import type { ScheduleItem } from "@/types";
+import type { ScheduleItem } from "@/types/wire";
 
 vi.mock("@/api/scheduler", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/scheduler")>();
@@ -32,7 +32,6 @@ const mySchedules: ScheduleItem[] = [
     kind: "user_checkin",
     task: null,
     trigger: { type: "interval", params: { every_minutes: 129600 } },
-    payload: {},
     enabled: true,
     next_run_at: "2026-11-29T00:00:00Z",
     last_status: "ok",
@@ -64,8 +63,7 @@ describe("Scheduler settings", () => {
         kind: "system_source_sync",
         task: "posting_sync",
         trigger: { type: "interval", params: { every_minutes: 360, jitter_minutes: 30 } },
-        payload: {},
-        enabled: true,
+          enabled: true,
         next_run_at: "2026-08-31T12:00:00Z",
         last_status: "ok",
         consecutive_failures: 0,

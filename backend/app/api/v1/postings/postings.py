@@ -12,8 +12,12 @@ from app.schemas.posting import (
     AppliedIn,
     ExploreOut,
     PostingDetailOut,
+    PostingExtractOut,
+    PostingLocationOut,
+    PostingMatchOut,
     PostingOut,
     PostingSearchOut,
+    PostingSimilarOut,
     PostingsOut,
     SaveIn,
     SeenIn,
@@ -52,7 +56,7 @@ def _posting_out(
         external_id=posting.external_id,
         title=posting.title,
         org=posting.org,
-        location=posting.location or {},
+        location=PostingLocationOut.model_validate(posting.location or {}),
         url=posting.url,
         seniority=posting.seniority,
         employment_type=posting.employment_type,
@@ -315,12 +319,12 @@ async def posting_detail(
     out = _posting_out(posting, interaction, application)
     return PostingDetailOut(
         **out.model_dump(),
-        extract=posting.extract,
+        extract=PostingExtractOut.model_validate(posting.extract) if posting.extract else None,
         source_title=connector_title,
         source_connector=source.key if source else "",
         source_synced_at=source.last_run_at if source else None,
-        match=match,
-        similar=similar,
+        match=PostingMatchOut.model_validate(match) if match else None,
+        similar=[PostingSimilarOut.model_validate(row) for row in similar],
     )
 
 

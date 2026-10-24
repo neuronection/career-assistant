@@ -5,7 +5,7 @@ import {
   Sofa,
   type LucideIcon,
 } from "lucide-react";
-import type { OnboardingPath } from "@/types";
+import type { OnboardingPath } from "@/types/wire";
 
 export type OnboardingStepName =
   | "Import CV"

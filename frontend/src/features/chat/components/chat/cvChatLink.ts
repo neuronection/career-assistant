@@ -3,7 +3,7 @@ import i18next from "i18next";
 import { createChatSession } from "@/api/universities";
 import { writeDraft } from "@/features/chat/components/chat/drafts";
 import { useChatStore, type ChatMode } from "@/stores/chatStore";
-import type { ChatSession } from "@/types";
+import type { ChatSession } from "@/types/wire";
 
 export function cvAskKey(cvId: string): string {
   return `cv:${cvId}`;

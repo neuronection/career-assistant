@@ -11,7 +11,7 @@ import {
   setSavedSearchSchedule,
   setSystemScheduleEnabled,
 } from "@/api/scheduler";
-import type { ScheduleItem } from "@/types";
+import type { ScheduleItem } from "@/types/wire";
 
 const SCHEDULE_PRESETS = [
   {

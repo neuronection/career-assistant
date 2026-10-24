@@ -10,11 +10,7 @@ import {
   skipCheckin,
 } from "@/api/growth";
 import { EmptyState } from "@/components/ui";
-import type {
-  CheckinStatus,
-  GrowthPlanItem,
-  RadarEntry,
-} from "@/types";
+import type { CheckinStatus, GrowthPlanItem, RadarEntry } from "@/types/wire";
 
 export function Growth() {
   const { t } = useTranslation();
@@ -91,7 +87,7 @@ export function Growth() {
                   </span>
                 </div>
                 <ol className="space-y-1.5">
-                  {plan.steps.map((step) => (
+                  {(plan.steps ?? []).map((step) => (
                     <li
                       key={step.id}
                       className="flex items-center justify-between gap-2 text-sm"
@@ -124,12 +120,11 @@ export function Growth() {
                     </li>
                   ))}
                 </ol>
-                {plan.steps.some((s) => s.resources.length > 0) && (
+                {(plan.steps ?? []).some((s) => (s.resources ?? []).length > 0) && (
                   <p className="text-xs text-slate-400 mt-2">
                     {t("growth.closeGaps")}{" "}
-                    {plan.steps
-                      .flatMap((s) => s.resources)
-                      .slice(0, 3)
+                    {(plan.steps ?? [])
+                      .flatMap((s) => s.resources ?? []).slice(0, 3)
                       .map((r) => r.title)
                       .join(", ")}
                   </p>

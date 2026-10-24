@@ -5,7 +5,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import FeedTokenKind, NotificationRuleKind, SearchScope
+from app.models.enums import (
+    FeedTokenKind,
+    NotificationRuleKind,
+    NotificationSeverity,
+    NotificationStatus,
+    SearchScope,
+)
 from app.schemas.job import JobOut
 from app.schemas.matching import MatchInsightOut
 
@@ -109,15 +115,29 @@ class RulesOut(BaseModel):
     items: list[RuleOut]
 
 
+class NotificationPayloadOut(BaseModel):
+    """Notification action payload (emitter-keyed, open-ended)."""
+
+    model_config = {"extra": "allow"}
+
+    job_id: str | None = None
+    job_code: str | None = None
+    family_key: str | None = None
+    score: float | None = None
+    link: str | None = None
+    proposal_ids: list[str] = Field(default_factory=list)
+    chat_session_id: str | None = None
+
+
 class NotificationOut(BaseModel):
     id: UUID
     notification_id: UUID
     kind: str
-    severity: str
-    status: str
+    severity: NotificationSeverity
+    status: NotificationStatus
     title: str
     body: str
-    payload: dict
+    payload: NotificationPayloadOut
     source_ref: dict = Field(default_factory=dict)
     thread_key: str | None = None
     read_at: datetime | None = None

@@ -26,7 +26,7 @@ import {
   updateEducationItem,
 } from "@/api/education";
 import { fetchUniversities, fetchUniversity } from "@/api/universities";
-import type { Department, University } from "@/types";
+import type { Department, University } from "@/types/wire";
 import {
   EMPTY_FORM,
   ExperienceEditor,
@@ -284,7 +284,7 @@ function EducationModalBody({
     }
     let alive = true;
     void fetchUniversity(uniId)
-      .then((detail) => alive && setDepartments(detail.departments))
+      .then((detail) => alive && setDepartments(detail.departments ?? []))
       .catch(() => alive && setDepartments([]));
     return () => {
       alive = false;
@@ -372,7 +372,7 @@ function EducationModalBody({
           }
           onDepartmentsChanged={(universityId) => {
             void fetchUniversity(universityId)
-              .then((detail) => setDepartments(detail.departments))
+              .then((detail) => setDepartments(detail.departments ?? []))
               .catch(() => undefined);
           }}
           {...shared}

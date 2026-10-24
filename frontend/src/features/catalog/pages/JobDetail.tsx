@@ -17,17 +17,8 @@ import { useCompareStore } from "@/stores/compareStore";
 import { useTranslation } from "react-i18next";
 import { formatNumber } from "@/lib/format";
 import { apiDetail } from "@/api/client";
-import type {
-  CareerPath,
-  Job,
-  JobLink,
-  JobMatchDetail,
-  MarketSnapshot,
-  MatchInsight,
-  MatchStatus,
-  Relation,
-  SkillGapReport,
-} from "@/types";
+import type { CareerPath, Job, JobLink, MarketSnapshot, MatchInsight, MatchStatus, Relation, SkillGapReport } from "@/types/wire";
+import type { JobMatchDetail } from "@/types";
 
 const EDUCATION_LABEL: Record<string, string> = {
   no_formal: "No formal education",
@@ -146,8 +137,8 @@ export function JobDetail() {
         notes: notes || undefined,
       });
       setInsight(savedInsight);
-      setUserScore(savedInsight.user_score);
-      setStatus(savedInsight.status);
+      setUserScore(savedInsight.user_score ?? null);
+      setStatus(savedInsight.status ?? null);
     } catch (err) {
       setError(apiDetail(err));
     }
@@ -343,9 +334,9 @@ export function JobDetail() {
       <section className="grid md:grid-cols-2 gap-4">
         <div className="bg-white border border-slate-200 rounded-xl p-4" data-testid="job-skills">
           <h3 className="font-medium mb-2">{t("jobDetail.skillsRequired")}</h3>
-          {gaps && gaps.gaps.length > 0 ? (
+          {gaps && (gaps.gaps ?? []).length > 0 ? (
             <ul className="space-y-2">
-              {gaps.gaps.map((g) => (
+              {(gaps.gaps ?? []).map((g) => (
                 <li key={g.key} className="text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{g.label}</span>
@@ -394,7 +385,7 @@ export function JobDetail() {
                 <div key={path.id}>
                   <p className="text-sm font-medium">{path.title}</p>
                   <ol className="mt-1 space-y-1">
-                    {path.steps.map((step, i) => (
+                    {(path.steps ?? []).map((step, i) => (
                       <li key={i} className="text-xs text-slate-600 flex gap-2">
                         <span className="w-4 h-4 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
                           {i + 1}
@@ -436,7 +427,9 @@ export function JobDetail() {
       <section className="grid md:grid-cols-3 gap-4">
         <InfoBlock title={t("jobDetail.education")}>
           <p>{EDUCATION_LABEL[attrs?.education?.level ?? ""] ?? attrs?.education?.level}</p>
-          {attrs?.education?.fields.length > 0 && <p className="text-slate-500">{attrs.education.fields.join(", ")}</p>}
+          {(attrs?.education?.fields ?? []).length > 0 && (
+            <p className="text-slate-500">{(attrs?.education?.fields ?? []).join(", ")}</p>
+          )}
           {(job.links ?? []).length > 0 && (
             <div className="pt-2 space-y-1" data-testid="job-links">
               {(job.links ?? []).map((link, i) => (
@@ -459,11 +452,11 @@ export function JobDetail() {
             <div className="text-sm space-y-0.5" data-testid="market-snapshot">
               <p>
                 {t("jobDetail.livePostings", { count: snapshot.sample_size })}
-                {snapshot.months.length > 0 && (
+                {(snapshot.months ?? []).length > 0 && (
                   <span className="text-slate-400">
                     {" · "}
                     {t("jobDetail.last30d", {
-                      count: snapshot.months[snapshot.months.length - 1].postings,
+                      count: (snapshot.months ?? [])[(snapshot.months ?? []).length - 1]?.postings ?? 0,
                     })}
                   </span>
                 )}
@@ -481,10 +474,10 @@ export function JobDetail() {
               ) : (
                 <p className="text-slate-400">{t("jobDetail.salaryBandHidden", { sample: snapshot.sample_size })}</p>
               )}
-              {snapshot.top_skills.length > 0 && (
+              {(snapshot.top_skills ?? []).length > 0 && (
                 <p className="text-slate-500">
                   {t("jobDetail.demanded")}{" "}
-                  {snapshot.top_skills.slice(0, 4).map((s) => s.key).join(", ")}
+                  {(snapshot.top_skills ?? []).slice(0, 4).map((s) => s.key).join(", ")}
                 </p>
               )}
               <MarketTrendStrip history={trend} />

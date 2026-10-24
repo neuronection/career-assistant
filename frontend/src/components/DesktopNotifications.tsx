@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MonitorDown } from "lucide-react";
 
 import { fetchNotificationPreferences } from "@/api/engagement";
+import type { NotificationPreferences } from "@/types/wire";
 import {
   activateDesktop,
   desktopApi,
@@ -53,8 +54,7 @@ export function DesktopNotifications() {
   useEffect(() => {
     if (!isDesktop()) return;
 
-    let prefs: { desktop_channel_enabled: boolean; quiet_hours: { start: string; end: string } | null } | null =
-      null;
+    let prefs: NotificationPreferences | null = null;
     let nativeReady = false;
 
     const loadPrefs = async () => {

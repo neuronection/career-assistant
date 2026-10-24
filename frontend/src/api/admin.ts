@@ -1,6 +1,6 @@
 import axios from "axios";
 import { api } from "@/api/client";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 /** `PublicUser` (identity-auth §12) — what `/auth/me` and
  * `PATCH /me/password` return. Never hashes/counters/stamps. */

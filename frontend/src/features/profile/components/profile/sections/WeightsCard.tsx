@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ProfileSectionCard } from "@/features/profile/components/profile/ProfileSectionCard";
 import { WeightsEditor } from "@/features/catalog/components/WeightsEditor";
-import type { ScoringWeights } from "@/types";
+import type { ScoringWeights } from "@/types/wire";
 
 export interface WeightsCardProps {
   initial?: ScoringWeights;

@@ -11,7 +11,8 @@ import {
 } from "@/features/cv/components/cv/formPrimitives";
 import { ProfileSectionCard } from "@/features/profile/components/profile/ProfileSectionCard";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type { CareerStage, Profile, ProfileLink, ProfileLinkKind } from "@/types";
+import type { CareerStage, ProfileLink, ProfileLinkKind } from "@/types/wire";
+import type { Profile } from "@/types";
 import {
   EDUCATION_OPTIONS,
   LINK_KIND_OPTIONS,

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { saveScoringWeights } from "@/api/matching";
 import { ScaleSlider, Button } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import type { ScoringWeights } from "@/types";
+import type { ScoringWeights } from "@/types/wire";
 
 const DIMENSIONS: { key: keyof ScoringWeights; labelKey: string }[] = [
   { key: "skills", labelKey: "weightsEditor.dim.skills" },

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type { Bootstrap } from "@/types";
+import type { Bootstrap } from "@/types/wire";
 
 function bootstrap(partial: Partial<Bootstrap>): Bootstrap {
   return {
@@ -27,6 +27,8 @@ function bootstrap(partial: Partial<Bootstrap>): Bootstrap {
       values: 3,
     },
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
     ...partial,
   };
 }

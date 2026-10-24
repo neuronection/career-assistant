@@ -2,9 +2,9 @@ import { Bookmark, ExternalLink, EyeOff, MapPin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { hidePosting, markApplied, markPostingsSeen, savePosting } from "@/api/postings";
-import type { JobPostingItem } from "@/types";
+import type { PostingOut } from "@/types/wire";
 
-export function provenanceOf(posting: JobPostingItem): "raw" | "fast-mapped" | "extracted" {
+export function provenanceOf(posting: PostingOut): "raw" | "fast-mapped" | "extracted" {
   if (posting.extract_version != null) return "extracted";
   return posting.mapping_method ? "fast-mapped" : "raw";
 }
@@ -19,8 +19,8 @@ export function PostingCard({
   onOpenDetail,
   onChanged,
 }: {
-  posting: JobPostingItem;
-  onOpenDetail?: (posting: JobPostingItem) => void;
+  posting: PostingOut;
+  onOpenDetail?: (posting: PostingOut) => void;
   onChanged?: () => void;
 }) {
   const { t } = useTranslation();

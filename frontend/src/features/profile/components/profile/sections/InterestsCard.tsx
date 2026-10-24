@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Search } from "lucide-react";
 import { ProfileSectionCard } from "@/features/profile/components/profile/ProfileSectionCard";
 import { useProfileStore } from "@/stores/profileStore";
-import type { Profile, TaxonomyTag } from "@/types";
+import type { TaxonomyTag } from "@/types";
+import type { Profile } from "@/types";
 import {
   useSectionCard,
   type SectionCardBaseProps,

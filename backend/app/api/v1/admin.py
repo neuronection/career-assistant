@@ -1040,6 +1040,7 @@ async def admin_schedules(db: AsyncSession = Depends(get_db)) -> list[dict]:
             "kind": s.kind,
             "task": s.task,
             "trigger": s.trigger,
+            "payload": s.payload,
             "enabled": s.enabled,
             "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
             "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,

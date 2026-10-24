@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { Bootstrap, CareerStage } from "@/types";
+import type { Bootstrap, CareerStage } from "@/types/wire";
 
 export async function fetchBootstrap(): Promise<Bootstrap> {
   const { data } = await api.get<Bootstrap>("/me/bootstrap");

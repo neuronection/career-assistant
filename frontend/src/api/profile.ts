@@ -1,5 +1,6 @@
 import { api } from "@/api/client";
-import type { Profile, TaxonomyTag } from "@/types";
+import type { TaxonomyTag } from "@/types";
+import type { Profile } from "@/types";
 
 export async function fetchProfile(): Promise<Profile> {
   const { data } = await api.get<Profile>("/profile");

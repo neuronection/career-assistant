@@ -33,15 +33,8 @@ import { apiDetail } from "@/api/client";
 import { hasChannel } from "@/lib/desktop";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type {
-  EmailChannelConfig,
-  EmailTransportConfig,
-  FeedToken,
-  FeedTokenMinted,
-  PreferencesMatrix,
-  SearchRecord,
-  WebhookChannelConfig,
-} from "@/types";
+import type { EmailChannelConfig, EmailTransportConfig, FeedToken, FeedTokenMinted, SearchRecord, WebhookChannelConfig } from "@/types/wire";
+import type { PreferencesMatrix } from "@/types/wire";
 
 const DEVICE_ID = "web";
 

@@ -7,7 +7,8 @@ import { Explore } from "@/features/catalog/pages/Explore";
 import { explorePostings, fetchPostingDetail } from "@/api/postings";
 import { recordSearch, saveSearch } from "@/api/engagement";
 import { PostingDetail } from "@/features/postings/components/PostingDetail";
-import type { ExploreResponse, JobPostingItem } from "@/types";
+import type { ExploreResponse } from "@/types/wire";
+import type { PostingOut } from "@/types/wire";
 
 vi.mock("@/api/postings", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/postings")>();
@@ -53,7 +54,7 @@ const mockExplore = vi.mocked(explorePostings);
 const mockRecord = vi.mocked(recordSearch);
 const mockSave = vi.mocked(saveSearch);
 
-function posting(overrides: Partial<JobPostingItem> = {}): JobPostingItem {
+function posting(overrides: Partial<PostingOut> = {}): PostingOut {
   return {
     id: "p1",
     ref: "P3KX9Q2A",
@@ -71,6 +72,8 @@ function posting(overrides: Partial<JobPostingItem> = {}): JobPostingItem {
     saved: false,
     notes: "",
     source_key: "synth",
+    mapping_reason: "",
+    needs_review: false,
     ...overrides,
   };
 }
@@ -232,37 +235,35 @@ describe("Explore page", () => {
 describe("PostingDetail match card", () => {
   it("renders the match score, source attribution, ref and similar rail", async () => {
     mockExplore.mockResolvedValue(exploreResponse());
-    vi.mocked(fetchPostingDetail).mockResolvedValue(
-      posting({
-        match: {
-          score: 7.8,
-          breakdown: {
-            skills: { score: 8.5, weight: 5, detail: "covered" },
-            freshness: { score: 6.0, weight: 1, detail: "posted 2 weeks ago" },
+    vi.mocked(fetchPostingDetail).mockResolvedValue({
+      ...posting({ seniority: "mid" }),
+      source_title: "Synthetic test connector",
+      source_connector: "synth",
+      source_synced_at: "2026-08-30T00:00:00Z",
+      match: {
+        score: 7.8,
+        breakdown: {
+          freshness: { score: 6.0, weight: 1, detail: "posted 2 weeks ago" },
+        },
+        extracted: true,
+        estimate: false,
+        inputs_hash: "abc",
+      },
+      similar: [
+        { ref: "AAAA2222", title: "Data Analyst", org: "BetaCo", score: 0.72 },
+      ],
+      extract: {
+        skills: [
+          {
+            skill_key: "programming",
+            required_level: 5,
+            priority: "must_have",
+            evidence_quote: "strong programming required",
+            confidence: 0.95,
           },
-          extracted: true,
-          estimate: false,
-          inputs_hash: "abc",
-        },
-        source_title: "Synthetic test connector",
-        source_connector: "synth",
-        source_synced_at: "2026-08-30T00:00:00Z",
-        similar: [
-          { ref: "AAAA2222", title: "Data Analyst", org: "BetaCo", score: 0.72 },
         ],
-        extract: {
-          skills: [
-            {
-              skill_key: "programming",
-              required_level: 5,
-              priority: "must_have",
-              evidence_quote: "strong programming required",
-              confidence: 0.95,
-            },
-          ],
-        },
-      })
-    );
+      },
+    });
     render(
       <MemoryRouter>
         <PostingDetail postingId="P3KX9Q2A" onClose={() => undefined} />
@@ -277,23 +278,18 @@ describe("PostingDetail match card", () => {
   });
 
   it("flags the archetype estimate for unextracted postings", async () => {
-    vi.mocked(fetchPostingDetail).mockResolvedValue(
-      posting({
-        match: {
-          score: 6.4,
-          breakdown: {
-            archetype_estimate: {
-              score: 6.4,
-              weight: 5,
-              detail: "archetype estimate — deep extraction has not run",
-            },
-          },
-          extracted: false,
-          estimate: true,
-          inputs_hash: "abc",
-        },
-      })
-    );
+    vi.mocked(fetchPostingDetail).mockResolvedValue({
+      ...posting({ seniority: "mid" }),
+      source_title: "QA Automation Engineer",
+      source_connector: "synth",
+      match: {
+        score: 6.5,
+        breakdown: {},
+        extracted: false,
+        estimate: true,
+        inputs_hash: "abc",
+      },
+    });
     render(
       <MemoryRouter>
         <PostingDetail postingId="P3KX9Q2A" onClose={() => undefined} />

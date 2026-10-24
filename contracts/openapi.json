@@ -180,6 +180,29 @@
         "title": "AddBlockOp",
         "type": "object"
       },
+      "AdjacentTargetOut": {
+        "properties": {
+          "family_key": {
+            "title": "Family Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sample": {
+            "title": "Sample",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family_key",
+          "label",
+          "sample"
+        ],
+        "title": "AdjacentTargetOut",
+        "type": "object"
+      },
       "AdminPasswordResetIn": {
         "properties": {
           "new_password": {
@@ -7999,7 +8022,12 @@
         "description": "Explore response: cursor-paginated items + facets.",
         "properties": {
           "facets": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
             "title": "Facets",
             "type": "object"
           },
@@ -10735,6 +10763,41 @@
         "title": "MarketTrendPointOut",
         "type": "object"
       },
+      "MatchBreakdownAspectOut": {
+        "description": "One match-score dimension bar (score/weight envelope).",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "neutral": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Neutral"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "MatchBreakdownAspectOut",
+        "type": "object"
+      },
       "MatchInsightOut": {
         "properties": {
           "ai_confidence": {
@@ -10950,6 +11013,50 @@
           }
         },
         "title": "McpTokenIn",
+        "type": "object"
+      },
+      "MeLocaleStateOut": {
+        "description": "The caller's effective locale: adds who chose it. PUT omits\n``instance_locale`` (unchanged by the write); GET always carries it.",
+        "properties": {
+          "instance_locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Locale"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "supported": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported",
+            "type": "array"
+          }
+        },
+        "required": [
+          "locale",
+          "supported"
+        ],
+        "title": "MeLocaleStateOut",
         "type": "object"
       },
       "Message": {
@@ -11492,9 +11599,7 @@
             "type": "string"
           },
           "payload": {
-            "additionalProperties": true,
-            "title": "Payload",
-            "type": "object"
+            "$ref": "#/components/schemas/NotificationPayloadOut"
           },
           "read_at": {
             "anyOf": [
@@ -11509,8 +11614,7 @@
             "title": "Read At"
           },
           "severity": {
-            "title": "Severity",
-            "type": "string"
+            "$ref": "#/components/schemas/NotificationSeverity"
           },
           "source_ref": {
             "additionalProperties": true,
@@ -11518,8 +11622,7 @@
             "type": "object"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/NotificationStatus"
           },
           "thread_key": {
             "anyOf": [
@@ -11549,6 +11652,87 @@
           "created_at"
         ],
         "title": "NotificationOut",
+        "type": "object"
+      },
+      "NotificationPayloadOut": {
+        "additionalProperties": true,
+        "description": "Notification action payload (emitter-keyed, open-ended).",
+        "properties": {
+          "chat_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chat Session Id"
+          },
+          "family_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Key"
+          },
+          "job_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Code"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "proposal_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Proposal Ids",
+            "type": "array"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "title": "NotificationPayloadOut",
         "type": "object"
       },
       "NotificationPreferencesIn": {
@@ -11603,6 +11787,26 @@
           "new_posting_match"
         ],
         "title": "NotificationRuleKind",
+        "type": "string"
+      },
+      "NotificationSeverity": {
+        "enum": [
+          "info",
+          "success",
+          "warning",
+          "critical"
+        ],
+        "title": "NotificationSeverity",
+        "type": "string"
+      },
+      "NotificationStatus": {
+        "description": "Inbox state of one (notification, recipient) pair.",
+        "enum": [
+          "unread",
+          "read",
+          "dismissed"
+        ],
+        "title": "NotificationStatus",
         "type": "string"
       },
       "NotificationsOut": {
@@ -11707,6 +11911,88 @@
           "ok"
         ],
         "title": "OpResult",
+        "type": "object"
+      },
+      "OpenPostingsEmployerOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "org": {
+            "title": "Org",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org",
+          "count"
+        ],
+        "title": "OpenPostingsEmployerOut",
+        "type": "object"
+      },
+      "OpenPostingsOut": {
+        "description": "Target-mode posting analytics for the dashboard banner.",
+        "properties": {
+          "salary_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenPostingsSalaryBandOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_employers": {
+            "items": {
+              "$ref": "#/components/schemas/OpenPostingsEmployerOut"
+            },
+            "title": "Top Employers",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unseen": {
+            "title": "Unseen",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "unseen"
+        ],
+        "title": "OpenPostingsOut",
+        "type": "object"
+      },
+      "OpenPostingsSalaryBandOut": {
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "title": "OpenPostingsSalaryBandOut",
         "type": "object"
       },
       "OverlayDraftIn": {
@@ -12154,14 +12440,12 @@
           "extract": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/PostingExtractOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Extract"
+            ]
           },
           "extract_version": {
             "anyOf": [
@@ -12191,9 +12475,7 @@
             "type": "string"
           },
           "location": {
-            "additionalProperties": true,
-            "title": "Location",
-            "type": "object"
+            "$ref": "#/components/schemas/PostingLocationOut"
           },
           "mapping_confidence": {
             "anyOf": [
@@ -12224,14 +12506,12 @@
           "match": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/PostingMatchOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Match"
+            ]
           },
           "needs_review": {
             "default": false,
@@ -12342,8 +12622,7 @@
           },
           "similar": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/PostingSimilarOut"
             },
             "title": "Similar",
             "type": "array"
@@ -12416,6 +12695,414 @@
           "mapping_reason"
         ],
         "title": "PostingDetailOut",
+        "type": "object"
+      },
+      "PostingExtractEducationOut": {
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          }
+        },
+        "title": "PostingExtractEducationOut",
+        "type": "object"
+      },
+      "PostingExtractLocationOut": {
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          }
+        },
+        "title": "PostingExtractLocationOut",
+        "type": "object"
+      },
+      "PostingExtractOut": {
+        "additionalProperties": true,
+        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).",
+        "properties": {
+          "benefits": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Benefits",
+            "type": "array"
+          },
+          "education": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractEducationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "employment_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employment Type"
+          },
+          "field_confidence": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Field Confidence",
+            "type": "object"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractLocationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remote_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote Policy"
+          },
+          "responsibilities": {
+            "items": {
+              "$ref": "#/components/schemas/PostingExtractResponsibilityOut"
+            },
+            "title": "Responsibilities",
+            "type": "array"
+          },
+          "salary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractSalaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seniority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seniority"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PostingExtractSkillOut"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "title_norm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Norm"
+          }
+        },
+        "title": "PostingExtractOut",
+        "type": "object"
+      },
+      "PostingExtractResponsibilityOut": {
+        "properties": {
+          "optional": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optional"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "time_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Pct"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PostingExtractResponsibilityOut",
+        "type": "object"
+      },
+      "PostingExtractSalaryOut": {
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          }
+        },
+        "title": "PostingExtractSalaryOut",
+        "type": "object"
+      },
+      "PostingExtractSkillOut": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence_quote": {
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "string"
+          },
+          "raw_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Label"
+          },
+          "required_level": {
+            "title": "Required Level",
+            "type": "integer"
+          },
+          "skill_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Key"
+          },
+          "unresolved": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unresolved"
+          }
+        },
+        "required": [
+          "required_level",
+          "priority",
+          "evidence_quote",
+          "confidence"
+        ],
+        "title": "PostingExtractSkillOut",
+        "type": "object"
+      },
+      "PostingLocationOut": {
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remote"
+          }
+        },
+        "title": "PostingLocationOut",
+        "type": "object"
+      },
+      "PostingMatchOut": {
+        "description": "The deterministic posting match card (fit-style scoring).",
+        "properties": {
+          "breakdown": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MatchBreakdownAspectOut"
+            },
+            "title": "Breakdown",
+            "type": "object"
+          },
+          "estimate": {
+            "default": false,
+            "title": "Estimate",
+            "type": "boolean"
+          },
+          "extracted": {
+            "default": false,
+            "title": "Extracted",
+            "type": "boolean"
+          },
+          "gates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gates"
+          },
+          "inputs_hash": {
+            "default": "",
+            "title": "Inputs Hash",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "score"
+        ],
+        "title": "PostingMatchOut",
         "type": "object"
       },
       "PostingOut": {
@@ -12532,9 +13219,7 @@
             "type": "string"
           },
           "location": {
-            "additionalProperties": true,
-            "title": "Location",
-            "type": "object"
+            "$ref": "#/components/schemas/PostingLocationOut"
           },
           "mapping_confidence": {
             "anyOf": [
@@ -12742,6 +13427,34 @@
           "unseen"
         ],
         "title": "PostingSearchOut",
+        "type": "object"
+      },
+      "PostingSimilarOut": {
+        "properties": {
+          "org": {
+            "title": "Org",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "title",
+          "org",
+          "score"
+        ],
+        "title": "PostingSimilarOut",
         "type": "object"
       },
       "PostingsOut": {
@@ -14394,6 +15107,24 @@
         "title": "RemoveBlockOp",
         "type": "object"
       },
+      "ResolveFamilyOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "ResolveFamilyOut",
+        "type": "object"
+      },
       "ResolveOut": {
         "properties": {
           "archetypes": {
@@ -14405,8 +15136,7 @@
           },
           "families": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ResolveFamilyOut"
             },
             "title": "Families",
             "type": "array"
@@ -14714,6 +15444,11 @@
               }
             ],
             "title": "Next Run At"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
           },
           "task": {
             "anyOf": [
@@ -16358,8 +17093,7 @@
         "properties": {
           "adjacent_targets": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/AdjacentTargetOut"
             },
             "title": "Adjacent Targets",
             "type": "array"
@@ -16382,16 +17116,12 @@
             "type": "array"
           },
           "open_postings": {
-            "additionalProperties": true,
-            "title": "Open Postings",
-            "type": "object"
+            "$ref": "#/components/schemas/OpenPostingsOut"
           }
         },
         "required": [
           "families",
           "open_postings",
-          "adjacent_targets",
-          "nudges",
           "completeness"
         ],
         "title": "TargetDashboardOut",
@@ -16666,9 +17396,7 @@
             "type": "string"
           },
           "payload": {
-            "additionalProperties": true,
-            "title": "Payload",
-            "type": "object"
+            "$ref": "#/components/schemas/NotificationPayloadOut"
           },
           "read_at": {
             "anyOf": [
@@ -16683,8 +17411,7 @@
             "title": "Read At"
           },
           "severity": {
-            "title": "Severity",
-            "type": "string"
+            "$ref": "#/components/schemas/NotificationSeverity"
           },
           "source_ref": {
             "additionalProperties": true,
@@ -16692,8 +17419,7 @@
             "type": "object"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/NotificationStatus"
           },
           "thread_key": {
             "anyOf": [
@@ -32181,9 +32907,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Locale Api V1 Me Locale Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MeLocaleStateOut"
                 }
               }
             },
@@ -32213,9 +32937,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Locale Api V1 Me Locale Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MeLocaleStateOut"
                 }
               }
             },

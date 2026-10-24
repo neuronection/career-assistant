@@ -7,7 +7,7 @@ import { OnboardingSetup } from "@/pages/OnboardingSetup";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import type { AIProvider, ProviderSetupResult } from "@/api/ai";
-import type { AiStatus, Bootstrap } from "@/types";
+import type { AiStatus, Bootstrap } from "@/types/wire";
 
 vi.mock("@/api/ai", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/ai")>();
@@ -62,6 +62,8 @@ function bootstrap(ai: AiStatus): Bootstrap {
     suggested_scoring_weights: weights,
     effective_scoring_weights: weights,
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
     ai,
   };
 }

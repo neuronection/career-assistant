@@ -5,7 +5,7 @@ import { JobCard } from "@/features/catalog/components/JobCard";
 import { AiButton } from "@/components/AiButton";
 import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import { quickAssist } from "@/api/universities";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 vi.mock("@/api/universities");
 
@@ -20,6 +20,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     code: "software-developer",
     title: "Software Developer",
     family_key: "technology-software",
+    family_label: "",
     short_description: "Writes code for a living.",
     status: "published",
     source: "seed",

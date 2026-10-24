@@ -37,6 +37,7 @@ import {
   type ChatMessageView,
   type HitlDensity,
 } from "@/components/ui/chat";
+import type { ChatMessage as ChatMessageRow } from "@/types";
 import { Button, PopoverButton } from "@/components/ui";
 import {
   DictationButton,
@@ -56,7 +57,7 @@ import {
   useCareerChatContext,
   useOpenStudioCv,
 } from "@/features/chat/components/chat/useCareerChat";
-import type { ChatMessage as ChatMessageRow } from "@/types";
+
 
 function TraceMeta({ message }: { message: ChatMessageRow }) {
   const meta = message.metadata_json;

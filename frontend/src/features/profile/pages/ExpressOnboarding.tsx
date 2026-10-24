@@ -5,7 +5,7 @@ import { Rocket, Search } from "lucide-react";
 import { expressStart, resolveTarget } from "@/api/onboarding";
 import { SearchableDropdown } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import type { ResolveResponse } from "@/types";
+import type { ResolveResponse } from "@/types/wire";
 
 const STAGES = [
   { value: "student", labelKey: "express.stage.student" },
@@ -59,7 +59,14 @@ export function ExpressOnboarding() {
     setBusy(true);
     setError("");
     try {
-      await expressStart({ targets, location: location || undefined, remote, stage: stage || undefined });
+      await expressStart({
+        targets,
+        location: location || undefined,
+        remote,
+        stage: stage || undefined,
+        min_fit: 7,
+        max_per_day: 5,
+      });
       navigate("/");
     } catch (err) {
       setError(apiDetail(err));

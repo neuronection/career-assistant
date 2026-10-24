@@ -74,7 +74,8 @@ import { TastesCard } from "@/features/profile/components/profile/sections/Taste
 import { WeightsCard } from "@/features/profile/components/profile/sections/WeightsCard";
 import { WorkStyleCard } from "@/features/profile/components/profile/sections/WorkStyleCard";
 import { ProfileSectionCard } from "@/features/profile/components/profile/ProfileSectionCard";
-import type { CareerStage, Profile } from "@/types";
+import type { CareerStage } from "@/types/wire";
+import type { Profile } from "@/types";
 
 const STAGE_OPTIONS = [
   { value: "student", labelKey: "profileEdit.stage.student" },

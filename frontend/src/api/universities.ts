@@ -1,13 +1,6 @@
 import { api } from "@/api/client";
-import type {
-  Admission,
-  ChatMessage,
-  ChatSession,
-  Department,
-  DocumentRecord,
-  University,
-  UniversityDetail,
-} from "@/types";
+import type { Admission, ChatSession, Department, University, UniversityDetail } from "@/types/wire";
+import type { ChatMessage, DocumentRecord } from "@/types";
 
 export async function fetchUniversities(params: Record<string, unknown> = {}): Promise<University[]> {
   const { data } = await api.get<University[]>("/universities", { params });

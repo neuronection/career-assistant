@@ -8,7 +8,8 @@ import { useBackgroundJob } from "@/hooks/useBackgroundJob";
 import { JobFlowStatus } from "@/features/catalog/components/JobFlowStatus";
 import { apiDetail } from "@/api/client";
 import { EmptyState } from "@/components/ui";
-import type { DocumentRecord, University } from "@/types";
+import type { University } from "@/types/wire";
+import type { DocumentRecord } from "@/types";
 
 export function Universities() {
   const { t } = useTranslation();
@@ -191,7 +192,7 @@ export function UniversityDepartments({ universityId }: { universityId: string }
   if (!detail) return null;
   return (
     <ul>
-      {detail.departments.map((d: { id: string; name: string }) => (
+      {(detail.departments ?? []).map((d: { id: string; name: string }) => (
         <li key={d.id}>{d.name}</li>
       ))}
     </ul>

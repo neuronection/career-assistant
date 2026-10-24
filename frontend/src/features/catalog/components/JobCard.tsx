@@ -1,7 +1,7 @@
 import { Bookmark, Compass } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DemandBadge } from "@/features/postings/components/DemandBadge";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 export const EDUCATION_CHIP: Record<string, string> = {
   no_formal: "education.chip.no_formal",

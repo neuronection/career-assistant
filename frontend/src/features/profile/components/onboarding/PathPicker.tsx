@@ -6,7 +6,7 @@ import {
   PATHS,
   PATH_LABEL_KEYS,
 } from "@/config/onboardingPaths";
-import type { OnboardingPath } from "@/types";
+import type { OnboardingPath } from "@/types/wire";
 
 /** The /onboarding hero: brand panel + one tile per start
  * path. Tokens only; entrance motion via motion.css (reduced-motion

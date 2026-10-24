@@ -1,7 +1,7 @@
 import ReactFlow, { Background, type Edge, type Node } from "reactflow";
 import "reactflow/dist/style.css";
 import { useTranslation } from "react-i18next";
-import type { JobGraph } from "@/types";
+import type { JobGraph } from "@/types/wire";
 
 const FAMILY_COLORS: Record<string, string> = {
   technology: "#2563eb",

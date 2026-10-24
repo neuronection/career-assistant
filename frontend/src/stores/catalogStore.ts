@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as jobsApi from "@/api/jobs";
-import type { Job, JobFamilyNode } from "@/types";
+import type { Job } from "@/types/wire";
+import type { JobFamilyNode } from "@/types";
 
 interface CatalogState {
   families: JobFamilyNode[];

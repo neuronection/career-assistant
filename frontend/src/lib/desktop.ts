@@ -101,7 +101,7 @@ export async function setCloseToTray(value: boolean): Promise<void> {
 
 /** Channel capability declared by the bootstrap payload. */
 export function hasChannel(
-  channels: NotificationChannel[] | undefined,
+  channels: string[] | undefined,
   channel: NotificationChannel
 ): boolean {
   return Array.isArray(channels) && channels.includes(channel);

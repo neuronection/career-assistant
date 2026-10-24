@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useCatalogStore } from "@/stores/catalogStore";
 import * as jobsApi from "@/api/jobs";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 vi.mock("@/api/jobs");
 
@@ -13,6 +13,7 @@ function makeJob(code: string): Job {
     code,
     title: code,
     family_key: "technology",
+    family_label: "",
     short_description: "desc",
     status: "published",
     source: "seed",

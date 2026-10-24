@@ -1,5 +1,6 @@
 import { pickLanguages } from "@neuronection/assistant-ui/languages";
-import type { EducationLevel, PhysicalActivity, Profile } from "@/types";
+import type { EducationLevel, PhysicalActivity } from "@/types/wire";
+import type { Profile } from "@/types";
 
 export const STAGE_OPTIONS = [
   { value: "student", labelKey: "profile.options.i_m_a_student" },

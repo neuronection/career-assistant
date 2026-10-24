@@ -1,12 +1,6 @@
 import { api } from "@/api/client";
-import type {
-  Candidate,
-  Job,
-  JobMatchDetail,
-  MatchInsight,
-  MatchStatus,
-  RankedJob,
-} from "@/types";
+import type { Candidate, Job, MatchInsight, MatchStatus, RankedJob } from "@/types/wire";
+import type { JobMatchDetail } from "@/types";
 
 export async function fetchCandidates(params: Record<string, unknown> = {}): Promise<Candidate[]> {
   const { data } = await api.get<Candidate[]>("/match/candidates", { params });

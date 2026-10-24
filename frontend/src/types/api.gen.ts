@@ -7524,6 +7524,15 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** AdjacentTargetOut */
+        AdjacentTargetOut: {
+            /** Family Key */
+            family_key: string;
+            /** Label */
+            label: string;
+            /** Sample */
+            sample: string;
+        };
         /** AdminPasswordResetIn */
         AdminPasswordResetIn: {
             /** New Password */
@@ -10610,7 +10619,9 @@ export interface components {
         ExploreOut: {
             /** Facets */
             facets?: {
-                [key: string]: unknown;
+                [key: string]: {
+                    [key: string]: number;
+                };
             };
             /** Items */
             items: components["schemas"]["PostingOut"][];
@@ -11683,6 +11694,20 @@ export interface components {
             /** Thin Sample */
             thin_sample: boolean;
         };
+        /**
+         * MatchBreakdownAspectOut
+         * @description One match-score dimension bar (score/weight envelope).
+         */
+        MatchBreakdownAspectOut: {
+            /** Detail */
+            detail: string;
+            /** Neutral */
+            neutral?: boolean | null;
+            /** Score */
+            score: number;
+            /** Weight */
+            weight: number;
+        };
         /** MatchInsightOut */
         MatchInsightOut: {
             /** Ai Confidence */
@@ -11759,6 +11784,21 @@ export interface components {
             label: string;
             /** Scopes */
             scopes?: string[];
+        };
+        /**
+         * MeLocaleStateOut
+         * @description The caller's effective locale: adds who chose it. PUT omits
+         *     ``instance_locale`` (unchanged by the write); GET always carries it.
+         */
+        MeLocaleStateOut: {
+            /** Instance Locale */
+            instance_locale?: string | null;
+            /** Locale */
+            locale: string;
+            /** Source */
+            source?: string | null;
+            /** Supported */
+            supported: string[];
         };
         /**
          * Message
@@ -11939,24 +11979,41 @@ export interface components {
              * Format: uuid
              */
             notification_id: string;
-            /** Payload */
-            payload: {
-                [key: string]: unknown;
-            };
+            payload: components["schemas"]["NotificationPayloadOut"];
             /** Read At */
             read_at?: string | null;
-            /** Severity */
-            severity: string;
+            severity: components["schemas"]["NotificationSeverity"];
             /** Source Ref */
             source_ref?: {
                 [key: string]: unknown;
             };
-            /** Status */
-            status: string;
+            status: components["schemas"]["NotificationStatus"];
             /** Thread Key */
             thread_key?: string | null;
             /** Title */
             title: string;
+        };
+        /**
+         * NotificationPayloadOut
+         * @description Notification action payload (emitter-keyed, open-ended).
+         */
+        NotificationPayloadOut: {
+            /** Chat Session Id */
+            chat_session_id?: string | null;
+            /** Family Key */
+            family_key?: string | null;
+            /** Job Code */
+            job_code?: string | null;
+            /** Job Id */
+            job_id?: string | null;
+            /** Link */
+            link?: string | null;
+            /** Proposal Ids */
+            proposal_ids?: string[];
+            /** Score */
+            score?: number | null;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * NotificationPreferencesIn
@@ -11981,6 +12038,17 @@ export interface components {
          * @enum {string}
          */
         NotificationRuleKind: "fit_threshold" | "new_in_family" | "new_posting_match";
+        /**
+         * NotificationSeverity
+         * @enum {string}
+         */
+        NotificationSeverity: "info" | "success" | "warning" | "critical";
+        /**
+         * NotificationStatus
+         * @description Inbox state of one (notification, recipient) pair.
+         * @enum {string}
+         */
+        NotificationStatus: "unread" | "read" | "dismissed";
         /** NotificationsOut */
         NotificationsOut: {
             /** Items */
@@ -12029,6 +12097,33 @@ export interface components {
             styled?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** OpenPostingsEmployerOut */
+        OpenPostingsEmployerOut: {
+            /** Count */
+            count: number;
+            /** Org */
+            org: string;
+        };
+        /**
+         * OpenPostingsOut
+         * @description Target-mode posting analytics for the dashboard banner.
+         */
+        OpenPostingsOut: {
+            salary_band?: components["schemas"]["OpenPostingsSalaryBandOut"] | null;
+            /** Top Employers */
+            top_employers?: components["schemas"]["OpenPostingsEmployerOut"][];
+            /** Total */
+            total: number;
+            /** Unseen */
+            unseen: number;
+        };
+        /** OpenPostingsSalaryBandOut */
+        OpenPostingsSalaryBandOut: {
+            /** Max */
+            max?: number | null;
+            /** Min */
+            min?: number | null;
         };
         /**
          * OverlayDraftIn
@@ -12212,10 +12307,7 @@ export interface components {
             expires_at?: string | null;
             /** External Id */
             external_id: string;
-            /** Extract */
-            extract?: {
-                [key: string]: unknown;
-            } | null;
+            extract?: components["schemas"]["PostingExtractOut"] | null;
             /** Extract Version */
             extract_version?: number | null;
             /** Fit */
@@ -12225,20 +12317,14 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Location */
-            location: {
-                [key: string]: unknown;
-            };
+            location: components["schemas"]["PostingLocationOut"];
             /** Mapping Confidence */
             mapping_confidence?: number | null;
             /** Mapping Method */
             mapping_method?: string | null;
             /** Mapping Reason */
             mapping_reason: string;
-            /** Match */
-            match?: {
-                [key: string]: unknown;
-            } | null;
+            match?: components["schemas"]["PostingMatchOut"] | null;
             /**
              * Needs Review
              * @default false
@@ -12281,9 +12367,7 @@ export interface components {
             /** Seniority */
             seniority?: string | null;
             /** Similar */
-            similar?: {
-                [key: string]: unknown;
-            }[];
+            similar?: components["schemas"]["PostingSimilarOut"][];
             /**
              * Source Connector
              * @default
@@ -12315,6 +12399,127 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** PostingExtractEducationOut */
+        PostingExtractEducationOut: {
+            /** Field */
+            field?: string | null;
+            /** Level */
+            level?: string | null;
+        };
+        /** PostingExtractLocationOut */
+        PostingExtractLocationOut: {
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
+        };
+        /**
+         * PostingExtractOut
+         * @description The posting's structured extraction payload (pipeline-written
+         *     JSONB, envelope-typed since plan 123.4).
+         */
+        PostingExtractOut: {
+            /** Benefits */
+            benefits?: string[];
+            education?: components["schemas"]["PostingExtractEducationOut"] | null;
+            /** Employment Type */
+            employment_type?: string | null;
+            /** Field Confidence */
+            field_confidence?: {
+                [key: string]: number;
+            };
+            /** Languages */
+            languages?: string[];
+            location?: components["schemas"]["PostingExtractLocationOut"] | null;
+            /** Remote Policy */
+            remote_policy?: string | null;
+            /** Responsibilities */
+            responsibilities?: components["schemas"]["PostingExtractResponsibilityOut"][];
+            salary?: components["schemas"]["PostingExtractSalaryOut"] | null;
+            /** Seniority */
+            seniority?: string | null;
+            /** Skills */
+            skills?: components["schemas"]["PostingExtractSkillOut"][];
+            /** Title Norm */
+            title_norm?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** PostingExtractResponsibilityOut */
+        PostingExtractResponsibilityOut: {
+            /** Optional */
+            optional?: boolean | null;
+            /** Text */
+            text: string;
+            /** Time Pct */
+            time_pct?: number | null;
+        };
+        /** PostingExtractSalaryOut */
+        PostingExtractSalaryOut: {
+            /** Currency */
+            currency?: string | null;
+            /** Max */
+            max?: number | null;
+            /** Min */
+            min?: number | null;
+            /** Period */
+            period?: string | null;
+        };
+        /** PostingExtractSkillOut */
+        PostingExtractSkillOut: {
+            /** Confidence */
+            confidence: number;
+            /** Evidence Quote */
+            evidence_quote: string;
+            /** Priority */
+            priority: string;
+            /** Raw Label */
+            raw_label?: string | null;
+            /** Required Level */
+            required_level: number;
+            /** Skill Key */
+            skill_key?: string | null;
+            /** Unresolved */
+            unresolved?: boolean | null;
+        };
+        /** PostingLocationOut */
+        PostingLocationOut: {
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Remote */
+            remote?: boolean | null;
+        };
+        /**
+         * PostingMatchOut
+         * @description The deterministic posting match card (fit-style scoring).
+         */
+        PostingMatchOut: {
+            /** Breakdown */
+            breakdown?: {
+                [key: string]: components["schemas"]["MatchBreakdownAspectOut"];
+            };
+            /**
+             * Estimate
+             * @default false
+             */
+            estimate: boolean;
+            /**
+             * Extracted
+             * @default false
+             */
+            extracted: boolean;
+            /** Gates */
+            gates?: string[] | null;
+            /**
+             * Inputs Hash
+             * @default
+             */
+            inputs_hash: string;
+            /** Score */
+            score: number;
+        };
         /** PostingOut */
         PostingOut: {
             /** Application Id */
@@ -12341,10 +12546,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Location */
-            location: {
-                [key: string]: unknown;
-            };
+            location: components["schemas"]["PostingLocationOut"];
             /** Mapping Confidence */
             mapping_confidence?: number | null;
             /** Mapping Method */
@@ -12422,6 +12624,17 @@ export interface components {
             total: number;
             /** Unseen */
             unseen: number;
+        };
+        /** PostingSimilarOut */
+        PostingSimilarOut: {
+            /** Org */
+            org: string;
+            /** Ref */
+            ref: string;
+            /** Score */
+            score: number;
+            /** Title */
+            title: string;
         };
         /** PostingsOut */
         PostingsOut: {
@@ -13013,14 +13226,19 @@ export interface components {
              */
             op: "remove_block";
         };
+        /** ResolveFamilyOut */
+        ResolveFamilyOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
         /** ResolveOut */
         ResolveOut: {
             /** Archetypes */
             archetypes: components["schemas"]["ArchetypeOut"][];
             /** Families */
-            families: {
-                [key: string]: unknown;
-            }[];
+            families: components["schemas"]["ResolveFamilyOut"][];
             /** Query */
             query: string;
             /** Resolved By */
@@ -13135,6 +13353,10 @@ export interface components {
             misfire_policy?: string | null;
             /** Next Run At */
             next_run_at?: string | null;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
             /** Task */
             task?: string | null;
             trigger: components["schemas"]["ScheduleTriggerOut"];
@@ -13803,18 +14025,13 @@ export interface components {
         /** TargetDashboardOut */
         TargetDashboardOut: {
             /** Adjacent Targets */
-            adjacent_targets: {
-                [key: string]: unknown;
-            }[];
+            adjacent_targets?: components["schemas"]["AdjacentTargetOut"][];
             completeness: components["schemas"]["CompletenessOut"];
             /** Families */
             families: string[];
             /** Nudges */
-            nudges: components["schemas"]["NudgeOut"][];
-            /** Open Postings */
-            open_postings: {
-                [key: string]: unknown;
-            };
+            nudges?: components["schemas"]["NudgeOut"][];
+            open_postings: components["schemas"]["OpenPostingsOut"];
         };
         /** TargetJobRef */
         TargetJobRef: {
@@ -13947,20 +14164,15 @@ export interface components {
              * Format: uuid
              */
             notification_id: string;
-            /** Payload */
-            payload: {
-                [key: string]: unknown;
-            };
+            payload: components["schemas"]["NotificationPayloadOut"];
             /** Read At */
             read_at?: string | null;
-            /** Severity */
-            severity: string;
+            severity: components["schemas"]["NotificationSeverity"];
             /** Source Ref */
             source_ref?: {
                 [key: string]: unknown;
             };
-            /** Status */
-            status: string;
+            status: components["schemas"]["NotificationStatus"];
             /** Thread Key */
             thread_key?: string | null;
             /** Title */
@@ -24429,9 +24641,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MeLocaleStateOut"];
                 };
             };
         };
@@ -24455,9 +24665,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MeLocaleStateOut"];
                 };
             };
             /** @description Validation Error */

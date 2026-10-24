@@ -10,7 +10,8 @@ import {
   createEducationItem,
   fetchEducation,
 } from "@/api/education";
-import type { Bootstrap, OnboardingPath, Profile } from "@/types";
+import type { Bootstrap, OnboardingPath } from "@/types/wire";
+import type { Profile } from "@/types";
 
 vi.mock("@/api/profile", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/profile")>();
@@ -67,6 +68,8 @@ function makeBootstrap(
     suggested_scoring_weights: weights,
     effective_scoring_weights: weights,
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
   };
 }
 

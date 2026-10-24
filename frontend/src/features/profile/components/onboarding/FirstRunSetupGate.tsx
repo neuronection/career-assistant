@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type { AiStatus } from "@/types";
+import type { AiStatus } from "@/types/wire";
 
 /** Paths that never trigger the first-run bounce: onboarding owns the flow,
  * settings is where a power user configures AI by hand, and About is static. */
@@ -11,7 +11,7 @@ const EXEMPT_PREFIXES = ["/onboarding", "/settings", "/about"];
 /** Whether an unconfigured, un-skipped app should land on the setup step. */
 export function shouldRedirectToSetup(
   pathname: string,
-  ai: AiStatus | undefined
+  ai: AiStatus | null | undefined
 ): boolean {
   if (!ai || ai.configured || ai.setup_dismissed) return false;
   return !EXEMPT_PREFIXES.some(

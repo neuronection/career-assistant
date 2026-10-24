@@ -7,7 +7,7 @@ import { useProfileStore } from "@/stores/profileStore";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore, } from "@/stores/bootstrapStore";
 import { fetchFeed } from "@/api/engagement";
-import type { Bootstrap } from "@/types";
+import type { Bootstrap } from "@/types/wire";
 
 vi.mock("@/api/matching", () => ({
   fetchRankings: vi.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -54,6 +54,8 @@ function bootstrapFor(stage: Bootstrap["career_stage"]): Bootstrap {
       values: 4,
     },
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
   };
 }
 

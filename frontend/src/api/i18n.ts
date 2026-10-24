@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { LabelOverlay, LocaleState, OverlayDraftResult } from "@/types";
+import type { LabelOverlay, LocaleState, OverlayDraftResult } from "@/types/wire";
 
 /** The caller's effective UI locale plus the supported registry. */
 export async function fetchLocale(): Promise<LocaleState> {

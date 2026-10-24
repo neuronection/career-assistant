@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles } from "lucide-react";
 
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type { AiStatus } from "@/types";
+import type { AiStatus } from "@/types/wire";
 
 /** The one place a provider-less app offers setup (plan 118). */
 export const AI_SETUP_ROUTE = "/onboarding/setup";

@@ -7,7 +7,7 @@ import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import { educationChipLabel } from "@/features/catalog/components/JobCard";
 import { EmptyState } from "@/components/ui";
 import { dimensionKeys, dimensionKey } from "@/lib/fitDimensions";
-import type { FitDimension, RankedJob } from "@/types";
+import type { FitDimension, RankedJob } from "@/types/wire";
 
 function formatSalary(job: RankedJob): string {
   const median = job.job.attributes?.salary?.median;
@@ -94,7 +94,7 @@ export function Compare() {
     );
   }
 
-  const dims = dimensionKeys(rows.map((r) => r.breakdown));
+  const dims = dimensionKeys(rows.map((r) => r.breakdown ?? null));
   const bestOverall = Math.max(...rows.map((r) => r.fit_score));
   const gridCols = `140px repeat(${rows.length}, minmax(0, 1fr))`;
 
@@ -122,9 +122,9 @@ export function Compare() {
                       you: r.user_score ?? "–",
                     })}
                   </span>
-                  {r.gated && r.gate_reasons.length > 0 && (
+                  {r.gated && (r.gate_reasons ?? []).length > 0 && (
                     <span className="mt-1 block w-fit rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700">
-                      {r.gate_reasons.join(", ")}
+                      {(r.gate_reasons ?? []).join(", ")}
                     </span>
                   )}
                 </div>

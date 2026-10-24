@@ -3,10 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 import { MessageProposals } from "@/features/chat/components/chat/MessageProposals";
 import { ProposalPreviewModal } from "@/features/chat/components/chat/ProposalPreviewModal";
-import type {
-  ChatMessage,
-  ProfileProposalCardData,
-} from "@/types";
+import type { ChatMessage, ProfileProposalCardData } from "@/types";
 import type { ProfileProposalPreviewData } from "@/api/profileProposals";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 

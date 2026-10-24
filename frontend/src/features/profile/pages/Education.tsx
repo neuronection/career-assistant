@@ -48,7 +48,7 @@ import type {
   EducationItemOut,
   EducationLevel,
 } from "@/types/education";
-import type { Department, University } from "@/types";
+import type { Department, University } from "@/types/wire";
 import { EDUCATION_LEVEL_ORDER } from "@/features/profile/components/profile/sections/options";
 import {
   BulkBar,
@@ -252,7 +252,7 @@ export function Education() {
     }
     let alive = true;
     void fetchUniversity(uniId)
-      .then((detail) => alive && setDepartments(detail.departments))
+      .then((detail) => alive && setDepartments(detail.departments ?? []))
       .catch(() => alive && setDepartments([]));
     return () => {
       alive = false;
@@ -1197,7 +1197,7 @@ export function Education() {
                 }
                 onDepartmentsChanged={(universityId) => {
                   void fetchUniversity(universityId)
-                    .then((detail) => setDepartments(detail.departments))
+                    .then((detail) => setDepartments(detail.departments ?? []))
                     .catch(() => undefined);
                 }}
               />

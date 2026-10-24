@@ -18,12 +18,8 @@ import {
 } from "@/api/engagement";
 import { fetchFollowupSurface, updateFollowupRules } from "@/api/applications";
 import { useAuthStore } from "@/stores/authStore";
-import type {
-  EmailChannelConfig,
-  FeedToken,
-  PreferencesMatrix,
-  WebhookChannelConfig,
-} from "@/types";
+import type { EmailChannelConfig, FeedToken, WebhookChannelConfig } from "@/types/wire";
+import type { PreferencesMatrix } from "@/types/wire";
 
 vi.mock("@/api/engagement", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/engagement")>();

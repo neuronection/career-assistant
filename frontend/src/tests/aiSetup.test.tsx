@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import { AiMockChip, AiSetupPrompt, AI_SETUP_ROUTE } from "@/components/ai/AiSetupPrompt";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type { AiStatus, Bootstrap } from "@/types";
+import type { AiStatus, Bootstrap } from "@/types/wire";
 
 function aiStatus(overrides: Partial<AiStatus> = {}): AiStatus {
   return {
@@ -40,6 +40,8 @@ function bootstrapWith(ai: AiStatus | undefined): Bootstrap {
       values: 3,
     },
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
     ai,
   };
 }

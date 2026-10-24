@@ -14,7 +14,7 @@ import { EmptyState, SearchableDropdown } from "@/components/ui";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { dimensionKey } from "@/lib/fitDimensions";
 import { useCompareStore } from "@/stores/compareStore";
-import type { FitBreakdown, MatchStatus, RankedJob, ScoringWeights, SearchRecord } from "@/types";
+import type { FitBreakdown, MatchStatus, RankedJob, ScoringWeights, SearchRecord } from "@/types/wire";
 
 const FAMILY_KEYS = [
   "technology", "healthcare", "education", "engineering", "business",
@@ -290,9 +290,9 @@ export function Rankings() {
                       {t("rankings.strongIn", { dimension: t(dimensionKey(r.specialist_dimension)) })}
                     </span>
                   )}
-                  {r.gated && r.gate_reasons.length > 0 && (
+                  {r.gated && (r.gate_reasons ?? []).length > 0 && (
                     <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
-                      {r.gate_reasons.join(", ")}
+                      {(r.gate_reasons ?? []).join(", ")}
                     </span>
                   )}
                 </div>
@@ -346,9 +346,10 @@ export function Rankings() {
   );
 }
 
-export function FitBars({ breakdown }: { breakdown: FitBreakdown }) {
+export function FitBars({ breakdown }: { breakdown?: FitBreakdown | null }) {
   const { t } = useTranslation();
-  const dims = Object.entries(breakdown.dimensions);
+  if (!breakdown) return null;
+  const dims = Object.entries(breakdown.dimensions ?? {});
   return (
     <div className="mt-2 space-y-1.5" data-testid="fit-breakdown">
       {dims.map(([dim, entry]) => (

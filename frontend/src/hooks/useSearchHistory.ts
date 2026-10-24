@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { recordSearch } from "@/api/engagement";
-import type { SearchScope } from "@/types";
+import type { SearchScope } from "@/types/wire";
 
 /** Records searches server-side (the server debounces 30-min repeats). */
 export function useSearchHistory(scope: SearchScope) {

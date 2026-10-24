@@ -27,13 +27,8 @@ import { JobCard } from "@/features/catalog/components/JobCard";
 import { ScoreRing } from "@/features/catalog/components/ScoreRing";
 import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { ApplicationsFunnel } from "@/features/postings/components/applications/ApplicationsFunnel";
-import type {
-  Candidate,
-  FeedResponse,
-  JobPostingItem,
-  RankedJob,
-  TargetDashboard,
-} from "@/types";
+import type { Candidate, FeedResponse, RankedJob, TargetDashboard } from "@/types/wire";
+import type { PostingOut } from "@/types/wire";
 import type { ApplicationFunnel } from "@/types/application";
 import { useState } from "react";
 
@@ -56,7 +51,7 @@ export function Dashboard() {
   const [feedView, setFeedView] = useState<"all" | "saved">("all");
   const [funnel, setFunnel] = useState<ApplicationFunnel | null>(null);
   const [target, setTarget] = useState<TargetDashboard | null>(null);
-  const [targetJobs, setTargetJobs] = useState<JobPostingItem[]>([]);
+  const [targetJobs, setTargetJobs] = useState<PostingOut[]>([]);
   const navigate = useNavigate();
 
   const loadFeed = (view: "all" | "saved") => {
@@ -240,9 +235,9 @@ export function Dashboard() {
             <Link to="/postings" className="text-sm text-primary-700">{t("dashboard.liveTab")}</Link>
           </div>
 
-          {target.nudges.length > 0 && (
+          {(target.nudges ?? []).length > 0 && (
             <div className="mt-3 bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-2" data-testid="nudge-banner">
-              <p className="text-sm text-slate-600">{target.nudges[0].message}</p>
+              <p className="text-sm text-slate-600">{(target.nudges ?? [])[0].message}</p>
               <div className="flex items-center gap-2 shrink-0">
                 <Link to="/profile/assessment" className="text-xs bg-primary-600 text-white rounded-lg px-3 py-1.5">
                   {t("dashboard.microRun")}
@@ -250,8 +245,8 @@ export function Dashboard() {
                 <button
                   aria-label={t("dashboard.dismissNudge")}
                   onClick={() => {
-                    void dismissNudge(target.nudges[0].type);
-                    setTarget({ ...target, nudges: target.nudges.slice(1) });
+                    void dismissNudge((target.nudges ?? [])[0].type);
+                    setTarget({ ...target, nudges: (target.nudges ?? []).slice(1) });
                   }}
                   className="p-1 text-slate-400 hover:text-slate-600"
                 >
@@ -299,7 +294,7 @@ export function Dashboard() {
             <div className="bg-white border border-slate-200 rounded-lg p-3">
               <p className="text-xs text-slate-400 uppercase">{t("dashboard.salaryBand")}</p>
               <p className="text-sm font-medium text-slate-900">
-                {target.open_postings.salary_band.min != null
+                {target.open_postings.salary_band?.min != null
                   ? `${formatNumber(target.open_postings.salary_band.min)}–${formatNumber(target.open_postings.salary_band.max ?? 0)}`
                   : "—"}
               </p>
@@ -307,16 +302,16 @@ export function Dashboard() {
             <div className="bg-white border border-slate-200 rounded-lg p-3">
               <p className="text-xs text-slate-400 uppercase">{t("dashboard.topEmployers")}</p>
               <p className="text-sm text-slate-700 truncate">
-                {target.open_postings.top_employers.map((e) => e.org).join(", ") || "—"}
+                {(target.open_postings.top_employers ?? []).map((e) => e.org).join(", ") || "—"}
               </p>
             </div>
           </div>
 
-          {target.adjacent_targets.length > 0 && (
+          {(target.adjacent_targets ?? []).length > 0 && (
             <div className="mt-3">
               <p className="text-xs font-medium text-slate-400 uppercase mb-1">{t("dashboard.expandCareer")}</p>
               <div className="flex flex-wrap gap-1.5">
-                {target.adjacent_targets.map((adjacent) => (
+                {(target.adjacent_targets ?? []).map((adjacent) => (
                   <Link
                     key={adjacent.family_key}
                     to={`/catalog?family=${adjacent.family_key}`}

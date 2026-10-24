@@ -111,3 +111,11 @@ class OverlayStatusOut(BaseModel):
     id: uuid.UUID
     status: LabelStatus
     value: str | None = None
+
+
+class MeLocaleStateOut(LocaleStateOut):
+    """The caller's effective locale: adds who chose it. PUT omits
+    ``instance_locale`` (unchanged by the write); GET always carries it."""
+
+    source: str | None = None
+    instance_locale: str | None = None

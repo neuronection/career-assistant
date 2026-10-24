@@ -7,7 +7,7 @@ from app.models.enums import CareerStage, OnboardingPath
 from app.schemas.application import FollowupRuleIn, FollowupRuleOut, FollowupSurfaceOut
 from app.schemas.background_job import EnqueueResponse
 from app.schemas.bootstrap import BootstrapOut
-from app.schemas.i18n import LocaleIn
+from app.schemas.i18n import LocaleIn, MeLocaleStateOut
 from app.services.deps import get_current_user
 from app.services.profile.account_service import request_export
 
@@ -137,7 +137,7 @@ async def _bootstrap_payload(db, profile) -> dict:
     }
 
 
-@router.get("/locale")
+@router.get("/locale", response_model=MeLocaleStateOut)
 async def get_locale(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> dict:
     """The caller's effective UI locale and the supported registry."""
     from app.services.locale_service import (
@@ -155,7 +155,7 @@ async def get_locale(user=Depends(get_current_user), db: AsyncSession = Depends(
     }
 
 
-@router.put("/locale")
+@router.put("/locale", response_model=MeLocaleStateOut)
 async def put_locale(
     body: LocaleIn,
     user=Depends(get_current_user),

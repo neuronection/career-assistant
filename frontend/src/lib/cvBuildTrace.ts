@@ -1,7 +1,5 @@
 import type { FlowTrace } from "@/components/ui";
-import type {
-  ChatMessage,
-} from "@/types";
+import type { ChatMessage } from "@/types";
 import type { CvPolishTrace, CvRunCall, CvRunOut } from "@/types/cv";
 
 /** i18next-shaped optional localizer; absent → backend keys pass through. */

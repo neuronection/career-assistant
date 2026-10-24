@@ -1,23 +1,7 @@
 import { api } from "@/api/client";
-import type {
-  AlertRule,
-  AlertRuleKind,
-  AlertRuleParams,
-  ChannelTestResult,
-  EmailChannelConfig,
-  EmailTransportConfig,
-  FeedResponse,
-  FeedToken,
-  FeedTokenMinted,
-  NotificationItem,
-  NotificationPreferences,
-  NotificationsResponse,
-  PreferencesMatrix,
-  PushSubscriptionRecord,
-  SearchRecord,
-  SearchScope,
-  WebhookChannelConfig,
-} from "@/types";
+import type { AlertRule, AlertRuleParams, ChannelTestResult, EmailChannelConfig, EmailTransportConfig, FeedResponse, FeedToken, FeedTokenMinted, NotificationPreferences, NotificationsResponse, PushSubscriptionRecord, SearchRecord, SearchScope, WebhookChannelConfig } from "@/types/wire";
+import type { NotificationItem, PreferencesMatrix } from "@/types/wire";
+import type { NotificationRuleKind } from "@/types/wire";
 
 export async function recordSearch(body: {
   scope: SearchScope;
@@ -145,7 +129,7 @@ export async function fetchRules(): Promise<{ items: AlertRule[] }> {
 }
 
 export async function updateRule(body: {
-  kind: AlertRuleKind;
+  kind: NotificationRuleKind;
   params: Partial<AlertRuleParams>;
   enabled: boolean;
 }): Promise<{ items: AlertRule[] }> {

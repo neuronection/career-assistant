@@ -7,7 +7,7 @@ import {
   shouldRedirectToSetup,
 } from "@/features/profile/components/onboarding/FirstRunSetupGate";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
-import type { AiStatus, Bootstrap } from "@/types";
+import type { AiStatus, Bootstrap } from "@/types/wire";
 
 function aiStatus(overrides: Partial<AiStatus> = {}): AiStatus {
   return {
@@ -30,6 +30,8 @@ function bootstrap(ai: AiStatus | undefined): Bootstrap {
     suggested_scoring_weights: weights,
     effective_scoring_weights: weights,
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
     ai,
   };
 }

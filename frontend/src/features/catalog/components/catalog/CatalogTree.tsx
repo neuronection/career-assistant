@@ -7,7 +7,8 @@ import { useCatalogStore } from "@/stores/catalogStore";
 import { JobCard } from "@/features/catalog/components/JobCard";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
-import type { JobFamilyNode, SearchRecord } from "@/types";
+import type { SearchRecord } from "@/types/wire";
+import type { JobFamilyNode } from "@/types";
 
 export function CatalogTree() {
   const { t } = useTranslation();

@@ -10,10 +10,15 @@ class ArchetypeOut(BaseModel):
     score: float
 
 
+class ResolveFamilyOut(BaseModel):
+    key: str
+    label: str
+
+
 class ResolveOut(BaseModel):
     query: str
     resolved_by: str
-    families: list[dict]
+    families: list[ResolveFamilyOut]
     skill_keys: list[str]
     archetypes: list[ArchetypeOut]
 
@@ -52,9 +57,34 @@ class NudgeOut(BaseModel):
     message: str
 
 
+class OpenPostingsSalaryBandOut(BaseModel):
+    min: float | None = None
+    max: float | None = None
+
+
+class OpenPostingsEmployerOut(BaseModel):
+    org: str
+    count: int
+
+
+class OpenPostingsOut(BaseModel):
+    """Target-mode posting analytics for the dashboard banner."""
+
+    total: int
+    unseen: int
+    salary_band: OpenPostingsSalaryBandOut | None = None
+    top_employers: list[OpenPostingsEmployerOut] = Field(default_factory=list)
+
+
+class AdjacentTargetOut(BaseModel):
+    family_key: str
+    label: str
+    sample: str
+
+
 class TargetDashboardOut(BaseModel):
     families: list[str]
-    open_postings: dict
-    adjacent_targets: list[dict]
-    nudges: list[NudgeOut]
+    open_postings: OpenPostingsOut
+    adjacent_targets: list[AdjacentTargetOut] = Field(default_factory=list)
+    nudges: list[NudgeOut] = Field(default_factory=list)
     completeness: CompletenessOut

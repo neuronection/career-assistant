@@ -10,7 +10,7 @@ import {
 } from "@/api/i18n";
 import { apiDetail } from "@/api/client";
 import { Button, Card, EmptyState, Spinner } from "@/components/ui";
-import type { LabelOverlay } from "@/types";
+import type { LabelOverlay } from "@/types/wire";
 
 const TARGET_LOCALES = ["de", "el"] as const;
 const STATUSES = ["draft", "approved", "rejected"] as const;

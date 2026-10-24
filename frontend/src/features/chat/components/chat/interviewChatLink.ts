@@ -1,5 +1,5 @@
 import { useChatStore, type ChatMode } from "@/stores/chatStore";
-import type { ChatSession } from "@/types";
+import type { ChatSession } from "@/types/wire";
 
 export function isInterviewBoundSession(
   session: ChatSession | undefined,

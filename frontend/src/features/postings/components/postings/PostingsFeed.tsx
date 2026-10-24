@@ -11,7 +11,7 @@ import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
 import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
-import type { PostingsResponse } from "@/types";
+import type { PostingsResponse } from "@/types/wire";
 
 interface SkillFilter {
   key: string;

@@ -35,7 +35,7 @@ import type {
   InterviewQuestion,
   InterviewSessionOut,
 } from "@/types/interview";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 const KIND_OPTIONS: { value: InterviewKind; labelKey: string }[] = [
   { value: "mixed", labelKey: "interviews.kind.mixed" },

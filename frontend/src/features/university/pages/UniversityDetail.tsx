@@ -6,7 +6,7 @@ import { addAdmission, addDepartment, fetchUniversity } from "@/api/universities
 import { DeadlineCalendar, type Deadline } from "@/features/growth/components/DeadlineCalendar";
 import { Button, DatePicker, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter, Table } from "@/components/ui";
 import { apiDetail } from "@/api/client";
-import type { UniversityDetail } from "@/types";
+import type { UniversityDetail } from "@/types/wire";
 
 export function UniversityDetail() {
   const { t } = useTranslation();
@@ -23,7 +23,7 @@ export function UniversityDetail() {
 
   const deadlines: Deadline[] = useMemo(() => {
     if (!university) return [];
-    return university.departments
+    return (university.departments ?? [])
       .filter((d) => d.application_deadline)
       .map((d) => ({ date: d.application_deadline as string, label: `${t("universityDetail.apply")}: ${d.name}` }));
   }, [university, t]);
@@ -52,13 +52,13 @@ export function UniversityDetail() {
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         <section className="space-y-4">
-          {university.departments.length === 0 ? (
+          {(university.departments ?? []).length === 0 ? (
             <EmptyState
               title={t("universityDetail.noDepartmentsTitle")}
               description={t("universityDetail.noDepartmentsBody")}
             />
           ) : (
-            university.departments.map((d) => (
+            (university.departments ?? []).map((d) => (
               <div key={d.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                 <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100">
                   <div>
@@ -78,7 +78,7 @@ export function UniversityDetail() {
                 <Table
                   headers={[t("jobDetail.year"), t("universityDetail.baseline"), t("universityDetail.top"), t("universityDetail.quota"), t("universityDetail.source")]}
                   emptyText={t("universityDetail.noBaselines")}
-                  rows={d.admissions
+                  rows={(d.admissions ?? [])
                     .slice()
                     .sort((a, b) => b.year - a.year)
                     .map((a) => [

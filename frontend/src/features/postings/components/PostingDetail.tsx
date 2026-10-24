@@ -20,7 +20,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from "@/components/ui";
-import type { JobPostingItem, PostingExtractSkill } from "@/types";
+import type { PostingDetailOut, PostingDetailSkill } from "@/types/wire";
 const PRIORITY_STYLES: Record<string, string> = {
   must_have: "bg-rose-50 text-rose-700",
   nice_to_have: "bg-amber-50 text-amber-700",
@@ -48,7 +48,7 @@ function LevelDots({ level }: { level: number }) {
   );
 }
 
-function SkillChip({ skill }: { skill: PostingExtractSkill }) {
+function SkillChip({ skill }: { skill: PostingDetailSkill }) {
   const { t } = useTranslation();
   const [showQuote, setShowQuote] = useState(false);
   const label = skill.unresolved
@@ -107,7 +107,7 @@ export function PostingDetail({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const [posting, setPosting] = useState<JobPostingItem | null>(null);
+  const [posting, setPosting] = useState<PostingDetailOut | null>(null);
   const [activeId, setActiveId] = useState(postingId);
   const [interviewBusy, setInterviewBusy] = useState(false);
   const [interviewError, setInterviewError] = useState("");
@@ -372,7 +372,7 @@ export function PostingDetail({
                 </div>
               )}
               <div className="mt-2 space-y-1.5">
-                {Object.entries(match.breakdown).map(([dim, entry]) => (
+                {Object.entries(match.breakdown ?? {}).map(([dim, entry]) => (
                   <div key={dim} className="flex items-center gap-2 text-xs">
                     <span className="w-28 shrink-0 text-slate-500">
                       {t(`dimensions.${dim}`, { defaultValue: dim.replace(/_/g, " ") })}

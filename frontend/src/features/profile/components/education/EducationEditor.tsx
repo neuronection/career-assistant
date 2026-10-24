@@ -44,7 +44,7 @@ import {
   GPA_BAND_OPTIONS,
   LANGUAGE_CODE_OPTIONS,
 } from "@/features/profile/components/profile/sections/options";
-import type { Department, University } from "@/types";
+import type { Department, University, DegreeLevel, UniversityType } from "@/types/wire";
 
 const STATUS_OPTIONS = [
   { value: "active", labelKey: "education.statusOption.active" },
@@ -800,7 +800,7 @@ function AddUniversityModal({
   const [name, setName] = useState(defaultName);
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
-  const [type, setType] = useState("public");
+  const [type, setType] = useState<UniversityType>("public");
   const [website, setWebsite] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -849,7 +849,7 @@ function AddUniversityModal({
             <SelectField
               label={t("education.typeLabel")}
               value={type}
-              onChange={setType}
+              onChange={(value) => setType(value as UniversityType)}
               options={UNIVERSITY_TYPE_OPTIONS.map((o) => ({
                 value: o.value,
                 label: t(o.labelKey),
@@ -921,7 +921,7 @@ function AddDepartmentModal({
 }) {
   const [name, setName] = useState(defaultName);
   const [fieldKey, setFieldKey] = useState("");
-  const [degree, setDegree] = useState("bachelor");
+  const [degree, setDegree] = useState<DegreeLevel>("bachelor");
   const [durationYears, setDurationYears] = useState(4);
   const [language, setLanguage] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -985,7 +985,7 @@ function AddDepartmentModal({
             <SelectField
               label={t("education.degreeLabel")}
               value={degree}
-              onChange={setDegree}
+              onChange={(value) => setDegree(value as DegreeLevel)}
               options={DEGREE_LEVEL_OPTIONS.map((o) => ({
                 value: o.value,
                 label: t(o.labelKey),

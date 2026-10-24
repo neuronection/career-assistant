@@ -12,7 +12,7 @@ import {
   savePosting,
   searchPostings,
 } from "@/api/postings";
-import type { JobPostingItem } from "@/types";
+import type { PostingOut } from "@/types/wire";
 
 vi.mock("@/api/postings", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/postings")>();
@@ -51,9 +51,10 @@ const mockFetchPostings = vi.mocked(fetchPostings);
 const mockSearchPostings = vi.mocked(searchPostings);
 const mockFetchDetail = vi.mocked(fetchPostingDetail);
 
-function posting(overrides: Partial<JobPostingItem> = {}): JobPostingItem {
+function posting(overrides: Partial<PostingOut> = {}): PostingOut {
   return {
     id: "p1",
+    ref: "P3KX9Q2A",
     source_id: "s1",
     external_id: "ext-1",
     title: "Backend Engineer",
@@ -68,6 +69,8 @@ function posting(overrides: Partial<JobPostingItem> = {}): JobPostingItem {
     saved: false,
     notes: "",
     source_key: "synth",
+    mapping_reason: "",
+    needs_review: false,
     ...overrides,
   };
 }
@@ -229,10 +232,11 @@ describe("Skill-level search & provenance", () => {
   });
 
   it("opens the detail modal with the structured extract", async () => {
-    mockFetchDetail.mockResolvedValue(
-      posting({
-        extract_version: 1,
-        extract: {
+    mockFetchDetail.mockResolvedValue({
+      ...posting({ extract_version: 1 }),
+      source_title: "Backend Engineer",
+      source_connector: "synth",
+  extract: {
           skills: [
             {
               skill_key: "programming",
@@ -246,9 +250,8 @@ describe("Skill-level search & provenance", () => {
             { text: "Build dashboards", time_pct: 40, optional: false },
           ],
           benefits: ["Remote budget"],
-        },
-      })
-    );
+      },
+    });
     render(
       <MemoryRouter>
         <PostingsFeed />

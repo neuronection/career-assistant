@@ -7,11 +7,8 @@ import {
   type HitlDensity,
   type HitlProposalAction as ProfileProposalCardAction,
 } from "@/components/ui/chat";
-import type {
-  ChatMessage,
-  ProfileProposalCardData,
-  ProfileProposalStatus,
-} from "@/types";
+import type { ProfileProposalStatus } from "@/types/wire";
+import type { ChatMessage, ProfileProposalCardData } from "@/types";
 import {
   PREVIEW_KINDS,
   useProfileProposalsStore,

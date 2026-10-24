@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Clock, Star, X } from "lucide-react";
 import { deleteSearch, fetchSearches } from "@/api/engagement";
-import type { SearchRecord, SearchScope } from "@/types";
+import type { SearchRecord, SearchScope } from "@/types/wire";
 
 export function RecentSearches({
   scope,

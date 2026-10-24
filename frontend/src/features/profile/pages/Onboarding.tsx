@@ -11,7 +11,7 @@ import { STEP_LABEL_KEYS, stepsForPath } from "@/config/onboardingPaths";
 import { PathPicker } from "@/features/profile/components/onboarding/PathPicker";
 import { CvIntakeFlow } from "@/features/cv/components/intake/CvIntakeFlow";
 import type { SectionCardHandle } from "@/features/profile/components/profile/sections/shared";
-import type { OnboardingPath } from "@/types";
+import type { OnboardingPath } from "@/types/wire";
 import { AcademicsCard } from "@/features/profile/components/profile/sections/AcademicsCard";
 import { BasicsCard } from "@/features/profile/components/profile/sections/BasicsCard";
 import { EducationMiniCard } from "@/features/profile/components/profile/sections/EducationMiniCard";

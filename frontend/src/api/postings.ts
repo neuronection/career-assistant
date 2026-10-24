@@ -1,11 +1,8 @@
 import { api } from "@/api/client";
-import type {
-  ExploreParams,
-  ExploreResponse,
-  JobPostingItem,
-  PostingsResponse,
-  PostingSourceInfo,
-} from "@/types";
+import type { PostingsResponse, PostingSourceInfo } from "@/types/wire";
+import type { ExploreResponse } from "@/types/wire";
+import type { PostingDetailOut } from "@/types/wire";
+import type { ExploreParams } from "@/types";
 
 export interface PostingSearchParams {
   skills: string;
@@ -43,8 +40,8 @@ export async function fetchPostingSources(): Promise<PostingSourceInfo[]> {
   return data;
 }
 
-export async function fetchPostingDetail(id: string): Promise<JobPostingItem> {
-  const { data } = await api.get<JobPostingItem>(`/postings/${id}`);
+export async function fetchPostingDetail(id: string): Promise<PostingDetailOut> {
+  const { data } = await api.get<PostingDetailOut>(`/postings/${id}`);
   return data;
 }
 

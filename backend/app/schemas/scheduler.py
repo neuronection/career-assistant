@@ -19,6 +19,7 @@ class ScheduleItemOut(BaseModel):
     kind: str
     task: str | None = None
     trigger: ScheduleTriggerOut
+    payload: dict = Field(default_factory=dict)
     enabled: bool
     next_run_at: str | None = None
     last_run_at: str | None = None

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as uniApi from "@/api/universities";
-import type { ChatCvAttachment, ChatMessage, ChatSession } from "@/types";
+import type { ChatSession } from "@/types/wire";
+import type { ChatCvAttachment, ChatMessage } from "@/types";
 
 export type ChatMode = "bubble" | "docked";
 

@@ -9,7 +9,8 @@ import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
 import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
-import type { ExploreFacets, JobPostingItem, PostingSourceInfo } from "@/types";
+import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
+import type { PostingOut } from "@/types/wire";
 
 const POSTED_WINDOWS = [
   { value: "", labelKey: "explore.posted.any" },
@@ -62,7 +63,7 @@ const INITIAL: Filters = {
 export function Explore() {
   const { t } = useTranslation();
   const [filters, setFilters] = useState<Filters>(INITIAL);
-  const [items, setItems] = useState<JobPostingItem[]>([]);
+  const [items, setItems] = useState<PostingOut[]>([]);
   const [total, setTotal] = useState(0);
   const [facets, setFacets] = useState<ExploreFacets>(EMPTY_FACETS);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -106,8 +107,8 @@ export function Explore() {
         .then((response) => {
           setItems((prev) => (append ? [...prev, ...response.items] : response.items));
           setTotal(response.total);
-          setFacets(response.facets);
-          setCursor(response.next_cursor);
+          setFacets(response.facets ?? {});
+          setCursor(response.next_cursor ?? null);
         })
         .catch((err) => setError(String(err)));
     },
@@ -180,7 +181,7 @@ export function Explore() {
     filters.org;
 
   const facetCount = (group: string, key: string): number | undefined =>
-    facets[group]?.[key];
+    (facets ?? {})[group]?.[key];
 
   return (
     <div className="space-y-6" data-testid="explore">
@@ -280,9 +281,9 @@ export function Explore() {
                   </div>
                 </>
               )}
-              {(facets.skills ? Object.keys(facets.skills) : []).length > 0 && !active && (
+              {((facets ?? {}).skills ? Object.keys((facets ?? {}).skills) : []).length > 0 && !active && (
                 <div className="flex flex-wrap gap-1 mt-1.5">
-                  {Object.entries(facets.skills)
+                  {Object.entries((facets ?? {}).skills ?? {})
                     .slice(0, 8)
                     .map(([key, count]) => (
                       <button
@@ -311,7 +312,7 @@ export function Explore() {
               </select>
               {!active && (
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {Object.entries(facets.posted ?? {}).map(([bucket, count]) => (
+                  {Object.entries((facets ?? {}).posted ?? {}).map(([bucket, count]) => (
                     <button
                       key={bucket}
                       onClick={() => patch({ postedWithin: bucket === "older" ? "90d" : bucket })}
@@ -338,7 +339,7 @@ export function Explore() {
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t("explore.seniority")}</p>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(facets.seniority ?? {}).map(([value, count]) => (
+                {Object.entries((facets ?? {}).seniority ?? {}).map(([value, count]) => (
                   <button
                     key={value}
                     onClick={() => patch({ seniority: toggleIn(filters.seniority, value) })}
@@ -359,7 +360,7 @@ export function Explore() {
                 {t("explore.facet.workMode")}
               </p>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(facets.remote_policy ?? {}).map(([value, count]) => (
+                {Object.entries((facets ?? {}).remote_policy ?? {}).map(([value, count]) => (
                   <button
                     key={value}
                     onClick={() => patch({ remotePolicy: filters.remotePolicy === value ? "" : value })}

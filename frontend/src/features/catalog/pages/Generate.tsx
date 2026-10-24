@@ -10,7 +10,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { JobCard } from "@/features/catalog/components/JobCard";
 import { JobFlowStatus } from "@/features/catalog/components/JobFlowStatus";
 import { apiDetail } from "@/api/client";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 export function Generate() {
   const { t } = useTranslation();

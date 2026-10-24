@@ -1,10 +1,5 @@
 import { api } from "@/api/client";
-import type {
-  CheckinStatus,
-  GrowthPlanItem,
-  MarketSnapshot,
-  RadarEntry,
-} from "@/types";
+import type { CheckinStatus, GrowthPlanItem, MarketSnapshot, RadarEntry } from "@/types/wire";
 export async function fetchGrowthPlans(): Promise<GrowthPlanItem[]> {
   const { data } = await api.get<GrowthPlanItem[]>("/growth/plans");
   return data;

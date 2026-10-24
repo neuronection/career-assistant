@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { ScheduleItem } from "@/types";
+import type { ScheduleItem } from "@/types/wire";
 
 export async function fetchMySchedules(): Promise<ScheduleItem[]> {
   const { data } = await api.get<ScheduleItem[]>("/me/schedules");

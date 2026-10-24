@@ -1,5 +1,6 @@
 import { api } from "@/api/client";
-import type { CareerPath, Skill, SkillGapReport, UserSkill } from "@/types";
+import type { CareerPath, SkillGapReport } from "@/types/wire";
+import type { Skill, UserSkill } from "@/types";
 
 export interface SkillSummary {
   id: string;

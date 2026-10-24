@@ -11,7 +11,8 @@ import { Universities } from "@/features/university/pages/Universities";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import * as jobsApi from "@/api/jobs";
-import type { Job, JobFamilyNode } from "@/types";
+import type { Job } from "@/types/wire";
+import type { JobFamilyNode } from "@/types";
 
 vi.mock("@/api/jobs", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/jobs")>();
@@ -57,6 +58,7 @@ const job = (over: Partial<Job> = {}): Job => ({
   code: "software-developer",
   title: "Software Developer",
   family_key: "technology",
+  family_label: "",
   short_description: "Builds software systems.",
   status: "published",
   source: "seed",

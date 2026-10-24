@@ -10,7 +10,7 @@ import {
   patchGrowthStep,
   skipCheckin,
 } from "@/api/growth";
-import type { GrowthPlanItem, RadarEntry } from "@/types";
+import type { GrowthPlanItem, RadarEntry } from "@/types/wire";
 
 vi.mock("@/api/growth", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/growth")>();

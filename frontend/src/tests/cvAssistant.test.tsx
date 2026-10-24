@@ -163,6 +163,7 @@ describe("ChatWidget view switcher (bubble ↔ docked ↔ page)", () => {
           title: "CV assistant",
           context: { surface: "cv_builder", cv_id: "cv-1" },
           created_at: "2026-09-07T00:00:00Z",
+          last_activity_at: "2026-09-07T00:00:00Z",
         },
       ],
     });
@@ -186,6 +187,7 @@ describe("ChatDock (the docked shape of the one chatbot)", () => {
           title: "Career chat",
           context: {},
           created_at: "2026-09-07T00:00:00Z",
+          last_activity_at: "2026-09-07T00:00:00Z",
         },
       ],
     });

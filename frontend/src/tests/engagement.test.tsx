@@ -19,7 +19,8 @@ import {
   updateNotificationPreferences,
   updateRule,
 } from "@/api/engagement";
-import type { FeedResponse, Job, NotificationItem, SearchRecord } from "@/types";
+import type { FeedResponse, Job, SearchRecord } from "@/types/wire";
+import type { NotificationItem } from "@/types/wire";
 
 vi.mock("@/api/engagement", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/engagement")>();
@@ -71,6 +72,8 @@ vi.mock("@/api/stages", async (importOriginal) => {
         values: 3,
       },
       weights_overridden: false,
+      fit_stale: false,
+      target_mode: false,
       notification_channels: ["in_app", "desktop"],
     }),
   };
@@ -111,6 +114,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     code: "software-developer",
     title: "Software Developer",
     family_key: "technology-software",
+    family_label: "",
     short_description: "Builds software.",
     status: "published",
     source: "seed",
@@ -287,6 +291,8 @@ describe("NotificationBell", () => {
           values: 3,
         },
         weights_overridden: false,
+        fit_stale: false,
+        target_mode: false,
         notification_channels: ["in_app", "desktop"],
       },
       loaded: true,
@@ -351,6 +357,8 @@ describe("NotificationBell", () => {
           values: 3,
         },
         weights_overridden: false,
+        fit_stale: false,
+        target_mode: false,
         notification_channels: ["in_app", "browser"],
       },
       loaded: true,
