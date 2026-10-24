@@ -20,11 +20,20 @@ from app.models.enums import BackgroundJobType
 from app.models.user_model import User
 from app.schemas.i18n import (
     LocaleIn,
+    LocaleStateOut,
     OverlayDraftIn,
+    OverlayDraftResultOut,
+    OverlayOut,
     OverlayPatchIn,
+    OverlayStatusOut,
     TranslateKeysIn,
 )
 from app.schemas.job import JobOut
+from app.schemas.scheduler import (
+    ScheduleItemOut,
+    ScheduleRunNowOut,
+    ScheduleToggleOut,
+)
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.deps import get_current_user, require_admin
@@ -1017,7 +1026,7 @@ async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(ge
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
-@router.get("/scheduler/schedules", response_model=list[dict])
+@router.get("/scheduler/schedules", response_model=list[ScheduleItemOut])
 async def admin_schedules(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """System schedules (owner null): next run, last status, failures."""
     from app.services.scheduler.runner import SchedulerService
@@ -1043,7 +1052,7 @@ async def admin_schedules(db: AsyncSession = Depends(get_db)) -> list[dict]:
     ]
 
 
-@router.put("/scheduler/schedules/{schedule_id}")
+@router.put("/scheduler/schedules/{schedule_id}", response_model=ScheduleToggleOut)
 async def admin_update_schedule(
     schedule_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -1057,7 +1066,7 @@ async def admin_update_schedule(
     return {"id": str(schedule.id), "enabled": schedule.enabled}
 
 
-@router.post("/scheduler/schedules/{schedule_id}/run-now")
+@router.post("/scheduler/schedules/{schedule_id}/run-now", response_model=ScheduleRunNowOut)
 async def admin_run_schedule_now(
     schedule_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -1102,7 +1111,7 @@ async def _overlay_base_value(db: AsyncSession, overlay) -> str:
     return ""
 
 
-@router.get("/i18n/locale", response_model=dict)
+@router.get("/i18n/locale", response_model=LocaleStateOut)
 async def get_instance_locale(db: AsyncSession = Depends(get_db)) -> dict:
     """Instance default UI locale plus the supported registry."""
     from app.services.locale_service import (
@@ -1116,7 +1125,7 @@ async def get_instance_locale(db: AsyncSession = Depends(get_db)) -> dict:
     }
 
 
-@router.put("/i18n/locale", response_model=dict)
+@router.put("/i18n/locale", response_model=LocaleStateOut)
 async def put_instance_locale(body: LocaleIn, db: AsyncSession = Depends(get_db)) -> dict:
     """Set the instance default UI locale (users keep their own choice)."""
     from app.services.locale_service import SUPPORTED_LOCALES, set_instance_default_locale
@@ -1140,7 +1149,7 @@ async def translate_keys(
     return {"locale": body.locale, "translations": translations}
 
 
-@router.get("/i18n/overlays", response_model=list[dict])
+@router.get("/i18n/overlays", response_model=list[OverlayOut])
 async def overlay_queue(
     locale: str | None = Query(default=None),
     overlay_status: str | None = Query(default="draft", alias="status"),
@@ -1173,7 +1182,7 @@ async def overlay_queue(
     return out
 
 
-@router.post("/i18n/overlays/draft", response_model=dict)
+@router.post("/i18n/overlays/draft", response_model=OverlayDraftResultOut)
 async def draft_overlays(
     body: OverlayDraftIn,
     user: User = Depends(get_current_user),
@@ -1194,7 +1203,7 @@ async def draft_overlays(
     return {"locale": body.locale, "drafted": drafted}
 
 
-@router.patch("/i18n/overlays/{overlay_id}", response_model=dict)
+@router.patch("/i18n/overlays/{overlay_id}", response_model=OverlayStatusOut)
 async def edit_overlay(
     overlay_id: uuid.UUID, body: OverlayPatchIn, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -1209,7 +1218,7 @@ async def edit_overlay(
     return {"id": str(row.id), "value": row.value, "status": row.status}
 
 
-@router.post("/i18n/overlays/{overlay_id}/approve", response_model=dict)
+@router.post("/i18n/overlays/{overlay_id}/approve", response_model=OverlayStatusOut)
 async def approve_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Approve one overlay — the only route to rendering."""
     from app.core.errors import NotFoundError
@@ -1223,7 +1232,7 @@ async def approve_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_
     return {"id": str(row.id), "status": row.status}
 
 
-@router.post("/i18n/overlays/{overlay_id}/reject", response_model=dict)
+@router.post("/i18n/overlays/{overlay_id}/reject", response_model=OverlayStatusOut)
 async def reject_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Reject one overlay (it never renders)."""
     from app.core.errors import NotFoundError

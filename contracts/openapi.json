@@ -9870,6 +9870,35 @@
         "title": "LabelEntityKind",
         "type": "string"
       },
+      "LabelField": {
+        "description": "Which display field an overlay replaces.",
+        "enum": [
+          "label",
+          "description",
+          "short_description"
+        ],
+        "title": "LabelField",
+        "type": "string"
+      },
+      "LabelSource": {
+        "description": "Who drafted an overlay (approval is the only route to `approved`).",
+        "enum": [
+          "ai_draft",
+          "human"
+        ],
+        "title": "LabelSource",
+        "type": "string"
+      },
+      "LabelStatus": {
+        "description": "Overlay review state.",
+        "enum": [
+          "draft",
+          "approved",
+          "rejected"
+        ],
+        "title": "LabelStatus",
+        "type": "string"
+      },
       "LanguageSkill": {
         "properties": {
           "code": {
@@ -9967,6 +9996,28 @@
           "locale"
         ],
         "title": "LocaleIn",
+        "type": "object"
+      },
+      "LocaleStateOut": {
+        "description": "Instance default UI locale plus the supported registry.",
+        "properties": {
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "supported": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported",
+            "type": "array"
+          }
+        },
+        "required": [
+          "locale",
+          "supported"
+        ],
+        "title": "LocaleStateOut",
         "type": "object"
       },
       "LoginIn": {
@@ -10995,6 +11046,92 @@
         "title": "OverlayDraftIn",
         "type": "object"
       },
+      "OverlayDraftResultOut": {
+        "description": "AI-draft batch result: drafted overlay counts per entity kind.",
+        "properties": {
+          "drafted": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Drafted",
+            "type": "object"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "drafted"
+        ],
+        "title": "OverlayDraftResultOut",
+        "type": "object"
+      },
+      "OverlayOut": {
+        "description": "One overlay row with its base label, for the review queue.",
+        "properties": {
+          "base_value": {
+            "title": "Base Value",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_kind": {
+            "$ref": "#/components/schemas/LabelEntityKind"
+          },
+          "field": {
+            "$ref": "#/components/schemas/LabelField"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/LabelSource"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LabelStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entity_kind",
+          "entity_id",
+          "locale",
+          "field",
+          "value",
+          "base_value",
+          "source",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OverlayOut",
+        "type": "object"
+      },
       "OverlayPatchIn": {
         "description": "Reviewer edit of a drafted value (approval stays a separate action).",
         "properties": {
@@ -11009,6 +11146,36 @@
           "value"
         ],
         "title": "OverlayPatchIn",
+        "type": "object"
+      },
+      "OverlayStatusOut": {
+        "description": "Minimal overlay mutation result (id + resulting status).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LabelStatus"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "OverlayStatusOut",
         "type": "object"
       },
       "PasswordChangeIn": {
@@ -12442,8 +12609,7 @@
           },
           "diff": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ProposalDiffRow"
             },
             "title": "Diff",
             "type": "array"
@@ -12755,6 +12921,31 @@
           }
         },
         "title": "ProfileSectionUpdate",
+        "type": "object"
+      },
+      "ProposalDiffRow": {
+        "description": "One HITL card diff row.\n\n``field``/``label`` are the stable envelope the card renderer keys\non; ``before``/``after`` carry the row's value and stay open by\ndesign \u2014 scalar strings for plain fields, structured chip lists for\ncollections, full-section mappings for profile sections.",
+        "properties": {
+          "after": {
+            "title": "After"
+          },
+          "before": {
+            "title": "Before"
+          },
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "label"
+        ],
+        "title": "ProposalDiffRow",
         "type": "object"
       },
       "ProviderCreate": {
@@ -13665,6 +13856,169 @@
           }
         },
         "title": "SavedSearchScheduleIn",
+        "type": "object"
+      },
+      "ScheduleItemOut": {
+        "description": "One system schedule row (owner null) for the admin scheduler UI.",
+        "properties": {
+          "consecutive_failures": {
+            "default": 0,
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
+          },
+          "misfire_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Misfire Policy"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/ScheduleTriggerOut"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "trigger",
+          "enabled"
+        ],
+        "title": "ScheduleItemOut",
+        "type": "object"
+      },
+      "ScheduleRunNowOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ScheduleRunNowOut",
+        "type": "object"
+      },
+      "ScheduleToggleOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "enabled"
+        ],
+        "title": "ScheduleToggleOut",
+        "type": "object"
+      },
+      "ScheduleTriggerOut": {
+        "description": "Typed trigger envelope: when the task runs and with what params.",
+        "properties": {
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ScheduleTriggerOut",
         "type": "object"
       },
       "ScoreIn": {
@@ -15789,6 +16143,67 @@
         "title": "UniversityCreate",
         "type": "object"
       },
+      "UniversityDetailOut": {
+        "description": "University detail: the list row plus its departments.",
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "department_count": {
+            "default": 0,
+            "title": "Department Count",
+            "type": "integer"
+          },
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentOut"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "university_type": {
+            "$ref": "#/components/schemas/UniversityType"
+          },
+          "website": {
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "country",
+          "city",
+          "university_type",
+          "website",
+          "notes",
+          "source"
+        ],
+        "title": "UniversityDetailOut",
+        "type": "object"
+      },
       "UniversityOut": {
         "properties": {
           "city": {
@@ -17500,9 +17915,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Instance Locale Api V1 Admin I18N Locale Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LocaleStateOut"
                 }
               }
             },
@@ -17532,9 +17945,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Instance Locale Api V1 Admin I18N Locale Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LocaleStateOut"
                 }
               }
             },
@@ -17614,8 +18025,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/OverlayOut"
                   },
                   "title": "Response Overlay Queue Api V1 Admin I18N Overlays Get",
                   "type": "array"
@@ -17660,9 +18070,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Draft Overlays Api V1 Admin I18N Overlays Draft Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/OverlayDraftResultOut"
                 }
               }
             },
@@ -17716,9 +18124,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Edit Overlay Api V1 Admin I18N Overlays  Overlay Id  Patch",
-                  "type": "object"
+                  "$ref": "#/components/schemas/OverlayStatusOut"
                 }
               }
             },
@@ -17762,9 +18168,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Approve Overlay Api V1 Admin I18N Overlays  Overlay Id  Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/OverlayStatusOut"
                 }
               }
             },
@@ -17808,9 +18212,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reject Overlay Api V1 Admin I18N Overlays  Overlay Id  Reject Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/OverlayStatusOut"
                 }
               }
             },
@@ -19205,8 +19607,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/ScheduleItemOut"
                   },
                   "title": "Response Admin Schedules Api V1 Admin Scheduler Schedules Get",
                   "type": "array"
@@ -19255,9 +19656,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Admin Update Schedule Api V1 Admin Scheduler Schedules  Schedule Id  Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ScheduleToggleOut"
                 }
               }
             },
@@ -19301,9 +19700,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Admin Run Schedule Now Api V1 Admin Scheduler Schedules  Schedule Id  Run Now Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ScheduleRunNowOut"
                 }
               }
             },
@@ -35613,9 +36010,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get University Api V1 Universities  University Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/UniversityDetailOut"
                 }
               }
             },

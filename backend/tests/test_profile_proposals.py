@@ -973,3 +973,45 @@ def test_template_preview_gate_ignores_text_restyle_words():
     )
     assert _is_template_preview_intent("which template should I switch to?")
     assert _is_template_preview_intent("make the look more modern, maybe a theme")
+
+
+def test_diff_rows_validate_against_the_typed_envelope():
+    """Plan 123.4: the wire diff is a typed row envelope (field/label),
+    not a free dict — chip values stay open, missing envelope keys
+    reject at serialization time."""
+    import pytest
+    from pydantic import ValidationError
+
+    from app.schemas.profile_proposal import ProfileProposalOut
+
+    row = {
+        "field": "bullets",
+        "label": "Bullets",
+        "before": [{"text": "old"}],
+        "after": [{"text": "new"}],
+    }
+    out = ProfileProposalOut.model_validate(
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "kind": "experience_item",
+            "action": "update",
+            "status": "pending",
+            "entity_label": "x",
+            "diff": [row],
+            "created_at": "2026-01-01T00:00:00Z",
+        }
+    )
+    assert out.diff[0].field == "bullets"
+    assert out.diff[0].after == [{"text": "new"}]
+    with pytest.raises(ValidationError):
+        ProfileProposalOut.model_validate(
+            {
+                "id": "00000000-0000-0000-0000-000000000002",
+                "kind": "experience_item",
+                "action": "update",
+                "status": "pending",
+                "entity_label": "x",
+                "diff": [{"field": "bullets"}],
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+        )

@@ -4,14 +4,16 @@
   "version": "0.16.0",
   "license": "Apache-2.0",
   "type": "module",
-  "description": "Career Assistant — job discovery, AI matching and university pathways for students",
+  "description": "Career Assistant \u2014 job discovery, AI matching and university pathways for students",
   "scripts": {
     "capture:ui": "bash ../scripts/capture_ui.sh",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "lint": "eslint src --ext ts,tsx"
+    "lint": "eslint src --ext ts,tsx",
+    "gen:api": "openapi-typescript ../contracts/openapi.json -o src/types/api.gen.ts",
+    "check:api": "npm run gen:api && git diff --exit-code -- src/types/api.gen.ts"
   },
   "dependencies": {
     "@neuronection/assistant-ui": "^0.68.0",
@@ -47,6 +49,7 @@
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.13.0",
     "playwright": "^1.63.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.0",

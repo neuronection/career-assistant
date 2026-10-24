@@ -68,6 +68,12 @@ class UniversityOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UniversityDetailOut(UniversityOut):
+    """University detail: the list row plus its departments."""
+
+    departments: list[DepartmentOut] = Field(default_factory=list)
+
+
 class JobDepartmentLinkOut(BaseModel):
     id: UUID
     job_id: UUID

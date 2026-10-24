@@ -14,6 +14,7 @@ from app.schemas.university import (
     JobDepartmentLinkCreate,
     JobDepartmentLinkOut,
     UniversityCreate,
+    UniversityDetailOut,
     UniversityOut,
 )
 from app.services.catalog.university_service import UniversityService
@@ -68,7 +69,7 @@ async def create_university(
     )
 
 
-@router.get("/{university_id}", response_model=dict)
+@router.get("/{university_id}", response_model=UniversityDetailOut)
 async def get_university(
     university_id: UUID,
     user=Depends(get_current_user),

@@ -89,3 +89,25 @@ class OverlayPatchIn(BaseModel):
     """Reviewer edit of a drafted value (approval stays a separate action)."""
 
     value: str = Field(min_length=1, max_length=4000)
+
+
+class LocaleStateOut(BaseModel):
+    """Instance default UI locale plus the supported registry."""
+
+    locale: str
+    supported: list[str]
+
+
+class OverlayDraftResultOut(BaseModel):
+    """AI-draft batch result: drafted overlay counts per entity kind."""
+
+    locale: str
+    drafted: dict[str, int]
+
+
+class OverlayStatusOut(BaseModel):
+    """Minimal overlay mutation result (id + resulting status)."""
+
+    id: uuid.UUID
+    status: LabelStatus
+    value: str | None = None

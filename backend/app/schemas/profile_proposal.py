@@ -238,6 +238,20 @@ class CvChoiceApproveIn(BaseModel):
     option_keys: list[str] = Field(default_factory=list, max_length=16)
 
 
+class ProposalDiffRow(BaseModel):
+    """One HITL card diff row.
+
+    ``field``/``label`` are the stable envelope the card renderer keys
+    on; ``before``/``after`` carry the row's value and stay open by
+    design — scalar strings for plain fields, structured chip lists for
+    collections, full-section mappings for profile sections."""
+
+    field: str
+    label: str
+    before: Any = None
+    after: Any = None
+
+
 class ProfileProposalOut(BaseModel):
     """One HITL card (persisted state, field-level diff included)."""
 
@@ -251,7 +265,7 @@ class ProfileProposalOut(BaseModel):
     entity_label: str
     title: str = ""
     payload: dict[str, Any] = Field(default_factory=dict)
-    diff: list[dict[str, Any]] = Field(default_factory=list)
+    diff: list[ProposalDiffRow] = Field(default_factory=list)
     destructive: bool = False
     source: str = "chat"
     origin: dict[str, Any] = Field(default_factory=dict)
