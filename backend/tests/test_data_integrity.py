@@ -59,7 +59,7 @@ def test_canonical_hash_type_policy():
 
 def test_hash_helpers_agree_across_modules():
     """One canonical-JSON policy — every helper digests identically."""
-    from app.services.assessment_templates import _canonical_hash as template_hash
+    from app.services.assessment.assessment_templates import _canonical_hash as template_hash
     from app.services.engagement_service import canonical_hash
     from app.services.posting_fit_service import _canonical_hash as fit_hash
     from app.services.scheduler.runner import payload_hash

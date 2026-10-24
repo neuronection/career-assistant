@@ -314,7 +314,7 @@ class AssessmentService:
         band = None
 
         if run.kind == AssessmentKind.TEMPLATE.value and run.template_id:
-            from app.services.assessment_templates import TemplateService
+            from app.services.assessment.assessment_templates import TemplateService
 
             compiled = await TemplateService(self.db).compile_results(run)
             band = compiled["band"]

@@ -203,7 +203,7 @@ async def list_templates(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Mine + bank + unlisted-by-ref (filters: source/language/audience)."""
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     rows = await TemplateService(db).list_templates(
         user.id,
@@ -224,7 +224,7 @@ async def create_template(
     """Author a template (validated like any write; author review before
     publish — drafts start private)."""
     from app.schemas.assessment_template import TemplateContent
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     content = TemplateContent.model_validate(body.content)
     template = await TemplateService(db).create_template(
@@ -246,7 +246,7 @@ async def get_template(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """One template (includes content for author preview)."""
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     template = await TemplateService(db).get_template(template_id, user.id)
     out = _template_out(template)
@@ -264,7 +264,7 @@ async def update_template(
     """Edit = publish a NEW immutable version (42.B); status transitions
     travel through PATCH {status} (draft → published → retired)."""
     from app.schemas.assessment_template import TemplateContent
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     service = TemplateService(db)
     if body.status == "published":
@@ -307,7 +307,7 @@ async def draft_template_ai_extend(
 ) -> dict:
     """AI EXTEND of an existing template — grounded on its taxonomy keys;
     still review-first."""
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     extend_of = None
     if body.extend:
@@ -343,8 +343,8 @@ async def run_template(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Start a template run (compiles onto the engine)."""
+    from app.services.assessment.assessment_templates import TemplateService
     from app.services.assessment.runner import AssessmentService
-    from app.services.assessment_templates import TemplateService
 
     run = await TemplateService(db).start_run(user.id, template_id)
     return await AssessmentService(db).state(run)
@@ -357,7 +357,7 @@ async def export_template(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Export package {schema_version, metadata, content, content_hash}."""
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     return await TemplateService(db).export_template(user.id, template_id)
 
@@ -371,7 +371,7 @@ async def import_template(
     """Import a package; unknown skill keys auto-propose with a
     template lifecycle and the report lists them — hard-rejecting would make
     shared templates unusable across instances."""
-    from app.services.assessment_templates import TemplateService
+    from app.services.assessment.assessment_templates import TemplateService
 
     template, resolution = await TemplateService(db).import_template(user.id, body.package)
     out = _template_out(template)

@@ -182,7 +182,7 @@ async def seed_metric_templates(db) -> int:
         TemplatePhase,
         TemplateQuestion,
     )
-    from app.services.assessment_templates import (
+    from app.services.assessment.assessment_templates import (
         _canonical_hash,
         generate_template_ref,
     )
