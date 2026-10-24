@@ -82,6 +82,56 @@ class PathFlagIn(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
+class PathStepIn(BaseModel):
+    """One step of a user path draft. `parent` is the 0-based index of the
+    submitted steps list this step branches from (None = main chain)."""
+
+    kind: str = Field(pattern="^(job|skill|education|certification|experience|milestone)$")
+    label: str = Field(min_length=1, max_length=200)
+    skill_key: str | None = Field(default=None, max_length=80)
+    family_key: str | None = Field(default=None, max_length=80)
+    education_level: str | None = Field(default=None, max_length=30)
+    optional: bool = False
+    parent: int | None = Field(default=None, ge=0)
+    edge_label: str = Field(default="", max_length=120)
+
+
+class PathCreateIn(BaseModel):
+    """A review-first user path (chat save or manual create): draft
+    status, owned by its creator's path flag, never auto-activated."""
+
+    job_ref: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=2000)
+    steps: list[PathStepIn] = Field(default_factory=list, max_length=16)
+
+
+class PathUpdateIn(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class PathStepUpdateIn(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=200)
+    kind: str | None = Field(
+        default=None, pattern="^(job|skill|education|certification|experience|milestone)$"
+    )
+    optional: bool | None = None
+    edge_label: str | None = Field(default=None, max_length=120)
+    education_level: str | None = Field(default=None, max_length=30)
+    skill_key: str | None = Field(default=None, max_length=80)
+    family_key: str | None = Field(default=None, max_length=80)
+
+
+class PathReorderIn(BaseModel):
+    """Reorder one sibling set (a branch, or the main chain with
+    parent_step_id NULL) — `ordered` lists every sibling in its new
+    order."""
+
+    parent_step_id: UUID | None = None
+    ordered: list[UUID] = Field(min_length=1, max_length=32)
+
+
 class GraphNodeOut(BaseModel):
     code: str
     title: str

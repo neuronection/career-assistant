@@ -3784,6 +3784,25 @@
     "computedTitle": "Wege zu {{job}} (berechnet)",
     "openCatalog": "Familie durchsuchen",
     "openSkillResources": "Lernressourcen",
-    "openEducation": "Deine Ausbildung"
+    "openEducation": "Deine Ausbildung",
+    "editError": "Der Pfad konnte nicht aktualisiert werden.",
+    "fork": "Auf meine Pfade kopieren",
+    "activate": "Aktivieren",
+    "edit": "Bearbeiten",
+    "delete": "Pfad löschen",
+    "deleteConfirmTitle": "Diesen Pfad löschen?",
+    "deleteConfirmBody": "Deine Kopie und ihre Markierungen werden entfernt. Kuratierte Originale bleiben unberührt.",
+    "titleLabel": "Pfad-Titel",
+    "descLabel": "Beschreibung",
+    "makeOptional": "Als optional markieren",
+    "makeRequired": "Als erforderlich markieren",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "branchFromHere": "Hier abzweigen",
+    "deleteStep": "Schritt entfernen",
+    "addStep": "Schritt hinzufügen…",
+    "stepKindLabel": "Schrittart",
+    "stepLabelPlaceholder": "Was passiert in diesem Schritt?",
+    "edgeLabelPlaceholder": "Warum dieser Zweig? (z. B. oder: Forschung)"
   }
 }

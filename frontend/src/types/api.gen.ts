@@ -6870,7 +6870,12 @@ export interface paths {
          */
         get: operations["list_paths_api_v1_paths_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Path
+         * @description Create a review-first user path (draft; the creator activates it
+         *     after review). Chat saves and manual creation share this gate.
+         */
+        post: operations["create_path_api_v1_paths_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6891,6 +6896,34 @@ export interface paths {
         get: operations["path_detail_api_v1_paths__path_id__get"];
         put?: never;
         post?: never;
+        /**
+         * Delete Path
+         * @description Delete an owned user path (curated paths are shared, never deletable).
+         */
+        delete: operations["delete_path_api_v1_paths__path_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Path
+         * @description Rename/re-describe an owned user path.
+         */
+        patch: operations["update_path_api_v1_paths__path_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Path
+         * @description Owner review action: draft → active (never automatic).
+         */
+        post: operations["activate_path_api_v1_paths__path_id__activate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6916,6 +6949,92 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}/fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fork Path
+         * @description Fork-on-edit: the caller gets their own active copy; the original
+         *     stays curated (no shared mutation).
+         */
+        post: operations["fork_path_api_v1_paths__path_id__fork_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Path Step
+         * @description Add a step (append to the chain) or branch one off a parent
+         *     (parent_step_id + edge_label).
+         */
+        post: operations["add_path_step_api_v1_paths__path_id__steps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}/steps/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Path Steps
+         * @description Reorder one sibling set (a branch, or the main chain).
+         */
+        post: operations["reorder_path_steps_api_v1_paths__path_id__steps_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}/steps/{step_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Path Step
+         * @description Remove one step; its branch children cascade with it.
+         */
+        delete: operations["delete_path_step_api_v1_paths__path_id__steps__step_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Path Step
+         * @description Edit one step of an owned path (label/kind/optional/edge/refs).
+         */
+        patch: operations["update_path_step_api_v1_paths__path_id__steps__step_id__patch"];
         trace?: never;
     };
     "/api/v1/postings": {
@@ -12286,6 +12405,24 @@ export interface components {
             new_password: string;
         };
         /**
+         * PathCreateIn
+         * @description A review-first user path (chat save or manual create): draft
+         *     status, owned by its creator's path flag, never auto-activated.
+         */
+        PathCreateIn: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Job Ref */
+            job_ref: string;
+            /** Steps */
+            steps?: components["schemas"]["PathStepIn"][];
+            /** Title */
+            title: string;
+        };
+        /**
          * PathDetailOut
          * @description One path with the caller's marks, per-step skill gaps and the
          *     profile-completeness summary for the header.
@@ -12367,6 +12504,18 @@ export interface components {
              */
             truncated: boolean;
         };
+        /**
+         * PathReorderIn
+         * @description Reorder one sibling set (a branch, or the main chain with
+         *     parent_step_id NULL) — `ordered` lists every sibling in its new
+         *     order.
+         */
+        PathReorderIn: {
+            /** Ordered */
+            ordered: string[];
+            /** Parent Step Id */
+            parent_step_id?: string | null;
+        };
         /** PathStepDetailOut */
         PathStepDetailOut: {
             /**
@@ -12413,6 +12562,35 @@ export interface components {
             skill_key?: string | null;
             /** Skill Label */
             skill_label?: string | null;
+        };
+        /**
+         * PathStepIn
+         * @description One step of a user path draft. `parent` is the 0-based index of the
+         *     submitted steps list this step branches from (None = main chain).
+         */
+        PathStepIn: {
+            /**
+             * Edge Label
+             * @default
+             */
+            edge_label: string;
+            /** Education Level */
+            education_level?: string | null;
+            /** Family Key */
+            family_key?: string | null;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /**
+             * Optional
+             * @default false
+             */
+            optional: boolean;
+            /** Parent */
+            parent?: number | null;
+            /** Skill Key */
+            skill_key?: string | null;
         };
         /** PathStepOut */
         PathStepOut: {
@@ -12468,6 +12646,30 @@ export interface components {
             skill_id: string;
             /** User Level */
             user_level?: number | null;
+        };
+        /** PathStepUpdateIn */
+        PathStepUpdateIn: {
+            /** Edge Label */
+            edge_label?: string | null;
+            /** Education Level */
+            education_level?: string | null;
+            /** Family Key */
+            family_key?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Optional */
+            optional?: boolean | null;
+            /** Skill Key */
+            skill_key?: string | null;
+        };
+        /** PathUpdateIn */
+        PathUpdateIn: {
+            /** Description */
+            description?: string | null;
+            /** Title */
+            title?: string | null;
         };
         /**
          * PhysicalActivity
@@ -26859,7 +27061,135 @@ export interface operations {
             };
         };
     };
+    create_path_api_v1_paths_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PathCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     path_detail_api_v1_paths__path_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_path_api_v1_paths__path_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_path_api_v1_paths__path_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PathUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_path_api_v1_paths__path_id__activate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -26902,6 +27232,178 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PathFlagIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fork_path_api_v1_paths__path_id__fork_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_path_step_api_v1_paths__path_id__steps_post: {
+        parameters: {
+            query?: {
+                parent_step_id?: string | null;
+                position?: number | null;
+            };
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PathStepIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_path_steps_api_v1_paths__path_id__steps_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PathReorderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_path_step_api_v1_paths__path_id__steps__step_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+                step_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_path_step_api_v1_paths__path_id__steps__step_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+                step_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PathStepUpdateIn"];
             };
         };
         responses: {

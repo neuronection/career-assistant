@@ -8,7 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
 from app.models.career_path_model import CareerPath, CareerPathStep, UserPathFlag
 from app.models.enums import CareerStage as PathStage
 from app.models.enums import PathFlag, PathSource, PathStatus, RelationType
@@ -77,12 +77,290 @@ class PathService:
                 selectinload(CareerPath.steps).selectinload(CareerPathStep.skill),
                 selectinload(CareerPath.job),
             )
+            .execution_options(populate_existing=True)
             .where(CareerPath.id == path_id, self._visible_condition(user.id))
         )
         path = rows.scalars().first()
         if path is None:
             raise NotFoundError("Path not found")
         return path
+
+    async def require_owned(self, path_id: UUID, user) -> CareerPath:
+        """A user path the caller owns (their path-level flag exists);
+        curated paths are never shared-mutable."""
+        path = await self.require_visible(path_id, user)
+        if path.source != PathSource.USER.value:
+            raise NotFoundError("Path not found")
+        return path
+
+    async def _owning_flag(self, path_id: UUID, user_id: UUID) -> UserPathFlag | None:
+        rows = await self.db.execute(
+            select(UserPathFlag).where(
+                UserPathFlag.user_id == user_id,
+                UserPathFlag.path_id == path_id,
+                UserPathFlag.step_id.is_(None),
+            )
+        )
+        return rows.scalars().first()
+
+    async def _resequence(self, path_id: UUID, positions: dict[UUID, int]) -> None:
+        """Two-phase position write (the UNIQUE(path_id, position) guard
+        forbids in-place swaps)."""
+        rows = await self.db.execute(
+            select(CareerPathStep).where(CareerPathStep.path_id == path_id)
+        )
+        steps = rows.scalars().all()
+        for step in steps:
+            if step.id in positions:
+                step.position = 10_000 + positions[step.id]
+        await self.db.flush()
+        for step in steps:
+            if step.id in positions:
+                step.position = positions[step.id]
+        await self.db.flush()
+
+    async def _resolve_step_refs(
+        self, *, skill_key: str | None, family_key: str | None
+    ) -> tuple[UUID | None, UUID | None]:
+        from app.models.job_model import JobFamily
+        from app.models.taxonomy_model import Skill
+
+        skill_id = None
+        if skill_key:
+            rows = await self.db.execute(
+                select(Skill).where(Skill.key == skill_key, Skill.status == "active")
+            )
+            skill = rows.scalars().first()
+            if skill is None:
+                raise ValidationError(f"Unknown skill: {skill_key!r}")
+            skill_id = skill.id
+        family_id = None
+        if family_key:
+            rows = await self.db.execute(select(JobFamily).where(JobFamily.key == family_key))
+            family = rows.scalars().first()
+            if family is None:
+                raise ValidationError(f"Unknown family: {family_key!r}")
+            family_id = family.id
+        return skill_id, family_id
+
+    async def create_user_path(
+        self,
+        user,
+        *,
+        job_id: UUID,
+        title: str,
+        description: str,
+        steps: list[dict],
+    ) -> CareerPath:
+        """Review-first: a draft user path + the creator's owning pin."""
+        rows = await self.db.execute(
+            select(Job).where(
+                Job.status == PathStatus.PUBLISHED.value,
+                or_(Job.code == str(job_id), Job.id == job_id),
+            )
+        )
+        job = rows.scalars().first()
+        if job is None:
+            raise NotFoundError("Target job not found")
+        path = CareerPath(
+            job_id=job.id,
+            title=title,
+            description=description,
+            source=PathSource.USER.value,
+            status=PathStatus.DRAFT.value,
+        )
+        self.db.add(path)
+        await self.db.flush()
+        self.db.add(
+            UserPathFlag(user_id=user.id, path_id=path.id, step_id=None, flag=PathFlag.PINNED.value)
+        )
+        await self._insert_steps(path, steps)
+        await self.db.commit()
+        await self.db.refresh(path)
+        return path
+
+    async def _insert_steps(self, path: CareerPath, steps: list[dict]) -> list[CareerPathStep]:
+        """Insert the submitted step dicts in list order; `parent` indexes
+        the list for branches. Slots start after the existing steps."""
+        existing = await self._steps_of(path.id)
+        base = (max(step.position for step in existing) + 1) if existing else 0
+        created: list[CareerPathStep] = []
+        for spec in steps:
+            skill_id, family_id = await self._resolve_step_refs(
+                skill_key=spec.get("skill_key"), family_key=spec.get("family_key")
+            )
+            parent_step = created[spec["parent"]] if spec.get("parent") is not None else None
+            step = CareerPathStep(
+                path_id=path.id,
+                position=10_000 + len(created),
+                kind=spec["kind"],
+                label=spec["label"],
+                optional=spec.get("optional", False),
+                skill_id=skill_id,
+                family_id=family_id,
+                education_level=spec.get("education_level"),
+                parent_step_id=parent_step.id if parent_step is not None else None,
+                edge_label=spec.get("edge_label", "") if parent_step is not None else "",
+            )
+            self.db.add(step)
+            await self.db.flush()
+            created.append(step)
+        positions = {step.id: base + offset for offset, step in enumerate(created)}
+        await self._resequence(path.id, positions)
+        return created
+
+    async def _steps_of(self, path_id: UUID) -> list[CareerPathStep]:
+        rows = await self.db.execute(
+            select(CareerPathStep)
+            .where(CareerPathStep.path_id == path_id)
+            .order_by(CareerPathStep.position)
+        )
+        return list(rows.scalars().all())
+
+    async def fork(self, path_id: UUID, user) -> CareerPath:
+        """Fork-on-edit: the caller gets their own copy (source=user,
+        active); the curated original stays untouched."""
+        source = await self.require_visible(path_id, user)
+        if source.source == PathSource.USER.value and await self._owning_flag(source.id, user.id):
+            return source
+        copy = CareerPath(
+            job_id=source.job_id,
+            title=source.title,
+            description=source.description,
+            source=PathSource.USER.value,
+            status=PathStatus.ACTIVE.value,
+        )
+        self.db.add(copy)
+        await self.db.flush()
+        source_positions = {step.id: step.position for step in source.steps}
+        id_map: dict[UUID, UUID] = {}
+        for offset, step in enumerate(sorted(source.steps, key=lambda s: s.position)):
+            new_step = CareerPathStep(
+                path_id=copy.id,
+                position=10_000 + offset,
+                kind=step.kind,
+                label=step.label,
+                optional=step.optional,
+                skill_id=step.skill_id,
+                family_id=step.family_id,
+                education_level=step.education_level,
+                parent_step_id=id_map.get(step.parent_step_id) if step.parent_step_id else None,
+                edge_label=step.edge_label,
+            )
+            self.db.add(new_step)
+            await self.db.flush()
+            id_map[step.id] = new_step.id
+        await self._resequence(copy.id, {step.id: step.position for step in source.steps})
+        self.db.add(
+            UserPathFlag(user_id=user.id, path_id=copy.id, step_id=None, flag=PathFlag.PINNED.value)
+        )
+        await self.db.commit()
+        await self.db.refresh(copy)
+        return copy
+
+    async def activate(self, path: CareerPath) -> CareerPath:
+        """The owner's review action: draft → active. Never automatic."""
+        path.status = PathStatus.ACTIVE.value
+        await self.db.commit()
+        return path
+
+    async def update_path(
+        self, path: CareerPath, *, title: str | None, description: str | None
+    ) -> CareerPath:
+        if title is not None:
+            path.title = title
+        if description is not None:
+            path.description = description
+        await self.db.commit()
+        return path
+
+    async def delete_path(self, path: CareerPath) -> None:
+        await self.db.delete(path)
+        await self.db.commit()
+
+    async def add_step(
+        self, path: CareerPath, *, parent_step_id: UUID | None, spec: dict, position: int | None
+    ) -> CareerPathStep:
+        skill_id, family_id = await self._resolve_step_refs(
+            skill_key=spec.get("skill_key"), family_key=spec.get("family_key")
+        )
+        steps = await self._steps_of(path.id)
+        if parent_step_id is not None and not any(step.id == parent_step_id for step in steps):
+            raise ValidationError("Parent step not found")
+        occupied = sorted(step.position for step in steps)
+        if position is not None:
+            new_position = position
+        elif parent_step_id is not None:
+            new_position = next(s.position for s in steps if s.id == parent_step_id) + 1
+        else:
+            new_position = (occupied[-1] + 1) if occupied else 0
+        step = CareerPathStep(
+            path_id=path.id,
+            position=50_000 + len(occupied),
+            kind=spec["kind"],
+            label=spec["label"],
+            optional=spec.get("optional", False),
+            skill_id=skill_id,
+            family_id=family_id,
+            education_level=spec.get("education_level"),
+            parent_step_id=parent_step_id,
+            edge_label=spec.get("edge_label", "") if parent_step_id is not None else "",
+        )
+        self.db.add(step)
+        await self.db.flush()
+        shifted = {s.id: s.position + (1 if s.position >= new_position else 0) for s in steps}
+        shifted[step.id] = new_position
+        await self._resequence(path.id, shifted)
+        await self.db.commit()
+        return step
+
+    async def update_step(self, path: CareerPath, step_id: UUID, spec: dict) -> CareerPathStep:
+        steps = await self._steps_of(path.id)
+        step = next((s for s in steps if s.id == step_id), None)
+        if step is None:
+            raise NotFoundError("Step not found")
+        if "skill_key" in spec or "family_key" in spec:
+            skill_id, family_id = await self._resolve_step_refs(
+                skill_key=spec.get("skill_key", step.skill.key if step.skill else None),
+                family_key=spec.get("family_key", step.family.key if step.family else None),
+            )
+            step.skill_id = skill_id
+            step.family_id = family_id
+        for field in ("label", "kind", "optional", "edge_label", "education_level"):
+            if spec.get(field) is not None:
+                setattr(step, field, spec[field])
+        await self.db.commit()
+        return step
+
+    async def delete_step(self, path: CareerPath, step_id: UUID) -> None:
+        steps = await self._steps_of(path.id)
+        step = next((s for s in steps if s.id == step_id), None)
+        if step is None:
+            raise NotFoundError("Step not found")
+        remaining = {s.id: s.position for s in steps if s.id != step_id}
+        await self.db.delete(step)
+        await self.db.flush()
+        await self._resequence(path.id, remaining)
+        await self.db.commit()
+
+    async def reorder_steps(
+        self, path: CareerPath, *, parent_step_id: UUID | None, ordered: list[UUID]
+    ) -> None:
+        """Rearrange one sibling set among the positions it already holds."""
+        steps = await self._steps_of(path.id)
+        siblings = [
+            s
+            for s in steps
+            if (s.parent_step_id == parent_step_id)
+            or (parent_step_id is None and s.parent_step_id is None)
+        ]
+        sibling_ids = {s.id for s in siblings}
+        if set(ordered) != sibling_ids or len(ordered) != len(siblings):
+            raise ValidationError("ordered must list exactly this sibling set")
+        slots = sorted(s.position for s in siblings)
+        positions = dict(zip(ordered, slots, strict=True))
+        await self._resequence(path.id, positions)
+        await self.db.commit()
 
     async def index(
         self,

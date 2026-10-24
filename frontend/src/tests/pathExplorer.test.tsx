@@ -15,6 +15,14 @@ vi.mock("@/api/paths", async (importOriginal) => {
     fetchPaths: vi.fn(),
     fetchPathDetail: vi.fn(),
     setPathFlag: vi.fn(),
+    forkPath: vi.fn(),
+    activatePath: vi.fn(),
+    updatePath: vi.fn(),
+    deletePath: vi.fn(),
+    addPathStep: vi.fn(),
+    updatePathStep: vi.fn(),
+    deletePathStep: vi.fn(),
+    reorderPathSteps: vi.fn(),
   };
 });
 vi.mock("@/api/growth", async (importOriginal) => {
@@ -142,5 +150,72 @@ describe("PathExplorer", () => {
     await user.click(screen.getByTestId("paths-growth-add"));
     await waitFor(() => expect(growthApi.createGrowthPlan).toHaveBeenCalledWith("job-1"));
     expect(await screen.findByText("Added to your roadmap")).toBeInTheDocument();
+  });
+
+  it("forks a curated path into an editable copy", async () => {
+    const copy = {
+      ...detail,
+      id: "path-fork",
+      source: "user",
+      status: "active",
+      my_flag: "pinned",
+    } as unknown as PathDetail;
+    vi.mocked(pathsApi.forkPath).mockResolvedValue(copy);
+    mount();
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByTestId("path-item-path-curated")).toBeInTheDocument());
+    await user.click(screen.getByTestId("path-item-path-curated"));
+    await waitFor(() => expect(screen.getByTestId("path-fork")).toBeInTheDocument());
+    await user.click(screen.getByTestId("path-fork"));
+    await waitFor(() => expect(pathsApi.forkPath).toHaveBeenCalledWith("path-curated"));
+    expect(await screen.findByTestId("path-edit")).toBeInTheDocument();
+  });
+
+  it("activates, edits and branches an owned path", async () => {
+    const own = {
+      ...detail,
+      id: "path-own",
+      source: "user",
+      status: "draft",
+      my_flag: "pinned",
+    } as unknown as PathDetail;
+    vi.mocked(pathsApi.fetchPaths).mockResolvedValue([
+      { ...curated, id: "path-own", source: "user", status: "draft", my_flag: "pinned" } as unknown as CareerPath,
+    ]);
+    vi.mocked(pathsApi.fetchPathDetail).mockResolvedValue(own);
+    vi.mocked(pathsApi.activatePath).mockResolvedValue({ ...own, status: "active" });
+    vi.mocked(pathsApi.updatePathStep).mockResolvedValue(own);
+    vi.mocked(pathsApi.addPathStep).mockResolvedValue(own);
+    mount();
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByTestId("path-item-path-own")).toBeInTheDocument());
+    await user.click(screen.getByTestId("path-item-path-own"));
+    const activate = await screen.findByTestId("path-activate");
+    await user.click(activate);
+    await waitFor(() => expect(pathsApi.activatePath).toHaveBeenCalledWith("path-own"));
+
+    await user.click(screen.getByTestId("path-view-tree"));
+    await user.click(screen.getByTestId("path-step-tree-step-1"));
+    await waitFor(() => expect(screen.getByTestId("path-step-actions")).toBeInTheDocument());
+    await user.click(screen.getByTestId("path-step-toggle-optional"));
+    await waitFor(() =>
+      expect(pathsApi.updatePathStep).toHaveBeenCalledWith("path-own", "step-1", {
+        optional: true,
+      }),
+    );
+
+    await user.click(screen.getByTestId("path-step-branch"));
+    await user.type(screen.getByTestId("path-step-label"), "Side quest");
+    await user.type(screen.getByTestId("path-step-edge"), "or: side quest");
+    await user.click(screen.getByTestId("path-step-submit"));
+    await waitFor(() =>
+      expect(pathsApi.addPathStep).toHaveBeenCalledWith("path-own", {
+        kind: "skill",
+        label: "Side quest",
+        optional: false,
+        edge_label: "or: side quest",
+        parent_step_id: "step-1",
+      }),
+    );
   });
 });

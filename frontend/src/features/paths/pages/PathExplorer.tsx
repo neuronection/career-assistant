@@ -4,13 +4,21 @@ import { useTranslation } from "react-i18next";
 import { Compass, Map as MapIcon, Route as RouteIcon, Sparkles } from "lucide-react";
 
 import { Badge } from "@neuronection/assistant-ui";
-import { Button, EmptyState } from "@/components/ui";
+import { Button, ConfirmationModal, EmptyState } from "@/components/ui";
 import { fetchFamilyTree } from "@/api/jobs";
 import {
+  activatePath,
+  addPathStep,
+  deletePath,
+  deletePathStep,
+  forkPath,
   fetchJobPathGraph,
   fetchPathDetail,
   fetchPaths,
+  reorderPathSteps,
   setPathFlag,
+  updatePath,
+  updatePathStep,
 } from "@/api/paths";
 import { createGrowthPlan } from "@/api/growth";
 import { PathRenderer } from "@/features/paths/PathRenderer";
@@ -54,6 +62,15 @@ export function PathExplorer() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [growthAdded, setGrowthAdded] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [descDraft, setDescDraft] = useState("");
+  const [stepForm, setStepForm] = useState<"chain" | "branch" | null>(null);
+  const [stepKind, setStepKind] = useState("skill");
+  const [stepLabel, setStepLabel] = useState("");
+  const [stepEdge, setStepEdge] = useState("");
+  const [stepOptional, setStepOptional] = useState(false);
   const [activePane, setActivePane] = useState<"rail" | "detail">("rail");
   const initialView = useMemo(defaultViewMode, []);
   const [viewMode, setViewMode] = useState(initialView);
@@ -178,6 +195,119 @@ export function PathExplorer() {
     const flag = (currentDetailStep.my_flag ?? "interested") as PathMark;
     await mark({ step_id: currentDetailStep.id }, flag, noteDraft);
   };
+
+  const isOwn = detail?.source === "user";
+  const refreshIndex = useCallback(() => {
+    void load();
+  }, [load]);
+
+  const runDetail = async (action: () => Promise<PathDetail>) => {
+    setBusy(true);
+    try {
+      setDetail(await action());
+      setError("");
+      refreshIndex();
+    } catch {
+      setError(t("paths.editError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const siblingsOf = (step: { parent_step_id?: string | null }) =>
+    (detail?.steps ?? [])
+      .filter((entry) => (entry.parent_step_id ?? null) === (step.parent_step_id ?? null))
+      .sort((a, b) => a.position - b.position);
+
+  const moveStep = (step: NonNullable<PathDetail["steps"]>[number], offset: number) => {
+    if (!detail) return;
+    const siblings = siblingsOf({ parent_step_id: step.parent_step_id ?? null });
+    const index = siblings.findIndex((entry) => entry.id === step.id);
+    const swapWith = siblings[index + offset];
+    if (!swapWith) return;
+    const ordered = [...siblings];
+    ordered[index] = swapWith;
+    ordered[index + offset] = step;
+    void runDetail(() =>
+      reorderPathSteps(detail.id, {
+        parent_step_id: step.parent_step_id ?? null,
+        ordered: ordered.map((entry) => entry.id),
+      }),
+    );
+  };
+
+  const submitStep = (parentStepId: string | null) => {
+    if (!detail || !stepLabel.trim()) return;
+    const payload = {
+      kind: stepKind,
+      label: stepLabel.trim(),
+      optional: stepOptional,
+      edge_label: parentStepId ? stepEdge.trim() : "",
+      parent_step_id: parentStepId,
+    };
+    setStepForm(null);
+    setStepLabel("");
+    setStepEdge("");
+    setStepOptional(false);
+    void runDetail(() => addPathStep(detail.id, payload));
+  };
+
+  const stepEditor = (parentStepId: string | null) => (
+    <div
+      className="mt-2 flex flex-wrap items-center gap-2 rounded-[var(--as-radius)] border border-dashed border-[var(--as-border)] p-2"
+      data-testid={parentStepId ? "path-step-branch-form" : "path-step-add-form"}
+    >
+      <select
+        value={stepKind}
+        onChange={(event) => setStepKind(event.target.value)}
+        aria-label={t("paths.stepKindLabel")}
+        data-testid="path-step-kind"
+        className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm text-[var(--as-fg)]"
+      >
+        {["skill", "education", "certification", "experience", "job", "milestone"].map((kind) => (
+          <option key={kind} value={kind}>
+            {t(`paths.stepKind.${kind}`)}
+          </option>
+        ))}
+      </select>
+      <input
+        value={stepLabel}
+        onChange={(event) => setStepLabel(event.target.value)}
+        placeholder={t("paths.stepLabelPlaceholder")}
+        aria-label={t("paths.stepLabelPlaceholder")}
+        data-testid="path-step-label"
+        className="min-w-0 flex-1 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1 text-sm text-[var(--as-fg)] placeholder:text-[var(--as-muted-fg)]"
+      />
+      {parentStepId ? (
+        <input
+          value={stepEdge}
+          onChange={(event) => setStepEdge(event.target.value)}
+          placeholder={t("paths.edgeLabelPlaceholder")}
+          aria-label={t("paths.edgeLabelPlaceholder")}
+          data-testid="path-step-edge"
+          className="min-w-0 flex-1 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1 text-sm text-[var(--as-fg)] placeholder:text-[var(--as-muted-fg)]"
+        />
+      ) : null}
+      <label className="flex items-center gap-1 text-xs text-[var(--as-muted-fg)]">
+        <input
+          type="checkbox"
+          checked={stepOptional}
+          onChange={(event) => setStepOptional(event.target.checked)}
+          data-testid="path-step-optional"
+        />
+        {t("paths.renderer.optional")}
+      </label>
+      <Button
+        size="sm"
+        variant="default"
+        disabled={busy || !stepLabel.trim()}
+        data-testid="path-step-submit"
+        onClick={() => submitStep(parentStepId)}
+      >
+        {t("common.save")}
+      </Button>
+    </div>
+  );
 
   return (
     <div className="ca-workspace flex min-h-0 flex-col gap-3 lg:h-full" data-testid="paths-page">
@@ -376,7 +506,57 @@ export function PathExplorer() {
                         flag,
                       ),
                     )}
-                    {detail.source === "user" ? null : (
+                    {isOwn ? (
+                      <>
+                        {detail.status === "draft" ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            disabled={busy}
+                            data-testid="path-activate"
+                            onClick={() => void runDetail(() => activatePath(detail.id))}
+                          >
+                            {t("paths.activate")}
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="path-edit"
+                          aria-pressed={editOpen}
+                          onClick={() => {
+                            setTitleDraft(detail.title);
+                            setDescDraft(detail.description);
+                            setEditOpen((open) => !open);
+                          }}
+                        >
+                          {t("paths.edit")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="path-delete"
+                          onClick={() => setDeleteArmed(true)}
+                        >
+                          {t("paths.delete")}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        data-testid="path-fork"
+                        onClick={() => {
+                          void runDetail(() => forkPath(detail.id)).then(() => {
+                            setSelectedStepId(null);
+                          });
+                        }}
+                      >
+                        {t("paths.fork")}
+                      </Button>
+                    )}
+                    {detail.source !== "user" ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -391,9 +571,54 @@ export function PathExplorer() {
                         <Sparkles className="mr-1 size-3.5" aria-hidden />
                         {growthAdded ? t("paths.growthAdded") : t("paths.growthAdd")}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
+                {editOpen ? (
+                  <div className="mt-3 flex flex-col gap-2" data-testid="path-edit-form">
+                    <input
+                      value={titleDraft}
+                      onChange={(event) => setTitleDraft(event.target.value)}
+                      aria-label={t("paths.titleLabel")}
+                      data-testid="path-edit-title"
+                      className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+                    />
+                    <textarea
+                      value={descDraft}
+                      onChange={(event) => setDescDraft(event.target.value)}
+                      aria-label={t("paths.descLabel")}
+                      data-testid="path-edit-desc"
+                      rows={2}
+                      className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={busy || !titleDraft.trim()}
+                        data-testid="path-edit-save"
+                        onClick={() => {
+                          void runDetail(() =>
+                            updatePath(detail.id, {
+                              title: titleDraft.trim(),
+                              description: descDraft,
+                            }),
+                          ).then(() => setEditOpen(false));
+                        }}
+                      >
+                        {t("common.save")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        data-testid="path-edit-cancel"
+                        onClick={() => setEditOpen(false)}
+                      >
+                        {t("common.cancel")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4">
@@ -513,6 +738,86 @@ export function PathExplorer() {
                       {currentDetailStep.my_note}
                     </p>
                   ) : null}
+                  {isOwn ? (
+                    <div
+                      className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-[var(--as-border)] pt-2"
+                      data-testid="path-step-actions"
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        data-testid="path-step-toggle-optional"
+                        onClick={() =>
+                          void runDetail(() =>
+                            updatePathStep(detail.id, currentDetailStep.id, {
+                              optional: !currentDetailStep.optional,
+                            }),
+                          )
+                        }
+                      >
+                        {currentDetailStep.optional
+                          ? t("paths.makeRequired")
+                          : t("paths.makeOptional")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        data-testid="path-step-move-up"
+                        onClick={() => moveStep(currentDetailStep, -1)}
+                      >
+                        {t("paths.moveUp")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        data-testid="path-step-move-down"
+                        onClick={() => moveStep(currentDetailStep, 1)}
+                      >
+                        {t("paths.moveDown")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        data-testid="path-step-branch"
+                        aria-pressed={stepForm === "branch"}
+                        onClick={() =>
+                          setStepForm(stepForm === "branch" ? null : "branch")
+                        }
+                      >
+                        {t("paths.branchFromHere")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        data-testid="path-step-delete"
+                        onClick={() =>
+                          void runDetail(() =>
+                            deletePathStep(detail.id, currentDetailStep.id),
+                          ).then(() => setSelectedStepId(null))
+                        }
+                      >
+                        {t("paths.deleteStep")}
+                      </Button>
+                      <span className="flex-1" />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy}
+                        data-testid="path-step-add-after"
+                        aria-pressed={stepForm === "chain"}
+                        onClick={() => setStepForm(stepForm === "chain" ? null : "chain")}
+                      >
+                        {t("paths.addStep")}
+                      </Button>
+                    </div>
+                  ) : null}
+                  {isOwn && stepForm === "branch" ? stepEditor(currentDetailStep.id) : null}
+                  {isOwn && stepForm === "chain" ? stepEditor(null) : null}
                   <p className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                     {currentDetailStep.family_key ? (
                       <Link
@@ -547,6 +852,23 @@ export function PathExplorer() {
           )}
         </div>
       </div>
+      <ConfirmationModal
+        open={deleteArmed}
+        onOpenChange={setDeleteArmed}
+        onConfirm={() => {
+          setDeleteArmed(false);
+          if (!detail) return;
+          void deletePath(detail.id).then(() => {
+            setDetail(null);
+            setSelectedId(null);
+            refreshIndex();
+          });
+        }}
+        title={t("paths.deleteConfirmTitle")}
+        description={t("paths.deleteConfirmBody")}
+        confirmLabel={t("paths.delete")}
+        destructive
+      />
     </div>
   );
 }

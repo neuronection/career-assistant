@@ -12212,6 +12212,43 @@
         "title": "PasswordChangeIn",
         "type": "object"
       },
+      "PathCreateIn": {
+        "description": "A review-first user path (chat save or manual create): draft\nstatus, owned by its creator's path flag, never auto-activated.",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "job_ref": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Job Ref",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PathStepIn"
+            },
+            "maxItems": 16,
+            "title": "Steps",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_ref",
+          "title"
+        ],
+        "title": "PathCreateIn",
+        "type": "object"
+      },
       "PathDetailOut": {
         "description": "One path with the caller's marks, per-step skill gaps and the\nprofile-completeness summary for the header.",
         "properties": {
@@ -12378,6 +12415,38 @@
         "title": "PathGraphOut",
         "type": "object"
       },
+      "PathReorderIn": {
+        "description": "Reorder one sibling set (a branch, or the main chain with\nparent_step_id NULL) \u2014 `ordered` lists every sibling in its new\norder.",
+        "properties": {
+          "ordered": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Ordered",
+            "type": "array"
+          },
+          "parent_step_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Step Id"
+          }
+        },
+        "required": [
+          "ordered"
+        ],
+        "title": "PathReorderIn",
+        "type": "object"
+      },
       "PathStepDetailOut": {
         "properties": {
           "edge_label": {
@@ -12508,6 +12577,87 @@
           "kind"
         ],
         "title": "PathStepDetailOut",
+        "type": "object"
+      },
+      "PathStepIn": {
+        "description": "One step of a user path draft. `parent` is the 0-based index of the\nsubmitted steps list this step branches from (None = main chain).",
+        "properties": {
+          "edge_label": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Edge Label",
+            "type": "string"
+          },
+          "education_level": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Education Level"
+          },
+          "family_key": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Key"
+          },
+          "kind": {
+            "pattern": "^(job|skill|education|certification|experience|milestone)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "skill_key": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Key"
+          }
+        },
+        "required": [
+          "kind",
+          "label"
+        ],
+        "title": "PathStepIn",
         "type": "object"
       },
       "PathStepOut": {
@@ -12660,6 +12810,127 @@
           "label"
         ],
         "title": "PathStepSkillOut",
+        "type": "object"
+      },
+      "PathStepUpdateIn": {
+        "properties": {
+          "edge_label": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge Label"
+          },
+          "education_level": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Education Level"
+          },
+          "family_key": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Key"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "pattern": "^(job|skill|education|certification|experience|milestone)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "optional": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optional"
+          },
+          "skill_key": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Key"
+          }
+        },
+        "title": "PathStepUpdateIn",
+        "type": "object"
+      },
+      "PathUpdateIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "PathUpdateIn",
         "type": "object"
       },
       "PhysicalActivity": {
@@ -36003,9 +36274,84 @@
         "tags": [
           "paths"
         ]
+      },
+      "post": {
+        "description": "Create a review-first user path (draft; the creator activates it\nafter review). Chat saves and manual creation share this gate.",
+        "operationId": "create_path_api_v1_paths_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Path",
+        "tags": [
+          "paths"
+        ]
       }
     },
     "/api/v1/paths/{path_id}": {
+      "delete": {
+        "description": "Delete an owned user path (curated paths are shared, never deletable).",
+        "operationId": "delete_path_api_v1_paths__path_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Path",
+        "tags": [
+          "paths"
+        ]
+      },
       "get": {
         "description": "One path with the caller's marks and per-step skill gaps.",
         "operationId": "path_detail_api_v1_paths__path_id__get",
@@ -36044,6 +36390,102 @@
           }
         },
         "summary": "Path Detail",
+        "tags": [
+          "paths"
+        ]
+      },
+      "patch": {
+        "description": "Rename/re-describe an owned user path.",
+        "operationId": "update_path_api_v1_paths__path_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Path",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}/activate": {
+      "post": {
+        "description": "Owner review action: draft \u2192 active (never automatic).",
+        "operationId": "activate_path_api_v1_paths__path_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Path",
         "tags": [
           "paths"
         ]
@@ -36098,6 +36540,308 @@
           }
         },
         "summary": "Set Path Flag",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}/fork": {
+      "post": {
+        "description": "Fork-on-edit: the caller gets their own active copy; the original\nstays curated (no shared mutation).",
+        "operationId": "fork_path_api_v1_paths__path_id__fork_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fork Path",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}/steps": {
+      "post": {
+        "description": "Add a step (append to the chain) or branch one off a parent\n(parent_step_id + edge_label).",
+        "operationId": "add_path_step_api_v1_paths__path_id__steps_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parent_step_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent Step Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "position",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Position"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathStepIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Path Step",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}/steps/reorder": {
+      "post": {
+        "description": "Reorder one sibling set (a branch, or the main chain).",
+        "operationId": "reorder_path_steps_api_v1_paths__path_id__steps_reorder_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathReorderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reorder Path Steps",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}/steps/{step_id}": {
+      "delete": {
+        "description": "Remove one step; its branch children cascade with it.",
+        "operationId": "delete_path_step_api_v1_paths__path_id__steps__step_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Step Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Path Step",
+        "tags": [
+          "paths"
+        ]
+      },
+      "patch": {
+        "description": "Edit one step of an owned path (label/kind/optional/edge/refs).",
+        "operationId": "update_path_step_api_v1_paths__path_id__steps__step_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Step Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathStepUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Path Step",
         "tags": [
           "paths"
         ]

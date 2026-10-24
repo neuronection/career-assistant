@@ -7,8 +7,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import DomainError
-from app.models.enums import CareerStage
-from app.schemas.paths import CareerPathOut, PathDetailOut, PathFlagIn, PathGraphOut
+from app.models.enums import CareerStage, PathStatus
+from app.schemas.paths import (
+    CareerPathOut,
+    PathCreateIn,
+    PathDetailOut,
+    PathFlagIn,
+    PathGraphOut,
+    PathReorderIn,
+    PathStepIn,
+    PathStepUpdateIn,
+    PathUpdateIn,
+)
 from app.services.catalog.job_service import JobService
 from app.services.catalog.paths_service import PathService
 from app.services.deps import get_current_user
@@ -73,6 +83,206 @@ async def set_path_flag(
         note=payload.note,
     )
     fresh = await service.require_visible(path_id, user)
+    return await service.detail(fresh, user)
+
+
+@router.post("/paths", response_model=PathDetailOut, status_code=status.HTTP_201_CREATED)
+async def create_path(
+    payload: PathCreateIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Create a review-first user path (draft; the creator activates it
+    after review). Chat saves and manual creation share this gate."""
+    service = PathService(db)
+    try:
+        job = await JobService(db).get_by_code_or_id(payload.job_ref)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Target job not found")
+    try:
+        path = await service.create_user_path(
+            user,
+            job_id=job.id,
+            title=payload.title,
+            description=payload.description,
+            steps=[step.model_dump() for step in payload.steps],
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    fresh = await service.require_visible(path.id, user)
+    return await service.detail(fresh, user)
+
+
+@router.patch("/paths/{path_id}", response_model=PathDetailOut)
+async def update_path(
+    path_id: uuid.UUID,
+    payload: PathUpdateIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Rename/re-describe an owned user path."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    await service.update_path(path, title=payload.title, description=payload.description)
+    fresh = await service.require_owned(path_id, user)
+    return await service.detail(fresh, user)
+
+
+@router.post("/paths/{path_id}/activate", response_model=PathDetailOut)
+async def activate_path(
+    path_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Owner review action: draft → active (never automatic)."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    if path.status != PathStatus.DRAFT.value:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Path is not a draft")
+    await service.activate(path)
+    fresh = await service.require_owned(path_id, user)
+    return await service.detail(fresh, user)
+
+
+@router.delete("/paths/{path_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_path(
+    path_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete an owned user path (curated paths are shared, never deletable)."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    await service.delete_path(path)
+
+
+@router.post(
+    "/paths/{path_id}/fork", response_model=PathDetailOut, status_code=status.HTTP_201_CREATED
+)
+async def fork_path(
+    path_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Fork-on-edit: the caller gets their own active copy; the original
+    stays curated (no shared mutation)."""
+    service = PathService(db)
+    try:
+        copy = await service.fork(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    fresh = await service.require_visible(copy.id, user)
+    return await service.detail(fresh, user)
+
+
+@router.post(
+    "/paths/{path_id}/steps", response_model=PathDetailOut, status_code=status.HTTP_201_CREATED
+)
+async def add_path_step(
+    path_id: uuid.UUID,
+    payload: PathStepIn,
+    parent_step_id: uuid.UUID | None = Query(default=None),
+    position: int | None = Query(default=None, ge=0),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Add a step (append to the chain) or branch one off a parent
+    (parent_step_id + edge_label)."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    try:
+        await service.add_step(
+            path,
+            parent_step_id=parent_step_id,
+            spec=payload.model_dump(),
+            position=position,
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    fresh = await service.require_owned(path_id, user)
+    return await service.detail(fresh, user)
+
+
+@router.patch("/paths/{path_id}/steps/{step_id}", response_model=PathDetailOut)
+async def update_path_step(
+    path_id: uuid.UUID,
+    step_id: uuid.UUID,
+    payload: PathStepUpdateIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Edit one step of an owned path (label/kind/optional/edge/refs)."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    spec = {key: value for key, value in payload.model_dump().items() if value is not None}
+    if "optional" in payload.model_dump() and payload.optional is not None:
+        spec["optional"] = payload.optional
+    try:
+        await service.update_step(path, step_id, spec)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    fresh = await service.require_owned(path_id, user)
+    return await service.detail(fresh, user)
+
+
+@router.delete("/paths/{path_id}/steps/{step_id}", response_model=PathDetailOut)
+async def delete_path_step(
+    path_id: uuid.UUID,
+    step_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Remove one step; its branch children cascade with it."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    try:
+        await service.delete_step(path, step_id)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    fresh = await service.require_owned(path_id, user)
+    return await service.detail(fresh, user)
+
+
+@router.post("/paths/{path_id}/steps/reorder", response_model=PathDetailOut)
+async def reorder_path_steps(
+    path_id: uuid.UUID,
+    payload: PathReorderIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PathDetailOut:
+    """Reorder one sibling set (a branch, or the main chain)."""
+    service = PathService(db)
+    try:
+        path = await service.require_owned(path_id, user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    try:
+        await service.reorder_steps(
+            path, parent_step_id=payload.parent_step_id, ordered=payload.ordered
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    fresh = await service.require_owned(path_id, user)
     return await service.detail(fresh, user)
 
 

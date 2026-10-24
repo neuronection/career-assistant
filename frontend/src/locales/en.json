@@ -3785,6 +3785,25 @@
     "computedTitle": "Roads into {{job}} (computed)",
     "openCatalog": "Browse the family",
     "openSkillResources": "Learning resources",
-    "openEducation": "Your education"
+    "openEducation": "Your education",
+    "editError": "Couldn't update the path.",
+    "fork": "Fork to my paths",
+    "activate": "Activate",
+    "edit": "Edit",
+    "delete": "Delete path",
+    "deleteConfirmTitle": "Delete this path?",
+    "deleteConfirmBody": "Your copy and its marks are removed. Curated originals stay untouched.",
+    "titleLabel": "Path title",
+    "descLabel": "Description",
+    "makeOptional": "Mark optional",
+    "makeRequired": "Mark required",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "branchFromHere": "Branch from here",
+    "deleteStep": "Remove step",
+    "addStep": "Add step…",
+    "stepKindLabel": "Step kind",
+    "stepLabelPlaceholder": "What happens at this step?",
+    "edgeLabelPlaceholder": "Why this branch? (e.g. or: research track)"
   }
 }
