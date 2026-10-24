@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Bookmark, ExternalLink, EyeOff } from "lucide-react";
 import { fetchJob, fetchJobRelations, publishJob } from "@/api/jobs";
 import { fetchJobMatchDetail, rateJob, scoreJobForMe } from "@/api/matching";
-import { fetchJobPathGraph, fetchJobPaths, fetchSkillGaps } from "@/api/skills";
+import { fetchJobPathGraph, fetchJobPaths } from "@/api/paths";
+import { fetchSkillGaps } from "@/api/skills";
 import { hideJob, markSeen, saveJob } from "@/api/engagement";
 import { fetchMarketSnapshot, fetchMarketTrend, type MarketTrendPoint } from "@/api/growth";
 import { AiButton } from "@/components/AiButton";
@@ -99,7 +100,7 @@ export function JobDetail() {
           fetchJobPathGraph(code),
         ]);
         setPaths(curated);
-        setPathNodes(graph.nodes.filter((n) => n.depth > 0));
+        setPathNodes((graph.nodes ?? []).filter((n) => n.depth > 0));
       } catch {
         setPaths([]);
         setPathNodes([]);

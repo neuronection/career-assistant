@@ -102,6 +102,7 @@ fails when a claim here drifts from the code.
 | Career Autopilot | `/autopilot` | beta | [user/career-autopilot.md](docs/user/career-autopilot.md) |
 | Interview prep | `/interviews` | beta | [user/interviews.md](docs/user/interviews.md) |
 | Growth toolkit | `/growth` | beta | [user/growth.md](docs/user/growth.md) |
+| Career paths | `/paths` | beta | [user/career-paths.md](docs/user/career-paths.md) |
 
 `beta` means the surface works end to end and carries a visible Beta chip
 plus one expectation line in the app; everything else the catalog lists is

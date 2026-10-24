@@ -6856,6 +6856,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/paths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Paths
+         * @description Published paths + the caller's own copies (filterable by target
+         *     job reference, target-job family key or career stage).
+         */
+        get: operations["list_paths_api_v1_paths_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Path Detail
+         * @description One path with the caller's marks and per-step skill gaps.
+         */
+        get: operations["path_detail_api_v1_paths__path_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/paths/{path_id}/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Path Flag
+         * @description Set or clear one mark (interested/dismissed/pinned) on the path or
+         *     a step. Marks are preferences — they never feed fit or scores.
+         */
+        put: operations["set_path_flag_api_v1_paths__path_id__flags_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings": {
         parameters: {
             query?: never;
@@ -8463,11 +8525,17 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Job Code */
+            job_code?: string | null;
             /**
              * Job Id
              * Format: uuid
              */
             job_id: string;
+            /** Job Title */
+            job_title?: string | null;
+            /** My Flag */
+            my_flag?: string | null;
             /** Source */
             source: string;
             /** Status */
@@ -12218,6 +12286,71 @@ export interface components {
             new_password: string;
         };
         /**
+         * PathDetailOut
+         * @description One path with the caller's marks, per-step skill gaps and the
+         *     profile-completeness summary for the header.
+         */
+        PathDetailOut: {
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Code */
+            job_code?: string | null;
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Job Title */
+            job_title?: string | null;
+            /** My Flag */
+            my_flag?: string | null;
+            /**
+             * My Note
+             * @default
+             */
+            my_note: string;
+            /**
+             * Skills Met
+             * @default 0
+             */
+            skills_met: number;
+            /**
+             * Skills Total
+             * @default 0
+             */
+            skills_total: number;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /** Steps */
+            steps?: components["schemas"]["PathStepDetailOut"][];
+            /** Title */
+            title: string;
+        };
+        /**
+         * PathFlagIn
+         * @description Set one mark on the path (step_id NULL) or one step; flag NULL
+         *     clears the mark. Marks are preferences — nothing consumes them in
+         *     scoring.
+         */
+        PathFlagIn: {
+            /** Flag */
+            flag?: string | null;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Step Id */
+            step_id?: string | null;
+        };
+        /**
          * PathGraphOut
          * @description BFS over `leads_to`/`prerequisite_of` edges pointing INTO the job.
          */
@@ -12234,14 +12367,71 @@ export interface components {
              */
             truncated: boolean;
         };
-        /** PathStepOut */
-        PathStepOut: {
+        /** PathStepDetailOut */
+        PathStepDetailOut: {
+            /**
+             * Edge Label
+             * @default
+             */
+            edge_label: string;
             /** Education Level */
             education_level?: string | null;
             /** Family Key */
             family_key?: string | null;
             /** Family Label */
             family_label?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** My Flag */
+            my_flag?: string | null;
+            /**
+             * My Note
+             * @default
+             */
+            my_note: string;
+            /**
+             * Optional
+             * @default false
+             */
+            optional: boolean;
+            /** Parent Step Id */
+            parent_step_id?: string | null;
+            /** Position */
+            position: number;
+            skill?: components["schemas"]["PathStepSkillOut"] | null;
+            /** Skill Key */
+            skill_key?: string | null;
+            /** Skill Label */
+            skill_label?: string | null;
+        };
+        /** PathStepOut */
+        PathStepOut: {
+            /**
+             * Edge Label
+             * @default
+             */
+            edge_label: string;
+            /** Education Level */
+            education_level?: string | null;
+            /** Family Key */
+            family_key?: string | null;
+            /** Family Label */
+            family_label?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Kind */
             kind: string;
             /**
@@ -12254,12 +12444,30 @@ export interface components {
              * @default false
              */
             optional: boolean;
+            /** Parent Step Id */
+            parent_step_id?: string | null;
             /** Position */
             position: number;
             /** Skill Key */
             skill_key?: string | null;
             /** Skill Label */
             skill_label?: string | null;
+        };
+        /** PathStepSkillOut */
+        PathStepSkillOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Required Level */
+            required_level?: number | null;
+            /**
+             * Skill Id
+             * Format: uuid
+             */
+            skill_id: string;
+            /** User Level */
+            user_level?: number | null;
         };
         /**
          * PhysicalActivity
@@ -26605,6 +26813,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_paths_api_v1_paths_get: {
+        parameters: {
+            query?: {
+                job?: string | null;
+                family?: string | null;
+                stage?: components["schemas"]["CareerStage"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CareerPathOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    path_detail_api_v1_paths__path_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_path_flag_api_v1_paths__path_id__flags_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PathFlagIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathDetailOut"];
                 };
             };
             /** @description Validation Error */

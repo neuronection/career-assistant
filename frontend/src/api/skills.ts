@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { CareerPath, SkillGapReport } from "@/types/wire";
+import type { SkillGapReport } from "@/types/wire";
 import type { Skill, UserSkill } from "@/types";
 
 export interface SkillSummary {
@@ -53,17 +53,4 @@ export async function fetchSkillGaps(jobRef: string): Promise<SkillGapReport> {
   return data;
 }
 
-export async function fetchJobPaths(
-  jobRef: string,
-  includeDrafts = false,
-): Promise<CareerPath[]> {
-  const { data } = await api.get<CareerPath[]>(`/jobs/${jobRef}/paths`, {
-    params: { include_drafts: includeDrafts },
-  });
-  return data;
-}
 
-export async function fetchJobPathGraph(jobRef: string): Promise<{ root: string; nodes: { code: string; title: string; depth: number }[] }> {
-  const { data } = await api.get(`/jobs/${jobRef}/paths/graph`);
-  return data;
-}

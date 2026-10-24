@@ -5,6 +5,13 @@ export async function fetchGrowthPlans(): Promise<GrowthPlanItem[]> {
   return data;
 }
 
+export async function createGrowthPlan(targetJobId: string): Promise<GrowthPlanItem> {
+  const { data } = await api.post<GrowthPlanItem>("/growth/plans", {
+    target_job_id: targetJobId,
+  });
+  return data;
+}
+
 export async function patchGrowthStep(
   stepId: string,
   body: { status?: string; completed_level?: number }

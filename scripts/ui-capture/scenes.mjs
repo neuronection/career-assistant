@@ -157,6 +157,15 @@ export const scenes = [
     waitForSelector: "[data-testid='growth']",
   },
   {
+    name: "career-paths",
+    group: "Working life",
+    caption: "Career paths — every route to a target job as graph, tree or list.",
+    narration: "The career-path explorer shows every route to your target jobs — mark what interests you and dismiss the rest.",
+    path: "/paths",
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='paths-page']",
+  },
+  {
     name: "profile-experience",
     group: "Your profile",
     caption: "Experience timeline — quantified achievements from the seeded demo persona.",

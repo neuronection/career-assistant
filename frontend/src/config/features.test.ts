@@ -20,6 +20,7 @@ describe("feature registry", () => {
       "/autopilot",
       "/interviews",
       "/growth",
+      "/paths",
     ]);
   });
 

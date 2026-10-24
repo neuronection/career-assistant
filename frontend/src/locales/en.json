@@ -22,7 +22,8 @@
     "sectionJobHunt": "Job hunt",
     "sectionPrepare": "Prepare",
     "sectionAccount": "Account",
-    "sectionExtensions": "Extensions"
+    "sectionExtensions": "Extensions",
+    "paths": "Career paths"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -3720,6 +3721,70 @@
       "branchesHeading": "Branches",
       "viaBranch": "Branch: {{label}}",
       "branchFallback": "alternative route"
-    }
+    },
+    "title": "Career paths",
+    "subtitle": "Browse every route to your target jobs — mark what interests you, dismiss what doesn't.",
+    "loadError": "Couldn't load paths.",
+    "markError": "Couldn't save your mark.",
+    "growthError": "Couldn't create the roadmap.",
+    "growthAdd": "Add to growth roadmap",
+    "growthAdded": "Added to your roadmap",
+    "searchPlaceholder": "Target job (code or id)",
+    "familyFilter": "Filter by family",
+    "stageFilter": "Filter by stage",
+    "allFamilies": "All families",
+    "allStages": "All stages",
+    "stage": {
+      "student": "Student",
+      "early_career": "Early career",
+      "experienced": "Experienced",
+      "switching": "Switching fields",
+      "returning": "Returning after a break"
+    },
+    "panesAria": "Path panes",
+    "pane": {
+      "rail": "Paths",
+      "detail": "Detail"
+    },
+    "groupCurated": "Curated paths",
+    "groupMine": "My paths",
+    "emptyTitle": "No paths yet",
+    "emptyBody": "Curated routes appear here — or ask the assistant to draft one for your target job.",
+    "pickTitle": "Pick a path",
+    "pickBody": "Select a path on the left to explore its steps.",
+    "toJob": "to {{job}}",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "published": "Curated"
+    },
+    "marks": {
+      "interested": "Interested",
+      "pinned": "Pinned",
+      "dismissed": "Dismissed"
+    },
+    "completeness": "{{met}} of {{total}} skills already in your profile",
+    "completenessNone": "No skill requirements on this path",
+    "skillLevels": "you {{you}} · required {{required}}",
+    "stepKind": {
+      "job": "Job",
+      "skill": "Skill",
+      "education": "Education",
+      "certification": "Certification",
+      "experience": "Experience",
+      "milestone": "Milestone"
+    },
+    "education": {
+      "typicalYears": "typically {years} years",
+      "vocational": "Vocational school",
+      "bachelor": "Bachelor's degree",
+      "master": "Master's degree",
+      "phd": "Doctorate"
+    },
+    "notePlaceholder": "Why this mark? (note)",
+    "computedTitle": "Roads into {{job}} (computed)",
+    "openCatalog": "Browse the family",
+    "openSkillResources": "Learning resources",
+    "openEducation": "Your education"
   }
 }

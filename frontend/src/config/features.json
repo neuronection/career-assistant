@@ -35,6 +35,12 @@
       "state": "beta",
       "since": "2026-10-21",
       "docs": "docs/user/growth.md"
+    },
+    {
+      "key": "/paths",
+      "state": "beta",
+      "since": "2026-10-24",
+      "docs": "docs/user/career-paths.md"
     }
   ]
 }

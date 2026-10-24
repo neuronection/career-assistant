@@ -42,6 +42,7 @@ export type SkillGap = Schemas["GapOut"];
 export type SkillGapReport = Schemas["SkillGapReport"];
 export type PathStep = Schemas["PathStepOut"];
 export type CareerPath = Schemas["CareerPathOut"];
+export type PathDetail = Schemas["PathDetailOut"];
 export type PathGraph = Schemas["PathGraphOut"];
 export type PathGraphNode = Schemas["GraphNodeOut"];
 export type PathGraphEdge = Schemas["GraphEdgeOut"];

@@ -31,6 +31,7 @@ import { ExpressOnboarding } from "@/features/profile/pages/ExpressOnboarding";
 import { ExtensionSurfacePage } from "@/features/integrations/pages/ExtensionSurface";
 import { Growth } from "@/features/growth/pages/Growth";
 import { Interviews } from "@/features/interviews/pages/Interviews";
+import { PathExplorer } from "@/features/paths/pages/PathExplorer";
 import { ProfileEdit } from "@/features/profile/pages/ProfileEdit";
 import { ProfileImport } from "@/features/profile/pages/ProfileImport";
 import { Rankings } from "@/features/catalog/pages/Rankings";
@@ -82,6 +83,7 @@ export function App() {
           <Route path="/autopilot" element={<Autopilot />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/growth" element={<Growth />} />
+          <Route path="/paths" element={<PathExplorer />} />
           <Route path="/extensions/:extensionId" element={<ExtensionSurfacePage />} />
           <Route path="/profile" element={<ProfileEdit />} />
           <Route path="/profile/import" element={<ProfileImport />} />

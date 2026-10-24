@@ -2415,10 +2415,43 @@
             "title": "Id",
             "type": "string"
           },
+          "job_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Code"
+          },
           "job_id": {
             "format": "uuid",
             "title": "Job Id",
             "type": "string"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "my_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Flag"
           },
           "source": {
             "title": "Source",
@@ -12179,6 +12212,139 @@
         "title": "PasswordChangeIn",
         "type": "object"
       },
+      "PathDetailOut": {
+        "description": "One path with the caller's marks, per-step skill gaps and the\nprofile-completeness summary for the header.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Code"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "my_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Flag"
+          },
+          "my_note": {
+            "default": "",
+            "title": "My Note",
+            "type": "string"
+          },
+          "skills_met": {
+            "default": 0,
+            "title": "Skills Met",
+            "type": "integer"
+          },
+          "skills_total": {
+            "default": 0,
+            "title": "Skills Total",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PathStepDetailOut"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_id",
+          "title",
+          "description",
+          "source",
+          "status"
+        ],
+        "title": "PathDetailOut",
+        "type": "object"
+      },
+      "PathFlagIn": {
+        "description": "Set one mark on the path (step_id NULL) or one step; flag NULL\nclears the mark. Marks are preferences \u2014 nothing consumes them in\nscoring.",
+        "properties": {
+          "flag": {
+            "anyOf": [
+              {
+                "pattern": "^(interested|dismissed|pinned)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flag"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Note",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "title": "PathFlagIn",
+        "type": "object"
+      },
       "PathGraphOut": {
         "description": "BFS over `leads_to`/`prerequisite_of` edges pointing INTO the job.",
         "properties": {
@@ -12212,8 +12378,13 @@
         "title": "PathGraphOut",
         "type": "object"
       },
-      "PathStepOut": {
+      "PathStepDetailOut": {
         "properties": {
+          "edge_label": {
+            "default": "",
+            "title": "Edge Label",
+            "type": "string"
+          },
           "education_level": {
             "anyOf": [
               {
@@ -12247,6 +12418,143 @@
             ],
             "title": "Family Label"
           },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "my_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Flag"
+          },
+          "my_note": {
+            "default": "",
+            "title": "My Note",
+            "type": "string"
+          },
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "parent_step_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Step Id"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PathStepSkillOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skill_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Key"
+          },
+          "skill_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Label"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "kind"
+        ],
+        "title": "PathStepDetailOut",
+        "type": "object"
+      },
+      "PathStepOut": {
+        "properties": {
+          "edge_label": {
+            "default": "",
+            "title": "Edge Label",
+            "type": "string"
+          },
+          "education_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Education Level"
+          },
+          "family_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Key"
+          },
+          "family_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Label"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -12260,6 +12568,18 @@
             "default": false,
             "title": "Optional",
             "type": "boolean"
+          },
+          "parent_step_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Step Id"
           },
           "position": {
             "title": "Position",
@@ -12289,10 +12609,57 @@
           }
         },
         "required": [
+          "id",
           "position",
           "kind"
         ],
         "title": "PathStepOut",
+        "type": "object"
+      },
+      "PathStepSkillOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Level"
+          },
+          "skill_id": {
+            "format": "uuid",
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "user_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Level"
+          }
+        },
+        "required": [
+          "skill_id",
+          "key",
+          "label"
+        ],
+        "title": "PathStepSkillOut",
         "type": "object"
       },
       "PhysicalActivity": {
@@ -35549,6 +35916,190 @@
         "summary": "Resolve",
         "tags": [
           "onboarding"
+        ]
+      }
+    },
+    "/api/v1/paths": {
+      "get": {
+        "description": "Published paths + the caller's own copies (filterable by target\njob reference, target-job family key or career stage).",
+        "operationId": "list_paths_api_v1_paths_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "job",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job"
+            }
+          },
+          {
+            "in": "query",
+            "name": "family",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Family"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CareerStage"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CareerPathOut"
+                  },
+                  "title": "Response List Paths Api V1 Paths Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Paths",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}": {
+      "get": {
+        "description": "One path with the caller's marks and per-step skill gaps.",
+        "operationId": "path_detail_api_v1_paths__path_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Path Detail",
+        "tags": [
+          "paths"
+        ]
+      }
+    },
+    "/api/v1/paths/{path_id}/flags": {
+      "put": {
+        "description": "Set or clear one mark (interested/dismissed/pinned) on the path or\na step. Marks are preferences \u2014 they never feed fit or scores.",
+        "operationId": "set_path_flag_api_v1_paths__path_id__flags_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Path Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathFlagIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PathDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Path Flag",
+        "tags": [
+          "paths"
         ]
       }
     },

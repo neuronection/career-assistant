@@ -84,11 +84,13 @@ class PathSource(StrEnum):
     SEED = "seed"
     AI = "ai"
     ADMIN = "admin"
+    USER = "user"
 
 
 class PathStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
+    ACTIVE = "active"
 
 
 class PathFlag(StrEnum):

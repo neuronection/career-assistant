@@ -22,7 +22,8 @@
     "sectionJobHunt": "Jobsuche",
     "sectionPrepare": "Vorbereiten",
     "sectionAccount": "Konto",
-    "sectionExtensions": "Erweiterungen"
+    "sectionExtensions": "Erweiterungen",
+    "paths": "Karrierepfade"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -3719,6 +3720,70 @@
       "branchesHeading": "Zweige",
       "viaBranch": "Zweig: {{label}}",
       "branchFallback": "alternativer Weg"
-    }
+    },
+    "title": "Karrierepfade",
+    "subtitle": "Alle Wege zu deinen Zielberufen — markiere, was dich interessiert, und verwerfe den Rest.",
+    "loadError": "Pfade konnten nicht geladen werden.",
+    "markError": "Deine Markierung konnte nicht gespeichert werden.",
+    "growthError": "Die Roadmap konnte nicht erstellt werden.",
+    "growthAdd": "Zur Wachstums-Roadmap hinzufügen",
+    "growthAdded": "Zu deiner Roadmap hinzugefügt",
+    "searchPlaceholder": "Zielberuf (Code oder ID)",
+    "familyFilter": "Nach Familie filtern",
+    "stageFilter": "Nach Phase filtern",
+    "allFamilies": "Alle Familien",
+    "allStages": "Alle Phasen",
+    "stage": {
+      "student": "Studierende*r",
+      "early_career": "Berufseinsteig",
+      "experienced": "Erfahren",
+      "switching": "Branchenwechsel",
+      "returning": "Rückkehr nach Pause"
+    },
+    "panesAria": "Pfad-Bereiche",
+    "pane": {
+      "rail": "Pfade",
+      "detail": "Details"
+    },
+    "groupCurated": "Kuratierte Pfade",
+    "groupMine": "Meine Pfade",
+    "emptyTitle": "Noch keine Pfade",
+    "emptyBody": "Kuratierte Routen erscheinen hier — oder bitt den Assistenten um einen Entwurf für deinen Zielberuf.",
+    "pickTitle": "Wähle einen Pfad",
+    "pickBody": "Wähle links einen Pfad, um seine Schritte zu erkunden.",
+    "toJob": "zu {{job}}",
+    "status": {
+      "draft": "Entwurf",
+      "active": "Aktiv",
+      "published": "Kuratiert"
+    },
+    "marks": {
+      "interested": "Interessiert",
+      "pinned": "Angeheftet",
+      "dismissed": "Verworfen"
+    },
+    "completeness": "{{met}} von {{total}} Skills bereits im Profil",
+    "completenessNone": "Keine Skill-Anforderungen in diesem Pfad",
+    "skillLevels": "du {{you}} · benötigt {{required}}",
+    "stepKind": {
+      "job": "Beruf",
+      "skill": "Skill",
+      "education": "Ausbildung",
+      "certification": "Zertifizierung",
+      "experience": "Erfahrung",
+      "milestone": "Meilenstein"
+    },
+    "education": {
+      "typicalYears": "typischerweise {years} Jahre",
+      "vocational": "Berufsschule",
+      "bachelor": "Bachelor",
+      "master": "Master",
+      "phd": "Doktortitel"
+    },
+    "notePlaceholder": "Warum diese Markierung? (Notiz)",
+    "computedTitle": "Wege zu {{job}} (berechnet)",
+    "openCatalog": "Familie durchsuchen",
+    "openSkillResources": "Lernressourcen",
+    "openEducation": "Deine Ausbildung"
   }
 }
