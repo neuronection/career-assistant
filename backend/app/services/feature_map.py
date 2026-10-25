@@ -106,6 +106,19 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             prompt_hint="languages: required spoken languages.",
         ),
         FeatureRow(
+            "prerequisites",
+            "Stated prerequisites",
+            ("prereq_gates",),
+            prompt_hint=(
+                "prerequisites: typed requirement rows outside the skill "
+                "axis — kind ∈ degree|certificate|license|language|other, "
+                "a short label, and the verbatim evidence quote (e.g. "
+                '"BSc in Computer Science", "PMP certificate", '
+                '"valid driver\'s license"). The education LEVEL itself '
+                "still goes to `education`."
+            ),
+        ),
+        FeatureRow(
             "salary",
             "Salary range",
             ("column_write",),

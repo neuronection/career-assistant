@@ -246,6 +246,20 @@ describe("Skill-level search & provenance", () => {
               confidence: 0.95,
             },
           ],
+          prerequisites: [
+            {
+              kind: "certificate",
+              label: "PMP certificate",
+              evidence_quote: "PMP certification required",
+              confidence: 0.9,
+            },
+            {
+              kind: "apprenticeship",
+              label: "Completed apprenticeship",
+              evidence_quote: "completed apprenticeship preferred",
+              confidence: 0.9,
+            },
+          ],
           responsibilities: [
             { text: "Build dashboards", time_pct: 40, optional: false },
           ],
@@ -263,6 +277,13 @@ describe("Skill-level search & provenance", () => {
     expect(await screen.findByTestId("provenance")).toHaveTextContent("extracted");
     expect(screen.getByText(/40% of time/)).toBeInTheDocument();
     expect(screen.getByText("Remote budget")).toBeInTheDocument();
+    // prerequisites render with kind badges; unknown kinds fall back to
+    // the raw kind instead of a raw i18n key
+    const prereqs = await screen.findByTestId("extract-prerequisites");
+    expect(prereqs).toHaveTextContent("PMP certificate");
+    expect(prereqs).toHaveTextContent("Certificate");
+    expect(prereqs).toHaveTextContent("apprenticeship");
+    expect(prereqs).not.toHaveTextContent("prereqKind.");
     // evidence quotes render on tap
     fireEvent.click(screen.getByLabelText("Show evidence"));
     expect(screen.getByTestId("skill-evidence")).toHaveTextContent(

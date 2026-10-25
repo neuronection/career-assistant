@@ -51,7 +51,13 @@ A queued LLM pass turns a posting into auditable data:
 
 - **Skills** with a required level 1–10 and a priority, each backed by a
   **verbatim evidence quote**.
-- **Salary**, **responsibilities** with time splits, and **seniority**.
+- **Salary** (with the stated gross/net basis and an annualized range),
+  **responsibilities** with time splits, and **seniority**.
+- **Prerequisites** — the stated gates outside the skill axis (degree
+  wording, certificates, licenses), each with its own evidence quote.
+  Certificates and licenses are matched against your profile's
+  certification entries in the fit score; unmatched ones show as "not
+  evidenced", never silently ignored.
 - **Extraction v2** adds contract type, work hours, schedule cues, travel
   demand, onsite policy and **typed benefits** — each with its own evidence.
 

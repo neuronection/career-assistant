@@ -9,6 +9,7 @@ analogue and stays unused)."""
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -119,10 +120,29 @@ def _skills_dimension(links: list[PostingSkill], user_levels: dict[UUID, int]) -
     }
 
 
-def _prereqs_dimension(posting: JobPosting, profile) -> dict:
-    """Education + language prerequisites vs the profile."""
+def _certificate_evidenced(label: str, certifications: set[str]) -> bool:
+    """Token-overlap match: a shared word of length ≥ 4 (case-insensitive)
+    or a full-string containment where the shorter side is itself ≥ 4
+    chars. A one-letter certification never evidences a long label; the
+    acronym case (user holds "Project Management Professional", posting
+    says "PMP") stays honestly unmatched — cap 6.0, never a guess."""
+    label_tokens = {t for t in re.findall(r"[a-z0-9]+", label.lower()) if len(t) >= 4}
+    for cert in certifications:
+        if len(label) >= 4 and (label in cert or cert in label):
+            return True
+        cert_tokens = {t for t in re.findall(r"[a-z0-9]+", cert) if len(t) >= 4}
+        if label_tokens & cert_tokens:
+            return True
+    return False
+
+
+def _prereqs_dimension(
+    posting: JobPosting, profile, certifications: set[str]
+) -> dict:
+    """Education + language + stated-certificate prerequisites vs the profile."""
     score = 10.0
     details: list[str] = []
+    scored = False
     required_education = (posting.extract or {}).get("education", {}) or {}
     level = required_education.get("level") or posting.education_level
     if level:
@@ -153,10 +173,32 @@ def _prereqs_dimension(posting: JobPosting, profile) -> dict:
             if lang not in user_languages or user_languages[lang] < 1:
                 details.append(f"language {lang} not evidenced")
                 score = min(score, 5.0)
+                scored = True
             else:
                 details.append(f"language {lang} evidenced")
-    if not details:
-        return {"score": 7.0, "detail": "no explicit prerequisites", "neutral": True}
+                scored = True
+
+    for row in (posting.extract or {}).get("prerequisites") or []:
+        kind = str(row.get("kind", ""))
+        label = str(row.get("label", "")).strip()
+        if not label or kind in ("language", "other"):
+            continue
+        if kind == "degree":
+            details.append(f"degree wording: {label} (level via education)")
+            continue
+        if _certificate_evidenced(label, certifications):
+            details.append(f"{kind} {label} evidenced")
+            scored = True
+        else:
+            details.append(f"{kind} {label} not evidenced (profile has no match)")
+            score = min(score, 6.0)
+            scored = True
+    if not details or not scored:
+        return {
+            "score": 7.0,
+            "detail": "; ".join(details[:3]) or "no explicit prerequisites",
+            "neutral": True,
+        }
     return {"score": round(score, 2), "detail": "; ".join(details[:3])}
 
 
@@ -214,12 +256,28 @@ async def _load_context(db: AsyncSession, user_id: UUID) -> dict:
     stage, _source = await stage_for_user(db, user_id)
     user_levels = await _user_skills(db, user_id)
     weights = await FitService(db).scoring_weights(profile)
+    certification_names = await _certification_names(db, user_id)
     return {
         "profile": profile,
         "stage": stage,
         "user_levels": user_levels,
         "weights": weights,
+        "certifications": certification_names,
     }
+
+
+async def _certification_names(db: AsyncSession, user_id: UUID) -> list[str]:
+    """The user's ACTIVE certification/license names, lowercased for
+    matching — draft (unreviewed) rows never evidence a requirement."""
+    from app.models.profile_entities_model import Certification
+
+    rows = await db.execute(
+        select(Certification.name).where(
+            Certification.user_id == user_id,
+            Certification.status == "active",
+        )
+    )
+    return [str(name).strip().lower() for name in rows.scalars().all() if name]
 
 
 def _inputs_payload(
@@ -228,6 +286,7 @@ def _inputs_payload(
     user_levels: dict[UUID, int],
     weights: dict,
     stage_value: str,
+    certifications: list[str] | None = None,
     constraints: dict | None = None,
 ) -> dict:
     return {
@@ -238,6 +297,7 @@ def _inputs_payload(
         "user_skills": {str(k): v for k, v in sorted(user_levels.items())},
         "weights": weights,
         "stage": stage_value,
+        "certifications": sorted(certifications or []),
         "lifestyle_constraints": {
             key: (constraints or {}).get(key)
             for key in (
@@ -307,6 +367,7 @@ async def compute_posting_fit(
     stage = context["stage"]
     user_levels = context["user_levels"]
     weights = context["weights"]
+    certifications = context.get("certifications") or []
 
     extracted = posting.extract_version is not None
     dimension_weights = {
@@ -326,6 +387,7 @@ async def compute_posting_fit(
         user_levels,
         weights,
         stage.value,
+        certifications=certifications,
         constraints=profile.constraints,
     )
     inputs_hash = _canonical_hash(inputs)
@@ -358,7 +420,7 @@ async def compute_posting_fit(
     )
     breakdown = {
         "skills": _skills_dimension(links, user_levels),
-        "prereqs": _prereqs_dimension(posting, profile),
+        "prereqs": _prereqs_dimension(posting, profile, set(certifications)),
         "location_remote": _location_remote_dimension(posting, profile),
         "seniority_stage": _seniority_stage_dimension(posting, stage.value),
         "freshness": _freshness_dimension(posting),
@@ -390,6 +452,7 @@ def _expected_hash(user_id: UUID, posting: JobPosting, context: dict) -> str:
             context["user_levels"],
             context["weights"],
             context["stage"].value,
+            certifications=context.get("certifications") or [],
             constraints=context["profile"].constraints,
         )
     )

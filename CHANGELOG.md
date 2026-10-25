@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (structured prerequisites, 2026-10-26)
+- **Plan 129 phase 3 — stated prerequisites become typed data.** The
+  deep-extraction pass now returns a `prerequisites` list (kind ∈
+  degree | certificate | license | language | other) with a label, a
+  verbatim evidence quote and per-row confidence; low-confidence rows
+  are suppressed like every other field. The posting detail page shows
+  them grouped under a Prerequisites heading, and the deterministic fit
+  score's prerequisite dimension matches certificate/license rows
+  against the profile's certification entries — a stated certificate
+  with no profile match caps the dimension at 6.0 and says so ("not
+  evidenced"); degree rows are note-only (the level comparison rides
+  the education field). Certification changes invalidate cached fit
+  scores. Extraction version bumps to 4, so demand-path re-extracts
+  pick the field up.
+
 ### Added (salary normalization, 2026-10-26)
 - **Plan 129 phase 2 — salary figures become comparable.** Postings now
   carry a stated `salary_basis` (gross / net — NULL when the source

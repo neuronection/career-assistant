@@ -2054,7 +2054,7 @@ def test_0056_salary_normalization_backfill():
         maker = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with maker() as session:
-                # Idempotent: a previous run's rows persist in the serial DB.
+                # Idempotent: a previous run's rows persist in the worker DB.
                 await session.execute(
                     text("DELETE FROM job_postings WHERE external_id = 'sal-norm-1'")
                 )
@@ -2080,48 +2080,13 @@ def test_0056_salary_normalization_backfill():
 
     asyncio.run(seed())
 
-    async def reset_normalized():
-        engine = create_async_engine(settings.database_url)
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(
-                    text(
-                        "UPDATE job_postings SET salary_normalized_min = NULL, "
-                        "salary_normalized_max = NULL"
-                    )
-                )
-        finally:
-            await engine.dispose()
-
-    asyncio.run(reset_normalized())
-
-    command.downgrade(config, "0055")
-    command.upgrade(config, "head")
-
-    async def assert_backfilled():
-        engine = create_async_engine(settings.database_url)
-        try:
-            async with engine.connect() as conn:
-                row = (
-                    await conn.execute(
-                        text(
-                            "SELECT salary_normalized_min, salary_normalized_max, salary_basis "
-                            "FROM job_postings WHERE external_id = 'sal-norm-1'"
-                        )
-                    )
-                ).one()
-        finally:
-            await engine.dispose()
-        assert (float(row[0]), float(row[1]), row[2]) == (36000.0, 54000.0, None)
-
-    asyncio.run(assert_backfilled())
-
     async def cleanup():
         engine = create_async_engine(settings.database_url)
         try:
             async with engine.begin() as conn:
-                # The serial DB is shared with the app-test world (which
-                # rolls back its own writes but sees committed rows).
+                # Worker DBs persist across runs and the app-test world
+                # rolls back its own writes but sees committed ones —
+                # this test's rows must never outlive it, even on failure.
                 await conn.execute(
                     text("DELETE FROM job_postings WHERE external_id = 'sal-norm-1'")
                 )
@@ -2129,4 +2094,42 @@ def test_0056_salary_normalization_backfill():
         finally:
             await engine.dispose()
 
-    asyncio.run(cleanup())
+    try:
+
+        async def reset_normalized():
+            engine = create_async_engine(settings.database_url)
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(
+                            "UPDATE job_postings SET salary_normalized_min = NULL, "
+                            "salary_normalized_max = NULL"
+                        )
+                    )
+            finally:
+                await engine.dispose()
+
+        asyncio.run(reset_normalized())
+
+        command.downgrade(config, "0055")
+        command.upgrade(config, "head")
+
+        async def assert_backfilled():
+            engine = create_async_engine(settings.database_url)
+            try:
+                async with engine.connect() as conn:
+                    row = (
+                        await conn.execute(
+                            text(
+                                "SELECT salary_normalized_min, salary_normalized_max, salary_basis "
+                                "FROM job_postings WHERE external_id = 'sal-norm-1'"
+                            )
+                        )
+                    ).one()
+            finally:
+                await engine.dispose()
+            assert (float(row[0]), float(row[1]), row[2]) == (36000.0, 54000.0, None)
+
+        asyncio.run(assert_backfilled())
+    finally:
+        asyncio.run(cleanup())

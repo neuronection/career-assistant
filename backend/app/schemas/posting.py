@@ -83,6 +83,15 @@ class PostingExtractEducationOut(BaseModel):
     field: str | None = None
 
 
+class PostingExtractPrerequisiteOut(BaseModel):
+    """One stated requirement outside the skill/salary axes."""
+
+    kind: str
+    label: str
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
 class PostingExtractOut(BaseModel):
     """The posting's structured extraction payload (pipeline-written
     JSONB, envelope-typed since plan 123.4)."""
@@ -97,6 +106,7 @@ class PostingExtractOut(BaseModel):
     salary: PostingExtractSalaryOut | None = None
     education: PostingExtractEducationOut | None = None
     languages: list[str] = Field(default_factory=list)
+    prerequisites: list[PostingExtractPrerequisiteOut] = Field(default_factory=list)
     benefits: list[str] = Field(default_factory=list)
     responsibilities: list[PostingExtractResponsibilityOut] = Field(default_factory=list)
     skills: list[PostingExtractSkillOut] = Field(default_factory=list)

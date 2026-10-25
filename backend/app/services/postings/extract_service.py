@@ -29,7 +29,7 @@ from app.services.postings.salary import BASIS_VALUES, annualized
 
 logger = logging.getLogger(__name__)
 
-EXTRACT_VERSION = 3
+EXTRACT_VERSION = 4
 CONFIDENCE_THRESHOLD = 0.6
 
 FIELD_NAMES = (
@@ -41,6 +41,7 @@ FIELD_NAMES = (
     "salary",
     "education",
     "languages",
+    "prerequisites",
     "benefits",
     "responsibilities",
     "skills",
@@ -157,8 +158,18 @@ async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPo
         for s in (data.get("skills") or [])
         if float(s.get("confidence", 1.0)) >= CONFIDENCE_THRESHOLD
     ]
-    needs_review = bool(suppressed) or len(kept_skills) != len(data.get("skills") or [])
+    kept_prerequisites = [
+        r
+        for r in (data.get("prerequisites") or [])
+        if float(r.get("confidence", 1.0)) >= CONFIDENCE_THRESHOLD
+    ]
+    needs_review = (
+        bool(suppressed)
+        or len(kept_skills) != len(data.get("skills") or [])
+        or len(kept_prerequisites) != len(data.get("prerequisites") or [])
+    )
     data["skills"] = kept_skills
+    data["prerequisites"] = kept_prerequisites
     data["_suppressed_fields"] = suppressed
     posting.extract = data
     posting.extract_version = EXTRACT_VERSION

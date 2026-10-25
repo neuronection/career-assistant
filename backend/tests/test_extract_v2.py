@@ -107,7 +107,7 @@ async def test_apply_extract_v2_lifestyle_facts_and_columns(
     await db.commit()
     await db.refresh(posting)
 
-    assert posting.extract_version == EXTRACT_VERSION == 3
+    assert posting.extract_version == EXTRACT_VERSION == 4
     assert posting.employment_type == "part_time"
     facts = posting.posting_facts
     assert facts["lifestyle"]["contract_type"]["contract_type"] == "contract"

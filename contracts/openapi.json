@@ -14274,6 +14274,13 @@
               }
             ]
           },
+          "prerequisites": {
+            "items": {
+              "$ref": "#/components/schemas/PostingExtractPrerequisiteOut"
+            },
+            "title": "Prerequisites",
+            "type": "array"
+          },
           "remote_policy": {
             "anyOf": [
               {
@@ -14333,6 +14340,41 @@
           }
         },
         "title": "PostingExtractOut",
+        "type": "object"
+      },
+      "PostingExtractPrerequisiteOut": {
+        "description": "One stated requirement outside the skill/salary axes.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label"
+        ],
+        "title": "PostingExtractPrerequisiteOut",
         "type": "object"
       },
       "PostingExtractResponsibilityOut": {

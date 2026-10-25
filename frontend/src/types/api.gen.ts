@@ -13186,6 +13186,8 @@ export interface components {
             /** Languages */
             languages?: string[];
             location?: components["schemas"]["PostingExtractLocationOut"] | null;
+            /** Prerequisites */
+            prerequisites?: components["schemas"]["PostingExtractPrerequisiteOut"][];
             /** Remote Policy */
             remote_policy?: string | null;
             /** Responsibilities */
@@ -13199,6 +13201,23 @@ export interface components {
             title_norm?: string | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * PostingExtractPrerequisiteOut
+         * @description One stated requirement outside the skill/salary axes.
+         */
+        PostingExtractPrerequisiteOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
         };
         /** PostingExtractResponsibilityOut */
         PostingExtractResponsibilityOut: {

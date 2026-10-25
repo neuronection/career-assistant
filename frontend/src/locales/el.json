@@ -2880,7 +2880,15 @@
     "noExtraction": "Η δομημένη εξαγωγή δεν έχει εκτελεστεί για αυτήν την αγγελία ακόμα — οι φίλτρα με βάση το επίπεδο δεξιοτήτων δεν την λαμβάνουν υπόψη μέχρι τότε.",
     "similarHeading": "Παρόμοιες αγγελίες",
     "year": "έτος",
-    "salaryAnnual": "≈ {{range}} {{currency}} ανά έτος (κανονικοποιημένο)"
+    "salaryAnnual": "≈ {{range}} {{currency}} ανά έτος (κανονικοποιημένο)",
+    "prerequisitesHeading": "Προϋποθέσεις",
+    "prereqKind": {
+      "degree": "Πτυχίο",
+      "certificate": "Πιστοποίηση",
+      "license": "Άδεια",
+      "language": "Γλώσσα",
+      "other": "Άλλο"
+    }
   },
   "sessionList": {
     "renameChat": "Μετονομασία συνομιλίας",

@@ -2880,7 +2880,15 @@
     "noExtraction": "Die strukturierte Extraktion wurde für diese Stellenanzeige noch nicht ausgeführt — Filter nach Erfahrungslevel ignorieren sie bis dahin.",
     "similarHeading": "Ähnliche Stellenanzeigen",
     "year": "Jahr",
-    "salaryAnnual": "≈ {{range}} {{currency}} pro Jahr (normalisiert)"
+    "salaryAnnual": "≈ {{range}} {{currency}} pro Jahr (normalisiert)",
+    "prerequisitesHeading": "Voraussetzungen",
+    "prereqKind": {
+      "degree": "Abschluss",
+      "certificate": "Zertifikat",
+      "license": "Lizenz",
+      "language": "Sprache",
+      "other": "Sonstiges"
+    }
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",

@@ -401,6 +401,19 @@ export function PostingDetail({
                     <span className="w-10 text-right text-slate-300">×{entry.weight}</span>
                   </div>
                 ))}
+                <div className="pt-1 space-y-0.5" data-testid="match-detail-lines">
+                  {Object.entries(match.breakdown ?? {})
+                    .filter(([, entry]) => entry.detail)
+                    .map(([dim, entry]) => (
+                      <p key={dim} className="text-[11px] text-slate-400">
+                        <span className="font-medium text-slate-500">
+                          {t(`dimensions.${dim}`, { defaultValue: dim.replace(/_/g, " ") })}
+                          {": "}
+                        </span>
+                        {entry.detail}
+                      </p>
+                    ))}
+                </div>
               </div>
             </section>
           )}
@@ -415,6 +428,24 @@ export function PostingDetail({
                   <SkillChip key={`${skill.skill_key ?? skill.raw_label}-${i}`} skill={skill} />
                 ))}
               </div>
+            </section>
+          )}
+
+          {extract?.prerequisites && extract.prerequisites.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold text-slate-400 uppercase mb-1.5">
+                {t("postingDetail.prerequisitesHeading")}
+              </h3>
+              <ul className="space-y-1" data-testid="extract-prerequisites">
+                {extract.prerequisites.map((prereq, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-600">
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">
+                      {t(`postingDetail.prereqKind.${prereq.kind}`, { defaultValue: prereq.kind })}
+                    </span>
+                    <span>{prereq.label}</span>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 

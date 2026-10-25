@@ -50,6 +50,18 @@ class ExtractSalary(BaseModel):
     basis: Literal["gross", "net"] | None = None
 
 
+class ExtractPrerequisite(BaseModel):
+    """One stated requirement outside the skill/salary axes: a degree,
+    certificate, license, language or other gate — with its verbatim
+    evidence. Degrees ALSO stay in `education` (the level comparison);
+    this row carries the wording."""
+
+    kind: Literal["degree", "certificate", "license", "language", "other"]
+    label: str = Field(min_length=2, max_length=200)
+    evidence_quote: str = Field(min_length=3, max_length=400)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 class ExtractLocation(BaseModel):
     city: str | None = Field(default=None, max_length=120)
     country: str | None = Field(default=None, max_length=120)
@@ -167,6 +179,7 @@ class PostingExtract(BaseModel):
     salary: ExtractSalary | None = None
     education: ExtractEducation | None = None
     languages: list[str] = Field(default_factory=list, max_length=12)
+    prerequisites: list[ExtractPrerequisite] = Field(default_factory=list, max_length=12)
     benefits: list[ExtractBenefit] = Field(default_factory=list, max_length=20)
     responsibilities: list[ExtractResponsibility] = Field(default_factory=list, max_length=20)
     skills: list[ExtractSkill] = Field(default_factory=list, max_length=40)
@@ -408,10 +421,11 @@ async def extract_posting(
             "You extract structured facts from job postings. Resolve every "
             "skill mention onto the provided taxonomy keys — when no key "
             "fits, return the skill as unresolved with its raw label. Facts "
-            "that carry an evidence contract (skills, contract, hours, "
-            "schedule, travel, onsite) need a verbatim evidence_quote from "
-            "the text. Never guess: fields you cannot support get a "
-            "field_confidence below 0.6 so the caller drops them."
+            "that carry an evidence contract (skills, prerequisites, "
+            "contract, hours, schedule, travel, onsite) need a verbatim "
+            "evidence_quote from the text. Never guess: fields you cannot "
+            "support get a field_confidence below 0.6 so the caller drops "
+            "them."
         ),
         user=(
             generated_feature_instructions()

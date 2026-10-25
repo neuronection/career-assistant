@@ -2881,7 +2881,15 @@
     "noExtraction": "Structured extraction has not run for this posting yet — filters by skill level ignore it until then.",
     "similarHeading": "Similar postings",
     "year": "year",
-    "salaryAnnual": "≈ {{range}} {{currency}} per year (normalized)"
+    "salaryAnnual": "≈ {{range}} {{currency}} per year (normalized)",
+    "prerequisitesHeading": "Prerequisites",
+    "prereqKind": {
+      "degree": "Degree",
+      "certificate": "Certificate",
+      "license": "License",
+      "language": "Language",
+      "other": "Other"
+    }
   },
   "sessionList": {
     "renameChat": "Rename chat",
