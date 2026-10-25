@@ -33,6 +33,7 @@ from app.models.posting_model import (
     PostingSkill,
 )
 from app.models.taxonomy_model import Skill
+from app.services.postings.salary import annualized
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +243,14 @@ async def upsert_posting(db: AsyncSession, source: JobSource, raw) -> JobPosting
     posting.salary_min = raw.salary.min if raw.salary else None
     posting.salary_max = raw.salary.max if raw.salary else None
     posting.salary_period = raw.salary.period if raw.salary else None
+    posting.salary_basis = raw.salary.basis if raw.salary else None
+    norm_low, norm_high = annualized(
+        raw.salary.min if raw.salary else None,
+        raw.salary.max if raw.salary else None,
+        raw.salary.period if raw.salary else None,
+    )
+    posting.salary_normalized_min = norm_low
+    posting.salary_normalized_max = norm_high
     posting.posted_at = raw.posted_at or posting.posted_at or _utcnow()
     posting.expires_at = raw.expires_at
     posting.raw = raw.raw or {}

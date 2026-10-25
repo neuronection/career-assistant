@@ -25,10 +25,11 @@ from app.models.enums import (
 )
 from app.models.posting_model import JobPosting, PostingSkill
 from app.models.taxonomy_model import Skill
+from app.services.postings.salary import BASIS_VALUES, annualized
 
 logger = logging.getLogger(__name__)
 
-EXTRACT_VERSION = 2
+EXTRACT_VERSION = 3
 CONFIDENCE_THRESHOLD = 0.6
 
 FIELD_NAMES = (
@@ -103,8 +104,10 @@ async def plan_extractions(
     """Queue extractions demand-first (claim order = insertion order, and
     the queue claims oldest-first — that IS the priority mechanism).
 
-    With `backlog`, postings never extracted (extract_version NULL —
-    includes version-bump staleness) drip in after the fresh ones.
+    With `backlog`, postings NEVER extracted (extract_version NULL) drip
+    in after the fresh ones. Rows on an older version are NOT auto-queued
+    — re-extraction is a demand/admin decision (an AI-cost lever), and
+    demand paths re-extract them via the `!= EXTRACT_VERSION` check.
     """
     queued = 0
     if backlog:
@@ -174,11 +177,16 @@ async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPo
         posting.salary_currency = salary["currency"][:3]
     if salary.get("period"):
         posting.salary_period = salary["period"]
+    if salary.get("basis") in BASIS_VALUES:
+        posting.salary_basis = salary["basis"]
     low, high = _sane_salary(salary.get("min"), salary.get("max"))
     if salary.get("min") is not None and low is None:
         needs_review = True  # insane range suppressed
     posting.salary_min = low if low is not None else posting.salary_min
     posting.salary_max = high if high is not None else posting.salary_max
+    norm_low, norm_high = annualized(posting.salary_min, posting.salary_max, posting.salary_period)
+    posting.salary_normalized_min = norm_low
+    posting.salary_normalized_max = norm_high
     location = data.get("location") or {}
     if location.get("city") or location.get("country"):
         posting.location = {

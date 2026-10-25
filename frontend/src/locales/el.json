@@ -188,7 +188,7 @@
     "subjects": "Θέματα",
     "education": "Εκπαίδευση",
     "marketSnapshot": "Επισκόπηση αγοράς",
-    "salary": "Μισθός (USD/έτος)",
+    "salary": "Μισθός (ανά έτος)",
     "physicalEnvironment": "Φυσικό περιβάλλον",
     "typicalPositives": "Τυπικά πλεονεκτήματα",
     "typicalNegatives": "Τυπικές αδυναμίες",
@@ -360,8 +360,8 @@
       "d30": "Τελευταία 30 ημέρες",
       "d90": "Τελευταία 90 ημέρες"
     },
-    "salaryFrom": "Μισθός από",
-    "salaryExample": "π.χ. 30000",
+    "salaryFrom": "Μισθός από (ανά έτος)",
+    "salaryExample": "π.χ. 40000",
     "seniority": "Επίπεδο",
     "orgExample": "π.χ. Acme",
     "deepExtractedOnly": "Μόνο βαθιά εξαγωγή",
@@ -2836,7 +2836,12 @@
     "apply": "Αίτηση",
     "unsave": "Ακύρωση αποθήκευσης",
     "hide": "κρύψε",
-    "hideTitle": "Κρύψε από την κύρια σελίδα"
+    "hideTitle": "Κρύψε από την κύρια σελίδα",
+    "salaryBasis": {
+      "gross": "μικτά",
+      "net": "καθαρά"
+    },
+    "perYear": "≈ {{range}} {{currency}}/έτος"
   },
   "postingDetail": {
     "levelAria": "επίπεδο {{level}}",
@@ -2874,7 +2879,8 @@
     "benefitsHeading": "Παροχές",
     "noExtraction": "Η δομημένη εξαγωγή δεν έχει εκτελεστεί για αυτήν την αγγελία ακόμα — οι φίλτρα με βάση το επίπεδο δεξιοτήτων δεν την λαμβάνουν υπόψη μέχρι τότε.",
     "similarHeading": "Παρόμοιες αγγελίες",
-    "year": "έτος"
+    "year": "έτος",
+    "salaryAnnual": "≈ {{range}} {{currency}} ανά έτος (κανονικοποιημένο)"
   },
   "sessionList": {
     "renameChat": "Μετονομασία συνομιλίας",

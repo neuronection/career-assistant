@@ -269,7 +269,7 @@ coerced downstream):
 | `org` | str | ≤ 200 — the raw organization label; core normalizes it into the org entity, you never create one |
 | `url` | str | ≤ 1000; http(s) only — enforced at the row-validation seam, not the model |
 | `location` | `LocationSpec` | `{city, country, remote}` — every part optional, `remote` defaults `false` |
-| `salary` | `SalarySpec` | `{currency, min, max, period}` — `currency` 3 chars (default `USD`), `min`/`max` ≥ 0, `period` ∈ `hour\|day\|week\|month\|year` (default `year`); set only when honestly parseable |
+| `salary` | `SalarySpec` | `{currency, min, max, period, basis}` — `currency` 3 chars (default `USD`), `min`/`max` ≥ 0, `period` ∈ `hour\|day\|week\|month\|year` (default `year`), `basis` ∈ `gross\|net` only when the posting says so (else NULL); set only when honestly parseable |
 | `seniority` | enum | `intern\|junior\|mid\|senior\|lead\|principal` |
 | `employment_type` | enum | `full_time\|part_time\|contract\|temporary\|internship` |
 | `contract_type` | str | ≤ 60 free text (e.g. `permanent`, `fixed-term`) |

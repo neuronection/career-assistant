@@ -9,6 +9,17 @@ export function provenanceOf(posting: PostingOut): "raw" | "fast-mapped" | "extr
   return posting.mapping_method ? "fast-mapped" : "raw";
 }
 
+/** The annualized range ("36,000–54,000") when the figure is normalizable. */
+function annualRange(posting: PostingOut): string | null {
+  const min = posting.salary_normalized_min;
+  const max = posting.salary_normalized_max;
+  if (min == null && max == null) return null;
+  return [min, max]
+    .filter((v) => v != null)
+    .map((v) => Number(v).toLocaleString())
+    .join("–");
+}
+
 /**
  * The posting card shared by the Live tab and Explore: source
  * badge everywhere (display-only, per discipline), provenance
@@ -102,6 +113,20 @@ export function PostingCard({
               {posting.salary_currency} {Number(posting.salary_min).toLocaleString()}
               {posting.salary_max != null ? `–${Number(posting.salary_max).toLocaleString()}` : ""} ·{" "}
               {posting.salary_period}
+              {posting.salary_basis && (
+                <span className="text-slate-400">
+                  {" "}({t(`postingCard.salaryBasis.${posting.salary_basis}`)})
+                </span>
+              )}
+            </span>
+          )}
+          {annualRange(posting) && (
+            <span className="ml-2 text-slate-500">
+              ≈{" "}
+              {t("postingCard.perYear", {
+                range: annualRange(posting),
+                currency: posting.salary_currency ?? "",
+              })}
             </span>
           )}
         </p>

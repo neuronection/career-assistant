@@ -100,7 +100,6 @@ def parse_explore_filters(params: dict) -> dict:
         "fresh_only",
         "salary_min",
         "salary_currency",
-        "salary_period",
         "seniority",
         "employment_type",
         "remote_policy",
@@ -192,8 +191,6 @@ def parse_explore_filters(params: dict) -> dict:
             raise ValidationError("salary_min must be a number") from exc
     if params.get("salary_currency"):
         filters["salary_currency"] = str(params["salary_currency"])[:3].upper()
-    if params.get("salary_period"):
-        filters["salary_period"] = str(params["salary_period"])[:10]
 
     for key in (
         "seniority",
@@ -311,8 +308,20 @@ def _conditions_for(
             )
 
     elif dimension == "salary" and filters.get("salary_min") is not None:
-        conditions.append(JobPosting.salary_min.is_not(None))
-        conditions.append(JobPosting.salary_min >= filters["salary_min"])
+        # Annualized basis: "pays at least X per year" matches the better
+        # bound of the normalized range. Postings without a normalizable
+        # figure (no amount or unknown period) stay out — unknown never
+        # silently matches a known-basis filter.
+        conditions.append(
+            or_(
+                JobPosting.salary_normalized_min.is_not(None),
+                JobPosting.salary_normalized_max.is_not(None),
+            )
+        )
+        conditions.append(
+            func.coalesce(JobPosting.salary_normalized_max, JobPosting.salary_normalized_min)
+            >= filters["salary_min"]
+        )
         if filters.get("salary_currency"):
             conditions.append(JobPosting.salary_currency == filters["salary_currency"])
 
@@ -604,7 +613,14 @@ def _row_entries(rows) -> list[dict]:
 def _keyset_order(sort: str) -> tuple:
     if sort == "fresh":
         return (JobPosting.posted_at.desc().nulls_last(), JobPosting.id.desc())
+    if sort == "salary":
+        return (_salary_sort_key().desc().nulls_last(), JobPosting.id.desc())
     return (JobPosting.salary_min.desc().nulls_last(), JobPosting.id.desc())
+
+
+def _salary_sort_key():
+    """The annualized sort basis: the better normalized bound, unknown last."""
+    return func.coalesce(JobPosting.salary_normalized_max, JobPosting.salary_normalized_min)
 
 
 def _keyset_conditions(sort: str, key: Any, posting_id: UUID) -> list:
@@ -616,6 +632,18 @@ def _keyset_conditions(sort: str, key: Any, posting_id: UUID) -> list:
                 JobPosting.posted_at < key,
                 and_(JobPosting.posted_at == key, JobPosting.id < posting_id),
                 JobPosting.posted_at.is_(None),
+            )
+        ]
+    if sort == "salary":
+        key_expr = _salary_sort_key()
+        if key is None or key == float("-inf"):
+            return [key_expr.is_(None), JobPosting.id < posting_id]
+        threshold = Decimal(str(key))
+        return [
+            or_(
+                key_expr < threshold,
+                and_(key_expr == threshold, JobPosting.id < posting_id),
+                key_expr.is_(None),
             )
         ]
     if key is None or key == float("-inf"):
@@ -727,7 +755,12 @@ def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
     """Total order per sort: (key, id) with the id as stable tiebreak."""
     posting = entry["posting"]
     if sort == "salary":
-        key = float(posting.salary_min) if posting.salary_min is not None else float("-inf")
+        normalized = (
+            posting.salary_normalized_max
+            if posting.salary_normalized_max is not None
+            else posting.salary_normalized_min
+        )
+        key = float(normalized) if normalized is not None else float("-inf")
     elif sort == "fit":
         key = float(entry.get("fit") or 0.0)
     elif sort == "relevance":

@@ -3455,6 +3455,17 @@
             "title": "Ref",
             "type": "string"
           },
+          "salary_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Basis"
+          },
           "salary_currency": {
             "anyOf": [
               {
@@ -3487,6 +3498,28 @@
               }
             ],
             "title": "Salary Min"
+          },
+          "salary_normalized_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Normalized Max"
+          },
+          "salary_normalized_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Normalized Min"
           },
           "salary_period": {
             "anyOf": [
@@ -13954,6 +13987,17 @@
             "title": "Ref",
             "type": "string"
           },
+          "salary_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Basis"
+          },
           "salary_currency": {
             "anyOf": [
               {
@@ -13986,6 +14030,28 @@
               }
             ],
             "title": "Salary Min"
+          },
+          "salary_normalized_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Normalized Max"
+          },
+          "salary_normalized_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Normalized Min"
           },
           "salary_period": {
             "anyOf": [
@@ -14306,6 +14372,17 @@
       },
       "PostingExtractSalaryOut": {
         "properties": {
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
           "currency": {
             "anyOf": [
               {
@@ -14688,6 +14765,17 @@
             "title": "Ref",
             "type": "string"
           },
+          "salary_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Basis"
+          },
           "salary_currency": {
             "anyOf": [
               {
@@ -14720,6 +14808,28 @@
               }
             ],
             "title": "Salary Min"
+          },
+          "salary_normalized_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Normalized Max"
+          },
+          "salary_normalized_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Normalized Min"
           },
           "salary_period": {
             "anyOf": [

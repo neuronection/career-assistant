@@ -22,6 +22,28 @@ from app.services.chat.chat_digest_cache import context_without_cache
 logger = logging.getLogger(__name__)
 
 
+def _salary_payload(posting) -> dict:
+    """One salary sub-payload for every tool surface: the posted figure
+    plus the normalized annual pair, so a model never mixes units."""
+    return {
+        "min": float(posting.salary_min) if posting.salary_min is not None else None,
+        "max": float(posting.salary_max) if posting.salary_max is not None else None,
+        "currency": posting.salary_currency,
+        "period": posting.salary_period,
+        "basis": posting.salary_basis,
+        "annual_min": (
+            float(posting.salary_normalized_min)
+            if posting.salary_normalized_min is not None
+            else None
+        ),
+        "annual_max": (
+            float(posting.salary_normalized_max)
+            if posting.salary_normalized_max is not None
+            else None
+        ),
+    }
+
+
 def _job_search_query():
     """Base query with family eagerly loaded."""
     return select(Job).options(selectinload(Job.family)).where(Job.status == "published")
@@ -357,12 +379,7 @@ async def search_postings_tool(
                 "title": posting.title,
                 "org": posting.org,
                 "location": posting.location,
-                "salary": {
-                    "min": float(posting.salary_min) if posting.salary_min is not None else None,
-                    "max": float(posting.salary_max) if posting.salary_max is not None else None,
-                    "currency": posting.salary_currency,
-                    "period": posting.salary_period,
-                },
+                "salary": _salary_payload(posting),
                 "posted_at": posting.posted_at.isoformat() if posting.posted_at else None,
                 "fit": item.get("fit"),
                 "source": sources.get(posting.source_id, ""),
@@ -403,12 +420,7 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
         "title": posting.title,
         "org": posting.org,
         "location": posting.location,
-        "salary": {
-            "min": float(posting.salary_min) if posting.salary_min is not None else None,
-            "max": float(posting.salary_max) if posting.salary_max is not None else None,
-            "currency": posting.salary_currency,
-            "period": posting.salary_period,
-        },
+        "salary": _salary_payload(posting),
         "seniority": posting.seniority,
         "employment_type": posting.employment_type,
         "remote_policy": posting.onsite_policy,

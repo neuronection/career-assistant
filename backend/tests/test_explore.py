@@ -17,6 +17,7 @@ from app.models.posting_model import PostingFit
 from app.services.postings.posting_fit_service import (
     get_posting_fit,
 )
+from app.services.postings.salary import annualized
 from tests.conftest import (
     _make_posting,
     _uid,
@@ -99,6 +100,9 @@ async def test_explore_salary_source_and_extracted_only(
 ):
     a, b, _c = search_fixtures
     a.salary_min, a.salary_currency, a.salary_period = 50000.0, "EUR", "year"
+    # Direct column writes carry their own normalization (the ingest and
+    # extract paths do it; the migration backfills existing rows).
+    a.salary_normalized_min, a.salary_normalized_max = annualized(50000.0, None, "year")
     await db.commit()
 
     response = await client.get(

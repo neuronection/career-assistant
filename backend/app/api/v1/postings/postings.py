@@ -65,6 +65,17 @@ def _posting_out(
         salary_min=float(posting.salary_min) if posting.salary_min is not None else None,
         salary_max=float(posting.salary_max) if posting.salary_max is not None else None,
         salary_period=posting.salary_period,
+        salary_basis=posting.salary_basis,
+        salary_normalized_min=(
+            float(posting.salary_normalized_min)
+            if posting.salary_normalized_min is not None
+            else None
+        ),
+        salary_normalized_max=(
+            float(posting.salary_normalized_max)
+            if posting.salary_normalized_max is not None
+            else None
+        ),
         posted_at=posting.posted_at,
         expires_at=posting.expires_at,
         status=posting.status,

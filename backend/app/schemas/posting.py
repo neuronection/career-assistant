@@ -75,6 +75,7 @@ class PostingExtractSalaryOut(BaseModel):
     max: float | None = None
     currency: str | None = None
     period: str | None = None
+    basis: str | None = None
 
 
 class PostingExtractEducationOut(BaseModel):
@@ -145,6 +146,9 @@ class PostingOut(BaseModel):
     salary_min: float | None = None
     salary_max: float | None = None
     salary_period: str | None = None
+    salary_basis: str | None = None
+    salary_normalized_min: float | None = None
+    salary_normalized_max: float | None = None
     posted_at: datetime | None = None
     expires_at: datetime | None = None
     status: str

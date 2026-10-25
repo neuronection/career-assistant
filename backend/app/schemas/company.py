@@ -91,6 +91,9 @@ class CompanyPostingOut(BaseModel):
     salary_min: float | None = None
     salary_max: float | None = None
     salary_period: str | None = None
+    salary_basis: str | None = None
+    salary_normalized_min: float | None = None
+    salary_normalized_max: float | None = None
     posted_at: datetime | None = None
     status: str
     catalog_job_id: UUID | None = None

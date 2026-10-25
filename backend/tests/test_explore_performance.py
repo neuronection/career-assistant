@@ -12,6 +12,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import and_, text
 
+from app.extensions.sdk import SalarySpec
 from app.services.postings import explore_service
 from app.services.postings.explore_service import _base_select, _keyset_conditions
 from tests.conftest import IS_SQLITE, _make_posting, _uid
@@ -177,14 +178,30 @@ async def test_fresh_keyset_pages_stable_across_writes(
 async def test_salary_keyset_pages_nulls_last(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
-    high = await _create(db, source, "sal-high", title="High salary")
-    high.salary_min = 300.0
-    mid = await _create(db, source, "sal-mid", title="Mid salary")
-    mid.salary_min = 200.0
-    low = await _create(db, source, "sal-low", title="Low salary")
-    low.salary_min = 100.0
+    # Salary sort runs on the annualized pair — seed through the ingest
+    # path so the normalization exists, with one NULL-salary row last.
+    high = await _create(
+        db,
+        source,
+        "sal-high",
+        title="High salary",
+        salary=SalarySpec(min=300, currency="EUR", period="year"),
+    )
+    mid = await _create(
+        db,
+        source,
+        "sal-mid",
+        title="Mid salary",
+        salary=SalarySpec(min=200, currency="EUR", period="year"),
+    )
+    low = await _create(
+        db,
+        source,
+        "sal-low",
+        title="Low salary",
+        salary=SalarySpec(min=100, currency="EUR", period="year"),
+    )
     none = await _create(db, source, "sal-none", title="No salary")
-    none.salary_min = None
     await db.commit()
 
     first = await client.get(

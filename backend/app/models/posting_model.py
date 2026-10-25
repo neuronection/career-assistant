@@ -108,6 +108,10 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "salary_min IS NULL OR salary_max IS NULL OR salary_min <= salary_max",
             name="salary_range_sane",
         ),
+        CheckConstraint(
+            "salary_basis IS NULL OR salary_basis IN ('gross', 'net')",
+            name="salary_basis_allowed",
+        ),
         Index("ix_postings_status_posted", "status", "posted_at"),
         Index("ix_postings_catalog_job", "catalog_job_id"),
         Index("ix_postings_expires_at", "expires_at"),
@@ -148,6 +152,9 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     salary_min: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     salary_max: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     salary_period: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    salary_basis: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    salary_normalized_min: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    salary_normalized_max: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     posted_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Canonical-JSON sha256 of the normalized content — re-sync dedup.

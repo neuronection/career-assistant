@@ -109,7 +109,11 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "salary",
             "Salary range",
             ("column_write",),
-            prompt_hint="salary: min/max + currency + period when stated.",
+            prompt_hint=(
+                "salary: min/max + currency + period when stated; set basis "
+                'to "gross" or "net" only when the posting says so '
+                '("brutto"/"netto" count) — omit it otherwise.'
+            ),
         ),
         FeatureRow(
             "seniority",

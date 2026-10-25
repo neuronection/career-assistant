@@ -9082,12 +9082,18 @@ export interface components {
             posted_at?: string | null;
             /** Ref */
             ref: string;
+            /** Salary Basis */
+            salary_basis?: string | null;
             /** Salary Currency */
             salary_currency?: string | null;
             /** Salary Max */
             salary_max?: number | null;
             /** Salary Min */
             salary_min?: number | null;
+            /** Salary Normalized Max */
+            salary_normalized_max?: number | null;
+            /** Salary Normalized Min */
+            salary_normalized_min?: number | null;
             /** Salary Period */
             salary_period?: string | null;
             /** Seniority */
@@ -13089,12 +13095,18 @@ export interface components {
              * @default
              */
             ref: string;
+            /** Salary Basis */
+            salary_basis?: string | null;
             /** Salary Currency */
             salary_currency?: string | null;
             /** Salary Max */
             salary_max?: number | null;
             /** Salary Min */
             salary_min?: number | null;
+            /** Salary Normalized Max */
+            salary_normalized_max?: number | null;
+            /** Salary Normalized Min */
+            salary_normalized_min?: number | null;
             /** Salary Period */
             salary_period?: string | null;
             /**
@@ -13199,6 +13211,8 @@ export interface components {
         };
         /** PostingExtractSalaryOut */
         PostingExtractSalaryOut: {
+            /** Basis */
+            basis?: string | null;
             /** Currency */
             currency?: string | null;
             /** Max */
@@ -13317,12 +13331,18 @@ export interface components {
              * @default
              */
             ref: string;
+            /** Salary Basis */
+            salary_basis?: string | null;
             /** Salary Currency */
             salary_currency?: string | null;
             /** Salary Max */
             salary_max?: number | null;
             /** Salary Min */
             salary_min?: number | null;
+            /** Salary Normalized Max */
+            salary_normalized_max?: number | null;
+            /** Salary Normalized Min */
+            salary_normalized_min?: number | null;
             /** Salary Period */
             salary_period?: string | null;
             /**

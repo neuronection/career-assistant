@@ -188,7 +188,7 @@
     "subjects": "Fächer",
     "education": "Ausbildung",
     "marketSnapshot": "Marktübersicht",
-    "salary": "Gehalt (USD/Jahr)",
+    "salary": "Gehalt (pro Jahr)",
     "physicalEnvironment": "Physische Umgebung",
     "typicalPositives": "Typische Vorteile",
     "typicalNegatives": "Typische Nachteile",
@@ -360,8 +360,8 @@
       "d30": "Letzte 30 Tage",
       "d90": "Letzte 90 Tage"
     },
-    "salaryFrom": "Gehalt ab",
-    "salaryExample": "z.B. 30000",
+    "salaryFrom": "Gehalt ab (pro Jahr)",
+    "salaryExample": "z. B. 40000",
     "seniority": "Seniorität",
     "orgExample": "z.B. Acme",
     "deepExtractedOnly": "Nur tief extrahierte",
@@ -2836,7 +2836,12 @@
     "apply": "Anwenden",
     "unsave": "Nicht speichern",
     "hide": "verstecken",
-    "hideTitle": "Aus dem Live-Tab ausblenden"
+    "hideTitle": "Aus dem Live-Tab ausblenden",
+    "salaryBasis": {
+      "gross": "brutto",
+      "net": "netto"
+    },
+    "perYear": "≈ {{range}} {{currency}}/Jahr"
   },
   "postingDetail": {
     "levelAria": "Level {{level}}",
@@ -2874,7 +2879,8 @@
     "benefitsHeading": "Vorteile",
     "noExtraction": "Die strukturierte Extraktion wurde für diese Stellenanzeige noch nicht ausgeführt — Filter nach Erfahrungslevel ignorieren sie bis dahin.",
     "similarHeading": "Ähnliche Stellenanzeigen",
-    "year": "Jahr"
+    "year": "Jahr",
+    "salaryAnnual": "≈ {{range}} {{currency}} pro Jahr (normalisiert)"
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",

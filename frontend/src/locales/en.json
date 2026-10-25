@@ -188,7 +188,7 @@
     "subjects": "Subjects",
     "education": "Education",
     "marketSnapshot": "Market snapshot",
-    "salary": "Salary (USD/year)",
+    "salary": "Salary (per year)",
     "physicalEnvironment": "Physical & environment",
     "typicalPositives": "Typical positives",
     "typicalNegatives": "Typical negatives",
@@ -360,8 +360,8 @@
       "d30": "last 30 days",
       "d90": "last 90 days"
     },
-    "salaryFrom": "Salary from",
-    "salaryExample": "e.g. 30000",
+    "salaryFrom": "Salary from (per year)",
+    "salaryExample": "e.g. 40000",
     "seniority": "Seniority",
     "orgExample": "e.g. Acme",
     "deepExtractedOnly": "Deep-extracted only",
@@ -2837,7 +2837,12 @@
     "apply": "Apply",
     "unsave": "Unsave",
     "hide": "hide",
-    "hideTitle": "Hide from the live tab"
+    "hideTitle": "Hide from the live tab",
+    "salaryBasis": {
+      "gross": "gross",
+      "net": "net"
+    },
+    "perYear": "≈ {{range}} {{currency}}/yr"
   },
   "postingDetail": {
     "levelAria": "level {{level}}",
@@ -2875,7 +2880,8 @@
     "benefitsHeading": "Benefits",
     "noExtraction": "Structured extraction has not run for this posting yet — filters by skill level ignore it until then.",
     "similarHeading": "Similar postings",
-    "year": "year"
+    "year": "year",
+    "salaryAnnual": "≈ {{range}} {{currency}} per year (normalized)"
   },
   "sessionList": {
     "renameChat": "Rename chat",

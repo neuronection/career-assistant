@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0055"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0056"], (
         "revision chain stays linear on one head"
     )
 
@@ -2032,3 +2032,101 @@ def test_0055_company_profiles_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present("company_profiles"), "company_profiles exists after re-upgrade"
+
+
+def test_0056_salary_normalization_backfill():
+    """Plan 129 phase 2: rows with a known period annualize on (re)upgrade;
+    the basis stays NULL for existing rows — the source's wording is gone
+    and unknown is never guessed."""
+    import asyncio
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+    from app.models.posting_model import JobPosting, JobSource
+
+    config = _configured()
+    command.upgrade(config, "head")
+
+    async def seed():
+        engine = create_async_engine(settings.database_url)
+        maker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with maker() as session:
+                # Idempotent: a previous run's rows persist in the serial DB.
+                await session.execute(
+                    text("DELETE FROM job_postings WHERE external_id = 'sal-norm-1'")
+                )
+                await session.execute(text("DELETE FROM job_sources WHERE key = 'sal-norm'"))
+                source = JobSource(key="sal-norm", connector_key="csv")
+                session.add(source)
+                await session.flush()
+                session.add(
+                    JobPosting(
+                        source_id=source.id,
+                        external_id="sal-norm-1",
+                        title="Analyst",
+                        content_hash="sal-norm-1",
+                        salary_currency="EUR",
+                        salary_min=3000,
+                        salary_max=4500,
+                        salary_period="month",
+                    )
+                )
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(seed())
+
+    async def reset_normalized():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "UPDATE job_postings SET salary_normalized_min = NULL, "
+                        "salary_normalized_max = NULL"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(reset_normalized())
+
+    command.downgrade(config, "0055")
+    command.upgrade(config, "head")
+
+    async def assert_backfilled():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT salary_normalized_min, salary_normalized_max, salary_basis "
+                            "FROM job_postings WHERE external_id = 'sal-norm-1'"
+                        )
+                    )
+                ).one()
+        finally:
+            await engine.dispose()
+        assert (float(row[0]), float(row[1]), row[2]) == (36000.0, 54000.0, None)
+
+    asyncio.run(assert_backfilled())
+
+    async def cleanup():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                # The serial DB is shared with the app-test world (which
+                # rolls back its own writes but sees committed rows).
+                await conn.execute(
+                    text("DELETE FROM job_postings WHERE external_id = 'sal-norm-1'")
+                )
+                await conn.execute(text("DELETE FROM job_sources WHERE key = 'sal-norm'"))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(cleanup())

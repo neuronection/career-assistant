@@ -313,7 +313,21 @@ export function PostingDetail({
                   posting.salary_max != null ? `–${Number(posting.salary_max).toLocaleString()}` : ""
                 } / ${posting.salary_period ?? t("postingDetail.year")}`
               : ""}
+            {posting.salary_basis
+              ? ` · ${t(`postingCard.salaryBasis.${posting.salary_basis}`)}`
+              : ""}
           </p>
+          {(posting.salary_normalized_min != null || posting.salary_normalized_max != null) && (
+            <p className="text-xs text-slate-400" data-testid="salary-annualized">
+              {t("postingDetail.salaryAnnual", {
+                range: [posting.salary_normalized_min, posting.salary_normalized_max]
+                  .filter((v) => v != null)
+                  .map((v) => Number(v).toLocaleString())
+                  .join("–"),
+                currency: posting.salary_currency ?? "",
+              })}
+            </p>
+          )}
 
           <div
             className="text-xs text-slate-400 border border-slate-100 bg-slate-50 rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1"

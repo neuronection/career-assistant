@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (salary normalization, 2026-10-26)
+- **Plan 129 phase 2 — salary figures become comparable.** Postings now
+  carry a stated `salary_basis` (gross / net — NULL when the source
+  never said, and the app never guesses) and an annualized range
+  computed at ingest and at extraction (posted amount scaled to a year
+  on its own basis — no FX, no gross/net conversion; an unknown period
+  annualizes to unknown). The Explore salary filter and the salary sort
+  run on the normalized pair, so a monthly and a yearly posting are no
+  longer compared unit-blind; existing rows were backfilled by
+  migration `0056`. Cards show the figure as posted **and** the
+  annualized approximation, with the basis named when known.
+
 ### Added (company section, 2026-10-25)
 - **Plan 129 phase 1 — the Companies section lands (`/companies`, beta).**
   A new sidebar surface over the normalized employer entity: every

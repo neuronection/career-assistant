@@ -47,6 +47,7 @@ class ExtractSalary(BaseModel):
     max: float | None = Field(default=None, ge=0)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     period: Literal["hour", "day", "week", "month", "year"] | None = None
+    basis: Literal["gross", "net"] | None = None
 
 
 class ExtractLocation(BaseModel):

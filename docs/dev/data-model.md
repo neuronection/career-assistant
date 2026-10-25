@@ -134,6 +134,16 @@ deletion).
 
 ### Migration notes
 
+- **0056** — plan 129 phase 2: `job_postings` gains `salary_basis`
+  (gross | net, NULL = the source never said — the CHECK admits only
+  the two known values) and the annualized range
+  `salary_normalized_min` / `_max` (posted amounts scaled to a year on
+  their own basis — no FX, no gross/net conversion; unknown period ⇒
+  NULL, never a guess). Data backfill annualizes every row with an
+  amount + known period; existing rows keep `salary_basis` NULL. The
+  Explore salary filter and salary sort now run on the normalized pair.
+  Covered by `tests/test_migrations.py::test_0056_salary_normalization_backfill`
+  and `tests/test_salary_normalization.py`.
 - **0055** — plan 129 phase 1: `company_profiles`, the reviewed 1:1
   firmographics layer over `organizations` (company type, size band,
   HQ, founded year, industry tags, links, typed financial claims with

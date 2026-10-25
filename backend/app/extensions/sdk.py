@@ -102,12 +102,13 @@ class ConnectorError(BaseModel):
 
 
 class SalarySpec(BaseModel):
-    """ISO-4217 currency + NUMERIC range + period."""
+    """ISO-4217 currency + NUMERIC range + period (+ stated basis)."""
 
     currency: str = Field(default="USD", min_length=3, max_length=3)
     min: float | None = Field(default=None, ge=0)
     max: float | None = Field(default=None, ge=0)
     period: Literal["hour", "day", "week", "month", "year"] = "year"
+    basis: Literal["gross", "net"] | None = None
 
 
 SeniorityLevel = Literal["intern", "junior", "mid", "senior", "lead", "principal"]
