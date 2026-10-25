@@ -100,6 +100,24 @@ check-ins are on), the follow-up sweep rewrites it after each pass from
 the notification history, and a snooze pins it explicitly.
 
 
+## Economic context (plan 127)
+
+| Table(s) | Model | Holds |
+|---|---|---|
+| `geo_regions`, `geo_region_aliases` | `econ_model.py` | Canonical region join keys (country → metro) and the profile-string resolution cache |
+| `econ_packs` | `econ_model.py` | Dataset pack / live provider instance: version, dataset vintage, license class, coverage JSONB, manifest, status (`proposed → active → superseded`) |
+| `econ_series` | `econ_model.py` | Dimensional series inside a pack (geo × category × metric, provider dims JSONB, coverage level, license class) |
+| `econ_observations` | `econ_model.py` | Values per (series, period, revision) with the provenance tier (`official → extracted → derived → ai_estimated`) and the verbatim evidence span + source hash for harvested values |
+| `code_crosswalks` | `econ_model.py` | Typed code-system mappings (dataset category → sector → occupation) with method/weight/confidence and review stamp |
+| `exposure_scores` | `econ_model.py` | Occupation AI-exposure scores per method (ILO GenAI, O*NET tasks) with source license |
+| `scenarios`, `scenario_points` | `econ_model.py` | Named falsifiable scenarios (thesis, assumptions, indicators, falsifiers) and p10/p50/p90 distribution points |
+| `claims`, `claim_events` | `econ_model.py` | Thesis-dossier claims with status and their timeline |
+| `econ_watchlist` | `econ_model.py` | Per-user watched geo/sector/series/indicator scopes |
+
+`market_snapshots` stays posting-derived; this layer sits beside it.
+Observations never hold computed aggregates (those are derived in
+`app/services/econ/`), and no row here feeds the fit score.
+
 ## Extensions (import layer)
 
 | Table(s) | Model | Holds |
@@ -115,6 +133,18 @@ against the vendored `desiredStateDocument` schema, which cannot express
 deletion).
 
 ### Migration notes
+
+- **0054** — plan 127 §3.0 (113 design review `§1.J`): the economic-
+  context foundation — `geo_regions`, `geo_region_aliases`, `econ_packs`,
+  `econ_series`, `econ_observations`, `code_crosswalks`,
+  `exposure_scores`, `scenarios`, `scenario_points`, `claims`,
+  `claim_events`, `econ_watchlist`. Purely additive; every enum column
+  carries its mirrored CHECK. The revision id is `0054` — the plan text
+  said `0053_econ_context`, but that slot was taken by
+  `0053_demand_import_task` (plan 122 phase 3). Covered by
+  `tests/test_migrations.py::test_0054_econ_context_tables_roundtrip`,
+  the enum↔CHECK wall (`tests/test_schema_contracts.py`) and
+  `tests/test_econ_models.py`.
 
 - **0053** — plan 122 phase 3: `schedules.task_allowed` gains
   `demand_import` (the dormant `system_demand_import` slot shipped its

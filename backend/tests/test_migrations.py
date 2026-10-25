@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0053"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0054"], (
         "revision chain stays linear on one head"
     )
 
@@ -1985,3 +1985,36 @@ def test_0053_demand_import_task_check_roundtrip():
 
     command.upgrade(config, "head")
     assert "demand_import" in _schedules_checks()["task_allowed"]
+
+
+_ECON_TABLES = [
+    "geo_regions",
+    "geo_region_aliases",
+    "econ_packs",
+    "econ_series",
+    "econ_observations",
+    "code_crosswalks",
+    "exposure_scores",
+    "scenarios",
+    "scenario_points",
+    "claims",
+    "claim_events",
+    "econ_watchlist",
+]
+
+
+def test_0054_econ_context_tables_roundtrip():
+    """Plan 127 §3.0: the economic-context tables land at head and
+    downgrade removes exactly what the revision added."""
+    config = _configured()
+    command.upgrade(config, "head")
+    for table in _ECON_TABLES:
+        assert _table_present(table), f"{table} exists at head"
+
+    command.downgrade(config, "0053")
+    for table in _ECON_TABLES:
+        assert not _table_present(table), f"{table} dropped on downgrade"
+
+    command.upgrade(config, "head")
+    for table in _ECON_TABLES:
+        assert _table_present(table), f"{table} exists after re-upgrade"

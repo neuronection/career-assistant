@@ -1,0 +1,20 @@
+# Lifecycle inventory (guidelines/data-model.md §7).
+# table :: class (record | operational | transient).
+# This file starts with plan 127 §3.0; pre-existing tables are not yet
+# classified (the repo runs the gate in transition mode) and are covered
+# by a follow-up sweep. Every table added from here on lands with its row
+# in the same commit.
+geo_regions :: record
+geo_region_aliases :: operational
+econ_packs :: record
+econ_series :: record
+econ_observations :: record
+code_crosswalks :: record
+exposure_scores :: record
+scenarios :: record
+scenario_points :: record
+claims :: record
+claim_events :: record
+econ_watchlist :: operational
+# claim_events.note is user-authored prose that survives user erasure
+# (user_id nulls): the erasure path scrubs it on that transition.

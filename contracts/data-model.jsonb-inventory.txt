@@ -1,0 +1,13 @@
+# JSONB inventory (guidelines/data-model.md §5).
+# table.column :: verdict (keep-open | typed-out) — verdict, optional note.
+# This file starts with plan 127 §3.0; pre-existing JSONB columns are not
+# yet classified (the repo runs the gate in transition mode) and are
+# covered by a follow-up sweep. Every column added from here on lands
+# with its row in the same commit.
+econ_packs.coverage :: keep-open coverage document per pack (granularity, period bounds, categories)
+econ_packs.manifest :: keep-open pack manifest, embeds pack_format
+econ_series.provider_dims :: keep-open provider-specific dimension codes
+econ_observations.evidence :: keep-open verbatim span + locator + content hash
+scenarios.assumptions :: keep-open per-scenario assumption document
+scenarios.indicators :: keep-open observable indicator refs + thresholds
+claims.evidence_refs :: keep-open references to series/observation rows

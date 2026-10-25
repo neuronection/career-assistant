@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (economic context schema, 2026-10-25)
+- **Plan 127 slice 3.0 — the Economy data layer lands (no UI yet).**
+  Schema for the money-flow evidence layer: region join keys + alias
+  cache, versioned dataset packs, dimensional series with
+  evidence-bearing observations (four provenance tiers), code
+  crosswalks, occupation exposure scores, the scenario/claim registries
+  and per-user watchlists. Purely additive migration `0054` via the plan
+  113 design-review route; nothing is exposed in the UI until the T1
+  surfaces land.
+
 ### Changed (wave residuals, 2026-10-25)
 - **Tour screenshots regenerated** against the seeded demo workspace —
   first capture set including the career-paths explorer and the four

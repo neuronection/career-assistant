@@ -43,6 +43,18 @@ if IS_SQLITE:
     _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
+    "claim_events",
+    "scenario_points",
+    "econ_observations",
+    "econ_series",
+    "econ_watchlist",
+    "econ_packs",
+    "claims",
+    "scenarios",
+    "exposure_scores",
+    "code_crosswalks",
+    "geo_region_aliases",
+    "geo_regions",
     "application_events",
     "applications",
     "user_path_flags",
