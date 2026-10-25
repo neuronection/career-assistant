@@ -22,6 +22,8 @@ frontend/dist/
 .env.local
 .env.*.local
 !.env.example
+# plan 126: pytest env file self-bootstraps from the tracked example
+backend/.env.test
 *.pem
 *.key
 secrets.json

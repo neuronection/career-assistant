@@ -5,6 +5,11 @@
 # PYTEST_XDIST_WORKERS overrides the worker count.
 set -e
 cd "$(dirname "$0")/.."
+# Fresh clones carry only the tracked example (plan 126) — recreate the
+# pytest env file so the first run needs zero manual steps. Idempotent.
+if [[ ! -f backend/.env.test && -f backend/.env.test.example ]]; then
+  cp backend/.env.test.example backend/.env.test
+fi
 # shellcheck source=scripts/lib/worktree-env.sh
 source scripts/lib/worktree-env.sh
 dc_wt_load

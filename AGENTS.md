@@ -75,6 +75,11 @@ cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run
 ```
 
+**Test env bootstrap**: `backend/.env.test` is untracked — only
+`backend/.env.test.example` ships (plan 126). The first `./scripts/run-tests.sh`
+run copies the example into place automatically; existing checkouts keep their
+local file.
+
 **Worktree testing gotcha**: the direct `uv run pytest` above is equivalent
 only in the primary checkout. In a linked worktree it binds the
 pytest/settings defaults — i.e. the shared primary Postgres on :5433 (and

@@ -14,6 +14,10 @@ All notable changes to **Career Assistant** are documented here.
   channel surfaces, the connectors-hosted MCP server section, and the
   `tools.translation` alignment note are now canonically recorded
   (byte-identical re-copy; `verify-wiring.sh` sm probe green).
+- **`.env.test` untracked** (family secrets-probe S2): the pytest env file
+  ships as `backend/.env.test.example` and `./scripts/run-tests.sh`
+  self-bootstraps it on first run — fresh clones work with zero manual
+  steps; existing checkouts keep their local file (plan 126).
 
 
 ### Added (career path explorer, 2026-10-24)
