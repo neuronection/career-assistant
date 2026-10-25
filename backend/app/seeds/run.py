@@ -436,6 +436,10 @@ async def run() -> None:
 
         packs = await seed_skill_packs(db)
         logger.info("ai: +%d bank skill packs", packs)
+        from app.seeds.econ_regions import seed_econ_regions
+
+        regions = await seed_econ_regions(db)
+        logger.info("econ: +%d gazetteer regions", regions)
         gaps = await unmapped_categories(db)
         if gaps:
             logger.warning(

@@ -13,6 +13,13 @@ All notable changes to **Career Assistant** are documented here.
   and per-user watchlists. Purely additive migration `0054` via the plan
   113 design-review route; nothing is exposed in the UI until the T1
   surfaces land.
+- **Plan 127 slice 3.1 — region resolution + coverage contract (backend
+  only).** Deterministic offline gazetteer resolution (profile
+  country/city → canonical region: accent/case folding, alias cache,
+  homonym candidates for the caller to disambiguate) and the honest
+  coverage summary (the most specific *active* series wins; no data
+  reads as "no data", never as an estimate). Ships with a starter
+  gazetteer seed (`./scripts/seed.sh`); no UI surface yet.
 
 ### Changed (wave residuals, 2026-10-25)
 - **Tour screenshots regenerated** against the seeded demo workspace —
