@@ -20,6 +20,17 @@ All notable changes to **Career Assistant** are documented here.
   coverage summary (the most specific *active* series wins; no data
   reads as "no data", never as an estimate). Ships with a starter
   gazetteer seed (`./scripts/seed.sh`); no UI surface yet.
+- **Plan 127 slice 3.2a — market-data provider registry + first Layer-1
+  source (backend only).** One registry for external series sources
+  (`career_assistant.market_data` entry points, admin allowlist,
+  fail-closed registration that rejects research-only licenses), a
+  World Bank WDI builtin (country-level worldwide, open license, no
+  key) with fixture-driven parsing and guarded-transport fetching, and
+  the generic ingest seam into `econ_packs` / `econ_series` /
+  `econ_observations` (idempotent upserts, revision history for revised
+  values, vintage supersede that keeps the old pack). Adopting the
+  existing BLS/Adzuna demand adapters into the registry, plus the BLS
+  OEWS/EP and OECD adapters and the scheduler trigger, land in 3.2b.
 
 ### Changed (wave residuals, 2026-10-25)
 - **Tour screenshots regenerated** against the seeded demo workspace —

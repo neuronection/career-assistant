@@ -164,6 +164,8 @@ class Settings(BaseSettings):
     # Entry-point connector plugins are admin-opt-in (they run in-process):
     # an empty list means built-ins only (desktop ships this default).
     connector_plugins_allowlist: list[str] = []
+    # Entry-point market-data providers follow the same opt-in rule.
+    market_data_plugins_allowlist: list[str] = []
 
     # Connector transport runtime (plan 32 Phase 1 / ADR-0040 D5): escape
     # hatches for the polite SSRF guard, routed through Settings (never raw
