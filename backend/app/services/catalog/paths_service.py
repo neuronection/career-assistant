@@ -524,9 +524,7 @@ class PathService:
                     JobSkill.skill_id.in_(skill_ids),
                 )
             )
-            required = {
-                row.skill_id: row.required_level for row in job_rows.scalars().all()
-            }
+            required = {row.skill_id: row.required_level for row in job_rows.scalars().all()}
         steps: list[PathStepDetailOut] = []
         total = 0
         met = 0
