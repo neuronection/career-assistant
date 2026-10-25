@@ -86,6 +86,17 @@ packages = ["app", "careerassistant"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Byte-identical family canonicals (ADR-0031/0035/0040) — excluded from
+# the formatter too, since `ruff format` does not honor the lint
+# per-file-ignores below and would reflow them (plan 81 C review,
+# 2026-10-21).
+extend-exclude = [
+    "app/extensions/contract.py",
+    "app/extensions/polite_http.py",
+    "app/extensions/conformance.py",
+    "app/extensions/isolation.py",
+    "app/ai/flow_events.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
