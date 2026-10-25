@@ -1,8 +1,9 @@
-"""Builtin market-data providers, wave 1 (plan 127 §3.2).
+"""World Bank WDI market-data bundle (plan 127 §3.2).
 
 World Bank WDI is the no-instance-empty layer: country-level series for
-the whole world, open license, no API key. The BLS OEWS/EP and OECD
-adapters (3.2b) take this same shape.
+the whole world, open license, no API key. The manifest beside this
+module is the bundle contract; BLS OEWS/EP and OECD adapters (3.2b) take
+this same shape.
 
 Parsing is pure (fixtures drive the tests); fetching goes through the
 guarded transport passed by the caller — no module ever opens a socket
@@ -44,20 +45,28 @@ class WorldBankIndicator(BaseModel):
         return value or info.data.get("code", "")
 
 
+WORLD_BANK_METRICS: dict[str, tuple[str, str]] = {
+    "NE.CON.PRVT.ZS": ("household_consumption_share", "percent"),
+}
+DEFAULT_INDICATORS = ["NE.CON.PRVT.ZS"]
+
+
+def indicator_for(code: str) -> WorldBankIndicator:
+    """The display metric/unit for an indicator code (code itself when unmapped)."""
+    metric, unit = WORLD_BANK_METRICS.get(code, (code, ""))
+    return WorldBankIndicator(code=code, metric=metric, unit=unit)
+
+
 class WorldBankConfig(BaseModel):
-    """A WDI pull: countries x indicators over a year window."""
+    """A WDI pull: countries x indicator codes over a year window.
+
+    Flat on purpose — the extension envelope's configSchema is a flat
+    field contract; per-indicator metric/unit live in ``WORLD_BANK_METRICS``.
+    """
 
     countries: list[str] = Field(default_factory=lambda: ["DE"], min_length=1, max_length=50)
-    indicators: list[WorldBankIndicator] = Field(
-        default_factory=lambda: [
-            WorldBankIndicator(
-                code="NE.CON.PRVT.ZS",
-                metric="household_consumption_share",
-                unit="percent",
-            )
-        ],
-        min_length=1,
-        max_length=20,
+    indicators: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_INDICATORS), min_length=1, max_length=20
     )
     start_year: int | None = Field(default=None, ge=1960, le=2100)
     end_year: int | None = Field(default=None, ge=1960, le=2100)
@@ -66,6 +75,11 @@ class WorldBankConfig(BaseModel):
     @classmethod
     def _normalize_countries(cls, values: list[str]) -> list[str]:
         return [value.strip().upper() for value in values if value.strip()]
+
+    @field_validator("indicators", mode="after")
+    @classmethod
+    def _normalize_indicators(cls, values: list[str]) -> list[str]:
+        return [value.strip() for value in values if value.strip()]
 
 
 def parse_world_bank_payload(body: str, indicator: WorldBankIndicator) -> list[ProviderSeries]:
@@ -140,7 +154,8 @@ class WorldBankWdiProvider(MarketDataProvider):
         assert isinstance(config, WorldBankConfig)
 
         series: list[ProviderSeries] = []
-        for indicator in config.indicators:
+        for code in config.indicators:
+            indicator = indicator_for(code)
             url = self._request_url(config, indicator)
             try:
                 response = await transport("GET", url, {"Accept": "application/json"}, None)
@@ -183,7 +198,7 @@ class WorldBankWdiProvider(MarketDataProvider):
             coverage={
                 "granularity": "country",
                 "countries": config.countries,
-                "indicators": [indicator.code for indicator in config.indicators],
+                "indicators": list(config.indicators),
             },
             manifest={
                 "pack_format": "econ-pack/v1",
@@ -194,6 +209,3 @@ class WorldBankWdiProvider(MarketDataProvider):
             source_url="https://data.worldbank.org",
             series=series,
         )
-
-
-BUILTINS: list[MarketDataProvider] = [WorldBankWdiProvider()]

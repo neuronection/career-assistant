@@ -4,6 +4,25 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (connector SDK docs, 2026-10-25)
+- **Plan 128 — the connector SDK doc set is pinned to the law it
+  describes.** Drift had accumulated behind a structurally green docs
+  gate: the template manifest example printed without `entry`/`mcp`/
+  `docs` (it failed registration as printed), a retired rule (fixed
+  `extension.py`/`server.py` filenames deciding the tier) was still
+  stated as law in six places, and the reference error table disagreed
+  with the charter (`io`, `budget`). All corrected, plus coverage: the
+  full manifest field set and constraints, `RawPosting`'s fields and
+  closed enums, the `PostingConnector` surface, the family-vs-host
+  capability vocabulary, per-extension docs bundles, the bounded 7E
+  error-detail object, the `release-tag` ref strategy and an honest
+  out-of-scope list. New `backend/tests/test_sdk_docs_truth.py` wall —
+  every manifest printed in `docs/dev/sdk/` is materialized and run
+  through the vendored registration validator, the verbatim claims are
+  compared to their pinned files, and the error/RPC/knob tables are
+  compared against the charter and `Settings`. A code block that lies
+  now fails the suite.
+
 ### Added (economic context schema, 2026-10-25)
 - **Plan 127 slice 3.0 — the Economy data layer lands (no UI yet).**
   Schema for the money-flow evidence layer: region join keys + alias
@@ -21,16 +40,21 @@ All notable changes to **Career Assistant** are documented here.
   reads as "no data", never as an estimate). Ships with a starter
   gazetteer seed (`./scripts/seed.sh`); no UI surface yet.
 - **Plan 127 slice 3.2a — market-data provider registry + first Layer-1
-  source (backend only).** One registry for external series sources
-  (`career_assistant.market_data` entry points, admin allowlist,
-  fail-closed registration that rejects research-only licenses), a
-  World Bank WDI builtin (country-level worldwide, open license, no
-  key) with fixture-driven parsing and guarded-transport fetching, and
-  the generic ingest seam into `econ_packs` / `econ_series` /
-  `econ_observations` (idempotent upserts, revision history for revised
-  values, vintage supersede that keeps the old pack). Adopting the
-  existing BLS/Adzuna demand adapters into the registry, plus the BLS
-  OEWS/EP and OECD adapters and the scheduler trigger, land in 3.2b.
+  source (backend only).** Sources are now **extension bundles**: each
+  lives under `backend/app/extensions/builtin/market_data/<key>/` with
+  its own `extension/v1` connector manifest (the charter's
+  `ObservationCreate` item contract), and core holds only the contract,
+  the bundle/manifest loader and the ingest seam — adding a source never
+  edits core. Registration is fail-closed (manifest vs provider
+  cross-checks, duplicate keys, research-only licenses refused).
+  Third-party sources arrive through `career_assistant.market_data`
+  entry points behind the new `market_data_plugins_allowlist`. The first
+  bundle is World Bank WDI (country-level worldwide, open license, no
+  key) with fixture-driven parsing and guarded-transport fetching; ingest
+  writes `econ_packs` / `econ_series` / `econ_observations` with
+  idempotent upserts, revision history and vintage supersede. Adopting
+  the existing BLS/Adzuna demand adapters into the registry, plus the BLS
+  OEWS/EP and OECD bundles and the scheduler trigger, land in 3.2b.
 
 ### Changed (wave residuals, 2026-10-25)
 - **Tour screenshots regenerated** against the seeded demo workspace —

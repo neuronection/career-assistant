@@ -1,10 +1,17 @@
-"""Market-data provider registry (plan 127 §3.2): sources are data.
+"""Market-data provider registry (plan 127 §3.2): sources are extensions.
 
-One contract for every external series source. Built-ins register at
-import; third-party providers arrive via the
+Sources are self-contained bundles under ``builtin/market_data/<key>/``,
+each with its own ``extension/v1`` manifest (the charter's item-schema
+contract for external data sources, ``ObservationCreate``) plus its
+provider class. The loader validates every bundle manifest against the
+vendored envelope schema and cross-checks it with the provider (key dir,
+kind, network scopes, capabilities) — a bundle that disagrees with its
+manifest fails closed. Third-party providers arrive via the
 ``career_assistant.market_data`` entry-point group, admin-opt-in through
 ``market_data_plugins_allowlist`` (code shipped in the deployment image,
-reviewed). Registration fails closed: duplicate keys, malformed keys and
+reviewed).
+
+Registration fails closed: duplicate keys, malformed keys and
 non-ingestable license classes (``research_only``) are rejected before any
 fetch happens.
 
@@ -16,21 +23,26 @@ version (vintage). Arithmetic and aggregation belong to the reducers in
 
 from __future__ import annotations
 
+import json
 import logging
 from abc import ABC, abstractmethod
 from datetime import date
 from importlib import metadata
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.errors import ValidationError
+from app.extensions import contract
 from app.models.enums import CoverageLevel, GeoRegionKind, LicenseClass
 
 logger = logging.getLogger(__name__)
 
 ENTRY_POINT_GROUP = "career_assistant.market_data"
+_BUNDLE_ROOT = Path(__file__).resolve().parent / "builtin" / "market_data"
+_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "contracts" / "extension-manifest.schema.json"
 
 _INGESTIBLE_LICENSES = {
     LicenseClass.PUBLIC_DOMAIN,
@@ -154,6 +166,69 @@ class MarketDataRegistry:
         return sorted(self._providers)
 
 
+def _envelope_schema() -> dict:
+    try:
+        return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"extension envelope schema unavailable at {_SCHEMA_PATH}: {exc} — "
+            "market-data registration fails closed (vendored contract set incomplete)"
+        ) from exc
+
+
+def _bundle_manifest_problems(bundle: str, manifest: dict) -> list[str]:
+    """The bundle's manifest must be a valid envelope and agree with its provider."""
+    problems: list[str] = []
+    schema = _envelope_schema()
+    error = contract.validate(schema["$defs"]["bundledManifest"], manifest, schema)
+    if error is not None:
+        problems.append(f"{bundle}: {error}")
+    if manifest.get("kind") != "connector":
+        problems.append(
+            f"{bundle}: manifest kind must be 'connector', got {manifest.get('kind')!r}"
+        )
+    if "net" not in (manifest.get("capabilities") or []):
+        problems.append(f"{bundle}: manifest capabilities must include 'net'")
+    if not isinstance(manifest.get("itemSchema"), dict):
+        problems.append(f"{bundle}: manifest must declare the observation item schema")
+    return problems
+
+
+def _bundled_providers() -> list[MarketDataProvider]:
+    """Scan bundle dirs, validate every manifest, and require a 1:1 provider match."""
+    from app.extensions.builtin.market_data import BUILTINS
+
+    by_key = {provider.key: provider for provider in BUILTINS}
+    manifests: dict[str, dict] = {}
+    problems: list[str] = []
+    for path in sorted(_BUNDLE_ROOT.glob("*/manifest.json")):
+        bundle = path.parent.name
+        try:
+            manifests[bundle] = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            problems.append(f"{bundle}: manifest unreadable ({exc})")
+            continue
+        problems.extend(_bundle_manifest_problems(bundle, manifests[bundle]))
+
+    for bundle, manifest in manifests.items():
+        provider = by_key.get(bundle)
+        if provider is None:
+            problems.append(f"{bundle}: manifest without a provider in BUILTINS")
+            continue
+        if set(manifest.get("domains") or []) != set(provider.network_scopes):
+            problems.append(
+                f"{bundle}: manifest domains {sorted(manifest.get('domains') or [])} "
+                f"do not match the provider network scopes {sorted(provider.network_scopes)}"
+            )
+    for key in by_key:
+        if key not in manifests:
+            problems.append(f"{key}: provider has no bundle manifest.json")
+
+    if problems:
+        raise ValidationError("; ".join(problems))
+    return BUILTINS
+
+
 def _load_entry_points(registry: MarketDataRegistry) -> None:
     """Admit third-party providers named in the admin allowlist (built-ins need no opt-in)."""
     allowlist = set(settings.market_data_plugins_allowlist)
@@ -178,13 +253,11 @@ _registry: MarketDataRegistry | None = None
 
 
 def registry() -> MarketDataRegistry:
-    """The process registry: built-ins first, then allowlisted entry points."""
+    """The process registry: validated bundles first, then allowlisted entry points."""
     global _registry
     if _registry is None:
-        from app.extensions.market_data_providers import BUILTINS
-
         built = MarketDataRegistry()
-        for provider in BUILTINS:
+        for provider in _bundled_providers():
             built.register(provider)
         _load_entry_points(built)
         _registry = built

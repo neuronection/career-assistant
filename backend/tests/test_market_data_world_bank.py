@@ -5,13 +5,13 @@ import json
 
 import pytest
 
-from app.extensions.market_data import MarketDataError
-from app.extensions.market_data_providers import (
+from app.extensions.builtin.market_data.world_bank import (
     WorldBankConfig,
     WorldBankIndicator,
     WorldBankWdiProvider,
     parse_world_bank_payload,
 )
+from app.extensions.market_data import MarketDataError
 
 PAYLOAD = json.dumps(
     [
