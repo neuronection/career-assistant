@@ -18,6 +18,7 @@ from app.api.v1 import (
     profiles,
     scheduler,
 )
+from app.api.v1.catalog import companies as companies
 from app.api.v1.catalog import jobs as jobs
 from app.api.v1.catalog import matching as matching
 from app.api.v1.catalog import paths as paths
@@ -58,6 +59,7 @@ api_router.include_router(assessments.router)
 api_router.include_router(skills.router)
 api_router.include_router(paths.router)
 api_router.include_router(jobs.router)
+api_router.include_router(companies.router)
 api_router.include_router(universities.router)
 api_router.include_router(documents.router)
 api_router.include_router(cv_templates.router)

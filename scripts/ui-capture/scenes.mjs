@@ -130,6 +130,15 @@ export const scenes = [
     waitForSelector: "[data-testid='universities']",
   },
   {
+    name: "companies",
+    group: "Career exploration",
+    caption: "Companies hiring now — reviewed facts, sourced financials, every open posting.",
+    narration: "Research the employer before the application: facts, money with sources, and everything they are hiring for.",
+    path: "/companies",
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='companies']",
+  },
+  {
     name: "autopilot",
     group: "Working life",
     caption: "Career Autopilot — goal-driven agent searches with budgets.",

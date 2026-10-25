@@ -23,7 +23,8 @@
     "sectionPrepare": "Prepare",
     "sectionAccount": "Account",
     "sectionExtensions": "Extensions",
-    "paths": "Career paths"
+    "paths": "Career paths",
+    "companies": "Companies"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -3816,5 +3817,52 @@
     "stepLabelPlaceholder": "What happens at this step?",
     "edgeLabelPlaceholder": "Why this branch? (e.g. or: research track)",
     "newPath": "New path"
+  },
+  "companies": {
+    "subtitle": "Companies hiring right now — reviewed facts, financials with sources, and every open posting in one place.",
+    "searchPlaceholder": "Search companies…",
+    "loadError": "Could not load companies.",
+    "noneYetTitle": "No companies yet",
+    "noneYetBody": "Companies appear here once connector syncs bring in postings with a recognized employer.",
+    "openPostings": "{{count}} open postings",
+    "employees": "{{range}} employees",
+    "locationUnknown": "Location unknown",
+    "type": {
+      "public": "Public",
+      "private": "Private",
+      "subsidiary": "Subsidiary",
+      "nonprofit": "Non-profit",
+      "government": "Government",
+      "startup": "Startup"
+    }
+  },
+  "companyDetail": {
+    "back": "All companies",
+    "needsReview": "Facts need review",
+    "hq": "Headquarters",
+    "employees": "Employees",
+    "founded": "Founded",
+    "industry": "Industry",
+    "domain": "Website",
+    "financials": "Financials",
+    "claimKind": {
+      "revenue": "Revenue",
+      "valuation": "Valuation",
+      "market_cap": "Market cap",
+      "funding": "Funding raised",
+      "net_worth": "Net worth"
+    },
+    "hiringSignal": "Hiring signal (derived from live postings)",
+    "bySeniority": "By seniority",
+    "byOnsite": "By work mode",
+    "topLocations": "Top locations",
+    "onsite": {
+      "onsite": "On-site",
+      "hybrid": "Hybrid",
+      "remote": "Remote"
+    },
+    "postingsTitle": "Open postings ({{count}})",
+    "noPostings": "No open postings right now.",
+    "viewPosting": "View posting"
   }
 }

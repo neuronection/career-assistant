@@ -18,6 +18,7 @@ from app.core.errors import DomainError, ValidationError, sanitize_error_detail
 from app.models.ai_model import AIGeneration
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
+from app.schemas.company import CompanyDetailOut, CompanyProfileIn
 from app.schemas.i18n import (
     LocaleIn,
     LocaleStateOut,
@@ -400,6 +401,21 @@ async def backfill_organizations(db: AsyncSession = Depends(get_db)) -> dict:
     from app.services.catalog.organization_service import OrganizationService
 
     return await OrganizationService(db).backfill_postings()
+
+
+@router.put("/companies/{key}", response_model=CompanyDetailOut)
+async def upsert_company_profile(
+    key: str,
+    data: CompanyProfileIn,
+    db: AsyncSession = Depends(get_db),
+) -> CompanyDetailOut:
+    """Write the reviewed company facts (omit a field = clear to unknown)."""
+    from app.services.catalog.company_service import CompanyService
+
+    try:
+        return await CompanyService(db).upsert_profile(key, data)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
 
 @router.get("/jobs/enrichment", response_model=list[dict])

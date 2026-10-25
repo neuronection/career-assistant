@@ -70,6 +70,12 @@
               "description": "AI match scores with rationale, your own scores and interest status, the deterministic fit engine, filterable rankings and the compare tray."
             },
             {
+              "id": "companies",
+              "file": "user/companies.md",
+              "title": "Companies",
+              "description": "Browse hiring companies with reviewed facts, sourced financials and every open posting on one page."
+            },
+            {
               "id": "universities",
               "file": "user/universities.md",
               "title": "Universities and pathways",

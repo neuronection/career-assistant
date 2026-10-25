@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/companies/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert Company Profile
+         * @description Write the reviewed company facts (omit a field = clear to unknown).
+         */
+        put: operations["upsert_company_profile_api_v1_admin_companies__key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/extensions/desired-state": {
         parameters: {
             query?: never;
@@ -2842,6 +2862,66 @@ export interface paths {
          * @description Read-only branch-tree projection for the graph rail.
          */
         get: operations["get_tree_api_v1_chat_sessions__session_id__tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Companies
+         * @description Companies with open postings, busiest first.
+         */
+        get: operations["list_companies_api_v1_companies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companies/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Company
+         * @description One company: reviewed facts plus derived hiring stats.
+         */
+        get: operations["get_company_api_v1_companies__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companies/{key}/postings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Company Postings
+         * @description The company's open postings, freshest first.
+         */
+        get: operations["company_postings_api_v1_companies__key__postings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8856,6 +8936,208 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * CompanyDerivedStats
+         * @description What the postings prove about this company — computed, never stored.
+         */
+        CompanyDerivedStats: {
+            /** By Onsite Policy */
+            by_onsite_policy?: {
+                [key: string]: number;
+            };
+            /** By Seniority */
+            by_seniority?: {
+                [key: string]: number;
+            };
+            /** Latest Posted At */
+            latest_posted_at?: string | null;
+            /** Open Postings */
+            open_postings: number;
+            /** Top Locations */
+            top_locations?: components["schemas"]["LocationCount"][];
+        };
+        /**
+         * CompanyDetailOut
+         * @description The detail page: reviewed facts, financial claims, derived stats.
+         */
+        CompanyDetailOut: {
+            company_type?: components["schemas"]["CompanyType"] | null;
+            derived?: components["schemas"]["CompanyDerivedStats"];
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Domain */
+            domain?: string | null;
+            /** Employees Max */
+            employees_max?: number | null;
+            /** Employees Min */
+            employees_min?: number | null;
+            /** Financials */
+            financials?: components["schemas"]["FinancialClaim-Output"][];
+            /** Founded Year */
+            founded_year?: number | null;
+            /**
+             * Has Profile
+             * @default false
+             */
+            has_profile: boolean;
+            /** Hq City */
+            hq_city?: string | null;
+            /** Hq Country */
+            hq_country?: string | null;
+            /** Industry Tags */
+            industry_tags?: string[];
+            /** Key */
+            key: string;
+            /** Links */
+            links?: components["schemas"]["CompanyLink"][];
+            /** Name */
+            name: string;
+            /**
+             * Needs Review
+             * @default false
+             */
+            needs_review: boolean;
+            /**
+             * Open Postings
+             * @default 0
+             */
+            open_postings: number;
+        };
+        /** CompanyLink */
+        CompanyLink: {
+            /** Label */
+            label: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * CompanyLinkIn
+         * @description Write-side link: the URL is scheme-checked (http/https only).
+         */
+        CompanyLinkIn: {
+            /** Label */
+            label: string;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+        };
+        /**
+         * CompanyOut
+         * @description The list row: identity plus the coarse reviewed facts.
+         */
+        CompanyOut: {
+            company_type?: components["schemas"]["CompanyType"] | null;
+            /** Domain */
+            domain?: string | null;
+            /** Employees Max */
+            employees_max?: number | null;
+            /** Employees Min */
+            employees_min?: number | null;
+            /** Founded Year */
+            founded_year?: number | null;
+            /**
+             * Has Profile
+             * @default false
+             */
+            has_profile: boolean;
+            /** Hq City */
+            hq_city?: string | null;
+            /** Hq Country */
+            hq_country?: string | null;
+            /** Industry Tags */
+            industry_tags?: string[];
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Open Postings
+             * @default 0
+             */
+            open_postings: number;
+        };
+        /**
+         * CompanyPostingOut
+         * @description The company page's posting card row (no personalization plumbing).
+         */
+        CompanyPostingOut: {
+            /** Catalog Job Id */
+            catalog_job_id?: string | null;
+            /** Employment Type */
+            employment_type?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location?: components["schemas"]["PostingLocationOut"] | null;
+            /** Onsite Policy */
+            onsite_policy?: string | null;
+            /** Posted At */
+            posted_at?: string | null;
+            /** Ref */
+            ref: string;
+            /** Salary Currency */
+            salary_currency?: string | null;
+            /** Salary Max */
+            salary_max?: number | null;
+            /** Salary Min */
+            salary_min?: number | null;
+            /** Salary Period */
+            salary_period?: string | null;
+            /** Seniority */
+            seniority?: string | null;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * CompanyProfileIn
+         * @description Admin write: the reviewed facts. Omitted fields clear to unknown.
+         */
+        CompanyProfileIn: {
+            company_type?: components["schemas"]["CompanyType"] | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Employees Max */
+            employees_max?: number | null;
+            /** Employees Min */
+            employees_min?: number | null;
+            /** Financials */
+            financials?: components["schemas"]["FinancialClaim-Input"][];
+            /** Founded Year */
+            founded_year?: number | null;
+            /** Hq City */
+            hq_city?: string | null;
+            /** Hq Country */
+            hq_country?: string | null;
+            /** Industry Tags */
+            industry_tags?: string[];
+            /** Links */
+            links?: components["schemas"]["CompanyLinkIn"][];
+            /**
+             * Needs Review
+             * @default false
+             */
+            needs_review: boolean;
+        };
+        /**
+         * CompanyType
+         * @description Company legal/operational type (company_profiles.company_type).
+         * @enum {string}
+         */
+        CompanyType: "public" | "private" | "subsidiary" | "nonprofit" | "government" | "startup";
         /** CompletenessOut */
         CompletenessOut: {
             /** Percent */
@@ -10959,6 +11241,48 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * FinancialClaim
+         * @description One reviewed financial fact with its own source and as-of date.
+         */
+        "FinancialClaim-Input": {
+            /** Amount */
+            amount: number | string;
+            /** As Of */
+            as_of?: string | null;
+            /** Currency */
+            currency: string;
+            kind: components["schemas"]["FinancialClaimKind"];
+            /**
+             * Source
+             * @default
+             */
+            source: string;
+        };
+        /**
+         * FinancialClaim
+         * @description One reviewed financial fact with its own source and as-of date.
+         */
+        "FinancialClaim-Output": {
+            /** Amount */
+            amount: string;
+            /** As Of */
+            as_of?: string | null;
+            /** Currency */
+            currency: string;
+            kind: components["schemas"]["FinancialClaimKind"];
+            /**
+             * Source
+             * @default
+             */
+            source: string;
+        };
+        /**
+         * FinancialClaimKind
+         * @description One reviewed financial claim (company_profiles.financials).
+         * @enum {string}
+         */
+        FinancialClaimKind: "revenue" | "valuation" | "market_cap" | "funding" | "net_worth";
         /** FitBreakdownOut */
         FitBreakdownOut: {
             /** Dimensions */
@@ -11811,6 +12135,15 @@ export interface components {
             locale: string;
             /** Supported */
             supported: string[];
+        };
+        /** LocationCount */
+        LocationCount: {
+            /** City */
+            city?: string | null;
+            /** Count */
+            count: number;
+            /** Country */
+            country?: string | null;
         };
         /** LoginIn */
         LoginIn: {
@@ -15200,6 +15533,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_company_profile_api_v1_admin_companies__key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyProfileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -20118,6 +20486,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TreeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_companies_api_v1_companies_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_company_api_v1_companies__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    company_postings_api_v1_companies__key__postings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyPostingOut"][];
                 };
             };
             /** @description Validation Error */

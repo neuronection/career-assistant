@@ -23,7 +23,8 @@
     "sectionPrepare": "Vorbereiten",
     "sectionAccount": "Konto",
     "sectionExtensions": "Erweiterungen",
-    "paths": "Karrierepfade"
+    "paths": "Karrierepfade",
+    "companies": "Unternehmen"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -3815,5 +3816,52 @@
     "stepLabelPlaceholder": "Was passiert in diesem Schritt?",
     "edgeLabelPlaceholder": "Warum dieser Zweig? (z. B. oder: Forschung)",
     "newPath": "Neuer Pfad"
+  },
+  "companies": {
+    "subtitle": "Unternehmen, die gerade einstellen — geprüfte Fakten, Finanzangaben mit Quellen und alle offenen Stellen an einem Ort.",
+    "searchPlaceholder": "Unternehmen suchen…",
+    "loadError": "Unternehmen konnten nicht geladen werden.",
+    "noneYetTitle": "Noch keine Unternehmen",
+    "noneYetBody": "Unternehmen erscheinen hier, sobald Connector-Syncs Stellen mit erkanntem Arbeitgeber bringen.",
+    "openPostings": "{{count}} offene Stellen",
+    "employees": "{{range}} Mitarbeitende",
+    "locationUnknown": "Standort unbekannt",
+    "type": {
+      "public": "Börsennotiert",
+      "private": "Privat",
+      "subsidiary": "Tochterunternehmen",
+      "nonprofit": "Gemeinnützig",
+      "government": "Öffentlich-rechtlich",
+      "startup": "Startup"
+    }
+  },
+  "companyDetail": {
+    "back": "Alle Unternehmen",
+    "needsReview": "Fakten prüfen",
+    "hq": "Hauptsitz",
+    "employees": "Mitarbeitende",
+    "founded": "Gegründet",
+    "industry": "Branche",
+    "domain": "Website",
+    "financials": "Finanzangaben",
+    "claimKind": {
+      "revenue": "Umsatz",
+      "valuation": "Bewertung",
+      "market_cap": "Marktkapitalisierung",
+      "funding": "Eingeworbenes Kapital",
+      "net_worth": "Vermögen"
+    },
+    "hiringSignal": "Einstellungssignal (aus live Stellen abgeleitet)",
+    "bySeniority": "Nach Seniorität",
+    "byOnsite": "Nach Arbeitsmodus",
+    "topLocations": "Top-Standorte",
+    "onsite": {
+      "onsite": "Vor Ort",
+      "hybrid": "Hybrid",
+      "remote": "Remote"
+    },
+    "postingsTitle": "Offene Stellen ({{count}})",
+    "noPostings": "Aktuell keine offenen Stellen.",
+    "viewPosting": "Stelle ansehen"
   }
 }

@@ -99,6 +99,7 @@ TABLES = [
     "interview_sessions",
     "cv_synth_items",
     "job_postings",
+    "company_profiles",
     "organizations",
     "job_sources",
     "notifications",

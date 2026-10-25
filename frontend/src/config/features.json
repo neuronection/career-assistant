@@ -41,6 +41,12 @@
       "state": "beta",
       "since": "2026-10-24",
       "docs": "docs/user/career-paths.md"
+    },
+    {
+      "key": "/companies",
+      "state": "beta",
+      "since": "2026-10-25",
+      "docs": "docs/user/companies.md"
     }
   ]
 }

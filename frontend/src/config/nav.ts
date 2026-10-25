@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Building2,
   Puzzle,
 
   Bot,
@@ -41,6 +42,7 @@ export const NAV: AppNavItem[] = [
   { to: "/catalog", labelKey: "nav.catalog", icon: Briefcase, studentOnly: false },
   { to: "/rankings", labelKey: "nav.rankings", icon: Trophy, studentOnly: false },
   { to: "/postings", labelKey: "nav.postings", icon: Globe, studentOnly: false },
+  { to: "/companies", labelKey: "nav.companies", icon: Building2, studentOnly: false },
   { to: "/applications", labelKey: "nav.applications", icon: KanbanSquare, studentOnly: false },
   { to: "/autopilot", labelKey: "nav.autopilot", icon: Bot, studentOnly: false },
   { to: "/interviews", labelKey: "nav.interviews", icon: GraduationCap, studentOnly: false },

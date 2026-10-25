@@ -3042,6 +3042,623 @@
         "title": "CompactionItem",
         "type": "object"
       },
+      "CompanyDerivedStats": {
+        "description": "What the postings prove about this company \u2014 computed, never stored.",
+        "properties": {
+          "by_onsite_policy": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Onsite Policy",
+            "type": "object"
+          },
+          "by_seniority": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Seniority",
+            "type": "object"
+          },
+          "latest_posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Posted At"
+          },
+          "open_postings": {
+            "minimum": 0.0,
+            "title": "Open Postings",
+            "type": "integer"
+          },
+          "top_locations": {
+            "items": {
+              "$ref": "#/components/schemas/LocationCount"
+            },
+            "title": "Top Locations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "open_postings"
+        ],
+        "title": "CompanyDerivedStats",
+        "type": "object"
+      },
+      "CompanyDetailOut": {
+        "description": "The detail page: reviewed facts, financial claims, derived stats.",
+        "properties": {
+          "company_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "derived": {
+            "$ref": "#/components/schemas/CompanyDerivedStats"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "employees_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Max"
+          },
+          "employees_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Min"
+          },
+          "financials": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialClaim-Output"
+            },
+            "title": "Financials",
+            "type": "array"
+          },
+          "founded_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Founded Year"
+          },
+          "has_profile": {
+            "default": false,
+            "title": "Has Profile",
+            "type": "boolean"
+          },
+          "hq_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq City"
+          },
+          "hq_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq Country"
+          },
+          "industry_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Industry Tags",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyLink"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "needs_review": {
+            "default": false,
+            "title": "Needs Review",
+            "type": "boolean"
+          },
+          "open_postings": {
+            "default": 0,
+            "title": "Open Postings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "CompanyDetailOut",
+        "type": "object"
+      },
+      "CompanyLink": {
+        "properties": {
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "CompanyLink",
+        "type": "object"
+      },
+      "CompanyLinkIn": {
+        "description": "Write-side link: the URL is scheme-checked (http/https only).",
+        "properties": {
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "CompanyLinkIn",
+        "type": "object"
+      },
+      "CompanyOut": {
+        "description": "The list row: identity plus the coarse reviewed facts.",
+        "properties": {
+          "company_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "employees_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Max"
+          },
+          "employees_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Min"
+          },
+          "founded_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Founded Year"
+          },
+          "has_profile": {
+            "default": false,
+            "title": "Has Profile",
+            "type": "boolean"
+          },
+          "hq_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq City"
+          },
+          "hq_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq Country"
+          },
+          "industry_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Industry Tags",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_postings": {
+            "default": 0,
+            "title": "Open Postings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "CompanyOut",
+        "type": "object"
+      },
+      "CompanyPostingOut": {
+        "description": "The company page's posting card row (no personalization plumbing).",
+        "properties": {
+          "catalog_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Job Id"
+          },
+          "employment_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employment Type"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingLocationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "onsite_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsite Policy"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Currency"
+          },
+          "salary_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Max"
+          },
+          "salary_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Min"
+          },
+          "salary_period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Period"
+          },
+          "seniority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seniority"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "title",
+          "url",
+          "status"
+        ],
+        "title": "CompanyPostingOut",
+        "type": "object"
+      },
+      "CompanyProfileIn": {
+        "description": "Admin write: the reviewed facts. Omitted fields clear to unknown.",
+        "properties": {
+          "company_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Description",
+            "type": "string"
+          },
+          "employees_max": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Max"
+          },
+          "employees_min": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Min"
+          },
+          "financials": {
+            "items": {
+              "$ref": "#/components/schemas/FinancialClaim-Input"
+            },
+            "maxItems": 24,
+            "title": "Financials",
+            "type": "array"
+          },
+          "founded_year": {
+            "anyOf": [
+              {
+                "maximum": 2100.0,
+                "minimum": 1800.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Founded Year"
+          },
+          "hq_city": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq City"
+          },
+          "hq_country": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq Country"
+          },
+          "industry_tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 24,
+            "title": "Industry Tags",
+            "type": "array"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyLinkIn"
+            },
+            "maxItems": 12,
+            "title": "Links",
+            "type": "array"
+          },
+          "needs_review": {
+            "default": false,
+            "title": "Needs Review",
+            "type": "boolean"
+          }
+        },
+        "title": "CompanyProfileIn",
+        "type": "object"
+      },
+      "CompanyType": {
+        "description": "Company legal/operational type (company_profiles.company_type).",
+        "enum": [
+          "public",
+          "private",
+          "subsidiary",
+          "nonprofit",
+          "government",
+          "startup"
+        ],
+        "title": "CompanyType",
+        "type": "string"
+      },
       "CompletenessOut": {
         "properties": {
           "percent": {
@@ -8453,6 +9070,114 @@
         "title": "FeedTokenOut",
         "type": "object"
       },
+      "FinancialClaim-Input": {
+        "description": "One reviewed financial fact with its own source and as-of date.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FinancialClaimKind"
+          },
+          "source": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "amount",
+          "currency"
+        ],
+        "title": "FinancialClaim",
+        "type": "object"
+      },
+      "FinancialClaim-Output": {
+        "description": "One reviewed financial fact with its own source and as-of date.",
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FinancialClaimKind"
+          },
+          "source": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "amount",
+          "currency"
+        ],
+        "title": "FinancialClaim",
+        "type": "object"
+      },
+      "FinancialClaimKind": {
+        "description": "One reviewed financial claim (company_profiles.financials).",
+        "enum": [
+          "revenue",
+          "valuation",
+          "market_cap",
+          "funding",
+          "net_worth"
+        ],
+        "title": "FinancialClaimKind",
+        "type": "string"
+      },
       "FitBreakdownOut": {
         "properties": {
           "dimensions": {
@@ -10595,6 +11320,42 @@
           "supported"
         ],
         "title": "LocaleStateOut",
+        "type": "object"
+      },
+      "LocationCount": {
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "LocationCount",
         "type": "object"
       },
       "LoginIn": {
@@ -19477,6 +20238,59 @@
         ]
       }
     },
+    "/api/v1/admin/companies/{key}": {
+      "put": {
+        "description": "Write the reviewed company facts (omit a field = clear to unknown).",
+        "operationId": "upsert_company_profile_api_v1_admin_companies__key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyProfileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Company Profile",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/extensions/desired-state": {
       "get": {
         "description": "The GitOps desired-state document (admin-owned; the model never\nauthors it \u2014 ADR-0011 \u00a77).",
@@ -26352,6 +27166,174 @@
         "summary": "Get Tree",
         "tags": [
           "chat"
+        ]
+      }
+    },
+    "/api/v1/companies": {
+      "get": {
+        "description": "Companies with open postings, busiest first.",
+        "operationId": "list_companies_api_v1_companies_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyOut"
+                  },
+                  "title": "Response List Companies Api V1 Companies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Companies",
+        "tags": [
+          "companies"
+        ]
+      }
+    },
+    "/api/v1/companies/{key}": {
+      "get": {
+        "description": "One company: reviewed facts plus derived hiring stats.",
+        "operationId": "get_company_api_v1_companies__key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Company",
+        "tags": [
+          "companies"
+        ]
+      }
+    },
+    "/api/v1/companies/{key}/postings": {
+      "get": {
+        "description": "The company's open postings, freshest first.",
+        "operationId": "company_postings_api_v1_companies__key__postings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyPostingOut"
+                  },
+                  "title": "Response Company Postings Api V1 Companies  Key  Postings Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Company Postings",
+        "tags": [
+          "companies"
         ]
       }
     },

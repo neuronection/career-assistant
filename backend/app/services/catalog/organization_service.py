@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
+from app.models.company_model import CompanyProfile
 from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting
 
@@ -243,19 +244,42 @@ class OrganizationService:
         return org
 
     async def merge(self, org_id: UUID, target_id: UUID) -> Organization:
-        """Re-point references to the target and deprecate the duplicate."""
+        """Re-point references to the target and deprecate the duplicate.
+
+        A 1:1 company profile rides along (re-pointed, flagged for
+        review) unless the target has one too — two reviewed profiles
+        never merge silently. The refusal fires before any mutation.
+        """
         if org_id == target_id:
             raise ValidationError("Cannot merge an organization into itself")
         source = await self.get_org(org_id)
         target = await self.get_org(target_id)
         if target.status == "deprecated":
             raise ValidationError("Cannot merge into a deprecated organization")
+        source_profile = (
+            await self.db.execute(
+                select(CompanyProfile).where(CompanyProfile.organization_id == source.id)
+            )
+        ).scalar_one_or_none()
+        if source_profile is not None:
+            target_profile = (
+                await self.db.execute(
+                    select(CompanyProfile).where(CompanyProfile.organization_id == target.id)
+                )
+            ).scalar_one_or_none()
+            if target_profile is not None:
+                raise ValidationError(
+                    "Both organizations carry company profiles — reconcile them before merging"
+                )
         rows = await self.db.execute(select(JobPosting).where(JobPosting.org_id == source.id))
         moved = 0
         postings = list(rows.scalars().all())
         for posting in postings:
             posting.org_id = target.id
         moved += len(postings)
+        if source_profile is not None:
+            source_profile.organization_id = target.id
+            source_profile.needs_review = True
         aliases = [*(target.aliases or [])]
         for alias in [source.name, *(source.aliases or [])]:
             if alias and alias.lower() not in {a.lower() for a in aliases}:

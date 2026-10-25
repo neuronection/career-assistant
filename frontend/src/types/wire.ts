@@ -80,6 +80,11 @@ export type JobDepartmentLink = Schemas["JobDepartmentLinkOut"];
 export type Department = Schemas["DepartmentOut"];
 export type UniversityDetail = Schemas["UniversityDetailOut"];
 
+// ---------------------------------------------------------------- companies
+export type Company = Schemas["CompanyOut"];
+export type CompanyDetail = Schemas["CompanyDetailOut"];
+export type CompanyPosting = Schemas["CompanyPostingOut"];
+
 // ----------------------------------------------------------------- chat
 export type ChatSession = Schemas["SessionOut"];
 

@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (company section, 2026-10-25)
+- **Plan 129 phase 1 — the Companies section lands (`/companies`, beta).**
+  A new sidebar surface over the normalized employer entity: every
+  company with open postings, busiest first, with a detail page per
+  company — reviewed facts (type, size, HQ, founded, industry,
+  description), financial claims that each carry their own source and
+  as-of date (revenue / valuation / market cap / funding / net worth —
+  unknown stays explicitly unknown, never guessed), derived hiring
+  signal (seniority mix, work-mode split, top locations), and all of
+  the company's open postings. Admins maintain facts via
+  `PUT /admin/companies/{key}`; org merges re-point a lone profile
+  (flagged for review) and refuse to merge two. New migration `0055`
+  (`company_profiles`, additive). Ships with the feature registry
+  entry, docs page, demo-tour scene and en/de/el strings.
+
 ### Fixed (connector SDK docs, 2026-10-25)
 - **Plan 128 — the connector SDK doc set is pinned to the law it
   describes.** Drift had accumulated behind a structurally green docs

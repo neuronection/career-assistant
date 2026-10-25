@@ -44,7 +44,7 @@ describe("resolveActiveId", () => {
   });
 
   it("registry keeps its shape", () => {
-    expect(NAV).toHaveLength(13);
+    expect(NAV).toHaveLength(14);
     expect(NAV.filter((item) => item.studentOnly).map((item) => item.to)).toEqual(
       []
     );
@@ -58,6 +58,7 @@ describe("resolveActiveId", () => {
     expect(FEATURES.map((feature) => feature.key).sort()).toEqual([
       "/applications",
       "/autopilot",
+      "/companies",
       "/growth",
       "/interviews",
       "/onboarding/setup",
@@ -65,12 +66,13 @@ describe("resolveActiveId", () => {
       "/postings",
     ]);
     // Every registered surface is beta (un-gated 2026-10-21) except the
-    // shipped first-run AI setup step; none are hidden.
+    // shipped first-run AI setup step; none are hidden. /companies joins
+    // beta with plan 129 (its own docs page + tour scene).
     expect(
       FEATURES.filter((feature) => feature.state === "beta")
         .map((feature) => feature.key)
         .sort()
-    ).toEqual(["/autopilot", "/growth", "/interviews", "/paths", "/postings"]);
+    ).toEqual(["/autopilot", "/companies", "/growth", "/interviews", "/paths", "/postings"]);
     expect(FEATURES.every((feature) => feature.state !== "hidden")).toBe(true);
     // Deep links still resolve against the registry.
     expect(resolveActiveId("/postings/search")).toBe("/postings");

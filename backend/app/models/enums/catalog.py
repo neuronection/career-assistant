@@ -55,6 +55,34 @@ class OrgStatus(StrEnum):
     DEPRECATED = "deprecated"
 
 
+class CompanyType(StrEnum):
+    """Company legal/operational type (company_profiles.company_type)."""
+
+    PUBLIC = "public"
+    PRIVATE = "private"
+    SUBSIDIARY = "subsidiary"
+    NONPROFIT = "nonprofit"
+    GOVERNMENT = "government"
+    STARTUP = "startup"
+
+
+class FinancialClaimKind(StrEnum):
+    """One reviewed financial claim (company_profiles.financials)."""
+
+    REVENUE = "revenue"
+    VALUATION = "valuation"
+    MARKET_CAP = "market_cap"
+    FUNDING = "funding"
+    NET_WORTH = "net_worth"
+
+
+class CompanyProfileSource(StrEnum):
+    """Where a company-profile row's facts came from."""
+
+    MANUAL = "manual"
+    DERIVED = "derived"
+
+
 class JobLinkKind(StrEnum):
     APPLY = "apply"
     LEARN = "learn"

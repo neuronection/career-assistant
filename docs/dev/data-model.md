@@ -134,6 +134,14 @@ deletion).
 
 ### Migration notes
 
+- **0055** — plan 129 phase 1: `company_profiles`, the reviewed 1:1
+  firmographics layer over `organizations` (company type, size band,
+  HQ, founded year, industry tags, links, typed financial claims with
+  per-claim source + as-of). Purely additive; `organization_id` is
+  unique + CASCADE. `OrganizationService.merge` re-points a lone
+  profile and refuses to merge two. Covered by
+  `tests/test_migrations.py::test_0055_company_profiles_roundtrip` and
+  `tests/test_companies.py`.
 - **0054** — plan 127 §3.0 (113 design review `§1.J`): the economic-
   context foundation — `geo_regions`, `geo_region_aliases`, `econ_packs`,
   `econ_series`, `econ_observations`, `code_crosswalks`,

@@ -21,6 +21,7 @@ describe("feature registry", () => {
       "/interviews",
       "/growth",
       "/paths",
+      "/companies",
     ]);
   });
 

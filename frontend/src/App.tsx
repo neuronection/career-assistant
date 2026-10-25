@@ -43,6 +43,8 @@ import { Autopilot } from "@/features/growth/pages/Autopilot";
 import { Assessment } from "@/features/assessment/pages/Assessment";
 import { Universities } from "@/features/university/pages/Universities";
 import { UniversityDetail } from "@/features/university/pages/UniversityDetail";
+import { Companies } from "@/features/companies/pages/Companies";
+import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
 
 function UniversityRedirect() {
   const { id } = useParams();
@@ -92,6 +94,8 @@ export function App() {
           <Route path="/profile/education" element={<Education />} />
           <Route path="/profile/assessment" element={<Assessment />} />
           <Route path="/assessment" element={<Navigate to="/profile/assessment" replace />} />
+          <Route path="/companies" element={<Companies />} />
+          <Route path="/companies/:key" element={<CompanyDetail />} />
           <Route path="/catalog/universities" element={<Universities />} />
           <Route path="/catalog/universities/:id" element={<UniversityDetail />} />
           <Route path="/universities" element={<Navigate to="/catalog/universities" replace />} />

@@ -23,7 +23,8 @@
     "sectionPrepare": "Ετοιμάστε",
     "sectionAccount": "Λογαριασμός",
     "sectionExtensions": "Πρόσθετα",
-    "paths": "Επαγγελματικές διαδρομές"
+    "paths": "Επαγγελματικές διαδρομές",
+    "companies": "Εταιρείες"
   },
   "shell": {
     "skipToContent": "Πηγαίνετε στο περιεχόμενο",
@@ -3815,5 +3816,52 @@
     "stepLabelPlaceholder": "Τι συμβαίνει σε αυτό το βήμα;",
     "edgeLabelPlaceholder": "Γιατί αυτός ο κλάδος; (π.χ. ή: ερευνητική πορεία)",
     "newPath": "Νέα διαδρομή"
+  },
+  "companies": {
+    "subtitle": "Εταιρείες που προσλαμβάνουν τώρα — επαληθευμένα στοιχεία, οικονομικά στοιχεία με πηγές και όλες οι ανοιχτές θέσεις σε ένα μέρος.",
+    "searchPlaceholder": "Αναζήτηση εταιρειών…",
+    "loadError": "Δεν ήταν δυνατή η φόρτωση των εταιρειών.",
+    "noneYetTitle": "Δεν υπάρχουν εταιρείες ακόμη",
+    "noneYetBody": "Οι εταιρείες εμφανίζονται μόλις τα connector φέρουν θέσεις με αναγνωρισμένο εργοδότη.",
+    "openPostings": "{{count}} ανοιχτές θέσεις",
+    "employees": "{{range}} εργαζόμενοι",
+    "locationUnknown": "Άγνωστη τοποθεσία",
+    "type": {
+      "public": "Εισηγμένη",
+      "private": "Ιδιωτική",
+      "subsidiary": "Θυγατρική",
+      "nonprofit": "Μη κερδοσκοπική",
+      "government": "Δημόσια",
+      "startup": "Startup"
+    }
+  },
+  "companyDetail": {
+    "back": "Όλες οι εταιρείες",
+    "needsReview": "Τα στοιχεία χρειάζονται έλεγχο",
+    "hq": "Έδρα",
+    "employees": "Εργαζόμενοι",
+    "founded": "Ιδρύθηκε",
+    "industry": "Κλάδος",
+    "domain": "Ιστοσελίδα",
+    "financials": "Οικονομικά στοιχεία",
+    "claimKind": {
+      "revenue": "Έσοδα",
+      "valuation": "Αξιολόγηση",
+      "market_cap": "Κεφαλαιοποίηση",
+      "funding": "Κεφάλαια που αντλήθηκαν",
+      "net_worth": "Περιουσία"
+    },
+    "hiringSignal": "Σήμα πρόσληψης (από ζωντανές θέσεις)",
+    "bySeniority": "Κατά seniority",
+    "byOnsite": "Κατά τρόπο εργασίας",
+    "topLocations": "Κορυφαίες τοποθεσίες",
+    "onsite": {
+      "onsite": "Στον χώρο",
+      "hybrid": "Υβριδικά",
+      "remote": "Από απόσταση"
+    },
+    "postingsTitle": "Ανοιχτές θέσεις ({{count}})",
+    "noPostings": "Δεν υπάρχουν ανοιχτές θέσεις αυτή τη στιγμή.",
+    "viewPosting": "Προβολή θέσης"
   }
 }

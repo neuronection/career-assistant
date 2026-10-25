@@ -28,9 +28,12 @@ from app.models.enums.ai import ResourceCost as ResourceCost
 from app.models.enums.ai import ResourceKind as ResourceKind
 from app.models.enums.ai import ResourceSource as ResourceSource
 from app.models.enums.ai import ResourceStatus as ResourceStatus
+from app.models.enums.catalog import CompanyProfileSource as CompanyProfileSource
+from app.models.enums.catalog import CompanyType as CompanyType
 from app.models.enums.catalog import DegreeLevel as DegreeLevel
 from app.models.enums.catalog import DocumentKind as DocumentKind
 from app.models.enums.catalog import DocumentStatus as DocumentStatus
+from app.models.enums.catalog import FinancialClaimKind as FinancialClaimKind
 from app.models.enums.catalog import JobLinkKind as JobLinkKind
 from app.models.enums.catalog import JobSource as JobSource
 from app.models.enums.catalog import JobStatus as JobStatus
@@ -139,6 +142,8 @@ __all__ = [
     "BackgroundJobStatus",
     "BackgroundJobType",
     "CareerStage",
+    "CompanyProfileSource",
+    "CompanyType",
     "CvKind",
     "CvOverflowPolicy",
     "CvPageSize",
@@ -163,6 +168,7 @@ __all__ = [
     "ExperienceItemStatus",
     "ExperienceKind",
     "FeedTokenKind",
+    "FinancialClaimKind",
     "GrowthPlanStatus",
     "GrowthStepKind",
     "GrowthStepStatus",
