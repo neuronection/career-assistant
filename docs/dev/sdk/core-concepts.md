@@ -27,8 +27,10 @@ Where the code runs — the trust ladder. **T0** declarative data (no
 code), **T1** bundled in-process (reviewed, shipped in the image),
 **T2** imported code behind the capability-RPC sandbox (one subprocess
 per extension), **T3** an external MCP process the app calls. Tier is
-**provenance at install**: the artifact shape decides — `extension.py`
-beside the manifest ⇒ T2, `server.py` ⇒ T3, both or neither ⇒ rejected.
+**provenance at install**: the manifest's `entry` field decides —
+`entry` + `mcp` ⇒ T3, `entry` alone ⇒ T2, no `entry` ⇒ T0 (bundled
+code is T1). The fixed `extension.py`/`server.py` filenames are the
+template repo's convention, not a rule.
 Imported third-party code never runs in-process.
 
 ## capability

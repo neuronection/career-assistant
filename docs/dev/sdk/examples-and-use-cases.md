@@ -35,7 +35,7 @@ it in the same file — `_apply_watermark`, `_stamp_watermark`,
 `_sort_and_cap`, `_not_ready`, `_provider_error`, `_protocol_error`,
 `_rate_limited`):
 
-```json
+```json bundled
 {
   "apiVersion": "extension/v1",
   "kindVersion": 1,
@@ -45,11 +45,7 @@ it in the same file — `_apply_watermark`, `_stamp_watermark`,
   "description": "Live German/European job board through the public job-board-api (free, no credentials — no secret slots by design).",
   "author": "Neuronection",
   "license": "Apache-2.0",
-  "repository": "https://github.com/neuronection/career-assistant",
-  "categories": ["search"],
-  "docs": "docs/docs-tree.json",
   "capabilities": ["net", "sync"],
-  "domains": ["www.arbeitnow.com"],
   "configSchema": {
     "type": "object",
     "properties": {
@@ -70,33 +66,77 @@ it in the same file — `_apply_watermark`, `_stamp_watermark`,
       }
     }
   },
-  "itemSchema": { "type": "object" },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": { "type": "string", "title": "External id" },
+      "title": { "type": "string", "title": "Title" },
+      "url": { "type": "string", "title": "URL" }
+    },
+    "required": ["external_id", "title"]
+  },
   "supportsIncremental": true,
   "i18n": {
     "defaultLocale": "en",
     "locales": {
       "en": {
         "title": "Arbeitnow job board",
-        "summary": "Live German/European job board through the public job-board-api."
+        "summary": "German and European job listings from Arbeitnow's public API — free, no credentials, no secret slots."
       }
     }
-  }
+  },
+  "domains": ["www.arbeitnow.com"],
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": ["search"],
+  "docs": "docs/docs-tree.json"
 }
 ```
 
-Abridged — the real file lives at
-`backend/app/extensions/builtin/arbeitnow/manifest.json` with its docs
-tree in `builtin/arbeitnow/docs/`; `itemSchema` there is the full
-postings contract.
+Verbatim — the file is `backend/app/extensions/builtin/arbeitnow/manifest.json`
+(docs tree beside it in `builtin/arbeitnow/docs/`), and the
+[docs-truth gate](reference.md#the-docs-truth-gate) pins this block to
+that file. Note `itemSchema`: a bare `{ "type": "object" }` is invalid —
+the envelope wants `properties` — and `external_id` + `title` are the
+two required rows.
 
 Registration is one list entry in `backend/app/extensions/registry.py`
 (`_BUILTINS`); the conformance suite subclasses the vendored kit:
 
 ```python
 class TestArbeitnowConformance(ConnectorConformanceTests):
-    connector = ArbeitnowConnector()
-    fixture = ...  # the captured wire payload in tests/fixtures/connectors/
+    connector = get_connector("arbeitnow")
+    config = {}  # zero-config by design
+    body = ARBEITNOW_BODY  # the captured wire payload in tests/fixtures/connectors/
+    invalid_config = {"max_items": 0}  # every field defaults; probe a bound
 ```
+
+The kit's class attributes (`app/extensions/conformance.py`) are its
+whole input surface — set what your connector needs:
+
+| Attribute | Default | Meaning |
+|---|---|---|
+| `connector` | — (required) | the connector under test |
+| `config` | — (required) | the config handed to `fetch` |
+| `body` | — (required) | the 200-response body the fake transport returns |
+| `etag` | `"test-etag"` | the validator the fake transport carries |
+| `initial_state` | `{}` | the `state` handed on the first tick |
+| `invalid_config` | `None` → `{}` | a config your `config_model()` **must reject** — the suite fails if it is accepted. Set a targeted one whenever every field defaults (a validating model never accepts `{}`); zero-config connectors probe a bound |
+| `secrets` | `{}` | slot values handed to `fetch` |
+
+The suite then asserts exactly what the kit's nine tests check — all
+offline, `body` is captured wire truth and never a live call:
+
+| Test | Asserts |
+|---|---|
+| `test_config_round_trip` | `validate_config` is idempotent on its own output |
+| `test_invalid_config_rejected` | `invalid_config` raises |
+| `test_items_present_and_valid` | the happy path types no errors, yields ≥ 1 item, and every item carries a non-empty `external_id` |
+| `test_partial_errors_are_typed` | every partial error is a typed object with `code`/`detail`/`retryable` in the closed vocabularies — never a string |
+| `test_external_ids_stable_across_runs` | a second run from empty state returns the same `external_id` sequence |
+| `test_fetch_is_stateless_and_idempotent` | `fetch` mutates neither its `config` nor its `state` argument; `key` is non-empty |
+| `test_capability_honesty_incremental` | a connector claiming `supports_incremental` survives a second tick carrying `next_state` (skipped when the claim is absent) |
+| `test_not_modified_yields_success_result` | a 304 yields a success shape with no typed errors |
+| `test_conditional_get_validators_forwarded` | the `etag` from state reaches the transport as `If-None-Match` |
 
 **What to be careful at.**
 
@@ -319,9 +359,14 @@ extension:
         "summary": "A sandboxed postings fetcher with extension-owned dedupe state."
       }
     }
-  }
+  },
+  "entry": "extension.py"
 }
 ```
+
+(`entry` is the tier declaration — without it this manifest is T0
+declarative and, being an imported connector with no entry, would fail
+registration. The filename is the fixture's choice, not a rule.)
 
 ```python
 """Reference T2 connector (plan 32 Phase 5): fetch postings through the

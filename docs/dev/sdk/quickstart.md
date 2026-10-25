@@ -79,8 +79,9 @@ candidate: example-posting-fetcher | compatible: True | hasEntry: True | digest:
 candidate: career-cv-gallery | compatible: True | hasEntry: False | digest: d37107885096… | subpath: cv-gallery
 ```
 
-`example-posting-fetcher` is the T3 fetcher (a `server.py` beside the
-manifest ⇒ tier T3). Preview it, then install with the host-derived
+`example-posting-fetcher` is the T3 fetcher (its manifest declares
+`"entry": "server.py"` with `"mcp": { "transport": "stdio" }` — that
+pair is what derives T3). Preview it, then install with the host-derived
 `echo` the preview returns — the install re-fetches and refuses the echo
 if the source moved:
 

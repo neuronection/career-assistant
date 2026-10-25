@@ -7,10 +7,16 @@ an RSS file, a spreadsheet, an MCP script's output) into typed
 [`RawPosting`](authoring-and-configuration.md#rawposting--the-only-output-type)
 rows, and the app does everything downstream (mapping, fit scoring, feed,
 alerts). The SDK is Career Assistant's convergence to the family extension
-charter (ADR-0040); the family law lives in the charter and
-[`guidelines/extensions.md`](https://neuronection.dev) — kinds, tiers,
-capabilities, the typed error model, and the
-`{items, next_state, partial_errors}` result envelope.
+charter (**ADR-0040**): kinds, tiers, capabilities, the typed error
+model, the limits, and the
+`{items, next_state, partial_errors}` result envelope. The charter's
+authoritative data is vendored into this repo at
+`contracts/extension-charter.json` +
+`contracts/extension-manifest.schema.json`, and this set describes that
+law as it applies to this host. ADR and plan numbers cite
+family-governance documents that live in the Neuronection dev repo and
+are not shipped here — when this prose and the vendored contracts
+disagree, the contracts win and the prose is the bug.
 
 The mental model in three sentences:
 
@@ -32,9 +38,12 @@ The mental model in three sentences:
 | T2 | imported code | Third-party code in a subprocess behind the capability-RPC sandbox | the reference `t2-reference-scorer` |
 | T3 | external process | A separate MCP server the app calls; its sockets are its own | the `mcp` script tier, `career-connector-template` |
 
-Tier is **provenance at install time**, never manifest data: the artifact
-shape decides (`extension.py` ⇒ T2, `server.py` ⇒ T3; both or neither ⇒
-rejected). Imported third-party code **never runs in-process** — that is
+Tier is **provenance at install time**, never a caller claim: the
+manifest's `entry` field decides (`entry` + `mcp` ⇒ T3, `entry` ⇒ T2,
+no `entry` ⇒ T0 declarative; bundled ⇒ T1), cross-checked against the
+bundle it describes. The `extension.py` /
+`server.py` filenames are the template repo's convention, not a rule.
+Imported third-party code **never runs in-process** — that is
 the charter's load-bearing rule, and it is why the entry-point plugin path
 is T1-bundled-only.
 
@@ -58,6 +67,38 @@ shipped in the image.
 entry-point group `career_assistant.connectors` is admin-allowlisted and
 reserved for code shipped in the deployment image; external authors write
 T3 MCP connectors or T2 sandboxed connectors.
+
+## What this set does not cover
+
+Host machinery that sits beside the extension point — no manifest ever
+declares it, so it is not authoring surface:
+
+- **Web-search providers** (`app/extensions/search_providers.py`,
+  `search_adapters.py`) — provider choice and keys are in-app
+  configuration, not extension code.
+- **The AI-layer MCP client bridge** (`app/extensions/mcp_bridge.py`) —
+  the app as an MCP *client* feeding model tools; distinct from the T3
+  `mcp` connector this set documents (the app as host of *your*
+  fetcher).
+- **GitHub intake** (`app/extensions/intake.py`) — bundled content
+  intake with its own registry; not importable, not configurable.
+- **Market-data providers** (`app/extensions/market_data.py`) — a
+  sibling extension registry: its own entry-point group
+  (`career_assistant.market_data`), its own admin allowlist
+  (`CAREER_MARKET_DATA_PLUGINS_ALLOWLIST`), bundled-code-only. The
+  bundles do carry `extension/v1` manifests validated against the
+  vendored envelope — but the item contract is `ObservationCreate`
+  (series/observations, not postings) and the provider protocol,
+  license-class gating and ingest seam are their own. Not the
+  connector SDK's `fetch`/`RawPosting` contract.
+- **The posting pipeline** (catalog mapping, AI extraction, fit
+  scoring, feed) — you emit `RawPosting` rows and core does the rest.
+  See the user guide
+  [Postings and search](../../user/postings-and-search.md).
+
+If you need one of these to become extensible, that is a family charter
+question — a new `kind` or capability — and starts there, never as a
+manifest field invented on one host.
 
 ## Where to go next
 

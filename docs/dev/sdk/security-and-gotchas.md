@@ -17,8 +17,10 @@ surfaces).
 | T3 external | a separate process the app calls | nothing at the perimeter — its sockets are its own; the host governs only returned rows (validated, capped) | the entire perimeter is the residual (disclosed verbatim at consent) |
 
 The load-bearing rule: imported third-party code **never runs
-in-process**. Tier is provenance at install (the artifact shape
-decides), so a manifest cannot talk its way up the ladder.
+in-process**. Tier is provenance at install — derived from what the
+manifest declares (`entry` + `mcp` ⇒ T3, `entry` ⇒ T2, no `entry` ⇒
+T0), never a caller claim — so no prose can talk a bundle up the
+ladder.
 
 ## The consent model and the disclosures (verbatim)
 
@@ -173,8 +175,14 @@ this subsystem, keep that boundary — it is charter law
 - **Manifest rejected at registration/import**: envelope violations
   throw *there*, never mid-run — fix the manifest, not the registry.
   `net` without `domains` is the classic.
-- **Ambiguous artifact**: both `extension.py` and `server.py` beside
-  the manifest ⇒ typed `invalid` ("ship exactly one entry shape").
+- **A missing or wrong `entry` fails at registration**: an imported
+  connector without `entry` is typed `invalid` ("an imported connector
+  must declare its entry path (D1 — the filename convention is
+  retired)"), `mcp` without `entry` likewise. Filenames decide nothing:
+  `entry` + `mcp` ⇒ T3, `entry` ⇒ T2, no `entry` ⇒ T0 — and a T0 bundle
+  claiming `kind: connector` fails. Name your code honestly in the
+  manifest; the entry must be a regular, non-symlink file inside the
+  bundle with an extension the host accepts (`.py` here).
 - **A 304 is not an error**; returning items on a 304 breaks
   incremental. Equally: stamp the watermark from the rows you actually
   returned.

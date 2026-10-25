@@ -12,7 +12,7 @@ pipeline, artifact layout, and dual-mode notes.
 |---|---|---|
 | Arrives | shipped inside the app image | `source add` → sync → consent-install |
 | Code runs | in-process, reviewed with the product | never in-process: T2 sandbox subprocess or T3 external MCP process |
-| Registration | auto-register at import; manifest validated at registration | manifest validated at discovery + host-profile check; tier from the artifact shape |
+| Registration | auto-register at import; manifest validated at registration | manifest validated at discovery + host-profile check; tier derived from `entry`/`mcp` |
 | Enablement | a `job_sources` row with the connector key | install mints a **disabled** instance; enabling is an explicit act |
 | Updates | app releases | digest-pinned; updates offered, applied only by explicit re-consent |
 | Examples | `arbeitnow`, `remotive`, `jobicy`, `ats_api`, `jsonld`, `rss`, `csv`, `manual_url`, `mcp` (allowlist-gated) | `example-posting-fetcher` (T3), `t2-reference-scorer` (T2), `career-cv-gallery` (T0) |
@@ -49,8 +49,11 @@ resolve → shallow fetch → discover manifests (subpath + one level)
   production boots** (`path-denied` when `CAREER_APP_ENV=production`)
   and **confined to `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS`** (the repo
   root must resolve under an allowlisted parent).
-- **Ref strategies**: `branch`, `tag-pattern` (highest semver wins,
-  name-descending fallback), `commit-pin`. The resolved identity is
+- **Ref strategies**: `release-tag` (resolves the latest release; takes
+  no value), `tag-pattern` (highest semver wins, name-descending
+  fallback), `branch`, `commit-pin` (40- or 64-hex). On the CLI:
+  `--ref release-tag | --ref tag-pattern=v* | --ref branch=main |
+  --ref commit-pin=<sha>`. The resolved identity is
   recorded as the pin ref.
 - **Host profile (career)**: `connector` imports must be
   `extension/v1` with `kindVersion ≤ 1` and capabilities ⊆ `{sync,
@@ -79,7 +82,7 @@ untouched.
 ```
 <settings.data_dir>/extensions/<extension-id>/<digest>/   # content-addressed install content
                                         manifest.json    # the validated manifest
-                                        server.py        # T3 entry (or extension.py for T2)
+                                        <entry file>     # whatever "entry" names (the template's T3 writes server.py)
 ```
 
 - Installed content is **DATA**: never `importlib`'d, never on

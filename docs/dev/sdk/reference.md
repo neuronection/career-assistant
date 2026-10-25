@@ -7,9 +7,21 @@ the admin API, audit/status vocabularies, host knobs. Tables, not prose.
 
 The closed 15-code typed enum (charter clause 4; `ConnectorError` in
 `app/extensions/sdk.py`). Every partial error, sync error and lifecycle
-failure is one of these; `detail` is capped data (≤ 500 chars), never a
-raw exception dump. `retryable` is closed: `yes | no | after-delay |
-after-config-change`.
+failure is one of these. `retryable` is closed: `yes | no | after-delay |
+after-config-change` — the "typical" column below is the charter
+default (`DEFAULT_RETRYABLE` in the polite runtime); an explicit
+`retryable` on construction overrides it.
+
+`detail` never carries a raw exception dump. It has two shapes: on the
+connector seam `ConnectorError.detail` is a capped string (≤ 500
+chars); on the wire — the capability-RPC and lifecycle error envelopes —
+it is the bounded **7E object** (`contract.cap_error_detail`), declared
+keys only: `message`, `path`, `field`, `id`, `packId`, `runId`, `slot`,
+`host`, `hop`, `method`, `op`, `stage`, `engine`, `expected`, `actual`,
+`limit`, `used`. Per-key caps apply, the serialized form is capped at
+500 chars (`errorDetailMaxChars`), and `message` is the **one**
+diagnostic slot — host UI copy is keyed by `code` and may interpolate
+the data keys. A bare string on the wire is rejected by the schema.
 
 | Code | Meaning | Typical retryable |
 |---|---|---|
@@ -17,7 +29,7 @@ after-config-change`.
 | `needs-secret` | a credentials-required source is missing a sealed slot value | `after-config-change` |
 | `invalid` | malformed data: bad rows, bad manifests, plaintext secrets in config, over-cap trees | `no` |
 | `unsupported` | the host doesn't do this: kind/tier not hosted, apiVersion too new, unknown RPC method, sandbox unavailable on frozen builds | `no` |
-| `io` | local I/O failure | `yes` |
+| `io` | OS-level I/O failure on an allowed path (ENOSPC, EIO, EXDEV class) | `no` |
 | `not-found` | source/extension/install/ref doesn't exist | `no` |
 | `path-denied` | fs-shaped denial in the sandbox; local source outside allowlisted roots / production boot | `no` |
 | `net-denied` | SSRF guard, robots verdict, undeclared domain (any hop), private ranges | `no` (posture) |
@@ -26,7 +38,7 @@ after-config-change`.
 | `unreachable` | network failure, git fetch failure, tool timeout (T3) | `yes` |
 | `protocol` | envelope/protocol violations: not the `{items, next_state}` shape, garbage RPC lines | `after-config-change` |
 | `provider` | upstream returned an unusable non-2xx | `yes` |
-| `budget` | a quota ran out (concurrency, calls/min, calls/run, bytes/day, state bytes) | `after-delay` |
+| `budget` | a quota ran out (concurrency, calls/min, calls/run, bytes/day, state bytes) | `after-config-change` |
 | `canceled` | the operation was canceled | `no` |
 
 ## The capability-RPC protocol (T2 seam, `capability-rpc/1`)
@@ -40,7 +52,7 @@ at `contracts/capability-rpc.md`. The closed method vocabulary:
 |---|---|---|
 | `ext.invoke` | host → ext | run a tick (`fetch`); `params: {op, config, state}` — identity/digest verified at the `hello` handshake |
 | `ext.dispose` | host → ext | graceful shutdown (deadline, then SIGKILL) |
-| `cap.net.fetch` | ext → host | the only network path: GET/HEAD, headers ≤ 16, scoped to declared domains every hop, response capped |
+| `cap.net.fetch` | ext → host | the only network path: **GET only on this host (v1)** — other methods and request bodies are refused typed; headers ≤ 16 (values ≤ 1024), URL ≤ 2048, scoped to declared domains on every hop, ≤ 32 response headers returned, response body capped |
 | `cap.state.get` / `cap.state.set` | ext → host | extension-owned persisted state (quota `stateMaxBytes` per instance, key-pattern-checked) |
 | `cap.items.emit` | ext → host | result rows, schema-validated against the manifest `itemSchema`; invalid batches rejected whole and counted against the error budget |
 | `cap.secrets.need` | ext → host | secret resolution **status** — the host substitutes the `{{secret:<slot>}}` placeholder into the next fetch's HEADERS only (URL placeholders are refused typed `invalid`); the value never crosses in any direction — result envelopes and error details are scrubbed of resolved values |
@@ -64,8 +76,9 @@ accepted on the command line.
 | `source install` | `<source> <extension-id> --consent-echo <json\|@file>` | consent-gated install; re-derives and refuses drift, mints the disabled instance |
 | `source pin` | `<extension-id> --consent-echo <json\|@file>` | apply a recorded available update with its preview echo (the only apply path) |
 | `source remove` | `<origin-or-id>` | remove the source; installs park (data + consent intact) |
-| `source validate` | `<path-or-url> [--ref strategy=value] [--subpath dir]` | read-only authoring check: descriptor + manifests + host profile |
-| `desired-state get` / `put` | `[<document.json>]` | read / write the GitOps desired-state document (admin-owned) |
+| `source validate` | `<path-or-url> [--ref release-tag\|strategy=value] [--subpath dir]` | read-only authoring check: descriptor + manifests + host profile |
+| `desired-state get` | — | read the GitOps desired-state document (admin-owned) |
+| `desired-state put` | `<document.json>` (required positional) | write it |
 | `reconcile` | — | run the GitOps reconcile once (same code as boot + hourly) |
 
 ## The admin API (import layer)
@@ -150,8 +163,10 @@ Settings (env `CAREER_EXTENSION_SANDBOX_*`; defaults per the charter):
 | `CAREER_CONNECTOR_READ_TIMEOUT_SECONDS` | 15.0 | read timeout |
 | `CAREER_CONNECTOR_MAX_RETRIES` | 3 | full-jitter retries (429/5xx/network) |
 | `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` | `[]` | admin opt-in: entry-point plugins + the `mcp` builtin (JSON list, e.g. `["mcp"]`) |
+| `CAREER_MARKET_DATA_PLUGINS_ALLOWLIST` | `[]` | admin opt-in for `career_assistant.market_data` entry-point providers (JSON list) — same opt-in rule as connectors, a separate registry |
 | `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS` | `[]` | allowlisted parents for dev/test `local` sources (JSON list) |
 | `CAREER_EXTENSION_FETCH_TIMEOUT_SECONDS` | 60.0 | git subprocess timeout |
+| `CAREER_DATA_DIR` | platform default | where installs, artifacts and sealed stores live — `<data_dir>/extensions/…` |
 | `CAREER_APP_ENV` | `production` | production boots reject local sources (`path-denied`) |
 
 ## Registry API (`app/extensions/registry.py`)
@@ -170,4 +185,33 @@ routes through the sandbox runner), `iter_connectors()`,
 | tree files / bytes | 4096 / 128 MiB |
 | T3 items per fetch | 300 |
 | T3 `raw` / `next_state` JSON | 8 KiB each |
+| extension state per instance | 256 KiB |
+| capability-RPC line | 1 MiB |
 | consent detail / error detail | 500 chars |
+
+## The docs-truth gate
+
+This doc set is pinned to the law it describes: `backend/tests/test_sdk_docs_truth.py`
+turns doc drift into a test failure — the runnable-examples rule ("a
+code block that lies is a bug") made mechanical:
+
+| Pin | What fails it |
+|---|---|
+| every manifest printed in this set | materialized as a bundle and run through `contract.validate_registration` — the vendored envelope, the entry/docs/i18n semantics and this host's profile — so a block that would not install fails the suite |
+| the verbatim claims | the template manifest block in [Authoring & Configuration](authoring-and-configuration.md#the-manifest-reference) must equal `backend/tests/fixtures/mcp_template_manifest.json`, and the Arbeitnow block in [Examples](examples-and-use-cases.md#recipe-1--a-t1-builtin-connector) must equal `app/extensions/builtin/arbeitnow/manifest.json` |
+| the [error table](#error-codes) | a code or `retryable` default that differs from `contracts/extension-charter.json` or the runtime's `DEFAULT_RETRYABLE` |
+| the [RPC method table](#the-capability-rpc-protocol-t2-seam-capability-rpc1) | a method `runtime/sandbox/protocol.py` does not speak |
+| the [knobs tables](#sandbox-knobs) | a `CAREER_*` knob the extensions subsystem reads and this page omits — or a documented knob that no longer exists in `Settings` |
+| the [capabilities table](authoring-and-configuration.md#the-capabilities-table) | a capability this host honors and the chapter never names |
+
+Structure is walled separately: `test_extension_docs_tree.py` validates
+this set's `docs-tree.json` against the vendored docs-tree contract, and
+`test_connector_docs_api.py` owns the per-extension docs surface. When
+the law moves, the docs move in the same commit — the gate is what makes
+"same commit" checkable when only one side moves.
+
+Fence convention behind the first pin: a printed manifest is held to the
+**imported** rules unless its fence is tagged ```` ```json bundled ````
+(recipe 1's T1 manifest is the one such block). Tag it — otherwise the
+block is held to the imported-connector `entry` rule and fails as it
+should.
