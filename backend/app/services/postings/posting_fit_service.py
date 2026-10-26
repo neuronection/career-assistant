@@ -136,9 +136,7 @@ def _certificate_evidenced(label: str, certifications: set[str]) -> bool:
     return False
 
 
-def _prereqs_dimension(
-    posting: JobPosting, profile, certifications: set[str]
-) -> dict:
+def _prereqs_dimension(posting: JobPosting, profile, certifications: set[str]) -> dict:
     """Education + language + stated-certificate prerequisites vs the profile."""
     score = 10.0
     details: list[str] = []

@@ -5,6 +5,7 @@ import {
   CircleUser,
   Cpu,
   ListTree,
+  Radar,
   ScrollText,
   Users,
   Wrench,
@@ -26,6 +27,12 @@ export const settingsNav: SettingsNavItem[] = [
     icon: CircleUser,
     labelKey: "settingsNav.account.label",
     descriptionKey: "settingsNav.account.description",
+  },
+  {
+    to: "/settings/radar",
+    icon: Radar,
+    labelKey: "settingsNav.radar.label",
+    descriptionKey: "settingsNav.radar.description",
   },
   {
     to: "/settings/ai",

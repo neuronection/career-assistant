@@ -412,7 +412,11 @@
       "senior": "Senior",
       "lead": "Lead",
       "principal": "Principal"
-    }
+    },
+    "radarApply": "My radar",
+    "radarClear": "Clear radar",
+    "radarActive": "Showing your radar matches.",
+    "radarNotConfigured": "Your job radar is not configured yet — set it up in Settings."
   },
   "applications": {
     "title": "My applications",
@@ -3728,6 +3732,10 @@
     "audit": {
       "label": "AI Audit",
       "description": "Every AI call, with tokens and latency"
+    },
+    "radar": {
+      "label": "Job radar",
+      "description": "Tell the app what you are looking for once — locations, salary floor, work mode — and search it everywhere."
     }
   },
   "paths": {
@@ -3878,5 +3886,49 @@
     "postingsTitle": "Open postings ({{count}})",
     "noPostings": "No open postings right now.",
     "viewPosting": "View posting"
+  },
+  "jobRadar": {
+    "subtitle": "One configuration, used everywhere: Explore matches it live, and (at the cadence you pick) notifications tell you when fresh postings fit.",
+    "enabled": "Radar enabled",
+    "enabledHint": "When off, nothing matches and no digests are sent — your configuration is kept.",
+    "keywordsHeading": "Keywords",
+    "keywordsHint": "Any keyword hitting a posting's title or employer counts.",
+    "keywordPlaceholder": "e.g. data engineer",
+    "removeKeyword": "Remove keyword",
+    "locationsHeading": "Locations",
+    "noLocations": "No preferred locations — every location matches.",
+    "cityPlaceholder": "City",
+    "countryPlaceholder": "Country",
+    "remote": "Remote",
+    "removeLocation": "Remove location",
+    "addLocation": "Add location",
+    "filtersHeading": "Filters",
+    "onsitePolicy": "Work mode",
+    "any": "Any",
+    "onsite": {
+      "onsite": "On-site",
+      "hybrid": "Hybrid",
+      "remote": "Remote"
+    },
+    "salaryMinAnnual": "Salary floor (annual, normalized)",
+    "currency": "Currency",
+    "salaryAnnualHint": "Compared on the annualized basis — monthly and yearly postings compete equally.",
+    "seniority": "Seniority",
+    "save": "Save radar",
+    "test": "Preview matches",
+    "testing": "Matching…",
+    "saved": "Radar saved.",
+    "previewTitle": "{{count}} postings match right now:",
+    "previewEmpty": "Nothing matches this configuration right now.",
+    "openExplore": "Open these matches in Explore",
+    "loadError": "Could not load your radar.",
+    "cadenceOptions": {
+      "off": "Off",
+      "instant": "Instant",
+      "daily": "Daily",
+      "weekly": "Weekly"
+    },
+    "cadenceLabel": "Match digest",
+    "currencyPlaceholder": "e.g. EUR"
   }
 }

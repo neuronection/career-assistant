@@ -245,6 +245,15 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='settings-account']",
   },
+  {
+    name: "settings-job-radar",
+    group: "Settings",
+    caption: "Settings — the job radar: configure your search once, preview matches.",
+    narration: "Tell it once what you are looking for — locations, work mode, salary floor — and search it everywhere.",
+    path: "/settings/radar",
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='job-radar']",
+  },
 ];
 
 for (const scene of scenes) {

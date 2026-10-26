@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +10,9 @@ from app.schemas.application import FollowupRuleIn, FollowupRuleOut, FollowupSur
 from app.schemas.background_job import EnqueueResponse
 from app.schemas.bootstrap import BootstrapOut
 from app.schemas.i18n import LocaleIn, MeLocaleStateOut
-from app.services.deps import get_current_user
+from app.schemas.radar import RadarIn, RadarOut
+from app.services.deps import get_current_user, get_profile_id
+from app.services.postings.radar_service import get_radar, upsert_radar
 from app.services.profile.account_service import request_export
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -340,3 +344,26 @@ async def export_my_data(
     """Queue a personal-data export; download via /background-jobs/{id}/download."""
     job_id = await request_export(db, user)
     return EnqueueResponse(job_id=job_id)
+
+
+@router.get("/job-radar", response_model=RadarOut)
+async def get_job_radar(
+    profile_id: str = Depends(get_profile_id),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RadarOut:
+    """The profile's saved job radar — defaults when never configured."""
+    radar = await get_radar(db, UUID(profile_id))
+    return RadarOut.model_validate(radar) if radar else RadarOut()
+
+
+@router.put("/job-radar", response_model=RadarOut)
+async def upsert_job_radar(
+    data: RadarIn,
+    profile_id: str = Depends(get_profile_id),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RadarOut:
+    """Save the job radar (replace-all; omit a field = clear it)."""
+    radar = await upsert_radar(db, UUID(profile_id), data)
+    return RadarOut.model_validate(radar)

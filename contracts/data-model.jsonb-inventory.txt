@@ -14,3 +14,7 @@ claims.evidence_refs :: keep-open references to series/observation rows
 company_profiles.financials :: typed-out FinancialClaim rows (kind/amount/currency/as_of/source)
 company_profiles.industry_tags :: typed-out list[str] tags
 company_profiles.links :: typed-out list[{label,url}]
+job_radars.keywords :: typed-out list[str] role/keyword strings
+job_radars.locations :: typed-out list[{city,country,remote}] preference rows
+job_radars.seniority :: typed-out list[str] seniority bands
+job_radars.source_keys :: typed-out list[str] connector keys (unconsumed until source-follows)

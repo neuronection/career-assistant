@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (job radar, 2026-10-26)
+- **Plan 129 phase 4a — the job radar: configure your job search once.**
+  A new Settings surface (`/settings/radar`) saves the profile's search
+  configuration — keywords, preferred locations, work mode, seniority
+  bands, a salary floor on the normalized annual basis, and a match
+  digest cadence (instant/daily/weekly; digest delivery rides the
+  notifications wave). Explore gains a **My radar** button that runs the
+  saved configuration as a live search, and
+  `POST /postings/preview-radar` powers a no-save **Preview matches**
+  action in the form. Per profile (each profile keeps its own radar);
+  `source_keys` is schema-ready for per-user source follows. New
+  additive migration `0057` (`job_radars`).
+
 ### Added (structured prerequisites, 2026-10-26)
 - **Plan 129 phase 3 — stated prerequisites become typed data.** The
   deep-extraction pass now returns a `prerequisites` list (kind ∈

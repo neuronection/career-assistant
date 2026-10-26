@@ -108,6 +108,7 @@ from app.models.enums.postings import PhysicalCondition as PhysicalCondition
 from app.models.enums.postings import PostingEvidence as PostingEvidence
 from app.models.enums.postings import PostingSkillPriority as PostingSkillPriority
 from app.models.enums.postings import PostingStatus as PostingStatus
+from app.models.enums.postings import RadarCadence as RadarCadence
 from app.models.enums.postings import SearchScope as SearchScope
 from app.models.enums.postings import SourceKind as SourceKind
 from app.models.enums.postings import WebhookTarget as WebhookTarget
@@ -211,6 +212,7 @@ __all__ = [
     "QuestionKind",
     "QuestionSource",
     "QuestionStatus",
+    "RadarCadence",
     "RelationType",
     "ResourceCost",
     "ResourceKind",

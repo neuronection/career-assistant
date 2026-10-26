@@ -101,6 +101,12 @@
               "description": "Connector engines, the live postings feed, deep extraction into skills and benefits, and the Explore page's filters and saved searches."
             },
             {
+              "id": "job-radar",
+              "file": "user/job-radar.md",
+              "title": "Job radar",
+              "description": "Configure your job search once — keywords, locations, work mode and salary floor — and use it everywhere."
+            },
+            {
               "id": "applications",
               "file": "user/applications.md",
               "title": "Track your applications",

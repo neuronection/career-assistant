@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
-import { Bookmark, Plus, Search, X } from "lucide-react";
+import { Bookmark, Plus, Radar, Search, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources } from "@/api/postings";
 import { recordSearch, saveSearch } from "@/api/engagement";
+import { fetchRadar, previewRadar } from "@/api/radar";
+import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
@@ -74,6 +76,7 @@ export function Explore() {
   const [error, setError] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState("");
+  const [radarActive, setRadarActive] = useState(false);
 
   const paramsFrom = useCallback((current: Filters, nextCursor?: string | null): ExploreParams => {
     const params: ExploreParams = { sort: current.sort, limit: 20 };
@@ -129,6 +132,7 @@ export function Explore() {
   }, []);
 
   useEffect(() => {
+    setRadarActive(false);
     setCursor(null);
     load(filters, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,6 +169,47 @@ export function Explore() {
       .catch(() => setError(t("explore.saveFailed")));
   };
 
+  const applyRadar = async () => {
+    setError("");
+    try {
+      const radar = await fetchRadar();
+      const configured =
+        (radar.keywords ?? []).length > 0 ||
+        (radar.locations ?? []).length > 0 ||
+        radar.onsite_policy ||
+        radar.salary_min_annual != null ||
+        (radar.seniority ?? []).length > 0;
+      if (!configured) {
+        setSavedNote(t("explore.radarNotConfigured"));
+        return;
+      }
+      const response = await previewRadar({
+        keywords: radar.keywords ?? [],
+        locations: radar.locations ?? [],
+        seniority: radar.seniority ?? [],
+        onsite_policy: radar.onsite_policy ?? null,
+        salary_min_annual: radar.salary_min_annual ?? null,
+        salary_currency: radar.salary_currency ?? null,
+        source_keys: radar.source_keys ?? [],
+        cadence: radar.cadence ?? "off",
+        enabled: true,
+      });
+      setItems(response.items);
+      setTotal(response.total);
+      setFacets(response.facets ?? {});
+      setCursor(null);
+      setRadarActive(true);
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  const clearRadar = () => {
+    setRadarActive(false);
+    setFilters(INITIAL);
+    setCursor(null);
+  };
+
   const active =
     filters.q ||
     filters.skills.length ||
@@ -187,17 +232,36 @@ export function Explore() {
     <div className="space-y-6" data-testid="explore">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 text-sm text-slate-500">
-          {t("explore.intro")}
+          {radarActive ? t("explore.radarActive") : t("explore.intro")}
           {total ? ` ${total} matching.` : ""}
         </p>
-        <button
-          onClick={saveThisSearch}
-          disabled={!active}
-          className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40"
-          data-testid="save-search"
-        >
-          <Bookmark className="w-3.5 h-3.5" /> {t("explore.saveSearch")}
-        </button>
+        <div className="flex items-center gap-2">
+          {radarActive ? (
+            <button
+              onClick={clearRadar}
+              className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200"
+              data-testid="radar-clear"
+            >
+              {t("explore.radarClear")}
+            </button>
+          ) : (
+            <button
+              onClick={() => void applyRadar()}
+              className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200"
+              data-testid="radar-apply"
+            >
+              <Radar className="w-3.5 h-3.5" /> {t("explore.radarApply")}
+            </button>
+          )}
+          <button
+            onClick={saveThisSearch}
+            disabled={!active}
+            className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40"
+            data-testid="save-search"
+          >
+            <Bookmark className="w-3.5 h-3.5" /> {t("explore.saveSearch")}
+          </button>
+        </div>
       </div>
       {savedNote && <p className="text-sm text-emerald-600" data-testid="saved-note">{savedNote}</p>}
 
@@ -530,13 +594,22 @@ export function Explore() {
               onChanged={() => load(filters, false)}
             />
           ))}
-          {cursor && (
+          {cursor && !radarActive && (
             <button
               onClick={() => load(filters, true)}
               className="text-sm text-primary-700 hover:underline"
               data-testid="load-more"
             >
               {t("explore.loadMore")}
+            </button>
+          )}
+          {radarActive && (
+            <button
+              onClick={clearRadar}
+              className="text-sm text-primary-700 hover:underline"
+              data-testid="radar-clear-inline"
+            >
+              {t("explore.radarClear")}
             </button>
           )}
         </div>

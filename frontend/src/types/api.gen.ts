@@ -5736,6 +5736,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/job-radar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job Radar
+         * @description The profile's saved job radar — defaults when never configured.
+         */
+        get: operations["get_job_radar_api_v1_me_job_radar_get"];
+        /**
+         * Upsert Job Radar
+         * @description Save the job radar (replace-all; omit a field = clear it).
+         */
+        put: operations["upsert_job_radar_api_v1_me_job_radar_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/locale": {
         parameters: {
             query?: never;
@@ -7194,6 +7218,27 @@ export interface paths {
          * @description Toggle feed curation on a posting.
          */
         post: operations["postings_hide_api_v1_postings_hide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/preview-radar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Job Radar
+         * @description Live radar preview: what this configuration would match right now,
+         *     without saving it.
+         */
+        post: operations["preview_job_radar_api_v1_postings_preview_radar_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13857,6 +13902,12 @@ export interface components {
             /** Start */
             start: string;
         };
+        /**
+         * RadarCadence
+         * @description How often a job radar emits match digests (off = silent).
+         * @enum {string}
+         */
+        RadarCadence: "instant" | "daily" | "weekly" | "off";
         /** RadarDeficitOut */
         RadarDeficitOut: {
             /** Current Level */
@@ -13890,6 +13941,78 @@ export interface components {
             job_id: string;
             /** Title */
             title: string;
+        };
+        /**
+         * RadarIn
+         * @description Upsert payload: replace-all semantics, omit = clear.
+         */
+        RadarIn: {
+            /** @default off */
+            cadence: components["schemas"]["RadarCadence"];
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Keywords */
+            keywords?: string[];
+            /** Locations */
+            locations?: components["schemas"]["RadarLocation"][];
+            /** Onsite Policy */
+            onsite_policy?: ("onsite" | "hybrid" | "remote") | null;
+            /** Salary Currency */
+            salary_currency?: string | null;
+            /** Salary Min Annual */
+            salary_min_annual?: number | string | null;
+            /** Seniority */
+            seniority?: ("intern" | "junior" | "mid" | "senior" | "lead" | "principal")[];
+            /** Source Keys */
+            source_keys?: string[];
+        };
+        /**
+         * RadarLocation
+         * @description One preferred location. `remote: true` rows map to the remote
+         *     work-mode filter; city/country rows map to the location filters.
+         */
+        RadarLocation: {
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
+            /**
+             * Remote
+             * @default false
+             */
+            remote: boolean;
+        };
+        /**
+         * RadarOut
+         * @description The saved radar exactly as the write path stored it.
+         */
+        RadarOut: {
+            /** @default off */
+            cadence: components["schemas"]["RadarCadence"];
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Keywords */
+            keywords?: string[];
+            /** Locations */
+            locations?: components["schemas"]["RadarLocation"][];
+            /** Onsite Policy */
+            onsite_policy?: ("onsite" | "hybrid" | "remote") | null;
+            /** Salary Currency */
+            salary_currency?: string | null;
+            /** Salary Min Annual */
+            salary_min_annual?: string | null;
+            /** Seniority */
+            seniority?: string[];
+            /** Source Keys */
+            source_keys?: string[];
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** RankedJob */
         RankedJob: {
@@ -25539,6 +25662,72 @@ export interface operations {
             };
         };
     };
+    get_job_radar_api_v1_me_job_radar_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-profile-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_job_radar_api_v1_me_job_radar_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-profile-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RadarIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_locale_api_v1_me_locale_get: {
         parameters: {
             query?: never;
@@ -28043,6 +28232,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_job_radar_api_v1_postings_preview_radar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RadarIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreOut"];
                 };
             };
             /** @description Validation Error */

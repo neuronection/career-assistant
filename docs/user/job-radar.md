@@ -1,0 +1,45 @@
+# Job radar
+
+The job radar is your saved job-search configuration — tell the app
+once what you are looking for, and use it everywhere. It lives under
+**Settings → Job radar** (`/settings/radar`).
+
+> The radar stores exactly what you enter — nothing is inferred. A
+> salary floor is compared on the **annualized basis** (see
+> [Postings and search](postings-and-search.md)), so a monthly and a
+> yearly posting compete equally; an unknown salary never matches a
+> floor. An empty radar filters nothing — configure at least one thing
+> and use **Preview matches** to see what it catches before saving.
+
+## What to configure
+
+- **Keywords** — role or topic words; a posting matches when any
+  keyword appears in its title or employer.
+- **Locations** — preferred city/country rows, or a plain "remote" row.
+- **Work mode** — on-site / hybrid / remote preference.
+- **Salary floor** — an annual figure with its currency.
+- **Seniority** — the bands you are aiming at.
+- **Match digest** — off, instant, daily or weekly (digest delivery
+  arrives with the notifications wave).
+
+Save it once; **Preview matches** shows what the radar would match
+right now without saving.
+
+## Where it is used
+
+- **Explore** (`/postings/search`) — the **My radar** button runs your
+  saved configuration as a live search; "Clear radar" returns to the
+  open filters.
+- **Notifications** — cadence digests for fresh matching postings
+  (notifications wave).
+
+The radar is per profile: switch profiles and each one keeps its own
+radar. Sources always follow your instance's admin configuration
+([Add a job source](add-a-job-source.md)).
+
+## Related
+
+- [Postings and search](postings-and-search.md) — the feed and filters
+  the radar drives.
+- [Notifications and scheduler](notifications-and-scheduler.md) — where
+  match digests appear.

@@ -38,6 +38,7 @@ all read.
 | Deep posting extraction (skills/salary/prerequisites/benefits with evidence) | done | Extraction v4; low-confidence fields suppressed, never guessed; prerequisites typed and fit-matched |
 | Companies (reviewed profiles + derived hiring stats, all postings per company) | done | Facts are reviewed manual/derived — never guessed; financial claims carry source + as-of; merges re-point or refuse |
 | Explore page (facet filters, saved searches, cursor pagination) | done | Live counts; per-posting match score |
+| Job radar (saved search config + explore integration; digests from 4b) | done | Per profile; salary floor on the normalized annual basis; nothing inferred |
 | Semantic search (embeddings + hybrid RRF retrieval) | done | pgvector optional; semantic is a ranking signal, never a filter gate |
 | Career Autopilot (goal agent, budgets, explainable shortlists) | done | Scheduler cadence or on demand; never auto-applies |
 | Growth toolkit (roadmaps, near-miss radar, market snapshots, check-ins) | done | |

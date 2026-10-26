@@ -17,5 +17,6 @@ claims :: record
 claim_events :: record
 econ_watchlist :: operational
 company_profiles :: record
+job_radars :: record
 # claim_events.note is user-authored prose that survives user erasure
 # (user_id nulls): the erasure path scrubs it on that transition.

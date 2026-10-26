@@ -196,6 +196,18 @@
         "desktop-assistant": "aligned (tab id 'automation')",
         "career-assistant": "aligned (tab id 'automations' since plan 27 Phase 3; legacy /settings/scheduler redirects)"
       }
+    },
+    {
+      "id": "radar",
+      "group": "app",
+      "title": "Job radar",
+      "definition": "The profile's saved job-search configuration: keywords, preferred locations, work-mode preference, seniority bands, a salary floor on the normalized annual basis, and the match-digest cadence.",
+      "home": { "tab": "radar", "section": null },
+      "secrets": "none",
+      "scope": "profile",
+      "adopters": {
+        "career-assistant": "aligned (plan 129 phase 4a)"
+      }
     }
   ],
 
@@ -262,6 +274,7 @@
     "career-assistant": {
       "tabs": [
         { "id": "account", "group": "app", "note": "Appearance section (plan 121): UI language switcher (en/de/el); admins also set the instance default locale here" },
+        { "id": "radar", "group": "app", "domains": ["radar"], "note": "plan 129 phase 4a: the profile's saved job-search configuration (keywords/locations/work mode/salary floor on the normalized annual basis + match cadence) — consumed by Explore integration and, from 4b, the post-sync notification digests" },
         { "id": "ai", "group": "ai", "sections": [
           { "id": "providers", "domains": ["ai.providers"] },
           { "id": "models", "domains": ["ai.models"] },

@@ -100,6 +100,7 @@ def parse_explore_filters(params: dict) -> dict:
         "fresh_only",
         "salary_min",
         "salary_currency",
+        "keywords",
         "seniority",
         "employment_type",
         "remote_policy",
@@ -193,6 +194,7 @@ def parse_explore_filters(params: dict) -> dict:
         filters["salary_currency"] = str(params["salary_currency"])[:3].upper()
 
     for key in (
+        "keywords",
         "seniority",
         "employment_type",
         "remote_policy",
@@ -202,7 +204,7 @@ def parse_explore_filters(params: dict) -> dict:
     ):
         values = _as_list(params.get(key))
         if values:
-            filters[key] = values[:10]
+            filters[key] = values[:12]
 
     SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
     schedule = [cue for cue in _as_list(params.get("schedule")) if cue in SCHEDULE_CUE_VALUES]
@@ -281,6 +283,19 @@ def _conditions_for(
     if dimension == "q" and filters.get("q"):
         pattern = f"%{filters['q']}%"
         conditions.append(or_(JobPosting.title.ilike(pattern), JobPosting.org.ilike(pattern)))
+
+    elif dimension == "keywords" and filters.get("keywords"):
+        # ANY keyword hitting title or employer, each escaped — the job
+        # radar's keyword axis (a saved configuration must not turn `%`
+        # or `_` into wildcards).
+        per_keyword = [
+            or_(
+                JobPosting.title.ilike(f"%{_like_literal(kw)}%", escape="\\"),
+                JobPosting.org.ilike(f"%{_like_literal(kw)}%", escape="\\"),
+            )
+            for kw in filters["keywords"]
+        ]
+        conditions.append(or_(*per_keyword))
 
     elif dimension == "skills" and filters.get("skills") and skill_ids:
         per_skill = []

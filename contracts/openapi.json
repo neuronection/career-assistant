@@ -16234,6 +16234,17 @@
         "title": "QuietHoursIn",
         "type": "object"
       },
+      "RadarCadence": {
+        "description": "How often a job radar emits match digests (off = silent).",
+        "enum": [
+          "instant",
+          "daily",
+          "weekly",
+          "off"
+        ],
+        "title": "RadarCadence",
+        "type": "string"
+      },
       "RadarDeficitOut": {
         "properties": {
           "current_level": {
@@ -16320,6 +16331,238 @@
           "headline"
         ],
         "title": "RadarEntryOut",
+        "type": "object"
+      },
+      "RadarIn": {
+        "description": "Upsert payload: replace-all semantics, omit = clear.",
+        "properties": {
+          "cadence": {
+            "$ref": "#/components/schemas/RadarCadence",
+            "default": "off"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 24,
+            "title": "Keywords",
+            "type": "array"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/RadarLocation"
+            },
+            "maxItems": 12,
+            "title": "Locations",
+            "type": "array"
+          },
+          "onsite_policy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "onsite",
+                  "hybrid",
+                  "remote"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsite Policy"
+          },
+          "salary_currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Currency"
+          },
+          "salary_min_annual": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Min Annual"
+          },
+          "seniority": {
+            "items": {
+              "enum": [
+                "intern",
+                "junior",
+                "mid",
+                "senior",
+                "lead",
+                "principal"
+              ],
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Seniority",
+            "type": "array"
+          },
+          "source_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 24,
+            "title": "Source Keys",
+            "type": "array"
+          }
+        },
+        "title": "RadarIn",
+        "type": "object"
+      },
+      "RadarLocation": {
+        "description": "One preferred location. `remote: true` rows map to the remote\nwork-mode filter; city/country rows map to the location filters.",
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "remote": {
+            "default": false,
+            "title": "Remote",
+            "type": "boolean"
+          }
+        },
+        "title": "RadarLocation",
+        "type": "object"
+      },
+      "RadarOut": {
+        "description": "The saved radar exactly as the write path stored it.",
+        "properties": {
+          "cadence": {
+            "$ref": "#/components/schemas/RadarCadence",
+            "default": "off"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/RadarLocation"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "onsite_policy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "onsite",
+                  "hybrid",
+                  "remote"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsite Policy"
+          },
+          "salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Currency"
+          },
+          "salary_min_annual": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Min Annual"
+          },
+          "seniority": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seniority",
+            "type": "array"
+          },
+          "source_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Keys",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "title": "RadarOut",
         "type": "object"
       },
       "RankedJob": {
@@ -34670,6 +34913,114 @@
         ]
       }
     },
+    "/api/v1/me/job-radar": {
+      "get": {
+        "description": "The profile's saved job radar \u2014 defaults when never configured.",
+        "operationId": "get_job_radar_api_v1_me_job_radar_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job Radar",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "description": "Save the job radar (replace-all; omit a field = clear it).",
+        "operationId": "upsert_job_radar_api_v1_me_job_radar_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RadarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RadarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Job Radar",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/api/v1/me/locale": {
       "get": {
         "description": "The caller's effective UI locale and the supported registry.",
@@ -38207,6 +38558,48 @@
           }
         },
         "summary": "Postings Hide",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/preview-radar": {
+      "post": {
+        "description": "Live radar preview: what this configuration would match right now,\nwithout saving it.",
+        "operationId": "preview_job_radar_api_v1_postings_preview_radar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RadarIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExploreOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Job Radar",
         "tags": [
           "postings"
         ]

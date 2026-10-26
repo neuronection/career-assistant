@@ -83,6 +83,7 @@ from app.models.profile_entities_model import (
     ProfileAchievement,
 )
 from app.models.profile_proposal_model import ProfileProposal
+from app.models.radar_model import JobRadar
 from app.models.schedule_model import Schedule
 from app.models.settings_model import AppSetting
 from app.models.skill_pack_model import AISkillPack  # noqa: F401
@@ -153,6 +154,7 @@ __all__ = [
     "JobDepartmentLink",
     "JobFamily",
     "JobPosting",
+    "JobRadar",
     "JobRelation",
     "JobSkill",
     "JobSource",

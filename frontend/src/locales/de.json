@@ -412,7 +412,11 @@
       "senior": "Senior",
       "lead": "Leiter",
       "principal": "Hauptverantwortlicher"
-    }
+    },
+    "radarApply": "Mein Radar",
+    "radarClear": "Radar löschen",
+    "radarActive": "Zeigt die Treffer deines Radars.",
+    "radarNotConfigured": "Dein Job-Radar ist noch nicht eingerichtet — konfiguriere ihn in den Einstellungen."
   },
   "applications": {
     "title": "Meine Bewerbungen",
@@ -3727,6 +3731,10 @@
     "audit": {
       "label": "KI-Audit",
       "description": "Jeder KI-Aufruf, mit Token und Latenz"
+    },
+    "radar": {
+      "label": "Job-Radar",
+      "description": "Sag der App einmal, was du suchst — Orte, Gehaltsuntergrenze, Arbeitsmodus — und suche es überall."
     }
   },
   "paths": {
@@ -3877,5 +3885,49 @@
     "postingsTitle": "Offene Stellen ({{count}})",
     "noPostings": "Aktuell keine offenen Stellen.",
     "viewPosting": "Stelle ansehen"
+  },
+  "jobRadar": {
+    "subtitle": "Eine Konfiguration, überall genutzt: Explore matcht live, und (im gewählten Takt) meldet sich der Benachrichtigungs-Digest, wenn frische Stellen passen.",
+    "enabled": "Radar aktiv",
+    "enabledHint": "Ausgeschaltet matcht nichts und es gehen keine Digests raus — die Konfiguration bleibt erhalten.",
+    "keywordsHeading": "Stichwörter",
+    "keywordsHint": "Jedes Stichwort zählt, das Titel oder Arbeitgeber trifft.",
+    "keywordPlaceholder": "z. B. Data Engineer",
+    "removeKeyword": "Stichwort entfernen",
+    "locationsHeading": "Orte",
+    "noLocations": "Keine Ortspräferenz — jeder Ort passt.",
+    "cityPlaceholder": "Stadt",
+    "countryPlaceholder": "Land",
+    "remote": "Remote",
+    "removeLocation": "Ort entfernen",
+    "addLocation": "Ort hinzufügen",
+    "filtersHeading": "Filter",
+    "onsitePolicy": "Arbeitsmodus",
+    "any": "Beliebig",
+    "onsite": {
+      "onsite": "Vor Ort",
+      "hybrid": "Hybrid",
+      "remote": "Remote"
+    },
+    "salaryMinAnnual": "Gehaltsuntergrenze (jährlich, normalisiert)",
+    "currency": "Währung",
+    "salaryAnnualHint": "Vergleich auf der annualisierten Basis — monatliche und jährliche Stellen konkurrieren gleich.",
+    "seniority": "Seniorität",
+    "save": "Radar speichern",
+    "test": "Treffer testen",
+    "testing": "Matching…",
+    "saved": "Radar gespeichert.",
+    "previewTitle": "{{count}} Stellen passen gerade:",
+    "previewEmpty": "Aktuell passt keine Stelle zu dieser Konfiguration.",
+    "openExplore": "Treffer in Explore öffnen",
+    "loadError": "Der Job-Radar konnte nicht geladen werden.",
+    "cadenceOptions": {
+      "off": "Aus",
+      "instant": "Sofort",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich"
+    },
+    "cadenceLabel": "Match-Digest",
+    "currencyPlaceholder": "z. B. EUR"
   }
 }

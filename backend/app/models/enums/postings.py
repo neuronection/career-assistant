@@ -20,6 +20,15 @@ class SourceKind(StrEnum):
     WEBHOOK_IN = "webhook_in"
 
 
+class RadarCadence(StrEnum):
+    """How often a job radar emits match digests (off = silent)."""
+
+    INSTANT = "instant"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    OFF = "off"
+
+
 class HealthStatus(StrEnum):
     """Connector/webhook health, surfaced as a source badge."""
 

@@ -100,6 +100,7 @@ TABLES = [
     "cv_synth_items",
     "job_postings",
     "company_profiles",
+    "job_radars",
     "organizations",
     "job_sources",
     "notifications",

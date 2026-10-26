@@ -134,6 +134,13 @@ deletion).
 
 ### Migration notes
 
+- **0057** — plan 129 phase 4a: `job_radars`, the profile's saved
+  job-search configuration (1:1 per profile, CASCADE; keywords/
+  locations/seniority/source_keys as typed JSON lists, onsite
+  preference, salary floor + currency on the normalized annual basis,
+  cadence + enabled CHECK-mirrored). Purely additive.
+  Covered by `tests/test_migrations.py::test_0057_job_radars_roundtrip`
+  and `tests/test_job_radar.py`.
 - **0056** — plan 129 phase 2: `job_postings` gains `salary_basis`
   (gross | net, NULL = the source never said — the CHECK admits only
   the two known values) and the annualized range

@@ -22,6 +22,7 @@ from app.schemas.posting import (
     SaveIn,
     SeenIn,
 )
+from app.schemas.radar import RadarIn
 from app.services.deps import get_current_user
 from app.services.postings.explore_service import (
     explore,
@@ -231,6 +232,36 @@ async def postings_explore(
     filters = parse_explore_filters(raw)
 
     result = await explore(db, user.id, filters, sort=sort, cursor=cursor, limit=limit)
+    sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    return ExploreOut(
+        items=[
+            _posting_out(
+                item["posting"],
+                item["interaction"],
+                item.get("application"),
+                fit=item.get("fit"),
+                source_key=sources.get(item["posting"].source_id, ""),
+            )
+            for item in result["items"]
+        ],
+        total=result["total"],
+        next_cursor=result["next_cursor"],
+        facets=result["facets"],
+    )
+
+
+@router.post("/postings/preview-radar", response_model=ExploreOut)
+async def preview_job_radar(
+    data: RadarIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ExploreOut:
+    """Live radar preview: what this configuration would match right now,
+    without saving it."""
+    from app.services.postings.radar_service import explore_params
+
+    filters = explore_params(data)
+    result = await explore(db, user.id, filters, sort="fresh", limit=5)
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     return ExploreOut(
         items=[

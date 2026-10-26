@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0056"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0057"], (
         "revision chain stays linear on one head"
     )
 
@@ -2133,3 +2133,17 @@ def test_0056_salary_normalization_backfill():
         asyncio.run(assert_backfilled())
     finally:
         asyncio.run(cleanup())
+
+
+def test_0057_job_radars_roundtrip():
+    """Plan 129 phase 4a: the job radar lands at head and downgrade
+    removes it."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _table_present("job_radars"), "job_radars exists at head"
+
+    command.downgrade(config, "0056")
+    assert not _table_present("job_radars"), "job_radars dropped on downgrade"
+
+    command.upgrade(config, "head")
+    assert _table_present("job_radars"), "job_radars exists after re-upgrade"

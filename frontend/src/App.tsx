@@ -5,6 +5,7 @@ import { SettingsShell } from "@/components/SettingsShell";
 import { About } from "@/pages/About";
 import { Account } from "@/pages/settings/Account";
 import { AIConfig } from "@/pages/settings/AIConfig";
+import { JobRadarSettings } from "@/pages/settings/JobRadar";
 import { AIAudit } from "@/pages/settings/AIAudit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
 import { ToolsConfig } from "@/pages/settings/ToolsConfig";
@@ -108,6 +109,7 @@ export function App() {
           <Route path="/settings" element={<SettingsShell />}>
             <Route index element={<Navigate to="/settings/account" replace />} />
             <Route path="account" element={<Account />} />
+            <Route path="radar" element={<JobRadarSettings />} />
             <Route path="ai" element={<AIConfig />} />
             <Route path="tools" element={<ToolsConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
