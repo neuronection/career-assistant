@@ -12,6 +12,7 @@ when no explicit work mode is set).
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -50,15 +51,54 @@ async def list_enabled_radars(db: AsyncSession) -> list[JobRadar]:
 GROUP_CAP = 12
 
 
+def or_keywords(terms: list[str]) -> str:
+    """One group's keyword string: quoted OR-join."""
+    return " OR ".join(f'"{term}"' if " " in term else term for term in terms)
+
+
+def _normalized_tokens(term: str) -> frozenset[str]:
+    return frozenset(re.sub(r"[^a-z0-9]+", " ", term.lower()).split())
+
+
+def auto_groups(terms: list[str]) -> list[list[str]]:
+    """Deterministic near-duplicate merge — the AI-less fallback.
+
+    Terms whose normalized token sets are identical or subset-related
+    ("ai engineer" / "senior ai engineer") join one role group; nothing
+    is invented or dropped. With AI configured (the de facto state) the
+    query curator produces the grouping instead.
+    """
+    groups: list[list[str]] = []
+    members: list[list[frozenset[str]]] = []
+    for term in terms:
+        tokens = _normalized_tokens(term)
+        target = None
+        for index, seen_sets in enumerate(members):
+            if any(tokens <= other or other <= tokens for other in seen_sets):
+                target = index
+                break
+        if target is None:
+            groups.append([term])
+            members.append([tokens])
+        else:
+            groups[target].append(term)
+            members[target].append(tokens)
+    fitted: list[list[str]] = []
+    for group in groups:
+        fitted.extend([group[i : i + 3] for i in range(0, len(group), 3)])
+    return fitted
+
+
 def radar_groups(radars: list[JobRadar]) -> dict:
     """Layer 1 deterministic merge (plan 130): the union of enabled radars'
     keywords partitioned into role groups — one focused search per sync,
     rotated round-robin.
 
-    Fallback clustering is one term per group (the LLM curator may cluster
-    tighter, never invent terms). Returns the groups, the term→radar-ids
-    provenance map, the shared location string and a fingerprint for
-    staleness checks.
+    Grouping is the query curator's job (AI configured is the de facto
+    state); this deterministic partition is the fallback: `auto_groups`
+    merges near-duplicate terms (subset/identical token sets) and nothing
+    else. Returns the groups, the term→radar-ids provenance map, the
+    shared location string and a fingerprint for staleness checks.
     """
     terms: list[str] = []
     seen: set[str] = set()
@@ -85,7 +125,7 @@ def radar_groups(radars: list[JobRadar]) -> dict:
                 provenance[key].append(rid)
         if not location:
             location = _radar_location(radar)
-    groups = [{"terms": [term], "keywords": term} for term in terms]
+    groups = [{"terms": group, "keywords": or_keywords(group)} for group in auto_groups(terms)]
     fingerprint = hashlib.sha256(
         json.dumps(
             {
@@ -147,16 +187,28 @@ async def upsert_radar(db: AsyncSession, profile_id, data: RadarIn) -> JobRadar:
 
 async def _enqueue_query_curator(db: AsyncSession) -> None:
     """Plan 130: radar changes recompute the merged-query caches in the
-    background (the curator never runs in the write path)."""
+    background (the curator never runs in the write path). Deduped — at
+    most one recompute is ever queued."""
     import contextlib
     import logging
 
-    from app.models.enums import BackgroundJobType
+    from app.models.background_job_model import BackgroundJob
+    from app.models.enums import BackgroundJobStatus, BackgroundJobType
     from app.services.job_worker import enqueue
 
     with contextlib.suppress(Exception):
+        queued = await db.execute(
+            select(BackgroundJob.id)
+            .where(
+                BackgroundJob.job_type == BackgroundJobType.QUERY_CURATOR.value,
+                BackgroundJob.status == BackgroundJobStatus.QUEUED.value,
+            )
+            .limit(1)
+        )
+        if queued.first() is not None:
+            return
         await enqueue(db, BackgroundJobType.QUERY_CURATOR.value, {})
-    logging.getLogger(__name__).debug("query_curator recompute enqueued")
+        logging.getLogger(__name__).debug("query_curator recompute enqueued")
 
 
 async def require_radar(db: AsyncSession, profile_id) -> JobRadar:

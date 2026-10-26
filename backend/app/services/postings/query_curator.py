@@ -1,14 +1,15 @@
-"""Plan 130 — the merged-query artifact and the LLM query curator (Layer 2).
+"""Plan 130 — the merged-query artifact and the AI query curator.
 
-Layer 1 (``radar_service.radar_groups``) is the deterministic source of
-truth and the fallback; this module owns the cached artifact every sync
-reads (role groups + provenance + rotation cursor) and the optional
-curator that clusters radar tokens into tighter role groups through the
-AI gateway. The curator runs ONLY from a background job (never in the
-settings write path and never awaited by sync): AI unconfigured,
-unavailable or erroring leaves the Layer 1 partition in place. Curator
-output is untrusted: terms outside the input set are dropped and every
-cap is re-applied — the curator can never widen what gets searched.
+The project is AI-first: with a provider configured (the de facto state)
+the curator below produces the role-group clustering, and un-curated
+caches quietly re-enqueue themselves so grouping upgrades the moment AI
+is available. Layer 1 (`radar_service.radar_groups` + `auto_groups`) is
+the deterministic fallback and the guard rail: the cached artifact every
+sync reads (role groups + provenance + rotation cursor) always exists,
+and curator output is untrusted — terms outside the input set are
+dropped and every cap is re-applied, so the curator can never widen what
+gets searched. The curator runs ONLY from a background job (never in the
+settings write path and never awaited by sync).
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.models.enums import SourceQueryMode
 from app.models.posting_model import JobSource
-from app.services.postings.radar_service import radar_groups
+from app.services.postings.radar_service import or_keywords, radar_groups
 
 MAX_GROUPS = 6
 MAX_TERMS_PER_GROUP = 3
@@ -48,8 +49,8 @@ _SYSTEM = (
 
 
 def _or_string(terms: list[str]) -> str:
-    """One group's keyword string: quoted OR-join."""
-    return " OR ".join(f'"{term}"' if " " in term else term for term in terms)
+    """One group's keyword string: quoted OR-join (shared with Layer 1)."""
+    return or_keywords(terms)
 
 
 KEYWORDS_CAP = 300
@@ -169,7 +170,10 @@ async def ensure_query_cache(db: AsyncSession, source: JobSource) -> dict:
     """Sync-time read (Layer 1 only — sync never awaits AI): return the
     artifact, rebuilding the deterministic partition when radars changed."""
     cache = dict(source.query_cache or {})
-    from app.services.postings.radar_service import list_enabled_radars
+    from app.services.postings.radar_service import (
+        _enqueue_query_curator,
+        list_enabled_radars,
+    )
 
     radars = await list_enabled_radars(db)
     base = radar_groups(radars)
@@ -183,6 +187,9 @@ async def ensure_query_cache(db: AsyncSession, source: JobSource) -> dict:
         source.query_cache = cache
         flag_modified(source, "query_cache")
         await db.commit()
+        await _enqueue_query_curator(db)
+    elif not cache.get("curated") and cache.get("groups"):
+        await _enqueue_query_curator(db)
     return cache
 
 

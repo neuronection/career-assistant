@@ -253,12 +253,35 @@ def static_recording():
 
 
 async def test_non_dynamic_connector_never_gets_the_overlay(db, static_recording):
-    src = JobSource(key="stat-radar", connector_key="static-recording", config={}, query_mode="radar")
+    src = JobSource(
+        key="stat-radar", connector_key="static-recording", config={}, query_mode="radar"
+    )
     db.add(src)
     await db.commit()
     await db.refresh(src)
     await sync_source(db, src)
     assert "query" not in StaticRecording.last_config
+
+
+def test_auto_groups_merges_near_duplicates_only():
+    from app.services.postings.radar_service import auto_groups
+
+    assert auto_groups(["ai engineer", "senior ai engineer", "devops"]) == [
+        ["ai engineer", "senior ai engineer"],
+        ["devops"],
+    ]
+    assert auto_groups(["data engineer", "devops engineer"]) == [
+        ["data engineer"],
+        ["devops engineer"],
+    ], "no subset relation — distinct roles stay apart"
+    assert auto_groups(["qa", "QA"]) == [["qa", "QA"]], "identical tokens merge"
+
+
+def test_radar_groups_auto_merge_shapes_the_query():
+    merged = radar_groups([_radar(["ai engineer", "senior ai engineer", "devops"])])
+    assert merged["groups"][0]["terms"] == ["ai engineer", "senior ai engineer"]
+    assert merged["groups"][0]["keywords"] == '"ai engineer" OR "senior ai engineer"'
+    assert merged["groups"][1]["terms"] == ["devops"]
 
 
 def test_every_term_lands_in_a_searchable_group():
@@ -270,6 +293,43 @@ def test_every_term_lands_in_a_searchable_group():
     assert sorted(flat) == sorted(terms), "coverage: no term silently dropped"
     for group in artifact["groups"]:
         assert len(group["keywords"]) <= 300, "every group fits the search cap"
+
+
+async def test_uncurated_cache_self_heals_via_curator_job(
+    db, client, auth_headers, seeded_catalog, synthetic_connector
+):
+    from sqlalchemy import update as sa_update
+
+    from app.models.background_job_model import BackgroundJob
+    from app.models.enums import BackgroundJobStatus
+
+    put = await client.put(
+        "/api/v1/me/job-radar",
+        json={"keywords": ["ai engineer"], "cadence": "daily", "enabled": True},
+        headers=auth_headers,
+    )
+    assert put.status_code == 200, put.text
+    await db.execute(
+        sa_update(BackgroundJob)
+        .where(BackgroundJob.job_type == "query_curator")
+        .values(status=BackgroundJobStatus.SUCCEEDED.value)
+    )
+    await db.commit()
+
+    src = JobSource(key="heal-src", connector_key="synthetic", config={}, query_mode="radar")
+    db.add(src)
+    await db.commit()
+    await db.refresh(src)
+    cache = await query_curator.ensure_query_cache(db, src)
+    assert cache["curated"] is False, "AI-less build keeps the deterministic grouping"
+
+    rows = await db.execute(
+        select(BackgroundJob).where(
+            BackgroundJob.job_type == "query_curator",
+            BackgroundJob.status == BackgroundJobStatus.QUEUED.value,
+        )
+    )
+    assert rows.scalars().first() is not None, "uncurated cache re-enqueues the curator"
 
 
 # ------------------------------------------------------------- API surface

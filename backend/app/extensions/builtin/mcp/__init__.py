@@ -57,9 +57,7 @@ def _secret_slot_names() -> frozenset[str]:
 
     from app.extensions.contract import secret_fields
 
-    manifest = json.loads(
-        (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))
     return frozenset(name.lower() for name in secret_fields(manifest.get("configSchema")))
 
 

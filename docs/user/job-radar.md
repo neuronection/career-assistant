@@ -32,11 +32,14 @@ right now without saving.
   open filters.
 - **Ingestion** — a job source set to **Follow my radar** takes its
   keywords and location from the radar instead of its own static
-  settings. Each sync searches one focused role group, rotating through
-  them round-robin (one search per sync — traffic stays constant however
-  many keywords the radar holds), and the source's edit form shows the
-  effective query and rotation position. Radar changes are picked up
-  automatically on the next sync.
+  settings. The radar's keywords are grouped into roles (by the AI
+  curator when a provider is configured — the normal case; a
+  deterministic auto-merge groups near-duplicates otherwise, and
+  upgrades automatically once AI is available), and each sync searches
+  one focused group, rotating round-robin (one search per sync — traffic
+  stays constant however many keywords the radar holds). The source's
+  edit form shows the effective query and rotation position. Radar
+  changes are picked up automatically on the next sync.
 - **Match digests** — the radar is evaluated live each time its digest
   runs (instant ≈ every 15 minutes, daily at 08:00 UTC, weekly on
   Mondays), so the matches always reflect the current postings. At most

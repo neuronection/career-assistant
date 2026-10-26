@@ -11,10 +11,13 @@ All notable changes to **Career Assistant** are documented here.
   config — one focused role group per sync, rotating, so traffic stays
   constant however many keywords your radar holds. The form shows the
   effective query and rotation position (nothing hidden); radar edits
-  recompute the query plan in the background (an optional AI curator
-  clusters near-duplicate terms — deterministic fallback when AI is
-  unconfigured). MCP-script sources also gain a **Tool options** JSON
-  field so tool-level settings no longer need to ride the command line.
+  recompute the query plan in the background. Grouping is AI-first: with
+  a provider configured (the normal case) an AI curator clusters
+  near-duplicate terms into role groups — and without one, a
+  deterministic auto-merge groups near-duplicates the same way, with
+  un-curated plans quietly upgrading the moment AI is available.
+  MCP-script sources also gain a **Tool options** JSON field so
+  tool-level settings no longer need to ride the command line.
 
 ### Changed (provider settings adoption, 2026-10-26)
 - **Settings → Tools → Web search renders through the family
