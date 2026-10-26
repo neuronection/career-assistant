@@ -134,6 +134,13 @@ deletion).
 
 ### Migration notes
 
+- **0061** — plan 134: `source_runs`, the ingestion run ledger (one row
+  per `sync_source` attempt: trigger `manual|scheduled`, status
+  `ok|degraded|failed|skipped`, started/finished, duration_ms,
+  items_synced, bounded error + the `report` JSONB — inventory row
+  `source_runs.report :: keep-open`; FK CASCADE to `job_sources`,
+  index `ix_source_runs_source_started`). Covered by
+  `tests/test_source_runs.py` + the conftest `TABLES` coverage gate.
 - **0060** — plan 130b: `job_sources` gains `query_batch_size`
   (INTEGER NOT NULL DEFAULT 1, CHECK `query_batch_size_allowed`
   BETWEEN 1 AND 3) — how many rotating role groups one radar-mode sync

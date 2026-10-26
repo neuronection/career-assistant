@@ -65,6 +65,30 @@ Credentials, where a board needs them, are stored encrypted and only
 unsealed at sync time — you'll see a slot with a last-4 hint, never the
 value echoed back.
 
+## Manage a source
+
+Every source row has a **Manage** button opening its management page
+(`/sources/:id`), the one place for everything about it:
+
+- **Overview** — status, last/next run, ingested count, live errors, and
+  Test / Run now / Pause / Remove.
+- **Query plan** — for radar-driven sources: the rotating role groups
+  with *when each is next searched*, the grouping mode, and a coverage
+  summary ("full pass ≈ Nh") with a warning when a full pass would take
+  over a day.
+- **Configuration** — the full bundle settings (keywords, filters, and
+  the pacing knobs: pauses between page loads and between batch queries)
+  plus the search-source switch and queries-per-sync. This replaces the
+  old per-row Edit dialog.
+- **Run history** — every sync attempt: when it ran, trigger, status,
+  duration, items synced, and errors (clamped to three lines; **Details**
+  opens the full error with a copy button). Failed runs can be retried
+  with **Run again**.
+
+Removing a source is explicit and destructive: the confirmation shows
+the counts, because the source's ingested postings and everything
+derived from them go with it.
+
 ## Follow my radar (search source)
 
 The source form's **Search source** switch decides where the search

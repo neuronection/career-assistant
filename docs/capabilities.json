@@ -83,6 +83,7 @@
         "A source marked Follow my radar takes keywords and location from the Job Radar; the form shows the effective query and rotation position",
         "Role groups rotate round-robin — one focused search per sync; optional batches of 2-3 run strictly sequential with jittered pauses",
         "Keywords are grouped by an AI curator into role groups (deterministic auto-merge fallback; un-curated plans upgrade when AI is configured)",
+        "A management page per source shows the query plan with per-group timing, run history with retry, and all configuration in one place",
         "Every searched term maps back to the radars that asked for it (provenance kept in the query plan)"
       ],
       "links": [
