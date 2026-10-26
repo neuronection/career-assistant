@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as extApi from "@/api/extensionSources";
 import type {
@@ -234,6 +234,16 @@ export function ExtensionSourcesSection() {
     setEditTarget(null);
   };
 
+  const bundleInputRef = useRef<HTMLInputElement | null>(null);
+  const importBundle = async (file: File) => {
+    await run(async () => {
+      const result = await extApi.uploadExtensionBundle(file);
+      if (result.sync && !result.sync.ok && result.sync.error) {
+        setNotice(`${result.sync.error.code}: ${result.sync.error.detail}`);
+      }
+    });
+  };
+
   const install = async () => {
     if (!consentTarget) return;
     const { sourceId, candidate } = consentTarget;
@@ -337,14 +347,36 @@ export function ExtensionSourcesSection() {
         }
       />
 
-      <button
-        type="button"
-        className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
-        onClick={() => setAddOpen(true)}
-        data-testid="add-extension-source"
-      >
-        {t("toolsSettings.connectors.extSources.add")}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+          onClick={() => setAddOpen(true)}
+          data-testid="add-extension-source"
+        >
+          {t("toolsSettings.connectors.extSources.add")}
+        </button>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+          onClick={() => bundleInputRef.current?.click()}
+          data-testid="import-bundle"
+        >
+          {t("toolsSettings.connectors.extSources.importBundle")}
+        </button>
+        <input
+          ref={bundleInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          data-testid="import-bundle-input"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void importBundle(file);
+          }}
+        />
+      </div>
 
       <AddIntegrationSourceDialog
         key={editTarget?.id ?? "add"}

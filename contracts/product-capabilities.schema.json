@@ -123,9 +123,9 @@
     },
     "shot": {
       "type": "string",
-      "pattern": "^[^/].+\\.(png|jpe?g|webp|gif)$",
+      "pattern": "^(?!.*\\.\\.)[^/\\\\].+\\.(png|jpe?g|webp|gif)$",
       "maxLength": 200,
-      "$comment": "Screenshot path RELATIVE to this manifest (docs/capabilities.json) — conventionally docs/images/caps/<id>.png, reusing the repo's existing captured UI. The hub sync vendors it with sharp-stamped intrinsic dimensions (the stamped-image law). Optional: a capability without a shot renders as a text card."
+      "$comment": "Screenshot path RELATIVE to this manifest (docs/capabilities.json) — conventionally images/caps/<id>.png under docs/, reusing the repo's existing captured UI. Absolute paths, backslashes and `..` traversal are rejected: the path must stay inside the manifest's directory. The hub sync vendors it with sharp-stamped intrinsic dimensions (the stamped-image law). Optional: a capability without a shot renders as a text card."
     },
     "platform": {
       "enum": ["selfhosted", "local", "web", "desktop", "hotkey", "ai"],

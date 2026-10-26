@@ -1234,3 +1234,90 @@ async def test_value_requiring_strategies_reject_empty(
         await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "branch"}})
     assert exc.value.code == "invalid"
     assert "missing required property 'value'" in exc.value.detail
+
+
+# ------------------------------------------------- zip bundle import (132)
+
+
+def _bundle_zip() -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(template_manifest()))
+        zf.writestr("server.py", FIXTURE_SERVER.read_text(encoding="utf-8"))
+        zf.writestr("docs/overview.md", "# overview\n")
+        zf.writestr("docs/docs-tree.json", '{"version": 1, "categories": []}')
+    return buf.getvalue()
+
+
+async def test_zip_upload_stages_and_runs_the_source_flow(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    import re
+
+    from app.extensions.lifecycle import import_zip_bundle
+
+    view = await import_zip_bundle(db, _bundle_zip())
+    assert view["kind"] == "local"
+    descriptor = view["descriptor"]
+    assert descriptor["ref"]["strategy"] == "commit-pin"
+    assert re.fullmatch(r"[0-9a-f]{40}", descriptor["ref"]["value"])
+    report = view["sync"]
+    assert report["ok"] is True, report
+    [candidate] = report["candidates"]
+    assert candidate["extensionId"] == "example-posting-fetcher"
+    assert candidate["compatible"] is True
+
+
+async def test_zip_upload_refuses_path_escape_and_symlinks(db, local_roots, mcp_allowlist):
+    import io
+    import zipfile
+
+    from app.extensions.lifecycle import import_zip_bundle
+
+    evil = io.BytesIO()
+    with zipfile.ZipFile(evil, "w") as zf:
+        zf.writestr("../escape.json", "{}")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, evil.getvalue())
+    assert exc.value.code == "invalid"
+    assert "escapes the bundle root" in exc.value.detail
+
+    linked = io.BytesIO()
+    with zipfile.ZipFile(linked, "w") as zf:
+        info = zipfile.ZipInfo("manifest.json")
+        info.external_attr = (0o120777 << 16)
+        zf.writestr(info, "target")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, linked.getvalue())
+    assert exc.value.code == "invalid"
+    assert "symlink" in exc.value.detail
+
+
+async def test_zip_upload_requires_a_manifest(db, local_roots, mcp_allowlist):
+    import io
+    import zipfile
+
+    from app.extensions.lifecycle import import_zip_bundle
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("readme.md", "nothing here\n")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, buf.getvalue())
+    assert exc.value.code == "invalid"
+    assert "manifest.json" in exc.value.detail
+
+
+async def test_zip_upload_is_gated_off_in_production(
+    db, local_roots, mcp_allowlist, monkeypatch
+):
+    from app.core.config import settings
+    from app.extensions.lifecycle import import_zip_bundle
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, _bundle_zip())
+    assert exc.value.code == "path-denied"

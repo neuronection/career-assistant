@@ -1482,7 +1482,8 @@
         "localKindHint": "A local git checkout (dev/test only, allowlisted roots)",
         "editTitle": "Edit extension source",
         "editSource": "Edit",
-        "save": "Save source"
+        "save": "Save source",
+        "importBundle": "Import bundle (.zip)"
       },
       "docs": {
         "open": "Docs",

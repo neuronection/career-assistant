@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (zip bundle import, 2026-10-26)
+- **Import bundle (.zip)** on the extension sources panel: hand over a
+  zipped bundle instead of typing a path — it is staged as a pinned
+  source and flows through the identical consent + digest-pinned install
+  (the zip itself is never executed; update = upload again + re-consent).
+  Zip hygiene is enforced (path-escape/symlink refusal, entry and size
+  caps); like local-path sources this is a dev/test feature. In the
+  desktop shell the button opens the native file picker.
+
 ### Changed (extension source add/edit UX, 2026-10-26)
 - **Add extension source is now a two-step wizard** (family kit
   `AddIntegrationSourceDialog` `kind` mode): first choose the source type

@@ -119,7 +119,7 @@
         "Imported extensions run out-of-process: sandboxed subprocess or external MCP script",
         "Installs are consent-gated and digest-pinned — they never auto-update",
         "MCP clients read your career data through a locally generated, rotatable token",
-        "An imported bundle's own settings form drives its source config — import, configure, enable/disable",
+        "Bundles arrive as a zip upload or from git — the bundle's own settings form drives config, consent and pinning identical",
         "When a source's page layout drifts, ingestion degrades to id+text rows the deep-extraction pass structures — never junk, never a crash"
       ],
       "links": [

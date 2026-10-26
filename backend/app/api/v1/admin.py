@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -875,6 +875,24 @@ async def update_extension_source(
         )
     except LifecycleError as exc:
         raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/sources/upload", status_code=201)
+async def upload_extension_source(
+    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Zip bundle import (plan 132): a FEEDER for the sources pipeline —
+    the zip is staged as a local source tree (host-owned staging dir, one
+    synthetic commit), then the normal add + sync run unchanged (consent
+    and digest-pinned install are still the admin's acts). Dev/test only."""
+    from app.extensions.lifecycle import LifecycleError, import_zip_bundle
+
+    data = await file.read()
+    try:
+        view = await import_zip_bundle(db, data)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+    return {"id": view["id"], "kind": view["kind"], "sync": view.get("sync")}
 
 
 @router.delete("/extensions/sources/{source_id}")

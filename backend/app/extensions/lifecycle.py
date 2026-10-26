@@ -41,6 +41,7 @@ import hashlib
 import json
 import logging
 import re
+import subprocess
 import sys
 import uuid
 from collections.abc import AsyncIterator
@@ -277,6 +278,7 @@ def _check_local_root(path_str: str) -> Path:
             "(CAREER_APP_ENV=production) — fail-closed",
         )
     roots = [Path(root).expanduser().resolve() for root in settings.extension_local_source_roots]
+    roots.append(imports_root())
     if not roots:
         raise LifecycleError(
             "path-denied",
@@ -1028,6 +1030,131 @@ async def list_sources(db: AsyncSession) -> list[dict]:
         installs = await _installs_for_source(db, source.id)
         views.append(_source_view(source, installs))
     return views
+
+
+BUNDLE_ZIP_MAX_BYTES = 50 * 1024 * 1024
+BUNDLE_ZIP_MAX_ENTRIES = 4096
+BUNDLE_ZIP_MAX_UNCOMPRESSED = 200 * 1024 * 1024
+IMPORTS_DIRNAME = "extension-imports"
+
+
+def imports_root() -> Path:
+    """The host-owned staging dir for uploaded bundles (plan 132): a
+    confined, app-created root — the one path the local gate admits
+    alongside configured allowlisted roots (desktop T0-import precedent)."""
+    from app.core.config import settings
+
+    return (Path(settings.data_dir) / IMPORTS_DIRNAME).resolve()
+
+
+def _init_staging_repo(root: Path) -> str:
+    """A synthetic checkout: the staged tree becomes a one-commit git repo
+    so the descriptor's schema-required ``ref`` is a real commit-pin."""
+
+    def git(*args: str) -> str:
+        proc = subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=career-assistant",
+                "-c",
+                "user.email=noreply@career.local",
+                "-c",
+                "commit.gpgsign=false",
+                *args,
+            ],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise LifecycleError(
+                "not-ready", f"git failed while staging the bundle: {proc.stderr.strip()[:200]}"
+            )
+        return proc.stdout.strip()
+
+    git("init", "--quiet", "--initial-branch", "main")
+    git("add", ".")
+    git("commit", "--quiet", "--allow-empty", "-m", "bundle import")
+    return git("rev-parse", "HEAD")
+
+
+def _validate_zip_entries(names: list[tuple[str, bool, bool]], total_size: int) -> None:
+    """Zip hygiene (plan 132 risk table): no path escape, no symlinks,
+    bounded entries and expansion."""
+    if len(names) > BUNDLE_ZIP_MAX_ENTRIES:
+        raise LifecycleError("invalid", f"zip has more than {BUNDLE_ZIP_MAX_ENTRIES} entries")
+    if total_size > BUNDLE_ZIP_MAX_UNCOMPRESSED:
+        raise LifecycleError("invalid", "zip expands beyond the uncompressed size cap")
+    for name, is_dir, is_symlink in names:
+        if name.startswith("/") or ".." in Path(name).parts:
+            raise LifecycleError("invalid", f"zip entry escapes the bundle root: {name[:200]}")
+        if is_symlink and not is_dir:
+            raise LifecycleError("invalid", f"zip entry is a symlink: {name[:200]}")
+
+
+def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
+    """Unpack a bundle zip into the staging dir and pin it (plan 132).
+
+    The zip is NEVER the import seam — it only materializes a local source
+    tree; consent and digest-pinned install stay exactly where the charter
+    puts them. Dev/test only (production stays fail-closed)."""
+    import io
+    import shutil
+    import uuid as uuid_mod
+    import zipfile
+
+    from app.core.config import settings
+
+    if not settings.is_dev:
+        raise LifecycleError(
+            "path-denied",
+            "zip bundle import is dev/test only — production boots stay fail-closed",
+        )
+    if len(data) > BUNDLE_ZIP_MAX_BYTES:
+        raise LifecycleError("invalid", "zip exceeds the upload size cap")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise LifecycleError("invalid", f"not a zip file: {exc}") from exc
+    with archive:
+        infos = archive.infolist()
+        entries = []
+        for info in infos:
+            mode = (info.external_attr >> 16) & 0o170000
+            entries.append((info.filename, info.is_dir(), mode == 0o120000))
+        _validate_zip_entries(entries, sum(info.file_size for info in infos))
+        root = imports_root() / uuid_mod.uuid4().hex
+        root.mkdir(parents=True, exist_ok=False)
+        try:
+            archive.extractall(root)
+        except Exception as exc:
+            shutil.rmtree(root, ignore_errors=True)
+            raise LifecycleError("invalid", f"zip extraction failed: {exc}") from exc
+    for junk in root.rglob(".git"):
+        shutil.rmtree(junk, ignore_errors=True)
+    manifest_hits = [root / "manifest.json", *root.glob("*/manifest.json")]
+    if not any(hit.is_file() for hit in manifest_hits):
+        shutil.rmtree(root, ignore_errors=True)
+        raise LifecycleError(
+            "invalid", "no manifest.json in the bundle root (or one level down)"
+        )
+    sha = _init_staging_repo(root)
+    return root, sha
+
+
+async def import_zip_bundle(db: AsyncSession, data: bytes) -> dict:
+    """Upload feeder (plan 132): stage the zip, then run the NORMAL source
+    flow — add + sync — so consent and digest pinning happen unchanged."""
+    root, sha = import_zip_bundle_sync_root(data)
+    descriptor = {
+        "local": {"path": str(root)},
+        "ref": {"strategy": "commit-pin", "value": sha},
+    }
+    view = await add_source(db, descriptor)
+    report = await sync_source(db, uuid.UUID(view["id"]))
+    view["sync"] = report
+    return view
 
 
 async def add_source(

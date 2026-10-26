@@ -1482,7 +1482,8 @@
         "localKindHint": "Ein lokaler Git-Checkout (nur Dev/Test, freigegebene Wurzeln)",
         "editTitle": "Erweiterungsquelle bearbeiten",
         "editSource": "Bearbeiten",
-        "save": "Quelle speichern"
+        "save": "Quelle speichern",
+        "importBundle": "Paket importieren (.zip)"
       },
       "docs": {
         "open": "Dokumentation",

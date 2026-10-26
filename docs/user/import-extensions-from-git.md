@@ -7,6 +7,18 @@ exactly what you're installing, and updates never apply on their own.
 The surface lives at **Settings → Tools → Connectors → Import
 connectors from git sources** (admin).
 
+## Import a bundle (.zip)
+
+Handy when the bundle lives on your machine instead of a remote: the
+**Import bundle (.zip)** button takes a zip of the bundle (its
+`manifest.json` at the root or one level down), stages it locally as a
+pinned source, and runs the exact same flow — validate, consent,
+digest-pinned install. The zip is never executed directly, and "update"
+means uploading a new zip and consenting again (updates never apply on
+their own). Like local-path sources, zip import is a dev/test feature
+(production boots stay git-only). In the desktop shell the file dialog
+is the native picker.
+
 ## Add a source
 
 A source is a git repository plus which ref to track. In production the
