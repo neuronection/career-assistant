@@ -4,6 +4,27 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (source management consolidation, 2026-10-27)
+- **All configuration now lives on the source management page** — the
+  full bundle settings form (keywords, filters, pacing: pauses between
+  page loads and between batch queries) plus the query settings, saved
+  in place; the per-row Edit button is gone (Manage is the one entry).
+- **The query plan says WHEN, not just what**: each group shows its next
+  search estimate (rotation + batch + cadence), an explainer line, and a
+  coverage summary ("full pass ≈ Nh · groups · batch/sync · cadence")
+  with a warning when a full pass would take over a day.
+
+### Fixed (managed spawn digest, 2026-10-27)
+- **A managed spawn no longer poisons its own pin.** Running a managed
+  bundle creates `__pycache__` in the content dir — the content digest
+  now ignores interpreter/runtime byproducts (`__pycache__`, `.pyc`,
+  `.venv`, `node_modules`, …), so the second spawn stops failing with
+  "content no longer matches its pinned digest". Existing broken
+  installs self-heal on the next sync. The bundle's not-ready error also
+  got managed-aware guidance (swap the interpreter; never `uv sync`
+  inside the managed content dir).
+
+
 ### Added (source management page, 2026-10-27)
 - **A full management page per posting source** (`/sources/<id>`, *Manage*
   on each source row): overview (status, last/next run, ingested counts,

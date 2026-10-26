@@ -1454,7 +1454,12 @@
         "planLoading": "Loading the current plan…",
         "planPending": "The merged plan is computed on the first radar-mode sync — press Sync now on the source row, then reopen this dialog.",
         "manage": "Manage",
-        "planNotFound": "This source no longer exists."
+        "planNotFound": "This source no longer exists.",
+        "planExplainer": "Each sync searches ONE group and rotates through them — the estimate below shows when each is next searched.",
+        "planNextAt": "next ≈ {{time}}",
+        "planInSynces": "in {{count}} sync(es)",
+        "planFullPass": "Full pass ≈ {{hours}}h · {{groups}} groups · {{batch}}/sync · cadence every {{cadence}}min",
+        "planSlowHint": "A full pass takes over a day — raise Queries per sync or shorten the cadence (Settings → Automations)."
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -4020,6 +4025,8 @@
     "runError": "Error",
     "probeOk": "Test OK · {{items}} item(s) · {{ms}} ms",
     "probeFail": "Test failed — {{code}}: {{detail}}",
-    "loadFailed": "Could not load this source."
+    "loadFailed": "Could not load this source.",
+    "configSaved": "Configuration saved",
+    "saveConfig": "Save configuration"
   }
 }

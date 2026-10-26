@@ -1454,7 +1454,12 @@
         "planLoading": "Aktueller Plan wird geladen…",
         "planPending": "Der zusammengeführte Plan wird beim ersten Radar-Sync berechnet — klicken Sie auf „Jetzt synchronisieren“, und öffnen Sie diesen Dialog erneut.",
         "manage": "Verwalten",
-        "planNotFound": "Diese Quelle existiert nicht mehr."
+        "planNotFound": "Diese Quelle existiert nicht mehr.",
+        "planExplainer": "Jeder Sync durchsucht EINE Gruppe und wechselt reihum — die Schätzung unten zeigt, wann jede als Nächstes durchsucht wird.",
+        "planNextAt": "nächste ≈ {{time}}",
+        "planInSynces": "in {{count}} Sync(s)",
+        "planFullPass": "Vollständiger Durchlauf ≈ {{hours}} h · {{groups}} Gruppen · {{batch}}/Sync · Takt alle {{cadence}} Min.",
+        "planSlowHint": "Ein vollständiger Durchlauf dauert über einen Tag — erhöhen Sie die Abfragen pro Sync oder verkürzen Sie den Takt (Einstellungen → Automatisierungen)."
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -4019,6 +4024,8 @@
     "runError": "Fehler",
     "probeOk": "Test OK · {{items}} Eintrag(e) · {{ms}} ms",
     "probeFail": "Test fehlgeschlagen — {{code}}: {{detail}}",
-    "loadFailed": "Quelle konnte nicht geladen werden."
+    "loadFailed": "Quelle konnte nicht geladen werden.",
+    "configSaved": "Konfiguration gespeichert",
+    "saveConfig": "Konfiguration speichern"
   }
 }

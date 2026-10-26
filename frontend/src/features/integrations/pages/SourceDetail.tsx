@@ -4,6 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui";
 import {
+  IntegrationConfigForm,
+  parseIntegrationConfigSchema,
+} from "@/components/ui/integrations";
+import type {
+  IntegrationConfigSchema,
+  IntegrationConfigValues,
+} from "@/components/ui/integrations";
+import {
   deleteSource,
   fetchAdminSources,
   fetchSourceRuns,
@@ -45,6 +53,23 @@ export function SourceDetailPage() {
   const [notice, setNotice] = useState("");
   const [probeNote, setProbeNote] = useState("");
   const [cadenceEvery, setCadenceEvery] = useState<number | null>(null);
+  const [configValues, setConfigValues] = useState<IntegrationConfigValues>({});
+
+  useEffect(() => {
+    if (!source) return;
+    try {
+      const parsed = JSON.parse(String(source.config.options ?? "{}")) as Record<string, unknown>;
+      setConfigValues(
+        parsed && typeof parsed === "object"
+          ? (Object.fromEntries(
+              Object.entries(parsed).map(([key, value]) => [key, String(value)]),
+            ) as IntegrationConfigValues)
+          : {},
+      );
+    } catch {
+      setConfigValues({});
+    }
+  }, [source]);
 
   const reload = useCallback(async () => {
     const [rows, runRows] = await Promise.all([
@@ -238,47 +263,97 @@ export function SourceDetailPage() {
 
       {tab === "config" && source ? (
         <div className="space-y-4 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-muted)] p-4">
-          <div className="space-y-1">
-            <label className="block text-sm" htmlFor="src-query-mode">
-              {t("sourceDetail.queryMode")}
-            </label>
-            <select
-              id="src-query-mode"
-              className="w-full max-w-xs rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
-              value={source.query_mode}
-              onChange={(event) =>
-                void act(() =>
-                  updateSource(sourceId, {
-                    query_mode: event.target.value as "static" | "radar",
-                  }),
-                )
-              }
-            >
-              <option value="static">{t("sourceDetail.staticMode")}</option>
-              <option value="radar">{t("sourceDetail.radarMode")}</option>
-            </select>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="block text-sm" htmlFor="src-query-mode">
+                {t("sourceDetail.queryMode")}
+              </label>
+              <select
+                id="src-query-mode"
+                className="w-full rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
+                value={source.query_mode}
+                onChange={(event) =>
+                  void act(() =>
+                    updateSource(sourceId, {
+                      query_mode: event.target.value as "static" | "radar",
+                    }),
+                  )
+                }
+              >
+                <option value="static">{t("sourceDetail.staticMode")}</option>
+                <option value="radar">{t("sourceDetail.radarMode")}</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-sm" htmlFor="src-batch">
+                {t("sourceDetail.batch")}
+              </label>
+              <select
+                id="src-batch"
+                className="w-full rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
+                value={source.query_batch_size}
+                onChange={(event) =>
+                  void act(() =>
+                    updateSource(sourceId, { query_batch_size: Number(event.target.value) }),
+                  )
+                }
+              >
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+              </select>
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("toolsSettings.connectors.sources.queryBatchHint")}
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="block text-sm" htmlFor="src-batch">
-              {t("sourceDetail.batch")}
-            </label>
-            <select
-              id="src-batch"
-              className="w-full max-w-xs rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
-              value={source.query_batch_size}
-              onChange={(event) =>
-                void act(() => updateSource(sourceId, { query_batch_size: Number(event.target.value) }))
+          {source.tool_config_schema ? (
+            <IntegrationConfigForm
+              fields={parseIntegrationConfigSchema(
+                source.tool_config_schema as IntegrationConfigSchema,
+              )}
+              values={configValues}
+              onValuesChange={setConfigValues}
+              onSave={({ secrets }) =>
+                void (async () => {
+                  const packed = Object.fromEntries(
+                    Object.entries(configValues)
+                      .filter(([, value]) => value !== null && value !== undefined && value !== "")
+                      .map(([key, value]) => [
+                        key,
+                        Array.isArray(value) ? value.join(",") : value,
+                      ]),
+                  );
+                  await act(
+                    () =>
+                      updateSource(sourceId, {
+                        config: {
+                          ...(source.config as Record<string, unknown>),
+                          options: JSON.stringify(packed),
+                        },
+                        query_mode: source.query_mode,
+                        query_batch_size: source.query_batch_size,
+                      }),
+                    t("sourceDetail.configSaved"),
+                  );
+                  void secrets;
+                })()
               }
-            >
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-              <option value={3}>3</option>
-            </select>
-            <p className="text-xs text-[var(--as-muted-fg)]">
-              {t("toolsSettings.connectors.sources.queryBatchHint")}
-            </p>
-          </div>
-          <p className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.configHint")}</p>
+              busy={busy}
+              error={notice || null}
+              secretSlots={{}}
+              labels={{
+                submitLabel: t("sourceDetail.saveConfig"),
+                cancelLabel: t("toolsSettings.connectors.sources.cancel"),
+                secretSetLabel: t("toolsSettings.connectors.sources.secretSetShort"),
+                secretHintLabel: t("toolsSettings.connectors.sources.secretMissingShort"),
+                enumPlaceholder: t("toolsSettings.connectors.sources.select"),
+              }}
+              onCancel={() => reload()}
+            />
+          ) : (
+            <p className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.configHint")}</p>
+          )}
         </div>
       ) : null}
 

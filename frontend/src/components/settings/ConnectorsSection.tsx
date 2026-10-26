@@ -43,15 +43,6 @@ type SourceDraft = {
   query_batch_size: number;
 };
 
-function unpackToolOptions(raw: unknown): IntegrationConfigValues {
-  try {
-    const parsed = JSON.parse(String(raw ?? "{}"));
-    return parsed && typeof parsed === "object" ? (parsed as IntegrationConfigValues) : {};
-  } catch {
-    return {};
-  }
-}
-
 export function ConnectorsSection() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<WebSettings | null>(null);
@@ -394,23 +385,6 @@ function JobSourceConnectors() {
                 setBusy(false);
               }
             })();
-          }
-        }}
-        onConfigure={(instance) => {
-          const source = sources.find((row) => row.id === instance.id);
-          if (source) {
-            setDraft({
-              id: source.id,
-              key: source.key,
-              connector_key: source.connector_key,
-              config: source.managed
-                ? unpackToolOptions(source.config.options)
-                : Object.fromEntries(
-                    Object.entries(source.config).map(([key, value]) => [key, String(value)]),
-                  ),
-              query_mode: source.query_mode || "static",
-              query_batch_size: source.query_batch_size || 1,
-            });
           }
         }}
         renderInstanceActions={(instance) => {
