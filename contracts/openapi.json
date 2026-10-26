@@ -21147,6 +21147,62 @@
         "tags": [
           "admin"
         ]
+      },
+      "patch": {
+        "description": "Replace a source's descriptor (the edit flow) \u2014 validated exactly\nlike an add; the next sync re-resolves and reports drift normally.",
+        "operationId": "update_extension_source_api_v1_admin_extensions_sources__source_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Extension Source Api V1 Admin Extensions Sources  Source Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Extension Source",
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/api/v1/admin/extensions/sources/{source_id}/install": {

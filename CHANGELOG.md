@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (extension source add/edit UX, 2026-10-26)
+- **Add extension source is now a two-step wizard** (family kit
+  `AddIntegrationSourceDialog` `kind` mode): first choose the source type
+  as cards — *Git repository* or *Local folder* — then only that type's
+  fields appear (local prefills `branch`/`main`). Sources gained an
+  **Edit** button (pencil) that reopens the dialog prefilled and updates
+  the descriptor in place (`PATCH /admin/extensions/sources/{id}`) —
+  no more delete-and-re-add to fix a typo. The remove button semantics
+  are unchanged (installs park, data never deleted).
+
 ### Fixed (extension source add form, 2026-10-26)
 - **Adding an extension source no longer mis-submits refs.** The dialog
   validated value-less `tag-pattern`/`branch`/`commit-pin` strategies at

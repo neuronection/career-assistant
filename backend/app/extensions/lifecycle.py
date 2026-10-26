@@ -1063,6 +1063,46 @@ async def add_source(
     return _source_view(source, [])
 
 
+async def update_source(
+    db: AsyncSession,
+    source_id: uuid.UUID,
+    descriptor: dict,
+    *,
+    secrets: dict | None = None,
+) -> dict:
+    """Replace a source's descriptor (the edit flow): validated exactly
+    like an add and applied under the same writer lock. Pins are untouched
+    — the next sync re-resolves and reports drift the ordinary way."""
+    async with _exclusive(f"source:{source_id}"):
+        source = await db.get(ExtensionSource, source_id)
+        if source is None:
+            raise LifecycleError("not-found", "source not found")
+        parsed = validate_source_descriptor(descriptor)
+        clash = await db.execute(
+            select(ExtensionSource).where(
+                ExtensionSource.origin == parsed.origin, ExtensionSource.id != source.id
+            )
+        )
+        if clash.scalars().first() is not None:
+            raise LifecycleError("invalid", f"source already exists: {parsed.origin}")
+        source.origin = parsed.origin
+        source.kind = parsed.kind
+        source.descriptor = parsed.document
+        source.status = "stale"
+        source.error = ""
+        if secrets is not None:
+            from app.core.encryption import encrypt_secret
+
+            source.secrets = {
+                slot: encrypt_secret(str(value))
+                for slot, value in secrets.items()
+                if value and slot in {c.get("slot") for c in parsed.credential_slots}
+            }
+        await db.commit()
+        await db.refresh(source)
+        return _source_view(source, await _installs_for_source(db, source.id))
+
+
 async def remove_source(db: AsyncSession, source_id: uuid.UUID) -> dict:
     """Manual source removal: installs PARK (disabled + orphaned), data
     and consent records stay — removal never deletes data."""

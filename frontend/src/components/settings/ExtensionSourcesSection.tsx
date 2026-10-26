@@ -131,6 +131,7 @@ export function ExtensionSourcesSection() {
   const { t } = useTranslation();
   const [sources, setSources] = useState<ExtensionSourceView[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<extApi.ExtensionSourceView | null>(null);
   const [consentTarget, setConsentTarget] = useState<{
     sourceId: string;
     candidate: ExtensionCandidate;
@@ -164,6 +165,34 @@ export function ExtensionSourcesSection() {
     }
   };
 
+  const buildDescriptor = (draft: IntegrationSourceDraft): Record<string, unknown> => {
+    const local = draft.localPath.trim() !== "";
+    const descriptor: Record<string, unknown> = local
+      ? { local: { path: draft.localPath.trim() } }
+      : { url: draft.url.trim() };
+    descriptor.ref = {
+      strategy: draft.refStrategy,
+      ...(draft.refValue ? { value: draft.refValue } : {}),
+    };
+    if (draft.subpath.trim() !== "") descriptor.subpath = draft.subpath.trim();
+    if (draft.secretValue?.trim()) {
+      descriptor.credentials = [{ slot: draft.secretSlot ?? "repo-token" }];
+    }
+    return descriptor;
+  };
+
+  const toDraft = (source: extApi.ExtensionSourceView): Partial<IntegrationSourceDraft> => {
+    const d = source.descriptor;
+    return {
+      url: d.url ?? "",
+      localPath: d.local?.path ?? "",
+      refStrategy: d.ref?.strategy ?? "release-tag",
+      refValue: d.ref?.value ?? "",
+      subpath: d.subpath ?? "",
+      secretSlot: "repo-token",
+    };
+  };
+
   const addSource = async (draft: IntegrationSourceDraft) => {
     const local = draft.localPath.trim() !== "";
     const isGit = draft.url.trim().startsWith("https://");
@@ -179,18 +208,8 @@ export function ExtensionSourcesSection() {
       );
       return;
     }
-    const descriptor: Record<string, unknown> = local
-      ? { local: { path: draft.localPath.trim() } }
-      : { url: draft.url.trim() };
-    descriptor.ref = {
-      strategy: draft.refStrategy,
-      ...(draft.refValue ? { value: draft.refValue } : {}),
-    };
-    if (draft.subpath.trim() !== "") descriptor.subpath = draft.subpath.trim();
+    const descriptor = buildDescriptor(draft);
     const token = draft.secretValue?.trim();
-    if (token) {
-      descriptor.credentials = [{ slot: draft.secretSlot ?? "repo-token" }];
-    }
     await run(async () => {
       const created = await extApi.addExtensionSource({
         descriptor,
@@ -199,6 +218,20 @@ export function ExtensionSourcesSection() {
       await extApi.syncExtensionSource(created.id);
     });
     setAddOpen(false);
+  };
+
+  const editSource = async (draft: IntegrationSourceDraft) => {
+    if (!editTarget) return;
+    const descriptor = buildDescriptor(draft);
+    const token = draft.secretValue?.trim();
+    await run(async () => {
+      await extApi.updateExtensionSource(editTarget.id, {
+        descriptor,
+        secrets: token ? { [draft.secretSlot ?? "repo-token"]: token } : undefined,
+      });
+      await extApi.syncExtensionSource(editTarget.id);
+    });
+    setEditTarget(null);
   };
 
   const install = async () => {
@@ -234,6 +267,7 @@ export function ExtensionSourcesSection() {
           emptyLabel: t("toolsSettings.connectors.extSources.empty"),
           checkLabel: t("toolsSettings.connectors.extSources.check"),
           removeSourceLabel: t("toolsSettings.connectors.extSources.removeSource"),
+          editSourceLabel: t("toolsSettings.connectors.extSources.editSource"),
           checkAriaLabel: t("toolsSettings.connectors.extSources.check"),
           removeSourceAriaLabel: t("toolsSettings.connectors.extSources.removeSource"),
           gitopsSourceLabel: t("toolsSettings.connectors.extSources.gitops"),
@@ -255,6 +289,13 @@ export function ExtensionSourcesSection() {
             "needs-config": t("toolsSettings.connectors.extSources.needsConfig"),
             "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
           },
+        }}
+        onEditSource={(sourceId: string) => {
+          const source = sources.find((row) => row.id === sourceId);
+          if (source) {
+            setAddOpen(false);
+            setEditTarget(source);
+          }
         }}
         onCheck={(sourceId) => {
           setSyncingId(sourceId);
@@ -306,23 +347,40 @@ export function ExtensionSourcesSection() {
       </button>
 
       <AddIntegrationSourceDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        onSubmit={(draft) => void addSource(draft)}
+        key={editTarget?.id ?? "add"}
+        open={addOpen || editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddOpen(false);
+            setEditTarget(null);
+          }
+        }}
+        onSubmit={(draft) => void (editTarget ? editSource(draft) : addSource(draft))}
         busy={busy}
         secretSlot="repo-token"
+        kind={editTarget ? (editTarget.kind === "local" ? "local" : "git") : "chooser"}
+        initial={editTarget ? toDraft(editTarget) : undefined}
         labels={{
-          title: t("toolsSettings.connectors.extSources.addTitle"),
+          title: editTarget
+            ? t("toolsSettings.connectors.extSources.editTitle")
+            : t("toolsSettings.connectors.extSources.addTitle"),
           urlLabel: t("toolsSettings.connectors.extSources.url"),
           localPathLabel: t("toolsSettings.connectors.extSources.localPath"),
           refStrategyLabel: t("toolsSettings.connectors.extSources.strategy"),
           refValueLabel: t("toolsSettings.connectors.extSources.refValue"),
           subpathLabel: t("toolsSettings.connectors.extSources.subpath"),
           secretLabel: t("toolsSettings.connectors.extSources.token"),
-          submitLabel: t("toolsSettings.connectors.extSources.add"),
+          submitLabel: editTarget
+            ? t("toolsSettings.connectors.extSources.save")
+            : t("toolsSettings.connectors.extSources.add"),
           cancelLabel: t("toolsSettings.connectors.sources.cancel"),
           closeLabel: t("toolsSettings.connectors.extSources.close"),
           submittingLabel: t("toolsSettings.connectors.extSources.submitting"),
+          kindPrompt: t("toolsSettings.connectors.extSources.kindPrompt"),
+          gitKindLabel: t("toolsSettings.connectors.extSources.gitKind"),
+          gitKindHint: t("toolsSettings.connectors.extSources.gitKindHint"),
+          localKindLabel: t("toolsSettings.connectors.extSources.localKind"),
+          localKindHint: t("toolsSettings.connectors.extSources.localKindHint"),
         }}
       />
 

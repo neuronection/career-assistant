@@ -858,6 +858,25 @@ async def add_extension_source(payload: dict, db: AsyncSession = Depends(get_db)
         raise _lifecycle_error(exc) from exc
 
 
+@router.patch("/extensions/sources/{source_id}")
+async def update_extension_source(
+    source_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Replace a source's descriptor (the edit flow) — validated exactly
+    like an add; the next sync re-resolves and reports drift normally."""
+    from app.extensions.lifecycle import LifecycleError, update_source
+
+    try:
+        return await update_source(
+            db,
+            source_id,
+            payload.get("descriptor") or {},
+            secrets=payload.get("secrets"),
+        )
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
 @router.delete("/extensions/sources/{source_id}")
 async def remove_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Remove a source: installs park (disabled, data intact, tombstone-

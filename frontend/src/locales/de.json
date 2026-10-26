@@ -1474,7 +1474,15 @@
         "decline": "Ablehnen",
         "close": "Schließen",
         "submitting": "Abrufen und validieren...",
-        "addTitle": "Erweiterte Quelle hinzufügen"
+        "addTitle": "Erweiterte Quelle hinzufügen",
+        "kindPrompt": "Woraus importieren Sie?",
+        "gitKind": "Git-Repository",
+        "gitKindHint": "Eine https-Git-Quelle — festgelegte Ref, Digest-geprüft",
+        "localKind": "Ordner",
+        "localKindHint": "Ein lokaler Git-Checkout (nur Dev/Test, freigegebene Wurzeln)",
+        "editTitle": "Erweiterungsquelle bearbeiten",
+        "editSource": "Bearbeiten",
+        "save": "Quelle speichern"
       },
       "docs": {
         "open": "Dokumentation",

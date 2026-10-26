@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "project": "career",
+  "updated": "2026-10-26",
+  "capabilities": [
+    {
+      "id": "job-catalog",
+      "verb": "Discover careers you didn't know exist",
+      "summary": "A structured job catalog you browse as a family tree and a typed relation graph, extendable with AI-generated careers that map onto the same taxonomy.",
+      "category": "discover",
+      "status": "shipped",
+      "proofs": [
+        "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
+        "Rich structured attributes per job: skills, salary bands, demand outlook, education",
+        "AI-generated jobs map onto the existing taxonomy — no free-text orphans"
+      ],
+      "links": [
+        { "kind": "guide", "href": "docs/career/user/explore-the-catalog" }
+      ],
+      "shot": "images/catalog-desktop.png",
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 10
+    },
+    {
+      "id": "profile-matching",
+      "verb": "See which jobs fit you — and why",
+      "summary": "Every job gets an AI score with positives, negatives and missing prerequisites, your own score sits beside it, and a deterministic fit engine shows the per-dimension breakdown.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "AI scores 0–10 with structured rationale: positives, negatives, missing prerequisites",
+        "The deterministic fit engine scores without any AI — per-dimension and re-weightable",
+        "Compare 2–4 jobs side by side, per dimension, in the compare tray"
+      ],
+      "links": [
+        { "kind": "guide", "href": "docs/career/user/matching-and-rankings" }
+      ],
+      "shot": "images/rankings-desktop.png",
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 20
+    },
+    {
+      "id": "cv-studio",
+      "verb": "Turn your profile into a tailored CV",
+      "summary": "CV Studio builds CVs from templates, from an uploaded CV or one-shot from your profile, with a versioned template bank, design-token editor, ATS lint and five export formats.",
+      "category": "automate",
+      "status": "shipped",
+      "proofs": [
+        "Exports to PDF, DOCX, Markdown, JSON and ATS text; the PDF is the page-count truth",
+        "Versions carry diff, image-diff and one-click restore for every AI edit",
+        "Live ATS lint and a page-count meter run inside the builder"
+      ],
+      "metric": { "value": "5", "label": "export formats" },
+      "links": [
+        { "kind": "guide", "href": "docs/career/user/cv-studio" },
+        { "kind": "source", "href": "https://github.com/neuronection/career-assistant", "label": "GitHub" }
+      ],
+      "shot": "images/cv-studio-desktop.png",
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 30
+    },
+    {
+      "id": "live-postings",
+      "verb": "Find openings on live job boards that match your profile",
+      "summary": "Connector engines pull live postings from ATS APIs, JSON-LD, RSS, CSV and three free job boards, a deep extraction pass turns them into auditable data, and Career Autopilot hunts a stated goal on cadence.",
+      "category": "integrate",
+      "status": "beta",
+      "links": [
+        { "kind": "guide", "href": "docs/career/user/postings-and-search" },
+        { "kind": "guide", "href": "docs/career/user/career-autopilot" }
+      ],
+      "shot": "images/postings-desktop.png",
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 40
+    },
+    {
+      "id": "radar-sourcing",
+      "verb": "Tell your radar what you want — sources go search for it",
+      "summary": "Posting sources can follow your job radar instead of their own static config: one focused role-group query per sync, rotating — traffic stays constant however many keywords you set.",
+      "category": "integrate",
+      "status": "shipped",
+      "proofs": [
+        "A source marked Follow my radar takes keywords and location from the Job Radar; the form shows the effective query and rotation position",
+        "Role groups rotate round-robin — one focused search per sync; optional batches of 2-3 run strictly sequential with jittered pauses",
+        "Keywords are grouped by an AI curator into role groups (deterministic auto-merge fallback; un-curated plans upgrade when AI is configured)",
+        "Every searched term maps back to the radars that asked for it (provenance kept in the query plan)"
+      ],
+      "links": [
+        { "kind": "guide", "href": "docs/career/user/add-a-job-source" }
+      ],
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 45
+    },
+    {
+      "id": "university-pathways",
+      "verb": "Map the degree that leads to your target job",
+      "summary": "Upload your university's admission PDF and a parsing pipeline drafts universities, departments and yearly baselines for your review; approved departments link to jobs through pathway rows.",
+      "category": "discover",
+      "status": "shipped",
+      "proofs": [
+        "Parsed admission data lands in the catalog only after you review and approve it",
+        "Departments link to jobs with relevance, required subjects and salary bands"
+      ],
+      "links": [
+        { "kind": "guide", "href": "docs/career/user/universities" }
+      ],
+      "shot": "images/universities-desktop.png",
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 50
+    },
+    {
+      "id": "connector-sdk",
+      "verb": "Extend the app with your own job sources",
+      "summary": "The connector SDK ships job sources as versioned, consent-gated extensions with trust tiers and sandboxing, and an MCP server exposes read-only career tools to external clients.",
+      "category": "developer",
+      "audience": "dev",
+      "status": "shipped",
+      "proofs": [
+        "Imported extensions run out-of-process: sandboxed subprocess or external MCP script",
+        "Installs are consent-gated and digest-pinned — they never auto-update",
+        "MCP clients read your career data through a locally generated, rotatable token",
+        "An imported bundle's own settings form drives its source config — import, configure, enable/disable",
+        "When a source's page layout drifts, ingestion degrades to id+text rows the deep-extraction pass structures — never junk, never a crash"
+      ],
+      "links": [
+        { "kind": "guide", "href": "https://github.com/neuronection/career-assistant/tree/main/docs/dev/sdk", "label": "Connector SDK docs" },
+        { "kind": "source", "href": "https://github.com/neuronection/career-assistant", "label": "GitHub" }
+      ],
+      "platforms": ["selfhosted", "web", "desktop"],
+      "order": 60
+    }
+  ],
+  "matrix": [
+    { "row": "offline", "value": false, "note": "core runs local; AI needs a provider (Ollama works)" },
+    { "row": "self-host", "value": "Docker", "note": "prod + standalone compose; bare metal" },
+    { "row": "extension-sdk", "value": "connector SDK", "note": "T0–T3 trust tiers; MCP in and out" },
+    { "row": "platforms", "value": "Linux, Windows, Docker, web" },
+    { "row": "license", "value": "Apache-2.0" }
+  ]
+}

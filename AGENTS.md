@@ -160,6 +160,8 @@ regenerating a baseline, drop+recreate instead).
   only enqueues jobs; notifications always emit through
   `NotificationService.emit` (single funnel; replaces storage,
   keeps the funnel).
+- **A shipped feature updates `docs/capabilities.json` (family contract:
+  `contracts/product-capabilities.schema.json`) in the same change.**
 - `CAREER_SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
   tests; drive `SchedulerService(db).tick()` directly.
 - PDF engine (plan 76): `requirements-pdf.txt` + `playwright install

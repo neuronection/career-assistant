@@ -130,6 +130,17 @@ export async function addExtensionSource(payload: {
   return response.data;
 }
 
+export async function updateExtensionSource(
+  id: string,
+  payload: {
+    descriptor: Record<string, unknown>;
+    secrets?: Record<string, string>;
+  },
+): Promise<ExtensionSourceView> {
+  const response = await api.patch(`/admin/extensions/sources/${id}`, payload);
+  return response.data;
+}
+
 export async function removeExtensionSource(id: string): Promise<void> {
   await api.delete(`/admin/extensions/sources/${id}`);
 }

@@ -257,6 +257,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     mocked.syncExtensionSource.mockResolvedValue({ ok: true });
     renderSection();
     await userEvent.click(await screen.findByTestId("add-extension-source"));
+    await userEvent.click(await screen.findByTestId("integration-source-kind-git"));
     await userEvent.type(await screen.findByLabelText("https git URL"), "https://git.example.com/ext/repo");
     await userEvent.selectOptions(screen.getByLabelText("Ref strategy"), "tag-pattern");
     await userEvent.type(
