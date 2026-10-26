@@ -66,6 +66,10 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "query_mode IN ('static', 'radar')",
             name="query_mode_allowed",
         ),
+        CheckConstraint(
+            "query_batch_size BETWEEN 1 AND 3",
+            name="query_batch_size_allowed",
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
@@ -106,6 +110,15 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # curated, computed_at, radar_fp} — rebuilt on radar change, read by
     # sync as the call-time query overlay.
     query_cache: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    # How many rotating role groups one sync searches (plan 130b batch
+    # policy): 1 = today's single focused query; executed strictly
+    # sequentially with a jittered interval the connector enforces.
+    query_batch_size: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 

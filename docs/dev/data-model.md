@@ -134,6 +134,11 @@ deletion).
 
 ### Migration notes
 
+- **0060** — plan 130b: `job_sources` gains `query_batch_size`
+  (INTEGER NOT NULL DEFAULT 1, CHECK `query_batch_size_allowed`
+  BETWEEN 1 AND 3) — how many rotating role groups one radar-mode sync
+  searches; executed strictly sequentially. Covered by
+  `tests/test_query_mode.py` and the head assertions.
 - **0059** — plan 130: `job_sources` gains `query_mode`
   (`static` | `radar`, default `static` = today's behavior, CHECK
   `query_mode_allowed`) and the nullable `query_cache` JSONB (the merged

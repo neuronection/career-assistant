@@ -78,6 +78,12 @@ comes from:
   traffic. The form shows the current query and rotation position
   (e.g. *Searching 2/3: devops @ Berlin, Germany*). The switch only
   appears on connectors that support dynamic queries.
+- **Queries per sync** (1–3, shown in radar mode) — how many rotating
+  groups one sync searches. **1 is the ban-safe default**; each extra
+  query runs strictly sequentially with a jittered pause in between
+  (never in parallel), and the whole run stays inside the source's time
+  budget. Between syncs the app's regular source schedule paces things
+  further — batching never means hammering.
 
 MCP-script sources also have a **Tool options** field (JSON object) for
 tool-level settings — the place keywords/location live in static mode —

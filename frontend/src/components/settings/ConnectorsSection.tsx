@@ -37,6 +37,7 @@ type SourceDraft = {
   connector_key: string;
   config: IntegrationConfigValues;
   query_mode: string;
+  query_batch_size: number;
 };
 
 export function ConnectorsSection() {
@@ -166,12 +167,14 @@ function JobSourceConnectors() {
             .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
         ) as Record<string, string | number | boolean>,
         query_mode: form.query_mode,
+        query_batch_size: form.query_batch_size,
         secrets,
       };
       if (form.id) {
         await sourcesApi.updateSource(form.id, {
           config: payload.config,
           query_mode: form.query_mode,
+          query_batch_size: form.query_batch_size,
           secrets,
         });
       } else {
@@ -358,6 +361,7 @@ function JobSourceConnectors() {
                 Object.entries(source.config).map(([key, value]) => [key, String(value)]),
               ),
               query_mode: source.query_mode || "static",
+              query_batch_size: source.query_batch_size || 1,
             });
           }
         }}
@@ -440,6 +444,7 @@ function JobSourceConnectors() {
               connector_key: catalog[0]?.key ?? "",
               config: {},
               query_mode: "static",
+              query_batch_size: 1,
             })
           }
           data-testid="add-job-source"
@@ -495,19 +500,42 @@ function JobSourceConnectors() {
                 </option>
               </select>
               {draft.query_mode === "radar" ? (
-                <p className="text-xs text-slate-600" data-testid="job-source-query-info">
-                  {t("toolsSettings.connectors.sources.queryModeRadarHint")}
-                  {(() => {
-                    const existing = sources.find((row) => row.id === draft.id);
-                    const info = existing?.query_info;
-                    return info?.keywords
-                      ? ` ${t("toolsSettings.connectors.sources.queryNext", {
-                          rotation: info.rotation,
-                          keywords: info.keywords,
-                        })}`
-                      : "";
-                  })()}
-                </p>
+                <>
+                  <p className="text-xs text-slate-600" data-testid="job-source-query-info">
+                    {t("toolsSettings.connectors.sources.queryModeRadarHint")}
+                    {(() => {
+                      const existing = sources.find((row) => row.id === draft.id);
+                      const info = existing?.query_info;
+                      return info?.keywords
+                        ? ` ${t("toolsSettings.connectors.sources.queryNext", {
+                            rotation: info.rotation,
+                            keywords: info.keywords,
+                          })}`
+                        : "";
+                    })()}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-sm" htmlFor="job-source-batch">
+                      {t("toolsSettings.connectors.sources.queryBatch")}
+                    </label>
+                    <select
+                      id="job-source-batch"
+                      className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+                      value={draft.query_batch_size}
+                      aria-label={t("toolsSettings.connectors.sources.queryBatch")}
+                      onChange={(event) =>
+                        setDraft({ ...draft, query_batch_size: Number(event.target.value) })
+                      }
+                    >
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                    </select>
+                    <span className="text-xs text-slate-600">
+                      {t("toolsSettings.connectors.sources.queryBatchHint")}
+                    </span>
+                  </div>
+                </>
               ) : null}
             </div>
           ) : null}

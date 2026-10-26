@@ -1400,6 +1400,8 @@
         "queryModeRadar": "Meinem Job-Radar folgen",
         "queryModeRadarHint": "Pro Sync eine fokussierte Rollengruppe, rotierend — das Aufkommen bleibt konstant, egal wie viele Stichwörter Ihr Radar hat.",
         "queryNext": "Suche {{rotation}}: {{keywords}}",
+        "queryBatch": "Abfragen pro Sync",
+        "queryBatchHint": "1 ist der sichere Standard — jede zusätzliche Abfrage läuft sequenziell, mit jitteriger Pause dazwischen.",
         "needsSecret": "benötigt Geheimnis",
         "enabledAria": "Quelle {{key}} aktivieren",
         "test": "Test",

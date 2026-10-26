@@ -1400,6 +1400,8 @@
     "queryModeRadar": "Follow my job radar",
     "queryModeRadarHint": "One focused role group per sync, rotating — traffic stays constant however many keywords your radar has.",
     "queryNext": "Searching {{rotation}}: {{keywords}}",
+    "queryBatch": "Queries per sync",
+    "queryBatchHint": "1 is the safe default — each extra query runs sequentially, with a jittered pause in between.",
         "needsSecret": "needs secret",
         "enabledAria": "Toggle source {{key}}",
         "test": "Test",

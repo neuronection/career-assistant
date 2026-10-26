@@ -523,6 +523,7 @@ async def _source_view(db: AsyncSession, source) -> dict:
         "schedule_kind": source.schedule_kind,
         "config": config,
         "query_mode": source.query_mode,
+        "query_batch_size": source.query_batch_size,
         "query_info": _query_info(source),
         "secret_hints": secret_hints,
         "enabled": source.enabled,
@@ -579,6 +580,9 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
     query_mode = str(payload.get("query_mode") or "static").strip()
     if query_mode not in {"static", "radar"}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {query_mode}")
+    query_batch_size = int(payload.get("query_batch_size") or 1)
+    if query_batch_size not in (1, 2, 3):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 3")
     if kind not in ("posting", "market"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind: {kind}")
     config = payload.get("config") or {}
@@ -599,6 +603,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
         kind=kind,
         config=validated,
         query_mode=query_mode,
+        query_batch_size=query_batch_size,
         secrets={
             slot: encrypt_secret(str(value))
             for slot, value in (payload.get("secrets") or {}).items()
@@ -651,6 +656,13 @@ async def update_posting_source(
         if mode != source.query_mode:
             source.query_mode = mode
             source.query_cache = None
+    if "query_batch_size" in payload and payload["query_batch_size"] is not None:
+        batch = int(payload["query_batch_size"])
+        if batch not in (1, 2, 3):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 3"
+            )
+        source.query_batch_size = batch
     if "enabled" in payload and payload["enabled"] is not None:
         source.enabled = bool(payload["enabled"])
     if "paused" in payload and payload["paused"] is not None:

@@ -16,8 +16,12 @@ All notable changes to **Career Assistant** are documented here.
   near-duplicate terms into role groups — and without one, a
   deterministic auto-merge groups near-duplicates the same way, with
   un-curated plans quietly upgrading the moment AI is available.
-  MCP-script sources also gain a **Tool options** JSON field so
-  tool-level settings no longer need to ride the command line.
+  **Queries per sync** (1–3, default 1) sizes a sequential batch of
+  rotating groups — each extra query runs one after another with a
+  jittered pause in between, never in parallel, and the ban-safe
+  defaults hold the traffic line. MCP-script sources also gain a
+  **Tool options** JSON field so tool-level settings no longer need to
+  ride the command line.
 
 ### Changed (provider settings adoption, 2026-10-26)
 - **Settings → Tools → Web search renders through the family

@@ -25,6 +25,7 @@ export type PostingSource = {
   schedule_kind: string | null;
   config: Record<string, string | number | boolean>;
   query_mode: string;
+  query_batch_size: number;
   query_info: SourceQueryInfo;
   secret_hints: Record<string, SecretHint>;
   enabled: boolean;
@@ -122,6 +123,7 @@ export async function createSource(payload: {
   connector_key: string;
   config: Record<string, string | number | boolean>;
   query_mode?: string;
+  query_batch_size?: number;
   secrets?: Record<string, string>;
 }): Promise<{ id: string; key: string; connector_key: string }> {
   const response = await api.post("/admin/postings/sources", payload);
@@ -133,6 +135,7 @@ export async function updateSource(
   payload: {
     config?: Record<string, string | number | boolean>;
     query_mode?: string;
+    query_batch_size?: number;
     secrets?: Record<string, string>;
     enabled?: boolean;
     paused?: boolean;

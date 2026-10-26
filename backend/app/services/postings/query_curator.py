@@ -28,6 +28,7 @@ from app.services.postings.radar_service import or_keywords, radar_groups
 
 MAX_GROUPS = 6
 MAX_TERMS_PER_GROUP = 3
+MAX_BATCH = 3
 
 
 class CuratedGroup(BaseModel):
@@ -193,25 +194,37 @@ async def ensure_query_cache(db: AsyncSession, source: JobSource) -> dict:
     return cache
 
 
-def take_rotation(cache: dict) -> dict:
-    """The next focused query for one sync: one role group, rotated."""
+def take_rotation(cache: dict, count: int = 1) -> dict:
+    """The next focused queries for one sync: ``count`` role groups in
+    rotation order (1 = the single-query behavior). The connector runs
+    them strictly sequentially — batching sizes the batch, never the
+    parallelism."""
     groups = cache.get("groups") or []
     if not groups:
         return {}
+    count = max(1, min(int(count or 1), len(groups), MAX_BATCH))
     index = int(cache.get("rotation_index") or 0) % len(groups)
-    group = groups[index] or {}
-    keywords = str(group.get("keywords") or "").strip()
+    picked = [groups[(index + offset) % len(groups)] for offset in range(count)]
+    start = (index % len(groups)) + 1
+    end = ((index + count - 1) % len(groups)) + 1
+    location = str(cache.get("location") or "").strip()
     return {
-        "keywords": keywords,
-        "location": str(cache.get("location") or "").strip(),
-        "group_terms": list(group.get("terms") or []),
-        "rotation": f"{index + 1}/{len(groups)}",
+        "groups": [
+            {
+                "keywords": str(group.get("keywords") or "").strip(),
+                "location": location,
+            }
+            for group in picked
+        ],
+        "group_terms": [list(group.get("terms") or []) for group in picked],
+        "rotation": f"{start}-{end}/{len(groups)}" if count > 1 else f"{start}/{len(groups)}",
     }
 
 
-def advance_rotation(cache: dict) -> dict:
+def advance_rotation(cache: dict, count: int = 1) -> dict:
     groups = cache.get("groups") or []
     if not groups:
         return cache
-    cache["rotation_index"] = (int(cache.get("rotation_index") or 0) + 1) % len(groups)
+    count = max(1, min(int(count or 1), len(groups), MAX_BATCH))
+    cache["rotation_index"] = (int(cache.get("rotation_index") or 0) + count) % len(groups)
     return cache

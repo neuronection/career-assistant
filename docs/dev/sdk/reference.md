@@ -177,15 +177,18 @@ is switched to `query_mode='radar'`, `sync_source` merges one call-time
 overlay into the config it hands to `fetch()`:
 
 ```json
-{"query": {"keywords": "<one rotated role group, OR-joined>", "location": "<string>"}}
+{"query": {"groups": [{"keywords": "<one rotated role group, OR-joined>", "location": "<string>"}], "location": "<string>"}}
 ```
 
 Contract: the overlay is **call-time only** (never stored; `config` is
-not mutated), exactly one query per sync (role groups rotate round-robin
-across syncs — radar size never multiplies requests), the `keywords`
-value is a focused OR string of one role group, and `location` overrides
-on presence (an empty string clears). Connectors without the capability
-never see the overlay. T3 scripts receive it inside the tool's `config`
+not mutated), a batch of up to 3 focused groups per sync (`job_sources.query_batch_size`,
+default 1 — radar size never multiplies requests beyond the batch), the
+groups are executed **strictly sequentially** by the connector (the
+batch sizes the run, never the parallelism), each group's `keywords` is
+a focused OR string of one role group, and each group's `location`
+overrides on presence (an empty string clears). Connectors without the
+capability never see the overlay. The rotation cursor advances by the
+batch size. T3 scripts receive it inside the tool's `config`
 argument alongside `config.options` (the tool-level settings
 passthrough — a JSON-object string, since the manifest configSchema has
 no object type). The merged-query artifact (role groups, term→radar

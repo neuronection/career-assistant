@@ -101,20 +101,21 @@ async def _query_overlay(db: AsyncSession, source: JobSource, connector) -> tupl
     from app.services.postings import query_curator
 
     cache = await query_curator.ensure_query_cache(db, source)
-    query = query_curator.take_rotation(cache)
-    if not query.get("keywords"):
+    query = query_curator.take_rotation(cache, source.query_batch_size)
+    if not query.get("groups"):
         return None, "radar has no keywords yet — nothing to search"
-    query_curator.advance_rotation(cache)
+    query_curator.advance_rotation(cache, source.query_batch_size)
     source.query_cache = cache
     flag_modified(source, "query_cache")
     await db.commit()
     call_config["query"] = {
-        "keywords": query["keywords"],
-        "location": query["location"],
+        "groups": query["groups"],
+        "location": query["groups"][0].get("location", ""),
     }
-    note = f"searching radar group {query['rotation']}: {query['keywords']}"
-    if query["location"]:
-        note += f" @ {query['location']}"
+    searched = " | ".join(group["keywords"] for group in query["groups"])
+    note = f"searching radar group(s) {query['rotation']}: {searched}"
+    if query["groups"][0].get("location"):
+        note += f" @ {query['groups'][0]['location']}"
     return call_config, note
 
 

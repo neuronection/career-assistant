@@ -61,14 +61,25 @@ def test_radar_groups_location_precedence():
 def test_rotation_round_robin():
     artifact = query_curator.build_artifact([["a"], ["b"], ["c"]], {}, curated=False)
     first = query_curator.take_rotation(artifact)
-    assert first["keywords"] == "a" and first["rotation"] == "1/3"
+    assert [g["keywords"] for g in first["groups"]] == ["a"]
+    assert first["rotation"] == "1/3"
     query_curator.advance_rotation(artifact)
-    second = query_curator.take_rotation(artifact)
-    assert second["keywords"] == "b" and second["rotation"] == "2/3"
-    query_curator.advance_rotation(artifact)
-    query_curator.advance_rotation(artifact)
-    assert query_curator.take_rotation(artifact)["keywords"] == "a"
+    second = query_curator.take_rotation(artifact, 2)
+    assert [g["keywords"] for g in second["groups"]] == ["b", "c"]
+    assert second["rotation"] == "2-3/3"
+    query_curator.advance_rotation(artifact, 2)
+    wrapped = query_curator.take_rotation(artifact)
+    assert wrapped["rotation"] == "1/3", "the cursor advanced by the batch and wraps"
+    assert [g["keywords"] for g in wrapped["groups"]] == ["a"]
     assert query_curator.take_rotation({"groups": []}) == {}
+
+
+def test_rotation_batch_wraps_and_caps():
+    artifact = query_curator.build_artifact([["a"], ["b"], ["c"]], {}, curated=False)
+    query_curator.advance_rotation(artifact, 2)
+    wrapped = query_curator.take_rotation(artifact, 3)
+    assert [g["keywords"] for g in wrapped["groups"]] == ["c", "a", "b"]
+    assert len(query_curator.take_rotation(artifact, 9)["groups"]) == query_curator.MAX_BATCH
 
 
 # ------------------------------------------------------------- Layer 2
@@ -182,14 +193,52 @@ async def test_sync_overlay_follows_radar_rotation(
     DynamicSynthetic.last_config = {}
     report = await sync_source(db, src)
     assert report["synced"] == 1
-    assert (DynamicSynthetic.last_config.get("query") or {})["keywords"] == '"ai engineer"'
-    assert report["note"].startswith("searching radar group 1/2")
+    query = DynamicSynthetic.last_config.get("query") or {}
+    assert [g["keywords"] for g in query.get("groups", [])] == ['"ai engineer"']
+    assert report["note"].startswith("searching radar group(s) 1/2")
 
     DynamicSynthetic.last_config = {}
     report = await sync_source(db, src)
     assert report["synced"] == 1
-    assert (DynamicSynthetic.last_config.get("query") or {})["keywords"] == "devops"
-    assert report["note"].startswith("searching radar group 2/2")
+    query = DynamicSynthetic.last_config.get("query") or {}
+    assert [g["keywords"] for g in query.get("groups", [])] == ["devops"]
+    assert report["note"].startswith("searching radar group(s) 2/2")
+
+
+async def test_batch_size_sends_that_many_groups(
+    db, dynamic_connector, client, auth_headers, seeded_catalog
+):
+    src = await _radar_source(db, "dyn-batch", "radar")
+    put = await client.put(
+        "/api/v1/me/job-radar",
+        json={
+            "keywords": ["ai engineer", "devops", "sre"],
+            "cadence": "daily",
+            "enabled": True,
+        },
+        headers=auth_headers,
+    )
+    assert put.status_code == 200, put.text
+    updated = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"query_batch_size": 2},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["query_batch_size"] == 2
+    await db.refresh(src)
+
+    report = await sync_source(db, src)
+    assert report["synced"] == 1
+    query = DynamicSynthetic.last_config.get("query") or {}
+    assert [g["keywords"] for g in query.get("groups", [])] == ['"ai engineer"', "devops"]
+    assert report["note"].startswith("searching radar group(s) 1-2/3")
+
+    report = await sync_source(db, src)
+    query = DynamicSynthetic.last_config.get("query") or {}
+    assert [g["keywords"] for g in query.get("groups", [])] == ["sre", '"ai engineer"'], (
+        "rotation wraps after advancing by the batch size"
+    )
 
 
 async def test_sync_overlay_static_mode_passes_no_query(db, dynamic_connector):
@@ -226,7 +275,8 @@ async def test_traffic_law_one_fetch_and_one_query_per_sync(
     await sync_source(db, src)
     assert DynamicSynthetic.calls == calls_before + 1, "exactly ONE fetch call per sync"
     query = DynamicSynthetic.last_config.get("query") or {}
-    assert query.get("keywords"), "one query dict, never one call per keyword"
+    groups = query.get("groups") or []
+    assert len(groups) == 1, "default batch = one focused group, never one call per keyword"
 
     await sync_source(db, src)
     assert DynamicSynthetic.calls == calls_before + 2
