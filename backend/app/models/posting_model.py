@@ -28,7 +28,7 @@ from app.models.base import (
     TZDateTime,
     UUIDPrimaryKeyMixin,
 )
-from app.models.enums import HealthStatus, SourceKind
+from app.models.enums import HealthStatus, SourceKind, SourceQueryMode
 
 # Crockford base32 (no I, L, O, U) — unambiguous when read aloud or typed.
 REF_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -62,6 +62,10 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "last_status IN ('ok', 'degraded', 'failed')",
             name="last_status_allowed",
         ),
+        CheckConstraint(
+            "query_mode IN ('static', 'radar')",
+            name="query_mode_allowed",
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
@@ -90,6 +94,18 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Connector sync state: etag / last_modified / cursor / watermark.
     sync_state: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    # Where the search query comes from (plan 130): static config vs the
+    # merged job-radar overlay.
+    query_mode: Mapped[str] = mapped_column(
+        String(12),
+        nullable=False,
+        default=SourceQueryMode.STATIC.value,
+        server_default=SourceQueryMode.STATIC.value,
+    )
+    # The merged-query artifact (plan 130): {query, provenance, radar_ids,
+    # curated, computed_at, radar_fp} — rebuilt on radar change, read by
+    # sync as the call-time query overlay.
+    query_cache: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 

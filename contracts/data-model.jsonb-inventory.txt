@@ -10,6 +10,7 @@ econ_series.provider_dims :: keep-open provider-specific dimension codes
 econ_observations.evidence :: keep-open verbatim span + locator + content hash
 scenarios.assumptions :: keep-open per-scenario assumption document
 scenarios.indicators :: keep-open observable indicator refs + thresholds
+job_sources.query_cache :: keep-open merged radar query artifact (role groups, provenance, rotation cursor)
 claims.evidence_refs :: keep-open references to series/observation rows
 company_profiles.financials :: typed-out FinancialClaim rows (kind/amount/currency/as_of/source)
 company_profiles.industry_tags :: typed-out list[str] tags

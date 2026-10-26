@@ -28,6 +28,7 @@ class BackgroundJobType(StrEnum):
     DIGEST = "digest"
     SAVED_SEARCH_RUN = "saved_search_run"
     RADAR_DIGEST = "radar_digest"
+    QUERY_CURATOR = "query_curator"
     CV_EXTRACT_TEXT = "cv_extract_text"
     CV_OCR = "cv_ocr"
     CV_PARSE = "cv_parse"

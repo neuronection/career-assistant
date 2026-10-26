@@ -102,13 +102,18 @@ def _stdio_command(script: Path) -> str:
 # ------------------------------------------------------------- structural
 
 
-async def test_allowlist_off_makes_the_script_tier_invisible():
-    """Default state: the mcp connector is unknown — the catalog does
+async def test_allowlist_off_makes_the_script_tier_invisible(monkeypatch):
+    """Allowlist off: the mcp connector is unknown — the catalog does
     not list it and the registry refuses it (structurally disabled)."""
-    keys = [entry["key"] for entry in list_connectors()]
-    assert "mcp" not in keys
-    with pytest.raises(ValidationError):
-        get_connector("mcp")
+    monkeypatch.setattr(settings, "connector_plugins_allowlist", [])
+    reset_registry()
+    try:
+        keys = [entry["key"] for entry in list_connectors()]
+        assert "mcp" not in keys
+        with pytest.raises(ValidationError):
+            get_connector("mcp")
+    finally:
+        reset_registry()
 
 
 async def test_allowlist_on_registers_an_honest_manifest(mcp_connector):

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import time
+from functools import lru_cache
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -48,6 +49,32 @@ MAX_ITEMS = 300
 RAW_JSON_CAP = 8_192
 
 
+@lru_cache(maxsize=1)
+def _secret_slot_names() -> frozenset[str]:
+    """The connector's declared secret slot names (from its manifest) —
+    any of them appearing in ``options`` is a registration-time throw."""
+    from pathlib import Path
+
+    from app.extensions.contract import secret_fields
+
+    manifest = json.loads(
+        (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
+    )
+    return frozenset(name.lower() for name in secret_fields(manifest.get("configSchema")))
+
+
+def _walk_keys(node: dict) -> list[str]:
+    keys: list[str] = []
+    stack: list[dict] = [node]
+    while stack:
+        current = stack.pop()
+        for key, value in current.items():
+            keys.append(str(key))
+            if isinstance(value, dict):
+                stack.append(value)
+    return keys
+
+
 def _allowlist(raw: str) -> list[str]:
     """Comma-separated tool allowlist → clean list."""
     return [tool.strip() for tool in (raw or "").split(",") if tool.strip()]
@@ -57,7 +84,10 @@ class McpConfig(BaseModel):
     """One MCP source: transport + the single tool it may call.
 
     ``allowed_tools`` is the per-tool allowlist (comma-separated; empty
-    means just the configured ``tool``). ``token`` is NOT here — it is
+    means just the configured ``tool``). ``options`` is the tool-level
+    settings passthrough (plan 130): a JSON-object string (the manifest
+    configSchema has no object type) stored verbatim, parsed and handed
+    to the tool as ``config.options``. ``token`` is NOT here — it is
     a sealed secret slot (``x-secret`` in the manifest configSchema).
     """
 
@@ -67,6 +97,7 @@ class McpConfig(BaseModel):
     tool: str = Field(default="fetch_postings", min_length=1, max_length=120)
     allowed_tools: str = Field(default="", max_length=1000)
     timeout_seconds: int = Field(default=30, ge=5, le=120)
+    options: str = Field(default="", max_length=8192)
 
     @model_validator(mode="after")
     def _transport_fields(self) -> McpConfig:
@@ -77,7 +108,25 @@ class McpConfig(BaseModel):
         allow = _allowlist(self.allowed_tools)
         if allow and self.tool not in allow:
             raise ValueError(f"tool {self.tool!r} is not in this source's allowlist")
+        parsed = self.options_dict()
+        hits = sorted({key for key in _walk_keys(parsed) if key.lower() in _secret_slot_names()})
+        if hits:
+            raise ValueError(
+                f"secret values never live in options — use the sealed token slot ({hits})"
+            )
         return self
+
+    def options_dict(self) -> dict:
+        """The parsed tool options ({} when unset; a non-object is invalid)."""
+        if not self.options.strip():
+            return {}
+        try:
+            parsed = json.loads(self.options)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"options is not valid JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("options must be a JSON object")
+        return parsed
 
 
 def _invalid(detail: str) -> ConnectorError:
@@ -105,7 +154,9 @@ class McpConnector(PostingConnector):
     key = "mcp"
     title = "MCP script (external process)"
     docs_url = "https://docs.career-assistant.local/connectors/mcp"
-    capabilities = ConnectorCapabilities(supports_incremental=True, url_fetching=False)
+    capabilities = ConnectorCapabilities(
+        supports_incremental=True, url_fetching=False, dynamic_queries=True
+    )
     allowlist_gated = True
     audits_effects = True
 
@@ -182,6 +233,7 @@ class McpConnector(PostingConnector):
         cfg = McpConfig.model_validate(config)
         secret_slots = self.secret_slots()
         safe_config = {k: v for k, v in dict(config).items() if k not in secret_slots}
+        safe_config["options"] = cfg.options_dict()
         arguments = {"config": safe_config, "state": dict(state or {})}
         effect = ExternalEffect(
             kind="mcp_tool_call",

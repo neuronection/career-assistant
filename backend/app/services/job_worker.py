@@ -857,6 +857,13 @@ async def _run_notification_delivery(db: AsyncSession, job: BackgroundJob, **_kw
     return await process_delivery(db, uuid.UUID(str(delivery_id)))
 
 
+async def _run_query_curator(db: AsyncSession, job, progress=None, cancelled=None) -> dict:
+    """Plan 130 Layer 2: cluster radar tokens into role groups (AI optional)."""
+    from app.services.postings.query_curator import rebuild_all_query_caches
+
+    return await rebuild_all_query_caches(db)
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -874,6 +881,7 @@ HANDLERS: dict[str, Handler] = {
     "extension_reconcile": _run_extension_reconcile,
     "saved_search_run": _run_saved_search,
     "radar_digest": _run_radar_digest,
+    "query_curator": _run_query_curator,
     "cv_extract_text": _run_cv_extract_text,
     "cv_ocr": _run_cv_ocr,
     "cv_parse": _run_cv_parse,

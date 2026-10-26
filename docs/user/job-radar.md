@@ -30,6 +30,13 @@ right now without saving.
 - **Explore** (`/postings/search`) — the **My radar** button runs your
   saved configuration as a live search; "Clear radar" returns to the
   open filters.
+- **Ingestion** — a job source set to **Follow my radar** takes its
+  keywords and location from the radar instead of its own static
+  settings. Each sync searches one focused role group, rotating through
+  them round-robin (one search per sync — traffic stays constant however
+  many keywords the radar holds), and the source's edit form shows the
+  effective query and rotation position. Radar changes are picked up
+  automatically on the next sync.
 - **Match digests** — the radar is evaluated live each time its digest
   runs (instant ≈ every 15 minutes, daily at 08:00 UTC, weekly on
   Mondays), so the matches always reflect the current postings. At most
@@ -37,8 +44,8 @@ right now without saving.
   remain — an unchanged set never re-notifies within the bucket.
 
 The radar is per profile: switch profiles and each one keeps its own
-radar. Sources always follow your instance's admin configuration
-([Add a job source](add-a-job-source.md)).
+radar. Sources without *Follow my radar* follow their own admin
+configuration ([Add a job source](add-a-job-source.md)).
 
 ## Related
 

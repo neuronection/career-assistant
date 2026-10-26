@@ -10,6 +10,8 @@ city/country wins the location filters, any row's remote flag applies
 when no explicit work mode is set).
 """
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -31,12 +33,101 @@ async def get_radar(db: AsyncSession, profile_id) -> JobRadar | None:
     ).scalar_one_or_none()
 
 
+async def list_enabled_radars(db: AsyncSession) -> list[JobRadar]:
+    """Every enabled radar across profiles (plan 130: the merge union).
+
+    Ordered for determinism — an unordered union would flap the merge
+    fingerprint and reset the rotation cursor on every sync.
+    """
+    rows = await db.execute(
+        select(JobRadar)
+        .where(JobRadar.enabled.is_(True))
+        .order_by(JobRadar.created_at, JobRadar.id)
+    )
+    return list(rows.scalars().all())
+
+
+GROUP_CAP = 12
+
+
+def radar_groups(radars: list[JobRadar]) -> dict:
+    """Layer 1 deterministic merge (plan 130): the union of enabled radars'
+    keywords partitioned into role groups — one focused search per sync,
+    rotated round-robin.
+
+    Fallback clustering is one term per group (the LLM curator may cluster
+    tighter, never invent terms). Returns the groups, the term→radar-ids
+    provenance map, the shared location string and a fingerprint for
+    staleness checks.
+    """
+    terms: list[str] = []
+    seen: set[str] = set()
+    provenance: dict[str, list[str]] = {}
+    radar_ids: list[str] = []
+    location = ""
+    for radar in radars:
+        rid = str(radar.id)
+        radar_ids.append(rid)
+        for raw in radar.keywords or []:
+            term = str(raw).strip()
+            key = term.lower()
+            if not term or key in seen:
+                if key:
+                    provenance.setdefault(key, [])
+                    if rid not in provenance[key]:
+                        provenance[key].append(rid)
+                continue
+            if len(terms) < GROUP_CAP:
+                terms.append(term)
+                seen.add(key)
+            provenance.setdefault(key, [])
+            if rid not in provenance[key]:
+                provenance[key].append(rid)
+        if not location:
+            location = _radar_location(radar)
+    groups = [{"terms": [term], "keywords": term} for term in terms]
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "terms": sorted(seen),
+                "location": location,
+                "radar_ids": sorted(radar_ids),
+            },
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()[:16]
+    return {
+        "groups": groups,
+        "provenance": provenance,
+        "radar_ids": sorted(radar_ids),
+        "location": location,
+        "radar_fp": fingerprint,
+    }
+
+
+def _radar_location(radar: JobRadar) -> str:
+    """One location string: first row with city/country wins; remote
+    fallback mirrors ``explore_params`` precedence."""
+    remote = False
+    for loc in radar.locations or []:
+        row = _location_row(loc)
+        if row.get("city") and row.get("country"):
+            return f"{row['city']}, {row['country']}"
+        if row.get("city"):
+            return str(row["city"])
+        if row.get("country"):
+            return str(row["country"])
+        remote = remote or bool(row.get("remote"))
+    return "Remote" if remote else ""
+
+
 async def upsert_radar(db: AsyncSession, profile_id, data: RadarIn) -> JobRadar:
     """Replace-all write: omit a field = clear it to unknown."""
     radar = await get_radar(db, profile_id)
     if radar is None:
         radar = JobRadar(profile_id=profile_id)
         db.add(radar)
+    before = (list(radar.keywords or []), json.dumps(radar.locations or [], sort_keys=True))
     radar.keywords = [k.strip() for k in data.keywords if k.strip()]
     radar.locations = [loc.model_dump(mode="json", exclude_none=True) for loc in data.locations]
     radar.seniority = [s.strip() for s in data.seniority if s.strip()]
@@ -48,7 +139,24 @@ async def upsert_radar(db: AsyncSession, profile_id, data: RadarIn) -> JobRadar:
     radar.enabled = data.enabled
     await db.commit()
     await db.refresh(radar)
+    after = (list(radar.keywords or []), json.dumps(radar.locations or [], sort_keys=True))
+    if before != after:
+        await _enqueue_query_curator(db)
     return radar
+
+
+async def _enqueue_query_curator(db: AsyncSession) -> None:
+    """Plan 130: radar changes recompute the merged-query caches in the
+    background (the curator never runs in the write path)."""
+    import contextlib
+    import logging
+
+    from app.models.enums import BackgroundJobType
+    from app.services.job_worker import enqueue
+
+    with contextlib.suppress(Exception):
+        await enqueue(db, BackgroundJobType.QUERY_CURATOR.value, {})
+    logging.getLogger(__name__).debug("query_curator recompute enqueued")
 
 
 async def require_radar(db: AsyncSession, profile_id) -> JobRadar:

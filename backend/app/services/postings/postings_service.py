@@ -24,6 +24,7 @@ from app.models.enums import (
     NotificationRuleKind,
     PostingEvidence,
     PostingSkillPriority,
+    SourceQueryMode,
 )
 from app.models.job_model import Job, JobSkill
 from app.models.posting_model import (
@@ -86,6 +87,37 @@ def _record_health(source: JobSource, errors: list[dict]) -> None:
         source.last_status = HealthStatus.OK.value
 
 
+async def _query_overlay(db: AsyncSession, source: JobSource, connector) -> tuple[dict | None, str]:
+    """Plan 130 radar mode: the next rotated role group arrives as a
+    call-time ``config["query"]`` overlay — never stored, never fanned
+    out (one focused query per sync). ``None`` config = polite skip."""
+    call_config = dict(source.config or {})
+    if source.query_mode != SourceQueryMode.RADAR.value or not getattr(
+        connector.capabilities, "dynamic_queries", False
+    ):
+        return call_config, ""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.services.postings import query_curator
+
+    cache = await query_curator.ensure_query_cache(db, source)
+    query = query_curator.take_rotation(cache)
+    if not query.get("keywords"):
+        return None, "radar has no keywords yet — nothing to search"
+    query_curator.advance_rotation(cache)
+    source.query_cache = cache
+    flag_modified(source, "query_cache")
+    await db.commit()
+    call_config["query"] = {
+        "keywords": query["keywords"],
+        "location": query["location"],
+    }
+    note = f"searching radar group {query['rotation']}: {query['keywords']}"
+    if query["location"]:
+        note += f" @ {query['location']}"
+    return call_config, note
+
+
 async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
     """Fetch via the connector through the polite runtime, upsert postings,
     map, alert.
@@ -132,8 +164,25 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
 
         audit = mcp_effect_auditor(db, source.key)
     try:
+        call_config, query_note = await _query_overlay(db, source, connector)
+    except Exception:
+        logger.warning("query overlay failed for source %s", source.key, exc_info=True)
+        if source.query_mode == SourceQueryMode.RADAR.value:
+            source.last_status = "ok"
+            source.error = ""
+            source.last_run_at = _utcnow()
+            await db.commit()
+            return {"synced": 0, "note": "radar query unavailable this run — skipped"}
+        call_config, query_note = dict(source.config or {}), ""
+    if call_config is None:
+        source.last_status = "ok"
+        source.error = ""
+        source.last_run_at = _utcnow()
+        await db.commit()
+        return {"synced": 0, "note": query_note}
+    try:
         result = await connector.fetch(
-            source.config,
+            call_config,
             source.sync_state or {},
             transport=runtime_transport,
             secrets=secrets,
@@ -196,7 +245,10 @@ async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) ->
     from app.services.postings.extract_service import plan_extractions
 
     extract_queued = await plan_extractions(db, fresh, backlog=True)
-    return {"synced": synced, "extract_queued": extract_queued, "errors": errors}
+    report: dict = {"synced": synced, "extract_queued": extract_queued, "errors": errors}
+    if query_note:
+        report["note"] = query_note
+    return report
 
 
 async def upsert_posting(db: AsyncSession, source: JobSource, raw) -> JobPosting | None:

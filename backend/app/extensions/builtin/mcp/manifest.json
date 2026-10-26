@@ -51,6 +51,12 @@
         "maximum": 120,
         "default": 30
       },
+      "options": {
+        "type": "string",
+        "title": "Tool options (JSON object)",
+        "description": "Tool-level settings as a JSON object, passed to the fetch tool as config.options (secret values never live here)",
+        "maxLength": 8192
+      },
       "token": {
         "type": "string",
         "title": "Bearer token (optional, http transport)",

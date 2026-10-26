@@ -111,6 +111,7 @@ from app.models.enums.postings import PostingStatus as PostingStatus
 from app.models.enums.postings import RadarCadence as RadarCadence
 from app.models.enums.postings import SearchScope as SearchScope
 from app.models.enums.postings import SourceKind as SourceKind
+from app.models.enums.postings import SourceQueryMode as SourceQueryMode
 from app.models.enums.postings import WebhookTarget as WebhookTarget
 from app.models.enums.taxonomy import CareerStage as CareerStage
 from app.models.enums.taxonomy import EducationLevel as EducationLevel
@@ -225,6 +226,7 @@ __all__ = [
     "SkillOrigin",
     "SkillStatus",
     "SourceKind",
+    "SourceQueryMode",
     "TagSource",
     "TemplateSource",
     "TemplateStatus",

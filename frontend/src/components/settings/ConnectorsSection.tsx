@@ -36,6 +36,7 @@ type SourceDraft = {
   key: string;
   connector_key: string;
   config: IntegrationConfigValues;
+  query_mode: string;
 };
 
 export function ConnectorsSection() {
@@ -164,10 +165,15 @@ function JobSourceConnectors() {
             .filter(([, value]) => value !== null && value !== undefined && value !== "")
             .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
         ) as Record<string, string | number | boolean>,
+        query_mode: form.query_mode,
         secrets,
       };
       if (form.id) {
-        await sourcesApi.updateSource(form.id, { config: payload.config, secrets });
+        await sourcesApi.updateSource(form.id, {
+          config: payload.config,
+          query_mode: form.query_mode,
+          secrets,
+        });
       } else {
         await sourcesApi.createSource(payload);
       }
@@ -351,6 +357,7 @@ function JobSourceConnectors() {
               config: Object.fromEntries(
                 Object.entries(source.config).map(([key, value]) => [key, String(value)]),
               ),
+              query_mode: source.query_mode || "static",
             });
           }
         }}
@@ -432,6 +439,7 @@ function JobSourceConnectors() {
               key: "",
               connector_key: catalog[0]?.key ?? "",
               config: {},
+              query_mode: "static",
             })
           }
           data-testid="add-job-source"
@@ -467,6 +475,42 @@ function JobSourceConnectors() {
               onChange={(event) => setDraft({ ...draft, key: event.target.value })}
             />
           </div>
+          {catalogByKey[draft.connector_key]?.capabilities?.dynamic_queries ||
+          draft.query_mode === "radar" ? (
+            <div className="space-y-1">
+              <label className="block text-sm" htmlFor="job-source-query-mode">
+                {t("toolsSettings.connectors.sources.queryMode")}
+              </label>
+              <select
+                id="job-source-query-mode"
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                value={draft.query_mode}
+                onChange={(event) => setDraft({ ...draft, query_mode: event.target.value })}
+              >
+                <option value="static">
+                  {t("toolsSettings.connectors.sources.queryModeStatic")}
+                </option>
+                <option value="radar">
+                  {t("toolsSettings.connectors.sources.queryModeRadar")}
+                </option>
+              </select>
+              {draft.query_mode === "radar" ? (
+                <p className="text-xs text-slate-600" data-testid="job-source-query-info">
+                  {t("toolsSettings.connectors.sources.queryModeRadarHint")}
+                  {(() => {
+                    const existing = sources.find((row) => row.id === draft.id);
+                    const info = existing?.query_info;
+                    return info?.keywords
+                      ? ` ${t("toolsSettings.connectors.sources.queryNext", {
+                          rotation: info.rotation,
+                          keywords: info.keywords,
+                        })}`
+                      : "";
+                  })()}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <IntegrationConfigForm
             fields={draftFields}
             values={draft.config}

@@ -471,6 +471,25 @@ async def reject_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return {"id": str(job.id), "applied": False}
 
 
+def _query_info(source) -> dict:
+    """The merged radar query the next syncs rotate through (plan 130
+    transparency: nothing hidden — keywords, location, rotation position,
+    provenance). Radar data only; no secrets."""
+    cache = source.query_cache or {}
+    groups = cache.get("groups") or []
+    index = int(cache.get("rotation_index") or 0)
+    current = groups[index % len(groups)] if groups else {}
+    return {
+        "keywords": str((current or {}).get("keywords") or ""),
+        "location": str(cache.get("location") or ""),
+        "rotation": f"{(index % len(groups)) + 1}/{len(groups)}" if groups else "",
+        "group_terms": list((current or {}).get("terms") or []),
+        "curated": bool(cache.get("curated")),
+        "radar_ids": list(cache.get("radar_ids") or []),
+        "computed_at": cache.get("computed_at"),
+    }
+
+
 async def _source_view(db: AsyncSession, source) -> dict:
     """Secret-safe source view: config WITHOUT any x-secret field values
     (they cannot be stored there — belt and braces for legacy rows), plus
@@ -503,6 +522,8 @@ async def _source_view(db: AsyncSession, source) -> dict:
         "kind": source.kind,
         "schedule_kind": source.schedule_kind,
         "config": config,
+        "query_mode": source.query_mode,
+        "query_info": _query_info(source),
         "secret_hints": secret_hints,
         "enabled": source.enabled,
         "paused_at": source.paused_at.isoformat() if source.paused_at else None,
@@ -555,6 +576,9 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
     key = str(payload.get("key") or "").strip()
     connector_key = str(payload.get("connector_key") or "").strip()
     kind = str(payload.get("kind") or "posting").strip()
+    query_mode = str(payload.get("query_mode") or "static").strip()
+    if query_mode not in {"static", "radar"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {query_mode}")
     if kind not in ("posting", "market"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind: {kind}")
     config = payload.get("config") or {}
@@ -574,6 +598,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
         connector_key=connector_key,
         kind=kind,
         config=validated,
+        query_mode=query_mode,
         secrets={
             slot: encrypt_secret(str(value))
             for slot, value in (payload.get("secrets") or {}).items()
@@ -619,6 +644,13 @@ async def update_posting_source(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     if "secrets" in payload and payload["secrets"] is not None:
         _seal_source_secrets(source, payload["secrets"])
+    if "query_mode" in payload and payload["query_mode"] is not None:
+        mode = str(payload["query_mode"]).strip()
+        if mode not in {"static", "radar"}:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {mode}")
+        if mode != source.query_mode:
+            source.query_mode = mode
+            source.query_cache = None
     if "enabled" in payload and payload["enabled"] is not None:
         source.enabled = bool(payload["enabled"])
     if "paused" in payload and payload["paused"] is not None:

@@ -230,6 +230,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.QUERY_CURATOR.value,
+        "Job-radar keyword clustering into rotating role groups",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.MCP_TOOL_CALL.value,
         "External MCP bridge tool execution",
         AICapability.TEXT.value,

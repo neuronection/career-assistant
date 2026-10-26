@@ -134,6 +134,13 @@ deletion).
 
 ### Migration notes
 
+- **0059** — plan 130: `job_sources` gains `query_mode`
+  (`static` | `radar`, default `static` = today's behavior, CHECK
+  `query_mode_allowed`) and the nullable `query_cache` JSONB (the merged
+  radar query artifact: role groups + provenance + rotation cursor;
+  inventory row `job_sources.query_cache :: keep-open`). Purely
+  additive. Covered by `tests/test_query_mode.py` and the head
+  assertions in `tests/test_migrations.py` / `tests/test_autopilot.py`.
 - **0057** — plan 129 phase 4a: `job_radars`, the profile's saved
   job-search configuration (1:1 per profile, CASCADE; keywords/
   locations/seniority/source_keys as typed JSON lists, onsite

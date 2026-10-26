@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (radar-driven ingestion, 2026-10-26)
+- **Posting sources can follow your job radar.** A source marked *Follow
+  my radar* (the new **Search source** switch on the source form) takes
+  its keywords/location from your Job Radar instead of its own static
+  config — one focused role group per sync, rotating, so traffic stays
+  constant however many keywords your radar holds. The form shows the
+  effective query and rotation position (nothing hidden); radar edits
+  recompute the query plan in the background (an optional AI curator
+  clusters near-duplicate terms — deterministic fallback when AI is
+  unconfigured). MCP-script sources also gain a **Tool options** JSON
+  field so tool-level settings no longer need to ride the command line.
+
 ### Changed (provider settings adoption, 2026-10-26)
 - **Settings → Tools → Web search renders through the family
   `web-search-providers` module** (assistant-ui 0.72–0.74; dependency

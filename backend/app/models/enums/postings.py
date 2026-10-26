@@ -29,6 +29,17 @@ class RadarCadence(StrEnum):
     OFF = "off"
 
 
+class SourceQueryMode(StrEnum):
+    """Where a posting source gets its search query (plan 130).
+
+    STATIC: the source's own stored config (today's behavior).
+    RADAR: the merged job-radar query overlay drives keywords/location.
+    """
+
+    STATIC = "static"
+    RADAR = "radar"
+
+
 class HealthStatus(StrEnum):
     """Connector/webhook health, surfaced as a source badge."""
 

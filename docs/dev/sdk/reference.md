@@ -169,6 +169,31 @@ Settings (env `CAREER_EXTENSION_SANDBOX_*`; defaults per the charter):
 | `CAREER_DATA_DIR` | platform default | where installs, artifacts and sealed stores live — `<data_dir>/extensions/…` |
 | `CAREER_APP_ENV` | `production` | production boots reject local sources (`path-denied`) |
 
+## Dynamic queries (plan 130)
+
+A connector whose engine consumes a per-call search query declares
+`ConnectorCapabilities(dynamic_queries=True)`. When a `job_sources` row
+is switched to `query_mode='radar'`, `sync_source` merges one call-time
+overlay into the config it hands to `fetch()`:
+
+```json
+{"query": {"keywords": "<one rotated role group, OR-joined>", "location": "<string>"}}
+```
+
+Contract: the overlay is **call-time only** (never stored; `config` is
+not mutated), exactly one query per sync (role groups rotate round-robin
+across syncs — radar size never multiplies requests), the `keywords`
+value is a focused OR string of one role group, and `location` overrides
+on presence (an empty string clears). Connectors without the capability
+never see the overlay. T3 scripts receive it inside the tool's `config`
+argument alongside `config.options` (the tool-level settings
+passthrough — a JSON-object string, since the manifest configSchema has
+no object type). The merged-query artifact (role groups, term→radar
+provenance, rotation cursor) lives in `job_sources.query_cache` and is
+rebuilt on radar change by the `query_curator` background job (Layer 2:
+an AI-curator task that clusters keywords; the deterministic Layer 1
+partition is the fallback whenever AI is unconfigured).
+
 ## Registry API (`app/extensions/registry.py`)
 
 `register_connector(connector, *, allow=True)`, `get_connector(key)`,

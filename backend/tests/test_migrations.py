@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0058"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0059"], (
         "revision chain stays linear on one head"
     )
 
@@ -2168,3 +2168,54 @@ def test_0058_radar_digest_check_roundtrip():
     checks = _schedules_checks()
     assert "user_radar_digest" in checks["kind_allowed"]
     assert "radar_digest" in checks["task_allowed"]
+
+
+def _job_sources_shape() -> tuple[set[str], dict[str, str]]:
+    """(column names, short-name CHECK texts) of `job_sources` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+
+                def read(sync_conn):
+                    insp = inspect(sync_conn)
+                    columns = {c["name"] for c in insp.get_columns("job_sources")}
+                    checks = {
+                        c["name"].replace("ck_job_sources_", ""): c["sqltext"]
+                        for c in insp.get_check_constraints("job_sources")
+                    }
+                    return columns, checks
+
+                return await conn.run_sync(read)
+        finally:
+            await engine.dispose()
+
+    import asyncio
+
+    return asyncio.run(run())
+
+
+def test_0059_query_mode_roundtrip():
+    """Plan 130: job_sources gains query_mode (+ its CHECK) and the
+    query_cache JSONB; downgrade drops the constraint and both columns."""
+    config = _configured()
+    command.upgrade(config, "head")
+    columns, checks = _job_sources_shape()
+    assert "query_mode" in columns and "query_cache" in columns
+    assert "'static'" in checks["query_mode_allowed"] and "'radar'" in checks["query_mode_allowed"]
+
+    command.downgrade(config, "0058")
+    columns, checks = _job_sources_shape()
+    assert "query_mode" not in columns and "query_cache" not in columns
+    assert "query_mode_allowed" not in checks
+
+    command.upgrade(config, "head")
+    columns, checks = _job_sources_shape()
+    assert "query_mode" in columns and "query_cache" in columns
+    assert "query_mode_allowed" in checks

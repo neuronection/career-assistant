@@ -65,6 +65,24 @@ Credentials, where a board needs them, are stored encrypted and only
 unsealed at sync time — you'll see a slot with a last-4 hint, never the
 value echoed back.
 
+## Follow my radar (search source)
+
+The source form's **Search source** switch decides where the search
+comes from:
+
+- **Static config** — the source's own settings (keywords etc. in its
+  Tool options) drive every sync.
+- **Follow my job radar** — keywords and location come from the
+  [job radar](job-radar.md) instead. Each sync searches one focused
+  role group and rotates through them, so a wide radar never means more
+  traffic. The form shows the current query and rotation position
+  (e.g. *Searching 2/3: devops @ Berlin, Germany*). The switch only
+  appears on connectors that support dynamic queries.
+
+MCP-script sources also have a **Tool options** field (JSON object) for
+tool-level settings — the place keywords/location live in static mode —
+so nothing needs to hide in the command line.
+
 ## After the first sync
 
 - Postings map onto the catalog by literal skill-ID intersection and

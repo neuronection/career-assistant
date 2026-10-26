@@ -38,6 +38,7 @@ class AITaskType(StrEnum):
     INTERVIEW_DEBRIEF = "interview_debrief"
     EMBED = "embed"
     MCP_TOOL_CALL = "mcp_tool_call"
+    QUERY_CURATOR = "query_curator"
     SANDBOX_CAPABILITY_CALL = "sandbox_capability_call"
     TOOL_RUN = "tool_run"  # D20: one audit row per confirmed tool execution
     TRANSLATE = "translate"  # plan 121: UI catalog + catalog-label translation batches

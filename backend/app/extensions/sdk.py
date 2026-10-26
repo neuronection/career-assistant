@@ -155,6 +155,9 @@ class ConnectorCapabilities(BaseModel):
     supports_incremental: bool = False
     max_requests_per_minute: int = Field(default=30, ge=1)
     url_fetching: bool = True
+    # Plan 130: the connector accepts a call-time ``config["query"]``
+    # overlay ({keywords, location}) — the radar-driven rotation seam.
+    dynamic_queries: bool = False
 
 
 class ConnectorResult(BaseModel):

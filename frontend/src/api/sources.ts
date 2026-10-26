@@ -7,6 +7,16 @@ import { api } from "@/api/client";
 
 export type SecretHint = { set: boolean; hint: string | null };
 
+export type SourceQueryInfo = {
+  keywords: string;
+  location: string;
+  rotation: string;
+  group_terms: string[];
+  curated: boolean;
+  radar_ids: string[];
+  computed_at: string | null;
+};
+
 export type PostingSource = {
   id: string;
   key: string;
@@ -14,6 +24,8 @@ export type PostingSource = {
   kind: string;
   schedule_kind: string | null;
   config: Record<string, string | number | boolean>;
+  query_mode: string;
+  query_info: SourceQueryInfo;
   secret_hints: Record<string, SecretHint>;
   enabled: boolean;
   paused_at: string | null;
@@ -29,6 +41,7 @@ export type ConnectorCatalogEntry = {
   docs_url: string;
   builtin: boolean;
   secret_fields: string[];
+  capabilities?: { dynamic_queries?: boolean } & Record<string, unknown>;
   config_schema: {
     type: "object";
     properties: Record<string, ConfigFieldSchema>;
@@ -108,6 +121,7 @@ export async function createSource(payload: {
   key: string;
   connector_key: string;
   config: Record<string, string | number | boolean>;
+  query_mode?: string;
   secrets?: Record<string, string>;
 }): Promise<{ id: string; key: string; connector_key: string }> {
   const response = await api.post("/admin/postings/sources", payload);
@@ -118,6 +132,7 @@ export async function updateSource(
   id: string,
   payload: {
     config?: Record<string, string | number | boolean>;
+    query_mode?: string;
     secrets?: Record<string, string>;
     enabled?: boolean;
     paused?: boolean;

@@ -43,6 +43,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.INTERVIEW_TURN.value: 1,
     AITaskType.INTERVIEW_DEBRIEF.value: 1,
     AITaskType.EMBED.value: 1,
+    AITaskType.QUERY_CURATOR.value: 1,
     AITaskType.MCP_TOOL_CALL.value: 1,
     AITaskType.SANDBOX_CAPABILITY_CALL.value: 1,
     AITaskType.TOOL_RUN.value: 1,
