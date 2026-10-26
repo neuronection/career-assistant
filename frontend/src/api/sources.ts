@@ -11,6 +11,9 @@ export type SourceQueryInfo = {
   keywords: string;
   location: string;
   rotation: string;
+  rotation_index: number;
+  groups: { terms: string[]; keywords: string }[];
+  provenance: Record<string, string[]>;
   group_terms: string[];
   curated: boolean;
   radar_ids: string[];

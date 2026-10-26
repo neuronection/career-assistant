@@ -240,6 +240,14 @@ async def test_batch_size_sends_that_many_groups(
         "rotation wraps after advancing by the batch size"
     )
 
+    listed = await client.get("/api/v1/admin/postings/sources", headers=auth_headers)
+    row = next(r for r in listed.json() if r["key"] == "dyn-batch")
+    plan = row["query_info"]
+    assert [g["keywords"] for g in plan["groups"]] == ['"ai engineer"', "devops", "sre"]
+    assert plan["rotation_index"] == 1, "cursor wrapped: (2 + batch 2) % 3"
+    assert set(plan["provenance"]) == {"ai engineer", "devops", "sre"}
+    assert plan["curated"] is False
+
 
 async def test_sync_overlay_static_mode_passes_no_query(db, dynamic_connector):
     src = await _radar_source(db, "dyn-static", "static")

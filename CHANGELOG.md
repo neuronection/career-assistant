@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (query plan management, 2026-10-26)
+- **Query plan per posting source** — a *Query plan* button on every job
+  source row opens the merged-query management view: all rotating role
+  groups (the next one marked), the grouping mode (AI-curated vs
+  deterministic) and its compute time, the location, the effective
+  arguments (queries per sync, pages, interval, nav pause, budget) and
+  the cadence from the source-sync schedule. The API's `query_info` now
+  carries the full plan (groups, rotation index, per-term provenance).
+
 ### Added (job source removal, 2026-10-26)
 - **Job source connectors can finally be deleted** — a Remove button per
   source row with an explicit destructive confirmation showing the exact

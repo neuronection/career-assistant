@@ -19,6 +19,7 @@ import type {
   IntegrationExtensionGroupView,
 } from "@/components/ui/integrations";
 import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
+import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { McpServerSection } from "@/components/settings/McpServerSection";
 
@@ -146,6 +147,7 @@ function JobSourceConnectors() {
   const [probes, setProbes] = useState<Record<string, SourceProbe>>({});
   const [docsKey, setDocsKey] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<PostingSource | null>(null);
+  const [planTarget, setPlanTarget] = useState<PostingSource | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -469,6 +471,14 @@ function JobSourceConnectors() {
                 </Button>
               ) : null}
               <Button
+                variant="outline"
+                size="sm"
+                data-testid={`query-plan-${source.key}`}
+                onClick={() => setPlanTarget(source)}
+              >
+                {t("toolsSettings.connectors.sources.plan")}
+              </Button>
+              <Button
                 variant="ghost"
                 size="icon"
                 disabled={busy}
@@ -504,6 +514,9 @@ function JobSourceConnectors() {
 
       {docsKey !== null ? (
         <ConnectorDocsDialog connectorKey={docsKey} onClose={() => setDocsKey(null)} />
+      ) : null}
+      {planTarget !== null ? (
+        <QueryPlanDialog source={planTarget} onClose={() => setPlanTarget(null)} />
       ) : null}
 
       {draft === null ? (

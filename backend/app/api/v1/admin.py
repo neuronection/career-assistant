@@ -484,6 +484,15 @@ def _query_info(source) -> dict:
         "keywords": str((current or {}).get("keywords") or ""),
         "location": str(cache.get("location") or ""),
         "rotation": f"{(index % len(groups)) + 1}/{len(groups)}" if groups else "",
+        "rotation_index": index,
+        "groups": [
+            {
+                "terms": list(group.get("terms") or []),
+                "keywords": str(group.get("keywords") or ""),
+            }
+            for group in groups
+        ],
+        "provenance": dict(cache.get("provenance") or {}),
         "group_terms": list((current or {}).get("terms") or []),
         "curated": bool(cache.get("curated")),
         "radar_ids": list(cache.get("radar_ids") or []),
