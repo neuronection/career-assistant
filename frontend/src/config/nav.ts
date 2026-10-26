@@ -18,7 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-import { isVisible } from "@/config/features";
+import { featureFor, isVisible } from "@/config/features";
 
 export interface AppNavItem {
   to: string
@@ -72,15 +72,23 @@ export function toNavItem(
   item: AppNavItem,
   t: (key: string) => string,
   pendingProposals = 0,
-): { id: string; label: string; icon: LucideIcon; section?: string; badge?: number } {
+): { id: string; label: string; icon: LucideIcon; section?: string; badge?: string | number } {
+  // The beta badge rides the same pill slot as the profile's pending
+  // count — a route can't be both, and the proposals count wins.
+  const proposalsBadge =
+    item.to === "/profile" && pendingProposals > 0 ? pendingProposals : undefined;
+  const feature = featureFor(item.to);
+  const betaBadge =
+    feature?.state === "beta" && proposalsBadge === undefined
+      ? t("featureState.betaChip")
+      : undefined;
   return {
     id: item.to,
     label: t(item.labelKey),
     icon: item.icon,
     ...(item.section ? { section: t(item.section) } : {}),
-    ...(item.to === "/profile" && pendingProposals > 0
-      ? { badge: pendingProposals }
-      : {}),
+    ...(proposalsBadge !== undefined ? { badge: proposalsBadge } : {}),
+    ...(betaBadge !== undefined ? { badge: betaBadge } : {}),
   };
 }
 

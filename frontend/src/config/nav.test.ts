@@ -90,4 +90,14 @@ describe("toNavItem", () => {
     expect(toNavItem(chat, t, 3).badge).toBeUndefined();
     expect(toNavItem(chat, t).label).toBe("nav.chat");
   });
+
+  it("marks beta destinations with the discreet beta pill", () => {
+    const t = (key: string) => key;
+    const postings = NAV.find((item) => item.to === "/postings")!;
+    expect(toNavItem(postings, t).badge).toBe("featureState.betaChip");
+    const catalog = NAV.find((item) => item.to === "/catalog")!;
+    expect(toNavItem(catalog, t).badge).toBeUndefined();
+    const profile = NAV.find((item) => item.to === "/profile")!;
+    expect(toNavItem(profile, t).badge).toBeUndefined();
+  });
 });
