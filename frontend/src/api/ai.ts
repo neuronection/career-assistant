@@ -342,26 +342,33 @@ export interface SearchProvider {
   key_set: boolean;
 }
 
+export interface SearchProviderCatalogField {
+  id: string;
+  label: string;
+  required: boolean;
+  placeholder?: string | null;
+  type?: "text" | "number";
+  advanced?: boolean;
+  hint?: string | null;
+}
+
 export interface SearchProviderCatalog {
   providerOrder: string[];
-  providers: Record<
-    string,
-    {
-      label: string;
-      requiresKey: boolean;
-      keyUrl: string | null;
-      baseUrl: string | null;
-      baseUrlRequired: boolean;
-      baseUrlHint?: string | null;
-      notes?: string | null;
-      fields?: Array<{
-        id: string;
-        label: string;
-        required: boolean;
-        placeholder?: string | null;
-      }>;
-    }
-  >;
+  providers: Record<string, {
+    label: string;
+    requiresKey: boolean;
+    keyUrl: string | null;
+    baseUrl: string | null;
+    baseUrlRequired: boolean;
+    baseUrlHint?: string | null;
+    notes?: string | null;
+    hosting?: string;
+    fields?: SearchProviderCatalogField[];
+  }>;
+  limits?: {
+    maxResults?: { default: number; min: number; max: number };
+    timeoutMs?: { default: number; min: number; max: number };
+  };
 }
 
 export interface SearchProviderProbe {
@@ -369,6 +376,20 @@ export interface SearchProviderProbe {
   latency_ms: number;
   result_count: number | null;
   error: string | null;
+}
+
+// The create/update wire body (backend `SearchProviderIn`): `api_key: null`
+// keeps the stored key, absent tuning fields keep their stored/default
+// values, `base_url: null` folds back to the catalog default.
+export interface SearchProviderSaveBody {
+  type?: string | null;
+  name?: string | null;
+  base_url?: string | null;
+  enabled?: boolean | null;
+  max_results?: number | null;
+  timeout_ms?: number | null;
+  google_cx?: string | null;
+  api_key?: string | null;
 }
 
 export async function listSearchProviders(): Promise<SearchProvider[]> {
@@ -381,26 +402,14 @@ export async function getSearchProviderCatalog(): Promise<SearchProviderCatalog>
   return data;
 }
 
-export async function createSearchProvider(body: {
-  type: string;
-  name?: string | null;
-  base_url?: string | null;
-  google_cx?: string | null;
-  api_key?: string | null;
-}): Promise<SearchProvider> {
+export async function createSearchProvider(body: SearchProviderSaveBody): Promise<SearchProvider> {
   const { data } = await api.post<SearchProvider>("/ai/web/search-providers", body);
   return data;
 }
 
 export async function updateSearchProvider(
   providerId: string,
-  body: {
-    name?: string | null;
-    base_url?: string | null;
-    google_cx?: string | null;
-    enabled?: boolean | null;
-    api_key?: string | null;
-  },
+  body: SearchProviderSaveBody,
 ): Promise<SearchProvider> {
   const { data } = await api.put<SearchProvider>(`/ai/web/search-providers/${providerId}`, body);
   return data;

@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (provider settings adoption, 2026-10-26)
+- **Settings → Tools → Web search renders through the family
+  `web-search-providers` module** (assistant-ui 0.72–0.74; dependency
+  bumped `^0.68.0 → ^0.74.0`). Configured providers are now provider
+  cards — type/priority/disabled/no-key badges, the probe result as the
+  connection line — with every management action (enable/disable,
+  reorder, test, edit, delete) in the card's ⋯ menu, deleting asks for
+  confirmation, and **Add provider** opens a choose-then-configure
+  wizard (provider tiles → catalog-driven form in a modal) that seeds
+  the connection name (`Tavily`, `Tavily 2`, …) and keeps the main page
+  minimal (key, get-key link, base URL for self-hosted instances;
+  name, endpoint override and the timeout/result-count tuning fields
+  live under Advanced). The tuning fields now persist through the API
+  (the form never sent `timeout_ms`/`max_results` before), and the
+  vendored family catalog re-synced (hosting chips, current get-key
+  URLs). The AI-configuration trio already rendered through the family
+  assembly and is unchanged.
+
 ### Added (radar digests, 2026-10-26)
 - **Plan 129 phase 4b — the radar's match digest ships.** An enabled
   radar with a cadence now provisions its own per-user schedule

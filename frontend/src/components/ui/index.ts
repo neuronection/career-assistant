@@ -12,9 +12,34 @@ export {
   ModalHeader,
   ModalTitle,
   ModalDescription,
+  ModalBody,
   ModalFooter,
   type PanelModalProps,
 } from "@/components/ui/Modal";
+export {
+  WebSearchProvidersPanel,
+  WebSearchProvidersList,
+  WebSearchProviderWizard,
+  WebSearchProviderTiles,
+  WebSearchProviderSettingsForm,
+  type WebSearchProbeStatus,
+  type WebSearchProviderCatalog,
+  type WebSearchProviderCatalogEntry,
+  type WebSearchProviderCatalogField,
+  type WebSearchProviderFormValue,
+  type WebSearchProviderProbeView,
+  type WebSearchProviderSaveInput,
+  type WebSearchProviderSettingsFormLabels,
+  type WebSearchProviderSettingsFormProps,
+  type WebSearchProviderTilesProps,
+  type WebSearchProviderView,
+  type WebSearchProviderWizardLabels,
+  type WebSearchProviderWizardProps,
+  type WebSearchProvidersListLabels,
+  type WebSearchProvidersListProps,
+  type WebSearchProvidersPanelLabels,
+  type WebSearchProvidersPanelProps,
+} from "@/components/ui/web-search-providers";
 export { SearchableDropdown } from "@/components/ui/SearchableDropdown";
 export type { DropdownOption } from "@/components/ui/SearchableDropdown";
 export { DatePicker } from "@/components/ui/DatePicker";

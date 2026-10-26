@@ -249,10 +249,10 @@ There is no side door around it.
   guards outbound requests (resolve-then-connect SSRF blocklist, manual
   redirect hops, size/time caps) and reduces HTML to text; JS-shell pages
   escalate to the plan-76 persistent browser when present. `web_search`
-  calls the user-hosted SearXNG instance
-  (`web.searxng_url` in `app_settings`, never bundled; probe status
-  `ok/unreachable/json_disabled`, and the tool answers its absence
-  gracefully). `github_repo` uses the GitHub REST API with an optional
+  runs the ordered web-search provider list from settings (plan 28,
+  `web.search_providers` in `app_settings` — SearXNG plus keyed providers,
+  catalog `contracts/search-providers.json`; the first enabled provider
+  that answers wins, and the tool answers "none configured" gracefully). `github_repo` uses the GitHub REST API with an optional
   Fernet-encrypted token (`web.github_token`). Fetched content is
   untrusted: capped and wrapped as reference data in the prompt, never
   treated as instructions. The generate pipeline reuses them

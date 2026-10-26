@@ -1,99 +1,222 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Plus } from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { SearchProvider, SearchProviderProbe } from "@/api/ai";
 import { apiDetail } from "@/api/client";
-import { Button } from "@/components/ui";
+import {
+  Button,
+  ConfirmationModal,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  WebSearchProviderSettingsForm,
+  WebSearchProviderWizard,
+  WebSearchProvidersList,
+  type WebSearchProviderFormValue,
+  type WebSearchProviderSaveInput,
+  type WebSearchProviderView,
+  type WebSearchProvidersListLabels,
+  type WebSearchProviderWizardLabels,
+} from "@/components/ui";
+import {
+  defaultProviderName,
+  providerSaveBody,
+  searchExtraFields,
+  toCardView,
+  toCatalogType,
+  toProbeView,
+  toSearchProviderCatalog,
+} from "@/components/settings/searchProviderViews";
+
+interface EditState {
+  id: string;
+  type: string;
+  value: WebSearchProviderFormValue;
+}
 
 // Tools → web search (ADR-0033 domain tools.web-search): the family
-// multi-provider shape (ADR-0035 / plan 28 Phase 4) — an ordered list; the
-// first enabled provider that answers wins. SearXNG rides career's
-// SSRF-guarded GET client; keyed providers (Tavily, Brave, Exa, Serper,
-// Google PSE) ride the guarded search transport (plan 122). The form
-// renders from the vendored catalog.
-type Draft = {
-  id: string | null;
-  type: string;
-  name: string;
-  base_url: string;
-  google_cx: string;
-  api_key: string;
-};
-
-const catalogType = (type: string) => (type === "google_pse" ? "google-pse" : type);
-
-const PROBE_LABEL_KEYS: Record<string, string> = {
-  ok: "toolsSettings.webSearch.probeOk",
-  unreachable: "toolsSettings.webSearch.probeUnreachable",
-  auth: "toolsSettings.webSearch.probeAuth",
-  rate_limit: "toolsSettings.webSearch.probeRateLimited",
-  json_disabled: "toolsSettings.webSearch.probeJsonDisabled",
-  error: "toolsSettings.webSearch.probeError",
-};
+// multi-provider shape (ADR-0035 / plan 28) rendered through the library
+// web-search-providers module — configured instances as ProviderCards with
+// every management action in the ⋯ menu, add = tiles → settings-form
+// wizard in a modal, edit = the catalog-driven settings form. Career keeps
+// persistence, key sealing and the probe calls app-side; the first enabled
+// provider that answers wins (card order = fallback priority).
 
 export function WebSearchSection() {
   const { t } = useTranslation();
   const [providers, setProviders] = useState<SearchProvider[]>([]);
   const [catalog, setCatalog] = useState<aiApi.SearchProviderCatalog | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [wizardError, setWizardError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<EditState | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<SearchProvider | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, SearchProviderProbe>>({});
 
   const refresh = useCallback(async () => {
     try {
       setProviders(await aiApi.listSearchProviders());
-    } catch (error) {
-      setNotice(apiDetail(error));
+    } catch (err) {
+      setError(apiDetail(err));
     }
   }, []);
 
   useEffect(() => {
     void refresh();
-    aiApi.getSearchProviderCatalog().then(setCatalog).catch(() => setCatalog(null));
+    aiApi
+      .getSearchProviderCatalog()
+      .then(setCatalog)
+      .catch((err) => setError(apiDetail(err)));
   }, [refresh]);
 
-  const save = async (form: Draft) => {
+  const libraryCatalog = useMemo(
+    () => (catalog ? toSearchProviderCatalog(catalog) : null),
+    [catalog],
+  );
+  const extraFields = useMemo(
+    () =>
+      searchExtraFields(catalog?.limits, {
+        timeout: t("toolsSettings.webSearch.timeoutLabel"),
+        maxResults: t("toolsSettings.webSearch.maxResultsLabel"),
+      }),
+    [catalog, t],
+  );
+
+  const wizardLabels = useMemo<WebSearchProviderWizardLabels>(
+    () => ({
+      chooseStepLabel: t("toolsSettings.webSearch.stepChoose"),
+      configureStepLabel: t("toolsSettings.webSearch.stepConfigure"),
+      stepsLabel: t("toolsSettings.webSearch.stepsAria"),
+      tilesLabel: t("toolsSettings.webSearch.tilesAria"),
+      keyChipLabel: t("toolsSettings.webSearch.chipKey"),
+      keylessChipLabel: t("toolsSettings.webSearch.chipKeyless"),
+      cloudChipLabel: t("toolsSettings.webSearch.chipCloud"),
+      selfHostedChipLabel: t("toolsSettings.webSearch.chipSelfHosted"),
+      backLabel: t("toolsSettings.webSearch.back"),
+      nameLabel: t("toolsSettings.webSearch.nameLabel"),
+      apiKeyLabel: t("toolsSettings.webSearch.key"),
+      keyOptionalLabel: t("toolsSettings.webSearch.keyOptional"),
+      keyStoredLabel: t("toolsSettings.webSearch.keyStored"),
+      noKeyLabel: t("toolsSettings.webSearch.noKeyNeeded"),
+      baseUrlLabel: t("toolsSettings.webSearch.baseUrl"),
+      baseUrlRequiredLabel: t("toolsSettings.webSearch.baseUrlRequired"),
+      advancedLabel: t("toolsSettings.webSearch.advanced"),
+      getKeyLabel: t("toolsSettings.webSearch.getKey"),
+      saveLabel: t("toolsSettings.webSearch.save"),
+      cancelLabel: t("toolsSettings.webSearch.cancel"),
+    }),
+    [t],
+  );
+
+  const listLabels = useMemo<WebSearchProvidersListLabels>(
+    () => ({
+      emptyLabel: t("toolsSettings.webSearch.empty"),
+      orderLabel: (position) => t("toolsSettings.webSearch.priority", { position }),
+      disabledBadge: t("toolsSettings.webSearch.disabledBadge"),
+      noKeyLabel: t("toolsSettings.webSearch.noKey"),
+      keyStoredLabel: t("toolsSettings.webSearch.keyStored"),
+      enableLabel: t("toolsSettings.webSearch.enable"),
+      disableLabel: t("toolsSettings.webSearch.disable"),
+      moveUpLabel: t("toolsSettings.webSearch.moveUp"),
+      moveDownLabel: t("toolsSettings.webSearch.moveDown"),
+      editLabel: t("toolsSettings.webSearch.edit"),
+      deleteLabel: t("toolsSettings.webSearch.delete"),
+      testLabel: t("toolsSettings.webSearch.test"),
+      idleLabel: t("toolsSettings.webSearch.probeIdle"),
+      okLabel: t("toolsSettings.webSearch.probeOk"),
+      failLabel: t("toolsSettings.webSearch.probeError"),
+      actionsLabel: (name) => t("toolsSettings.webSearch.actionsAria", { name }),
+    }),
+    [t],
+  );
+
+  const entryFor = useCallback(
+    (type: string) => catalog?.providers[type],
+    [catalog],
+  );
+
+  const defaultName = useCallback(
+    (type: string) => (catalog ? defaultProviderName(type, catalog, providers) : null),
+    [catalog, providers],
+  );
+
+  const saveWizard = async (input: WebSearchProviderSaveInput) => {
     setBusy(true);
-    setNotice("");
+    setWizardError(null);
     try {
-      const body = {
-        type: form.type,
-        name: form.name.trim() || null,
-        base_url: form.base_url.trim() || null,
-        google_cx: form.google_cx.trim() || null,
-        api_key: form.api_key.trim() === "" ? null : form.api_key.trim(),
-      };
-      if (form.id) {
-        await aiApi.updateSearchProvider(form.id, body);
-      } else {
-        await aiApi.createSearchProvider(body);
-      }
-      setDraft(null);
+      await aiApi.createSearchProvider(providerSaveBody(input, entryFor(input.type)));
+      setAdding(false);
       await refresh();
-    } catch (error) {
-      setNotice(apiDetail(error));
+    } catch (err) {
+      setWizardError(apiDetail(err));
     } finally {
       setBusy(false);
     }
   };
 
-  const toggle = async (provider: SearchProvider) => {
+  const openEdit = (view: WebSearchProviderView) => {
+    const full = providers.find((provider) => provider.id === view.id);
+    if (!full) return;
+    setEditError(null);
+    setEditing({
+      id: full.id,
+      type: toCatalogType(full.type),
+      value: {
+        name: full.name,
+        apiKey: "",
+        baseUrl: full.base_url,
+        fields: {
+          google_cx: full.google_cx ?? "",
+          timeout_ms: String(full.timeout_ms ?? ""),
+          max_results: String(full.max_results ?? ""),
+        },
+      },
+    });
+  };
+
+  const saveEdit = async (value: WebSearchProviderFormValue) => {
+    if (!editing) return;
     setBusy(true);
+    setEditError(null);
     try {
-      await aiApi.updateSearchProvider(provider.id, { enabled: !provider.enabled });
+      await aiApi.updateSearchProvider(
+        editing.id,
+        providerSaveBody(
+          {
+            id: editing.id,
+            type: editing.type,
+            name: value.name,
+            baseUrl: value.baseUrl,
+            googleCx: value.fields["google_cx"] ?? "",
+            apiKey: value.apiKey,
+            fields: value.fields,
+          },
+          entryFor(editing.type),
+        ),
+      );
+      setEditing(null);
       await refresh();
-    } catch (error) {
-      setNotice(apiDetail(error));
+    } catch (err) {
+      setEditError(apiDetail(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async (id: string, enabled: boolean) => {
+    setBusy(true);
+    setError("");
+    try {
+      await aiApi.updateSearchProvider(id, { enabled });
+      await refresh();
+    } catch (err) {
+      setError(apiDetail(err));
     } finally {
       setBusy(false);
     }
@@ -101,40 +224,29 @@ export function WebSearchSection() {
 
   const move = async (id: string, direction: "up" | "down") => {
     setBusy(true);
+    setError("");
     try {
       setProviders(await aiApi.moveSearchProvider(id, direction));
-    } catch (error) {
-      setNotice(apiDetail(error));
+    } catch (err) {
+      setError(apiDetail(err));
     } finally {
       setBusy(false);
     }
   };
 
-  const remove = async (id: string) => {
-    setBusy(true);
+  const runTest = async (id: string) => {
+    setTestingId(id);
     try {
-      await aiApi.deleteSearchProvider(id);
-      await refresh();
-    } catch (error) {
-      setNotice(apiDetail(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const runTest = async (provider: SearchProvider) => {
-    setTestingId(provider.id);
-    try {
-      const result = await aiApi.testSearchProvider(provider.id);
-      setProbes((current) => ({ ...current, [provider.id]: result }));
-    } catch (error) {
+      const result = await aiApi.testSearchProvider(id);
+      setProbes((current) => ({ ...current, [id]: result }));
+    } catch (err) {
       setProbes((current) => ({
         ...current,
-        [provider.id]: {
+        [id]: {
           status: "error",
-          error: apiDetail(error),
           latency_ms: 0,
           result_count: null,
+          error: apiDetail(err),
         },
       }));
     } finally {
@@ -142,236 +254,132 @@ export function WebSearchSection() {
     }
   };
 
-  const catalogEntry = (type: string) => catalog?.providers[catalogType(type)];
-  const entry = draft ? catalogEntry(draft.type) : undefined;
-  const saveDisabled =
-    busy ||
-    (entry?.baseUrlRequired === true && draft?.base_url.trim() === "") ||
-    (draft?.type === "google-pse" && draft?.google_cx.trim() === "");
+  const remove = async (id: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      await aiApi.deleteSearchProvider(id);
+      setDeleting(null);
+      await refresh();
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const editingProvider = editing
+    ? providers.find((provider) => provider.id === editing.id) ?? null
+    : null;
 
   return (
-    <div className="space-y-6" data-testid="web-search-section">
-      <p className="text-sm text-slate-500">{t("toolsSettings.webSearch.hint")}</p>
-
-      {providers.map((provider, index) => {
-        const result = probes[provider.id];
-        return (
-          <div
-            key={provider.id}
-            className="border-slate-300 space-y-1 rounded-md border p-3"
-            data-testid={`web-search-provider-${provider.id}`}
+    <div className="space-y-4" data-testid="web-search-section">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm text-slate-500">{t("toolsSettings.webSearch.hint")}</p>
+        {!adding && editing === null ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setWizardError(null);
+              setAdding(true);
+            }}
           >
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  checked={provider.enabled}
-                  aria-label={t("toolsSettings.webSearch.enabledAria", { name: provider.name })}
-                  onChange={() => void toggle(provider)}
-                />
-                {provider.name}
-              </label>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                {catalogEntry(provider.type)?.label ?? provider.type}
-              </span>
-              {provider.base_url ? (
-                <span className="truncate font-mono text-xs text-slate-500">
-                  {provider.base_url}
-                </span>
-              ) : null}
-              <span className="ml-auto text-xs text-slate-500">
-                {provider.key_set
-                  ? (provider.key_hint ?? t("toolsSettings.webSearch.keyStored"))
-                  : t("toolsSettings.webSearch.noKey")}
-              </span>
-            </div>
-            {result ? (
-              <p
-                className={
-                  result.status === "ok" ? "text-xs text-emerald-600" : "text-xs text-amber-600"
-                }
-                data-testid={`web-search-probe-${provider.id}`}
-              >
-                {result.status === "error" && result.error
-                  ? result.error
-                  : t(PROBE_LABEL_KEYS[result.status] ?? "toolsSettings.webSearch.probeError")}
-                {result.status === "ok" ? ` · ${result.latency_ms} ms` : ""}
-              </p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={testingId === provider.id}
-                onClick={() => void runTest(provider)}
-              >
-                {testingId === provider.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : null}
-                {t("toolsSettings.webSearch.test")}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t("toolsSettings.webSearch.moveUp")}
-                disabled={index === 0 || busy}
-                onClick={() => void move(provider.id, "up")}
-              >
-                <ChevronUp className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t("toolsSettings.webSearch.moveDown")}
-                disabled={index === providers.length - 1 || busy}
-                onClick={() => void move(provider.id, "down")}
-              >
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t("toolsSettings.webSearch.edit")}
-                onClick={() =>
-                  setDraft({
-                    id: provider.id,
-                    type: catalogType(provider.type),
-                    name: provider.name,
-                    base_url: provider.base_url ?? "",
-                    google_cx: provider.google_cx ?? "",
-                    api_key: "",
-                  })
-                }
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t("toolsSettings.webSearch.delete")}
-                disabled={busy}
-                onClick={() => void remove(provider.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-              {!provider.enabled ? (
-                <span className="text-xs text-slate-400">
-                  {t("toolsSettings.webSearch.disabled")}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
+            <Plus className="w-4 h-4" />
+            {t("toolsSettings.webSearch.add")}
+          </Button>
+        ) : null}
+      </div>
 
-      {providers.length === 0 && draft === null ? (
-        <p className="py-4 text-center text-sm text-slate-400">
-          {t("toolsSettings.webSearch.empty")}
+      {error ? (
+        <p className="text-xs text-red-600" data-testid="web-search-error">
+          {error}
         </p>
       ) : null}
 
-      {draft === null ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setDraft({
-              id: null,
-              type: catalog?.providerOrder[0] ?? "searxng",
-              name: "",
-              base_url: "",
-              google_cx: "",
-              api_key: "",
-            })
+      {libraryCatalog ? (
+        <WebSearchProvidersList
+          providers={providers.map(toCardView)}
+          catalog={libraryCatalog}
+          probes={Object.fromEntries(
+            Object.entries(probes).map(([id, probe]) => [id, toProbeView(probe)]),
+          )}
+          testingId={testingId}
+          busy={busy}
+          labels={listLabels}
+          onToggle={(id, enabled) => void toggle(id, enabled)}
+          onMove={(id, direction) => void move(id, direction)}
+          onTest={(id) => void runTest(id)}
+          onEdit={openEdit}
+          onDelete={(id) =>
+            setDeleting(providers.find((provider) => provider.id === id) ?? null)
           }
-        >
-          <Plus className="w-4 h-4" />
-          {t("toolsSettings.webSearch.add")}
-        </Button>
+        />
       ) : null}
 
-      {draft !== null ? (
-        <form
-          className="border-slate-300 space-y-2 rounded-md border p-3"
-          data-testid="web-search-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save(draft);
-          }}
-        >
-          <div className="flex flex-wrap gap-2">
-            <select
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm sm:w-auto"
-              value={draft.type}
-              disabled={draft.id !== null}
-              aria-label={t("toolsSettings.webSearch.type")}
-              onChange={(event) => setDraft({ ...draft, type: event.target.value })}
-            >
-              {(catalog?.providerOrder ?? []).map((type) => (
-                <option key={type} value={type}>
-                  {catalogEntry(type)?.label ?? type}
-                </option>
-              ))}
-            </select>
-            <input
-              className="w-full flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={t("toolsSettings.webSearch.name")}
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <input
-              className="w-full flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={
-                entry?.baseUrlRequired
-                  ? t("toolsSettings.webSearch.baseUrlRequired")
-                  : (entry?.baseUrlHint ?? t("toolsSettings.webSearch.baseUrl"))
-              }
-              value={draft.base_url}
-              onChange={(event) => setDraft({ ...draft, base_url: event.target.value })}
-            />
-            <input
-              type="password"
-              className="w-48 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={
-                draft.id
-                  ? t("toolsSettings.webSearch.keyStored")
-                  : entry?.requiresKey
-                    ? t("toolsSettings.webSearch.key")
-                    : t("toolsSettings.webSearch.keyOptional")
-              }
-              value={draft.api_key}
-              onChange={(event) => setDraft({ ...draft, api_key: event.target.value })}
-            />
-          </div>
-          {draft.type === "google-pse" ? (
-            <input
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={t("toolsSettings.webSearch.googleCx")}
-              value={draft.google_cx}
-              onChange={(event) => setDraft({ ...draft, google_cx: event.target.value })}
-            />
-          ) : null}
-          {entry?.notes ? (
-            <p className="text-[11px] text-slate-500">{entry.notes}</p>
-          ) : null}
-          {notice ? (
-            <p className="text-xs text-red-600" data-testid="web-search-error">
-              {notice}
-            </p>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <Button size="sm" type="submit" disabled={saveDisabled}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {t("toolsSettings.webSearch.save")}
-            </Button>
-            <Button size="sm" variant="ghost" type="button" onClick={() => setDraft(null)}>
-              {t("toolsSettings.webSearch.cancel")}
-            </Button>
-          </div>
-        </form>
+      {adding && libraryCatalog ? (
+        <Modal open onOpenChange={(open) => { if (!open) setAdding(false); }}>
+          <ModalContent size="lg">
+            <ModalHeader>
+              <ModalTitle>{t("toolsSettings.webSearch.add")}</ModalTitle>
+            </ModalHeader>
+            <ModalBody className="pb-4">
+              <WebSearchProviderWizard
+                catalog={libraryCatalog}
+                defaultName={defaultName}
+                extraFields={extraFields}
+                busy={busy}
+                error={wizardError}
+                labels={wizardLabels}
+                onCancel={() => setAdding(false)}
+                onSave={(input) => void saveWizard(input)}
+              />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
       ) : null}
+
+      {editing && libraryCatalog && entryFor(editing.type) ? (
+        <Modal open onOpenChange={(open) => { if (!open) setEditing(null); }}>
+          <ModalContent size="lg">
+            <ModalHeader>
+              <ModalTitle>{t("toolsSettings.webSearch.edit")}</ModalTitle>
+            </ModalHeader>
+            <ModalBody className="pb-4">
+              <WebSearchProviderSettingsForm
+                type={editing.type}
+                entry={libraryCatalog.entries[editing.type]}
+                mode="edit"
+                value={editing.value}
+                onChange={(value) => setEditing({ ...editing, value })}
+                onSubmit={(value) => void saveEdit(value)}
+                onCancel={() => setEditing(null)}
+                storedKeyHint={editingProvider?.key_hint ?? null}
+                error={editError}
+                busy={busy}
+                extraFields={extraFields}
+                labels={wizardLabels}
+              />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+      ) : null}
+
+      <ConfirmationModal
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+        title={t("toolsSettings.webSearch.deleteTitle", { name: deleting?.name ?? "" })}
+        description={t("toolsSettings.webSearch.deleteDescription")}
+        confirmLabel={t("toolsSettings.webSearch.delete")}
+        cancelLabel={t("toolsSettings.webSearch.cancel")}
+        destructive
+        busy={busy}
+        onConfirm={() => {
+          if (deleting) void remove(deleting.id);
+        }}
+      />
     </div>
   );
 }
