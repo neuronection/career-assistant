@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (radar digests, 2026-10-26)
+- **Plan 129 phase 4b — the radar's match digest ships.** An enabled
+  radar with a cadence now provisions its own per-user schedule
+  (instant ≈ every 15 minutes, daily at 08:00 UTC, weekly on Mondays);
+  each run evaluates the saved configuration as a live search and emits
+  a digest through the notification funnel only when there are unseen
+  matches — identical runs dedup, and a disabled radar or `off`
+  cadence removes the schedule. New schedule kind `user_radar_digest`
+  + job type `radar_digest` (migration `0058` widens both CHECKs).
+
 ### Added (job radar, 2026-10-26)
 - **Plan 129 phase 4a — the job radar: configure your job search once.**
   A new Settings surface (`/settings/radar`) saves the profile's search

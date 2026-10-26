@@ -47,7 +47,8 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'system_catalog_enrich', 'system_followups', "
             "'system_market_history', 'system_proposal_sweep', "
             "'system_checkpoint_prune', 'system_extension_reconcile', "
-            "'user_saved_search', 'user_checkin', 'user_autopilot')",
+            "'user_saved_search', 'user_radar_digest', 'user_checkin', "
+            "'user_autopilot')",
             name="kind_allowed",
         ),
         CheckConstraint(
@@ -56,9 +57,10 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint(
             "task IS NULL OR task IN ('posting_sync', 'digest', "
-            "'saved_search_run', 'fit_refit', 'catalog_enrich', "
-            "'autopilot_run', 'followup_sweep', 'market_history_capture', "
-            "'proposal_sweep', 'checkpoint_prune', 'extension_reconcile', "
+            "'saved_search_run', 'radar_digest', 'fit_refit', "
+            "'catalog_enrich', 'autopilot_run', 'followup_sweep', "
+            "'market_history_capture', 'proposal_sweep', "
+            "'checkpoint_prune', 'extension_reconcile', "
             "'demand_import')",
             name="task_allowed",
         ),

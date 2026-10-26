@@ -65,6 +65,7 @@ SCHEDULE_TASKS = {
     "posting_sync",
     "digest",
     "saved_search_run",
+    "radar_digest",
     "fit_refit",
     "catalog_enrich",
     "autopilot_run",

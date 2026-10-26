@@ -584,6 +584,15 @@ async def _run_saved_search(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
     return await run_saved_search(db, payload)
 
 
+async def _run_radar_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """A scheduled job radar: the saved configuration as a live search,
+    notifying on unseen matches (the saved-search contract)."""
+    from app.services.postings.radar_service import run_radar_digest
+
+    payload = job.payload or {}
+    return await run_radar_digest(db, payload)
+
+
 async def _run_posting_extract(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Deep posting extraction: one structured AI call per
     posting, normalized into posting_skills + typed columns."""
@@ -864,6 +873,7 @@ HANDLERS: dict[str, Handler] = {
     "checkpoint_prune": _run_checkpoint_prune,
     "extension_reconcile": _run_extension_reconcile,
     "saved_search_run": _run_saved_search,
+    "radar_digest": _run_radar_digest,
     "cv_extract_text": _run_cv_extract_text,
     "cv_ocr": _run_cv_ocr,
     "cv_parse": _run_cv_parse,

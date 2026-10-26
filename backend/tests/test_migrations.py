@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0057"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0058"], (
         "revision chain stays linear on one head"
     )
 
@@ -2147,3 +2147,24 @@ def test_0057_job_radars_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present("job_radars"), "job_radars exists after re-upgrade"
+
+
+def test_0058_radar_digest_check_roundtrip():
+    """Plan 129 phase 4b: the radar-digest schedule kind + task widen
+    both CHECKs; downgrade restores the previous text and deletes the
+    un-representable rows (the 0053 recipe, both constraints)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "user_radar_digest" in checks["kind_allowed"]
+    assert "radar_digest" in checks["task_allowed"]
+
+    command.downgrade(config, "0057")
+    checks = _schedules_checks()
+    assert "user_radar_digest" not in checks["kind_allowed"]
+    assert "radar_digest" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "user_radar_digest" in checks["kind_allowed"]
+    assert "radar_digest" in checks["task_allowed"]

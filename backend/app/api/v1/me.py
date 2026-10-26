@@ -364,6 +364,15 @@ async def upsert_job_radar(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> RadarOut:
-    """Save the job radar (replace-all; omit a field = clear it)."""
+    """Save the job radar (replace-all; omit a field = clear it).
+
+    The match-digest schedule rides the save: an enabled radar with a
+    non-off cadence provisions its per-user schedule, anything else
+    removes it."""
+    from app.services.postings.radar_service import cadence_trigger
+    from app.services.scheduler.runner import SchedulerService
+
     radar = await upsert_radar(db, UUID(profile_id), data)
+    trigger = cadence_trigger(radar.cadence) if radar.enabled else None
+    await SchedulerService(db).set_radar_schedule(user.id, radar.id, trigger)
     return RadarOut.model_validate(radar)

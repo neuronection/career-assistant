@@ -27,6 +27,7 @@ class BackgroundJobType(StrEnum):
     POSTING_EXTRACT = "posting_extract"
     DIGEST = "digest"
     SAVED_SEARCH_RUN = "saved_search_run"
+    RADAR_DIGEST = "radar_digest"
     CV_EXTRACT_TEXT = "cv_extract_text"
     CV_OCR = "cv_ocr"
     CV_PARSE = "cv_parse"
@@ -56,6 +57,7 @@ class ScheduleKind(StrEnum):
     SYSTEM_CHECKPOINT_PRUNE = "system_checkpoint_prune"
     SYSTEM_EXTENSION_RECONCILE = "system_extension_reconcile"
     USER_SAVED_SEARCH = "user_saved_search"
+    USER_RADAR_DIGEST = "user_radar_digest"
     USER_CHECKIN = "user_checkin"
     USER_AUTOPILOT = "user_autopilot"
 

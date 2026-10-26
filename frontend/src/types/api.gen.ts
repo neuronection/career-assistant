@@ -5751,6 +5751,10 @@ export interface paths {
         /**
          * Upsert Job Radar
          * @description Save the job radar (replace-all; omit a field = clear it).
+         *
+         *     The match-digest schedule rides the save: an enabled radar with a
+         *     non-off cadence provisions its per-user schedule, anything else
+         *     removes it.
          */
         put: operations["upsert_job_radar_api_v1_me_job_radar_put"];
         post?: never;

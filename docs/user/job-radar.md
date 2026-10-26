@@ -30,8 +30,11 @@ right now without saving.
 - **Explore** (`/postings/search`) — the **My radar** button runs your
   saved configuration as a live search; "Clear radar" returns to the
   open filters.
-- **Notifications** — cadence digests for fresh matching postings
-  (notifications wave).
+- **Match digests** — the radar is evaluated live each time its digest
+  runs (instant ≈ every 15 minutes, daily at 08:00 UTC, weekly on
+  Mondays), so the matches always reflect the current postings. At most
+  one digest per bucket is sent, and only when **unseen** matches
+  remain — an unchanged set never re-notifies within the bucket.
 
 The radar is per profile: switch profiles and each one keeps its own
 radar. Sources always follow your instance's admin configuration

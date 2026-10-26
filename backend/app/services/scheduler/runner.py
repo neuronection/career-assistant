@@ -40,6 +40,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_MARKET_HISTORY.value: (BackgroundJobType.MARKET_HISTORY_CAPTURE.value),
     ScheduleKind.SYSTEM_EXTENSION_RECONCILE.value: BackgroundJobType.EXTENSION_RECONCILE.value,
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
+    ScheduleKind.USER_RADAR_DIGEST.value: BackgroundJobType.RADAR_DIGEST.value,
     ScheduleKind.USER_AUTOPILOT.value: BackgroundJobType.AUTOPILOT_RUN.value,
     ScheduleKind.USER_CHECKIN.value: None,
 }
@@ -231,6 +232,43 @@ class SchedulerService:
         return schedule
 
     # ---------------------------------------------------------------- CRUD
+
+    async def set_radar_schedule(
+        self, user_id: UUID, radar_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
+        """Attach/remove the radar-digest schedule for one job radar.
+
+        Cadence → trigger mapping is the caller's (the radar service's);
+        `trigger=None` removes the schedule (radar off or disabled).
+        """
+        existing = await self.db.execute(
+            select(Schedule).where(
+                Schedule.kind == ScheduleKind.USER_RADAR_DIGEST.value,
+                Schedule.owner_user_id == user_id,
+            )
+        )
+        for schedule in existing.scalars().all():
+            if schedule.payload.get("radar_id") == str(radar_id):
+                await self.db.delete(schedule)
+        await self.db.flush()
+        if trigger is None:
+            await self.db.commit()
+            return None
+        trigger_registry.resolve_trigger(trigger)
+        schedule = await self.ensure_schedule(
+            kind=ScheduleKind.USER_RADAR_DIGEST.value,
+            owner_user_id=user_id,
+            task=BackgroundJobType.RADAR_DIGEST.value,
+            trigger=trigger,
+            payload={"radar_id": str(radar_id)},
+            misfire_policy=MisfirePolicy.NEXT_SLOT.value,
+            default_interval_minutes=15,
+        )
+        schedule.enabled = True
+        schedule.next_run_at = trigger_registry.next_after(trigger, _utcnow())
+        await self.db.commit()
+        await self.db.refresh(schedule)
+        return schedule
 
     async def set_saved_search_schedule(
         self, user_id: UUID, search_id: UUID, trigger: dict | None
