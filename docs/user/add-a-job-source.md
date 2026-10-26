@@ -87,7 +87,10 @@ comes from:
 
 MCP-script sources also have a **Tool options** field (JSON object) for
 tool-level settings — the place keywords/location live in static mode —
-so nothing needs to hide in the command line.
+so nothing needs to hide in the command line. A source minted from an
+**imported bundle** shows the bundle's own settings form (the fields the
+bundle declares) instead of the transport/command plumbing — the same
+"import and configure" feel as a native integration.
 
 ## After the first sync
 

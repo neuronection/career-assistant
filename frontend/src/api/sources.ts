@@ -27,6 +27,12 @@ export type PostingSource = {
   query_mode: string;
   query_batch_size: number;
   query_info: SourceQueryInfo;
+  managed?: boolean;
+  tool_config_schema?: {
+    type: "object";
+    properties: Record<string, ConfigFieldSchema>;
+    required?: string[];
+  } | null;
   secret_hints: Record<string, SecretHint>;
   enabled: boolean;
   paused_at: string | null;

@@ -3,6 +3,7 @@
 User management (`/admin/users`, reset-password, force-logout) is the
 auth-kit's §12 surface now — see `nx_auth.user_admin` (plan 16 P3a)."""
 
+import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -490,6 +491,42 @@ def _query_info(source) -> dict:
     }
 
 
+def _managed_bundle_schema(source) -> tuple[bool, dict | None]:
+    """Plan 131 managed-bundle surface: when the source's stdio command
+    spawns a digest-pinned bundle entry, return the bundle manifest's
+    ``configSchema`` — the form the bundle declares (manifest shape only,
+    never values). Non-managed sources return ``(False, None)``."""
+    from pathlib import Path
+    from shlex import split as shlex_split
+
+    from app.core.config import settings
+
+    try:
+        parts = shlex_split(str((source.config or {}).get("command") or ""))
+    except ValueError:
+        return False, None
+    if not parts:
+        return False, None
+    entry = Path(parts[-1])
+    if entry.name != "server.py":
+        return False, None
+    content_dir = entry.parent
+    content_root = (Path(settings.data_dir) / "extensions").resolve()
+    try:
+        content_dir.resolve().relative_to(content_root)
+    except ValueError:
+        return False, None
+    manifest_path = content_dir / "manifest.json"
+    if not manifest_path.is_file():
+        return False, None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False, None
+    schema = manifest.get("configSchema")
+    return True, schema if isinstance(schema, dict) else None
+
+
 async def _source_view(db: AsyncSession, source) -> dict:
     """Secret-safe source view: config WITHOUT any x-secret field values
     (they cannot be stored there — belt and braces for legacy rows), plus
@@ -497,6 +534,7 @@ async def _source_view(db: AsyncSession, source) -> dict:
     from app.core.encryption import decrypt_secret
     from app.extensions.registry import resolve_connector
 
+    managed, tool_config_schema = _managed_bundle_schema(source)
     config = dict(source.config or {})
     secret_hints: dict[str, dict] = {}
     if source.kind == "market":
@@ -525,6 +563,8 @@ async def _source_view(db: AsyncSession, source) -> dict:
         "query_mode": source.query_mode,
         "query_batch_size": source.query_batch_size,
         "query_info": _query_info(source),
+        "managed": managed,
+        "tool_config_schema": tool_config_schema,
         "secret_hints": secret_hints,
         "enabled": source.enabled,
         "paused_at": source.paused_at.isoformat() if source.paused_at else None,

@@ -21,7 +21,9 @@ All notable changes to **Career Assistant** are documented here.
   jittered pause in between, never in parallel, and the ban-safe
   defaults hold the traffic line. MCP-script sources also gain a
   **Tool options** JSON field so tool-level settings no longer need to
-  ride the command line.
+  ride the command line, and a source minted from an imported bundle
+  now shows **the bundle's own settings form** (its declared fields)
+  instead of the transport/command plumbing.
 
 ### Changed (provider settings adoption, 2026-10-26)
 - **Settings → Tools → Web search renders through the family

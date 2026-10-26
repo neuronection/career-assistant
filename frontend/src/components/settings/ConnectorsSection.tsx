@@ -40,6 +40,15 @@ type SourceDraft = {
   query_batch_size: number;
 };
 
+function unpackToolOptions(raw: unknown): IntegrationConfigValues {
+  try {
+    const parsed = JSON.parse(String(raw ?? "{}"));
+    return parsed && typeof parsed === "object" ? (parsed as IntegrationConfigValues) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function ConnectorsSection() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<WebSettings | null>(null);
@@ -158,14 +167,29 @@ function JobSourceConnectors() {
     setBusy(true);
     setNotice("");
     try {
+      const values = Object.fromEntries(
+        Object.entries(form.config)
+          .filter(([, value]) => value !== null && value !== undefined && value !== "")
+          .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+      ) as Record<string, string | number | boolean>;
+      const managedSource = form.id
+        ? sources.find((row) => row.id === form.id && row.managed)
+        : undefined;
+      const config = managedSource
+        ? {
+            transport: managedSource.config.transport ?? "stdio",
+            command: managedSource.config.command ?? "",
+            url: managedSource.config.url ?? "",
+            tool: managedSource.config.tool ?? "fetch_postings",
+            allowed_tools: managedSource.config.allowed_tools ?? "",
+            timeout_seconds: managedSource.config.timeout_seconds ?? 120,
+            options: JSON.stringify(values),
+          }
+        : values;
       const payload = {
         key: form.key.trim(),
         connector_key: form.connector_key,
-        config: Object.fromEntries(
-          Object.entries(form.config)
-            .filter(([, value]) => value !== null && value !== undefined && value !== "")
-            .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
-        ) as Record<string, string | number | boolean>,
+        config,
         query_mode: form.query_mode,
         query_batch_size: form.query_batch_size,
         secrets,
@@ -278,14 +302,16 @@ function JobSourceConnectors() {
   };
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
+  const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
+  const managedSchema = draftSource?.managed ? draftSource.tool_config_schema : null;
   const draftFields = useMemo(
     () =>
-      draftEntry
-        ? parseIntegrationConfigSchema(
-            draftEntry.config_schema as IntegrationConfigSchema,
-          )
-        : [],
-    [draftEntry],
+      managedSchema
+        ? parseIntegrationConfigSchema(managedSchema as IntegrationConfigSchema)
+        : draftEntry
+          ? parseIntegrationConfigSchema(draftEntry.config_schema as IntegrationConfigSchema)
+          : [],
+    [draftEntry, managedSchema],
   );
 
   const draftSecretSlots = useMemo(() => {
@@ -357,9 +383,11 @@ function JobSourceConnectors() {
               id: source.id,
               key: source.key,
               connector_key: source.connector_key,
-              config: Object.fromEntries(
-                Object.entries(source.config).map(([key, value]) => [key, String(value)]),
-              ),
+              config: source.managed
+                ? unpackToolOptions(source.config.options)
+                : Object.fromEntries(
+                    Object.entries(source.config).map(([key, value]) => [key, String(value)]),
+                  ),
               query_mode: source.query_mode || "static",
               query_batch_size: source.query_batch_size || 1,
             });
