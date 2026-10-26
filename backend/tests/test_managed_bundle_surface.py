@@ -103,3 +103,19 @@ async def test_managed_values_roundtrip_through_options(
     view = await _source_view(db, src)
     assert view["managed"] is True
     assert json.loads(view["config"]["options"]) == {"keywords": "ai engineer", "max_pages": 2}
+
+
+def test_digest_tree_ignores_runtime_byproducts(tmp_path):
+    """The first managed spawn creates __pycache__ — derived files must
+    never contribute to the digest or the run poisons its own pin."""
+    from app.extensions.lifecycle import digest_tree
+
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "server.py").write_text("print('hi')\n")
+    (tmp_path / "manifest.json").write_text("{}")
+    before = digest_tree(tmp_path)
+    cache = tmp_path / "sub" / "__pycache__"
+    cache.mkdir()
+    (cache / "server.cpython-312.pyc").write_bytes(b"\x00\x01")
+    (tmp_path / "sub" / "server.pyc").write_bytes(b"\x00")
+    assert digest_tree(tmp_path) == before

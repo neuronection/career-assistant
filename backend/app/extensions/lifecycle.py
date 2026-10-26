@@ -495,6 +495,23 @@ def _content_root(data_dir: Path | None = None) -> Path:
     return (data_dir or settings.data_dir) / EXTENSIONS_SUBDIR
 
 
+#: Runtime byproducts a managed spawn creates (plan 134 addendum): derived
+#: files must never contribute to the content digest — otherwise the first
+#: spawn poisons its own pin ("content no longer matches its digest").
+_RUNTIME_JUNK_DIRS = frozenset({"__pycache__", ".venv", "node_modules", ".pytest_cache"})
+_RUNTIME_JUNK_SUFFIXES = (".pyc", ".pyo", ".DS_Store")
+
+
+def _is_content_file(path: Path, root: Path) -> bool:
+    """Content = regular files, minus VCS metadata and runtime byproducts."""
+    parts = path.relative_to(root).parts
+    if ".git" in parts or _RUNTIME_JUNK_DIRS.intersection(parts):
+        return False
+    if path.is_symlink() or not path.is_file():
+        return False
+    return not path.name.endswith(_RUNTIME_JUNK_SUFFIXES)
+
+
 def digest_tree(root: Path) -> str:
     """Deterministic sha256 over a content tree: regular files only
     (symlinks and specials are SKIPPED — they never contribute and never
@@ -504,9 +521,7 @@ def digest_tree(root: Path) -> str:
     files: list[tuple[str, Path]] = []
     total = 0
     for path in sorted(root.rglob("*")):
-        if ".git" in path.relative_to(root).parts:
-            continue
-        if path.is_symlink() or not path.is_file():
+        if not _is_content_file(path, root):
             continue
         files.append((path.relative_to(root).as_posix(), path))
         total += path.stat().st_size
@@ -532,9 +547,7 @@ def _copy_tree(src: Path, dest: Path) -> None:
     what a spawn can execute)."""
     dest.mkdir(parents=True, exist_ok=True)
     for path in sorted(src.rglob("*")):
-        if ".git" in path.relative_to(src).parts:
-            continue
-        if path.is_symlink() or not path.is_file():
+        if not _is_content_file(path, src):
             continue
         target = dest / path.relative_to(src)
         target.parent.mkdir(parents=True, exist_ok=True)
