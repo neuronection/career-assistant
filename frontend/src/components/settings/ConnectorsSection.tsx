@@ -147,7 +147,7 @@ function JobSourceConnectors() {
   const [probes, setProbes] = useState<Record<string, SourceProbe>>({});
   const [docsKey, setDocsKey] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<PostingSource | null>(null);
-  const [planTarget, setPlanTarget] = useState<PostingSource | null>(null);
+  const [planTarget, setPlanTarget] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -474,7 +474,7 @@ function JobSourceConnectors() {
                 variant="outline"
                 size="sm"
                 data-testid={`query-plan-${source.key}`}
-                onClick={() => setPlanTarget(source)}
+                onClick={() => setPlanTarget(source.id)}
               >
                 {t("toolsSettings.connectors.sources.plan")}
               </Button>
@@ -516,7 +516,7 @@ function JobSourceConnectors() {
         <ConnectorDocsDialog connectorKey={docsKey} onClose={() => setDocsKey(null)} />
       ) : null}
       {planTarget !== null ? (
-        <QueryPlanDialog source={planTarget} onClose={() => setPlanTarget(null)} />
+        <QueryPlanDialog sourceId={planTarget} onClose={() => setPlanTarget(null)} />
       ) : null}
 
       {draft === null ? (

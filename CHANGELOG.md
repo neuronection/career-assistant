@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (query plan freshness, 2026-10-27)
+- **The Query plan dialog fetches the live plan when it opens** — a
+  long-lived page could show a stale (or empty) plan from before the
+  first radar-mode sync computed it. The empty states now say what is
+  actually true: radar-mode sources point at *Sync now*, static sources
+  say Follow my radar is off.
+
+
 ### Added (query plan management, 2026-10-26)
 - **Query plan per posting source** — a *Query plan* button on every job
   source row opens the merged-query management view: all rotating role

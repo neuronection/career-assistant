@@ -58,11 +58,15 @@ const SOURCE: PostingSource = {
   error: "",
 };
 
+vi.mock("@/api/sources", () => ({
+  fetchAdminSources: vi.fn(async () => [SOURCE]),
+}));
+
 afterEach(() => cleanup());
 
 describe("QueryPlanDialog", () => {
-  it("shows the merged groups, rotation marker, args and cadence", async () => {
-    render(<QueryPlanDialog source={SOURCE} onClose={() => {}} />);
+  it("fetches the live plan on open and shows groups, args and cadence", async () => {
+    render(<QueryPlanDialog sourceId="src-1" onClose={() => {}} />);
     expect(await screen.findByTestId("query-plan")).toBeTruthy();
     const groups = [
       await screen.findByTestId("query-plan-group-0"),
@@ -78,21 +82,30 @@ describe("QueryPlanDialog", () => {
     expect(await screen.findByText(/every 60 min/)).toBeTruthy();
   });
 
-  it("explains an empty plan", async () => {
-    render(
-      <QueryPlanDialog
-        source={{
-          ...SOURCE,
-          query_info: {
-            ...SOURCE.query_info,
-            groups: [],
-            rotation: "",
-            keywords: "",
-          },
-        }}
-        onClose={() => {}}
-      />,
-    );
+  it("radar-mode sources with no plan yet point at Sync now", async () => {
+    const empty: PostingSource = {
+      ...SOURCE,
+      query_info: { ...SOURCE.query_info, groups: [], rotation: "", keywords: "" },
+    };
+    vi.mocked(
+      (await import("@/api/sources")).fetchAdminSources,
+    ).mockResolvedValueOnce([empty]);
+    render(<QueryPlanDialog sourceId="src-1" onClose={() => {}} />);
     expect(await screen.findByTestId("query-plan-empty")).toBeTruthy();
+    expect(screen.getByText(/first radar-mode sync/)).toBeTruthy();
+  });
+
+  it("static sources explain Follow my radar instead", async () => {
+    const staticSource: PostingSource = {
+      ...SOURCE,
+      query_mode: "static",
+      query_info: { ...SOURCE.query_info, groups: [], rotation: "", keywords: "" },
+    };
+    vi.mocked(
+      (await import("@/api/sources")).fetchAdminSources,
+    ).mockResolvedValueOnce([staticSource]);
+    render(<QueryPlanDialog sourceId="src-1" onClose={() => {}} />);
+    expect(await screen.findByTestId("query-plan-empty")).toBeTruthy();
+    expect(screen.getByText(/Follow my radar is off/)).toBeTruthy();
   });
 });

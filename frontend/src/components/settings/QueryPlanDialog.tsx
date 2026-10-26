@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button, Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from "@/components/ui";
+import { fetchAdminSources } from "@/api/sources";
 import type { PostingSource } from "@/api/sources";
 import { fetchSystemSchedules } from "@/api/scheduler";
 
@@ -36,15 +37,33 @@ function argsSummary(source: PostingSource): string[] {
 }
 
 export function QueryPlanDialog({
-  source,
+  sourceId,
   onClose,
 }: {
-  source: PostingSource;
+  sourceId: string;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const plan = source.query_info;
+  const [source, setSource] = useState<PostingSource | null>(null);
+  const [loading, setLoading] = useState(true);
   const [cadence, setCadence] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAdminSources()
+      .then((rows) => {
+        if (!cancelled) {
+          setSource(rows.find((row) => row.id === sourceId) ?? null);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +89,7 @@ export function QueryPlanDialog({
     };
   }, [t]);
 
+  const plan = source?.query_info;
   const groups = plan?.groups ?? [];
   const current = plan?.rotation_index ?? 0;
 
@@ -78,10 +98,18 @@ export function QueryPlanDialog({
       <ModalContent size="md" closeLabel={t("toolsSettings.connectors.sources.planClose")}>
         <ModalHeader>
           <ModalTitle>
-            {t("toolsSettings.connectors.sources.planTitle", { key: source.key })}
+            {t("toolsSettings.connectors.sources.planTitle", {
+              key: source?.key ?? sourceId,
+            })}
           </ModalTitle>
         </ModalHeader>
         <div className="space-y-4 px-6 pb-6" data-testid="query-plan">
+          {loading ? (
+            <p className="text-sm text-[var(--as-muted-fg)]" role="status">
+              {t("toolsSettings.connectors.sources.planLoading")}
+            </p>
+          ) : (
+            <>
           <p className="text-xs text-[var(--as-muted-fg)]">
             {t("toolsSettings.connectors.sources.planMerged", {
               count: plan?.radar_ids?.length ?? 0,
@@ -98,7 +126,9 @@ export function QueryPlanDialog({
 
           {groups.length === 0 ? (
             <p className="text-sm text-[var(--as-muted-fg)]" data-testid="query-plan-empty">
-              {t("toolsSettings.connectors.sources.planEmpty")}
+              {source?.query_mode === "radar"
+                ? t("toolsSettings.connectors.sources.planPending")
+                : t("toolsSettings.connectors.sources.planEmpty")}
             </p>
           ) : (
             <ol className="space-y-3">
@@ -147,7 +177,9 @@ export function QueryPlanDialog({
             <p className="text-xs font-medium text-[var(--as-fg)]">
               {t("toolsSettings.connectors.sources.planArgs")}
             </p>
-            <p className="text-xs text-[var(--as-muted-fg)]">{argsSummary(source).join(" · ")}</p>
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {source ? argsSummary(source).join(" · ") : ""}
+            </p>
           </div>
 
           <div className="space-y-1">
@@ -158,6 +190,8 @@ export function QueryPlanDialog({
               {cadence || t("toolsSettings.connectors.sources.planCadenceUnknown")}
             </p>
           </div>
+            </>
+          )}
         </div>
         <ModalFooter>
           <Button size="sm" variant="outline" onClick={onClose}>

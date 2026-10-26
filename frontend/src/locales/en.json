@@ -1441,7 +1441,7 @@
         "planCurated": "AI-curated grouping",
         "planDeterministic": "deterministic auto-merge",
         "planComputed": "computed {{time}}",
-        "planEmpty": "No radar query yet — set Follow my radar and add keywords to your job radar.",
+        "planEmpty": "Follow my radar is off — this source searches its own static config.",
         "planTerms": "terms: {{terms}}",
         "planNext": "searching next",
         "planLocation": "Location",
@@ -1450,7 +1450,9 @@
         "planCadence": "Cadence",
         "planCadenceValue": "every {{minutes}} min ± {{jitter}}",
         "planCadenceUnknown": "see Scheduler settings",
-        "planClose": "Close"
+        "planClose": "Close",
+        "planLoading": "Loading the current plan…",
+        "planPending": "The merged plan is computed on the first radar-mode sync — press Sync now on the source row, then reopen this dialog."
       },
       "extSources": {
         "title": "Extension sources (git import)",

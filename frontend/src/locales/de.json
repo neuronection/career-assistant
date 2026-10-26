@@ -1441,7 +1441,7 @@
         "planCurated": "KI-Gruppierung",
         "planDeterministic": "deterministische Auto-Zusammenführung",
         "planComputed": "berechnet {{time}}",
-        "planEmpty": "Noch keine Radar-Abfrage — aktivieren Sie „Meinem Job-Radar folgen“ und fügen Sie Stichwörter hinzu.",
+        "planEmpty": "„Meinem Job-Radar folgen“ ist aus — diese Quelle durchsucht ihre eigene statische Konfiguration.",
         "planTerms": "Begriffe: {{terms}}",
         "planNext": "als Nächstes gesucht",
         "planLocation": "Standort",
@@ -1450,7 +1450,9 @@
         "planCadence": "Takt",
         "planCadenceValue": "alle {{minutes}} Min. ± {{jitter}}",
         "planCadenceUnknown": "siehe Scheduler-Einstellungen",
-        "planClose": "Schließen"
+        "planClose": "Schließen",
+        "planLoading": "Aktueller Plan wird geladen…",
+        "planPending": "Der zusammengeführte Plan wird beim ersten Radar-Sync berechnet — klicken Sie auf „Jetzt synchronisieren“, und öffnen Sie diesen Dialog erneut."
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
