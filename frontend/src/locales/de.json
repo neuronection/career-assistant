@@ -1430,7 +1430,11 @@
           "university": "Hochschulen",
           "search": "Suche",
           "webhook_in": "Eingehende Webhooks"
-        }
+        },
+        "remove": "Quelle entfernen",
+        "removeTitle": "{{key}} entfernen?",
+        "removeBody": "Entfernt die Quelle und ihre {{count}} importierte(n) Anzeige(n) — abgeleitete Bewerbungen und Autopilot-Einträge ebenfalls. Dies kann nicht rückgängig gemacht werden.",
+        "removeConfirm": "Quelle und Daten entfernen"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",

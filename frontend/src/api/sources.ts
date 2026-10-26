@@ -27,6 +27,7 @@ export type PostingSource = {
   query_mode: string;
   query_batch_size: number;
   query_info: SourceQueryInfo;
+  posting_count?: number;
   managed?: boolean;
   tool_config_schema?: {
     type: "object";
@@ -82,6 +83,13 @@ export type SourceProbe = {
 
 export async function fetchAdminSources(): Promise<PostingSource[]> {
   const response = await api.get<PostingSource[]>("/admin/postings/sources");
+  return response.data;
+}
+
+export async function deleteSource(
+  id: string,
+): Promise<{ id: string; key: string; deleted: boolean; postings_removed: number }> {
+  const response = await api.delete(`/admin/postings/sources/${id}`);
   return response.data;
 }
 

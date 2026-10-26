@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (job source removal, 2026-10-26)
+- **Job source connectors can finally be deleted** — a Remove button per
+  source row with an explicit destructive confirmation showing the exact
+  counts (the schema's cascade is deliberate: the source's ingested
+  postings, and the applications/autopilot rows derived from them, go
+  with it — the dialog says so before you confirm). The source view now
+  reports `posting_count` so the impact is visible up front.
+
 ### Added (zip bundle import, 2026-10-26)
 - **Import bundle (.zip)** on the extension sources panel: hand over a
   zipped bundle instead of typing a path — it is staged as a pinned

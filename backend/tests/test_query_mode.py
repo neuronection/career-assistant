@@ -459,3 +459,47 @@ def test_mcp_options_passthrough_and_secret_guard():
         McpConfig.model_validate(
             {"transport": "stdio", "command": "x", "options": '{"token": "sneaky"}'}
         )
+
+
+async def test_delete_source_cascades_and_reports_counts(
+    db, synthetic_connector, client, auth_headers
+):
+    from sqlalchemy import select
+
+    from app.models.posting_model import JobPosting, JobSource
+
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={"key": "doomed", "connector_key": "synthetic", "config": {}},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    source_id = created.json()["id"]
+
+    src = (await db.execute(select(JobSource).where(JobSource.key == "doomed"))).scalars().one()
+    report = await sync_source(db, src)
+    assert report["synced"] == 1
+
+    listed = await client.get("/api/v1/admin/postings/sources", headers=auth_headers)
+    row = next(r for r in listed.json() if r["key"] == "doomed")
+    assert row["posting_count"] == 1
+
+    deleted = await client.delete(
+        f"/api/v1/admin/postings/sources/{source_id}", headers=auth_headers
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["postings_removed"] == 1
+
+    remaining = (
+        (await db.execute(select(JobPosting).where(JobPosting.source_id == uuid.UUID(source_id))))
+        .scalars()
+        .all()
+    )
+    assert remaining == [], "the schema cascade removes the source's postings"
+    gone = (await db.execute(select(JobSource).where(JobSource.key == "doomed"))).scalars().all()
+    assert gone == []
+
+    missing = await client.delete(
+        f"/api/v1/admin/postings/sources/{source_id}", headers=auth_headers
+    )
+    assert missing.status_code == 404

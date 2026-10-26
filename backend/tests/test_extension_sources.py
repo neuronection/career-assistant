@@ -1199,9 +1199,7 @@ async def test_release_tag_without_value_resolves_latest(
 ):
     """Schema semantics: release-tag with no value = 'latest release'."""
     repo = make_repo(local_roots, name="taggy", tag="v2.1.0")
-    source = await _add(
-        db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}}
-    )
+    source = await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}})
     report = await sync_source(db, source.id)
     assert report["ok"] is True, report
     [candidate] = report["candidates"]
@@ -1214,9 +1212,7 @@ async def test_release_tag_on_tagless_repo_is_actionable(
     """release-tag = 'latest tag' per the schema — a tagless repo gets a
     typed, actionable error, never the old empty-glob message."""
     repo = make_repo(local_roots, name="tagless", tag=None)
-    source = await _add(
-        db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}}
-    )
+    source = await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}})
     report = await sync_source(db, source.id)
     assert report["ok"] is False
     assert report["error"]["code"] == "not-found"
@@ -1288,7 +1284,7 @@ async def test_zip_upload_refuses_path_escape_and_symlinks(db, local_roots, mcp_
     linked = io.BytesIO()
     with zipfile.ZipFile(linked, "w") as zf:
         info = zipfile.ZipInfo("manifest.json")
-        info.external_attr = (0o120777 << 16)
+        info.external_attr = 0o120777 << 16
         zf.writestr(info, "target")
     with pytest.raises(LifecycleError) as exc:
         await import_zip_bundle(db, linked.getvalue())
@@ -1311,9 +1307,7 @@ async def test_zip_upload_requires_a_manifest(db, local_roots, mcp_allowlist):
     assert "manifest.json" in exc.value.detail
 
 
-async def test_zip_upload_is_gated_off_in_production(
-    db, local_roots, mcp_allowlist, monkeypatch
-):
+async def test_zip_upload_is_gated_off_in_production(db, local_roots, mcp_allowlist, monkeypatch):
     from app.core.config import settings
     from app.extensions.lifecycle import import_zip_bundle
 

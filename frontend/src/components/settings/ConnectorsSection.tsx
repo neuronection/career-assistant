@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BookOpen, Loader2, RefreshCw, Save } from "lucide-react";
+import { BookOpen, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
 import type { WebSettings } from "@/api/ai";
@@ -12,6 +12,7 @@ import {
   IntegrationInstancesList,
   parseIntegrationConfigSchema,
 } from "@/components/ui/integrations";
+import { ConfirmationModal } from "@/components/ui";
 import type {
   IntegrationConfigSchema,
   IntegrationConfigValues,
@@ -144,6 +145,7 @@ function JobSourceConnectors() {
   const [probingId, setProbingId] = useState<string | null>(null);
   const [probes, setProbes] = useState<Record<string, SourceProbe>>({});
   const [docsKey, setDocsKey] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<PostingSource | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -205,6 +207,20 @@ function JobSourceConnectors() {
         await sourcesApi.createSource(payload);
       }
       setDraft(null);
+      await refresh();
+    } catch (err) {
+      setNotice(apiDetail(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeSource = async (source: PostingSource) => {
+    setBusy(true);
+    setNotice("");
+    try {
+      await sourcesApi.deleteSource(source.id);
+      setRemoveTarget(null);
       await refresh();
     } catch (err) {
       setNotice(apiDetail(err));
@@ -452,8 +468,37 @@ function JobSourceConnectors() {
                   {t("toolsSettings.connectors.docs.open", "Docs")}
                 </Button>
               ) : null}
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                aria-label={`${t("toolsSettings.connectors.sources.remove")}: ${source.key}`}
+                data-testid={`remove-source-${source.key}`}
+                onClick={() => setRemoveTarget(source)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </span>
           );
+        }}
+      />
+
+      <ConfirmationModal
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title={t("toolsSettings.connectors.sources.removeTitle", {
+          key: removeTarget?.key ?? "",
+        })}
+        description={t("toolsSettings.connectors.sources.removeBody", {
+          count: removeTarget?.posting_count ?? 0,
+        })}
+        confirmLabel={t("toolsSettings.connectors.sources.removeConfirm")}
+        destructive
+        busy={busy}
+        onConfirm={() => {
+          if (removeTarget) void removeSource(removeTarget);
         }}
       />
 

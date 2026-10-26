@@ -536,6 +536,15 @@ async def _source_view(db: AsyncSession, source) -> dict:
 
     managed, tool_config_schema = _managed_bundle_schema(source)
     config = dict(source.config or {})
+    from sqlalchemy import func
+
+    from app.models.posting_model import JobPosting
+
+    posting_count = (
+        await db.execute(
+            select(func.count()).select_from(JobPosting).where(JobPosting.source_id == source.id)
+        )
+    ).scalar_one()
     secret_hints: dict[str, dict] = {}
     if source.kind == "market":
         slots = {}
@@ -563,6 +572,7 @@ async def _source_view(db: AsyncSession, source) -> dict:
         "query_mode": source.query_mode,
         "query_batch_size": source.query_batch_size,
         "query_info": _query_info(source),
+        "posting_count": posting_count,
         "managed": managed,
         "tool_config_schema": tool_config_schema,
         "secret_hints": secret_hints,
@@ -709,6 +719,32 @@ async def update_posting_source(
         source.paused_at = datetime.now(UTC) if payload["paused"] else None
     await db.commit()
     return await _source_view(db, source)
+
+
+@router.delete("/postings/sources/{source_id}")
+async def delete_posting_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a job source and its ingested data (plan 133): the schema's
+    cascade is deliberate — postings, applications and autopilot rows go
+    with their source — so this is a DESTRUCTIVE act the UI confirms
+    explicitly with counts before calling."""
+    from sqlalchemy import func
+
+    from app.models.posting_model import JobPosting, JobSource
+
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
+    )
+    if source is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    posting_count = (
+        await db.execute(
+            select(func.count()).select_from(JobPosting).where(JobPosting.source_id == source.id)
+        )
+    ).scalar_one()
+    key = source.key
+    await db.delete(source)
+    await db.commit()
+    return {"id": str(source_id), "key": key, "deleted": True, "postings_removed": posting_count}
 
 
 @router.post("/postings/sources/{source_id}/sync")

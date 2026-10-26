@@ -1430,7 +1430,11 @@
           "university": "Universities",
           "search": "Search",
           "webhook_in": "Inbound webhooks"
-        }
+        },
+        "remove": "Remove source",
+        "removeTitle": "Remove {{key}}?",
+        "removeBody": "Removes the source and its {{count}} ingested posting(s) — applications and autopilot rows derived from them go too. This cannot be undone.",
+        "removeConfirm": "Remove source and its data"
       },
       "extSources": {
         "title": "Extension sources (git import)",

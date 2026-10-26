@@ -1136,9 +1136,7 @@ def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
     manifest_hits = [root / "manifest.json", *root.glob("*/manifest.json")]
     if not any(hit.is_file() for hit in manifest_hits):
         shutil.rmtree(root, ignore_errors=True)
-        raise LifecycleError(
-            "invalid", "no manifest.json in the bundle root (or one level down)"
-        )
+        raise LifecycleError("invalid", "no manifest.json in the bundle root (or one level down)")
     sha = _init_staging_repo(root)
     return root, sha
 

@@ -22860,6 +22860,50 @@
       }
     },
     "/api/v1/admin/postings/sources/{source_id}": {
+      "delete": {
+        "description": "Remove a job source and its ingested data (plan 133): the schema's\ncascade is deliberate \u2014 postings, applications and autopilot rows go\nwith their source \u2014 so this is a DESTRUCTIVE act the UI confirms\nexplicitly with counts before calling.",
+        "operationId": "delete_posting_source_api_v1_admin_postings_sources__source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Posting Source Api V1 Admin Postings Sources  Source Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Posting Source",
+        "tags": [
+          "admin"
+        ]
+      },
       "put": {
         "description": "Edit config/secrets/enable state (config re-validated against the\nconnector; ``***`` preserves a stored secret, empty string clears it).",
         "operationId": "update_posting_source_api_v1_admin_postings_sources__source_id__put",
