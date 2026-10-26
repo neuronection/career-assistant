@@ -4026,6 +4026,11 @@
     "probeFail": "Test fehlgeschlagen — {{code}}: {{detail}}",
     "loadFailed": "Quelle konnte nicht geladen werden.",
     "configSaved": "Konfiguration gespeichert",
-    "saveConfig": "Konfiguration speichern"
+    "saveConfig": "Konfiguration speichern",
+    "runDetails": "Details",
+    "runDetailsTitle": "Ausführungsdetails — {{time}}",
+    "runDetailsClose": "Schließen",
+    "runReportErrors": "Typisierte Fehler",
+    "copy": "Kopieren"
   }
 }

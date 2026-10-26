@@ -814,6 +814,7 @@ async def list_source_runs(
             "duration_ms": row.duration_ms,
             "items_synced": row.items_synced,
             "error": row.error,
+            "report": row.report,
         }
         for row in rows
     ]

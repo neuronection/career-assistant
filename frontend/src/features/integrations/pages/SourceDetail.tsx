@@ -23,6 +23,7 @@ import {
 } from "@/api/sources";
 import { fetchSystemSchedules } from "@/api/scheduler";
 import { QueryPlanPanel } from "@/components/settings/QueryPlanPanel";
+import { RunDetailsDialog } from "@/components/settings/RunDetailsDialog";
 
 /**
  * Source management page (plan 134): one posting source, fully managed —
@@ -53,6 +54,7 @@ export function SourceDetailPage() {
   const [notice, setNotice] = useState("");
   const [probeNote, setProbeNote] = useState("");
   const [cadenceEvery, setCadenceEvery] = useState<number | null>(null);
+  const [detailsRun, setDetailsRun] = useState<SourceRun | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfigValues>({});
 
   useEffect(() => {
@@ -402,14 +404,30 @@ export function SourceDetailPage() {
                       <td className="p-2">{fmtDuration(run.duration_ms)}</td>
                       <td className="p-2">{run.items_synced}</td>
                       <td className="p-2">
-                        <span className="block max-w-md truncate text-xs" title={run.error}>
+                        <span
+                          className="line-clamp-3 max-w-md text-xs"
+                          title={run.error}
+                          data-testid={`run-error-${run.id}`}
+                        >
                           {run.error || "—"}
                         </span>
                       </td>
                       <td className="p-2">
-                        <Button size="sm" variant="outline" disabled={busy} onClick={retry}>
-                          {t("sourceDetail.runAgain")}
-                        </Button>
+                        <div className="flex gap-2">
+                          {run.error ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              data-testid={`run-details-${run.id}`}
+                              onClick={() => setDetailsRun(run)}
+                            >
+                              {t("sourceDetail.runDetails")}
+                            </Button>
+                          ) : null}
+                          <Button size="sm" variant="outline" disabled={busy} onClick={retry}>
+                            {t("sourceDetail.runAgain")}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -418,6 +436,10 @@ export function SourceDetailPage() {
             </div>
           )}
         </div>
+      ) : null}
+
+      {detailsRun !== null ? (
+        <RunDetailsDialog run={detailsRun} onClose={() => setDetailsRun(null)} />
       ) : null}
     </div>
   );

@@ -103,6 +103,7 @@ export type SourceRun = {
   duration_ms: number;
   items_synced: number;
   error: string;
+  report?: { errors?: { code?: string; detail?: unknown }[] } | null;
 };
 
 export async function fetchAdminSources(): Promise<PostingSource[]> {

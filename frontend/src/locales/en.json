@@ -4027,6 +4027,11 @@
     "probeFail": "Test failed — {{code}}: {{detail}}",
     "loadFailed": "Could not load this source.",
     "configSaved": "Configuration saved",
-    "saveConfig": "Save configuration"
+    "saveConfig": "Save configuration",
+    "runDetails": "Details",
+    "runDetailsTitle": "Run details — {{time}}",
+    "runDetailsClose": "Close",
+    "runReportErrors": "Typed errors",
+    "copy": "Copy"
   }
 }

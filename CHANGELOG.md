@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (run history readability, 2026-10-27)
+- **Run errors clamp to three lines** in the history table, with a
+  **Details** popup per run carrying the full untruncated error, the
+  typed error rows from the run report and a **copy button** — long
+  failure messages no longer blow up the table.
+
+
 ### Changed (source management consolidation, 2026-10-27)
 - **All configuration now lives on the source management page** — the
   full bundle settings form (keywords, filters, pacing: pauses between

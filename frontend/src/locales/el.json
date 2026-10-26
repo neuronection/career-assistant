@@ -4026,6 +4026,11 @@
     "probeFail": "Η δοκιμή απέτυχε — {{code}}: {{detail}}",
     "loadFailed": "Δεν ήταν δυνατή η φόρτωση αυτής της πηγής.",
     "configSaved": "Η διαμόρφωση αποθηκεύτηκε",
-    "saveConfig": "Αποθήκευση διαμόρφωσης"
+    "saveConfig": "Αποθήκευση διαμόρφωσης",
+    "runDetails": "Λεπτομέρειες",
+    "runDetailsTitle": "Λεπτομέρειες εκτέλεσης — {{time}}",
+    "runDetailsClose": "Κλείσιμο",
+    "runReportErrors": "Τυποποιημένα σφάλματα",
+    "copy": "Αντιγραφή"
   }
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -119,8 +119,20 @@ describe("SourceDetailPage", () => {
     renderPage();
     await user.click(await screen.findByRole("tab", { name: "Run history" }));
     const failed = await screen.findByTestId("run-run-1");
-    await user.click(failed.querySelectorAll("button")[0]);
+    await user.click(within(failed).getByRole("button", { name: "Run again" }));
     expect(mocks.syncSource).toHaveBeenCalledWith("src-1");
+  });
+
+  it("clamps run errors to three lines and opens full details with copy", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Run history" }));
+    const errorCell = await screen.findByTestId("run-error-run-1");
+    expect(errorCell.className).toContain("line-clamp-3");
+    await user.click(await screen.findByTestId("run-details-run-1"));
+    const dialog = await screen.findByTestId("run-details");
+    expect(dialog.textContent).toContain("patchright is not installed");
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
   });
 
   it("shows the overview status and error", async () => {
