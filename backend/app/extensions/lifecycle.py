@@ -395,6 +395,10 @@ class GitTransport:
     async def resolve(self, origin: str, ref: dict, *, token: str | None = None) -> ResolvedRef:
         strategy = ref.get("strategy")
         value = str(ref.get("value") or "")
+        if strategy == "tag-pattern" and not value:
+            raise LifecycleError("invalid", "tag-pattern requires a glob value (e.g. 'v*')")
+        if strategy == "branch" and not value:
+            raise LifecycleError("invalid", "branch requires a ref name")
         env = self._env(token)
         if strategy == "commit-pin":
             return ResolvedRef(ref=value, sha=value, fetch_ref=value)
@@ -419,6 +423,12 @@ class GitTransport:
             tags = {tag: sha for tag, sha in tags.items() if fnmatch.fnmatchcase(tag, value)}
         ref_ = _latest_tag(tags)
         if ref_ is None:
+            if not tags:
+                raise LifecycleError(
+                    "not-found",
+                    f"no tags found on {origin} — release-tag picks the latest tag; "
+                    "use branch or commit-pin instead, or add a release tag",
+                )
             raise LifecycleError(
                 "not-found", f"no release tag matching {strategy} {value!r} on {origin}"
             )
@@ -1070,7 +1080,9 @@ async def remove_source(db: AsyncSession, source_id: uuid.UUID) -> dict:
 
 async def _fetch_tree(source: ExtensionSource, dest: Path) -> tuple[ResolvedRef, Path]:
     """resolve + shallow fetch into dest (temp dir). Credentials resolve
-    host-side from the sealed slot map."""
+    host-side from the sealed slot map. Every descriptor pins a ``ref``
+    (schema-required) — including local checkouts, whose refs resolve
+    against the local repo."""
     descriptor = source.descriptor or {}
     ref = descriptor.get("ref") or {}
     token = _resolve_source_secrets(source)

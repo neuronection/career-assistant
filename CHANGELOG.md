@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (extension source add form, 2026-10-26)
+- **Adding an extension source no longer mis-submits refs.** The dialog
+  validated value-less `tag-pattern`/`branch`/`commit-pin` strategies at
+  the schema seam with an opaque error, and `release-tag` on a tagless
+  repo failed with an unhelpful empty-glob message. The form now blocks
+  value-less strategies with a clear message, and a tagless repo gets an
+  actionable hint ("release-tag picks the latest tag — use branch or
+  commit-pin, or add a release tag").
+
 ### Added (radar-driven ingestion, 2026-10-26)
 - **Posting sources can follow your job radar.** A source marked *Follow
   my radar* (the new **Search source** switch on the source form) takes

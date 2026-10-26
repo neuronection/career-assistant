@@ -1189,3 +1189,48 @@ async def test_forged_echo_version_is_refused(db, local_roots):
     assert exc.value.code == "invalid"
     assert "version" in exc.value.detail
     assert (await db.execute(select(ExtensionInstall))).scalars().first() is None
+
+
+# ------------------------------------------------- file-path form (no ref)
+
+
+async def test_release_tag_without_value_resolves_latest(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """Schema semantics: release-tag with no value = 'latest release'."""
+    repo = make_repo(local_roots, name="taggy", tag="v2.1.0")
+    source = await _add(
+        db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}}
+    )
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True, report
+    [candidate] = report["candidates"]
+    assert candidate["ref"] == "v2.1.0"
+
+
+async def test_release_tag_on_tagless_repo_is_actionable(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """release-tag = 'latest tag' per the schema — a tagless repo gets a
+    typed, actionable error, never the old empty-glob message."""
+    repo = make_repo(local_roots, name="tagless", tag=None)
+    source = await _add(
+        db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}}
+    )
+    report = await sync_source(db, source.id)
+    assert report["ok"] is False
+    assert report["error"]["code"] == "not-found"
+    assert "no tags found" in report["error"]["detail"]["message"]
+    assert "branch or commit-pin" in report["error"]["detail"]["message"]
+
+
+async def test_value_requiring_strategies_reject_empty(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """tag-pattern/branch/commit-pin require `value` at the schema seam —
+    the dialog must never submit a value-less strategy."""
+    repo = make_repo(local_roots, name="branchy")
+    with pytest.raises(LifecycleError) as exc:
+        await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "branch"}})
+    assert exc.value.code == "invalid"
+    assert "missing required property 'value'" in exc.value.detail

@@ -165,16 +165,27 @@ export function ExtensionSourcesSection() {
   };
 
   const addSource = async (draft: IntegrationSourceDraft) => {
-    const descriptor: Record<string, unknown> =
-      draft.localPath.trim() !== ""
-        ? {
-            local: { path: draft.localPath.trim() },
-            ref: { strategy: draft.refStrategy, ...(draft.refValue ? { value: draft.refValue } : {}) },
-          }
-        : {
-            url: draft.url.trim(),
-            ref: { strategy: draft.refStrategy, ...(draft.refValue ? { value: draft.refValue } : {}) },
-          };
+    const local = draft.localPath.trim() !== "";
+    const isGit = draft.url.trim().startsWith("https://");
+    if (!local && !isGit) {
+      setNotice(t("toolsSettings.connectors.extSources.needUrlOrPath"));
+      return;
+    }
+    if (draft.refStrategy !== "release-tag" && !draft.refValue.trim()) {
+      setNotice(
+        t("toolsSettings.connectors.extSources.needRefValue", {
+          strategy: draft.refStrategy,
+        }),
+      );
+      return;
+    }
+    const descriptor: Record<string, unknown> = local
+      ? { local: { path: draft.localPath.trim() } }
+      : { url: draft.url.trim() };
+    descriptor.ref = {
+      strategy: draft.refStrategy,
+      ...(draft.refValue ? { value: draft.refValue } : {}),
+    };
     if (draft.subpath.trim() !== "") descriptor.subpath = draft.subpath.trim();
     const token = draft.secretValue?.trim();
     if (token) {

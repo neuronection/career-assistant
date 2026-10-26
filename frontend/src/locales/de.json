@@ -1439,6 +1439,8 @@
         "add": "Quelle hinzufügen",
         "url": "https git URL",
         "localPath": "Lokaler Repositorium-Pfad (nur für Dev/Test)",
+        "needUrlOrPath": "Geben Sie eine https-Git-URL oder einen lokalen Pfad an.",
+        "needRefValue": "Die Strategie {{strategy}} benötigt einen Wert — Branch-Name, Tag-Muster (z. B. v*) oder Commit-Sha.",
         "strategy": "Ref Strategie",
         "refValue": "Tagmuster / Branch / Commit SHA",
         "subpath": "Subpfad innerhalb des Repos (optional)",

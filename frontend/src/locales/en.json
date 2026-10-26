@@ -1439,6 +1439,8 @@
         "add": "Add source",
         "url": "https git URL",
         "localPath": "Local repo path (dev/test only)",
+        "needUrlOrPath": "Provide an https git URL or a local repo path.",
+        "needRefValue": "The {{strategy}} strategy needs a value — branch name, tag pattern (e.g. v*) or commit sha.",
         "strategy": "Ref strategy",
         "refValue": "Tag pattern / branch / commit sha",
         "subpath": "Subpath inside the repo (optional)",
