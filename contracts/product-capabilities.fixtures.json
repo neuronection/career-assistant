@@ -53,7 +53,6 @@
             "category": "developer",
             "audience": "dev",
             "status": "beta",
-            "proofs": ["Bundles register through one validated manifest"],
             "links": [{ "kind": "api", "href": "docs/health/sdk/overview" }],
             "platforms": ["selfhosted"],
             "order": 90

@@ -143,7 +143,14 @@ export async function updateExtensionSource(
 
 export async function uploadExtensionBundle(
   file: File,
-): Promise<{ id: string; kind: string; sync?: { ok: boolean; error?: { code: string; detail: string } } }> {
+): Promise<{
+  id: string;
+  kind: string;
+  sync?: {
+    ok: boolean;
+    error?: { code: string; detail: { message?: string } | string; retryable?: string };
+  };
+}> {
   const form = new FormData();
   form.append("file", file);
   const response = await api.post("/admin/extensions/sources/upload", form);
@@ -156,7 +163,7 @@ export async function removeExtensionSource(id: string): Promise<void> {
 
 export async function syncExtensionSource(id: string): Promise<{
   ok: boolean;
-  error?: { code: string; detail: string };
+  error?: { code: string; detail: { message?: string } | string; retryable?: string };
 }> {
   const response = await api.post(`/admin/extensions/sources/${id}/sync`);
   return response.data;

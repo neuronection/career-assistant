@@ -127,6 +127,15 @@ function mapSource(view: ExtensionSourceView): IntegrationSourceRowView {
   };
 }
 
+function extErrorText(error: {
+  code: string;
+  detail?: { message?: string } | string | null;
+}): string {
+  const detail =
+    typeof error.detail === "string" ? error.detail : (error.detail?.message ?? "");
+  return detail ? `${error.code}: ${detail}` : error.code;
+}
+
 export function ExtensionSourcesSection() {
   const { t } = useTranslation();
   const [sources, setSources] = useState<ExtensionSourceView[]>([]);
@@ -239,7 +248,7 @@ export function ExtensionSourcesSection() {
     await run(async () => {
       const result = await extApi.uploadExtensionBundle(file);
       if (result.sync && !result.sync.ok && result.sync.error) {
-        setNotice(`${result.sync.error.code}: ${result.sync.error.detail}`);
+        setNotice(extErrorText(result.sync.error));
       }
     });
   };
@@ -314,7 +323,7 @@ export function ExtensionSourcesSection() {
             .syncExtensionSource(sourceId)
             .then((report) => {
               if (!report.ok && report.error) {
-                setNotice(`${report.error.code}: ${report.error.detail}`);
+                setNotice(extErrorText(report.error));
               }
             })
             .catch((err) => setNotice(apiDetail(err)))

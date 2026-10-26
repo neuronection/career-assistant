@@ -283,4 +283,19 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
       "sync failed: unreachable",
     );
   });
+
+  it("formats typed sync errors for the notice (bounded detail object)", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    mocked.fetchExtensionSources.mockResolvedValue([
+      { ...SOURCE, candidates: [], installs: [] },
+    ]);
+    mocked.syncExtensionSource.mockResolvedValue({
+      ok: false,
+      error: { code: "not-found", detail: { message: "no tags found" } },
+    });
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: /check/i }));
+    expect(await screen.findByText(/not-found: no tags found/)).toBeTruthy();
+    expect(screen.queryByText(/\[object Object\]/)).toBeNull();
+  });
 });
