@@ -1452,7 +1452,9 @@
         "planCadenceUnknown": "see Scheduler settings",
         "planClose": "Close",
         "planLoading": "Loading the current plan…",
-        "planPending": "The merged plan is computed on the first radar-mode sync — press Sync now on the source row, then reopen this dialog."
+        "planPending": "The merged plan is computed on the first radar-mode sync — press Sync now on the source row, then reopen this dialog.",
+        "manage": "Manage",
+        "planNotFound": "This source no longer exists."
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -3984,5 +3986,40 @@
     },
     "cadenceLabel": "Match digest",
     "currencyPlaceholder": "e.g. EUR"
+  },
+  "sourceDetail": {
+    "back": "Job source connectors",
+    "paused": "paused",
+    "sections": "Source sections",
+    "tabOverview": "Overview",
+    "tabPlan": "Query plan",
+    "tabConfig": "Configuration",
+    "tabRuns": "Run history",
+    "runNow": "Run now",
+    "runQueued": "Sync queued",
+    "runAgain": "Run again",
+    "test": "Test",
+    "pause": "Pause syncing",
+    "resume": "Resume syncing",
+    "remove": "Remove",
+    "connector": "Connector",
+    "postings": "Ingested postings",
+    "lastRun": "Last run",
+    "nextRun": "next ≈ {{time}}",
+    "queryMode": "Search source",
+    "radarMode": "Follow my job radar",
+    "staticMode": "Static config",
+    "batch": "Queries per sync",
+    "configHint": "Full bundle settings (keywords, filters, pacing) live on the Tools page under this source's Edit form.",
+    "runsEmpty": "No runs recorded yet — hit Run now.",
+    "runStarted": "Started",
+    "runTrigger": "Trigger",
+    "runStatus": "Status",
+    "runDuration": "Duration",
+    "runItems": "Items",
+    "runError": "Error",
+    "probeOk": "Test OK · {{items}} item(s) · {{ms}} ms",
+    "probeFail": "Test failed — {{code}}: {{detail}}",
+    "loadFailed": "Could not load this source."
   }
 }

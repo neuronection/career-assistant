@@ -119,14 +119,69 @@ async def _query_overlay(db: AsyncSession, source: JobSource, connector) -> tupl
     return call_config, note
 
 
-async def sync_source(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
+async def sync_source(
+    db: AsyncSession, source: JobSource, *, transport=None, trigger: str = "scheduled"
+) -> dict:
     """Fetch via the connector through the polite runtime, upsert postings,
-    map, alert.
+    map, alert — recording one row of the plan-134 run ledger per attempt.
 
     A failing connector errors its own source row — never the queue or
     other sources. T1 built-ins get the injected polite transport; T2
     imports resolve through the registry onto the sandbox runner (their
     net rides the seam, not this transport)."""
+    started = _utcnow()
+    report = await _sync_source_inner(db, source, transport=transport)
+    await _record_run(db, source, trigger=trigger, started=started, report=report)
+    return report
+
+
+def _run_status(report: dict) -> str:
+    if report.get("error"):
+        return "failed"
+    if report.get("note") and not report.get("synced"):
+        return "skipped"
+    if report.get("errors"):
+        return "degraded"
+    return "ok"
+
+
+async def _record_run(
+    db: AsyncSession, source: JobSource, *, trigger: str, started: datetime, report: dict
+) -> None:
+    """One ledger row per attempt (plan 134) — best-effort, never fails
+    the sync it records."""
+    from app.models.posting_model import SourceRun
+
+    try:
+        finished = _utcnow()
+        errors = report.get("errors") or []
+        error_text = str(report.get("error") or "")
+        if not error_text and errors:
+            error_text = "; ".join(
+                f"{entry.get('code')}: {entry.get('detail')}" for entry in errors[:5]
+            )
+        bounded = dict(report)
+        if len(json.dumps(bounded, default=str)) > 8_192:
+            bounded.pop("errors", None)
+            bounded["errors_truncated"] = True
+        row = SourceRun(
+            source_id=source.id,
+            trigger=trigger if trigger in ("manual", "scheduled") else "scheduled",
+            status=_run_status(report),
+            started_at=started,
+            finished_at=finished,
+            duration_ms=int((finished - started).total_seconds() * 1000),
+            items_synced=int(report.get("synced") or 0),
+            error=error_text[:2000],
+            report=bounded,
+        )
+        db.add(row)
+        await db.commit()
+    except Exception:
+        logger.warning("run ledger write failed for source %s", source.key, exc_info=True)
+
+
+async def _sync_source_inner(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
     from app.extensions.polite_http import PoliteHttpError
     from app.extensions.runtime.http import build_transport
     from app.extensions.runtime.sandbox.connector import SandboxConnector
@@ -1049,8 +1104,9 @@ async def run_sync_job(db: AsyncSession, payload: dict) -> dict:
             .all()
         )
     totals = {"synced": 0, "sources": len(sources), "errors": []}
+    trigger = str(payload.get("trigger") or ("manual" if source_id else "scheduled"))
     for source in sources:
-        result = await sync_source(db, source)
+        result = await sync_source(db, source, trigger=trigger)
         totals["synced"] += result.get("synced", 0)
         if result.get("error"):
             totals["errors"].append(f"{source.key}: {result['error']}")

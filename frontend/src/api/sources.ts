@@ -84,6 +84,27 @@ export type SourceProbe = {
   latency_ms?: number;
 };
 
+export async function fetchSourceRuns(
+  id: string,
+  limit = 50,
+): Promise<SourceRun[]> {
+  const response = await api.get<SourceRun[]>(
+    `/admin/postings/sources/${id}/runs?limit=${limit}`,
+  );
+  return response.data;
+}
+
+export type SourceRun = {
+  id: string;
+  trigger: "manual" | "scheduled";
+  status: "ok" | "degraded" | "failed" | "skipped";
+  started_at: string | null;
+  finished_at: string | null;
+  duration_ms: number;
+  items_synced: number;
+  error: string;
+};
+
 export async function fetchAdminSources(): Promise<PostingSource[]> {
   const response = await api.get<PostingSource[]>("/admin/postings/sources");
   return response.data;

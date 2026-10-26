@@ -122,6 +122,38 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class SourceRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One ingestion attempt for a job source (plan 134 run ledger).
+
+    The management page's history: when it ran, under which trigger, how
+    long it took, what landed and why it did not. One row per
+    ``sync_source`` call — job-level retries are honest extra attempts."""
+
+    __tablename__ = "source_runs"
+    __table_args__ = (
+        CheckConstraint("trigger IN ('manual', 'scheduled')", name="trigger_allowed"),
+        CheckConstraint(
+            "status IN ('ok', 'degraded', 'failed', 'skipped')",
+            name="status_allowed",
+        ),
+        Index("ix_source_runs_source_started", "source_id", "started_at"),
+    )
+
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("job_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="scheduled", server_default="scheduled"
+    )
+    status: Mapped[str] = mapped_column(String(12), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    items_synced: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    report: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+
+
 class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One real vacancy, normalized from a connector and mapped to the
     catalog by skill-ID intersection (never label matching)."""

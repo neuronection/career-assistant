@@ -2,19 +2,23 @@
 rotation, the call-time query overlay, and the mcp options passthrough."""
 
 import uuid
-from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import ClassVar
 
 import pytest
 from sqlalchemy import select
 
-from app.extensions.sdk import ConnectorCapabilities, ConnectorResult, RawPosting
+from app.extensions.sdk import ConnectorCapabilities, ConnectorResult
 from app.models.posting_model import JobSource
 from app.services.postings import query_curator
 from app.services.postings.postings_service import sync_source
 from app.services.postings.radar_service import radar_groups
-from tests.conftest import SyntheticConnector, register_connector, reset_registry
+from tests.conftest import (
+    DynamicSynthetic,
+    SyntheticConnector,
+    register_connector,
+    reset_registry,
+)
 
 
 def _radar(keywords, locations=None, rid=None):
@@ -135,37 +139,6 @@ async def test_rebuild_and_ensure_cache_layer1_fallback(db, synthetic_connector)
 
 
 # ------------------------------------------------------------- sync overlay
-
-
-class DynamicSynthetic(SyntheticConnector):
-    key = "dynamic-synthetic"
-    capabilities = ConnectorCapabilities(supports_incremental=True, dynamic_queries=True)
-    last_config: ClassVar[dict] = {}
-    calls = 0
-
-    async def fetch(self, config, state, *, transport=None, **_kw):
-        DynamicSynthetic.last_config = dict(config)
-        DynamicSynthetic.calls += 1
-        return ConnectorResult(
-            items=[
-                RawPosting(
-                    external_id=f"dyn-{DynamicSynthetic.calls}",
-                    title="Engineer",
-                    url=f"https://example.test/{DynamicSynthetic.calls}",
-                    posted_at=datetime.now(UTC),
-                )
-            ],
-            next_state={"etag": str(DynamicSynthetic.calls)},
-        )
-
-
-@pytest.fixture
-def dynamic_connector():
-    register_connector(DynamicSynthetic())
-    DynamicSynthetic.last_config = {}
-    DynamicSynthetic.calls = 0
-    yield DynamicSynthetic
-    reset_registry()
 
 
 async def _radar_source(db, key, query_mode):

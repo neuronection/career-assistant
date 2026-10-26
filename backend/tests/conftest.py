@@ -5,6 +5,7 @@ import secrets
 from collections.abc import AsyncGenerator, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import ClassVar
 from uuid import UUID
 
 import httpx
@@ -99,6 +100,7 @@ TABLES = [
     "interview_sessions",
     "cv_synth_items",
     "job_postings",
+    "source_runs",
     "company_profiles",
     "job_radars",
     "organizations",
@@ -685,6 +687,37 @@ class SyntheticConnector(PostingConnector):
 def synthetic_connector():
     register_connector(SyntheticConnector())
     yield SyntheticConnector
+    reset_registry()
+
+
+class DynamicSynthetic(SyntheticConnector):
+    key = "dynamic-synthetic"
+    capabilities = ConnectorCapabilities(supports_incremental=True, dynamic_queries=True)
+    last_config: ClassVar[dict] = {}
+    calls = 0
+
+    async def fetch(self, config, state, *, transport=None, **_kw):
+        DynamicSynthetic.last_config = dict(config)
+        DynamicSynthetic.calls += 1
+        return ConnectorResult(
+            items=[
+                RawPosting(
+                    external_id=f"dyn-{DynamicSynthetic.calls}",
+                    title="Engineer",
+                    url=f"https://example.test/{DynamicSynthetic.calls}",
+                    posted_at=datetime.now(UTC),
+                )
+            ],
+            next_state={"etag": str(DynamicSynthetic.calls)},
+        )
+
+
+@pytest.fixture
+def dynamic_connector():
+    register_connector(DynamicSynthetic())
+    DynamicSynthetic.last_config = {}
+    DynamicSynthetic.calls = 0
+    yield DynamicSynthetic
     reset_registry()
 
 

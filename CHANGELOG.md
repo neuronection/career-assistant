@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (source management page, 2026-10-27)
+- **A full management page per posting source** (`/sources/<id>`, *Manage*
+  on each source row): overview (status, last/next run, ingested counts,
+  errors), the merged query plan inline, configuration (search source +
+  queries per sync), and a **run history** — started, trigger, status,
+  duration, items synced, errors — with per-run **Run again** and page
+  actions (run now / test / pause / remove). Backed by a new
+  **source-run ledger**: every sync attempt records one row (the worker's
+  retries are honest extra attempts).
+
 ### Fixed (query plan freshness, 2026-10-27)
 - **The Query plan dialog fetches the live plan when it opens** — a
   long-lived page could show a stale (or empty) plan from before the

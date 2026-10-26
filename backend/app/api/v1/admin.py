@@ -776,10 +776,47 @@ async def sync_posting_source(
     job = await enqueue(
         db,
         BackgroundJobType.POSTING_SYNC.value,
-        {"source_id": str(source_id)},
+        {"source_id": str(source_id), "trigger": "manual"},
         user_id=user.id,
     )
     return {"job_id": str(job.id), "status": job.status}
+
+
+@router.get("/postings/sources/{source_id}/runs", response_model=list[dict])
+async def list_source_runs(
+    source_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The run ledger (plan 134): newest first — when it ran, trigger,
+    duration, status, items synced and the bounded error."""
+    from app.models.posting_model import SourceRun
+
+    rows = (
+        (
+            await db.execute(
+                select(SourceRun)
+                .where(SourceRun.source_id == source_id)
+                .order_by(SourceRun.started_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "trigger": row.trigger,
+            "status": row.status,
+            "started_at": row.started_at.isoformat() if row.started_at else None,
+            "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+            "duration_ms": row.duration_ms,
+            "items_synced": row.items_synced,
+            "error": row.error,
+        }
+        for row in rows
+    ]
 
 
 @router.post("/postings/sources/{source_id}/probe")

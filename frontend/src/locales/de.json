@@ -1452,7 +1452,9 @@
         "planCadenceUnknown": "siehe Scheduler-Einstellungen",
         "planClose": "Schließen",
         "planLoading": "Aktueller Plan wird geladen…",
-        "planPending": "Der zusammengeführte Plan wird beim ersten Radar-Sync berechnet — klicken Sie auf „Jetzt synchronisieren“, und öffnen Sie diesen Dialog erneut."
+        "planPending": "Der zusammengeführte Plan wird beim ersten Radar-Sync berechnet — klicken Sie auf „Jetzt synchronisieren“, und öffnen Sie diesen Dialog erneut.",
+        "manage": "Verwalten",
+        "planNotFound": "Diese Quelle existiert nicht mehr."
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -3983,5 +3985,40 @@
     },
     "cadenceLabel": "Match-Digest",
     "currencyPlaceholder": "z. B. EUR"
+  },
+  "sourceDetail": {
+    "back": "Quellen für Stellenanzeigen",
+    "paused": "pausiert",
+    "sections": "Quell-Abschnitte",
+    "tabOverview": "Überblick",
+    "tabPlan": "Abfrageplan",
+    "tabConfig": "Konfiguration",
+    "tabRuns": "Ausführungsverlauf",
+    "runNow": "Jetzt ausführen",
+    "runQueued": "Sync eingereiht",
+    "runAgain": "Erneut ausführen",
+    "test": "Test",
+    "pause": "Sync pausieren",
+    "resume": "Sync fortsetzen",
+    "remove": "Entfernen",
+    "connector": "Verbinder",
+    "postings": "Importierte Anzeigen",
+    "lastRun": "Letzter Lauf",
+    "nextRun": "nächster ≈ {{time}}",
+    "queryMode": "Suchquelle",
+    "radarMode": "Meinem Job-Radar folgen",
+    "staticMode": "Statische Konfiguration",
+    "batch": "Abfragen pro Sync",
+    "configHint": "Vollständige Paket-Einstellungen (Stichwörter, Filter, Taktung) liegen auf der Tools-Seite im Bearbeiten-Formular dieser Quelle.",
+    "runsEmpty": "Noch keine Ausführungen — klicken Sie auf „Jetzt ausführen“.",
+    "runStarted": "Start",
+    "runTrigger": "Auslöser",
+    "runStatus": "Status",
+    "runDuration": "Dauer",
+    "runItems": "Einträge",
+    "runError": "Fehler",
+    "probeOk": "Test OK · {{items}} Eintrag(e) · {{ms}} ms",
+    "probeFail": "Test fehlgeschlagen — {{code}}: {{detail}}",
+    "loadFailed": "Quelle konnte nicht geladen werden."
   }
 }

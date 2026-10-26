@@ -1,0 +1,133 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+
+import { SourceDetailPage } from "@/features/integrations/pages/SourceDetail";
+import type { PostingSource, SourceRun } from "@/api/sources";
+
+const SOURCE: PostingSource = {
+  id: "src-1",
+  key: "linkedin-postings",
+  connector_key: "mcp",
+  kind: "posting",
+  schedule_kind: null,
+  config: { options: JSON.stringify({ max_pages: 2 }) },
+  query_mode: "radar",
+  query_batch_size: 1,
+  query_info: {
+    keywords: "devops",
+    location: "Athens, Greece",
+    rotation: "1/1",
+    rotation_index: 0,
+    groups: [{ terms: ["devops"], keywords: "devops" }],
+    provenance: { devops: ["radar-1"] },
+    group_terms: ["devops"],
+    curated: false,
+    radar_ids: ["radar-1"],
+    computed_at: "2026-10-27T09:00:00+00:00",
+  },
+  secret_hints: {},
+  enabled: true,
+  paused_at: null,
+  last_status: "degraded",
+  last_run_at: "2026-10-27T09:00:00+00:00",
+  sync_state: {},
+  error: "not-ready: patchright is not installed",
+  posting_count: 12,
+};
+
+const RUNS: SourceRun[] = [
+  {
+    id: "run-1",
+    trigger: "manual",
+    status: "failed",
+    started_at: "2026-10-27T09:00:00+00:00",
+    finished_at: "2026-10-27T09:00:02+00:00",
+    duration_ms: 2100,
+    items_synced: 0,
+    error: "not-ready: patchright is not installed",
+  },
+  {
+    id: "run-2",
+    trigger: "scheduled",
+    status: "ok",
+    started_at: "2026-10-26T22:00:00+00:00",
+    finished_at: "2026-10-26T22:00:08+00:00",
+    duration_ms: 8100,
+    items_synced: 25,
+    error: "",
+  },
+];
+
+const mocks = vi.hoisted(() => ({
+  fetchAdminSources: vi.fn(),
+  fetchSourceRuns: vi.fn(),
+  syncSource: vi.fn(),
+  probeSource: vi.fn(),
+  updateSource: vi.fn(),
+  deleteSource: vi.fn(),
+  fetchSystemSchedules: vi.fn(),
+}));
+
+vi.mock("@/api/sources", () => mocks);
+vi.mock("@/api/scheduler", () => ({ fetchSystemSchedules: mocks.fetchSystemSchedules }));
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={["/sources/src-1"]}>
+      <Routes>
+        <Route path="/sources/:sourceId" element={<SourceDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+beforeEach(() => {
+  mocks.fetchAdminSources.mockResolvedValue([SOURCE]);
+  mocks.fetchSourceRuns.mockResolvedValue(RUNS);
+  mocks.syncSource.mockResolvedValue({ job_id: "j1", status: "queued" });
+  mocks.fetchSystemSchedules.mockResolvedValue([
+    {
+      id: "sched-1",
+      kind: "system_source_sync",
+      task: "posting_sync",
+      trigger: { type: "interval", params: { every_minutes: 60, jitter_minutes: 10 } },
+    },
+  ]);
+});
+
+afterEach(() => cleanup());
+
+describe("SourceDetailPage", () => {
+  it("renders the run history with status, duration, items and errors", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByTestId("source-detail")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Run history" }));
+    const failed = await screen.findByTestId("run-run-1");
+    expect(failed.textContent).toContain("failed");
+    expect(failed.textContent).toContain("2.1s");
+    expect(failed.textContent).toContain("patchright");
+    const ok = await screen.findByTestId("run-run-2");
+    expect(ok.textContent).toContain("ok");
+    expect(ok.textContent).toContain("25");
+  });
+
+  it("retries a run through the sync endpoint", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Run history" }));
+    const failed = await screen.findByTestId("run-run-1");
+    await user.click(failed.querySelectorAll("button")[0]);
+    expect(mocks.syncSource).toHaveBeenCalledWith("src-1");
+  });
+
+  it("shows the overview status and error", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText("not-ready: patchright is not installed")).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Query plan" }));
+    expect(await screen.findByTestId("query-plan")).toBeTruthy();
+  });
+});
