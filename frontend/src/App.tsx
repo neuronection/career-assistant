@@ -30,6 +30,7 @@ import { Onboarding } from "@/features/profile/pages/Onboarding";
 import { OnboardingSetup } from "@/pages/OnboardingSetup";
 import { ExpressOnboarding } from "@/features/profile/pages/ExpressOnboarding";
 import { ExtensionSurfacePage } from "@/features/integrations/pages/ExtensionSurface";
+import { SourceDetailPage } from "@/features/integrations/pages/SourceDetail";
 import { Growth } from "@/features/growth/pages/Growth";
 import { Interviews } from "@/features/interviews/pages/Interviews";
 import { PathExplorer } from "@/features/paths/pages/PathExplorer";
@@ -88,6 +89,7 @@ export function App() {
           <Route path="/growth" element={<Growth />} />
           <Route path="/paths" element={<PathExplorer />} />
           <Route path="/extensions/:extensionId" element={<ExtensionSurfacePage />} />
+          <Route path="/sources/:sourceId" element={<SourceDetailPage />} />
           <Route path="/profile" element={<ProfileEdit />} />
           <Route path="/profile/import" element={<ProfileImport />} />
           <Route path="/profile/import/:documentId" element={<ProfileImport />} />
