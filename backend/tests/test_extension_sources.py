@@ -1315,3 +1315,79 @@ async def test_zip_upload_is_gated_off_in_production(db, local_roots, mcp_allowl
     with pytest.raises(LifecycleError) as exc:
         await import_zip_bundle(db, _bundle_zip())
     assert exc.value.code == "path-denied"
+
+
+# ------------------------------------------- reinstall over a parked install
+
+
+async def test_reimport_after_remove_reinstalls_with_fresh_consent(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The Remove flow PARKS installs (removal never deletes) — a later
+    re-import with fresh consent re-pins the same install row instead of
+    refusing with "already installed"."""
+    from app.extensions.lifecycle import install_extension, remove_source
+
+    repo = make_repo(local_roots, name="reimport")
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    install_id = uuid.UUID(installed["id"])
+
+    await remove_source(db, source.id)
+
+    fresh = await _add(db, local_descriptor(repo))
+    await sync_source(db, fresh.id)
+    reinstalled = await install_extension(
+        db,
+        fresh.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, fresh.id),
+        actor_id=await _actor_id(db),
+    )
+    assert reinstalled["id"] == installed["id"], "the same install row re-pins"
+
+    row = await db.get(ExtensionInstall, install_id)
+    assert row.state == "installed"
+    assert row.enabled is False, "re-install never silently enables"
+    assert len(row.consents or []) == 2, "a fresh consent record is appended"
+    assert len(row.pin_history or []) == 2
+    assert row.source_id == fresh.id
+
+
+async def test_reinstall_over_enabled_install_refuses_with_remedy(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """A LIVE install still refuses — that guard protects a running
+    instance — but the error names the remedy."""
+    from app.extensions.lifecycle import install_extension, set_install_enabled
+
+    repo = make_repo(local_roots, name="enabled-x")
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    await set_install_enabled(db, uuid.UUID(installed["id"]), True)
+
+    with pytest.raises(LifecycleError) as exc:
+        await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            actor_id=await _actor_id(db),
+        )
+    assert exc.value.code == "invalid"
+    assert "already installed and enabled" in exc.value.detail
+    assert "disable it first" in exc.value.detail

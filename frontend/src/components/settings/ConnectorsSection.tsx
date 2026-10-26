@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { BookOpen, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
@@ -42,6 +41,15 @@ type SourceDraft = {
   query_mode: string;
   query_batch_size: number;
 };
+
+function unpackToolOptions(raw: unknown): IntegrationConfigValues {
+  try {
+    const parsed = JSON.parse(String(raw ?? "{}"));
+    return parsed && typeof parsed === "object" ? (parsed as IntegrationConfigValues) : {};
+  } catch {
+    return {};
+  }
+}
 
 export function ConnectorsSection() {
   const { t } = useTranslation();
@@ -130,7 +138,6 @@ export function ConnectorsSection() {
 
 function JobSourceConnectors() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [sources, setSources] = useState<PostingSource[]>([]);
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
   const [draft, setDraft] = useState<SourceDraft | null>(null);
@@ -387,6 +394,23 @@ function JobSourceConnectors() {
             })();
           }
         }}
+        onConfigure={(instance) => {
+          const source = sources.find((row) => row.id === instance.id);
+          if (source) {
+            setDraft({
+              id: source.id,
+              key: source.key,
+              connector_key: source.connector_key,
+              config: source.managed
+                ? unpackToolOptions(source.config.options)
+                : Object.fromEntries(
+                    Object.entries(source.config).map(([key, value]) => [key, String(value)]),
+                  ),
+              query_mode: source.query_mode || "static",
+              query_batch_size: source.query_batch_size || 1,
+            });
+          }
+        }}
         renderInstanceActions={(instance) => {
           const source = sources.find((row) => row.id === instance.id);
           if (!source) return null;
@@ -453,14 +477,6 @@ function JobSourceConnectors() {
                 onClick={() => setPlanTarget(source.id)}
               >
                 {t("toolsSettings.connectors.sources.plan")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid={`manage-source-${source.key}`}
-                onClick={() => navigate(`/sources/${source.id}`)}
-              >
-                {t("toolsSettings.connectors.sources.manage")}
               </Button>
               <Button
                 variant="ghost"

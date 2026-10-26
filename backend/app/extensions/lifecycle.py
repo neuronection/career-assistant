@@ -1471,10 +1471,12 @@ async def install_extension(
     Lands the discovered content under ``data_dir/extensions/<id>/<digest>/``
     and mints a DISABLED ``mcp`` job source whose stdio command spawns the
     cloned ``server.py`` (managed spawn, D13). Never enables — the explicit
-    enable call is the only path to a live instance. A tombstoned install
-    revives (history retained, still disabled — never silently re-enabled).
-    The echo is re-checked against a fresh fetch: any drift is a typed
-    ``invalid`` ("the source moved ... re-consent")."""
+    enable call is the only path to a live instance. A prior install that
+    is not enabled — parked (the Remove flow), self-disabled or
+    tombstoned — re-pins here with fresh consent (history retained,
+    still disabled — never silently re-enabled); an ENABLED prior refuses
+    with the remedy. The echo is re-checked against a fresh fetch: any
+    drift is a typed ``invalid`` ("the source moved ... re-consent")."""
     import tempfile
 
     echo = _validated_consent_echo(consent, action="install")
@@ -1486,8 +1488,12 @@ async def install_extension(
             select(ExtensionInstall).where(ExtensionInstall.extension_id == extension_id)
         )
         prior_install = prior.scalars().first()
-        if prior_install is not None and prior_install.state != "removed":
-            raise LifecycleError("invalid", f"extension already installed: {extension_id}")
+        if prior_install is not None and prior_install.enabled:
+            raise LifecycleError(
+                "invalid",
+                f"extension already installed and enabled: {extension_id} — "
+                "disable it first, or use Apply update for new content",
+            )
         with tempfile.TemporaryDirectory(prefix="ca-ext-src-") as tmp:
             tree = Path(tmp) / "tree"
             await _fetch_tree(source, tree)

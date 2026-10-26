@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (re-import after removal, 2026-10-27)
+- **Deleting and re-importing an extension with the same name now
+  works.** Removal parks its install (removal never deletes), and the
+  install guard refused any parked prior with "already installed". A
+  re-import with fresh consent now **re-pins** the same install row
+  (history retained, lands disabled — never silently re-enabled); only a
+  live (enabled) install still refuses, and its error names the remedy
+  ("disable it first, or use Apply update for new content").
+
+
 ### Changed (run history readability, 2026-10-27)
 - **Run errors clamp to three lines** in the history table, with a
   **Details** popup per run carrying the full untruncated error, the
