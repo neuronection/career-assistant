@@ -57,6 +57,7 @@ export function countActiveFilters(spec: FilterSpec): number {
     count += a.include.length + a.exclude.length;
   }
   if (spec.skills.min_level !== null) count++;
+  if (spec.skills.include.length && spec.skills.expand !== "off") count++;
   if (spec.salary.min !== null || spec.salary.max !== null || spec.salary.currency) count++;
   if (spec.location.remote_only !== null) count++;
   if (spec.companies.industries_include.length) count++;

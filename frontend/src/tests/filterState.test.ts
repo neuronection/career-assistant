@@ -28,7 +28,16 @@ describe("filterState", () => {
       salary: { min: 50000, max: null, currency: null },
       work_mode: { include: ["remote"], exclude: [] },
     };
-    expect(countActiveFilters(spec)).toBe(4);
+    expect(countActiveFilters(spec)).toBe(5);
+  });
+
+  it("counts the expansion chip with an included skill and expansion on", () => {
+    const exact = withSkills({ include: ["programming"], expand: "off" });
+    const down = withSkills({ include: ["programming"] });
+    const related = withSkills({ include: ["programming"], expand: "related", hops: 2 });
+    expect(countActiveFilters(down)).toBe(countActiveFilters(exact) + 1);
+    expect(countActiveFilters(related)).toBe(countActiveFilters(exact) + 1);
+    expect(countActiveFilters(withSkills({ expand: "related" }))).toBe(0);
   });
 
   it("builds bound and exclude chips for seniority range", () => {
@@ -49,7 +58,7 @@ describe("filterState", () => {
     const chips = buildSummaryChips(spec);
     const next = removeChip(spec, chips[0]);
     expect(next.skills.include).toEqual(["sql"]);
-    expect(countActiveFilters(next)).toBe(1);
+    expect(countActiveFilters(next)).toBe(2);
   });
 
   it("surfaces the skill expansion state as a removable chip", () => {
