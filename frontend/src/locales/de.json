@@ -411,7 +411,9 @@
       "mid": "Mittlerer Level",
       "senior": "Senior",
       "lead": "Leiter",
-      "principal": "Hauptverantwortlicher"
+      "principal": "Hauptverantwortlicher",
+      "full_time": "Vollzeit",
+      "part_time": "Teilzeit"
     },
     "radarApply": "Mein Radar",
     "radarClear": "Radar löschen",
@@ -597,7 +599,31 @@
     "selectedCount": "{{count}} ausgewählt",
     "undo": "Rückgängig",
     "none": "Keine",
-    "browse": "Durchsuchen…"
+    "browse": "Durchsuchen…",
+    "time": {
+      "justNow": "gerade eben",
+      "inAMoment": "in einem Moment",
+      "minutesAgo_one": "vor {{count}} Minute",
+      "minutesAgo_other": "vor {{count}} Minuten",
+      "hoursAgo_one": "vor {{count}} Stunde",
+      "hoursAgo_other": "vor {{count}} Stunden",
+      "daysAgo_one": "vor {{count}} Tag",
+      "daysAgo_other": "vor {{count}} Tagen",
+      "monthsAgo_one": "vor {{count}} Monat",
+      "monthsAgo_other": "vor {{count}} Monaten",
+      "yearsAgo_one": "vor {{count}} Jahr",
+      "yearsAgo_other": "vor {{count}} Jahren",
+      "inMinutes_one": "in {{count}} Minute",
+      "inMinutes_other": "in {{count}} Minuten",
+      "inHours_one": "in {{count}} Stunde",
+      "inHours_other": "in {{count}} Stunden",
+      "inDays_one": "in {{count}} Tag",
+      "inDays_other": "in {{count}} Tagen",
+      "inMonths_one": "in {{count}} Monat",
+      "inMonths_other": "in {{count}} Monaten",
+      "inYears_one": "in {{count}} Jahr",
+      "inYears_other": "in {{count}} Jahren"
+    }
   },
   "validation": {
     "required": "{{field}} ist erforderlich.",
@@ -2894,7 +2920,6 @@
     "coverage": "Abdeckung {{score}}",
     "posted": "veröffentlicht {{date}}",
     "applied": "beantragt ✓",
-    "details": "Details",
     "apply": "Anwenden",
     "unsave": "Nicht speichern",
     "hide": "verstecken",
@@ -2918,7 +2943,6 @@
     "refTitle": "Kurze Referenz — fügen Sie sie im Chat ein",
     "loadingPosting": "Posting wird geladen…",
     "coverage": "Profilabdeckung {{score}}/10",
-    "originalPosting": "Original Posting",
     "draftLetter": "Entwurf für das Anschreiben",
     "practiceInterview": "Interview üben",
     "trackApplication": "Bewerbung verfolgen",
@@ -2949,6 +2973,53 @@
       "certificate": "Zertifikat",
       "license": "Lizenz",
       "language": "Sprache",
+      "other": "Sonstiges"
+    },
+    "backToPostings": "Alle Stellenangebote",
+    "notFound": "Dieses Stellenangebot ist nicht mehr verfügbar.",
+    "openOnSource": "Öffnen auf {{source}}",
+    "source": "der Originalquelle",
+    "descriptionHeading": "Über diese Rolle",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
+    "noDescription": "Für dieses Stellenangebot wurde noch keine Beschreibung erfasst.",
+    "factsHeading": "Kerndaten",
+    "timelineHeading": "Zeitleiste",
+    "categoriesHeading": "Kategorien",
+    "mappedRole": "Zugeordnete Rolle",
+    "interests": "Interessens-Tags",
+    "hoursPerWeek": "{{range}} Std. / Woche",
+    "officeDays_one": "{{count}} Bürotag / Woche",
+    "officeDays_other": "{{count}} Bürostage / Woche",
+    "travelDays": "~{{count}} T. / Monat",
+    "closed": "Nicht mehr offen",
+    "fact": {
+      "location": "Ort",
+      "remote": "Arbeitsmodus",
+      "employment": "Anstellungsart",
+      "contract": "Vertrag",
+      "seniority": "Senioritätsstufe",
+      "hours": "Arbeitszeit",
+      "travel": "Reiseanteil",
+      "education": "Bildung",
+      "languages": "Sprachen",
+      "salary": "Gehalt"
+    },
+    "time": {
+      "posted": "Veröffentlicht",
+      "firstSeen": "Erstmals gesehen",
+      "updated": "Zuletzt aktualisiert",
+      "expires": "Läuft ab"
+    },
+    "benefitKind": {
+      "healthcare": "Krankenversicherung",
+      "pension": "Altersvorsorge",
+      "leave": "Urlaub",
+      "remote_budget": "Remote-Budget",
+      "learning": "Weiterbildung",
+      "equity": "Beteiligung",
+      "meals": "Verpflegung",
+      "transport": "Transport",
       "other": "Sonstiges"
     }
   },
@@ -4028,6 +4099,12 @@
     "runDetailsTitle": "Ausführungsdetails — {{time}}",
     "runDetailsClose": "Schließen",
     "runReportErrors": "Typisierte Fehler",
-    "copy": "Kopieren"
+    "copy": "Kopieren",
+    "runningNow": "Läuft gerade",
+    "runRunning": "läuft",
+    "stageFetching": "wird geladen",
+    "stageIngesting": "Ergebnisse werden gespeichert",
+    "stageEnriching": "Beschreibungen werden geladen",
+    "enrichedCount": "{{count}} angereichert"
   }
 }

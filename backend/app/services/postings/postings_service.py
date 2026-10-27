@@ -130,8 +130,13 @@ async def sync_source(
     imports resolve through the registry onto the sandbox runner (their
     net rides the seam, not this transport)."""
     started = _utcnow()
-    report = await _sync_source_inner(db, source, transport=transport)
-    await _record_run(db, source, trigger=trigger, started=started, report=report)
+    run_row = await _begin_run(db, source, trigger=trigger, started=started, stage="fetching")
+    try:
+        report = await _sync_source_inner(
+            db, source, transport=transport, run_id=run_row.id if run_row else None
+        )
+    except Exception as exc:
+        report = {"synced": 0, "error": f"{type(exc).__name__}: {exc}"[:2000]}
     try:
         from app.services.postings.detail_service import enqueue_details
 
@@ -140,6 +145,8 @@ async def sync_source(
             report["detail_queued"] = queued
     except Exception:
         logger.warning("detail enrichment enqueue failed for %s", source.key, exc_info=True)
+    if run_row is not None:
+        await _finish_run(db, run_row.id, started=started, report=report)
     return report
 
 
@@ -153,14 +160,80 @@ def _run_status(report: dict) -> str:
     return "ok"
 
 
-async def _record_run(
-    db: AsyncSession, source: JobSource, *, trigger: str, started: datetime, report: dict
-) -> None:
-    """One ledger row per attempt (plan 134) — best-effort, never fails
-    the sync it records."""
+STALE_RUN_MINUTES = 30
+
+
+async def _begin_run(
+    db: AsyncSession, source: JobSource, *, trigger: str, started: datetime, stage: str
+):
+    """Open the ledger row at run START (live status + stage on the
+    management page) — best-effort, never fails the run it records.
+    Self-healing: stale running rows (a crash left them behind) close as
+    interrupted so a ghost never lingers."""
     from app.models.posting_model import SourceRun
 
     try:
+        cutoff = started - timedelta(minutes=STALE_RUN_MINUTES)
+        stale = (
+            (
+                await db.execute(
+                    select(SourceRun).where(
+                        SourceRun.source_id == source.id,
+                        SourceRun.status == "running",
+                        SourceRun.started_at < cutoff,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for row in stale:
+            row.status = "failed"
+            row.error = "interrupted — the run never finished"
+            row.finished_at = started
+        row = SourceRun(
+            source_id=source.id,
+            trigger=trigger if trigger in ("manual", "scheduled") else "scheduled",
+            status="running",
+            started_at=started,
+            report={"stage": stage},
+        )
+        db.add(row)
+        await db.commit()
+        return row
+    except Exception:
+        logger.warning("run ledger begin failed for source %s", source.key, exc_info=True)
+        return None
+
+
+async def _update_run_progress(db: AsyncSession, run_id, *, stage: str, **extra) -> None:
+    """Live progress into the open row's report — best-effort."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.models.posting_model import SourceRun
+
+    try:
+        row = await db.get(SourceRun, run_id)
+        if row is None or row.status != "running":
+            return
+        row.report = {**(row.report or {}), "stage": stage, **extra}
+        flag_modified(row, "report")
+        await db.commit()
+    except Exception:
+        logger.warning("run ledger progress write failed", exc_info=True)
+
+
+async def _finish_run(db: AsyncSession, run_id, *, started: datetime, report: dict) -> None:
+    """Settle the open row with its final status — best-effort, never
+    fails the run it records."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.models.posting_model import SourceRun
+
+    try:
+        row = await db.get(SourceRun, run_id)
+        if row is None:
+            return
         finished = _utcnow()
         errors = report.get("errors") or []
         error_text = str(report.get("error") or "")
@@ -172,24 +245,21 @@ async def _record_run(
         if len(json.dumps(bounded, default=str)) > 8_192:
             bounded.pop("errors", None)
             bounded["errors_truncated"] = True
-        row = SourceRun(
-            source_id=source.id,
-            trigger=trigger if trigger in ("manual", "scheduled") else "scheduled",
-            status=_run_status(report),
-            started_at=started,
-            finished_at=finished,
-            duration_ms=int((finished - started).total_seconds() * 1000),
-            items_synced=int(report.get("synced") or 0),
-            error=error_text[:2000],
-            report=bounded,
-        )
-        db.add(row)
+        row.status = _run_status(report)
+        row.finished_at = finished
+        row.duration_ms = int((finished - started).total_seconds() * 1000)
+        row.items_synced = int(report.get("synced") or 0)
+        row.error = error_text[:2000]
+        row.report = bounded
+        flag_modified(row, "report")
         await db.commit()
     except Exception:
-        logger.warning("run ledger write failed for source %s", source.key, exc_info=True)
+        logger.warning("run ledger write failed", exc_info=True)
 
 
-async def _sync_source_inner(db: AsyncSession, source: JobSource, *, transport=None) -> dict:
+async def _sync_source_inner(
+    db: AsyncSession, source: JobSource, *, transport=None, run_id=None
+) -> dict:
     from app.extensions.polite_http import PoliteHttpError
     from app.extensions.runtime.http import build_transport
     from app.extensions.runtime.sandbox.connector import SandboxConnector
@@ -278,6 +348,8 @@ async def _sync_source_inner(db: AsyncSession, source: JobSource, *, transport=N
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
 
+    if run_id is not None:
+        await _update_run_progress(db, run_id, stage="ingesting")
     synced = 0
     errors = [error.model_dump(mode="json") for error in result.partial_errors]
     fresh: list[tuple[JobPosting, bool]] = []

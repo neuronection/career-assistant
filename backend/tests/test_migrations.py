@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0063"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0064"], (
         "revision chain stays linear on one head"
     )
 
@@ -2428,3 +2428,80 @@ def test_0063_timeout_fold():
         assert timeouts["timeout-other"] == 30, "non-mcp rows are untouched"
     finally:
         _seed_cleanup("timeout-%")
+
+
+def _status_probe_source() -> str:
+    """A throwaway source row (runs need a source to attach to)."""
+
+    async def _run():
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.posting_model import JobSource
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                row = JobSource(
+                    key="status-probe", connector_key="synthetic", kind="posting", config={}
+                )
+                session.add(row)
+                await session.commit()
+                return str(row.id)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _run_status_accepted(status: str, source_id: str) -> bool:
+    import uuid
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def _run():
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO source_runs (id, source_id, trigger, status,"
+                            " duration_ms, items_synced, error, created_at, updated_at)"
+                            " VALUES (:id, :src, 'manual', :status, 0, 0, '', now(), now())"
+                        ),
+                        {"id": str(uuid.uuid4()), "src": source_id, "status": status},
+                    )
+                    await conn.execute(
+                        text("DELETE FROM source_runs WHERE status = :status"),
+                        {"status": status},
+                    )
+                return True
+            except IntegrityError:
+                return False
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def test_0064_running_status_roundtrip():
+    config = _configured()
+
+    try:
+        command.upgrade(config, "head")
+        source_id = _status_probe_source()
+        assert _run_status_accepted("running", source_id), "head accepts a running row"
+
+        command.downgrade(config, "0063")
+        assert not _run_status_accepted("running", source_id), "downgrade drops the vocabulary"
+
+        command.upgrade(config, "head")
+        assert _run_status_accepted("running", source_id), "re-upgrade restores it"
+    finally:
+        _seed_cleanup("status-probe%")

@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (live run state, 2026-10-27)
+- **Run history and overview show live runs and progress** — the ledger
+  row now opens at run *start* (status **running** with its stage:
+  fetching → saving results → fetching descriptions) and settles when
+  the run ends. The management page follows it: a pulsing "Running now"
+  line with stage and live elapsed time, a running badge per run row,
+  and enrichment runs report their batch progress ("N enriched"). A
+  crashed run never haunts the list — the next run closes a stale
+  running row as interrupted.
+
+
 ### Fixed (tool timeout, 2026-10-27)
 - **Long syncs no longer die with "tool call timed out after 30s"** —
   the managed-spawn source's tool timeout is now 120s (it must cover the

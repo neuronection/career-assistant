@@ -91,3 +91,67 @@ async def test_run_sync_job_passes_trigger(db, synthetic_connector, client, auth
         .one()
     )
     assert row.trigger == "manual"
+
+
+async def test_run_row_is_live_from_start_to_finish(db, synthetic_connector):
+    """The ledger row opens at run START (status running + stage) and
+    settles at the end — the management page shows live state."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.postings.postings_service import (
+        _begin_run,
+        _finish_run,
+        _update_run_progress,
+    )
+
+    src = await _source(db, "runs-live", "synthetic")
+    started = datetime.now(UTC)
+    row = await _begin_run(db, src, trigger="manual", started=started, stage="fetching")
+    assert row.status == "running"
+    assert row.report == {"stage": "fetching"}
+    assert row.finished_at is None
+
+    await _update_run_progress(db, row.id, stage="ingesting")
+    await db.refresh(row)
+    assert row.report["stage"] == "ingesting"
+
+    await _finish_run(
+        db,
+        row.id,
+        started=started - timedelta(seconds=2),
+        report={"synced": 3, "errors": []},
+    )
+    await db.refresh(row)
+    assert row.status == "ok"
+    assert row.items_synced == 3
+    assert row.finished_at is not None
+    assert row.duration_ms >= 0
+
+
+async def test_stale_running_rows_close_as_interrupted(db, synthetic_connector):
+    """A crash never leaves a ghost: the next run closes stale running
+    rows and opens its own."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.posting_model import SourceRun
+    from app.services.postings.postings_service import STALE_RUN_MINUTES, _begin_run
+
+    src = await _source(db, "runs-stale", "synthetic")
+    stale_started = datetime.now(UTC) - timedelta(minutes=STALE_RUN_MINUTES + 5)
+    stale = SourceRun(
+        source_id=src.id,
+        trigger="scheduled",
+        status="running",
+        started_at=stale_started,
+        report={"stage": "fetching"},
+    )
+    db.add(stale)
+    await db.commit()
+
+    row = await _begin_run(
+        db, src, trigger="scheduled", started=datetime.now(UTC), stage="fetching"
+    )
+    assert row.status == "running"
+    await db.refresh(stale)
+    assert stale.status == "failed"
+    assert "interrupted" in stale.error

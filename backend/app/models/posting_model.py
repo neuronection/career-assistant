@@ -133,7 +133,7 @@ class SourceRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("trigger IN ('manual', 'scheduled')", name="trigger_allowed"),
         CheckConstraint(
-            "status IN ('ok', 'degraded', 'failed', 'skipped')",
+            "status IN ('running', 'ok', 'degraded', 'failed', 'skipped')",
             name="status_allowed",
         ),
         Index("ix_source_runs_source_started", "source_id", "started_at"),

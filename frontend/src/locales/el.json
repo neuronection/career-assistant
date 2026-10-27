@@ -411,7 +411,9 @@
       "mid": "Μέσος",
       "senior": "Υψηλούς",
       "lead": "Επικεφαλής",
-      "principal": "Επικεφαλής"
+      "principal": "Επικεφαλής",
+      "full_time": "Πλήρης απασχόληση",
+      "part_time": "Μερική απασχόληση"
     },
     "radarApply": "Το ραντάρ μου",
     "radarClear": "Καθαρισμός ραντάρ",
@@ -597,7 +599,31 @@
     "selectedCount": "{{count}} επιλεγμένα",
     "undo": "Ακύρωση",
     "none": "Δεν υπάρχει",
-    "browse": "Προβολή…"
+    "browse": "Προβολή…",
+    "time": {
+      "justNow": "μόλις τώρα",
+      "inAMoment": "σε λίγο",
+      "minutesAgo_one": "πριν από {{count}} λεπτό",
+      "minutesAgo_other": "πριν από {{count}} λεπτά",
+      "hoursAgo_one": "πριν από {{count}} ώρα",
+      "hoursAgo_other": "πριν από {{count}} ώρες",
+      "daysAgo_one": "πριν από {{count}} ημέρα",
+      "daysAgo_other": "πριν από {{count}} ημέρες",
+      "monthsAgo_one": "πριν από {{count}} μήνα",
+      "monthsAgo_other": "πριν από {{count}} μήνες",
+      "yearsAgo_one": "πριν από {{count}} χρόνο",
+      "yearsAgo_other": "πριν από {{count}} χρόνια",
+      "inMinutes_one": "σε {{count}} λεπτό",
+      "inMinutes_other": "σε {{count}} λεπτά",
+      "inHours_one": "σε {{count}} ώρα",
+      "inHours_other": "σε {{count}} ώρες",
+      "inDays_one": "σε {{count}} ημέρα",
+      "inDays_other": "σε {{count}} ημέρες",
+      "inMonths_one": "σε {{count}} μήνα",
+      "inMonths_other": "σε {{count}} μήνες",
+      "inYears_one": "σε {{count}} χρόνο",
+      "inYears_other": "σε {{count}} χρόνια"
+    }
   },
   "validation": {
     "required": "{{field}} είναι απαραίτητο.",
@@ -2894,7 +2920,6 @@
     "coverage": "περίληψη {{score}}",
     "posted": "ανέβηκε στις {{date}}",
     "applied": "έστειλα αίτηση ✓",
-    "details": "περισσότερες πληροφορίες",
     "apply": "Αίτηση",
     "unsave": "Ακύρωση αποθήκευσης",
     "hide": "κρύψε",
@@ -2918,7 +2943,6 @@
     "refTitle": "Σύντομη αναφορά — επικολλήστε στο chat",
     "loadingPosting": "Φόρτωση αγγελίας…",
     "coverage": "περιοχή προφίλ {{score}}/10",
-    "originalPosting": "αρχική αγγελία",
     "draftLetter": "Προτεινόμενο γράμμα",
     "practiceInterview": "Πρακτική συνέντευξη",
     "trackApplication": "Παρακολούθηση αιτήματος",
@@ -2949,6 +2973,53 @@
       "certificate": "Πιστοποίηση",
       "license": "Άδεια",
       "language": "Γλώσσα",
+      "other": "Άλλο"
+    },
+    "backToPostings": "Όλες οι θέσεις",
+    "notFound": "Αυτή η θέση δεν είναι πλέον διαθέσιμη.",
+    "openOnSource": "Άνοιγμα στο {{source}}",
+    "source": "την αρχική πηγή",
+    "descriptionHeading": "Σχετικά με τον ρόλο",
+    "showMore": "Περισσότερα",
+    "showLess": "Λιγότερα",
+    "noDescription": "Δεν έχει καταγραφεί περιγραφή για αυτή τη θέση ακόμη.",
+    "factsHeading": "Βασικά στοιχεία",
+    "timelineHeading": "Χρονολόγιο",
+    "categoriesHeading": "Κατηγορίες",
+    "mappedRole": "Αντιστοιχισμένος ρόλος",
+    "interests": "Ετικέτες ενδιαφερόντων",
+    "hoursPerWeek": "{{range}} ώρες / εβδομάδα",
+    "officeDays_one": "{{count}} ημέρα γραφείου / εβδομάδα",
+    "officeDays_other": "{{count}} ημέρες γραφείου / εβδομάδα",
+    "travelDays": "~{{count}} ημ. / μήνα",
+    "closed": "Δεν είναι πλέον ανοιχτή",
+    "fact": {
+      "location": "Τοποθεσία",
+      "remote": "Τρόπος εργασίας",
+      "employment": "Απασχόληση",
+      "contract": "Σύμβαση",
+      "seniority": "Επίπεδο εμπειρίας",
+      "hours": "Ώρες εργασίας",
+      "travel": "Ταξίδια",
+      "education": "Εκπαίδευση",
+      "languages": "Γλώσσες",
+      "salary": "Μισθός"
+    },
+    "time": {
+      "posted": "Δημοσιεύτηκε",
+      "firstSeen": "Πρώτη εμφάνιση",
+      "updated": "Τελευταία ενημέρωση",
+      "expires": "Λήγει"
+    },
+    "benefitKind": {
+      "healthcare": "Φροντίδα υγείας",
+      "pension": "Σύνταξη",
+      "leave": "Άδεια",
+      "remote_budget": "Προϋπολογισμός εξ αποστάσεως",
+      "learning": "Εκπαίδευση",
+      "equity": "Μετοχές",
+      "meals": "Γεύματα",
+      "transport": "Μετακίνηση",
       "other": "Άλλο"
     }
   },
@@ -4028,6 +4099,12 @@
     "runDetailsTitle": "Λεπτομέρειες εκτέλεσης — {{time}}",
     "runDetailsClose": "Κλείσιμο",
     "runReportErrors": "Τυποποιημένα σφάλματα",
-    "copy": "Αντιγραφή"
+    "copy": "Αντιγραφή",
+    "runningNow": "Τρέχει τώρα",
+    "runRunning": "σε εκτέλεση",
+    "stageFetching": "λήψη",
+    "stageIngesting": "αποθήκευση αποτελεσμάτων",
+    "stageEnriching": "λήψη περιγραφών",
+    "enrichedCount": "{{count}} εμπλουτισμένα"
   }
 }

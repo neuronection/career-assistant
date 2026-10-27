@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -96,6 +96,13 @@ export function SourceDetailPage() {
       .catch(() => setCadenceEvery(null));
   }, [reload, t]);
 
+  const stageLabel = (stage: unknown): string => {
+    if (stage === "fetching") return t("sourceDetail.stageFetching");
+    if (stage === "ingesting") return t("sourceDetail.stageIngesting");
+    if (stage === "enriching") return t("sourceDetail.stageEnriching");
+    return typeof stage === "string" ? stage : "";
+  };
+
   const nextRun = useMemo(() => {
     if (!cadenceEvery || !source?.last_run_at) return null;
     return new Date(new Date(source.last_run_at).getTime() + cadenceEvery * 60_000);
@@ -115,33 +122,48 @@ export function SourceDetailPage() {
     }
   };
 
-  // A run is queued (the background job writes its ledger row when it
-  // finishes), so a one-shot refetch sees nothing. Poll bounded until the
-  // new row lands, then refresh the header state too.
-  const pollForRun = useCallback(
+  // The ledger row opens at run START (status running + stage) and
+  // settles at the end — poll while a run is live so the page follows
+  // both moments without a manual reload.
+  const pollingRef = useRef(false);
+  const pollRuns = useCallback(
     async (previousId: string | null) => {
-      for (let attempt = 0; attempt < 60; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        try {
-          const rows = await fetchSourceRuns(sourceId);
-          setRuns(rows);
-          if ((rows[0]?.id ?? null) !== previousId) {
-            await reload();
-            return;
+      if (pollingRef.current) return;
+      pollingRef.current = true;
+      try {
+        for (let attempt = 0; attempt < 90; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            const rows = await fetchSourceRuns(sourceId);
+            setRuns(rows);
+            const landed = previousId === null || (rows[0]?.id ?? null) !== previousId;
+            const live = rows.some((row) => row.status === "running");
+            if (landed && !live) {
+              await reload();
+              return;
+            }
+          } catch {
+            // transient — the next poll retries
           }
-        } catch {
-          // transient — the next poll retries
         }
+      } finally {
+        pollingRef.current = false;
       }
     },
     [sourceId, reload],
   );
 
+  const activeRun = runs.find((run) => run.status === "running") ?? null;
+  useEffect(() => {
+    if (activeRun) void pollRuns(null);
+  }, [activeRun, pollRuns]);
+
   const triggerRun = () => {
     const previousId = runs[0]?.id ?? null;
     void act(() => syncSource(sourceId), t("sourceDetail.runQueued"));
-    void pollForRun(previousId);
+    void pollRuns(previousId);
   };
+
   const runNow = triggerRun;
   const retry = triggerRun;
   const test = () => {
@@ -214,6 +236,32 @@ export function SourceDetailPage() {
         {notice ? (
           <p role="status" className="text-sm text-[var(--as-muted-fg)]">
             {notice}
+          </p>
+        ) : null}
+        {activeRun ? (
+          <p
+            role="status"
+            className="flex items-center gap-2 text-sm text-[var(--as-fg)]"
+            data-testid="running-now"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--as-info)] opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--as-info)]" />
+            </span>
+            <span className="font-medium">{t("sourceDetail.runningNow")}</span>
+            <span className="text-[var(--as-muted-fg)]">
+              {stageLabel(activeRun.report?.stage)}
+              {" · "}
+              {fmtDuration(
+                Math.max(
+                  0,
+                  Date.now() - new Date(activeRun.started_at ?? Date.now()).getTime(),
+                ),
+              )}
+              {typeof activeRun.report?.enriched === "number"
+                ? ` · ${t("sourceDetail.enrichedCount", { count: activeRun.report.enriched })}`
+                : ""}
+            </span>
           </p>
         ) : null}
       </div>
@@ -425,13 +473,26 @@ export function SourceDetailPage() {
                               ? "bg-[var(--as-success)]/15"
                               : run.status === "failed"
                                 ? "bg-[var(--as-danger)]/15"
-                                : "bg-[var(--as-warning)]/15"
+                                : run.status === "running"
+                                  ? "bg-[var(--as-info)]/15"
+                                  : "bg-[var(--as-warning)]/15"
                           }`}
                         >
-                          {run.status}
+                          {run.status === "running"
+                            ? `${t("sourceDetail.runRunning")}${stageLabel(run.report?.stage) ? ` · ${stageLabel(run.report?.stage)}` : ""}`
+                            : run.status}
                         </span>
                       </td>
-                      <td className="p-2">{fmtDuration(run.duration_ms)}</td>
+                      <td className="p-2">
+                        {run.status === "running"
+                          ? fmtDuration(
+                              Math.max(
+                                0,
+                                Date.now() - new Date(run.started_at ?? Date.now()).getTime(),
+                              ),
+                            )
+                          : fmtDuration(run.duration_ms)}
+                      </td>
                       <td className="p-2">{run.items_synced}</td>
                       <td className="p-2">
                         <span

@@ -214,7 +214,11 @@ async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
 async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -> dict:
     """DETAIL_ENRICHMENT handler: drain batches under a per-run cap.
     Never raises — a failing batch is a report line, not a crashed job."""
-    from app.services.postings.postings_service import _record_run
+    from app.services.postings.postings_service import (
+        _begin_run,
+        _finish_run,
+        _update_run_progress,
+    )
 
     source = (
         (await db.execute(select(JobSource).where(JobSource.id == payload.get("source_id"))))
@@ -226,10 +230,11 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
     if detail_mode(source) not in ("smart", "all"):
         return {"skipped": "detail mode is not smart/all"}
     started = datetime.now(UTC)
+    run_row = await _begin_run(db, source, trigger="scheduled", started=started, stage="enriching")
     enriched = 0
     fetched = 0
     errors: list[dict] = []
-    for _ in range(MAX_BATCHES_PER_RUN):
+    for batch_no in range(1, MAX_BATCHES_PER_RUN + 1):
         batch = await plan_details(db, source)
         if not batch:
             break
@@ -247,10 +252,20 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
                 posting.detail_fetched_at = datetime.now(UTC)
                 enriched += 1
         await db.commit()
+        if run_row is not None:
+            await _update_run_progress(
+                db,
+                run_row.id,
+                stage="enriching",
+                batch=batch_no,
+                enriched=enriched,
+                detail_rows=fetched,
+            )
         if error or not rows:
             break
     report = {"enriched": enriched, "detail_rows": fetched, "errors": errors[:20]}
-    await _record_run(db, source, trigger="scheduled", started=started, report=report)
+    if run_row is not None:
+        await _finish_run(db, run_row.id, started=started, report=report)
     return report
 
 

@@ -411,7 +411,9 @@
       "mid": "Mid-level",
       "senior": "Senior",
       "lead": "Lead",
-      "principal": "Principal"
+      "principal": "Principal",
+      "full_time": "Full time",
+      "part_time": "Part time"
     },
     "radarApply": "My radar",
     "radarClear": "Clear radar",
@@ -597,7 +599,31 @@
     "selectedCount": "{{count}} selected",
     "undo": "Undo",
     "none": "None",
-    "browse": "Browse…"
+    "browse": "Browse…",
+    "time": {
+      "justNow": "just now",
+      "inAMoment": "in a moment",
+      "minutesAgo_one": "{{count}} minute ago",
+      "minutesAgo_other": "{{count}} minutes ago",
+      "hoursAgo_one": "{{count}} hour ago",
+      "hoursAgo_other": "{{count}} hours ago",
+      "daysAgo_one": "{{count}} day ago",
+      "daysAgo_other": "{{count}} days ago",
+      "monthsAgo_one": "{{count}} month ago",
+      "monthsAgo_other": "{{count}} months ago",
+      "yearsAgo_one": "{{count}} year ago",
+      "yearsAgo_other": "{{count}} years ago",
+      "inMinutes_one": "in {{count}} minute",
+      "inMinutes_other": "in {{count}} minutes",
+      "inHours_one": "in {{count}} hour",
+      "inHours_other": "in {{count}} hours",
+      "inDays_one": "in {{count}} day",
+      "inDays_other": "in {{count}} days",
+      "inMonths_one": "in {{count}} month",
+      "inMonths_other": "in {{count}} months",
+      "inYears_one": "in {{count}} year",
+      "inYears_other": "in {{count}} years"
+    }
   },
   "validation": {
     "required": "{{field}} is required.",
@@ -2895,7 +2921,6 @@
     "coverage": "coverage {{score}}",
     "posted": "posted {{date}}",
     "applied": "applied ✓",
-    "details": "details",
     "apply": "Apply",
     "unsave": "Unsave",
     "hide": "hide",
@@ -2919,7 +2944,6 @@
     "refTitle": "Short reference — paste it into chat",
     "loadingPosting": "Loading posting…",
     "coverage": "profile coverage {{score}}/10",
-    "originalPosting": "original posting",
     "draftLetter": "Draft cover letter",
     "practiceInterview": "Practice interview",
     "trackApplication": "Track application",
@@ -2950,6 +2974,53 @@
       "certificate": "Certificate",
       "license": "License",
       "language": "Language",
+      "other": "Other"
+    },
+    "backToPostings": "All postings",
+    "notFound": "This posting is no longer available.",
+    "openOnSource": "Open on {{source}}",
+    "source": "the original source",
+    "descriptionHeading": "About this role",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "noDescription": "No description was captured for this posting yet.",
+    "factsHeading": "Key facts",
+    "timelineHeading": "Timeline",
+    "categoriesHeading": "Categories",
+    "mappedRole": "Mapped role",
+    "interests": "Interest tags",
+    "hoursPerWeek": "{{range}} h / week",
+    "officeDays_one": "{{count}} office day / week",
+    "officeDays_other": "{{count}} office days / week",
+    "travelDays": "~{{count}} d / month",
+    "closed": "No longer open",
+    "fact": {
+      "location": "Location",
+      "remote": "Work mode",
+      "employment": "Employment",
+      "contract": "Contract",
+      "seniority": "Seniority",
+      "hours": "Hours",
+      "travel": "Travel",
+      "education": "Education",
+      "languages": "Languages",
+      "salary": "Salary"
+    },
+    "time": {
+      "posted": "Posted",
+      "firstSeen": "First seen",
+      "updated": "Last updated",
+      "expires": "Expires"
+    },
+    "benefitKind": {
+      "healthcare": "Healthcare",
+      "pension": "Pension",
+      "leave": "Leave",
+      "remote_budget": "Remote budget",
+      "learning": "Learning",
+      "equity": "Equity",
+      "meals": "Meals",
+      "transport": "Transport",
       "other": "Other"
     }
   },
@@ -4029,6 +4100,12 @@
     "runDetailsTitle": "Run details — {{time}}",
     "runDetailsClose": "Close",
     "runReportErrors": "Typed errors",
-    "copy": "Copy"
+    "copy": "Copy",
+    "runningNow": "Running now",
+    "runRunning": "running",
+    "stageFetching": "fetching",
+    "stageIngesting": "saving results",
+    "stageEnriching": "fetching descriptions",
+    "enrichedCount": "{{count}} enriched"
   }
 }
