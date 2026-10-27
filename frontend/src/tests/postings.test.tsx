@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { Postings } from "@/features/postings/pages/Postings";
@@ -32,8 +32,9 @@ vi.mock("@/api/postings", async (importOriginal) => {
 
 vi.mock("@/api/skills", () => ({
   fetchSkillOntology: vi.fn().mockResolvedValue([
-    { key: "programming", label: "Programming", status: "active" },
-    { key: "sql", label: "SQL", status: "active" },
+    // mirrors GET /skills — active rows, no `status` field
+    { key: "programming", label: "Programming", category: "technical" },
+    { key: "sql", label: "SQL", category: "technical" },
   ]),
 }));
 
@@ -207,6 +208,18 @@ describe("Skill-level search & provenance", () => {
     fireEvent.change(screen.getByLabelText("Min level"), {
       target: { value: "4" },
     });
+
+    // the browse modal lists the ontology (regression: "No skills found")
+    fireEvent.click(screen.getByRole("button", { name: /browse full catalog/i }));
+    await waitFor(() =>
+      expect(document.querySelector('[data-as="picker-browse-list"]')).toBeTruthy(),
+    );
+    const browseList = document.querySelector(
+      '[data-as="picker-browse-list"]',
+    ) as HTMLElement;
+    expect(within(browseList).getByText("Programming")).toBeTruthy();
+    expect(within(browseList).getByText("SQL")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /done/i }));
 
     // auto-apply (debounced) → the spec reaches the filter endpoint
     await waitFor(() => expect(mockFilter).toHaveBeenCalled(), { timeout: 3000 });

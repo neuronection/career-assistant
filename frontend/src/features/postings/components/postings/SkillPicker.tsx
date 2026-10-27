@@ -38,8 +38,14 @@ export function SkillPicker({ value, onChange, placeholder, className }: SkillPi
       .then((list) =>
         setSkills(
           list
-            .filter((s) => s.status === "active")
-            .map((s) => ({ key: s.key, label: s.label, category: (s as { category?: string }).category ?? null })),
+            // the /skills endpoint serves active rows and may omit
+            // `status` — treat a missing status as active
+            .filter((s) => (s.status ?? "active") === "active")
+            .map((s) => ({
+              key: s.key,
+              label: s.label,
+              category: (s as { category?: string }).category ?? null,
+            })),
         ),
       )
       .catch(() => setSkills([]));
@@ -64,7 +70,9 @@ export function SkillPicker({ value, onChange, placeholder, className }: SkillPi
       className={className}
       options={options}
       value={selection}
-      onChange={(next) => onChange(next.map((entry) => entry.value))}
+      onChange={(next: PickerSelection[]) =>
+        onChange(next.map((entry: PickerSelection) => entry.value))
+      }
       placeholder={placeholder ?? t("filters.skillsPlaceholder")}
       labels={{
         browseLabel: t("filters.browseCatalog"),
@@ -78,7 +86,8 @@ export function SkillPicker({ value, onChange, placeholder, className }: SkillPi
         loadMoreLabel: t("filters.loadMore"),
         doneLabel: t("filters.done"),
         removeLabel: t("common.remove"),
-        selectedCountLabel: (count) => t("filters.selectedCount", { count }),
+        selectedCountLabel: (count: number) =>
+          t("filters.selectedCount", { count }),
       }}
     />
   );

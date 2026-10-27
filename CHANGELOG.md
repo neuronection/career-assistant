@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (skill picker empty catalog, 2026-10-27)
+- **The skill picker showed "No skills found" despite a populated
+  taxonomy** — the picker filtered on `status === "active"` but
+  `GET /skills` serves active rows and omits `status` entirely, so
+  every skill was dropped. The filter is now tolerant of a missing
+  status (the endpoint already guarantees active-only), the
+  `SkillSummary.status` type is optional, and the test mock now mirrors
+  the real endpoint shape so this mismatch class gets caught.
+
+
 ### Changed (filter rail is the only filter UI, 2026-10-27)
 - **The old "filter by skill" bar is gone from the feed** — the filter
   rail's Skills section (with the two-path picker) is now the only

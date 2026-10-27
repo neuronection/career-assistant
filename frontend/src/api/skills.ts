@@ -10,7 +10,8 @@ export interface SkillSummary {
   description: string;
   parent_id: string | null;
   level_anchors: Skill["level_anchors"];
-  status: string;
+  /** Present on admin/taxonomy listings; omitted by /skills (active-only). */
+  status?: string;
 }
 
 export async function fetchSkillOntology(params: {
