@@ -88,6 +88,27 @@ reject. Approval is the only route to the catalog, search, rankings, chat and
 CV surfaces. University names stay authoritative (an overlay may translate
 the display label, never rewrite the stored name).
 
+## Companies rules (`/settings/companies`)
+
+Admin review surface for how employer names resolve to companies
+(plan 135). Every learned decision is editable here:
+
+- **Merge suggestions** — near-miss pairs the matcher was unsure about.
+  Accepting merges the label's company into the established one
+  (postings re-point, aliases fold); dismissing records a never-link
+  exclusion so the same near-miss never resurfaces.
+- **Aliases** — pick a company and manage its known name variants
+  (P&G, Procter & Gamble, P&G GmbH …): add, remove, exclude (kept as
+  negative history, never matched) or reactivate.
+- **Exclusions** — global "not a company" labels (the seeded denylist:
+  "Confidential", staffing agencies …) and per-company never-link
+  pairs. Adding one here removes the label from matching everywhere.
+- **Pending pairs** — the gray-band queue awaiting AI arbitration
+  (empty unless a provider is configured).
+- **Thresholds** — the auto-link score, the gray-band lower bound and
+  the AI auto-accept confidence. Without a configured AI provider the
+  queue degrades to suggestions rather than stalling ingest.
+
 ## Users (`/settings/users`)
 
 Manage users (admin-only): the account list with activity counts,

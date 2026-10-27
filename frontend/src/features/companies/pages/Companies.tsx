@@ -73,11 +73,21 @@ function CompanyCard({ company }: { company: Company }) {
     >
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium">{company.name}</p>
-        {company.company_type && (
-          <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full whitespace-nowrap">
-            {t(`companies.type.${company.company_type}`)}
-          </span>
-        )}
+        <div className="flex gap-1">
+          {company.status === "proposed" && (
+            <span
+              className="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-full whitespace-nowrap"
+              data-testid={`company-proposed-${company.key}`}
+            >
+              {t("companies.proposed")}
+            </span>
+          )}
+          {company.company_type && (
+            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full whitespace-nowrap">
+              {t(`companies.type.${company.company_type}`)}
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-sm text-slate-500">
         {[company.hq_city, company.hq_country].filter(Boolean).join(", ") ||

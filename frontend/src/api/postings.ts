@@ -15,6 +15,8 @@ export interface PostingSearchParams {
   saved?: boolean;
   sort?: string;
   match_profile?: boolean;
+  company?: string;
+  no_company?: string;
 }
 
 export async function searchPostings(
@@ -53,6 +55,8 @@ export async function fetchPostings(
     catalog_job_id?: string;
     saved?: boolean;
     sort?: string;
+    company?: string;
+    no_company?: string;
   } = {}
 ): Promise<PostingsResponse> {
   const { data } = await api.get<PostingsResponse>("/postings", { params });

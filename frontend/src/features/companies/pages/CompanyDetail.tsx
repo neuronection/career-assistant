@@ -53,6 +53,14 @@ export function CompanyDetail() {
       <header className="space-y-1">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold">{company.name}</h1>
+          {company.status === "proposed" && (
+            <span
+              className="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-full"
+              data-testid="company-proposed-badge"
+            >
+              {t("companyDetail.proposed")}
+            </span>
+          )}
           {company.company_type && (
             <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
               {t(`companies.type.${company.company_type}`)}
@@ -64,6 +72,11 @@ export function CompanyDetail() {
             </span>
           )}
         </div>
+        {(company.aliases?.length ?? 0) > 0 && (
+          <p className="text-xs text-slate-400" data-testid="company-aliases">
+            {t("companyDetail.alsoKnownAs")} {(company.aliases ?? []).join(" · ")}
+          </p>
+        )}
         {company.description && <p className="text-sm text-slate-600">{company.description}</p>}
       </header>
 

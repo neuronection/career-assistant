@@ -57,3 +57,20 @@ moved profile is flagged for review rather than silently combined.
   Explore filters these postings also appear in.
 - [Matching and rankings](matching-and-rankings.md) — how postings from
   these companies are scored against your profile.
+
+## How names become companies
+
+Job postings spell the same employer many ways. The matcher resolves
+each label to one canonical company — exact keys (slug, known alias,
+initialism like `P&G`, the posting's ATS domain) first, then a
+conservative fuzzy score. Junk labels ("Confidential", staffing
+agencies) never create companies, and only strong evidence links
+without review. Everything the matcher learns is visible and editable
+under **Companies rules** (`/settings/companies`): aliases, never-link
+exclusions, the pending near-miss queue, merge suggestions and the
+matcher thresholds.
+
+New companies start as **New** (proposed) and appear in this list as
+soon as they have a live posting — they graduate to established when
+the evidence is strong (a matching company domain, an arbitrated match,
+or postings from two or more sources), or when an admin promotes them.

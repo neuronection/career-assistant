@@ -314,3 +314,69 @@ describe("Postings shell", () => {
     expect(screen.getByTestId("postings-tab-search")).toHaveAttribute("aria-current", "page");
   });
 });
+
+describe("Company filter (plan 135)", () => {
+  beforeEach(() => {
+    mockFetchPostings.mockResolvedValue({
+      items: [posting()],
+      total: 1,
+      unseen: 1,
+    });
+  });
+
+  it("passes the company filter to the feed and shows the chip", async () => {
+    render(
+      <MemoryRouter initialEntries={["/postings?company=acme-cloud"]}>
+        <Routes>
+          <Route path="/postings" element={<PostingsFeed />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(mockFetchPostings).toHaveBeenCalledWith(
+        expect.objectContaining({ company: "acme-cloud" })
+      )
+    );
+    expect(await screen.findByTestId("company-chip")).toHaveTextContent("acme-cloud");
+
+    fireEvent.click(screen.getByTestId("company-chip-clear"));
+    await waitFor(() =>
+      expect(mockFetchPostings).toHaveBeenCalledWith(
+        expect.not.objectContaining({ company: expect.anything() })
+      )
+    );
+  });
+
+  it("passes the no-company audit filter", async () => {
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Routes>
+          <Route path="/postings" element={<PostingsFeed />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    fireEvent.change(await screen.findByTestId("unlinked-filter"), {
+      target: { value: "rejected" },
+    });
+    await waitFor(() =>
+      expect(mockFetchPostings).toHaveBeenCalledWith(
+        expect.objectContaining({ no_company: "rejected" })
+      )
+    );
+  });
+
+  it("links the card org label to the company page when resolved", async () => {
+    mockFetchPostings.mockResolvedValue({
+      items: [posting({ org_key: "acme-cloud" })],
+      total: 1,
+      unseen: 1,
+    });
+    render(
+      <MemoryRouter>
+        <PostingsFeed />
+      </MemoryRouter>
+    );
+    const link = await screen.findByTestId("posting-company-link");
+    expect(link).toHaveAttribute("href", "/companies/acme-cloud");
+  });
+});

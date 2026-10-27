@@ -35,6 +35,8 @@ export function PostingsFeed() {
   const [matchMode, setMatchMode] = useState<"all" | "any">("all");
   const [priority, setPriority] = useState("");
   const [matchProfile, setMatchProfile] = useState(false);
+  const [company, setCompany] = useState(searchParams.get("company") ?? "");
+  const [unlinked, setUnlinked] = useState(searchParams.get("no_company") ?? "");
 
   useEffect(() => {
     void fetchSkillOntology()
@@ -60,13 +62,20 @@ export function PostingsFeed() {
         match_profile: matchProfile,
       };
       if (priority) params.priority = priority;
+      if (company) params.company = company;
+      if (unlinked) params.no_company = unlinked;
       void searchPostings(params)
         .then(setFeed)
         .catch((err) => setError(String(err)));
       return;
     }
     setMatchProfile(false);
-    void fetchPostings({ saved: currentView === "saved", sort: currentSort })
+    void fetchPostings({
+      saved: currentView === "saved",
+      sort: currentSort,
+      ...(company ? { company } : {}),
+      ...(unlinked ? { no_company: unlinked } : {}),
+    })
       .then(setFeed)
       .catch((err) => setError(String(err)));
   };
@@ -74,7 +83,7 @@ export function PostingsFeed() {
   useEffect(() => {
     load(view, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, sort, skillFilters, matchMode, priority, matchProfile]);
+  }, [view, sort, skillFilters, matchMode, priority, matchProfile, company, unlinked]);
 
   const addSkillFilter = () => {
     const key = skillKey.trim();
@@ -114,6 +123,23 @@ export function PostingsFeed() {
             {t("postings.discover")}
           </button>
           <select
+            value={unlinked}
+            onChange={(e) => {
+              setUnlinked(e.target.value);
+              const next = new URLSearchParams(searchParams);
+              if (e.target.value) next.set("no_company", e.target.value);
+              else next.delete("no_company");
+              setSearchParams(next, { replace: true });
+            }}
+            className="text-sm border border-slate-200 rounded-lg px-2 py-1.5"
+            data-testid="unlinked-filter"
+            aria-label={t("postings.companyFilter")}
+          >
+            <option value="">{t("postings.allCompanies")}</option>
+            <option value="rejected">{t("postings.noCompanyRejected")}</option>
+            <option value="pending">{t("postings.noCompanyPending")}</option>
+          </select>
+          <select
             value={sort}
             onChange={(e) => setSort(e.target.value as "fit" | "fresh")}
             className="text-sm border border-slate-200 rounded-lg px-2 py-1.5"
@@ -124,6 +150,30 @@ export function PostingsFeed() {
           </select>
         </div>
       </div>
+
+      {company && (
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs bg-primary-50 text-primary-700 px-2 py-1 rounded-lg flex items-center gap-1"
+            data-testid="company-chip"
+          >
+            {t("postings.companyChip")}: {company}
+            <button
+              onClick={() => {
+                setCompany("");
+                const next = new URLSearchParams(searchParams);
+                next.delete("company");
+                setSearchParams(next, { replace: true });
+              }}
+              aria-label={t("postings.clearCompanyFilter")}
+              data-testid="company-chip-clear"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        </div>
+      )
+      }
 
       <div
         className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2"

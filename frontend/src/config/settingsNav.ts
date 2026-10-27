@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
+  Building2,
   CalendarClock,
   CircleUser,
   Cpu,
@@ -64,6 +65,13 @@ export const settingsNav: SettingsNavItem[] = [
     icon: ListTree,
     labelKey: "settingsNav.taxonomy.label",
     descriptionKey: "settingsNav.taxonomy.description",
+    adminOnly: true,
+  },
+  {
+    to: "/settings/companies",
+    icon: Building2,
+    labelKey: "settingsNav.companies.label",
+    descriptionKey: "settingsNav.companies.description",
     adminOnly: true,
   },
   {

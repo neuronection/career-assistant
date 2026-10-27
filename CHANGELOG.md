@@ -21,6 +21,16 @@ All notable changes to **Career Assistant** are documented here.
   merge suggestion a human can accept (merges) or dismiss (excludes).
   Without a configured provider the queue degrades to suggestions rather
   than stalling; verdicts are stored so no pair is ever re-billed.
+- **Company rules & corrections surface (`/settings/companies`, admin)** —
+  aliases with provenance (add/remove/exclude/reactivate), global and
+  per-pair exclusions, the pending-pair queue, merge suggestions with
+  their evidence, and the matcher thresholds (auto-link / gray band /
+  AI auto-accept).
+- **Browsing** — `/postings` gains a company filter chip (`company=<key>`)
+  and a "no company" audit filter that splits gate-rejected labels from
+  pairs still pending triage; card company names link to the company
+  page; posting-born (proposed) companies are visible on `/companies`
+  with a New badge; company pages list "also known as" aliases.
   Admin endpoints: `GET /organizations/pairs`,
   `GET /organizations/suggestions`, accept/dismiss.
 

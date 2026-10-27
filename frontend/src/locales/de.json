@@ -543,7 +543,13 @@
     "postings.actions": "Aktionen",
     "postings.reextract": "KI-Extraktion erneut ausführen",
     "postings.reextractDone": "KI-Neuextraktion für {{count}} Stellen eingereiht",
-    "postings.clearSelection": "Auswahl aufheben"
+    "postings.clearSelection": "Auswahl aufheben",
+    "companyFilter": "Unternehmensfilter",
+    "allCompanies": "Alle Unternehmen",
+    "noCompanyRejected": "Ohne Unternehmen (abgelehnt)",
+    "noCompanyPending": "Ohne Unternehmen (offen)",
+    "companyChip": "Unternehmen",
+    "clearCompanyFilter": "Unternehmensfilter entfernen"
   },
   "universities": {
     "subtitle": "Laden Sie Ihren Länder-Zulassungs-/Prospekt-PDF hoch. Die KI extrahiert Abteilungen und jährliche Einstiegs-Baselines, die dann mit Stellen auf jeder Stellenseite verbunden werden.",
@@ -3872,6 +3878,10 @@
     "radar": {
       "label": "Job-Radar",
       "description": "Sag der App einmal, was du suchst — Orte, Gehaltsuntergrenze, Arbeitsmodus — und suche es überall."
+    },
+    "companies": {
+      "label": "Unternehmen",
+      "description": "Zuordnungsregeln: Aliase, Ausschlüsse, Vorschläge"
     }
   },
   "paths": {
@@ -3992,7 +4002,8 @@
       "nonprofit": "Gemeinnützig",
       "government": "Öffentlich-rechtlich",
       "startup": "Startup"
-    }
+    },
+    "proposed": "Neu"
   },
   "companyDetail": {
     "back": "Alle Unternehmen",
@@ -4021,7 +4032,9 @@
     },
     "postingsTitle": "Offene Stellen ({{count}})",
     "noPostings": "Aktuell keine offenen Stellen.",
-    "viewPosting": "Stelle ansehen"
+    "viewPosting": "Stelle ansehen",
+    "proposed": "Neu",
+    "alsoKnownAs": "Auch bekannt als:"
   },
   "jobRadar": {
     "subtitle": "Eine Konfiguration, überall genutzt: Explore matcht live, und (im gewählten Takt) meldet sich der Benachrichtigungs-Digest, wenn frische Stellen passen.",
@@ -4146,5 +4159,49 @@
     "reextractBtn": "KI-Extraktion erneut ausführen",
     "reextractHint": "Die strukturierten Felder (Skills, Gehalt, Anforderungen) werden mit KI aus den gespeicherten Beschreibungen neu aufgebaut.",
     "reextractQueued": "KI-Neuextraktion für {{count}} Stellen eingereiht"
+  },
+  "companyRules": {
+    "title": "Unternehmensregeln",
+    "intro": "Wie Arbeiternamen zu Unternehmen aufgelöst werden: gelernte Aliase, Nie-verknüpfen-Ausschlüsse, die Warteschlange mehrdeutiger Paare, Zusammenführungsvorschläge und Schwellenwerte.",
+    "tabSuggestions": "Zusammenführungsvorschläge",
+    "tabAliases": "Aliase",
+    "tabExclusions": "Ausschlüsse",
+    "tabQueue": "Offene Paare",
+    "tabThresholds": "Schwellenwerte",
+    "pickCompany": "Unternehmen wählen…",
+    "postings": "Stellen",
+    "newAlias": "Neuer Alias für dieses Unternehmen",
+    "add": "Hinzufügen",
+    "exclude": "Ausschließen",
+    "reactivate": "Reaktivieren",
+    "remove": "Entfernen",
+    "noAliases": "Noch keine Aliase.",
+    "loadFailed": "Laden fehlgeschlagen.",
+    "actionFailed": "Die Änderung ist fehlgeschlagen — bitte erneut versuchen.",
+    "merged": "Zusammengeführt.",
+    "excluded": "Als verschiedene Arbeitgeber erfasst.",
+    "label": "Bezeichnung",
+    "confidence": "Konfidenz",
+    "dismissHint": "Beim Verwerfen wird ein Nie-verknüpfen-Ausschluss für dieses Paar gespeichert — der ähnliche Name taucht nie wieder auf.",
+    "noSuggestionsTitle": "Keine offenen Vorschläge",
+    "noSuggestionsBody": "Mehrdeutige Arbeiternamen erscheinen hier, wenn der Abgleicher unsicher ist.",
+    "addExclusion": "Label ausschließen",
+    "exclusionLabel": "Abzulehnendes Label (z. B. „Confidential“)",
+    "exclusionReason": "Grund (optional)",
+    "globalExclusions": "Keine-Unternehmen-Labels",
+    "pairExclusions": "Nie-verknüpfen-Paare",
+    "neverLinks": "verknüpft nie mit",
+    "notACompany": "kein Unternehmen",
+    "none": "Noch keine.",
+    "queueEmptyTitle": "Keine offenen Paare",
+    "queueEmptyBody": "Mehrdeutige Labels, die auf die KI-Entscheidung warten, erscheinen hier.",
+    "candidate": "Kandidat",
+    "thresholdMatch": "Auto-Verknüpfungsschwelle (Fuzzy-Score ab hier verknüpft)",
+    "thresholdGray": "Untergrenze der Grauzone (darunter wird erstellt)",
+    "thresholdLlm": "KI-Auto-Annahme-Konfidenz",
+    "saved": "Gespeichert.",
+    "keepSeparate": "Getrennt lassen",
+    "merge": "Zusammenführen",
+    "save": "Speichern"
   }
 }

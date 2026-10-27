@@ -101,9 +101,18 @@ Task-steering AI instructions ship as versioned, audited **skill packs**.
 
 ## Organizations are entities
 
-Postings resolve onto a normalized **organization** through a matcher that
-folds legal-suffix and spelling variants into aliases. Duplicates merge under
-admin review, and "top hiring orgs" aggregates by entity, not by label.
+Postings resolve onto a normalized **organization** through a layered
+matcher: a quality gate rejects junk labels ("Confidential", staffing
+agencies), exact keys match slug / alias / initialism / company domain
+(so `P&G` and `Procter & Gamble` land on one company), and only strong
+fuzzy scores link without asking. Learned name variants persist as
+reviewable alias rows, per-pair "never link" exclusions keep
+similar-but-different employers apart, and near-misses queue for the AI
+arbiter — a confident match links, a confident "different" creates the
+new company, anything unsettled becomes a merge suggestion. Filter the
+feed by company with the `company` chip or the **no company** audit
+filter on `/postings`, and open any card's company name to see all of
+that employer's postings on `/companies/:key`.
 
 ## Related
 

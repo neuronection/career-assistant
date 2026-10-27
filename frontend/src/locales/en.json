@@ -543,7 +543,13 @@
     "postings.actions": "Actions",
     "postings.reextract": "Re-run AI extraction",
     "postings.reextractDone": "Queued AI re-extraction for {{count}} postings",
-    "postings.clearSelection": "Clear selection"
+    "postings.clearSelection": "Clear selection",
+    "companyFilter": "Company filter",
+    "allCompanies": "All companies",
+    "noCompanyRejected": "No company (rejected)",
+    "noCompanyPending": "No company (pending)",
+    "companyChip": "Company",
+    "clearCompanyFilter": "Clear the company filter"
   },
   "universities": {
     "subtitle": "Upload your country’s admissions/prospectus PDF. The AI extracts departments and yearly entry baselines, which then connect to jobs on each job page.",
@@ -3873,6 +3879,10 @@
     "radar": {
       "label": "Job radar",
       "description": "Tell the app what you are looking for once — locations, salary floor, work mode — and search it everywhere."
+    },
+    "companies": {
+      "label": "Companies",
+      "description": "Company matching rules: aliases, exclusions, suggestions"
     }
   },
   "paths": {
@@ -3993,7 +4003,8 @@
       "nonprofit": "Non-profit",
       "government": "Government",
       "startup": "Startup"
-    }
+    },
+    "proposed": "New"
   },
   "companyDetail": {
     "back": "All companies",
@@ -4022,7 +4033,9 @@
     },
     "postingsTitle": "Open postings ({{count}})",
     "noPostings": "No open postings right now.",
-    "viewPosting": "View posting"
+    "viewPosting": "View posting",
+    "proposed": "New",
+    "alsoKnownAs": "Also known as:"
   },
   "jobRadar": {
     "subtitle": "One configuration, used everywhere: Explore matches it live, and (at the cadence you pick) notifications tell you when fresh postings fit.",
@@ -4147,5 +4160,49 @@
     "reextractBtn": "Re-run AI extraction",
     "reextractHint": "Re-build the structured fields (skills, salary, requirements) from the stored descriptions with AI.",
     "reextractQueued": "Queued AI re-extraction for {{count}} postings"
+  },
+  "companyRules": {
+    "title": "Companies rules",
+    "intro": "How employer names resolve to companies: learned aliases, never-link exclusions, the ambiguous-pair queue, merge suggestions and matcher thresholds.",
+    "tabSuggestions": "Merge suggestions",
+    "tabAliases": "Aliases",
+    "tabExclusions": "Exclusions",
+    "tabQueue": "Pending pairs",
+    "tabThresholds": "Thresholds",
+    "pickCompany": "Pick a company…",
+    "postings": "postings",
+    "newAlias": "New alias for this company",
+    "add": "Add",
+    "exclude": "Exclude",
+    "reactivate": "Reactivate",
+    "remove": "Remove",
+    "noAliases": "No aliases yet.",
+    "loadFailed": "Could not load.",
+    "actionFailed": "The change failed — try again.",
+    "merged": "Merged.",
+    "excluded": "Recorded as different employers.",
+    "label": "Label",
+    "confidence": "confidence",
+    "dismissHint": "Dismissing records a never-link exclusion for this pair, so the same near-miss never resurfaces.",
+    "noSuggestionsTitle": "No open suggestions",
+    "noSuggestionsBody": "Ambiguous employer names appear here when the matcher is unsure.",
+    "addExclusion": "Add a label exclusion",
+    "exclusionLabel": "Label to reject (e.g. “Confidential”)",
+    "exclusionReason": "Reason (optional)",
+    "globalExclusions": "Not-a-company labels",
+    "pairExclusions": "Never-link pairs",
+    "neverLinks": "never links to",
+    "notACompany": "not a company",
+    "none": "None yet.",
+    "queueEmptyTitle": "No pending pairs",
+    "queueEmptyBody": "Ambiguous labels awaiting the AI arbiter show up here.",
+    "candidate": "Candidate",
+    "thresholdMatch": "Auto-link threshold (fuzzy score at or above this links)",
+    "thresholdGray": "Gray band lower bound (below this creates)",
+    "thresholdLlm": "AI auto-accept confidence",
+    "saved": "Saved.",
+    "keepSeparate": "Keep separate",
+    "merge": "Merge",
+    "save": "Save"
   }
 }

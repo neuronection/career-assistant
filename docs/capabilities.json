@@ -90,7 +90,7 @@
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Connector engines pull live postings from ATS APIs, JSON-LD, RSS, CSV and three free job boards, a deep extraction pass turns them into auditable data, and Career Autopilot hunts a stated goal on cadence.",
+      "summary": "Connectors pull live postings from ATS APIs, JSON-LD, RSS, CSV and free boards; deep extraction makes them auditable; employer names resolve to one company with reviewable near-misses; Autopilot hunts goals on cadence.",
       "category": "integrate",
       "status": "beta",
       "links": [

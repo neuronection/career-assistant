@@ -8,6 +8,7 @@ import { AIConfig } from "@/pages/settings/AIConfig";
 import { JobRadarSettings } from "@/pages/settings/JobRadar";
 import { AIAudit } from "@/pages/settings/AIAudit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
+import { CompanyRules } from "@/pages/settings/CompanyRules";
 import { ToolsConfig } from "@/pages/settings/ToolsConfig";
 import { Users } from "@/pages/settings/Users";
 import { SchedulerSettings } from "@/pages/settings/SchedulerSettings";
@@ -115,6 +116,7 @@ export function App() {
             <Route path="ai" element={<AIConfig />} />
             <Route path="tools" element={<ToolsConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
+            <Route path="companies" element={<CompanyRules />} />
             <Route path="users" element={<Users />} />
             <Route path="automations" element={<SchedulerSettings />} />
             {/* Legacy deep links (ADR-0033 INV-6): scheduler → automations */}

@@ -1,4 +1,5 @@
 import { Bookmark, ExternalLink, EyeOff, MapPin } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { hidePosting, markApplied, markPostingsSeen, savePosting } from "@/api/postings";
@@ -101,7 +102,17 @@ export function PostingCard({
           {posting.saved && <Bookmark className="w-3.5 h-3.5 text-primary-600 fill-primary-600" />}
         </div>
         <p className="text-sm text-slate-500 mt-1">
-          {posting.org}
+          {posting.org_key ? (
+            <Link
+              to={`/companies/${posting.org_key}`}
+              className="text-primary-700 hover:underline"
+              data-testid="posting-company-link"
+            >
+              {posting.org}
+            </Link>
+          ) : (
+            posting.org
+          )}
           {posting.location?.city ? (
             <span className="inline-flex items-center gap-1 ml-2">
               <MapPin className="w-3 h-3" /> {posting.location.city}
