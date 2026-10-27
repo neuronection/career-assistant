@@ -22,6 +22,7 @@ holds the floor so its uncovered pairs are re-picked instead of lost.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from itertools import combinations
@@ -75,7 +76,7 @@ async def load_thresholds(db: AsyncSession) -> Thresholds:
         .scalars()
         .first()
     )
-    raw = row.value if row is not None else {}
+    raw = row.value if row is not None and isinstance(row.value, dict) else {}
     defaults = Thresholds()
     parsed: dict[str, int | float] = {}
     for name, cast in (
@@ -439,14 +440,17 @@ async def apply_verdicts(
     thresholds = thresholds or Thresholds()
     service = SkillRelationService(db)
     by_ref = {candidate.pair_ref: candidate for candidate in candidates}
-    stats = {"edges_proposed": 0, "negatives": 0, "dropped": 0}
+    stats = {"edges_proposed": 0, "negatives": 0, "dropped": 0, "below_bar": 0}
+    seen: set[str] = set()
     for verdict in verdicts:
         candidate = by_ref.get(verdict.pair_ref)
-        if candidate is None:
+        if candidate is None or verdict.pair_ref in seen:
             stats["dropped"] += 1
             continue
+        seen.add(verdict.pair_ref)
         if verdict.relation == "none":
             if verdict.confidence < thresholds.min_negative_confidence:
+                stats["below_bar"] += 1
                 continue
             try:
                 await service.add(
@@ -540,12 +544,13 @@ async def run_skill_relation_learn(
     db: AsyncSession,
     *,
     run_id: uuid.UUID | None = None,
+    cancelled: Callable[[], Awaitable[bool]] | None = None,
 ) -> dict:
     """One discovery run: materialize, collect, judge, write, report.
 
     Never raises for AI problems: an unconfigured provider falls back to
-    derived proposals and a failed batch is simply left unadjudicated (the
-    held watermark re-picks it next run).
+    derived proposals; failed, incomplete or cancelled batches are left
+    unadjudicated and the held watermark re-picks them next run.
     """
     thresholds = await load_thresholds(db)
     since = await _load_watermark(db)
@@ -555,10 +560,12 @@ async def run_skill_relation_learn(
     batch_size = thresholds.batch_size
     batches = [candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)]
     run_ref = RunRef(id=run_id, stage="skill_relation_learn.verdict") if run_id else None
-    judged = failed = 0
+    judged = failed = uncovered = 0
     unconfigured = False
-    applied = {"edges_proposed": 0, "negatives": 0, "dropped": 0}
+    applied = {"edges_proposed": 0, "negatives": 0, "dropped": 0, "below_bar": 0}
     for batch in batches:
+        if cancelled is not None and await cancelled():
+            break
         try:
             verdict_set: SkillEdgeVerdictSet | None = await suggest_skill_edges(
                 db, [_prompt_pair(candidate) for candidate in batch], run=run_ref
@@ -573,10 +580,12 @@ async def run_skill_relation_learn(
         batch_stats = await apply_verdicts(db, batch, verdict_set.verdicts, thresholds=thresholds)
         for key, value in batch_stats.items():
             applied[key] += value
+        answered = {verdict.pair_ref for verdict in verdict_set.verdicts}
+        uncovered += sum(1 for candidate in batch if candidate.pair_ref not in answered)
     derived = 0
     if unconfigured and judged == 0:
         derived = await apply_derived(db, candidates)
-    leftover = capped or failed > 0 or (unconfigured and judged > 0)
+    leftover = capped or failed > 0 or uncovered > 0 or (unconfigured and judged > 0)
     watermark = since if leftover else collected_at
     return {
         "materialized": materialized,
@@ -584,6 +593,7 @@ async def run_skill_relation_learn(
         "batches": len(batches),
         "judged_batches": judged,
         "failed_batches": failed,
+        "uncovered": uncovered,
         "derived": derived,
         **applied,
         "capped": capped,

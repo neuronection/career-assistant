@@ -870,11 +870,13 @@ async def _run_query_curator(db: AsyncSession, job, progress=None, cancelled=Non
     return await rebuild_all_query_caches(db)
 
 
-async def _run_skill_relation_learn(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+async def _run_skill_relation_learn(
+    db: AsyncSession, job: BackgroundJob, *, cancelled=None, **_kw
+) -> dict:
     """Discovery pass: propose typed skill-relation edges from evidence."""
     from app.services.catalog.skill_relation_learn import run_skill_relation_learn
 
-    return await run_skill_relation_learn(db, run_id=job.id)
+    return await run_skill_relation_learn(db, run_id=job.id, cancelled=cancelled)
 
 
 HANDLERS: dict[str, Handler] = {

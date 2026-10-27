@@ -10,8 +10,9 @@ All notable changes to **Career Assistant** are documented here.
   own data (skills that co-occur on postings/jobs, extraction labels that
   look like synonyms of catalog skills, curated parent links). A configured
   AI provider judges the candidates in batches and the proposals wait for
-  review; without one, the deterministic candidates still flow. Dismissed
-  or `none`-judged suggestions come back never. Nothing user-visible yet —
+  review; without one, the deterministic candidates still flow. Once
+  pinned — a dismissal or a confident `none` judgement — a suggestion
+  comes back never. Nothing user-visible yet —
   the review queue UI lands next.
 
 ### Added (skill filter expansion, 2026-10-27)
