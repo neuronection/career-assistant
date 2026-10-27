@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill filter expansion, 2026-10-27)
+- **Skill filters can include related skills now** — the Skills section of
+  the postings filter rail gains a match switch: **Exact** (only the skills
+  you picked), **Sub-skills** (default — the curated sub-skill tree,
+  synonyms and is-a children) and **Related** (also part-of / related-to
+  links), with a 1 or 2 hop limit for learned relations. Picking
+  "programming" now matches postings tagged java or python; the summary
+  chips show the active mode. A "min level" without a selected skill is
+  refused instead of silently doing nothing.
+
 ### Added (skill taxonomy graph — expansion engine, 2026-10-27)
 - **Internal groundwork: the skill graph expansion engine and its single
   write seam** — a pure, dialect-safe walk over the new edge table (curated

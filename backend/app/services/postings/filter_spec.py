@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.models.enums import SkillExpandMode
 
 SPEC_VERSION = 1
 
@@ -34,9 +36,31 @@ class SeniorityFilter(BaseModel):
 
 
 class SkillFilter(BaseModel):
+    """Skill axis with graph expansion (plan 138).
+
+    `include` matches postings carrying **at least one** included skill at
+    ``min_level`` or above — the level bound is the max over the expanded
+    set, never per-skill AND (that reading would be unsatisfiable under
+    expansion). `min_level` therefore requires an `include`: alone it has
+    no axis to constrain and would silently do nothing.
+
+    `expand` walks the skill graph at query time (``off`` = exact,
+    ``down`` = curated subtree + synonyms + hop-capped ``is_a`` children,
+    ``related`` = also ``part_of``/``related_to``). Expansion never applies
+    to `exclude` beyond `down` semantics and never runs upward.
+    """
+
     include: list[str] = Field(default_factory=list, max_length=50)
     exclude: list[str] = Field(default_factory=list, max_length=50)
     min_level: int | None = Field(default=None, ge=1, le=10)
+    expand: SkillExpandMode = SkillExpandMode.DOWN
+    hops: int = Field(default=1, ge=1, le=2)
+
+    @model_validator(mode="after")
+    def _min_level_needs_include(self) -> SkillFilter:
+        if self.min_level is not None and not self.include:
+            raise ValueError("skills.min_level requires at least one included skill")
+        return self
 
 
 class SalaryFilter(BaseModel):

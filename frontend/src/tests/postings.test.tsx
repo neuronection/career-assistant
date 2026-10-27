@@ -209,6 +209,14 @@ describe("Skill-level search & provenance", () => {
       target: { value: "4" },
     });
 
+    // graph expansion: sub-skills by default, related + 2 hops on request
+    expect(screen.getByRole("tab", { name: "Sub-skills" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Related" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 hops" }));
+
     // the browse modal lists the ontology (regression: "No skills found")
     fireEvent.click(screen.getByRole("button", { name: /browse full catalog/i }));
     await waitFor(() =>
@@ -227,6 +235,8 @@ describe("Skill-level search & provenance", () => {
     const spec = calls[calls.length - 1]?.[0];
     expect(spec.skills.include).toContain("programming");
     expect(spec.skills.min_level).toBe(4);
+    expect(spec.skills.expand).toBe("related");
+    expect(spec.skills.hops).toBe(2);
   }, 10000);
 });
 

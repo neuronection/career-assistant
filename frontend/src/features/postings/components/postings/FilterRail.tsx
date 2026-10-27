@@ -9,7 +9,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Plus, X } from "lucide-react";
 
-import type { FilterSpec } from "@/api/postings";
+import type { FilterSpec, SkillExpandMode } from "@/api/postings";
+import { SegmentedTabs } from "@neuronection/assistant-ui";
 import {
   AXIS_DEFINITIONS,
   countActiveFilters,
@@ -304,13 +305,57 @@ function SkillsSection({ spec, onChange }: { spec: FilterSpec; onChange: (n: Fil
   const { t } = useTranslation();
   const active =
     spec.skills.include.length + spec.skills.exclude.length > 0 || spec.skills.min_level !== null;
+  const patchSkills = (patch: Partial<FilterSpec["skills"]>) =>
+    onChange({ ...spec, skills: { ...spec.skills, ...patch } });
+
   return (
     <Section title={t("filters.skills")} active={active}>
       <SkillPicker
         value={spec.skills.include}
-        onChange={(v) => onChange({ ...spec, skills: { ...spec.skills, include: v } })}
+        onChange={(v) => patchSkills({ include: v, min_level: v.length ? spec.skills.min_level : null })}
         placeholder={t("filters.skillsPlaceholder")}
       />
+      <div className="space-y-1.5" data-testid="skills-expand">
+        <span className="text-xs text-slate-500">{t("filters.skillsExpand")}</span>
+        <SegmentedTabs
+          ariaLabel={t("filters.skillsExpandAria")}
+          className="w-full"
+          items={[
+            { value: "off", label: t("filters.skillsExpandExact") },
+            { value: "down", label: t("filters.skillsExpandDown") },
+            { value: "related", label: t("filters.skillsExpandRelated") },
+          ]}
+          value={spec.skills.expand}
+          onValueChange={(next) => patchSkills({ expand: next as SkillExpandMode })}
+        />
+        {spec.skills.expand !== "off" ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500">{t("filters.skillsHops")}</span>
+            {([1, 2] as const).map((hops) => (
+              <button
+                key={hops}
+                type="button"
+                aria-pressed={spec.skills.hops === hops}
+                className={`text-xs px-2 py-0.5 rounded-full border ${
+                  spec.skills.hops === hops
+                    ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+                onClick={() => patchSkills({ hops })}
+              >
+                {hops === 1 ? t("filters.skillsHopsOne") : t("filters.skillsHopsTwo")}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {spec.skills.expand !== "off" && spec.skills.include.length > 0 ? (
+          <p className="text-xs text-slate-400" data-testid="skills-expand-hint">
+            {spec.skills.expand === "related"
+              ? t("filters.skillsExpandHintRelated")
+              : t("filters.skillsExpandHintDown")}
+          </p>
+        ) : null}
+      </div>
       <div className="flex items-center gap-2">
         <label htmlFor="skill-min-level" className="text-xs text-slate-500">
           {t("filters.minLevel")}
@@ -320,16 +365,14 @@ function SkillsSection({ spec, onChange }: { spec: FilterSpec; onChange: (n: Fil
           type="number"
           min={1}
           max={10}
-          className="w-16 text-sm border border-slate-200 rounded px-2 py-1"
+          disabled={spec.skills.include.length === 0}
+          title={
+            spec.skills.include.length === 0 ? t("filters.minLevelNeedsSkills") : undefined
+          }
+          className="w-16 text-sm border border-slate-200 rounded px-2 py-1 disabled:bg-slate-50 disabled:text-slate-400"
           value={spec.skills.min_level ?? ""}
           onChange={(e) =>
-            onChange({
-              ...spec,
-              skills: {
-                ...spec.skills,
-                min_level: e.target.value ? Number(e.target.value) : null,
-              },
-            })
+            patchSkills({ min_level: e.target.value ? Number(e.target.value) : null })
           }
         />
       </div>

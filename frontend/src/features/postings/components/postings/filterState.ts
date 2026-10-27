@@ -82,6 +82,15 @@ export function buildSummaryChips(spec: FilterSpec): ActiveChip[] {
   for (const skill of spec.skills.exclude) add("skills", `− ${skill}`, skill, "exclude");
   if (spec.skills.min_level !== null)
     add("skills", `≥ ${spec.skills.min_level}`, String(spec.skills.min_level), "bound");
+  if (spec.skills.include.length > 0 && spec.skills.expand !== "off") {
+    const hops = spec.skills.hops === 2 ? " · 2 hops" : "";
+    add(
+      "skills",
+      `+ ${spec.skills.expand === "related" ? "related" : "sub-skills"}${hops}`,
+      `expand:${spec.skills.expand}:${spec.skills.hops}`,
+      "flag",
+    );
+  }
 
   if (spec.salary.min !== null && spec.salary.max !== null)
     add("salary", `${spec.salary.min}–${spec.salary.max}`, "range", "bound");
@@ -125,11 +134,14 @@ export function removeChip(spec: FilterSpec, chip: ActiveChip): FilterSpec {
   const next = structuredClone(spec);
   switch (chip.axis) {
     case "skills":
-      if (chip.kind === "bound" && chip.value === String(next.skills.min_level)) {
+      if (chip.kind === "flag" && chip.value.startsWith("expand:")) {
+        next.skills.expand = "off";
+      } else if (chip.kind === "bound" && chip.value === String(next.skills.min_level)) {
         next.skills.min_level = null;
       } else {
         next.skills.include = next.skills.include.filter((v) => v !== chip.value);
         next.skills.exclude = next.skills.exclude.filter((v) => v !== chip.value);
+        if (next.skills.include.length === 0) next.skills.min_level = null;
       }
       break;
     case "salary":
@@ -198,8 +210,11 @@ export function decodeFilterSpec(encoded: string | null): FilterSpec | null {
     const json = decodeURIComponent(atob(encoded));
     const parsed = JSON.parse(json);
     // sanity: must look like a spec
-    if (typeof parsed === "object" && "v" in parsed && "skills" in parsed) {
-      return { ...emptyFilterSpec(), ...parsed };
+    if (typeof parsed === "object" && parsed && "v" in parsed && "skills" in parsed) {
+      const base = emptyFilterSpec();
+      // nested merge: URL specs written before the expansion knob (plan 138)
+      // must still gain its defaults instead of losing the whole skills object.
+      return { ...base, ...parsed, skills: { ...base.skills, ...(parsed.skills ?? {}) } };
     }
     return null;
   } catch {

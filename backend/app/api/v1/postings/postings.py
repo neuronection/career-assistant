@@ -494,6 +494,7 @@ async def postings_filter(
     include/exclude/don't-care, open numeric bounds."""
     from pydantic import ValidationError as PydanticValidationError
 
+    from app.services.postings.filter_expand import expand_filter_spec
     from app.services.postings.filter_query import build_where
     from app.services.postings.filter_spec import PostingFilterSpec
 
@@ -502,6 +503,7 @@ async def postings_filter(
     except PydanticValidationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid filter spec: {exc}") from exc
 
+    spec = await expand_filter_spec(db, spec)
     where = build_where(spec)
     query = (
         select(JobPosting, PostingInteraction, Application)

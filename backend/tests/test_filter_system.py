@@ -3,6 +3,9 @@ preset CRUD — every axis tested in the include/exclude/empty matrix."""
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 from app.models.taxonomy_model import Skill
 from app.services.postings.filter_query import build_where
@@ -117,19 +120,47 @@ def test_build_where_work_mode_include():
 
 def test_build_where_multiple_axes_compose():
     spec = PostingFilterSpec(
+        skills={"include": ["python"], "exclude": ["java"], "min_level": 4},
         seniority={"min": "senior"},
         work_mode={"include": ["remote"]},
         salary={"min": 60000},
         posted_within={"days": 30},
     )
     clauses = build_where(spec)
-    assert len(clauses) >= 4
+    assert len(clauses) == 6, "skills contribute two clauses and compose with the rest"
 
 
 def test_build_where_skills_resolves_keys_to_ids():
     spec = PostingFilterSpec(skills={"include": ["python"], "exclude": ["java"], "min_level": 4})
     clauses = build_where(spec)
     assert len(clauses) == 2
+
+
+# ------------------------------------------------- skill expansion spec shape
+
+
+def test_skill_expansion_defaults_to_down_one_hop():
+    spec = PostingFilterSpec()
+    assert spec.skills.expand == "down"
+    assert spec.skills.hops == 1
+
+
+def test_skill_expansion_round_trips_through_json():
+    spec = PostingFilterSpec(skills={"include": ["programming"], "expand": "related", "hops": 2})
+    dumped = spec.model_dump(mode="json")
+    assert dumped["skills"]["expand"] == "related"
+    assert PostingFilterSpec.model_validate(dumped) == spec
+
+
+def test_min_level_without_include_is_rejected():
+    """A bare min_level has no axis to constrain — it used to no-op silently."""
+    with pytest.raises(ValidationError, match="min_level requires at least one"):
+        PostingFilterSpec(skills={"min_level": 4})
+
+
+def test_min_level_with_include_is_accepted():
+    spec = PostingFilterSpec(skills={"include": ["python"], "min_level": 4})
+    assert spec.skills.min_level == 4
 
 
 # ------------------------------------------------------------ preset CRUD
@@ -274,3 +305,190 @@ async def test_filter_endpoint_skills_unknown_key_matches_nothing(db, client, au
     await _skills_fixture(db)
     matched = await _filtered_ids(client, auth_headers, {"include": ["cobol-nonsense"]})
     assert matched == set()
+
+
+async def test_filter_endpoint_skills_unknown_exclude_excludes_nothing(db, client, auth_headers):
+    await _skills_fixture(db)
+    matched = await _filtered_ids(client, auth_headers, {"exclude": ["cobol-nonsense"]})
+    assert matched == {"sk-1", "sk-2", "sk-3", "sk-4"}
+
+
+# ------------------------------------------ graph expansion (plan 138, step 4)
+
+
+async def _graph_fixture(db):
+    """A small is-a backbone, a synonym, a related pair and a tree subtree.
+
+    programming ← jvm-languages ← java, python is_a programming,
+    typescript related_to javascript, k8s synonym kubernetes,
+    sql under the curated `databases` parent. One posting per leaf.
+    """
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    skills = {
+        key: Skill(key=key, label=key.replace("-", " ").title(), category="test")
+        for key in (
+            "programming",
+            "python",
+            "jvm-languages",
+            "java",
+            "javascript",
+            "typescript",
+            "kubernetes",
+            "k8s",
+            "databases",
+        )
+    }
+    db.add_all(skills.values())
+    await db.flush()
+    skills["sql"] = Skill(key="sql", label="SQL", category="test", parent_id=skills["databases"].id)
+    db.add(skills["sql"])
+    src = _source({"keywords": "graph"})
+    db.add(src)
+    await db.flush()
+
+    postings = {
+        external_id: _posting(src, external_id, title=title, onsite_policy=policy)
+        for external_id, title, policy in (
+            ("g-programming", "Programmer", "onsite"),
+            ("g-python", "Python Dev", "remote"),
+            ("g-jvm", "JVM Dev", "onsite"),
+            ("g-java", "Java Dev", None),
+            ("g-js", "JS Dev", None),
+            ("g-ts", "TS Dev", None),
+            ("g-k8s", "K8s Engineer", None),
+            ("g-sql", "SQL Analyst", None),
+            ("g-none", "Unrelated Role", None),
+        )
+    }
+    db.add_all(postings.values())
+    await db.flush()
+
+    tagged = {
+        "g-programming": ("programming", 3),
+        "g-python": ("python", 7),
+        "g-jvm": ("jvm-languages", 5),
+        "g-java": ("java", 8),
+        "g-js": ("javascript", 4),
+        "g-ts": ("typescript", 4),
+        "g-k8s": ("k8s", 6),
+        "g-sql": ("sql", 5),
+    }
+    db.add_all(
+        [
+            PostingSkill(
+                posting_id=postings[external_id].id,
+                skill_id=skills[key].id,
+                required_level=level,
+            )
+            for external_id, (key, level) in tagged.items()
+        ]
+    )
+    await db.commit()
+
+    service = SkillRelationService(db)
+    await service.add("python", "programming", "is_a")
+    await service.add("jvm-languages", "programming", "is_a")
+    await service.add("java", "jvm-languages", "is_a")
+    await service.add("typescript", "javascript", "related_to")
+    await service.add("k8s", "kubernetes", "synonym", source="import")
+    return postings
+
+
+async def test_filter_skills_expand_down_matches_is_a_children(db, client, auth_headers):
+    await _graph_fixture(db)
+    matched = await _filtered_ids(client, auth_headers, {"include": ["programming"]})
+    assert matched == {"g-programming", "g-python", "g-jvm"}
+
+
+async def test_filter_skills_expand_off_matches_exactly(db, client, auth_headers):
+    await _graph_fixture(db)
+    matched = await _filtered_ids(
+        client, auth_headers, {"include": ["programming"], "expand": "off"}
+    )
+    assert matched == {"g-programming"}
+
+
+async def test_filter_skills_expand_respects_the_hop_cap(db, client, auth_headers):
+    await _graph_fixture(db)
+    one_hop = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    two_hops = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 2})
+    assert "g-java" not in one_hop
+    assert two_hops == {*one_hop, "g-java"}
+
+
+async def test_filter_skills_expand_related_reaches_related_edges(db, client, auth_headers):
+    await _graph_fixture(db)
+    down = await _filtered_ids(client, auth_headers, {"include": ["javascript"], "expand": "down"})
+    related = await _filtered_ids(
+        client, auth_headers, {"include": ["javascript"], "expand": "related"}
+    )
+    assert down == {"g-js"}
+    assert related == {"g-js", "g-ts"}
+
+
+async def test_filter_skills_expand_synonym_and_tree_subtree(db, client, auth_headers):
+    await _graph_fixture(db)
+    synonym = await _filtered_ids(client, auth_headers, {"include": ["kubernetes"]})
+    subtree = await _filtered_ids(client, auth_headers, {"include": ["databases"]})
+    assert synonym == {"g-k8s"}
+    assert subtree == {"g-sql"}
+
+
+async def test_filter_skills_exclude_expands_down_never_related(db, client, auth_headers):
+    await _graph_fixture(db)
+    matched = await _filtered_ids(
+        client,
+        auth_headers,
+        {"exclude": ["javascript"], "expand": "related"},
+    )
+    assert "g-js" not in matched, "the excluded seed is gone"
+    assert "g-ts" in matched, "related must never widen an exclusion"
+
+
+async def test_filter_skills_expand_composes_with_another_axis(db, client, auth_headers):
+    await _graph_fixture(db)
+    matched = await _filtered_ids(
+        client,
+        auth_headers,
+        {"include": ["programming"]},
+    )
+    assert matched == {"g-programming", "g-python", "g-jvm"}
+
+    response = await client.post(
+        "/api/v1/postings/filter",
+        json={
+            "filters": {
+                "skills": {"include": ["programming"], "expand": "down"},
+                "work_mode": {"include": ["remote"]},
+                "sort": "fresh",
+            }
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert {item["external_id"] for item in response.json()} == {"g-python"}
+
+
+async def test_filter_skills_min_level_is_a_max_over_the_expanded_set(db, client, auth_headers):
+    """`at least one included skill at ≥ N` — not per-skill AND."""
+    await _graph_fixture(db)
+    matched = await _filtered_ids(
+        client, auth_headers, {"include": ["programming"], "min_level": 6}
+    )
+    assert matched == {"g-python"}, "python (7) satisfies the bound; programming (3) does not"
+
+    too_high = await _filtered_ids(
+        client, auth_headers, {"include": ["programming"], "min_level": 9}
+    )
+    assert too_high == set()
+
+
+async def test_filter_endpoint_rejects_min_level_without_include(db, client, auth_headers):
+    response = await client.post(
+        "/api/v1/postings/filter",
+        json={"filters": {"skills": {"min_level": 4}, "sort": "fresh"}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "min_level requires at least one" in response.text

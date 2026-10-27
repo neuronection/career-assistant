@@ -38,9 +38,19 @@ export async function reextractPosting(
 
 // ---------------------------------------------------- filter system (plan 136)
 
+export type SkillExpandMode = "off" | "down" | "related";
+
 export interface FilterSpec {
   v: number;
-  skills: { include: string[]; exclude: string[]; min_level: number | null };
+  skills: {
+    include: string[];
+    exclude: string[];
+    min_level: number | null;
+    /** Graph expansion knob (plan 138): exact / sub-skills / +related. */
+    expand: SkillExpandMode;
+    /** Relation hops for learned edges (1 or 2). */
+    hops: 1 | 2;
+  };
   salary: { min: number | null; max: number | null; currency: string | null };
   location: { include: string[]; exclude: string[]; remote_only: boolean | null };
   companies: {
@@ -65,7 +75,7 @@ export interface FilterSpec {
 export function emptyFilterSpec(): FilterSpec {
   return {
     v: 1,
-    skills: { include: [], exclude: [], min_level: null },
+    skills: { include: [], exclude: [], min_level: null, expand: "down", hops: 1 },
     salary: { min: null, max: null, currency: null },
     location: { include: [], exclude: [], remote_only: null },
     companies: { include: [], exclude: [], industries_include: [], industries_exclude: [] },
