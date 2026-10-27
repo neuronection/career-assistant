@@ -1595,7 +1595,10 @@ async def _land_install(
                     "transport": "stdio",
                     "command": command,
                     "tool": "fetch_postings",
-                    "timeout_seconds": 30,
+                    # The tool timeout must cover the fetch's own run
+                    # budget (budget_seconds ≤ 90) plus spawn + pacing
+                    # overhead — 30s died mid-run ("tool call timed out").
+                    "timeout_seconds": 120,
                 },
                 enabled=False,
             )

@@ -1429,6 +1429,9 @@ async def test_install_mints_the_bundle_venv_interpreter(
     assert minted.config["command"].startswith(f'"{venv_python}"'), (
         "the bundle venv interpreter is minted"
     )
+    assert minted.config["timeout_seconds"] == 120, (
+        "the tool timeout covers the fetch's own run budget"
+    )
 
     # a re-import re-mints the same interpreter — never silently swaps
     reimported = await install_extension(

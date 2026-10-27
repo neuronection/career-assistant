@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (tool timeout, 2026-10-27)
+- **Long syncs no longer die with "tool call timed out after 30s"** —
+  the managed-spawn source's tool timeout is now 120s (it must cover the
+  fetch's own run budget of up to 90s plus browser spawn and pacing),
+  existing sources fold to it automatically, and a batch run clips its
+  inter-query interval to the budget left so it can never outlive the
+  timeout by one last long pause.
+
+
 ### Fixed (2026-10-27)
 - **Re-imports no longer break the managed-spawn interpreter** — a
   re-imported connector now mints its command with the bundle checkout's

@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0062"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0063"], (
         "revision chain stays linear on one head"
     )
 
@@ -2221,6 +2221,30 @@ def test_0059_query_mode_roundtrip():
     assert "query_mode_allowed" in checks
 
 
+def _seed_cleanup(like: str) -> None:
+    """Migration data seeds run on a SEPARATE engine — real commits the
+    suite's per-test rollback never sees. They must clean up after
+    themselves or they leak into other tests on the same worker."""
+
+    async def _run():
+        from sqlalchemy import delete
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.posting_model import JobSource
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(delete(JobSource).where(JobSource.key.like(like)))
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
 def _fold_seed() -> None:
     """Three sources at the 0061 shape: bool on, bool off, no key."""
 
@@ -2298,16 +2322,109 @@ def _fold_read() -> dict[str, dict]:
 def test_0062_detail_enrichment_fold():
     config = _configured()
 
-    command.upgrade(config, "head")
-    assert _column_present("job_postings", "detail_fetched_at"), "detail state at head"
-    assert _column_present("job_postings", "detail_attempts"), "detail attempts at head"
+    try:
+        command.upgrade(config, "head")
+        assert _column_present("job_postings", "detail_fetched_at"), "detail state at head"
+        assert _column_present("job_postings", "detail_attempts"), "detail attempts at head"
 
-    command.downgrade(config, "0061")
-    assert not _column_present("job_postings", "detail_fetched_at"), "downgrade drops the column"
-    _fold_seed()
+        command.downgrade(config, "0061")
+        assert not _column_present("job_postings", "detail_fetched_at"), "downgrade drops it"
+        _fold_seed()
 
-    command.upgrade(config, "head")
-    configs = _fold_read()
-    assert configs["fold-sample"] == {"keywords": "x", "detail_mode": "sample"}
-    assert configs["fold-off"] == {"keywords": "x", "detail_mode": "off"}
-    assert configs["fold-plain"] == {"keywords": "x"}
+        command.upgrade(config, "head")
+        configs = _fold_read()
+        assert configs["fold-sample"] == {"keywords": "x", "detail_mode": "sample"}
+        assert configs["fold-off"] == {"keywords": "x", "detail_mode": "off"}
+        assert configs["fold-plain"] == {"keywords": "x"}
+    finally:
+        _seed_cleanup("fold-%")
+
+
+def _timeout_seed() -> None:
+    """Minted default (30), a deliberate value (60), and a non-mcp row."""
+
+    async def _run():
+        from sqlalchemy import delete
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.posting_model import JobSource
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(delete(JobSource).where(JobSource.key.like("timeout-%")))
+                session.add_all(
+                    [
+                        JobSource(
+                            key="timeout-mint",
+                            connector_key="mcp",
+                            kind="posting",
+                            config={"tool": "fetch_postings", "timeout_seconds": 30},
+                        ),
+                        JobSource(
+                            key="timeout-kept",
+                            connector_key="mcp",
+                            kind="posting",
+                            config={"timeout_seconds": 60},
+                        ),
+                        JobSource(
+                            key="timeout-other",
+                            connector_key="synthetic",
+                            kind="posting",
+                            config={"timeout_seconds": 30},
+                        ),
+                    ]
+                )
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def _timeout_read() -> dict[str, int]:
+    import json
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def _run():
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                rows = (
+                    await conn.execute(
+                        text("SELECT key, config FROM job_sources WHERE key LIKE 'timeout-%'")
+                    )
+                ).fetchall()
+        finally:
+            await engine.dispose()
+        out = {}
+        for key, config in rows:
+            if isinstance(config, str):
+                config = json.loads(config)
+            out[key] = dict(config or {}).get("timeout_seconds")
+        return out
+
+    return asyncio.run(_run())
+
+
+def test_0063_timeout_fold():
+    config = _configured()
+
+    try:
+        command.upgrade(config, "head")
+        command.downgrade(config, "0062")
+        _timeout_seed()
+
+        command.upgrade(config, "head")
+        timeouts = _timeout_read()
+        assert timeouts["timeout-mint"] == 120, "the minted default moves to 120"
+        assert timeouts["timeout-kept"] == 60, "a deliberate value stays"
+        assert timeouts["timeout-other"] == 30, "non-mcp rows are untouched"
+    finally:
+        _seed_cleanup("timeout-%")
