@@ -278,6 +278,26 @@ class PostingSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
+class PostingFilterPreset(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One saved filter preset (plan 136): a named, tagged snapshot of
+    the postings filter spec. Profile-scoped — the fit score and saved
+    state differ per profile. The ``filters`` JSONB is versioned at the
+    API seam (pydantic); the row never interprets it."""
+
+    __tablename__ = "posting_filter_presets"
+    __table_args__ = (
+        UniqueConstraint("profile_id", "name", name="uq_posting_filter_presets_profile_name"),
+        Index("ix_posting_filter_presets_profile", "profile_id"),
+    )
+
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    tags: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    filters: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+
+
 class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Per-user posting engagement state — seen / saved / hidden only.
 

@@ -36201,6 +36201,113 @@
         ]
       }
     },
+    "/api/v1/me/posting-filters": {
+      "get": {
+        "description": "Saved filter presets for the active profile, newest first.",
+        "operationId": "list_filter_presets_api_v1_me_posting_filters_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Filter Presets Api V1 Me Posting Filters Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Filter Presets",
+        "tags": [
+          "postings"
+        ]
+      },
+      "post": {
+        "description": "Save (or update by name) a named, tagged filter preset.",
+        "operationId": "create_filter_preset_api_v1_me_posting_filters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Filter Preset Api V1 Me Posting Filters Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Filter Preset",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/me/posting-filters/{preset_id}": {
+      "delete": {
+        "operationId": "delete_filter_preset_api_v1_me_posting_filters__preset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "preset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Preset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Filter Preset",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
     "/api/v1/me/preferences/ai-setup": {
       "put": {
         "description": "Store whether the caller skipped the first-run AI setup step.\n\nThe skip rides a typed `profiles.preferences` key (schema is frozen \u2014\nplan 113); the setup prompt itself keeps rendering until a provider is\nconfigured, so dismissing never hides the gap.",
@@ -39247,6 +39354,54 @@
           }
         },
         "summary": "Postings Explore",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/filter": {
+      "post": {
+        "description": "The full filter spec search (plan 136): every axis, three-valued\ninclude/exclude/don't-care, open numeric bounds.",
+        "operationId": "postings_filter_api_v1_postings_filter_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PostingOut"
+                  },
+                  "title": "Response Postings Filter Api V1 Postings Filter Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Filter",
         "tags": [
           "postings"
         ]

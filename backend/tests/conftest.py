@@ -94,6 +94,7 @@ TABLES = [
     "learning_resources",
     "growth_plan_steps",
     "growth_plans",
+    "posting_filter_presets",
     "posting_interactions",
     "posting_skills",
     "posting_fits",

@@ -1,13 +1,14 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import NotFoundError
-from app.models.posting_model import JobPosting, JobSource
+from app.models.application_model import Application
+from app.models.posting_model import JobPosting, JobSource, PostingInteraction
 from app.schemas.posting import (
     AppliedIn,
     ExploreOut,
@@ -38,12 +39,19 @@ from app.services.postings.postings_service import (
     search_postings,
     set_state,
 )
+from app.services.postings.text import plain_text
 
 router = APIRouter(tags=["postings"])
 
 
 def _posting_out(
-    posting: JobPosting, interaction, application=None, fit=None, source_key="", coverage=None
+    posting: JobPosting,
+    interaction,
+    application=None,
+    fit=None,
+    source_key="",
+    org_key="",
+    coverage=None,
 ) -> PostingOut:
     from app.schemas.job import JobOut
 
@@ -57,10 +65,21 @@ def _posting_out(
         external_id=posting.external_id,
         title=posting.title,
         org=posting.org,
+        org_key=org_key,
         location=PostingLocationOut.model_validate(posting.location or {}),
         url=posting.url,
         seniority=posting.seniority,
         employment_type=posting.employment_type,
+        contract_type=posting.contract_type,
+        work_hours=posting.work_hours,
+        hours_per_week_min=float(posting.hours_per_week_min)
+        if posting.hours_per_week_min is not None
+        else None,
+        hours_per_week_max=float(posting.hours_per_week_max)
+        if posting.hours_per_week_max is not None
+        else None,
+        travel_class=posting.travel_class,
+        education_level=posting.education_level,
         onsite_policy=posting.onsite_policy,
         salary_currency=posting.salary_currency,
         salary_min=float(posting.salary_min) if posting.salary_min is not None else None,
@@ -79,6 +98,8 @@ def _posting_out(
         ),
         posted_at=posting.posted_at,
         expires_at=posting.expires_at,
+        created_at=posting.created_at,
+        updated_at=posting.updated_at,
         status=posting.status,
         catalog_job_id=posting.catalog_job_id,
         mapping_method=posting.mapping_method,
@@ -97,6 +118,13 @@ def _posting_out(
         source_key=source_key,
         catalog_job=catalog_job,
     )
+
+
+async def _org_keys(db: AsyncSession) -> dict[UUID, str]:
+    from app.models.experience_model import Organization
+
+    rows = (await db.execute(select(Organization))).scalars().all()
+    return {row.id: row.key for row in rows}
 
 
 @router.get("/postings", response_model=PostingsOut)
@@ -122,6 +150,7 @@ async def postings(
         sort=sort,
     )
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = await _org_keys(db)
     return PostingsOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -132,6 +161,7 @@ async def postings(
                 item.get("application"),
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
+                org_key=orgs.get(item["posting"].org_id, ""),
             )
             for item in result["items"]
         ],
@@ -173,6 +203,7 @@ async def postings_search(
         match_profile=match_profile,
     )
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = await _org_keys(db)
     return PostingSearchOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -184,6 +215,7 @@ async def postings_search(
                 fit=item.get("fit"),
                 coverage=item.get("coverage"),
                 source_key=sources.get(item["posting"].source_id, ""),
+                org_key=orgs.get(item["posting"].org_id, ""),
             )
             for item in result["items"]
         ],
@@ -233,6 +265,7 @@ async def postings_explore(
 
     result = await explore(db, user.id, filters, sort=sort, cursor=cursor, limit=limit)
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = await _org_keys(db)
     return ExploreOut(
         items=[
             _posting_out(
@@ -241,6 +274,7 @@ async def postings_explore(
                 item.get("application"),
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
+                org_key=orgs.get(item["posting"].org_id, ""),
             )
             for item in result["items"]
         ],
@@ -263,6 +297,7 @@ async def preview_job_radar(
     filters = explore_params(data)
     result = await explore(db, user.id, filters, sort="fresh", limit=5)
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = await _org_keys(db)
     return ExploreOut(
         items=[
             _posting_out(
@@ -271,6 +306,7 @@ async def preview_job_radar(
                 item.get("application"),
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
+                org_key=orgs.get(item["posting"].org_id, ""),
             )
             for item in result["items"]
         ],
@@ -358,9 +394,18 @@ async def posting_detail(
     )
     application = await get_application(db, user.id, posting.id)
 
-    out = _posting_out(posting, interaction, application)
+    org_key = ""
+    if posting.org_id is not None:
+        from app.models.experience_model import Organization
+
+        org_key = (
+            await db.execute(select(Organization.key).where(Organization.id == posting.org_id))
+        ).scalars().first() or ""
+    out = _posting_out(posting, interaction, application, org_key=org_key)
+    raw_description = (posting.raw or {}).get("description")
     return PostingDetailOut(
         **out.model_dump(),
+        description=plain_text(raw_description if isinstance(raw_description, str) else ""),
         extract=PostingExtractOut.model_validate(posting.extract) if posting.extract else None,
         source_title=connector_title,
         source_connector=source.key if source else "",
@@ -434,3 +479,192 @@ async def postings_applied(
         "applied_at": application.applied_at.isoformat() if application.applied_at else None,
         "stage": application.stage,
     }
+
+
+# ---------------------------------------------------- filter system (plan 136)
+
+
+@router.post("/postings/filter", response_model=list[PostingOut])
+async def postings_filter(
+    payload: dict,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """The full filter spec search (plan 136): every axis, three-valued
+    include/exclude/don't-care, open numeric bounds."""
+    from pydantic import ValidationError as PydanticValidationError
+
+    from app.services.postings.filter_query import build_where
+    from app.services.postings.filter_spec import PostingFilterSpec
+
+    try:
+        spec = PostingFilterSpec.model_validate(payload.get("filters") or {})
+    except PydanticValidationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid filter spec: {exc}") from exc
+
+    where = build_where(spec)
+    query = (
+        select(JobPosting, PostingInteraction, Application)
+        .outerjoin(
+            PostingInteraction,
+            and_(
+                PostingInteraction.posting_id == JobPosting.id,
+                PostingInteraction.user_id == user.id,
+            ),
+        )
+        .outerjoin(Application, Application.posting_id == JobPosting.id)
+        .where(JobPosting.status.in_(["new", "mapped"]))
+    )
+    for clause in where:
+        query = query.where(clause)
+    if spec.sort == "fit":
+        query = query.order_by(
+            JobPosting.catalog_job_id.desc().nullslast(), JobPosting.posted_at.desc()
+        )
+    else:
+        query = query.order_by(JobPosting.posted_at.desc())
+    query = query.limit(200)
+
+    rows = (await db.execute(query)).all()
+    sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = await _org_keys(db)
+    return [
+        _posting_out(
+            posting,
+            interaction,
+            application,
+            source_key=sources.get(posting.source_id, ""),
+            org_key=orgs.get(posting.org_id, ""),
+        )
+        for posting, interaction, application in rows
+    ]
+
+
+@router.get("/me/posting-filters", response_model=list[dict])
+async def list_filter_presets(
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Saved filter presets for the active profile, newest first."""
+    from app.core.profile_context import active_profile_id
+    from app.models.posting_model import PostingFilterPreset
+
+    profile_id = active_profile_id()
+    if profile_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "X-Profile-Id required")
+    rows = (
+        (
+            await db.execute(
+                select(PostingFilterPreset)
+                .where(PostingFilterPreset.profile_id == profile_id)
+                .order_by(PostingFilterPreset.updated_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "tags": r.tags or [],
+            "filters": r.filters or {},
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/me/posting-filters", status_code=201, response_model=dict)
+async def create_filter_preset(
+    payload: dict,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Save (or update by name) a named, tagged filter preset."""
+    from pydantic import ValidationError as PydanticValidationError
+
+    from app.core.profile_context import active_profile_id
+    from app.models.posting_model import PostingFilterPreset
+    from app.services.postings.filter_spec import PostingFilterSpec
+
+    profile_id = active_profile_id()
+    if profile_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "X-Profile-Id required")
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "name is required")
+    tags = [str(t)[:40] for t in (payload.get("tags") or [])][:20]
+    try:
+        spec = PostingFilterSpec.model_validate(payload.get("filters") or {})
+    except PydanticValidationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid filter spec: {exc}") from exc
+    filters = spec.model_dump(mode="json")
+
+    existing = (
+        (
+            await db.execute(
+                select(PostingFilterPreset).where(
+                    PostingFilterPreset.profile_id == profile_id,
+                    PostingFilterPreset.name == name,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing is not None:
+        existing.tags = tags
+        existing.filters = filters
+        await db.commit()
+        return {
+            "id": str(existing.id),
+            "name": existing.name,
+            "tags": existing.tags,
+            "filters": existing.filters,
+        }
+
+    preset = PostingFilterPreset(
+        profile_id=profile_id,
+        name=name[:120],
+        tags=tags,
+        filters=filters,
+    )
+    db.add(preset)
+    await db.commit()
+    return {
+        "id": str(preset.id),
+        "name": preset.name,
+        "tags": preset.tags,
+        "filters": preset.filters,
+    }
+
+
+@router.delete("/me/posting-filters/{preset_id}", status_code=204)
+async def delete_filter_preset(
+    preset_id: UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    from app.core.profile_context import active_profile_id
+    from app.models.posting_model import PostingFilterPreset
+
+    profile_id = active_profile_id()
+    if profile_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "X-Profile-Id required")
+    preset = (
+        (
+            await db.execute(
+                select(PostingFilterPreset).where(
+                    PostingFilterPreset.id == preset_id,
+                    PostingFilterPreset.profile_id == profile_id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if preset is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Preset not found")
+    await db.delete(preset)
+    await db.commit()

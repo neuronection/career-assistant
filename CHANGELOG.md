@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (postings filter system — backend, 2026-10-27)
+- **The full filter spec search** — `POST /postings/filter` accepts
+  every axis with three-valued include/exclude/don't-care semantics and
+  open numeric bounds: skills (+min level), salary (min/max/currency),
+  location (include/exclude/remote-only), companies (by name AND
+  industry), seniority, employment type, work mode, languages,
+  education, posted-within, match score, source, saved, and free-text
+  description search. Empty spec = the unfiltered feed.
+- **Saved filter presets** — `GET/POST/DELETE /me/posting-filters`:
+  named, tagged, profile-scoped. Upsert by name. The spec is versioned
+  JSONB (migration `0066`).
+
+
 ### Changed (skills display + generic re-extraction, 2026-10-27)
 - **The Skills section on the posting page is rebuilt** — skills are
   deduplicated (one chip per skill; the strongest demanded level and the
