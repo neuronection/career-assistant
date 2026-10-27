@@ -1,6 +1,6 @@
 """Tool-timeout fold: the managed-spawn mint put ``timeout_seconds: 30``
 on fetch_postings sources, which died mid-run ("tool call timed out")
-— the fetch's own budget alone is 20–90s before pacing overhead.
+- the fetch's own budget alone is 20-90s before pacing overhead.
 
 Only the exact minted default (30) moves to 120 (the mcp model's
 ceiling); anything else is a deliberate value and stays. The downgrade

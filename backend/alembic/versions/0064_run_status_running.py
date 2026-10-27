@@ -5,8 +5,6 @@ to its final status when the run ends.
 Self-healing: a new run closes the source's stale running rows (>30 min)
 as interrupted, so a crash never leaves a ghost behind."""
 
-import sqlalchemy as sa
-
 from alembic import op
 
 _OLD = "status IN ('ok', 'degraded', 'failed', 'skipped')"
