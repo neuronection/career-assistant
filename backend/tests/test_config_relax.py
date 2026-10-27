@@ -66,9 +66,7 @@ def test_sandbox_relax_drops_required_and_min_length():
 def test_sandbox_relax_keeps_the_secret_law():
     connector = _sandbox()
     with pytest.raises(ValidationError, match="never lives in config"):
-        connector.validate_config(
-            {"keywords": "", "api_token": "plain"}, relax_keys=("keywords",)
-        )
+        connector.validate_config({"keywords": "", "api_token": "plain"}, relax_keys=("keywords",))
 
 
 def test_model_relax_makes_fields_optional():
