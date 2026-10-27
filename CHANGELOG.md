@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill taxonomy graph — relation discovery, 2026-10-27)
+- **Internal groundwork: automatic skill-relation discovery** — a daily
+  background job proposes typed edges between skills from evidence in your
+  own data (skills that co-occur on postings/jobs, extraction labels that
+  look like synonyms of catalog skills, curated parent links). A configured
+  AI provider judges the candidates in batches and the proposals wait for
+  review; without one, the deterministic candidates still flow. Dismissed
+  or `none`-judged suggestions come back never. Nothing user-visible yet —
+  the review queue UI lands next.
+
 ### Added (skill filter expansion, 2026-10-27)
 - **Skill filters can include related skills now** — the Skills section of
   the postings filter rail gains a match switch: **Exact** (only the skills

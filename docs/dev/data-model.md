@@ -135,6 +135,13 @@ deletion).
 
 ### Migration notes
 
+- **0068** — plan 138 step 5: `schedules.task_allowed` widens with
+  `skill_relation_learn` (mirrored CHECK — the `BackgroundJobType` member
+  and the `Schedule.task` vocabulary grow together; `0067` reserved the
+  kind slot but not the task vocabulary). Downgrade deletes the
+  schedule rows carrying the task first. Covered by
+  `tests/test_migrations.py::test_0068_skill_relation_learn_task_roundtrip`
+  + the enum↔CHECK parity wall (`test_schema_contracts.py`).
 - **0067** — plan 138: `skill_relations`, the typed edge table over
   `skills` (is_a | synonym | part_of | related_to; `status` proposed →
   approved | rejected where rejected is the negative edge; `source`

@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0067"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0068"], (
         "revision chain stays linear on one head"
     )
 
@@ -2577,6 +2577,19 @@ def test_0067_skill_relations_roundtrip():
     command.upgrade(config, "head")
     assert _table_present("skill_relations"), "re-upgrade restores skill_relations"
     assert "system_skill_relation_learn" in _schedules_checks()["kind_allowed"]
+
+
+def test_0068_skill_relation_learn_task_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert "skill_relation_learn" in _schedules_checks()["task_allowed"]
+
+    command.downgrade(config, "0067")
+    assert "skill_relation_learn" not in _schedules_checks()["task_allowed"]
+
+    command.upgrade(config, "head")
+    assert "skill_relation_learn" in _schedules_checks()["task_allowed"], "re-upgrade restores it"
 
 
 def _relation_skills() -> tuple[str, str]:

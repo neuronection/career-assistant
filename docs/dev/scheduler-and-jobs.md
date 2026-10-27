@@ -20,6 +20,7 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `cv_generate` / `cv_polish` / `cv_synth` | CV generation, polish loop, variants |
 | `digest` / `followup_sweep` | Digests and application follow-ups |
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
+| `skill_relation_learn` | Skill-relation edge discovery (plan 138) |
 | `data_export` | Exports |
 
 Jobs run as FastAPI background tasks (`CAREER_JOBS_WORKERS`); Redis ships in the
@@ -30,7 +31,7 @@ compose file for a later worker split — there is no Celery in v1.
 `app/services/scheduler/` — the runner (`runner.py`) and the trigger registry
 (`triggers.py`). On boot the runner seeds system schedules (source sync,
 re-fit sweep, catalog enrich, follow-ups, market history, proposal sweep,
-checkpoint prune) with defaults and jitter.
+checkpoint prune, skill-relation learning) with defaults and jitter.
 
 ### Triggers
 
@@ -54,8 +55,8 @@ params)` — always timezone-aware and UTC-normalized.
 `system_digest`, `system_demand_import`, `system_refit_sweep`,
 `system_catalog_enrich`, `system_followups`, `system_market_history`,
 `system_proposal_sweep`, `system_checkpoint_prune`,
-`system_extension_reconcile`, `system_skill_relation_learn` (reserved —
-its seeded row ships with the relation-learn job), `user_saved_search`,
+`system_extension_reconcile`, `system_skill_relation_learn` (daily at
+03:30 UTC — enqueues `skill_relation_learn`), `user_saved_search`,
 `user_radar_digest`, `user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
 `system_demand_import` enqueues `demand_import`, which walks enabled
 `job_sources` rows of kind `market` and writes salary/outlook observations

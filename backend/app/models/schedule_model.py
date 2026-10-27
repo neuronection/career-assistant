@@ -62,7 +62,7 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'catalog_enrich', 'autopilot_run', 'followup_sweep', "
             "'market_history_capture', 'proposal_sweep', "
             "'checkpoint_prune', 'extension_reconcile', "
-            "'demand_import')",
+            "'demand_import', 'skill_relation_learn')",
             name="task_allowed",
         ),
         Index("ix_schedules_next_run", "next_run_at"),

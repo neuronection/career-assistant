@@ -517,3 +517,41 @@ async def test_filter_endpoint_rejects_min_level_without_include(db, client, aut
     )
     assert response.status_code == 400
     assert "min_level requires at least one" in response.text
+
+
+# ------------------------------------------ discovery bridge (plan 138, step 5)
+
+
+async def test_learned_edges_stay_invisible_until_approved(db, client, auth_headers):
+    """Step 5's contract with the walk (§7 java / programming): a job-learned
+    edge lands `proposed` and expands nothing until a human approves it."""
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    skills = {
+        key: Skill(key=key, label=key.title(), category="test") for key in ("programming", "java")
+    }
+    db.add_all(skills.values())
+    await db.flush()
+    src = _source({"keywords": "learn"})
+    db.add(src)
+    await db.flush()
+    posting = _posting(src, "g-learned", title="Java Dev")
+    db.add(posting)
+    await db.flush()
+    db.add(PostingSkill(posting_id=posting.id, skill_id=skills["java"].id, required_level=8))
+    await db.commit()
+
+    service = SkillRelationService(db)
+    edge = await service.add("java", "programming", "is_a", source="llm", confidence=0.9)
+    assert edge.status == "proposed"
+
+    before = await _filtered_ids(
+        client, auth_headers, {"include": ["programming"], "expand": "down"}
+    )
+    assert before == set(), "proposals never widen a filter"
+
+    await service.approve(edge.id)
+    after = await _filtered_ids(
+        client, auth_headers, {"include": ["programming"], "expand": "down"}
+    )
+    assert after == {"g-learned"}

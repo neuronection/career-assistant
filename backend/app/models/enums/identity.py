@@ -45,6 +45,7 @@ class BackgroundJobType(StrEnum):
     EXTENSION_RECONCILE = "extension_reconcile"
     NOTIFICATION_DELIVERY = "notification_delivery"
     DEMAND_IMPORT = "demand_import"
+    SKILL_RELATION_LEARN = "skill_relation_learn"
 
 
 class ScheduleKind(StrEnum):

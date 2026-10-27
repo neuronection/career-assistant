@@ -78,6 +78,7 @@ SCHEDULE_TASKS = {
     "checkpoint_prune",
     "extension_reconcile",
     "demand_import",
+    "skill_relation_learn",
 }
 
 CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
