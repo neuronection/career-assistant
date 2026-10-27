@@ -18,11 +18,10 @@ import {
 interface FilterRailProps {
   spec: FilterSpec;
   onChange: (next: FilterSpec) => void;
-  onApply: () => void;
   onClear: () => void;
 }
 
-export function FilterRail({ spec, onChange, onApply, onClear }: FilterRailProps) {
+export function FilterRail({ spec, onChange, onClear }: FilterRailProps) {
   const { t } = useTranslation();
   const active = countActiveFilters(spec);
 
@@ -46,19 +45,11 @@ export function FilterRail({ spec, onChange, onApply, onClear }: FilterRailProps
               type="button"
               className="text-xs text-slate-400 hover:text-slate-600"
               onClick={onClear}
+              data-testid="filter-clear"
             >
               {t("filters.clearAll")}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="text-sm px-3 py-1 rounded-lg bg-primary-600 text-white disabled:opacity-40"
-            disabled={active === 0}
-            onClick={onApply}
-            data-testid="filter-apply"
-          >
-            {t("filters.apply")}
-          </button>
         </div>
       </div>
 

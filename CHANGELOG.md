@@ -16,6 +16,8 @@ All notable changes to **Career Assistant** are documented here.
 - **Saved presets** — save the current filter set as a named, tagged
   preset (chips for tags), apply/delete presets inline. Presets are
   profile-scoped.
+- **Auto-apply** — every filter change triggers a debounced search
+  (250ms); no Apply button. "Clear all" is the only explicit action.
 - **URL state** — the active filter spec serializes to the URL query
   (`?f=…`); a filtered view is shareable and bookmarkable.
 

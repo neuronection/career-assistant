@@ -138,6 +138,15 @@ export function PostingsFeed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, sort, skillFilters, matchMode, priority, matchProfile]);
 
+  // Auto-apply: every filter change triggers a debounced search.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadFiltered(filterSpec);
+    }, 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSpec]);
+
   const addSkillFilter = () => {
     const key = skillKey.trim();
     if (!key) return;
@@ -258,7 +267,6 @@ export function PostingsFeed() {
           <FilterRail
             spec={filterSpec}
             onChange={setFilterSpec}
-            onApply={() => loadFiltered(filterSpec)}
             onClear={() => {
               const empty = emptyFilterSpec();
               setFilterSpec(empty);

@@ -4158,7 +4158,6 @@
     "title": "Filters",
     "activeCount": "{{count}} active",
     "clearAll": "Clear all",
-    "apply": "Apply",
     "skills": "Skills",
     "skillsPlaceholder": "Add skill…",
     "minLevel": "Min level",

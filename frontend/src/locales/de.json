@@ -4157,7 +4157,6 @@
     "title": "Filter",
     "activeCount": "{{count}} aktiv",
     "clearAll": "Alle zurücksetzen",
-    "apply": "Anwenden",
     "skills": "Skills",
     "skillsPlaceholder": "Skill hinzufügen…",
     "minLevel": "Min. Level",
