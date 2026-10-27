@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (2026-10-27)
+- **Re-imports no longer break the managed-spawn interpreter** — a
+  re-imported connector now mints its command with the bundle checkout's
+  own `.venv/bin/python` (the interpreter that has the bundle's deps),
+  instead of the app's Python; a checkout without a venv falls back to
+  the host. No more "patchright is not installed" after an update.
+- **Run now on the source management page updates the run history on
+  its own** — the queued run's row appears (and the header refreshes)
+  when it lands, without a manual reload.
+
+
 ### Added (fetch-detail modes, 2026-10-27)
 - **Fetch detail pages now has four modes** on the source's
   Configuration: **off**, **sample** (the newest few per sync get their

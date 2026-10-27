@@ -115,8 +115,35 @@ export function SourceDetailPage() {
     }
   };
 
-  const runNow = () => void act(() => syncSource(sourceId), t("sourceDetail.runQueued"));
-  const retry = () => void act(() => syncSource(sourceId), t("sourceDetail.runQueued"));
+  // A run is queued (the background job writes its ledger row when it
+  // finishes), so a one-shot refetch sees nothing. Poll bounded until the
+  // new row lands, then refresh the header state too.
+  const pollForRun = useCallback(
+    async (previousId: string | null) => {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          const rows = await fetchSourceRuns(sourceId);
+          setRuns(rows);
+          if ((rows[0]?.id ?? null) !== previousId) {
+            await reload();
+            return;
+          }
+        } catch {
+          // transient — the next poll retries
+        }
+      }
+    },
+    [sourceId, reload],
+  );
+
+  const triggerRun = () => {
+    const previousId = runs[0]?.id ?? null;
+    void act(() => syncSource(sourceId), t("sourceDetail.runQueued"));
+    void pollForRun(previousId);
+  };
+  const runNow = triggerRun;
+  const retry = triggerRun;
   const test = () => {
     setBusy(true);
     setProbeNote("");

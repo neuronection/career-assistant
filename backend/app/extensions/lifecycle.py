@@ -1530,6 +1530,27 @@ def _pin_ref(source: ExtensionSource, digest: str) -> str:
     return ""
 
 
+def _bundle_interpreter(source: ExtensionSource, subpath: str) -> str:
+    """An interpreter that has the bundle's deps (docs/setup §4b): the
+    bundle checkout's own ``.venv/bin/python`` when the source is a local
+    checkout (one ``uv sync`` there). ``sys.executable`` — the host's own
+    interpreter — usually lacks them (e.g. patchright), and a uv sync
+    INSIDE the managed content dir is forbidden. Falls back to the host
+    (frozen apps ship their own deps)."""
+    import os as _os
+
+    if source.kind != "local":
+        return sys.executable
+    try:
+        root = _check_local_root(str(source.origin or ""))
+    except LifecycleError:
+        return sys.executable
+    candidate = root / subpath / ".venv" / "bin" / "python"
+    if candidate.is_file() and _os.access(candidate, _os.X_OK):
+        return str(candidate)
+    return sys.executable
+
+
 async def _land_install(
     db: AsyncSession,
     *,
@@ -1561,7 +1582,9 @@ async def _land_install(
     if kind == "connector" and tier == "T3":
         # T3 connector imports: the instance is a managed-spawn job
         # source (external MCP process, Phase 2/3 shape).
-        command = f'"{sys.executable}" "{content_dir / str(manifest.get("entry"))}"'
+        command = (
+            f'"{_bundle_interpreter(source, subpath)}" "{content_dir / str(manifest.get("entry"))}"'
+        )
         clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
         existing_row = clash.scalars().first()
         if existing_row is None:
@@ -1823,9 +1846,10 @@ async def apply_update(
                 job_source = row.scalars().first()
                 if job_source is not None:
                     entry_path = content_dir / str(candidate.manifest.get("entry"))
+                    interpreter = _bundle_interpreter(source, candidate.subpath)
                     job_source.config = {
                         **job_source.config,
-                        "command": f'"{sys.executable}" "{entry_path}"',
+                        "command": f'"{interpreter}" "{entry_path}"',
                     }
             # T2 updates need no instance mutation: the sandbox runner
             # reads the install row's content_path + manifest at spawn.

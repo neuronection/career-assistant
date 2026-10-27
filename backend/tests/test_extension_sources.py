@@ -1391,3 +1391,68 @@ async def test_reinstall_over_enabled_install_refuses_with_remedy(
     assert exc.value.code == "invalid"
     assert "already installed and enabled" in exc.value.detail
     assert "disable it first" in exc.value.detail
+
+
+async def test_install_mints_the_bundle_venv_interpreter(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The managed-spawn command runs an interpreter that HAS the bundle
+    deps — the bundle checkout's own .venv python (docs/setup §4b), never
+    the host's, which usually lacks them (patchright). Re-imports re-mint
+    the same interpreter; a checkout without a venv falls back to the
+    host's."""
+    import sys as _sys
+
+    repo = make_repo(local_roots, subpath="src")
+    venv_python = repo / "src" / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True, exist_ok=True)
+    venv_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    venv_python.chmod(0o755)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "venv")
+
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True, report
+    await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    minted = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .one()
+    )
+    assert minted.config["command"].startswith(f'"{venv_python}"'), (
+        "the bundle venv interpreter is minted"
+    )
+
+    # a re-import re-mints the same interpreter — never silently swaps
+    reimported = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    await db.refresh(minted)
+    assert minted.config["command"].startswith(f'"{venv_python}"')
+    assert str(reimported["contentPath"]) in minted.config["command"]
+
+    # no venv in the checkout -> the host interpreter
+    shutil.rmtree(venv_python.parent.parent)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--quiet", "-m", "no venv")
+    await sync_source(db, source.id)
+    await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    await db.refresh(minted)
+    assert minted.config["command"].startswith(f'"{_sys.executable}"')
