@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (postings feed, 2026-10-27)
+- **The postings feed no longer 500s on unrecognized education levels** —
+  a posting whose AI extraction produced a free-form level ("degree")
+  crashed the fit computation for the whole feed. Unknown levels now
+  score neutral with a note instead.
+
+
 ### Added (bulk AI re-extraction, 2026-10-27)
 - **"Re-run AI extraction" on the source management page (Overview)** —
   re-queues the deep extraction for every posting of the source that has

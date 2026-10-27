@@ -146,15 +146,26 @@ def _prereqs_dimension(posting: JobPosting, profile, certifications: set[str]) -
     if level:
         basics = profile.basics or {}
         user_level = basics.get("education_level")
-        if user_level:
-            met = EducationLevelOrder.at_least(
-                EducationLevel(str(user_level).lower()),
-                EducationLevel(str(level).lower()),
-            )
+
+        def _as_level(value) -> EducationLevel | None:
+            # Extraction is AI output — levels outside the vocabulary
+            # ("degree") score neutral instead of failing the feed.
+            try:
+                return EducationLevel(str(value).lower())
+            except ValueError:
+                return None
+
+        required = _as_level(level)
+        user = _as_level(user_level) if user_level else None
+        if required is None:
+            details.append(f"requires education: {level} (unrecognized level)")
+            scored = True
+        elif user is None:
+            details.append(f"requires education: {level} (yours unspecified)")
+        else:
+            met = EducationLevelOrder.at_least(user, required)
             score = 10.0 if met else 3.0
             details.append(f"education {'meets' if met else 'below'} requirement ({level})")
-        else:
-            details.append(f"requires education: {level} (yours unspecified)")
 
     required_languages = [
         str(lang).lower() for lang in (posting.extract or {}).get("languages") or []

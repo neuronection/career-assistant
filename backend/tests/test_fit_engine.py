@@ -234,3 +234,22 @@ def test_specialist_highlight_detection():
 
 def test_fit_version_is_bumpable_constant():
     assert isinstance(FIT_VERSION, int) and FIT_VERSION >= 1
+
+
+def test_prereqs_unknown_education_level_scores_neutral_instead_of_crashing():
+    """The extractor can emit free-form levels ("degree") — the fit
+    dimension notes it and stays neutral; it must never raise."""
+    from types import SimpleNamespace
+
+    from app.services.postings.posting_fit_service import _prereqs_dimension
+
+    posting = SimpleNamespace(extract={"education": {"level": "degree"}}, education_level=None)
+    profile = SimpleNamespace(basics={"education_level": "bachelor"})
+
+    result = _prereqs_dimension(posting, profile, set())
+    assert "unrecognized" in result["detail"]
+    assert result["score"] == 10.0, "unrankable levels never penalize"
+
+    profile.basics = {"education_level": "not-a-level-either"}
+    result = _prereqs_dimension(posting, profile, set())
+    assert result["score"] == 10.0
