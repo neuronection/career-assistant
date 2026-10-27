@@ -562,7 +562,10 @@ export function SourceDetailPage() {
                 secretHintLabel: t("toolsSettings.connectors.sources.secretMissingShort"),
                 enumPlaceholder: t("toolsSettings.connectors.sources.select"),
               }}
-              onCancel={() => reload()}
+              onCancel={() => {
+                dirtyRef.current = false;
+                void reload();
+              }}
             />
           ) : (
             <p className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.configHint")}</p>
