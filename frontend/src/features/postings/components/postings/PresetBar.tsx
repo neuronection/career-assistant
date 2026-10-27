@@ -14,7 +14,7 @@ import {
   type FilterPreset,
   type FilterSpec,
 } from "@/api/postings";
-import { countActiveFilters } from "@/features/postings/components/postings/filterState";
+import { countActiveFilters, normalizeFilterSpec } from "@/features/postings/components/postings/filterState";
 
 interface PresetBarProps {
   spec: FilterSpec;
@@ -87,7 +87,7 @@ export function PresetBar({ spec, onApplyPreset }: PresetBarProps) {
         >
           <button
             type="button"
-            onClick={() => onApplyPreset(preset.filters)}
+            onClick={() => onApplyPreset(normalizeFilterSpec(preset.filters))}
             className="font-medium"
             title={t("filters.applyPreset")}
           >

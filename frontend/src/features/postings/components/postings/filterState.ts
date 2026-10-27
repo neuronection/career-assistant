@@ -211,13 +211,32 @@ export function decodeFilterSpec(encoded: string | null): FilterSpec | null {
     const parsed = JSON.parse(json);
     // sanity: must look like a spec
     if (typeof parsed === "object" && parsed && "v" in parsed && "skills" in parsed) {
-      const base = emptyFilterSpec();
-      // nested merge: URL specs written before the expansion knob (plan 138)
-      // must still gain its defaults instead of losing the whole skills object.
-      return { ...base, ...parsed, skills: { ...base.skills, ...(parsed.skills ?? {}) } };
+      return normalizeFilterSpec(parsed);
     }
     return null;
   } catch {
     return null;
   }
+}
+
+type RawFilterSpec = Partial<Omit<FilterSpec, "skills">> & {
+  skills?: Partial<FilterSpec["skills"]> | null;
+};
+
+/**
+ * Fill a possibly older spec (URL, stored preset) with the current defaults.
+ *
+ * Nested merge matters: a spec written before the expansion knob (plan 138)
+ * has a complete `skills` object without `expand`/`hops`, so a shallow spread
+ * would drop the whole axis defaults and leave the rail showing a mode the
+ * backend would not apply.
+ */
+export function normalizeFilterSpec(raw: RawFilterSpec | null | undefined): FilterSpec {
+  const base = emptyFilterSpec();
+  if (!raw) return base;
+  return {
+    ...base,
+    ...raw,
+    skills: { ...base.skills, ...(raw.skills ?? {}) },
+  };
 }

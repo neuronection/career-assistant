@@ -5,6 +5,7 @@ import {
   countActiveFilters,
   decodeFilterSpec,
   encodeFilterSpec,
+  normalizeFilterSpec,
   removeChip,
 } from "@/features/postings/components/postings/filterState";
 import { emptyFilterSpec, type FilterSpec } from "@/api/postings";
@@ -99,6 +100,21 @@ describe("filterState", () => {
       expand: "down",
       hops: 1,
     });
+  });
+
+  it("fills expansion defaults on a stored preset written before the knob", () => {
+    const normalized = normalizeFilterSpec({
+      v: 1,
+      skills: { include: ["python"], exclude: [], min_level: 5 },
+    });
+    expect(normalized.skills).toEqual({
+      include: ["python"],
+      exclude: [],
+      min_level: 5,
+      expand: "down",
+      hops: 1,
+    });
+    expect(normalizeFilterSpec(null).skills.expand).toBe("down");
   });
 
   it("returns null for garbage encoded data", () => {
