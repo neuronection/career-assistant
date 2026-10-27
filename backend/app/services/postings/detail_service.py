@@ -32,6 +32,24 @@ MAX_BATCHES_PER_RUN = 5
 _DETAIL_FIELDS = ("seniority", "employment_type", "contract_type", "onsite_policy")
 
 
+def detail_limit(source: JobSource) -> int:
+    """How many detail pages one enrichment run may fetch — the source's
+    ``detail_limit`` knob (the same "Detail-page budget" field that caps
+    sample mode), read from the options layer like the mode."""
+    config = source.config or {}
+    options = config.get("options")
+    if isinstance(options, str):
+        try:
+            options = json.loads(options)
+        except ValueError:
+            options = {}
+    try:
+        limit = int(config.get("detail_limit") or (options or {}).get("detail_limit") or 5)
+    except (TypeError, ValueError):
+        limit = 5
+    return max(1, min(10, limit))
+
+
 def detail_mode(source: JobSource) -> str:
     """The source's enrichment mode (never trusts free text).
 
@@ -98,10 +116,13 @@ def score_candidate(posting: JobPosting, terms: set[str], radar) -> float:
     return round(score, 4)
 
 
-async def plan_details(db: AsyncSession, source: JobSource, limit: int = BATCH) -> list[JobPosting]:
+async def plan_details(
+    db: AsyncSession, source: JobSource, limit: int | None = None
+) -> list[JobPosting]:
     """One enrichment batch: the queue head, ranked. The queue is the
     postings still missing their description — retried across runs, with
-    a give-up cutoff at MAX_ATTEMPTS."""
+    a give-up cutoff at MAX_ATTEMPTS. The batch size is the source's
+    ``detail_limit`` knob unless overridden."""
     rows = await db.execute(
         select(JobPosting)
         .where(
@@ -116,6 +137,8 @@ async def plan_details(db: AsyncSession, source: JobSource, limit: int = BATCH) 
     candidates = list(rows.scalars().all())
     if not candidates:
         return []
+    if limit is None:
+        limit = detail_limit(source)
     terms, radar = await _radar_terms(db)
     ranked = sorted(candidates, key=lambda p: score_candidate(p, terms, radar), reverse=True)
 
@@ -245,9 +268,12 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
     run_row = await _begin_run(db, source, trigger="scheduled", started=started, stage="enriching")
     enriched = 0
     fetched = 0
+    re_extract: list[JobPosting] = []
     errors: list[dict] = []
-    for batch_no in range(1, MAX_BATCHES_PER_RUN + 1):
-        batch = await plan_details(db, source)
+    # One knob-sized batch per enrichment run — the queue drains across
+    # syncs (each sync enqueues the next run), paced and budgeted.
+    for batch_no in range(1, 2):
+        batch = await plan_details(db, source, limit=detail_limit(source))
         if not batch:
             break
         ids = [posting.external_id for posting in batch]
@@ -262,6 +288,12 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
             posting.detail_attempts += 1
             if row is not None and merge_detail(posting, row):
                 posting.detail_fetched_at = datetime.now(UTC)
+                # The description materially changed — the earlier extract
+                # (made from list-card data) is stale. Reset it so the
+                # deep pass re-runs on the full text.
+                posting.extract = None
+                posting.extract_version = None
+                re_extract.append(posting)
                 enriched += 1
         await db.commit()
         if run_row is not None:
@@ -275,7 +307,16 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
             )
         if error or not rows:
             break
-    report = {"enriched": enriched, "detail_rows": fetched, "errors": errors[:20]}
+    if re_extract:
+        from app.services.postings.extract_service import plan_extractions
+
+        await plan_extractions(db, [(posting, False) for posting in re_extract])
+    report = {
+        "enriched": enriched,
+        "detail_rows": fetched,
+        "extract_requeued": len(re_extract),
+        "errors": errors[:20],
+    }
     if run_row is not None:
         await _finish_run(db, run_row.id, started=started, report=report)
     return report

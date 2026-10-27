@@ -378,9 +378,15 @@ async def _sync_source_inner(
     await db.commit()
     # Deep extraction is queued, never blocking the sync path;
     # demand-matched postings enqueue first (oldest-first claim order).
+    from app.services.postings.detail_service import detail_mode
     from app.services.postings.extract_service import plan_extractions
 
-    extract_queued = await plan_extractions(db, fresh, backlog=True)
+    if detail_mode(source) in ("smart", "all"):
+        # Deferred: the deep pass would run on description-less list cards.
+        # The detail enrichment re-queues it once descriptions land.
+        extract_queued = 0
+    else:
+        extract_queued = await plan_extractions(db, fresh, backlog=True)
     report: dict = {"synced": synced, "extract_queued": extract_queued, "errors": errors}
     if query_note:
         report["note"] = query_note
