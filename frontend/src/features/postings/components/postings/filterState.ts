@@ -1,0 +1,190 @@
+/**
+ * Pure helpers for the filter system (plan 136): active-filter counting,
+ * summary-chip building, and URL state serialization. No React, no IO —
+ * every function is unit-testable in isolation.
+ */
+
+import { emptyFilterSpec, type FilterSpec } from "@/api/postings";
+
+export interface ActiveChip {
+  axis: string;
+  label: string;
+  value: string;
+  kind: "include" | "exclude" | "bound" | "flag";
+}
+
+interface AxisDef {
+  key: string;
+  labelKey: string;
+  values: string[];
+}
+
+export const AXIS_DEFINITIONS: Record<string, AxisDef> = {
+  seniority: {
+    key: "seniority",
+    labelKey: "filters.seniority",
+    values: ["intern", "junior", "mid", "senior", "lead", "principal"],
+  },
+  employment: {
+    key: "employment",
+    labelKey: "filters.employment",
+    values: ["full_time", "part_time", "contract", "temporary", "internship", "other"],
+  },
+  work_mode: {
+    key: "work_mode",
+    labelKey: "filters.workMode",
+    values: ["onsite", "hybrid", "remote"],
+  },
+  education: {
+    key: "education",
+    labelKey: "filters.education",
+    values: [
+      "no_formal",
+      "middle_school",
+      "high_school",
+      "vocational",
+      "bachelor",
+      "master",
+      "doctorate",
+    ],
+  },
+};
+
+export function countActiveFilters(spec: FilterSpec): number {
+  let count = 0;
+  for (const axis of ["skills", "location", "companies", "source", "languages"] as const) {
+    const a = spec[axis] as { include: string[]; exclude: string[] };
+    count += a.include.length + a.exclude.length;
+  }
+  if (spec.skills.min_level !== null) count++;
+  if (spec.salary.min !== null || spec.salary.max !== null || spec.salary.currency) count++;
+  if (spec.location.remote_only !== null) count++;
+  if (spec.companies.industries_include.length) count++;
+  if (spec.companies.industries_exclude.length) count++;
+  for (const axis of ["seniority", "employment", "work_mode", "education"] as const) {
+    count += spec[axis].include.length + spec[axis].exclude.length;
+  }
+  if (spec.posted_within.days !== null) count++;
+  if (spec.match_score.min !== null || spec.match_score.max !== null) count++;
+  if (spec.saved.value !== null) count++;
+  if (spec.description.text) count++;
+  return count;
+}
+
+export function buildSummaryChips(spec: FilterSpec): ActiveChip[] {
+  const chips: ActiveChip[] = [];
+  const add = (axis: string, label: string, value: string, kind: ActiveChip["kind"]) =>
+    chips.push({ axis, label, value, kind });
+
+  for (const skill of spec.skills.include) add("skills", skill, skill, "include");
+  for (const skill of spec.skills.exclude) add("skills", `− ${skill}`, skill, "exclude");
+  if (spec.skills.min_level !== null)
+    add("skills", `≥ ${spec.skills.min_level}`, String(spec.skills.min_level), "bound");
+
+  if (spec.salary.min !== null && spec.salary.max !== null)
+    add("salary", `${spec.salary.min}–${spec.salary.max}`, "range", "bound");
+  else if (spec.salary.min !== null)
+    add("salary", `≥ ${spec.salary.min}`, String(spec.salary.min), "bound");
+  else if (spec.salary.max !== null)
+    add("salary", `≤ ${spec.salary.max}`, String(spec.salary.max), "bound");
+
+  for (const loc of spec.location.include) add("location", loc, loc, "include");
+  for (const loc of spec.location.exclude) add("location", `− ${loc}`, loc, "exclude");
+  if (spec.location.remote_only === true) add("location", "remote only", "remote", "flag");
+
+  for (const org of spec.companies.include) add("companies", org, org, "include");
+  for (const org of spec.companies.exclude) add("companies", `− ${org}`, org, "exclude");
+
+  for (const axis of ["seniority", "employment", "work_mode", "education"] as const) {
+    for (const v of spec[axis].include) add(axis, v, v, "include");
+    for (const v of spec[axis].exclude) add(axis, `− ${v}`, v, "exclude");
+  }
+
+  if (spec.posted_within.days !== null)
+    add("posted_within", `${spec.posted_within.days}d`, String(spec.posted_within.days), "bound");
+  if (spec.match_score.min !== null)
+    add("match_score", `score ≥ ${spec.match_score.min}`, String(spec.match_score.min), "bound");
+  if (spec.saved.value === true) add("saved", "saved", "true", "flag");
+  if (spec.description.text) add("description", `"${spec.description.text}"`, spec.description.text, "flag");
+
+  return chips;
+}
+
+export function removeChip(spec: FilterSpec, chip: ActiveChip): FilterSpec {
+  const next = structuredClone(spec);
+  switch (chip.axis) {
+    case "skills":
+      if (chip.kind === "bound" && chip.value === String(next.skills.min_level)) {
+        next.skills.min_level = null;
+      } else {
+        next.skills.include = next.skills.include.filter((v) => v !== chip.value);
+        next.skills.exclude = next.skills.exclude.filter((v) => v !== chip.value);
+      }
+      break;
+    case "salary":
+      next.salary.min = null;
+      next.salary.max = null;
+      break;
+    case "location":
+      if (chip.kind === "flag") {
+        next.location.remote_only = null;
+      } else {
+        next.location.include = next.location.include.filter((v) => v !== chip.value);
+        next.location.exclude = next.location.exclude.filter((v) => v !== chip.value);
+      }
+      break;
+    case "companies":
+      next.companies.include = next.companies.include.filter((v) => v !== chip.value);
+      next.companies.exclude = next.companies.exclude.filter((v) => v !== chip.value);
+      break;
+    case "seniority":
+    case "employment":
+    case "work_mode":
+    case "education": {
+      const axis = next[chip.axis as "seniority"];
+      axis.include = axis.include.filter((v) => v !== chip.value);
+      axis.exclude = axis.exclude.filter((v) => v !== chip.value);
+      break;
+    }
+    case "posted_within":
+      next.posted_within.days = null;
+      break;
+    case "match_score":
+      next.match_score.min = null;
+      next.match_score.max = null;
+      break;
+    case "saved":
+      next.saved.value = null;
+      break;
+    case "description":
+      next.description.text = null;
+      break;
+  }
+  return next;
+}
+
+// ------------------------------------------------------------- URL state
+
+export function encodeFilterSpec(spec: FilterSpec): string {
+  const json = JSON.stringify(spec);
+  try {
+    return btoa(encodeURIComponent(json));
+  } catch {
+    return "";
+  }
+}
+
+export function decodeFilterSpec(encoded: string | null): FilterSpec | null {
+  if (!encoded) return null;
+  try {
+    const json = decodeURIComponent(atob(encoded));
+    const parsed = JSON.parse(json);
+    // sanity: must look like a spec
+    if (typeof parsed === "object" && "v" in parsed && "skills" in parsed) {
+      return { ...emptyFilterSpec(), ...parsed };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

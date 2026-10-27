@@ -3,7 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Bookmark, Plus, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { reextractPostings } from "@/api/postings";
+import {
+  filterPostings,
+  reextractPostings,
+  emptyFilterSpec,
+  type FilterSpec,
+} from "@/api/postings";
+import { FilterRail } from "@/features/postings/components/postings/FilterRail";
+import { PresetBar } from "@/features/postings/components/postings/PresetBar";
+import {
+  buildSummaryChips,
+  countActiveFilters,
+  decodeFilterSpec,
+  encodeFilterSpec,
+  removeChip,
+} from "@/features/postings/components/postings/filterState";
 import {
   fetchPostings,
   searchPostings,
@@ -38,6 +52,17 @@ export function PostingsFeed() {
   const [selected, setSelected] = useState<string[]>([]);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionNote, setActionNote] = useState("");
+  const [filterSpec, setFilterSpec] = useState<FilterSpec>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return decodeFilterSpec(params.get("f")) ?? emptyFilterSpec();
+    } catch {
+      return emptyFilterSpec();
+    }
+  });
+  const [railOpen, setRailOpen] = useState(false);
+  const summaryChips = buildSummaryChips(filterSpec);
+  const activeFilterCount = countActiveFilters(filterSpec);
 
   const runReextract = async () => {
     if (selected.length === 0) return;
@@ -87,6 +112,24 @@ export function PostingsFeed() {
     setMatchProfile(false);
     void fetchPostings({ saved: currentView === "saved", sort: currentSort })
       .then(setFeed)
+      .catch((err) => setError(String(err)));
+  };
+
+  const loadFiltered = (spec: FilterSpec) => {
+    const params = new URLSearchParams(window.location.search);
+    if (countActiveFilters(spec) > 0) {
+      params.set("f", encodeFilterSpec(spec));
+    } else {
+      params.delete("f");
+    }
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    if (countActiveFilters(spec) === 0) {
+      load(view, sort);
+      return;
+    }
+    void filterPostings(spec)
+      .then((items) => setFeed({ items, total: items.length, unseen: 0 } as PostingsResponse))
       .catch((err) => setError(String(err)));
   };
 
@@ -159,6 +202,71 @@ export function PostingsFeed() {
           ) : null}
         </div>
       </div>
+
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2" data-testid="filter-summary">
+          {summaryChips.map((chip, i) => (
+            <button
+              key={`${chip.axis}-${chip.value}-${i}`}
+              type="button"
+              className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                chip.kind === "exclude"
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : "border-primary-200 bg-primary-50 text-primary-700"
+              }`}
+              onClick={() => setFilterSpec((prev) => removeChip(prev, chip))}
+              title={t("postings.filtersRemoveChip")}
+            >
+              {chip.label}
+              <span className="text-xs opacity-50">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <PresetBar
+        spec={filterSpec}
+        onApplyPreset={(filters) => {
+          setFilterSpec(filters);
+          loadFiltered(filters);
+        }}
+      />
+
+      <details
+        open={railOpen}
+        className="group"
+        data-testid="filter-rail-wrapper"
+      >
+        <summary
+          className="cursor-pointer text-sm text-slate-600 select-none py-1"
+          onClick={(e) => {
+            e.preventDefault();
+            setRailOpen((v) => !v);
+          }}
+        >
+          <span className="font-medium">{t("postings.filtersTitle")}</span>
+          {activeFilterCount > 0 ? (
+            <span className="ml-2 text-xs text-primary-600">
+              {t("postings.filtersActive", { count: activeFilterCount })}
+            </span>
+          ) : null}
+          <span className="ml-2 text-xs text-slate-400">
+            {railOpen ? t("postings.filtersHide") : t("postings.filtersShow")}
+          </span>
+        </summary>
+        {railOpen ? (
+          <FilterRail
+            spec={filterSpec}
+            onChange={setFilterSpec}
+            onApply={() => loadFiltered(filterSpec)}
+            onClear={() => {
+              const empty = emptyFilterSpec();
+              setFilterSpec(empty);
+              loadFiltered(empty);
+            }}
+          />
+        ) : null}
+      </details>
 
       <div
         className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2"

@@ -4,6 +4,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (postings filter system — frontend, 2026-10-27)
+- **The filter rail on the feed** — a collapsible rail with one section
+  per axis (Skills, Salary, Location, Companies, Seniority, Employment,
+  Work mode, Posted within, Match score, Saved, Description). Every
+  axis uses three-valued include/exclude/don't-care semantics with
+  chips; numeric bounds are open. Sections expand automatically when
+  they hold active filters.
+- **Active-filter summary chips** above the feed — one chip per active
+  filter with a one-click × to remove it.
+- **Saved presets** — save the current filter set as a named, tagged
+  preset (chips for tags), apply/delete presets inline. Presets are
+  profile-scoped.
+- **URL state** — the active filter spec serializes to the URL query
+  (`?f=…`); a filtered view is shareable and bookmarkable.
+
+
 ### Added (postings filter system — backend, 2026-10-27)
 - **The full filter spec search** — `POST /postings/filter` accepts
   every axis with three-valued include/exclude/don't-care semantics and
