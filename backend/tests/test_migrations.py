@@ -2473,7 +2473,8 @@ def _run_status_accepted(status: str, source_id: str) -> bool:
                         text(
                             "INSERT INTO source_runs (id, source_id, trigger, status,"
                             " duration_ms, items_synced, error, created_at, updated_at)"
-                            " VALUES (:id, :src, 'manual', :status, 0, 0, '', now(), now())"
+                            " VALUES (:id, :src, 'manual', :status, 0, 0, '',"
+                            " CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
                         ),
                         {"id": str(uuid.uuid4()), "src": source_id, "status": status},
                     )
