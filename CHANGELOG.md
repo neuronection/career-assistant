@@ -12,7 +12,9 @@ All notable changes to **Career Assistant** are documented here.
   links), with a 1 or 2 hop limit for learned relations. Picking
   "programming" now matches postings tagged java or python; the summary
   chips show the active mode. A "min level" without a selected skill is
-  refused instead of silently doing nothing.
+  refused instead of silently doing nothing. Saved presets and shared
+  filter URLs written before this change keep working — applying one fills
+  in the new defaults.
 
 ### Added (skill taxonomy graph — expansion engine, 2026-10-27)
 - **Internal groundwork: the skill graph expansion engine and its single
