@@ -15,8 +15,12 @@ per-(pair, relation) UNIQUE; manual rows for one pair are unaffected.
 
 The delta watermark lives on the run ledger (``background_jobs.result``),
 not in a table: a run only re-examines evidence newer than the last
-succeeded run's watermark, and a run that capped out or had failed batches
-holds the floor so its uncovered pairs are re-picked instead of lost.
+succeeded run's watermark, and a run that capped out, had failed batches,
+was cancelled or ran without AI holds the floor so its uncovered pairs are
+re-picked instead of lost. A pair counts as covered only when the verdict
+pass ACTUALLY settled it (an edge, a negative, or a below-bar ``none`` —
+the uncertainty band goes dormant and re-opens only on fresh evidence);
+a dropped verdict leaves its pair uncovered and re-picked.
 """
 
 from __future__ import annotations
@@ -125,6 +129,7 @@ class RelationCandidate:
     signals: dict
     strength: float
     last_seen: datetime | None = None
+    label_grounded: bool = False
 
 
 def _norm(value: str) -> str:
@@ -164,6 +169,15 @@ async def _load_skills(db: AsyncSession) -> dict[uuid.UUID, SkillInfo]:
 async def _settled_pairs(db: AsyncSession) -> set[frozenset[uuid.UUID]]:
     rows = (await db.execute(select(SkillRelation.from_skill_id, SkillRelation.to_skill_id))).all()
     return {frozenset((row.from_skill_id, row.to_skill_id)) for row in rows}
+
+
+async def _settled_edge_keys(db: AsyncSession) -> set[tuple[frozenset[uuid.UUID], str]]:
+    rows = (
+        await db.execute(
+            select(SkillRelation.from_skill_id, SkillRelation.to_skill_id, SkillRelation.relation)
+        )
+    ).all()
+    return {(frozenset((row.from_skill_id, row.to_skill_id)), row.relation) for row in rows}
 
 
 async def _cooccurrence(
@@ -275,9 +289,9 @@ def _initialism_match(first: set[str], second: set[str]) -> bool:
             if a == b:
                 continue
             a_tokens, b_tokens = a.split(), b.split()
-            if len(a_tokens) == 1 and len(b_tokens) >= 2 and _initialism(b) == a:
+            if len(a_tokens) == 1 and len(a) >= 2 and len(b_tokens) >= 2 and _initialism(b) == a:
                 return True
-            if len(b_tokens) == 1 and len(a_tokens) >= 2 and _initialism(a) == b:
+            if len(b_tokens) == 1 and len(b) >= 2 and len(a_tokens) >= 2 and _initialism(a) == b:
                 return True
     return False
 
@@ -293,7 +307,10 @@ async def collect_candidates(
     Signals: co-occurrence (hypothesis ``related_to``), proposed-label
     matching (``synonym``), both bounded by ``min_support``/freshness and
     ordered by evidence strength. Pairs with any existing relation row are
-    never returned (pair-level adjudication).
+    never returned (pair-level adjudication). Label-equality and initialism
+    matches are existence-bound — their pair comes into being whenever both
+    skills exist — so they ignore the ``since`` watermark; settled pairs are
+    already excluded, so the exemption never re-bills.
     """
     thresholds = thresholds or Thresholds()
     skills = await _load_skills(db)
@@ -307,6 +324,7 @@ async def collect_candidates(
         if len(key) < 2 or key in settled:
             return
         last_seen = _aware(last_seen)
+        label_grounded = signals.get("label_match", {}).get("kind") in ("equal", "initialism")
         existing = merged.get(key)
         if existing is None:
             merged[key] = RelationCandidate(
@@ -317,9 +335,11 @@ async def collect_candidates(
                 signals=signals,
                 strength=strength,
                 last_seen=last_seen,
+                label_grounded=label_grounded,
             )
             return
         existing.signals.update(signals)
+        existing.label_grounded = existing.label_grounded or label_grounded
         if strength > existing.strength:
             existing.hypothesis = hypothesis
             existing.strength = strength
@@ -347,7 +367,10 @@ async def collect_candidates(
     fresh = [
         candidate
         for candidate in merged.values()
-        if since is None or candidate.last_seen is None or candidate.last_seen > since
+        if since is None
+        or candidate.label_grounded
+        or candidate.last_seen is None
+        or candidate.last_seen > since
     ]
     ranked = sorted(fresh, key=lambda c: (-c.strength, c.first.key, c.second.key))
     capped = len(ranked) > thresholds.max_pairs_per_run
@@ -361,20 +384,35 @@ async def materialize_parent_edges(db: AsyncSession) -> int:
     """Curated ``parent_id`` links → auto-approved ``is_a`` edges (import).
 
     Skipped whenever an ``is_a`` row already exists for the pair in any
-    status (a rejection is final). Expansion-neutral: the curated subtree
-    already reaches these pairs at zero cost.
+    status (a rejection is final). Stale mirrors — approved ``import`` rows
+    whose pair no longer matches the skill's current ``parent_id`` (it was
+    re-parented since) — flip to ``rejected`` so the edge set never
+    contradicts the tree. Expansion-neutral: the curated subtree already
+    reaches these pairs at zero cost.
     """
     service = SkillRelationService(db)
     skills = await _load_skills(db)
     by_key = {info.key: info for info in skills.values()}
     existing = (
-        await db.execute(
-            select(SkillRelation.from_skill_id, SkillRelation.to_skill_id).where(
-                SkillRelation.relation == SkillRelationType.IS_A.value
+        (
+            await db.execute(
+                select(SkillRelation).where(SkillRelation.relation == SkillRelationType.IS_A.value)
             )
         )
-    ).all()
+        .scalars()
+        .all()
+    )
     covered = {frozenset((row.from_skill_id, row.to_skill_id)) for row in existing}
+    for row in existing:
+        if (
+            row.source != SkillRelationSource.IMPORT.value
+            or row.status != SkillRelationStatus.APPROVED.value
+        ):
+            continue
+        info = skills.get(row.from_skill_id)
+        parent = by_key.get(info.parent_key) if info is not None and info.parent_key else None
+        if parent is None or parent.id != row.to_skill_id:
+            await service.reject(row.id)
     count = 0
     for info in sorted(skills.values(), key=lambda s: s.key):
         parent = by_key.get(info.parent_key) if info.parent_key else None
@@ -417,6 +455,7 @@ def _prompt_pair(candidate: RelationCandidate) -> dict:
                 "aliases": list(info.aliases),
                 "category": info.category,
                 "parent_key": info.parent_key,
+                "evidence_quote": info.provenance.get("evidence_quote"),
             }
             for info in (candidate.first, candidate.second)
         ],
@@ -429,18 +468,28 @@ async def apply_verdicts(
     verdicts: list[SkillEdgeVerdict],
     *,
     thresholds: Thresholds | None = None,
-) -> dict:
+) -> tuple[dict[str, int], set[str]]:
     """Land one batch of verdicts through the write seam.
 
     Non-``none`` verdicts land ``proposed`` llm rows (the verdict's relation
     wins over the hypothesis — the redirect); ``none`` pins the cheap early
-    negative for the *hypothesized* relation above the confidence bar.
-    Verdicts that fail semantic validation are dropped, never trusted.
+    negative for the *hypothesized* relation above the confidence bar, and
+    below the bar settles the pair as uncertain — dormant under the
+    watermark until fresh evidence re-opens it. Verdicts that fail
+    validation (unknown/duplicate ``pair_ref``, bad relation literal,
+    confidence outside 0-1, ``subject_key`` outside the pair, seam
+    rejections) are dropped, never trusted — and never settle their pair.
+
+    Returns the counters plus the set of ``pair_ref`` values the batch
+    ACTUALLY settled, so the run can hold the watermark for the rest
+    instead of letting dropped pairs go dormant.
     """
     thresholds = thresholds or Thresholds()
     service = SkillRelationService(db)
     by_ref = {candidate.pair_ref: candidate for candidate in candidates}
+    existing = await _settled_edge_keys(db)
     stats = {"edges_proposed": 0, "negatives": 0, "dropped": 0, "below_bar": 0}
+    settled: set[str] = set()
     seen: set[str] = set()
     for verdict in verdicts:
         candidate = by_ref.get(verdict.pair_ref)
@@ -448,9 +497,13 @@ async def apply_verdicts(
             stats["dropped"] += 1
             continue
         seen.add(verdict.pair_ref)
+        if not 0.0 <= verdict.confidence <= 1.0:
+            stats["dropped"] += 1
+            continue
         if verdict.relation == "none":
             if verdict.confidence < thresholds.min_negative_confidence:
                 stats["below_bar"] += 1
+                settled.add(verdict.pair_ref)
                 continue
             try:
                 await service.add(
@@ -465,9 +518,19 @@ async def apply_verdicts(
             except ValidationError:
                 stats["dropped"] += 1
                 continue
-            stats["negatives"] += 1
+            key = (
+                frozenset((candidate.first.id, candidate.second.id)),
+                candidate.hypothesis.value,
+            )
+            if key not in existing:
+                stats["negatives"] += 1
+            settled.add(verdict.pair_ref)
             continue
-        kind = SkillRelationType(verdict.relation)
+        try:
+            kind = SkillRelationType(verdict.relation)
+        except ValueError:
+            stats["dropped"] += 1
+            continue
         if kind.is_directed:
             if verdict.subject_key == candidate.first.key:
                 source_skill, target_skill = candidate.first, candidate.second
@@ -490,15 +553,28 @@ async def apply_verdicts(
         except ValidationError:
             stats["dropped"] += 1
             continue
-        stats["edges_proposed"] += 1
-    return stats
+        key = (frozenset((source_skill.id, target_skill.id)), kind.value)
+        if key not in existing:
+            stats["edges_proposed"] += 1
+        settled.add(verdict.pair_ref)
+    return stats, settled
 
 
 async def apply_derived(db: AsyncSession, candidates: list[RelationCandidate]) -> int:
-    """The unconfigured fallback: deterministic candidates still flow."""
+    """The unconfigured fallback: string-grounded candidates still flow.
+
+    Only label-equality / initialism matches derive deterministically (the
+    evidence is the string overlap itself). Co-occurrence and co-tag pairs
+    stay unadjudicated for the first configured provider — a derived row
+    would pre-empt LLM judgment at the pair level forever. Returns the
+    number of rows actually created.
+    """
     service = SkillRelationService(db)
+    existing = await _settled_edge_keys(db)
     count = 0
     for candidate in candidates:
+        if not candidate.label_grounded:
+            continue
         try:
             await service.add(
                 candidate.first.id,
@@ -509,7 +585,9 @@ async def apply_derived(db: AsyncSession, candidates: list[RelationCandidate]) -
             )
         except ValidationError:
             continue
-        count += 1
+        key = (frozenset((candidate.first.id, candidate.second.id)), candidate.hypothesis.value)
+        if key not in existing:
+            count += 1
     return count
 
 
@@ -532,12 +610,12 @@ async def _load_watermark(db: AsyncSession) -> datetime | None:
     if row is None:
         return None
     raw = (row.result or {}).get("watermark")
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(str(raw))
-    except ValueError:
-        return None
+    if raw:
+        try:
+            return datetime.fromisoformat(str(raw))
+        except ValueError:
+            pass
+    return _aware(row.created_at)
 
 
 async def run_skill_relation_learn(
@@ -548,9 +626,10 @@ async def run_skill_relation_learn(
 ) -> dict:
     """One discovery run: materialize, collect, judge, write, report.
 
-    Never raises for AI problems: an unconfigured provider falls back to
-    derived proposals; failed, incomplete or cancelled batches are left
-    unadjudicated and the held watermark re-picks them next run.
+    Never raises for AI problems: an unconfigured provider derives
+    string-grounded label matches and holds the watermark; failed,
+    incomplete or cancelled batches are left unadjudicated and the held
+    watermark re-picks them next run.
     """
     thresholds = await load_thresholds(db)
     since = await _load_watermark(db)
@@ -562,9 +641,11 @@ async def run_skill_relation_learn(
     run_ref = RunRef(id=run_id, stage="skill_relation_learn.verdict") if run_id else None
     judged = failed = uncovered = 0
     unconfigured = False
+    cancelled_run = False
     applied = {"edges_proposed": 0, "negatives": 0, "dropped": 0, "below_bar": 0}
     for batch in batches:
         if cancelled is not None and await cancelled():
+            cancelled_run = True
             break
         try:
             verdict_set: SkillEdgeVerdictSet | None = await suggest_skill_edges(
@@ -577,15 +658,16 @@ async def run_skill_relation_learn(
             failed += 1
             continue
         judged += 1
-        batch_stats = await apply_verdicts(db, batch, verdict_set.verdicts, thresholds=thresholds)
+        batch_stats, batch_settled = await apply_verdicts(
+            db, batch, verdict_set.verdicts, thresholds=thresholds
+        )
         for key, value in batch_stats.items():
             applied[key] += value
-        answered = {verdict.pair_ref for verdict in verdict_set.verdicts}
-        uncovered += sum(1 for candidate in batch if candidate.pair_ref not in answered)
+        uncovered += sum(1 for candidate in batch if candidate.pair_ref not in batch_settled)
     derived = 0
     if unconfigured and judged == 0:
         derived = await apply_derived(db, candidates)
-    leftover = capped or failed > 0 or uncovered > 0 or (unconfigured and judged > 0)
+    leftover = capped or failed > 0 or uncovered > 0 or unconfigured or cancelled_run
     watermark = since if leftover else collected_at
     return {
         "materialized": materialized,

@@ -149,6 +149,7 @@ def _check_skill_edge_verdicts(reply: SkillEdgeVerdictSet) -> None:
     assert by_ref["p2"].relation == "synonym"
     assert all(0.0 <= v.confidence <= 1.0 for v in reply.verdicts)
     assert all(v.rationale for v in reply.verdicts)
+    assert "Evidence quote: ML required" in by_ref["p2"].rationale
 
 
 def _build_cases() -> list[GoldenCase]:
@@ -360,6 +361,7 @@ def _build_cases() -> list[GoldenCase]:
                                 "aliases": ["ts"],
                                 "category": "programming",
                                 "parent_key": None,
+                                "evidence_quote": "TypeScript experience required",
                             },
                             {
                                 "key": "javascript",
@@ -367,6 +369,7 @@ def _build_cases() -> list[GoldenCase]:
                                 "aliases": ["js"],
                                 "category": "programming",
                                 "parent_key": None,
+                                "evidence_quote": None,
                             },
                         ],
                     },
@@ -381,6 +384,7 @@ def _build_cases() -> list[GoldenCase]:
                                 "aliases": [],
                                 "category": "data",
                                 "parent_key": None,
+                                "evidence_quote": "ML required",
                             },
                             {
                                 "key": "machine-learning",
@@ -388,6 +392,7 @@ def _build_cases() -> list[GoldenCase]:
                                 "aliases": [],
                                 "category": "data",
                                 "parent_key": None,
+                                "evidence_quote": None,
                             },
                         ],
                     },

@@ -6,11 +6,14 @@ grounded on the deterministic evidence the candidate pass collected. The
 offline teacher of the taxonomy — never on a query path. Unconfigured or
 failing AI surfaces as ``None``/``AINotConfiguredError`` and the caller
 falls back to deterministic derived proposals.
+
+Verdict field types are transport-only: one malformed verdict must never
+fail (and re-bill) the whole batch, so the closed vocabulary and the
+confidence bounds are validated per verdict in the job's ``apply_verdicts``
+and land in its ``dropped`` counter instead of raising at ``model_validate``.
 """
 
 from __future__ import annotations
-
-from typing import Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,14 +25,16 @@ from app.models.enums import AITaskType, SkillRelationType
 
 MAX_PAIRS_PER_CALL = 40
 
-VerdictRelation = SkillRelationType | Literal["none"]
-
 _SYSTEM = (
     "You are the offline teacher of a skill taxonomy on a student career "
     "platform. You receive pairs of catalog skills with the deterministic "
     "evidence that made them candidates. Decide which typed relation, if "
     "any, holds between the two skills of each pair; answer for EVERY pair "
     "exactly once.\n"
+    "Each pair carries a hypothesis, the signals that made it a candidate "
+    "(co-occurrence counts, label matches) and both skills with key, label, "
+    "aliases, category, parent_key and an evidence_quote — the verbatim "
+    "posting text that spawned the skill, when it has one.\n"
     "Relations (closed vocabulary):\n"
     "- is_a: the subject_key skill is a KIND OF the other (java is_a "
     "programming). subject_key names the MORE SPECIFIC skill.\n"
@@ -56,13 +61,19 @@ _SYSTEM = (
 
 
 class SkillEdgeVerdict(BaseModel):
-    """The model's answer for one candidate pair."""
+    """The model's answer for one candidate pair.
 
-    pair_ref: str = Field(min_length=1, max_length=40)
-    relation: VerdictRelation
-    subject_key: str = Field(default="", max_length=80)
-    confidence: float = Field(ge=0.0, le=1.0)
-    rationale: str = Field(max_length=500)
+    Transport-only field types (``relation`` and ``confidence`` carry no
+    literal/bounds constraints): semantic validation happens per verdict in
+    ``apply_verdicts`` so one malformed answer is dropped, never a whole
+    batch.
+    """
+
+    pair_ref: str
+    relation: str
+    subject_key: str = ""
+    confidence: float
+    rationale: str
 
 
 class SkillEdgeVerdictSet(BaseModel):
@@ -81,13 +92,20 @@ def _mock_skill_edge_verdicts(_schema: type, user_prompt: str) -> dict:
             SkillRelationType.IS_A.value,
             SkillRelationType.PART_OF.value,
         )
+        quote = next(
+            (str(s.get("evidence_quote") or "") for s in skills if s.get("evidence_quote")),
+            "",
+        )
+        rationale = "Deterministic mock verdict confirming the candidate hypothesis."
+        if quote:
+            rationale = f"{rationale} Evidence quote: {quote[:120]}"
         verdicts.append(
             {
                 "pair_ref": pair.get("pair_ref", ""),
                 "relation": hypothesis,
                 "subject_key": (skills[0].get("key", "") if directed and skills else ""),
                 "confidence": 0.9,
-                "rationale": "Deterministic mock verdict confirming the candidate hypothesis.",
+                "rationale": rationale,
             }
         )
     return {"verdicts": verdicts}

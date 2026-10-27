@@ -269,6 +269,52 @@ async def test_candidates_label_equality_and_initialism(db):
     assert by_pair[("javascript", "js")].signals["label_match"] == {"kind": "equal"}
 
 
+async def test_initialism_ignores_single_character_keys(db):
+    from app.services.catalog.skill_relation_learn import _initialism_match
+
+    await _seed(
+        db,
+        _skill("machine-learning", label="Machine Learning"),
+        _skill(
+            "m",
+            label="M",
+            status=SkillStatus.PROPOSED.value,
+            origin="ai",
+            provenance={"evidence_quote": "M required"},
+        ),
+    )
+
+    candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+
+    assert candidates == []
+    assert not _initialism_match({"m"}, {"machine learning"})
+    assert _initialism_match({"ml"}, {"machine learning"})
+
+
+async def test_label_candidates_re_emerge_when_the_matching_skill_arrives(db):
+    skills = await _seed(
+        db,
+        _skill("machine-learning", label="Machine Learning"),
+        _skill(
+            "ml",
+            label="ML",
+            status=SkillStatus.PROPOSED.value,
+            origin="ai",
+            provenance={"evidence_quote": "ML required"},
+        ),
+    )
+    skills["ml"].created_at = _now() - timedelta(hours=3)
+    await db.flush()
+
+    candidates, _ = await collect_candidates(
+        db, since=_now() - timedelta(hours=1), thresholds=Thresholds()
+    )
+
+    assert [(c.first.key, c.second.key) for c in candidates] == [("machine-learning", "ml")], (
+        "label matches are existence-bound: a skill created after the run still pairs up"
+    )
+
+
 async def test_candidates_co_tag_adjacency_reaches_unrelated_strings(db):
     skills = await _seed(
         db,
@@ -317,6 +363,27 @@ async def test_parent_chain_materialization_is_idempotent_and_respects_negatives
     }
 
 
+async def test_reparenting_rejects_stale_import_mirrors_and_writes_new(db):
+    skills = await _seed(db, _skill("programming"), _skill("java"), _skill("databases"))
+    skills["java"].parent_id = skills["programming"].id
+    await db.flush()
+
+    assert await materialize_parent_edges(db) == 1
+
+    skills["java"].parent_id = skills["databases"].id
+    await db.flush()
+    assert await materialize_parent_edges(db) == 1
+
+    rows = await _relation_rows(db)
+    by_pair = {(str(r.from_skill_id), str(r.to_skill_id)): r for r in rows}
+    old = by_pair[(str(skills["java"].id), str(skills["programming"].id))]
+    new = by_pair[(str(skills["java"].id), str(skills["databases"].id))]
+    assert old.status == SkillRelationStatus.REJECTED.value, "the stale mirror is rejected"
+    assert new.status == SkillRelationStatus.APPROVED.value
+    assert new.source == SkillRelationSource.IMPORT.value
+    assert await materialize_parent_edges(db) == 0
+
+
 # --------------------------------------------- verdict application (§7 corpus)
 
 
@@ -333,7 +400,7 @@ async def test_verdict_is_a_redirect_lands_the_verdict_relation(db):
     candidate = candidates[0]
     assert candidate.hypothesis is SkillRelationType.RELATED_TO
 
-    stats = await apply_verdicts(
+    stats, settled = await apply_verdicts(
         db,
         candidates,
         [
@@ -348,6 +415,7 @@ async def test_verdict_is_a_redirect_lands_the_verdict_relation(db):
     )
 
     assert stats == {"edges_proposed": 1, "negatives": 0, "dropped": 0, "below_bar": 0}
+    assert settled == {candidate.pair_ref}
     rows = await _relation_rows(db)
     assert len(rows) == 1
     row = rows[0]
@@ -358,7 +426,7 @@ async def test_verdict_is_a_redirect_lands_the_verdict_relation(db):
     assert row.source == SkillRelationSource.LLM.value
     assert row.confidence == 0.9
     assert row.evidence["rationale"] == "Java is a programming language."
-    assert row.evidence["prompt_version"] == "v1"
+    assert row.evidence["prompt_version"] == "v2"
     assert row.evidence["signals"]["cooccurrence"] == {"postings": 2, "jobs": 0}
 
 
@@ -378,7 +446,7 @@ async def test_verdict_synonym_for_ml_machine_learning(db):
     candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
     candidate = candidates[0]
 
-    stats = await apply_verdicts(
+    stats, _settled = await apply_verdicts(
         db,
         candidates,
         [
@@ -440,7 +508,7 @@ async def test_none_verdict_pins_the_negative_and_blocks_resuggestion(db):
     )
     candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
 
-    stats = await apply_verdicts(
+    stats, settled = await apply_verdicts(
         db,
         candidates,
         [
@@ -454,6 +522,7 @@ async def test_none_verdict_pins_the_negative_and_blocks_resuggestion(db):
     )
 
     assert stats == {"edges_proposed": 0, "negatives": 1, "dropped": 0, "below_bar": 0}
+    assert settled == {candidates[0].pair_ref}
     rows = await _relation_rows(db)
     assert len(rows) == 1
     assert rows[0].relation == SkillRelationType.RELATED_TO.value
@@ -463,7 +532,25 @@ async def test_none_verdict_pins_the_negative_and_blocks_resuggestion(db):
     assert again == []
 
 
-async def test_none_below_the_confidence_bar_lands_nothing(db):
+async def test_none_below_the_confidence_bar_settles_and_goes_dormant(db, monkeypatch):
+    """F9 decision: the uncertainty band lands nothing but IS adjudicated —
+    the pair goes dormant under the watermark (re-asking the identical
+    question would re-bill it daily) and only fresh evidence re-opens it."""
+    from app.services.catalog import skill_relation_learn as learn
+
+    async def _uncertain(_db, pairs, **_kwargs):
+        return SkillEdgeVerdictSet(
+            verdicts=[
+                SkillEdgeVerdict(
+                    pair_ref=pair["pair_ref"],
+                    relation="none",
+                    confidence=0.3,
+                    rationale="Unsure.",
+                )
+                for pair in pairs
+            ]
+        )
+
     skills = await _seed(db, _skill("c-sharp", label="C#"), _skill("java"))
     await _tagged_postings(
         db,
@@ -472,7 +559,7 @@ async def test_none_below_the_confidence_bar_lands_nothing(db):
     )
     candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
 
-    stats = await apply_verdicts(
+    stats, settled = await apply_verdicts(
         db,
         candidates,
         [
@@ -487,9 +574,25 @@ async def test_none_below_the_confidence_bar_lands_nothing(db):
 
     assert stats["negatives"] == 0
     assert stats["below_bar"] == 1
+    assert settled == {candidates[0].pair_ref}, "below-bar settles the pair (F9)"
     assert await _relation_rows(db) == []
-    again, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
-    assert len(again) == 1, "an uncertain pair stays a candidate"
+
+    from app.services.job_worker import JobWorker, enqueue
+
+    monkeypatch.setattr(learn, "suggest_skill_edges", _uncertain)
+    job = await enqueue(db, BackgroundJobType.SKILL_RELATION_LEARN.value, {})
+    assert await JobWorker(db).run_once() is True
+    await db.refresh(job)
+    assert job.result["below_bar"] == 1
+    assert job.result["uncovered"] == 0
+    assert job.result["watermark"] is not None, "settled uncertainty lets the watermark advance"
+
+    second = await enqueue(db, BackgroundJobType.SKILL_RELATION_LEARN.value, {})
+    assert await JobWorker(db).run_once() is True
+    await db.refresh(second)
+    assert second.result["candidates"] == 0, (
+        "the dormant pair is not re-billed without fresh evidence"
+    )
 
 
 async def test_invalid_verdicts_are_dropped_never_trusted(db):
@@ -501,7 +604,7 @@ async def test_invalid_verdicts_are_dropped_never_trusted(db):
     )
     candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
 
-    stats = await apply_verdicts(
+    stats, settled = await apply_verdicts(
         db,
         candidates,
         [
@@ -522,6 +625,47 @@ async def test_invalid_verdicts_are_dropped_never_trusted(db):
     )
 
     assert stats == {"edges_proposed": 0, "negatives": 0, "dropped": 2, "below_bar": 0}
+    assert settled == set(), "dropped verdicts never settle their pair"
+    assert await _relation_rows(db) == []
+
+
+async def test_dropped_relation_and_confidence_are_counted_not_trusted(db):
+    skills = await _seed(db, _skill("java"), _skill("python"), _skill("sql"))
+    await _tagged_postings(
+        db,
+        skills,
+        [
+            ("r-1", ("java", "python")),
+            ("r-2", ("java", "python")),
+            ("r-3", ("sql", "python")),
+            ("r-4", ("sql", "python")),
+        ],
+    )
+    candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    by_pair = {(c.first.key, c.second.key): c for c in candidates}
+
+    stats, settled = await apply_verdicts(
+        db,
+        candidates,
+        [
+            SkillEdgeVerdict(
+                pair_ref=by_pair[("java", "python")].pair_ref,
+                relation="kind_of",
+                confidence=0.9,
+                rationale="Not in the closed vocabulary.",
+            ),
+            SkillEdgeVerdict(
+                pair_ref=by_pair[("python", "sql")].pair_ref,
+                relation="is_a",
+                subject_key="python",
+                confidence=4.2,
+                rationale="Confidence outside 0-1.",
+            ),
+        ],
+    )
+
+    assert stats == {"edges_proposed": 0, "negatives": 0, "dropped": 2, "below_bar": 0}
+    assert settled == set()
     assert await _relation_rows(db) == []
 
 
@@ -534,7 +678,7 @@ async def test_duplicate_pair_ref_verdicts_are_deduped(db):
     )
     candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
 
-    stats = await apply_verdicts(
+    stats, settled = await apply_verdicts(
         db,
         candidates,
         [
@@ -555,42 +699,144 @@ async def test_duplicate_pair_ref_verdicts_are_deduped(db):
     )
 
     assert stats == {"edges_proposed": 1, "negatives": 0, "dropped": 1, "below_bar": 0}
+    assert settled == {candidates[0].pair_ref}
     assert len(await _relation_rows(db)) == 1
+
+
+async def test_verdict_on_a_pair_gained_mid_run_counts_no_new_edge(db):
+    skills = await _seed(db, _skill("java"), _skill("python"))
+    await _tagged_postings(
+        db,
+        skills,
+        [("mo-1", ("java", "python")), ("mo-2", ("java", "python"))],
+    )
+    candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    service = SkillRelationService(db)
+    await service.add("java", "python", "is_a", source="manual")
+
+    stats, settled = await apply_verdicts(
+        db,
+        candidates,
+        [
+            SkillEdgeVerdict(
+                pair_ref=candidates[0].pair_ref,
+                relation="is_a",
+                subject_key="java",
+                confidence=0.9,
+                rationale="Java is a programming language.",
+            )
+        ],
+    )
+
+    assert stats["edges_proposed"] == 0, "the mid-run human row settles it; no new edge"
+    assert stats["dropped"] == 0
+    assert settled == {candidates[0].pair_ref}
+    assert len(await _relation_rows(db)) == 1
+
+
+async def test_prompt_pair_carries_endpoint_evidence_quotes(db):
+    from app.services.catalog.skill_relation_learn import _prompt_pair
+
+    await _seed(
+        db,
+        _skill("machine-learning", label="Machine Learning"),
+        _skill(
+            "ml",
+            label="ML",
+            status=SkillStatus.PROPOSED.value,
+            origin="ai",
+            provenance={"evidence_quote": "ML required"},
+        ),
+    )
+    candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    payload = _prompt_pair(candidates[0])
+
+    quotes = {skill["key"]: skill["evidence_quote"] for skill in payload["skills"]}
+    assert quotes == {"machine-learning": None, "ml": "ML required"}
 
 
 # ----------------------------------------------------------------- run loop
 
 
-async def test_unconfigured_ai_falls_back_to_derived_rows(db, monkeypatch):
+async def test_unconfigured_run_derives_label_matches_and_holds_the_watermark(db, monkeypatch):
     from app.ai.providers import resolution
 
     async def _no_ai(*_args, **_kwargs):
         return None
 
     monkeypatch.setattr(resolution, "resolve_task_model", _no_ai)
-    skills = await _seed(db, _skill("java"), _skill("python"), _skill("sql"))
-    await _tagged_postings(
-        db,
-        skills,
-        [
-            ("f-1", ("java", "python")),
-            ("f-2", ("java", "python")),
-            ("f-3", ("sql", "python")),
-            ("f-4", ("sql", "python")),
-        ],
+    prior = (_now() - timedelta(hours=1)).isoformat()
+    db.add(
+        BackgroundJob(
+            job_type=BackgroundJobType.SKILL_RELATION_LEARN.value,
+            status="succeeded",
+            payload={},
+            result={"watermark": prior},
+        )
     )
+    await db.flush()
+    skills = await _seed(
+        db,
+        _skill("machine-learning", label="Machine Learning"),
+        _skill(
+            "ml",
+            label="ML",
+            status=SkillStatus.PROPOSED.value,
+            origin="ai",
+            provenance={"evidence_quote": "ML required"},
+        ),
+        _skill("java"),
+        _skill("python"),
+    )
+    await _tagged_postings(db, skills, [("f-1", ("java", "python")), ("f-2", ("java", "python"))])
 
     result = await run_skill_relation_learn(db)
 
     assert result["judged_batches"] == 0
     assert result["failed_batches"] == 0
-    assert result["derived"] == 2
+    assert result["derived"] == 1, "only the string-grounded label match derives"
     rows = await _relation_rows(db)
-    assert len(rows) == 2
-    assert {row.source for row in rows} == {SkillRelationSource.DERIVED.value}
-    assert {row.status for row in rows} == {SkillRelationStatus.PROPOSED.value}
-    assert all(row.confidence is None for row in rows)
-    assert all("cooccurrence" in row.evidence["signals"] for row in rows)
+    assert len(rows) == 1
+    assert rows[0].source == SkillRelationSource.DERIVED.value
+    assert rows[0].status == SkillRelationStatus.PROPOSED.value
+    assert rows[0].confidence is None
+    assert {str(rows[0].from_skill_id), str(rows[0].to_skill_id)} == {
+        str(skills["machine-learning"].id),
+        str(skills["ml"].id),
+    }
+    assert "label_match" in rows[0].evidence["signals"]
+    assert result["watermark"] == prior, "an unconfigured run never advances the watermark"
+    again, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    assert [(c.first.key, c.second.key) for c in again] == [("java", "python")], (
+        "co-occurrence pairs wait for a configured provider"
+    )
+
+
+async def test_derived_fallback_leaves_cooccurrence_for_the_first_configured_run(db, monkeypatch):
+    from app.ai.providers import resolution
+
+    original = resolution.resolve_task_model
+
+    async def _no_ai(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(resolution, "resolve_task_model", _no_ai)
+    skills = await _seed(db, _skill("java"), _skill("python"))
+    await _tagged_postings(db, skills, [("d-1", ("java", "python")), ("d-2", ("java", "python"))])
+
+    first = await run_skill_relation_learn(db)
+
+    assert first["derived"] == 0
+    assert await _relation_rows(db) == []
+
+    monkeypatch.setattr(resolution, "resolve_task_model", original)
+    second = await run_skill_relation_learn(db)
+
+    assert second["edges_proposed"] == 1
+    rows = await _relation_rows(db)
+    assert [row.source for row in rows] == [SkillRelationSource.LLM.value], (
+        "the first configured run judges the pair, not the fallback"
+    )
 
 
 async def test_partial_failure_holds_the_watermark_and_retries_the_failed_pair(db, monkeypatch):
@@ -753,6 +999,134 @@ async def test_incomplete_verdict_coverage_holds_the_watermark(db, monkeypatch):
     assert len(again) == 1, "the unanswered pair stays a candidate"
 
 
+async def test_answered_but_invalid_pairs_re_pick_under_a_held_watermark(db, monkeypatch):
+    from app.services.catalog import skill_relation_learn as learn
+
+    async def _bad_subject(_db, pairs, **_kwargs):
+        return SkillEdgeVerdictSet(
+            verdicts=[
+                SkillEdgeVerdict(
+                    pair_ref=pair["pair_ref"],
+                    relation="is_a",
+                    subject_key="cobol-nonsense",
+                    confidence=0.9,
+                    rationale="Subject outside the pair.",
+                )
+                for pair in pairs
+            ]
+        )
+
+    monkeypatch.setattr(learn, "suggest_skill_edges", _bad_subject)
+    skills = await _seed(db, _skill("java"), _skill("python"))
+    await _tagged_postings(
+        db,
+        skills,
+        [("iv-1", ("java", "python")), ("iv-2", ("java", "python"))],
+    )
+
+    result = await run_skill_relation_learn(db)
+
+    assert result["judged_batches"] == 1
+    assert result["dropped"] == 1
+    assert result["uncovered"] == 1, "an answered-but-dropped pair is unfinished work"
+    assert result["watermark"] is None, "the dropped pair holds the watermark floor"
+    again, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    assert [(c.first.key, c.second.key) for c in again] == [("java", "python")], (
+        "dropped pairs are re-picked, never lost"
+    )
+
+
+async def test_one_malformed_verdict_does_not_fail_the_batch(db, monkeypatch):
+    from app.services.catalog import skill_relation_learn as learn
+
+    real = learn.suggest_skill_edges
+    sizes: list[int] = []
+
+    async def _corrupt_one(session, pairs, **kwargs):
+        sizes.append(len(pairs))
+        verdict_set = await real(session, pairs, **kwargs)
+        if verdict_set is not None and len(sizes) == 1:
+            verdict_set.verdicts[0].relation = "kind_of"
+            verdict_set.verdicts[0].confidence = 4.2
+        return verdict_set
+
+    monkeypatch.setattr(learn, "suggest_skill_edges", _corrupt_one)
+    keys = [f"s{i:02d}" for i in range(1, 11)]
+    skills = await _seed(db, *(_skill(key) for key in keys))
+    await _tagged_postings(db, skills, [("m-1", tuple(keys)), ("m-2", tuple(keys))])
+
+    result = await run_skill_relation_learn(db)
+
+    assert sizes == [40, 5]
+    assert result["batches"] == 2
+    assert result["judged_batches"] == 2, "the batch succeeds despite the malformed verdict"
+    assert result["failed_batches"] == 0
+    assert result["edges_proposed"] == 44, "39 of batch 1 plus all 5 of batch 2 land"
+    assert result["dropped"] == 1
+    assert result["uncovered"] == 1, "the malformed pair stays unfinished and re-picks"
+
+
+async def test_cancelled_run_holds_the_watermark_and_re_picks_skipped_pairs(db, monkeypatch):
+    from app.services.catalog import skill_relation_learn as learn
+
+    await _set_thresholds(db, batch_size=1)
+    prior = (_now() - timedelta(hours=1)).isoformat()
+    db.add(
+        BackgroundJob(
+            job_type=BackgroundJobType.SKILL_RELATION_LEARN.value,
+            status="succeeded",
+            payload={},
+            result={"watermark": prior},
+        )
+    )
+    job = BackgroundJob(
+        job_type=BackgroundJobType.SKILL_RELATION_LEARN.value,
+        status="running",
+        payload={},
+    )
+    db.add(job)
+    await db.flush()
+    skills = await _seed(db, _skill("java"), _skill("python"), _skill("sql"))
+    await _tagged_postings(
+        db,
+        skills,
+        [
+            ("c-1", ("java", "python")),
+            ("c-2", ("java", "python")),
+            ("c-3", ("sql", "python")),
+            ("c-4", ("sql", "python")),
+        ],
+    )
+
+    real = learn.suggest_skill_edges
+    calls: list[int] = []
+
+    async def _cancel_mid_run(session, pairs, **kwargs):
+        calls.append(len(pairs))
+        if len(calls) == 1:
+            job.cancel_requested = True
+            await session.commit()
+        return await real(session, pairs, **kwargs)
+
+    monkeypatch.setattr(learn, "suggest_skill_edges", _cancel_mid_run)
+
+    async def cancelled() -> bool:
+        fresh = await db.get(BackgroundJob, job.id)
+        return bool(fresh and fresh.cancel_requested)
+
+    result = await run_skill_relation_learn(db, cancelled=cancelled)
+
+    assert calls == [1], "the run stops after the first batch"
+    assert result["edges_proposed"] == 1
+    assert result["watermark"] == prior, "a cancelled run returns the floor, never collected_at"
+
+    again, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    assert len(again) == 1, "the skipped pair survives the cancel"
+
+    second = await run_skill_relation_learn(db)
+    assert second["edges_proposed"] == 1, "the next run re-picks the skipped pair"
+
+
 async def test_watermark_reads_the_last_succeeded_run_ledger(db):
     skills = await _seed(db, _skill("java"), _skill("python"), _skill("javascript"))
     source = JobSource(
@@ -806,6 +1180,59 @@ async def test_watermark_reads_the_last_succeeded_run_ledger(db):
     assert result["edges_proposed"] == 1
     rows = await _relation_rows(db)
     assert len(rows) == 1
+
+
+async def test_watermark_falls_back_to_the_run_created_at(db):
+    skills = await _seed(db, _skill("java"), _skill("python"), _skill("javascript"))
+    source = JobSource(
+        key=f"learn-{uuid.uuid4().hex[:8]}",
+        connector_key="synthetic",
+        kind="posting",
+        config={},
+    )
+    db.add(source)
+    await db.flush()
+    old = _now() - timedelta(hours=3)
+    for external_id, keys, stamp in (
+        ("w-old-1", ("java", "python"), old),
+        ("w-old-2", ("java", "python"), old),
+        ("w-new-1", ("java", "javascript"), _now()),
+        ("w-new-2", ("java", "javascript"), _now()),
+    ):
+        posting = JobPosting(
+            source_id=source.id,
+            external_id=external_id,
+            title=external_id,
+            org="TestCo",
+            content_hash=f"{external_id}-hash",
+        )
+        db.add(posting)
+        await db.flush()
+        for key in keys:
+            db.add(
+                PostingSkill(
+                    posting_id=posting.id,
+                    skill_id=skills[key].id,
+                    required_level=5,
+                    created_at=stamp,
+                    updated_at=stamp,
+                )
+            )
+    db.add(
+        BackgroundJob(
+            job_type=BackgroundJobType.SKILL_RELATION_LEARN.value,
+            status="succeeded",
+            payload={},
+            result={"candidates": 0},
+            created_at=_now() - timedelta(hours=1),
+        )
+    )
+    await db.flush()
+
+    result = await run_skill_relation_learn(db)
+
+    assert result["candidates"] == 1, "the created_at fallback hides evidence older than the run"
+    assert result["edges_proposed"] == 1
 
 
 async def test_held_watermark_keeps_the_previous_floor(db, monkeypatch):
