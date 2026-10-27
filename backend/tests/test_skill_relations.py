@@ -101,6 +101,42 @@ async def test_unknown_relation_and_unknown_skill_are_rejected(db):
         await svc.add(a.key, "does-not-exist", "related_to")
 
 
+async def test_unknown_source_and_status_exit_the_seam_as_validation_errors(db):
+    """Bad literals never escape as a bare ValueError — the admin API (step 6)
+    maps ValidationError to a uniform 400."""
+    svc = SkillRelationService(db)
+    a, b = await _skill(db, "sr-lit-a"), await _skill(db, "sr-lit-b")
+    with pytest.raises(ValidationError, match="Unknown skill relation source"):
+        await svc.add(a.key, b.key, "is_a", source="scraped")
+    with pytest.raises(ValidationError, match="Unknown skill relation status"):
+        await svc.add(a.key, b.key, "is_a", status="queued")
+
+
+async def test_dedupe_update_refreshes_confidence_but_keeps_evidence(db):
+    """Provenance is write-once: a later suggestion never overwrites the
+    first evidence (a human's provenance outranks model output)."""
+    svc = SkillRelationService(db)
+    a, b = await _skill(db, "sr-ev-a"), await _skill(db, "sr-ev-b")
+
+    first = await svc.add(
+        a.key, b.key, "related_to", source="llm", confidence=0.4, evidence={"quote": "first"}
+    )
+    again = await svc.add(
+        b.key, a.key, "related_to", source="llm", confidence=0.95, evidence={"quote": "second"}
+    )
+    assert again.id == first.id
+    assert again.confidence == 0.95, "confidence refreshes"
+    assert again.evidence == {"quote": "first"}, "evidence never clobbers"
+
+    bare, other = await _skill(db, "sr-ev-c"), await _skill(db, "sr-ev-d")
+    existing = await svc.add(bare.key, other.key, "related_to", source="llm")
+    assert existing.evidence is None
+    filled = await svc.add(
+        other.key, bare.key, "related_to", source="llm", confidence=0.9, evidence={"quote": "later"}
+    )
+    assert filled.evidence == {"quote": "later"}, "an empty row still gets filled"
+
+
 async def test_rejected_edge_blocks_resuggestion_forever(db):
     svc = SkillRelationService(db)
     a, b = await _skill(db, "sr-neg-a"), await _skill(db, "sr-neg-b")

@@ -11,7 +11,9 @@ which leaves raw writes unguarded; here the guards live in one place:
   backbone, mirroring ``TaxonomyService.update_skill``),
 - canonical endpoint ordering for symmetric kinds (the enum owns the set),
 - one row per (pair, relation): an existing row is updated, never duplicated,
-  and a ``rejected`` row is never resurrected by a later suggestion.
+  evidence is write-once (a later suggestion refreshes the confidence, never
+  the first provenance), and a ``rejected`` row is never resurrected by a
+  later suggestion.
 """
 
 from __future__ import annotations
@@ -94,7 +96,7 @@ class SkillRelationService:
         resurrected by a later suggestion — that is the negative edge.
         """
         kind = self._relation(relation)
-        origin = SkillRelationSource(source)
+        origin = self._source(source)
         source_skill = await self._require_skill(from_ref)
         target_skill = await self._require_skill(to_ref)
         if source_skill.id == target_skill.id:
@@ -110,7 +112,9 @@ class SkillRelationService:
                 return existing
             if confidence is not None:
                 existing.confidence = confidence
-            if evidence is not None:
+            if evidence is not None and not existing.evidence:
+                # Provenance is write-once: a later suggestion refreshes the
+                # confidence but never overwrites the first evidence.
                 existing.evidence = evidence
             await self.db.commit()
             return existing
@@ -118,7 +122,7 @@ class SkillRelationService:
         if kind.is_directed:
             await self._assert_acyclic(source_skill.id, target_skill.id, kind)
 
-        resolution = SkillRelationStatus(status) if status is not None else None
+        resolution = self._status(status) if status is not None else None
         if resolution is None:
             resolution = (
                 SkillRelationStatus.APPROVED
@@ -181,6 +185,20 @@ class SkillRelationService:
             return SkillRelationType(relation)
         except ValueError as exc:
             raise ValidationError(f"Unknown skill relation: {relation}") from exc
+
+    @staticmethod
+    def _source(source: str | SkillRelationSource) -> SkillRelationSource:
+        try:
+            return SkillRelationSource(source)
+        except ValueError as exc:
+            raise ValidationError(f"Unknown skill relation source: {source}") from exc
+
+    @staticmethod
+    def _status(status: str | SkillRelationStatus) -> SkillRelationStatus:
+        try:
+            return SkillRelationStatus(status)
+        except ValueError as exc:
+            raise ValidationError(f"Unknown skill relation status: {status}") from exc
 
     @staticmethod
     def _validate_matrix(kind: SkillRelationType) -> None:
