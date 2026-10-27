@@ -55,6 +55,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.COMPANY_TRIAGE.value,
+        "Company identity triage for ambiguous employer labels",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.MATCH_SCORE.value,
         "Per-user job match score with rationale + prerequisites",
         AICapability.TEXT.value,

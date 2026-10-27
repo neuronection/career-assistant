@@ -26,6 +26,7 @@ class BackgroundJobType(StrEnum):
     POSTING_SYNC = "posting_sync"
     POSTING_EXTRACT = "posting_extract"
     DETAIL_ENRICHMENT = "detail_enrichment"
+    COMPANY_TRIAGE = "company_triage"
     DIGEST = "digest"
     SAVED_SEARCH_RUN = "saved_search_run"
     RADAR_DIGEST = "radar_digest"

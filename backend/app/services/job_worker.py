@@ -599,6 +599,13 @@ async def _run_detail_enrichment(db: AsyncSession, job: BackgroundJob, **_kw) ->
     return await run_detail_enrichment(db, job.payload or {}, user_id=job.user_id)
 
 
+async def _run_company_triage(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Plan 135: drain one bounded pass of the gray-band company queue."""
+    from app.services.catalog.company_triage_service import run_company_triage
+
+    return await run_company_triage(db)
+
+
 async def _run_posting_extract(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Deep posting extraction: one structured AI call per
     posting, normalized into posting_skills + typed columns."""
@@ -880,6 +887,7 @@ HANDLERS: dict[str, Handler] = {
     "posting_sync": _run_posting_sync,
     "posting_extract": _run_posting_extract,
     "detail_enrichment": _run_detail_enrichment,
+    "company_triage": _run_company_triage,
     "digest": _run_digest,
     "followup_sweep": _run_followup_sweep,
     "market_history_capture": _run_market_history_capture,

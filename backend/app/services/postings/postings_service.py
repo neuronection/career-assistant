@@ -149,6 +149,13 @@ async def sync_source(
             report["detail_queued"] = queued
     except Exception:
         logger.warning("detail enrichment enqueue failed for %s", source.key, exc_info=True)
+    try:
+        from app.services.catalog.company_triage_service import enqueue_company_triage
+
+        if await enqueue_company_triage(db):
+            report["company_triage_queued"] = 1
+    except Exception:
+        logger.warning("company triage enqueue failed for %s", source.key, exc_info=True)
     if run_row is not None:
         await _finish_run(db, run_row.id, started=started, report=report)
     return report

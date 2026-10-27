@@ -12,8 +12,17 @@ All notable changes to **Career Assistant** are documented here.
   editable alias rows; per-pair "never link" exclusions prevent
   similar-but-different employers from merging. Near-misses land in a
   review queue instead of silently creating duplicate companies, and the
-  company pages show every live posting of one employer. AI arbitration
-  of the ambiguous cases ships in the next slice.
+  company pages show every live posting of one employer.
+- **Ambiguous employer names are arbitrated by AI in the background** —
+  a queued `company_triage` run asks the configured model about each
+  gray-band pair (≤40 per call, off the ingest path): a confident match
+  links and learns the alias, a confident "different" creates the new
+  company and records the exclusion, and anything unsettled becomes a
+  merge suggestion a human can accept (merges) or dismiss (excludes).
+  Without a configured provider the queue degrades to suggestions rather
+  than stalling; verdicts are stored so no pair is ever re-billed.
+  Admin endpoints: `GET /organizations/pairs`,
+  `GET /organizations/suggestions`, accept/dismiss.
 
 ### Fixed (postings feed, 2026-10-27)
 - **The postings feed no longer 500s on unrecognized education levels** —

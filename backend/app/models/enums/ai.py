@@ -18,6 +18,7 @@ class AITaskType(StrEnum):
     POSTING_MAP = "posting_map"
     POSTING_EXTRACT = "posting_extract"
     DETAIL_TRIAGE = "detail_triage"
+    COMPANY_TRIAGE = "company_triage"
     TARGET_RESOLVE = "target_resolve"
     TRANSCRIBE = "transcribe"
     CV_OCR = "cv_ocr"

@@ -180,7 +180,7 @@ class OrganizationService:
         self._index = index
         return index
 
-    async def _threshold_values(self) -> dict[str, float]:
+    async def thresholds(self) -> dict[str, float]:
         if self._thresholds is not None:
             return self._thresholds
         row = (
@@ -223,7 +223,7 @@ class OrganizationService:
         """The layered matcher: quality → exclusions → exact → fuzzy → gray."""
         label = (label or "").strip()
         index = await self._candidate_index()
-        thresholds = await self._threshold_values()
+        thresholds = await self.thresholds()
 
         def allowed(org: Organization) -> bool:
             return (name_key(label), org.id) not in index.excluded_pairs
@@ -361,13 +361,20 @@ class OrganizationService:
         return None, False
 
     async def _learn_alias(self, org: Organization, label: str) -> None:
-        """Persist a matched variant as an alias row (idempotent; excluded stays)."""
+        """Persist a matched variant as an alias row (learned provenance)."""
+        await self.write_alias(org, label, OrgAliasSource.LEARNED.value)
+
+    async def write_alias(
+        self, org: Organization, label: str, source: str
+    ) -> OrganizationAlias | None:
+        """Insert one alias row unless the key is already claimed (idempotent;
+        an excluded row keeps its state — negative evidence wins)."""
         label = (label or "").strip()[:200]
         if not label or label.lower() == (org.name or "").strip().lower():
-            return
+            return None
         key = alias_key(label)
         if not key:
-            return
+            return None
         existing = (
             await self.db.execute(
                 select(OrganizationAlias).where(
@@ -377,18 +384,13 @@ class OrganizationService:
             )
         ).scalar_one_or_none()
         if existing is not None:
-            return
-        self.db.add(
-            OrganizationAlias(
-                org_id=org.id,
-                alias=label,
-                alias_key=key,
-                source=OrgAliasSource.LEARNED.value,
-            )
-        )
+            return None
+        row = OrganizationAlias(org_id=org.id, alias=label, alias_key=key, source=source)
+        self.db.add(row)
         await self.db.flush()
         if self._index is not None:
             self._index.add_alias_key(org, key)
+        return row
 
     async def _key_exists(self, key: str) -> bool:
         row = (
@@ -423,6 +425,34 @@ class OrganizationService:
         if self._index is not None:
             self._index.register(org, [])
         return org
+
+    async def create_org(
+        self, label: str, *, provenance: dict | None = None, url: str | None = None
+    ) -> Organization:
+        """Create one organization for a label (slug collision-safe)."""
+        return await self._create_org(label, provenance, url)
+
+    async def maybe_promote(self, org: Organization, *, strong: bool = False) -> bool:
+        """proposed → active on strong evidence (plan 135 decision 8).
+
+        Strong = a URL-domain match or an LLM `same` with corroboration, or
+        postings from at least two distinct sources. Everything else stays
+        proposed and visible in the matcher-review list."""
+        if org.status != OrgStatus.PROPOSED.value:
+            return False
+        if not strong:
+            distinct = (
+                await self.db.execute(
+                    select(func.count(func.distinct(JobPosting.source_id))).where(
+                        JobPosting.org_id == org.id
+                    )
+                )
+            ).scalar_one()
+            if int(distinct) < 2:
+                return False
+        org.status = OrgStatus.ACTIVE.value
+        await self.db.flush()
+        return True
 
     async def _record_pending_pair(
         self, label: str, decision: MatchDecision, url: str | None
@@ -470,6 +500,7 @@ class OrganizationService:
             signal = url_company_signal(posting.url)
             if posting.url and not org.domain and signal is not None:
                 org.domain = signal["domain"]
+            await self.maybe_promote(org, strong=decision.layer == "domain")
             match["state"] = OrgMatchState.LINKED.value
         elif decision.kind == "create":
             org = await self._create_org(
@@ -561,7 +592,7 @@ class OrganizationService:
                 )
             ).all()
         )
-        alias_strings = await self._active_alias_strings([org.id for org in rows])
+        alias_strings = await self.alias_strings([org.id for org in rows])
         return [
             {
                 "id": str(org.id),
@@ -575,7 +606,7 @@ class OrganizationService:
             for org in rows
         ]
 
-    async def _active_alias_strings(self, org_ids: list[UUID]) -> dict[UUID, list[str]]:
+    async def alias_strings(self, org_ids: list[UUID]) -> dict[UUID, list[str]]:
         if not org_ids:
             return {}
         rows = (
@@ -646,7 +677,7 @@ class OrganizationService:
         return org
 
     async def org_aliases(self, org_id: UUID) -> list[str]:
-        return (await self._active_alias_strings([org_id])).get(org_id, [])
+        return (await self.alias_strings([org_id])).get(org_id, [])
 
     async def merge(self, org_id: UUID, target_id: UUID) -> Organization:
         """Re-point references to the target and deprecate the duplicate.

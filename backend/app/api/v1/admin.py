@@ -401,12 +401,76 @@ async def merge_organization(
 @router.post("/organizations/backfill", response_model=dict)
 async def backfill_organizations(db: AsyncSession = Depends(get_db)) -> dict:
     """Run the current matcher over unjudged postings + experience items."""
+    from app.services.catalog.company_triage_service import enqueue_company_triage
     from app.services.catalog.organization_service import OrganizationService
 
     service = OrganizationService(db)
     postings = await service.backfill_postings()
     experience = await service.backfill_experience_items()
-    return {"postings": postings, "experience": experience}
+    triage_queued = await enqueue_company_triage(db)
+    return {
+        "postings": postings,
+        "experience": experience,
+        "company_triage_queued": int(triage_queued),
+    }
+
+
+@router.get("/organizations/pairs", response_model=list[dict])
+async def list_organization_pairs(
+    status: str | None = "pending",
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Gray-band queue (the arbiter's pending pairs, matcher review)."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    return await CompanyTriageService(db).list_pairs(status=status)
+
+
+@router.get("/organizations/suggestions", response_model=list[dict])
+async def list_organization_suggestions(
+    status: str | None = "open",
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Merge suggestions with their evidence (accept merges, dismiss excludes)."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    return await CompanyTriageService(db).list_suggestions(status=status)
+
+
+@router.post("/organizations/suggestions/{suggestion_id}/accept", response_model=dict)
+async def accept_organization_suggestion(
+    suggestion_id: uuid.UUID,
+    payload: dict | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Accept a suggestion: merge the label's org into the established one."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    decided_by = str((payload or {}).get("decided_by") or "admin")[:120]
+    try:
+        org = await CompanyTriageService(db).accept_suggestion(suggestion_id, decided_by=decided_by)
+    except (ValueError, DomainError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(org.id), "status": org.status}
+
+
+@router.post("/organizations/suggestions/{suggestion_id}/dismiss", response_model=dict)
+async def dismiss_organization_suggestion(
+    suggestion_id: uuid.UUID,
+    payload: dict | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Dismiss a suggestion: different employers; the pair exclusion is written."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    decided_by = str((payload or {}).get("decided_by") or "admin")[:120]
+    try:
+        suggestion = await CompanyTriageService(db).dismiss_suggestion(
+            suggestion_id, decided_by=decided_by
+        )
+    except (ValueError, DomainError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(suggestion.id), "status": suggestion.status}
 
 
 @router.put("/companies/{key}", response_model=CompanyDetailOut)
