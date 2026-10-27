@@ -224,3 +224,52 @@ async def test_bulk_reextract_queues_described_and_skips_the_rest(
         .all()
     )
     assert len(jobs) == 1, "only the described posting queues"
+
+
+async def test_bulk_reextract_by_ids(db, client, auth_headers, synthetic_connector):
+    import uuid as _uuid
+
+    from app.models.background_job_model import BackgroundJob
+
+    source = _source({})
+    db.add(source)
+    await db.flush()
+    first = _posting(source, "1", title="One")
+    first.raw = {"description": "One description."}
+    second = _posting(source, "2", title="Two")
+    second.raw = {"description": "Two description."}
+    db.add_all([first, second])
+    await db.commit()
+
+    response = await client.post(
+        "/api/v1/admin/postings/reextract",
+        json={"posting_ids": [str(first.id), str(second.id), str(_uuid.uuid4())]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["queued"] == 2
+    assert len(body["missing"]) == 1
+
+    jobs = (
+        (
+            await db.execute(
+                BackgroundJob.__table__.select().where(
+                    BackgroundJob.job_type == BackgroundJobType.POSTING_EXTRACT.value
+                )
+            )
+        )
+        .mappings()
+        .all()
+    )
+    assert len(jobs) == 2
+
+    garbage = await client.post(
+        "/api/v1/admin/postings/reextract",
+        json={"posting_ids": ["not-a-uuid"]},
+        headers=auth_headers,
+    )
+    assert garbage.status_code == 200
+    assert garbage.json()["missing"] == ["not-a-uuid"], "garbage ids report as missing"
+    empty = await client.post("/api/v1/admin/postings/reextract", json={}, headers=auth_headers)
+    assert empty.status_code == 400

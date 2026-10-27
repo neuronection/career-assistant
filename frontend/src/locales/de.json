@@ -217,7 +217,9 @@
     "relatedJobs": "Ähnliche Stellen",
     "publishToCatalog": "Veröffentlichen im Katalog",
     "appliesBy": "bevor {{date}}",
-    "openInPaths": "In Karrierepfaden erkunden"
+    "openInPaths": "In Karrierepfaden erkunden",
+    "reextract": "KI-Extraktion erneut ausführen",
+    "reextractQueued": "KI-Neuextraktion eingereiht — die strukturierten Felder werden gleich neu aufgebaut"
   },
   "families": {
     "technology": "Technologie",
@@ -535,7 +537,13 @@
     "intro": "Echte Stellenangebote aus Ihren verbundenen Quellen, die auf Ihren Katalog abgebildet sind",
     "levelAtLeast": "Stufe ≥",
     "matchProfile": "mit meinem Profil übereinstimmen",
-    "removeFilter": "{{name}} entfernen"
+    "removeFilter": "{{name}} entfernen",
+    "postings.select": "Auswählen",
+    "postings.selectedCount": "{{count}} ausgewählt",
+    "postings.actions": "Aktionen",
+    "postings.reextract": "KI-Extraktion erneut ausführen",
+    "postings.reextractDone": "KI-Neuextraktion für {{count}} Stellen eingereiht",
+    "postings.clearSelection": "Auswahl aufheben"
   },
   "universities": {
     "subtitle": "Laden Sie Ihren Länder-Zulassungs-/Prospekt-PDF hoch. Die KI extrahiert Abteilungen und jährliche Einstiegs-Baselines, die dann mit Stellen auf jeder Stellenseite verbunden werden.",

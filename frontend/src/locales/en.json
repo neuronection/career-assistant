@@ -217,7 +217,9 @@
     "relatedJobs": "Related jobs",
     "publishToCatalog": "Publish to catalog",
     "appliesBy": "applies by {{date}}",
-    "openInPaths": "Explore in Career paths"
+    "openInPaths": "Explore in Career paths",
+    "reextract": "Re-run AI extraction",
+    "reextractQueued": "AI re-extraction queued — the structured fields rebuild in a moment"
   },
   "families": {
     "technology": "technology",
@@ -535,7 +537,13 @@
     "intro": "Real vacancies from your connected sources, mapped onto your catalog",
     "levelAtLeast": "level ≥",
     "matchProfile": "match my profile",
-    "removeFilter": "Remove {{name}}"
+    "removeFilter": "Remove {{name}}",
+    "postings.select": "Select",
+    "postings.selectedCount": "{{count}} selected",
+    "postings.actions": "Actions",
+    "postings.reextract": "Re-run AI extraction",
+    "postings.reextractDone": "Queued AI re-extraction for {{count}} postings",
+    "postings.clearSelection": "Clear selection"
   },
   "universities": {
     "subtitle": "Upload your country’s admissions/prospectus PDF. The AI extracts departments and yearly entry baselines, which then connect to jobs on each job page.",

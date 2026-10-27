@@ -1232,6 +1232,50 @@ async def admin_list_postings(
     ]
 
 
+@router.post("/postings/reextract")
+async def reextract_postings_by_ids(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Re-run deep extraction for the given postings (admin, bulk — the
+    /postings multi-select). Same rules as the per-source bulk: only
+    postings WITH a description queue; already-queued ones are skipped;
+    unknown ids are reported as missing."""
+    ids = [str(item) for item in (payload.get("posting_ids") or [])][:200]
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "posting_ids is required")
+    from app.models.posting_model import JobPosting
+    from app.services.postings.extract_service import queue_posting_extract
+
+    queued = skipped = 0
+    missing: list[str] = []
+    for raw_id in ids:
+        try:
+            lookup_id = uuid.UUID(str(raw_id))
+        except ValueError:
+            missing.append(raw_id)
+            continue
+        posting = (
+            (await db.execute(select(JobPosting).where(JobPosting.id == lookup_id)))
+            .scalars()
+            .first()
+        )
+        if posting is None or posting.status not in ("new", "mapped"):
+            missing.append(raw_id)
+            continue
+        if not str((posting.raw or {}).get("description") or "").strip():
+            skipped += 1
+            continue
+        if await queue_posting_extract(db, posting):
+            queued += 1
+        else:
+            skipped += 1
+    await db.commit()
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "missing": missing[:50],
+        "requested": len(ids),
+    }
+
+
 @router.post("/postings/sources/{source_id}/reextract")
 async def reextract_source_postings(
     source_id: uuid.UUID, db: AsyncSession = Depends(get_db)
