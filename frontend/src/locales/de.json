@@ -4081,7 +4081,6 @@
     "queryMode": "Suchquelle",
     "radarMode": "Meinem Job-Radar folgen",
     "staticMode": "Statische Konfiguration",
-    "batch": "Abfragen pro Sync",
     "configHint": "Vollständige Paket-Einstellungen (Stichwörter, Filter, Taktung) liegen auf der Tools-Seite im Bearbeiten-Formular dieser Quelle.",
     "runsEmpty": "Noch keine Ausführungen — klicken Sie auf „Jetzt ausführen“.",
     "runStarted": "Start",
@@ -4117,7 +4116,7 @@
     "fetchSampleHint": "Die neuesten paar pro Sync erhalten Volltexte",
     "fetchSmartHint": "Beschreibungen werden im Hintergrund für die besten Treffer geladen (empfohlen)",
     "fetchAllHint": "Jede neue Stelle erhält ihre Beschreibung",
-    "queriesPerSync": "Abfragen pro Sync",
+    "queriesPerSync": "Rollen­gruppen pro Sync",
     "batchHint": "Rollengruppen pro Sync — der Rest rotiert bei späteren Syncs",
     "timeBudget": "Zeitbudget",
     "budgetQuick": "Schnell · 30 s",
@@ -4126,6 +4125,13 @@
     "budgetHint": "Obergrenze pro Sync — Läufe behalten das Gesammelte",
     "paceFits": "Passt bequem — etwa {{estimate}} s pro Sync",
     "paceTight": "Etwa {{estimate}} s — kann gelegentlich gekürzt werden; Läufe behalten das Gesammelte",
-    "paceOver": "Wird wahrscheinlich gekürzt — etwa {{estimate}} s gegenüber {{budget}} s Budget; Läufe behalten das Gesammelte und setzen beim nächsten Sync fort"
+    "paceOver": "Wird wahrscheinlich gekürzt — etwa {{estimate}} s gegenüber {{budget}} s Budget; Läufe behalten das Gesammelte und setzen beim nächsten Sync fort",
+    "runCompleted": "Abgeschlossen",
+    "runCapped": "Gekürzt — {{count}} behalten",
+    "runPartial": "Teilweise",
+    "runFailed": "Fehlgeschlagen",
+    "runSkipped": "Übersprungen",
+    "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
+    "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync"
   }
 }

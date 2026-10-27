@@ -4082,7 +4082,6 @@
     "queryMode": "Search source",
     "radarMode": "Follow my job radar",
     "staticMode": "Static config",
-    "batch": "Queries per sync",
     "configHint": "Full bundle settings (keywords, filters, pacing) live on the Tools page under this source's Edit form.",
     "runsEmpty": "No runs recorded yet — hit Run now.",
     "runStarted": "Started",
@@ -4118,7 +4117,7 @@
     "fetchSampleHint": "The newest few per sync get full descriptions",
     "fetchSmartHint": "Descriptions fetched in the background for the best matches (recommended)",
     "fetchAllHint": "Every new posting gets its description",
-    "queriesPerSync": "Queries per sync",
+    "queriesPerSync": "Role groups per sync",
     "batchHint": "Role groups searched in one sync — the rest rotate on later syncs",
     "timeBudget": "Time budget",
     "budgetQuick": "Quick · 30s",
@@ -4127,6 +4126,13 @@
     "budgetHint": "Cap per sync — runs keep what they collect",
     "paceFits": "Fits comfortably — about {{estimate}}s per sync",
     "paceTight": "About {{estimate}}s — may occasionally be cut short; runs keep what they collect",
-    "paceOver": "Likely cut short — about {{estimate}}s against a {{budget}}s budget; runs keep what they collect and continue next sync"
+    "paceOver": "Likely cut short — about {{estimate}}s against a {{budget}}s budget; runs keep what they collect and continue next sync",
+    "runCompleted": "Completed",
+    "runCapped": "Capped — kept {{count}}",
+    "runPartial": "Partial",
+    "runFailed": "Failed",
+    "runSkipped": "Skipped",
+    "budgetCustom": "Custom · {{seconds}}s",
+    "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync"
   }
 }

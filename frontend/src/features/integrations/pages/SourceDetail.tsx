@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { Button } from "@/components/ui";
+import { Button, SegmentedTabs } from "@/components/ui";
 import {
   IntegrationConfigForm,
   parseIntegrationConfigSchema,
@@ -35,8 +35,11 @@ import { RunDetailsDialog } from "@/components/settings/RunDetailsDialog";
 type Tab = "overview" | "plan" | "config" | "runs";
 
 function fmtDuration(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${ms}ms`;
+  const total = Math.max(0, Math.round(ms / 1000));
+  if (total < 60) return `${total}s`;
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
 function fmtWhen(value: string | null): string {
@@ -60,8 +63,18 @@ export function SourceDetailPage() {
   const [detailsRun, setDetailsRun] = useState<SourceRun | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfigValues>({});
 
+  const dirtyRef = useRef(false);
+  const updateValues = (next: IntegrationConfigValues) => {
+    dirtyRef.current = true;
+    setConfigValues(next);
+  };
+  const updateBatch = (count: number) => {
+    dirtyRef.current = true;
+    setLocalBatch(count);
+  };
+
   useEffect(() => {
-    if (!source) return;
+    if (!source || dirtyRef.current) return;
     try {
       const parsed = JSON.parse(String(source.config.options ?? "{}")) as Record<string, unknown>;
       setConfigValues(
@@ -98,7 +111,7 @@ export function SourceDetailPage() {
 
   const [localBatch, setLocalBatch] = useState<number>(source?.query_batch_size ?? 1);
   useEffect(() => {
-    if (source?.query_batch_size) setLocalBatch(source.query_batch_size);
+    if (source?.query_batch_size && !dirtyRef.current) setLocalBatch(source.query_batch_size);
   }, [source?.query_batch_size]);
 
   const stageLabel = (stage: unknown): string => {
@@ -106,6 +119,22 @@ export function SourceDetailPage() {
     if (stage === "ingesting") return t("sourceDetail.stageIngesting");
     if (stage === "enriching") return t("sourceDetail.stageEnriching");
     return typeof stage === "string" ? stage : "";
+  };
+  const runStatusLabel = (run: SourceRun): string => {
+    if (run.status === "running") {
+      const stage = stageLabel(run.report?.stage);
+      return stage ? `${t("sourceDetail.runRunning")} · ${stage}` : t("sourceDetail.runRunning");
+    }
+    if (run.status === "ok") return t("sourceDetail.runCompleted");
+    if (run.status === "degraded") {
+      const capped = (run.report?.errors ?? []).some((entry) => entry?.code === "budget");
+      return capped
+        ? t("sourceDetail.runCapped", { count: run.items_synced })
+        : t("sourceDetail.runPartial");
+    }
+    if (run.status === "failed") return t("sourceDetail.runFailed");
+    if (run.status === "skipped") return t("sourceDetail.runSkipped");
+    return run.status;
   };
 
   const nextRun = useMemo(() => {
@@ -135,8 +164,9 @@ export function SourceDetailPage() {
     async (previousId: string | null) => {
       if (pollingRef.current) return;
       pollingRef.current = true;
+      const started = Date.now();
       try {
-        for (let attempt = 0; attempt < 90; attempt += 1) {
+        while (Date.now() - started < 20 * 60_000) {
           await new Promise((resolve) => setTimeout(resolve, 2000));
           try {
             const rows = await fetchSourceRuns(sourceId);
@@ -370,115 +400,132 @@ export function SourceDetailPage() {
               </select>
             </div>
           </div>
-          <div
-            className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
-            data-testid="pacing-card"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-medium">{t("sourceDetail.pacingTitle")}</div>
-              <div className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.pacingHint")}</div>
-            </div>
-            {(
-              [
-                {
-                  label: t("sourceDetail.fetchDetails"),
-                  options: [
-                    { value: "off", label: t("sourceDetail.fetchOff"), hint: t("sourceDetail.fetchOffHint") },
-                    { value: "sample", label: t("sourceDetail.fetchSample"), hint: t("sourceDetail.fetchSampleHint") },
-                    { value: "smart", label: t("sourceDetail.fetchSmart"), hint: t("sourceDetail.fetchSmartHint") },
-                    { value: "all", label: t("sourceDetail.fetchAll"), hint: t("sourceDetail.fetchAllHint") },
-                  ],
-                  selected: String(configValues.detail_mode ?? "off"),
-                  select: (value: string) =>
-                    setConfigValues({ ...configValues, detail_mode: value }),
-                  hint:
-                    {
+          {source.tool_config_schema ? (
+            <div
+              className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid="pacing-card"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-medium">{t("sourceDetail.pacingTitle")}</div>
+                <div className="text-xs text-[var(--as-muted-fg)]">
+                  {t("sourceDetail.pacingHint")}
+                </div>
+              </div>
+              {(
+                [
+                  {
+                    label: t("sourceDetail.fetchDetails"),
+                    items: [
+                      { value: "off", label: t("sourceDetail.fetchOff") },
+                      { value: "sample", label: t("sourceDetail.fetchSample") },
+                      { value: "smart", label: t("sourceDetail.fetchSmart") },
+                      { value: "all", label: t("sourceDetail.fetchAll") },
+                    ],
+                    selected: String(configValues.detail_mode ?? "off"),
+                    select: (value: string) =>
+                      updateValues({ ...configValues, detail_mode: value }),
+                    hint: {
                       off: t("sourceDetail.fetchOffHint"),
                       sample: t("sourceDetail.fetchSampleHint"),
                       smart: t("sourceDetail.fetchSmartHint"),
                       all: t("sourceDetail.fetchAllHint"),
-                    }[String(configValues.detail_mode ?? "off")] ?? "",
-                },
-                {
-                  label: t("sourceDetail.queriesPerSync"),
-                  options: [1, 2, 3].map((count) => ({
-                    value: String(count),
-                    label: String(count),
-                    hint: "",
-                  })),
-                  selected: String(localBatch),
-                  select: (value: string) => setLocalBatch(Number(value)),
-                  hint: t("sourceDetail.batchHint"),
-                },
-                {
-                  label: t("sourceDetail.timeBudget"),
-                  options: [
-                    { value: "30", label: t("sourceDetail.budgetQuick"), hint: "" },
-                    { value: "60", label: t("sourceDetail.budgetBalanced"), hint: "" },
-                    { value: "90", label: t("sourceDetail.budgetThorough"), hint: "" },
-                  ],
-                  selected: String(configValues.budget_seconds ?? 80),
-                  select: (value: string) =>
-                    setConfigValues({ ...configValues, budget_seconds: Number(value) }),
-                  hint: t("sourceDetail.budgetHint"),
-                },
-              ] as const
-            ).map((row) => (
-              <div key={row.label} className="space-y-1.5">
-                <div className="text-sm">{row.label}</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {row.options.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={row.selected === option.value}
-                      title={option.hint || undefined}
-                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-                        row.selected === option.value
-                          ? "border-[var(--as-focus-ring)] bg-[var(--as-surface-raised)] font-medium"
-                          : "border-[var(--as-border)] bg-[var(--as-surface)] hover:bg-[var(--as-muted)]"
-                      }`}
-                      onClick={() => row.select(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                    }[String(configValues.detail_mode ?? "off")],
+                  },
+                  {
+                    label: t("sourceDetail.queriesPerSync"),
+                    items: [1, 2, 3].map((count) => ({
+                      value: String(count),
+                      label: String(count),
+                    })),
+                    selected: String(localBatch),
+                    select: (value: string) => updateBatch(Number(value)),
+                    hint: t("sourceDetail.batchHint"),
+                  },
+                  {
+                    label: t("sourceDetail.timeBudget"),
+                    items: (() => {
+                      const stored = String(configValues.budget_seconds ?? 80);
+                      const presets = [
+                        { value: "30", label: t("sourceDetail.budgetQuick") },
+                        { value: "60", label: t("sourceDetail.budgetBalanced") },
+                        { value: "90", label: t("sourceDetail.budgetThorough") },
+                      ];
+                      // a stored value outside the presets stays visible —
+                      // never a verdict against an invisible number
+                      return presets.some((item) => item.value === stored)
+                        ? presets
+                        : [
+                            {
+                              value: stored,
+                              label: t("sourceDetail.budgetCustom", { seconds: stored }),
+                            },
+                            ...presets,
+                          ];
+                    })(),
+                    selected: String(configValues.budget_seconds ?? 80),
+                    select: (value: string) =>
+                      updateValues({ ...configValues, budget_seconds: Number(value) }),
+                    hint: t("sourceDetail.budgetHint"),
+                  },
+                ] as {
+                  label: string;
+                  items: { value: string; label: string }[];
+                  selected: string;
+                  select: (value: string) => void;
+                  hint: string;
+                }[]
+              ).map((row) => (
+                <div key={row.label} className="space-y-1.5">
+                  <div className="text-sm">{row.label}</div>
+                  <SegmentedTabs
+                    items={row.items}
+                    value={row.selected}
+                    onValueChange={row.select}
+                    ariaLabel={row.label}
+                  />
+                  {row.hint ? (
+                    <p className="text-xs text-[var(--as-muted-fg)]">{row.hint}</p>
+                  ) : null}
                 </div>
-                {row.hint ? (
-                  <p className="text-xs text-[var(--as-muted-fg)]">{row.hint}</p>
-                ) : null}
-              </div>
-            ))}
-            {(() => {
-              const pages = Number(configValues.max_pages ?? 2);
-              const nav = Number(configValues.nav_delay_seconds ?? 2.5);
-              const perGroup = pages * (nav + 7) + 5;
-              const estimate = Math.round(localBatch * perGroup + (localBatch > 1 ? (localBatch - 1) * 8 : 0));
-              const budget = Number(configValues.budget_seconds ?? 80);
-              const [tone, key] =
-                estimate <= budget * 0.75
-                  ? ["text-[var(--as-success)]", "sourceDetail.paceFits"]
-                  : estimate <= budget
-                    ? ["text-[var(--as-warning)]", "sourceDetail.paceTight"]
-                    : ["text-[var(--as-danger)]", "sourceDetail.paceOver"];
-              return (
-                <p className={`text-sm ${tone}`} data-testid="pacing-estimate">
-                  {key === "sourceDetail.paceFits"
-                    ? t("sourceDetail.paceFits", { estimate })
-                    : key === "sourceDetail.paceTight"
-                      ? t("sourceDetail.paceTight", { estimate, budget })
-                      : t("sourceDetail.paceOver", { estimate, budget })}
-                </p>
-              );
-            })()}
-          </div>
+              ))}
+              {(() => {
+                const pages = Number(configValues.max_pages ?? 2);
+                const nav = Number(configValues.nav_delay_seconds ?? 2.5);
+                const detailLimit = Number(configValues.detail_limit ?? 5);
+                const mode = String(configValues.detail_mode ?? "off");
+                const perGroup = pages * (nav + 7) + 5;
+                let estimate = Math.round(
+                  localBatch * perGroup + (localBatch > 1 ? (localBatch - 1) * 8 : 0),
+                );
+                // sample visits detail pages inline — the only mode that
+                // lengthens the sync itself (smart/all run in the background)
+                if (mode === "sample") estimate += detailLimit * 12;
+                const budget = Number(configValues.budget_seconds ?? 80);
+                const [tone, key] =
+                  estimate <= budget * 0.75
+                    ? ["text-[var(--as-success)]", "sourceDetail.paceFits"]
+                    : estimate <= budget
+                      ? ["text-[var(--as-warning)]", "sourceDetail.paceTight"]
+                      : ["text-[var(--as-danger)]", "sourceDetail.paceOver"];
+                return (
+                  <p className={`text-sm ${tone}`} data-testid="pacing-estimate">
+                    {key === "sourceDetail.paceFits"
+                      ? t("sourceDetail.paceFits", { estimate })
+                      : key === "sourceDetail.paceTight"
+                        ? t("sourceDetail.paceTight", { estimate, budget })
+                        : t("sourceDetail.paceOver", { estimate, budget })}
+                  </p>
+                );
+              })()}
+            </div>
+          ) : null}
           {source.tool_config_schema ? (
             <IntegrationConfigForm
               fields={parseIntegrationConfigSchema(
                 source.tool_config_schema as IntegrationConfigSchema,
               ).filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")}
               values={configValues}
-              onValuesChange={setConfigValues}
+              onValuesChange={updateValues}
               onSave={({ secrets }) =>
                 void (async () => {
                   const packed = Object.fromEntries(
@@ -501,6 +548,7 @@ export function SourceDetailPage() {
                       }),
                     t("sourceDetail.configSaved"),
                   );
+                  dirtyRef.current = false;
                   void secrets;
                 })()
               }
@@ -563,9 +611,7 @@ export function SourceDetailPage() {
                                   : "bg-[var(--as-warning)]/15"
                           }`}
                         >
-                          {run.status === "running"
-                            ? `${t("sourceDetail.runRunning")}${stageLabel(run.report?.stage) ? ` · ${stageLabel(run.report?.stage)}` : ""}`
-                            : run.status}
+                          {runStatusLabel(run)}
                         </span>
                       </td>
                       <td className="p-2">
@@ -585,7 +631,10 @@ export function SourceDetailPage() {
                           title={run.error}
                           data-testid={`run-error-${run.id}`}
                         >
-                          {run.error || "—"}
+                          {run.status === "degraded" &&
+                          (run.report?.errors ?? []).some((entry) => entry?.code === "budget")
+                            ? t("sourceDetail.budgetKept", { count: run.items_synced })
+                            : run.error || "—"}
                         </span>
                       </td>
                       <td className="p-2">

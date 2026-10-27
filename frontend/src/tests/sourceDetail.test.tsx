@@ -106,11 +106,11 @@ describe("SourceDetailPage", () => {
     expect(await screen.findByTestId("source-detail")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Run history" }));
     const failed = await screen.findByTestId("run-run-1");
-    expect(failed.textContent).toContain("failed");
-    expect(failed.textContent).toContain("2.1s");
+    expect(failed.textContent).toContain("Failed");
+    expect(failed.textContent).toContain("2s");
     expect(failed.textContent).toContain("patchright");
     const ok = await screen.findByTestId("run-run-2");
-    expect(ok.textContent).toContain("ok");
+    expect(ok.textContent).toContain("Completed");
     expect(ok.textContent).toContain("25");
   });
 
@@ -166,8 +166,8 @@ describe("SourceDetailPage", () => {
     await user.click(await screen.findByRole("tab", { name: "Configuration" }));
     expect(screen.getByTestId("pacing-card")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Thorough · 90s" }));
-    await user.click(screen.getByRole("button", { name: "2", exact: true }));
+    await user.click(screen.getByRole("tab", { name: "Thorough · 90s" }));
+    await user.click(screen.getByRole("tab", { name: "2", exact: true }));
     expect(screen.getByTestId("pacing-estimate").textContent).toContain("Fits");
 
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
