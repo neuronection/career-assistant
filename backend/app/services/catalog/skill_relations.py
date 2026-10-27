@@ -86,7 +86,13 @@ class SkillRelationService:
         evidence: dict | None = None,
         decided_by: uuid.UUID | None = None,
     ) -> SkillRelation:
-        """Add (or refresh) one edge; manual/import land approved, AI queued."""
+        """Add one edge, or refresh an existing non-rejected row.
+
+        Manual and import sources land ``approved``; llm/derived land
+        ``proposed``. An existing row keeps its status (only ``approve()``
+        and ``reject()`` move it) and a ``rejected`` row is never
+        resurrected by a later suggestion — that is the negative edge.
+        """
         kind = self._relation(relation)
         origin = SkillRelationSource(source)
         source_skill = await self._require_skill(from_ref)
