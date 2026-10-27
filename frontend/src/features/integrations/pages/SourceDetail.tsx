@@ -96,6 +96,11 @@ export function SourceDetailPage() {
       .catch(() => setCadenceEvery(null));
   }, [reload, t]);
 
+  const [localBatch, setLocalBatch] = useState<number>(source?.query_batch_size ?? 1);
+  useEffect(() => {
+    if (source?.query_batch_size) setLocalBatch(source.query_batch_size);
+  }, [source?.query_batch_size]);
+
   const stageLabel = (stage: unknown): string => {
     if (stage === "fetching") return t("sourceDetail.stageFetching");
     if (stage === "ingesting") return t("sourceDetail.stageIngesting");
@@ -364,34 +369,114 @@ export function SourceDetailPage() {
                 <option value="radar">{t("sourceDetail.radarMode")}</option>
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="block text-sm" htmlFor="src-batch">
-                {t("sourceDetail.batch")}
-              </label>
-              <select
-                id="src-batch"
-                className="w-full rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
-                value={source.query_batch_size}
-                onChange={(event) =>
-                  void act(() =>
-                    updateSource(sourceId, { query_batch_size: Number(event.target.value) }),
-                  )
-                }
-              >
-                <option value={1}>1</option>
-                <option value={2}>2</option>
-                <option value={3}>3</option>
-              </select>
-              <p className="text-xs text-[var(--as-muted-fg)]">
-                {t("toolsSettings.connectors.sources.queryBatchHint")}
-              </p>
+          </div>
+          <div
+            className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+            data-testid="pacing-card"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-medium">{t("sourceDetail.pacingTitle")}</div>
+              <div className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.pacingHint")}</div>
             </div>
+            {(
+              [
+                {
+                  label: t("sourceDetail.fetchDetails"),
+                  options: [
+                    { value: "off", label: t("sourceDetail.fetchOff"), hint: t("sourceDetail.fetchOffHint") },
+                    { value: "sample", label: t("sourceDetail.fetchSample"), hint: t("sourceDetail.fetchSampleHint") },
+                    { value: "smart", label: t("sourceDetail.fetchSmart"), hint: t("sourceDetail.fetchSmartHint") },
+                    { value: "all", label: t("sourceDetail.fetchAll"), hint: t("sourceDetail.fetchAllHint") },
+                  ],
+                  selected: String(configValues.detail_mode ?? "off"),
+                  select: (value: string) =>
+                    setConfigValues({ ...configValues, detail_mode: value }),
+                  hint:
+                    {
+                      off: t("sourceDetail.fetchOffHint"),
+                      sample: t("sourceDetail.fetchSampleHint"),
+                      smart: t("sourceDetail.fetchSmartHint"),
+                      all: t("sourceDetail.fetchAllHint"),
+                    }[String(configValues.detail_mode ?? "off")] ?? "",
+                },
+                {
+                  label: t("sourceDetail.queriesPerSync"),
+                  options: [1, 2, 3].map((count) => ({
+                    value: String(count),
+                    label: String(count),
+                    hint: "",
+                  })),
+                  selected: String(localBatch),
+                  select: (value: string) => setLocalBatch(Number(value)),
+                  hint: t("sourceDetail.batchHint"),
+                },
+                {
+                  label: t("sourceDetail.timeBudget"),
+                  options: [
+                    { value: "30", label: t("sourceDetail.budgetQuick"), hint: "" },
+                    { value: "60", label: t("sourceDetail.budgetBalanced"), hint: "" },
+                    { value: "90", label: t("sourceDetail.budgetThorough"), hint: "" },
+                  ],
+                  selected: String(configValues.budget_seconds ?? 80),
+                  select: (value: string) =>
+                    setConfigValues({ ...configValues, budget_seconds: Number(value) }),
+                  hint: t("sourceDetail.budgetHint"),
+                },
+              ] as const
+            ).map((row) => (
+              <div key={row.label} className="space-y-1.5">
+                <div className="text-sm">{row.label}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {row.options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={row.selected === option.value}
+                      title={option.hint || undefined}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                        row.selected === option.value
+                          ? "border-[var(--as-focus-ring)] bg-[var(--as-surface-raised)] font-medium"
+                          : "border-[var(--as-border)] bg-[var(--as-surface)] hover:bg-[var(--as-muted)]"
+                      }`}
+                      onClick={() => row.select(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                {row.hint ? (
+                  <p className="text-xs text-[var(--as-muted-fg)]">{row.hint}</p>
+                ) : null}
+              </div>
+            ))}
+            {(() => {
+              const pages = Number(configValues.max_pages ?? 2);
+              const nav = Number(configValues.nav_delay_seconds ?? 2.5);
+              const perGroup = pages * (nav + 7) + 5;
+              const estimate = Math.round(localBatch * perGroup + (localBatch > 1 ? (localBatch - 1) * 8 : 0));
+              const budget = Number(configValues.budget_seconds ?? 80);
+              const [tone, key] =
+                estimate <= budget * 0.75
+                  ? ["text-[var(--as-success)]", "sourceDetail.paceFits"]
+                  : estimate <= budget
+                    ? ["text-[var(--as-warning)]", "sourceDetail.paceTight"]
+                    : ["text-[var(--as-danger)]", "sourceDetail.paceOver"];
+              return (
+                <p className={`text-sm ${tone}`} data-testid="pacing-estimate">
+                  {key === "sourceDetail.paceFits"
+                    ? t("sourceDetail.paceFits", { estimate })
+                    : key === "sourceDetail.paceTight"
+                      ? t("sourceDetail.paceTight", { estimate, budget })
+                      : t("sourceDetail.paceOver", { estimate, budget })}
+                </p>
+              );
+            })()}
           </div>
           {source.tool_config_schema ? (
             <IntegrationConfigForm
               fields={parseIntegrationConfigSchema(
                 source.tool_config_schema as IntegrationConfigSchema,
-              )}
+              ).filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")}
               values={configValues}
               onValuesChange={setConfigValues}
               onSave={({ secrets }) =>
@@ -412,7 +497,7 @@ export function SourceDetailPage() {
                           options: JSON.stringify(packed),
                         },
                         query_mode: source.query_mode,
-                        query_batch_size: source.query_batch_size,
+                        query_batch_size: localBatch,
                       }),
                     t("sourceDetail.configSaved"),
                   );

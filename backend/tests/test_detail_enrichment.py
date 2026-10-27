@@ -3,6 +3,7 @@ ranking, the queue cutoff, the merge rules and the post-sync hook."""
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -34,6 +35,14 @@ def _posting(source: JobSource, external_id: str, **fields) -> JobPosting:
 def test_detail_mode_reads_config():
     source = _source({"detail_mode": "smart"})
     assert detail_service.detail_mode(source) == "smart"
+
+
+def test_detail_mode_reads_the_options_layer():
+    """Managed-spawn sources keep bundle knobs in the options JSON string."""
+    source = _source({"options": json.dumps({"detail_mode": "smart"})})
+    assert detail_service.detail_mode(source) == "smart"
+    source.config = {"options": "{not json"}
+    assert detail_service.detail_mode(source) == "off"
     source.config = {"detail_mode": "nonsense"}
     assert detail_service.detail_mode(source) == "off"
     source.config = {}

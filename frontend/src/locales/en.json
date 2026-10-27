@@ -4106,6 +4106,27 @@
     "stageFetching": "fetching",
     "stageIngesting": "saving results",
     "stageEnriching": "fetching descriptions",
-    "enrichedCount": "{{count}} enriched"
+    "enrichedCount": "{{count}} enriched",
+    "pacingTitle": "Sync & fetching",
+    "pacingHint": "Changes apply with Save configuration.",
+    "fetchDetails": "Fetch detail pages",
+    "fetchOff": "Off",
+    "fetchSample": "Sample",
+    "fetchSmart": "Smart",
+    "fetchAll": "All",
+    "fetchOffHint": "List-card fields only — no detail pages",
+    "fetchSampleHint": "The newest few per sync get full descriptions",
+    "fetchSmartHint": "Descriptions fetched in the background for the best matches (recommended)",
+    "fetchAllHint": "Every new posting gets its description",
+    "queriesPerSync": "Queries per sync",
+    "batchHint": "Role groups searched in one sync — the rest rotate on later syncs",
+    "timeBudget": "Time budget",
+    "budgetQuick": "Quick · 30s",
+    "budgetBalanced": "Balanced · 60s",
+    "budgetThorough": "Thorough · 90s",
+    "budgetHint": "Cap per sync — runs keep what they collect",
+    "paceFits": "Fits comfortably — about {{estimate}}s per sync",
+    "paceTight": "About {{estimate}}s — may occasionally be cut short; runs keep what they collect",
+    "paceOver": "Likely cut short — about {{estimate}}s against a {{budget}}s budget; runs keep what they collect and continue next sync"
   }
 }

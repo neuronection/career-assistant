@@ -4105,6 +4105,27 @@
     "stageFetching": "wird geladen",
     "stageIngesting": "Ergebnisse werden gespeichert",
     "stageEnriching": "Beschreibungen werden geladen",
-    "enrichedCount": "{{count}} angereichert"
+    "enrichedCount": "{{count}} angereichert",
+    "pacingTitle": "Synchronisierung & Abruf",
+    "pacingHint": "Änderungen werden mit „Konfiguration speichern“ übernommen.",
+    "fetchDetails": "Detailseiten abrufen",
+    "fetchOff": "Aus",
+    "fetchSample": "Stichprobe",
+    "fetchSmart": "Intelligent",
+    "fetchAll": "Alle",
+    "fetchOffHint": "Nur Listenfelder — keine Detailseiten",
+    "fetchSampleHint": "Die neuesten paar pro Sync erhalten Volltexte",
+    "fetchSmartHint": "Beschreibungen werden im Hintergrund für die besten Treffer geladen (empfohlen)",
+    "fetchAllHint": "Jede neue Stelle erhält ihre Beschreibung",
+    "queriesPerSync": "Abfragen pro Sync",
+    "batchHint": "Rollengruppen pro Sync — der Rest rotiert bei späteren Syncs",
+    "timeBudget": "Zeitbudget",
+    "budgetQuick": "Schnell · 30 s",
+    "budgetBalanced": "Ausgewogen · 60 s",
+    "budgetThorough": "Gründlich · 90 s",
+    "budgetHint": "Obergrenze pro Sync — Läufe behalten das Gesammelte",
+    "paceFits": "Passt bequem — etwa {{estimate}} s pro Sync",
+    "paceTight": "Etwa {{estimate}} s — kann gelegentlich gekürzt werden; Läufe behalten das Gesammelte",
+    "paceOver": "Wird wahrscheinlich gekürzt — etwa {{estimate}} s gegenüber {{budget}} s Budget; Läufe behalten das Gesammelte und setzen beim nächsten Sync fort"
   }
 }

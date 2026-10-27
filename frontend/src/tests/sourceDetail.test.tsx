@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -12,7 +12,7 @@ const SOURCE: PostingSource = {
   connector_key: "mcp",
   kind: "posting",
   schedule_kind: null,
-  config: { options: JSON.stringify({ max_pages: 2 }) },
+  config: { options: JSON.stringify({ max_pages: 2, keywords: 'devops' }) },
   query_mode: "radar",
   query_batch_size: 1,
   query_info: {
@@ -143,3 +143,37 @@ describe("SourceDetailPage", () => {
     expect(await screen.findByTestId("query-plan")).toBeTruthy();
   });
 });
+
+
+  it("configures pacing with presets and a live estimate, saving batch and budget", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            keywords: { type: "string", title: "Keywords" },
+            max_pages: { type: "number", title: "Max pages" },
+            budget_seconds: { type: "number", title: "Time budget" },
+            detail_mode: { type: "string", title: "Detail mode" },
+          },
+        },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    expect(screen.getByTestId("pacing-card")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Thorough · 90s" }));
+    await user.click(screen.getByRole("button", { name: "2", exact: true }));
+    expect(screen.getByTestId("pacing-estimate").textContent).toContain("Fits");
+
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls.at(-1)?.[1];
+    expect(call.query_batch_size).toBe(2);
+    expect(JSON.parse(call.config.options).budget_seconds).toBe(90);
+    expect(JSON.parse(call.config.options).detail_mode ?? "off").toBe("off");
+  });

@@ -11,6 +11,7 @@ stays a pure normalizer — it fetches exactly the ids it is given."""
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime
 
@@ -32,8 +33,19 @@ _DETAIL_FIELDS = ("seniority", "employment_type", "contract_type", "onsite_polic
 
 
 def detail_mode(source: JobSource) -> str:
-    """The source's enrichment mode (never trusts free text)."""
-    mode = str((source.config or {}).get("detail_mode") or "off")
+    """The source's enrichment mode (never trusts free text).
+
+    Managed-spawn sources keep the bundle knobs in ``config.options``
+    (a JSON-encoded string — the mcp passthrough layer), so the mode is
+    read from there as well as the top level."""
+    config = source.config or {}
+    options = config.get("options")
+    if isinstance(options, str):
+        try:
+            options = json.loads(options)
+        except ValueError:
+            options = {}
+    mode = str(config.get("detail_mode") or (options or {}).get("detail_mode") or "off")
     return mode if mode in ("off", "sample", "smart", "all") else "off"
 
 

@@ -4,6 +4,46 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (smart enrichment + pacing UX, 2026-10-27)
+- **Smart fetch-detail mode now actually fires for managed sources** —
+  the mode was read from the wrong config layer (the managed source
+  keeps bundle knobs in the `options` passthrough), so enrichment jobs
+  were silently skipped. Backlog enriches on the next sync; 50 postings
+  gained full descriptions on the first run.
+- **The source Configuration tab gets a "Sync & fetching" card** —
+  chip presets for fetch-detail modes, queries per sync and the time
+  budget (Quick/Balanced/Thorough) with a live fit estimate ("Fits
+  comfortably — about 40s per sync") instead of raw seconds, plus a
+  plain-language note that budget-capped runs keep what they collect.
+
+
+### Added (posting detail page, 2026-10-27)
+- **Postings open in-app at `/postings/:ref`** — clicking a card opens a
+  full detail page (description, key facts, relative timeline of posted /
+  first-seen / updated / expiry, categories, typed benefits, skills with
+  evidence, match score, similar openings) with prominent buttons to the
+  original listing, the cover-letter draft, a practice interview and the
+  application tracker. The posting card gains relative "posted …" times
+  and contract chips; the detail payload gains the description, the
+  contract/hours/travel/education facts and the created/updated stamps.
+- **Typed posting extract envelope** — extraction v2 lifestyle fields
+  (contract, hours, schedule cues, travel, on-site) and typed benefits
+  now arrive as structured objects with their evidence quotes, and
+  legacy string benefits read back honestly as `other`.
+
+### Fixed (posting detail page, 2026-10-27)
+- **`GET /postings/{ref}` no longer 500s on typed benefits** — stored
+  object benefits failed the wire's `list[str]` schema; the envelope is
+  typed end to end now.
+- **Suppressed extract fields read back as empty, not as a 500** —
+  low-confidence fields are stored as `null` (and legacy rows hold
+  plain-string benefits), which failed both typed extract readers on
+  every affected posting; the wire envelope and the extractor model now
+  coerce them at read (cover-letter, CV synth and suggestion flows
+  included).
+- **Posting links are rendered through `safeExternalUrl`** — no raw
+  `javascript:`/`data:` URLs can reach an `href` from connector data.
+
 ### Added (live run state, 2026-10-27)
 - **Run history and overview show live runs and progress** — the ledger
   row now opens at run *start* (status **running** with its stage:
