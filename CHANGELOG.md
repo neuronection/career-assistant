@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill taxonomy graph — schema, 2026-10-27)
+- **Internal groundwork: the skill relation graph schema** — a new
+  `skill_relations` table of typed edges between skills (is-a, synonym,
+  part-of, related-to) with review status, provenance and a reserved
+  system schedule slot for the relation-learning job. No user-visible
+  behavior yet; filter expansion and the review UI land in the next
+  slices.
+
 ### Fixed (skills filter axis, 2026-10-27)
 - **Skill filters in the postings filter actually filter now** — the
   skills axis referenced a nonexistent column and raised a 500 whenever

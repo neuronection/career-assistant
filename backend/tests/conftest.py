@@ -148,6 +148,7 @@ TABLES = [
     "jobs",
     "job_families",
     "interest_tags",
+    "skill_relations",
     "skills",
     "profiles",
     "documents",

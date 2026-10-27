@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0066"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0067"], (
         "revision chain stays linear on one head"
     )
 
@@ -2505,3 +2505,192 @@ def test_0064_running_status_roundtrip():
         assert _run_status_accepted("running", source_id), "re-upgrade restores it"
     finally:
         _seed_cleanup("status-probe%")
+
+
+def _relation_checks() -> dict[str, str]:
+    """CHECK expressions on `skill_relations` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                checks = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("skill_relations")
+                )
+            return {c["name"].replace("ck_skill_relations_", ""): str(c["sqltext"]) for c in checks}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def _relation_indexes() -> list[str]:
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                indexes = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_indexes("skill_relations")
+                )
+            return sorted(str(i["name"]) for i in indexes)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def test_0067_skill_relations_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _table_present("skill_relations"), "skill_relations exists at head"
+    assert {
+        "no_self_loop",
+        "relation_allowed",
+        "status_allowed",
+        "source_allowed",
+        "confidence_range",
+        "symmetric_pair_ordered",
+    } <= set(_relation_checks())
+    assert {
+        "ix_skill_relations_from",
+        "ix_skill_relations_relation_status",
+        "ix_skill_relations_to",
+    } <= set(_relation_indexes()), "edge indexes exist at head under the short names"
+    assert "system_skill_relation_learn" in _schedules_checks()["kind_allowed"]
+
+    command.downgrade(config, "0066")
+    assert not _table_present("skill_relations"), "downgrade 0066 drops skill_relations"
+    assert "system_skill_relation_learn" not in _schedules_checks()["kind_allowed"]
+
+    command.upgrade(config, "head")
+    assert _table_present("skill_relations"), "re-upgrade restores skill_relations"
+    assert "system_skill_relation_learn" in _schedules_checks()["kind_allowed"]
+
+
+def _relation_skills() -> tuple[str, str]:
+    """Two throwaway skill rows on a separate engine; ids returned in
+    canonical order (lower UUID first — the symmetric-pair rule)."""
+
+    async def _run():
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                rows = [
+                    Skill(key=f"rel-probe-{n}", label=f"Rel probe {n}", category="test")
+                    for n in ("a", "b")
+                ]
+                session.add_all(rows)
+                await session.commit()
+                return tuple(sorted(str(row.id) for row in rows))
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _relation_insert(from_id: str, to_id: str, relation: str, status: str = "approved") -> bool:
+    """Insert one edge row on a separate engine; False = the schema
+    rejected it (CHECK or unique)."""
+
+    async def _run():
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import SkillRelation
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                try:
+                    session.add(
+                        SkillRelation(
+                            from_skill_id=from_id,
+                            to_skill_id=to_id,
+                            relation=relation,
+                            status=status,
+                            source="manual",
+                        )
+                    )
+                    await session.commit()
+                    return True
+                except IntegrityError:
+                    await session.rollback()
+                    return False
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _relation_probe_cleanup() -> None:
+    """Migration-test seeds commit real rows on a separate engine —
+    they must self-clean (the _seed_cleanup gotcha)."""
+
+    async def _run():
+        from sqlalchemy import delete, or_, select
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill, SkillRelation
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                probe_ids = select(Skill.id).where(Skill.key.like("rel-probe-%"))
+                await session.execute(
+                    delete(SkillRelation).where(
+                        or_(
+                            SkillRelation.from_skill_id.in_(probe_ids),
+                            SkillRelation.to_skill_id.in_(probe_ids),
+                        )
+                    )
+                )
+                await session.execute(delete(Skill).where(Skill.key.like("rel-probe-%")))
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def test_0067_skill_relation_edge_guards():
+    """The schema rejects self-loops, reverse-symmetric pairs, duplicate
+    (pair, relation) edges and out-of-vocabulary values; both directions
+    stay legal for the directed kinds."""
+    config = _configured()
+    command.upgrade(config, "head")
+    low, high = _relation_skills()
+    try:
+        assert _relation_insert(low, low, "related_to") is False, "no_self_loop CHECK"
+        assert _relation_insert(low, high, "synonym") is True, "canonical synonym edge lands"
+        assert _relation_insert(high, low, "synonym") is False, "symmetric_pair_ordered CHECK"
+        assert _relation_insert(low, high, "synonym") is False, "uq_skill_relation_edge dedup"
+        assert _relation_insert(low, high, "is_a") is True, "directed edge lands"
+        assert _relation_insert(high, low, "is_a") is True, "directed reverse is its own edge"
+        assert _relation_insert(low, high, "is_a") is False, "(pair, relation) dedup"
+        assert _relation_insert(low, high, "brother_of") is False, "relation_allowed CHECK"
+        assert _relation_insert(low, high, "related_to", status="maybe") is False, (
+            "status_allowed CHECK"
+        )
+    finally:
+        _relation_probe_cleanup()

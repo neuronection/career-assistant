@@ -20,3 +20,4 @@ job_radars.locations :: typed-out list[{city,country,remote}] preference rows
 job_radars.seniority :: typed-out list[str] seniority bands
 job_radars.source_keys :: typed-out list[str] connector keys (unconsumed until source-follows)
 source_runs.report :: keep-open per-attempt sync report (typed errors, counts) for the source run ledger
+skill_relations.evidence :: keep-open per-edge provenance (rationale, signals, prompt_version)

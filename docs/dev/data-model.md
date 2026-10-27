@@ -42,6 +42,7 @@ stays referentially intact.
 |---|---|---|
 | `interest_tags` | `taxonomy_model.py` | Interest vocabulary |
 | `skills` | `taxonomy_model.py` | Skills ontology: key, label, category, subskills, level anchors, aliases, lifecycle |
+| `skill_relations` | `taxonomy_model.py` | Typed skill↔skill edges (`is_a`, `synonym`, `part_of`, `related_to`) with review status (`proposed` → `approved` / `rejected` negative edge), provenance source, confidence, `evidence` JSONB; symmetric kinds stored canonically ordered (lower UUID in `from_skill_id`) |
 | `job_families` | `job_model.py` | The family tree |
 | `jobs` | `job_model.py` | Jobs with rich structured attributes |
 | `job_relations` | `job_model.py` | Typed edges (`similar_to`, `specialises_into`, `leads_to`, `alternative_to`, `prerequisite_of`) with weight/rationale/source |
@@ -134,6 +135,22 @@ deletion).
 
 ### Migration notes
 
+- **0067** — plan 138: `skill_relations`, the typed edge table over
+  `skills` (is_a | synonym | part_of | related_to; `status` proposed →
+  approved | rejected where rejected is the negative edge; `source`
+  llm | manual | import | derived; nullable `confidence` CHECK 0–1;
+  `evidence` JSONB — inventory row `skill_relations.evidence ::
+  keep-open`; `decided_by`/`decided_at` for the review queue).
+  Symmetric kinds are stored canonically ordered (from = lower UUID) and
+  the `symmetric_pair_ordered` CHECK enforces it; `no_self_loop` and the
+  `uq_skill_relation_edge` unique over (pair, relation) close the rest.
+  The same revision widens `schedules.kind_allowed` with
+  `system_skill_relation_learn` (the enum member ships with the widen to
+  keep the enum↔CHECK parity wall green; the seeded schedule row and its
+  job come with the learn job). Covered by
+  `tests/test_migrations.py::test_0067_skill_relations_roundtrip` /
+  `::test_0067_skill_relation_edge_guards`, the enum↔CHECK wall and the
+  conftest `TABLES` coverage gate.
 - **0061** — plan 134: `source_runs`, the ingestion run ledger (one row
   per `sync_source` attempt: trigger `manual|scheduled`, status
   `ok|degraded|failed|skipped`, started/finished, duration_ms,

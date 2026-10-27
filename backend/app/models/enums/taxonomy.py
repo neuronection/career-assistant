@@ -47,6 +47,36 @@ class SkillOrigin(StrEnum):
     CV_PARSE = "cv_parse"
 
 
+class SkillRelationType(StrEnum):
+    """Edge vocabulary for the skill relation graph (plan 138).
+
+    is_a/part_of are directed (specific→general, component→whole);
+    synonym/related_to are symmetric and stored canonically ordered.
+    """
+
+    IS_A = "is_a"
+    SYNONYM = "synonym"
+    PART_OF = "part_of"
+    RELATED_TO = "related_to"
+
+
+class SkillRelationStatus(StrEnum):
+    """Review state of a skill edge; rejected is the negative edge."""
+
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class SkillRelationSource(StrEnum):
+    """Who produced a skill edge."""
+
+    LLM = "llm"
+    MANUAL = "manual"
+    IMPORT = "import"
+    DERIVED = "derived"
+
+
 class JobSkillImportance(StrEnum):
     CORE = "core"
     IMPORTANT = "important"

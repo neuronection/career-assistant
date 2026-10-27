@@ -53,8 +53,10 @@ params)` — always timezone-aware and UTC-normalized.
 `ScheduleKind` covers both system and user schedules: `system_source_sync`,
 `system_digest`, `system_demand_import`, `system_refit_sweep`,
 `system_catalog_enrich`, `system_followups`, `system_market_history`,
-`system_proposal_sweep`, `system_checkpoint_prune`, `user_saved_search`,
-`user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
+`system_proposal_sweep`, `system_checkpoint_prune`,
+`system_extension_reconcile`, `system_skill_relation_learn` (reserved —
+its seeded row ships with the relation-learn job), `user_saved_search`,
+`user_radar_digest`, `user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
 `system_demand_import` enqueues `demand_import`, which walks enabled
 `job_sources` rows of kind `market` and writes salary/outlook observations
 into `market_snapshots` and `jobs.demand` (field-level provenance).

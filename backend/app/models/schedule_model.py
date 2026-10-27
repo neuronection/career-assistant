@@ -47,6 +47,7 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'system_catalog_enrich', 'system_followups', "
             "'system_market_history', 'system_proposal_sweep', "
             "'system_checkpoint_prune', 'system_extension_reconcile', "
+            "'system_skill_relation_learn', "
             "'user_saved_search', 'user_radar_digest', 'user_checkin', "
             "'user_autopilot')",
             name="kind_allowed",
