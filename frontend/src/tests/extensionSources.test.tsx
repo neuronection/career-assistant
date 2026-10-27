@@ -246,7 +246,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     ]);
     mocked.parkExtensionInstall.mockResolvedValue({ ...INSTALL, parked: true });
     renderSection();
-    await userEvent.click(await screen.findByRole("button", { name: "Park" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pause" }));
     await waitFor(() => expect(mocked.parkExtensionInstall).toHaveBeenCalledWith("inst-1"));
   });
 
