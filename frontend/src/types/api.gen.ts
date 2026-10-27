@@ -702,6 +702,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/organizations/exclusions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Organization Exclusions
+         * @description Global not-a-company labels and per-org never-link pairs.
+         */
+        get: operations["list_organization_exclusions_api_v1_admin_organizations_exclusions_get"];
+        put?: never;
+        /** Create Organization Exclusion */
+        post: operations["create_organization_exclusion_api_v1_admin_organizations_exclusions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/organizations/exclusions/{exclusion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Organization Exclusion */
+        delete: operations["delete_organization_exclusion_api_v1_admin_organizations_exclusions__exclusion_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/organizations/pairs": {
         parameters: {
             query?: never;
@@ -782,7 +820,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/organizations/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Organization Thresholds */
+        get: operations["get_organization_thresholds_api_v1_admin_organizations_thresholds_get"];
+        /** Set Organization Thresholds */
+        put: operations["set_organization_thresholds_api_v1_admin_organizations_thresholds_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/organizations/{org_id}/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Organization Aliases
+         * @description Alias rows with provenance and state (the rules surface).
+         */
+        get: operations["list_organization_aliases_api_v1_admin_organizations__org_id__aliases_get"];
+        put?: never;
+        /**
+         * Add Organization Alias
+         * @description Register another label that resolves to this organization.
+         */
+        post: operations["add_organization_alias_api_v1_admin_organizations__org_id__aliases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/organizations/{org_id}/aliases/{alias_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Organization Alias */
+        delete: operations["delete_organization_alias_api_v1_admin_organizations__org_id__aliases__alias_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/organizations/{org_id}/aliases/{alias_id}/state": {
         parameters: {
             query?: never;
             header?: never;
@@ -792,10 +889,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add Organization Alias
-         * @description Register another label that resolves to this organization.
+         * Set Organization Alias State
+         * @description Activate or exclude one alias (excluded rows are kept as history).
          */
-        post: operations["add_organization_alias_api_v1_admin_organizations__org_id__aliases_post"];
+        post: operations["set_organization_alias_state_api_v1_admin_organizations__org_id__aliases__alias_id__state_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9198,6 +9295,8 @@ export interface components {
          * @description The detail page: reviewed facts, financial claims, derived stats.
          */
         CompanyDetailOut: {
+            /** Aliases */
+            aliases?: string[];
             company_type?: components["schemas"]["CompanyType"] | null;
             derived?: components["schemas"]["CompanyDerivedStats"];
             /**
@@ -9242,6 +9341,11 @@ export interface components {
              * @default 0
              */
             open_postings: number;
+            /**
+             * Status
+             * @default active
+             */
+            status: string;
         };
         /** CompanyLink */
         CompanyLink: {
@@ -9297,6 +9401,11 @@ export interface components {
              * @default 0
              */
             open_postings: number;
+            /**
+             * Status
+             * @default active
+             */
+            status: string;
         };
         /**
          * CompanyPostingOut
@@ -13325,6 +13434,10 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
+            /** Org Key */
+            org_key?: string | null;
+            /** Org Match State */
+            org_match_state?: string | null;
             /** Posted At */
             posted_at?: string | null;
             /**
@@ -13580,6 +13693,10 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
+            /** Org Key */
+            org_key?: string | null;
+            /** Org Match State */
+            org_match_state?: string | null;
             /** Posted At */
             posted_at?: string | null;
             /**
@@ -17049,6 +17166,109 @@ export interface operations {
             };
         };
     };
+    list_organization_exclusions_api_v1_admin_organizations_exclusions_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_organization_exclusion_api_v1_admin_organizations_exclusions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_organization_exclusion_api_v1_admin_organizations_exclusions__exclusion_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exclusion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_organization_pairs_api_v1_admin_organizations_pairs_get: {
         parameters: {
             query?: {
@@ -17193,12 +17413,178 @@ export interface operations {
             };
         };
     };
+    get_organization_thresholds_api_v1_admin_organizations_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    set_organization_thresholds_api_v1_admin_organizations_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_organization_aliases_api_v1_admin_organizations__org_id__aliases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_organization_alias_api_v1_admin_organizations__org_id__aliases_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_organization_alias_api_v1_admin_organizations__org_id__aliases__alias_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+                alias_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_organization_alias_state_api_v1_admin_organizations__org_id__aliases__alias_id__state_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+                alias_id: string;
             };
             cookie?: never;
         };
@@ -28676,6 +29062,8 @@ export interface operations {
                 catalog_job_id?: string | null;
                 saved?: boolean;
                 sort?: string;
+                company?: string | null;
+                no_company?: string | null;
             };
             header?: never;
             path?: never;
@@ -28874,6 +29262,8 @@ export interface operations {
                 saved?: boolean;
                 sort?: string;
                 match_profile?: boolean;
+                company?: string | null;
+                no_company?: string | null;
             };
             header?: never;
             path?: never;

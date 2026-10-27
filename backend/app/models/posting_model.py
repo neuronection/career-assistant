@@ -173,11 +173,16 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "salary_basis IS NULL OR salary_basis IN ('gross', 'net')",
             name="salary_basis_allowed",
         ),
+        CheckConstraint(
+            "org_match_state IS NULL OR org_match_state IN ('linked', 'pending', 'rejected')",
+            name="org_match_state_allowed",
+        ),
         Index("ix_postings_status_posted", "status", "posted_at"),
         Index("ix_postings_detail", "source_id", "detail_fetched_at"),
         Index("ix_postings_catalog_job", "catalog_job_id"),
         Index("ix_postings_expires_at", "expires_at"),
         Index("ix_postings_salary_min", "salary_min"),
+        Index("ix_postings_org_match_state", "org_match_state"),
     )
 
     source_id: Mapped[uuid.UUID] = mapped_column(
@@ -199,6 +204,9 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     org_match: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    # Queryable projection of org_match.state (JSONB is not filterable
+    # cross-dialect) — kept in sync by the matcher and the triage service.
+    org_match_state: Mapped[str | None] = mapped_column(String(12), nullable=True, index=True)
     location: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # hot fields as columns (postings is the high-volume table).

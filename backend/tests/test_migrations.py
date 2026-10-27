@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0065"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0066"], (
         "revision chain stays linear on one head"
     )
 
@@ -2692,3 +2692,131 @@ def test_0065_denylist_seeds_as_rows():
 
     command.upgrade(config, "head")
     assert asyncio.run(_count()) == 1, "the quality denylist seeds as editable rows"
+
+
+def _om_state_seed() -> None:
+    """One posting at the 0065 shape (org_match JSONB, no state column)."""
+
+    async def _run():
+        import json
+        import uuid as _uuid
+        from datetime import datetime
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.posting_model import JobSource
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(
+                    text("DELETE FROM job_postings WHERE external_id LIKE 'omstate-%'")
+                )
+                source = JobSource(
+                    key="omstate-source",
+                    connector_key="synthetic",
+                    kind="posting",
+                    config={},
+                )
+                session.add(source)
+                await session.flush()
+                await session.execute(
+                    text(
+                        "INSERT INTO job_postings "
+                        "(id, ref, source_id, external_id, content_hash, title, org, "
+                        "status, location, url, raw, posting_facts, needs_review, "
+                        "mapping_reason, org_match, created_at, updated_at) "
+                        "VALUES (:id, :ref, :sid, 'omstate-1', :ch, 'Role', "
+                        "'OmState Works', 'mapped', "
+                        "CAST(:loc AS jsonb), '', CAST(:raw AS jsonb), CAST(:facts AS jsonb), "
+                        "false, '', CAST(:om AS jsonb), :now, :now)"
+                    ),
+                    {
+                        "id": str(_uuid.uuid4()),
+                        "ref": _uuid.uuid4().hex[:8].upper(),
+                        "sid": str(source.id),
+                        "ch": _uuid.uuid4().hex,
+                        "loc": "{}",
+                        "raw": "{}",
+                        "facts": "{}",
+                        "om": json.dumps(
+                            {
+                                "layer": "rejected",
+                                "score": 0.0,
+                                "matched_on": "quality",
+                                "state": "rejected",
+                            }
+                        ),
+                        "now": datetime.now(UTC),
+                    },
+                )
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def _om_state_read() -> str | None:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def _run():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT org_match_state FROM job_postings "
+                            "WHERE external_id = 'omstate-1'"
+                        )
+                    )
+                ).first()
+        finally:
+            await engine.dispose()
+        return row[0] if row else None
+
+    return asyncio.run(_run())
+
+
+def test_0066_org_match_state_backfill():
+    config = _configured()
+
+    try:
+        command.upgrade(config, "head")
+        command.downgrade(config, "0065")
+        assert not _column_present("job_postings", "org_match_state"), (
+            "downgrade drops the projection"
+        )
+        _om_state_seed()
+
+        command.upgrade(config, "head")
+        assert _om_state_read() == "rejected", "the JSONB state backfills the column"
+    finally:
+        _om_state_cleanup()
+
+
+def _om_state_cleanup() -> None:
+    async def _run():
+        from sqlalchemy import delete
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.posting_model import JobSource
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(delete(JobSource).where(JobSource.key.like("omstate-source")))
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())

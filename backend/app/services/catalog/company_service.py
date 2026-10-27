@@ -47,7 +47,10 @@ class CompanyService:
             select(Organization, CompanyProfile, func.coalesce(counts.c.open_postings, 0))
             .outerjoin(CompanyProfile, CompanyProfile.organization_id == Organization.id)
             .outerjoin(counts, counts.c.org_id == Organization.id)
-            .where(Organization.status == "active", counts.c.open_postings.is_not(None))
+            .where(
+                Organization.status.in_(["active", "proposed"]),
+                counts.c.open_postings.is_not(None),
+            )
             .order_by(desc(func.coalesce(counts.c.open_postings, 0)), Organization.name.asc())
             .limit(max(1, min(limit, 500)))
         )
@@ -138,6 +141,9 @@ class CompanyService:
     ) -> CompanyDetailOut:
         out = self._to_out(org, profile, open_count)
         derived = CompanyDerivedStats(open_postings=open_count)
+        from app.services.catalog.organization_service import OrganizationService
+
+        aliases = await OrganizationService(self.db).alias_strings([org.id])
         rows = (
             await self.db.execute(
                 select(
@@ -172,6 +178,7 @@ class CompanyService:
         return CompanyDetailOut(
             **out.model_dump(),
             description=(profile.description if profile else "") or "",
+            aliases=aliases.get(org.id, []),
             financials=(
                 [FinancialClaim.model_validate(claim) for claim in profile.financials]
                 if profile
@@ -189,6 +196,7 @@ class CompanyService:
             key=org.key,
             name=org.name,
             domain=org.domain,
+            status=org.status,
             company_type=(profile.company_type if profile and profile.company_type else None),
             industry_tags=list(profile.industry_tags) if profile else [],
             employees_min=profile.employees_min if profile else None,

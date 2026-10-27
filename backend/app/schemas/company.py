@@ -47,6 +47,7 @@ class CompanyOut(BaseModel):
     key: str
     name: str
     domain: str | None = None
+    status: str = "active"
     company_type: CompanyType | None = None
     industry_tags: list[str] = Field(default_factory=list)
     employees_min: int | None = None
@@ -105,6 +106,7 @@ class CompanyDetailOut(CompanyOut):
     """The detail page: reviewed facts, financial claims, derived stats."""
 
     description: str = ""
+    aliases: list[str] = Field(default_factory=list)
     financials: list[FinancialClaim] = Field(default_factory=list)
     links: list[CompanyLink] = Field(default_factory=list)
     needs_review: bool = False

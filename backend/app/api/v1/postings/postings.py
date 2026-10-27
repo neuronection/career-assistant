@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import NotFoundError
+from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting, JobSource
 from app.schemas.posting import (
     AppliedIn,
@@ -43,7 +44,13 @@ router = APIRouter(tags=["postings"])
 
 
 def _posting_out(
-    posting: JobPosting, interaction, application=None, fit=None, source_key="", coverage=None
+    posting: JobPosting,
+    interaction,
+    application=None,
+    fit=None,
+    source_key="",
+    coverage=None,
+    org_key: str | None = None,
 ) -> PostingOut:
     from app.schemas.job import JobOut
 
@@ -57,6 +64,8 @@ def _posting_out(
         external_id=posting.external_id,
         title=posting.title,
         org=posting.org,
+        org_key=org_key,
+        org_match_state=posting.org_match_state,
         location=PostingLocationOut.model_validate(posting.location or {}),
         url=posting.url,
         seniority=posting.seniority,
@@ -107,6 +116,8 @@ async def postings(
     catalog_job_id: UUID | None = Query(default=None),
     saved: bool = Query(default=False),
     sort: str = Query(default="fit", pattern="^(fit|fresh)$"),
+    company: str | None = Query(default=None, max_length=120),
+    no_company: str | None = Query(default=None, pattern="^(rejected|pending)$"),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PostingsOut:
@@ -120,8 +131,11 @@ async def postings(
         catalog_job_id=catalog_job_id,
         saved=saved,
         sort=sort,
+        company=company,
+        no_company=no_company,
     )
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = {o.id: o.key for o in (await db.execute(select(Organization))).scalars().all()}
     return PostingsOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -132,6 +146,7 @@ async def postings(
                 item.get("application"),
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
+                org_key=orgs.get(item["posting"].org_id),
             )
             for item in result["items"]
         ],
@@ -150,6 +165,8 @@ async def postings_search(
     saved: bool = Query(default=False),
     sort: str = Query(default="fresh", pattern="^(fit|fresh)$"),
     match_profile: bool = Query(default=False),
+    company: str | None = Query(default=None, max_length=120),
+    no_company: str | None = Query(default=None, pattern="^(rejected|pending)$"),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PostingSearchOut:
@@ -171,8 +188,11 @@ async def postings_search(
         saved=saved,
         sort=sort,
         match_profile=match_profile,
+        company=company,
+        no_company=no_company,
     )
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
+    orgs = {o.id: o.key for o in (await db.execute(select(Organization))).scalars().all()}
     return PostingSearchOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -184,6 +204,7 @@ async def postings_search(
                 fit=item.get("fit"),
                 coverage=item.get("coverage"),
                 source_key=sources.get(item["posting"].source_id, ""),
+                org_key=orgs.get(item["posting"].org_id),
             )
             for item in result["items"]
         ],

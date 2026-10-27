@@ -289,3 +289,164 @@ async def test_unmatched_postings_fall_back_to_raw_label(
     ).json()
     labels = {entry["org"] for entry in snapshot["top_employers"]}
     assert isinstance(labels, set)
+
+
+async def test_rules_surface_aliases_crud(db, client, client_admin_headers):
+    service = OrganizationService(db)
+    org, _ = await service.find_or_propose("Rules Works")
+    await service.add_alias(org.id, "Rules Works GmbH")
+    await db.commit()
+
+    rows = (
+        await client.get(
+            f"/api/v1/admin/organizations/{org.id}/aliases", headers=client_admin_headers
+        )
+    ).json()
+    learned = [row for row in rows if row["alias"] == "Rules Works GmbH"]
+    assert learned and learned[0]["source"] in {"learned", "manual"}
+
+    manual = await client.post(
+        f"/api/v1/admin/organizations/{org.id}/aliases",
+        json={"alias": "RW"},
+        headers=client_admin_headers,
+    )
+    assert manual.status_code == 200
+
+    alias_rows = (
+        await client.get(
+            f"/api/v1/admin/organizations/{org.id}/aliases", headers=client_admin_headers
+        )
+    ).json()
+    rw = next(row for row in alias_rows if row["alias"] == "RW")
+    excluded = await client.post(
+        f"/api/v1/admin/organizations/{org.id}/aliases/{rw['id']}/state",
+        json={"state": "excluded"},
+        headers=client_admin_headers,
+    )
+    assert excluded.status_code == 200 and excluded.json()["state"] == "excluded"
+
+    service._index = None
+    again, _created = await service.find_or_propose("RW")
+    assert again is None or again.id != org.id or _created, "an excluded alias never links"
+
+    deleted = await client.delete(
+        f"/api/v1/admin/organizations/{org.id}/aliases/{rw['id']}",
+        headers=client_admin_headers,
+    )
+    assert deleted.status_code == 200
+    remaining = await client.get(
+        f"/api/v1/admin/organizations/{org.id}/aliases", headers=client_admin_headers
+    )
+    assert all(row["alias"] != "RW" for row in remaining.json())
+
+
+async def test_rules_surface_exclusions_crud(db, client, client_admin_headers):
+    created = await client.post(
+        "/api/v1/admin/organizations/exclusions",
+        json={"label": "Confidential Contracting", "reason": "junk"},
+        headers=client_admin_headers,
+    )
+    assert created.status_code == 200, created.text
+    duplicate = await client.post(
+        "/api/v1/admin/organizations/exclusions",
+        json={"label": "Confidential Contracting"},
+        headers=client_admin_headers,
+    )
+    assert duplicate.status_code == 400, "the partial unique dedupes globals"
+
+    listed = (
+        await client.get(
+            "/api/v1/admin/organizations/exclusions?kind=global",
+            headers=client_admin_headers,
+        )
+    ).json()
+    assert any(row["label"] == "Confidential Contracting" for row in listed)
+    assert any(row["label"] == "confidential" for row in listed), "seed denylist visible"
+
+    deleted = await client.delete(
+        f"/api/v1/admin/organizations/exclusions/{created.json()['id']}",
+        headers=client_admin_headers,
+    )
+    assert deleted.status_code == 200
+
+
+async def test_rules_surface_thresholds(db, client, client_admin_headers):
+    current = (
+        await client.get("/api/v1/admin/organizations/thresholds", headers=client_admin_headers)
+    ).json()
+    assert {"match", "gray_low", "llm_auto"} <= set(current)
+
+    updated = await client.put(
+        "/api/v1/admin/organizations/thresholds",
+        json={"match": 0.92},
+        headers=client_admin_headers,
+    )
+    assert updated.status_code == 200 and updated.json()["match"] == 0.92
+
+    bad = await client.put(
+        "/api/v1/admin/organizations/thresholds",
+        json={"match": 0.3},
+        headers=client_admin_headers,
+    )
+    assert bad.status_code == 400, "gray_low must stay below match"
+
+    restore = await client.put(
+        "/api/v1/admin/organizations/thresholds",
+        json={"match": current["match"]},
+        headers=client_admin_headers,
+    )
+    assert restore.status_code == 200
+
+
+async def test_postings_company_and_no_company_filters(
+    db, client, auth_headers, seeded_catalog, source
+):
+    import uuid as _uuid
+
+    service = OrganizationService(db)
+    org, _ = await service.find_or_propose("Filter Works")
+    await db.commit()
+    linked = JobPosting(
+        source_id=source.id,
+        external_id=f"flt-{_uuid.uuid4().hex[:6]}",
+        content_hash=_uuid.uuid4().hex,
+        title="Linked Role",
+        org="Filter Works",
+        org_id=org.id,
+        org_match={"layer": "key", "score": 1.0, "matched_on": "key", "state": "linked"},
+        org_match_state="linked",
+    )
+    rejected = JobPosting(
+        source_id=source.id,
+        external_id=f"flt-{_uuid.uuid4().hex[:6]}",
+        content_hash=_uuid.uuid4().hex,
+        title="Junk Label Role",
+        org="Confidential",
+        org_match={
+            "layer": "quality",
+            "score": 0.0,
+            "matched_on": "quality",
+            "state": "rejected",
+            "reason": "low_letters",
+        },
+        org_match_state="rejected",
+    )
+    db.add_all([linked, rejected])
+    await db.commit()
+
+    by_company = (
+        await client.get(f"/api/v1/postings?company={org.key}", headers=auth_headers)
+    ).json()
+    assert by_company["total"] == 1
+    assert by_company["items"][0]["org_key"] == org.key
+
+    unlinked = (
+        await client.get("/api/v1/postings?no_company=rejected", headers=auth_headers)
+    ).json()
+    assert unlinked["total"] >= 1
+    assert all(item["org_match_state"] == "rejected" for item in unlinked["items"])
+
+    unknown = (
+        await client.get("/api/v1/postings?company=no-such-org", headers=auth_headers)
+    ).json()
+    assert unknown["total"] == 0

@@ -376,6 +376,105 @@ async def add_organization_alias(
     return {"id": str(org.id), "aliases": await service.org_aliases(org_id)}
 
 
+@router.get("/organizations/{org_id}/aliases", response_model=list[dict])
+async def list_organization_aliases(
+    org_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> list[dict]:
+    """Alias rows with provenance and state (the rules surface)."""
+    from app.services.catalog.organization_service import OrganizationService
+
+    return await OrganizationService(db).alias_rows(org_id)
+
+
+@router.delete("/organizations/{org_id}/aliases/{alias_id}", response_model=dict)
+async def delete_organization_alias(
+    org_id: uuid.UUID, alias_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        await OrganizationService(db).remove_alias(org_id, alias_id)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"deleted": str(alias_id)}
+
+
+@router.post("/organizations/{org_id}/aliases/{alias_id}/state", response_model=dict)
+async def set_organization_alias_state(
+    org_id: uuid.UUID,
+    alias_id: uuid.UUID,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Activate or exclude one alias (excluded rows are kept as history)."""
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        row = await OrganizationService(db).set_alias_state(
+            org_id, alias_id, str(payload.get("state") or "")
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(row.id), "state": row.state}
+
+
+@router.get("/organizations/exclusions", response_model=list[dict])
+async def list_organization_exclusions(
+    kind: str | None = Query(default=None, pattern="^(global|pair)$"),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Global not-a-company labels and per-org never-link pairs."""
+    from app.services.catalog.organization_service import OrganizationService
+
+    return await OrganizationService(db).list_exclusions(kind=kind)
+
+
+@router.post("/organizations/exclusions", response_model=dict)
+async def create_organization_exclusion(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    org_id = payload.get("org_id")
+    try:
+        return await OrganizationService(db).create_exclusion(
+            str(payload.get("label") or ""),
+            org_id=uuid.UUID(str(org_id)) if org_id else None,
+            reason=str(payload.get("reason") or ""),
+            created_by=str(payload.get("created_by") or "admin")[:120],
+        )
+    except (ValueError, DomainError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+@router.delete("/organizations/exclusions/{exclusion_id}", response_model=dict)
+async def delete_organization_exclusion(
+    exclusion_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        await OrganizationService(db).delete_exclusion(exclusion_id)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"deleted": str(exclusion_id)}
+
+
+@router.get("/organizations/thresholds", response_model=dict)
+async def get_organization_thresholds(db: AsyncSession = Depends(get_db)) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    return await OrganizationService(db).get_thresholds()
+
+
+@router.put("/organizations/thresholds", response_model=dict)
+async def set_organization_thresholds(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        return await OrganizationService(db).set_thresholds(payload)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
 @router.post("/organizations/{org_id}/merge", response_model=dict)
 async def merge_organization(
     org_id: uuid.UUID,

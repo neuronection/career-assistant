@@ -27,6 +27,7 @@ from app.models.enums import (
     PostingSkillPriority,
     SourceQueryMode,
 )
+from app.models.experience_model import Organization
 from app.models.job_model import Job, JobSkill
 from app.models.posting_model import (
     JobPosting,
@@ -737,6 +738,8 @@ async def list_postings(
     saved: bool = False,
     sort: str = "fit",
     include_hidden: bool = False,
+    company: str | None = None,
+    no_company: str | None = None,
 ) -> dict:
     """Live tab: mapped-first listings with fit sort (unseen-first honored)."""
     from sqlalchemy.orm import selectinload
@@ -780,6 +783,15 @@ async def list_postings(
         query = query.where(JobPosting.seniority == seniority)
     if catalog_job_id is not None:
         query = query.where(JobPosting.catalog_job_id == catalog_job_id)
+    if company is not None:
+        org_id = (
+            await db.execute(select(Organization.id).where(Organization.key == company))
+        ).scalar_one_or_none()
+        if org_id is None:
+            return {"items": [], "unseen": 0, "total": 0}
+        query = query.where(JobPosting.org_id == org_id)
+    if no_company is not None:
+        query = query.where(JobPosting.org_id.is_(None), JobPosting.org_match_state == no_company)
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
 
     items = []
@@ -872,6 +884,8 @@ async def search_postings(
     saved: bool = False,
     sort: str = "fresh",
     match_profile: bool = False,
+    company: str | None = None,
+    no_company: str | None = None,
 ) -> dict:
     """Skill+level search: `posting_skills` join on skill_id +
     required_level ≥ requested; all/any semantics; NULL-level rows are
@@ -947,6 +961,15 @@ async def search_postings(
         query = query.where(JobPosting.seniority == seniority)
     if catalog_job_id is not None:
         query = query.where(JobPosting.catalog_job_id == catalog_job_id)
+    if company is not None:
+        org_id = (
+            await db.execute(select(Organization.id).where(Organization.key == company))
+        ).scalar_one_or_none()
+        if org_id is None:
+            return {"items": [], "unseen": 0, "total": 0}
+        query = query.where(JobPosting.org_id == org_id)
+    if no_company is not None:
+        query = query.where(JobPosting.org_id.is_(None), JobPosting.org_match_state == no_company)
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
 
     items = []

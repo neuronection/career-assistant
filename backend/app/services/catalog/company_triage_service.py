@@ -269,6 +269,7 @@ class CompanyTriageService:
                 "state": OrgMatchState.LINKED.value,
                 "matched_on": "triage",
             }
+            posting.org_match_state = OrgMatchState.LINKED.value
             flag_modified(posting, "org_match")
             moved += 1
         return moved

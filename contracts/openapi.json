@@ -3107,6 +3107,13 @@
       "CompanyDetailOut": {
         "description": "The detail page: reviewed facts, financial claims, derived stats.",
         "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
           "company_type": {
             "anyOf": [
               {
@@ -3234,6 +3241,11 @@
             "default": 0,
             "title": "Open Postings",
             "type": "integer"
+          },
+          "status": {
+            "default": "active",
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
@@ -3392,6 +3404,11 @@
             "default": 0,
             "title": "Open Postings",
             "type": "integer"
+          },
+          "status": {
+            "default": "active",
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
@@ -13984,6 +14001,28 @@
             "title": "Org",
             "type": "string"
           },
+          "org_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Key"
+          },
+          "org_match_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Match State"
+          },
           "posted_at": {
             "anyOf": [
               {
@@ -14803,6 +14842,28 @@
           "org": {
             "title": "Org",
             "type": "string"
+          },
+          "org_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Key"
+          },
+          "org_match_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Match State"
           },
           "posted_at": {
             "anyOf": [
@@ -22274,6 +22335,150 @@
         ]
       }
     },
+    "/api/v1/admin/organizations/exclusions": {
+      "get": {
+        "description": "Global not-a-company labels and per-org never-link pairs.",
+        "operationId": "list_organization_exclusions_api_v1_admin_organizations_exclusions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(global|pair)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Organization Exclusions Api V1 Admin Organizations Exclusions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Organization Exclusions",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_organization_exclusion_api_v1_admin_organizations_exclusions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Organization Exclusion Api V1 Admin Organizations Exclusions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Organization Exclusion",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/organizations/exclusions/{exclusion_id}": {
+      "delete": {
+        "operationId": "delete_organization_exclusion_api_v1_admin_organizations_exclusions__exclusion_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exclusion_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Exclusion Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Organization Exclusion Api V1 Admin Organizations Exclusions  Exclusion Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Organization Exclusion",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/organizations/pairs": {
       "get": {
         "description": "Gray-band queue (the arbiter's pending pairs, matcher review).",
@@ -22514,7 +22719,120 @@
         ]
       }
     },
+    "/api/v1/admin/organizations/thresholds": {
+      "get": {
+        "operationId": "get_organization_thresholds_api_v1_admin_organizations_thresholds_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Organization Thresholds Api V1 Admin Organizations Thresholds Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Organization Thresholds",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "set_organization_thresholds_api_v1_admin_organizations_thresholds_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Organization Thresholds Api V1 Admin Organizations Thresholds Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Organization Thresholds",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/organizations/{org_id}/aliases": {
+      "get": {
+        "description": "Alias rows with provenance and state (the rules surface).",
+        "operationId": "list_organization_aliases_api_v1_admin_organizations__org_id__aliases_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Organization Aliases Api V1 Admin Organizations  Org Id  Aliases Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Organization Aliases",
+        "tags": [
+          "admin"
+        ]
+      },
       "post": {
         "description": "Register another label that resolves to this organization.",
         "operationId": "add_organization_alias_api_v1_admin_organizations__org_id__aliases_post",
@@ -22567,6 +22885,129 @@
           }
         },
         "summary": "Add Organization Alias",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/organizations/{org_id}/aliases/{alias_id}": {
+      "delete": {
+        "operationId": "delete_organization_alias_api_v1_admin_organizations__org_id__aliases__alias_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alias Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Organization Alias Api V1 Admin Organizations  Org Id  Aliases  Alias Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Organization Alias",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/organizations/{org_id}/aliases/{alias_id}/state": {
+      "post": {
+        "description": "Activate or exclude one alias (excluded rows are kept as history).",
+        "operationId": "set_organization_alias_state_api_v1_admin_organizations__org_id__aliases__alias_id__state_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alias Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Organization Alias State Api V1 Admin Organizations  Org Id  Aliases  Alias Id  State Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Organization Alias State",
         "tags": [
           "admin"
         ]
@@ -38974,6 +39415,40 @@
               "title": "Sort",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(rejected|pending)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "No Company"
+            }
           }
         ],
         "responses": {
@@ -39339,6 +39814,40 @@
               "default": false,
               "title": "Match Profile",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(rejected|pending)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "No Company"
             }
           }
         ],

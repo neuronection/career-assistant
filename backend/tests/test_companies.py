@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.company_model import CompanyProfile
 from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting
+from app.services.catalog.organization_service import OrganizationService
 from app.services.postings.postings_service import upsert_posting
 from tests.conftest import _raw_posting
 
@@ -245,3 +246,47 @@ async def test_merge_refuses_two_profiles(db, client, client_admin_headers, seed
     )
     assert res.status_code == 400
     assert "reconcile" in res.json()["detail"].lower()
+
+
+async def test_proposed_companies_with_live_postings_are_visible(
+    db, client, auth_headers, seeded_catalog, source
+):
+    """Decision 11: a posting-born (proposed) company is browsable."""
+    from app.services.postings.postings_service import upsert_posting
+    from tests.conftest import _raw_posting
+
+    service = OrganizationService(db)
+    born, _created = await service.find_or_propose("Newborn Works")
+    await db.commit()
+    posting = await upsert_posting(
+        db, source, _raw_posting(org="Newborn Works", external_id="newborn-1")
+    )
+    await db.commit()
+    await db.refresh(born)
+    assert born.status == "proposed", "one source does not auto-promote"
+    await _seed_company(db, source, name="SeedCo", count=1)
+
+    listing = (await client.get("/api/v1/companies", headers=auth_headers)).json()
+    rows = {row["key"]: row for row in listing}
+    assert "seedco" in rows
+    assert rows["newborn-works"]["status"] == "proposed", "proposed is visible with live postings"
+    assert rows["newborn-works"]["open_postings"] >= 1
+
+    detail = (await client.get("/api/v1/companies/newborn-works", headers=auth_headers)).json()
+    assert detail["status"] == "proposed"
+    assert posting.org_id == born.id
+
+
+async def test_company_detail_lists_aliases(db, client, auth_headers, seeded_catalog, source):
+    from app.services.catalog.organization_service import OrganizationService
+
+    service = OrganizationService(db)
+    org, _ = await service.find_or_propose("Alias Heavy Industries")
+    await service.add_alias(org.id, "AHI")
+    await db.commit()
+    await _seed_company(db, source, name="Alias Heavy Industries", count=1)
+
+    detail = (
+        await client.get("/api/v1/companies/alias-heavy-industries", headers=auth_headers)
+    ).json()
+    assert "AHI" in detail["aliases"]

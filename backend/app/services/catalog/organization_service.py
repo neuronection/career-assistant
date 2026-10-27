@@ -494,6 +494,7 @@ class OrganizationService:
             return
         decision = await self._resolve_link(label, posting.url)
         match = decision.provenance()
+        state: str | None
         if decision.kind == "link" and decision.org is not None:
             org = decision.org
             posting.org_id = org.id
@@ -501,22 +502,24 @@ class OrganizationService:
             if posting.url and not org.domain and signal is not None:
                 org.domain = signal["domain"]
             await self.maybe_promote(org, strong=decision.layer == "domain")
-            match["state"] = OrgMatchState.LINKED.value
+            state = OrgMatchState.LINKED.value
         elif decision.kind == "create":
             org = await self._create_org(
                 label, {"source": "posting", "posting_id": str(posting.id)}, posting.url
             )
             posting.org_id = org.id
-            match["state"] = OrgMatchState.LINKED.value
+            state = OrgMatchState.LINKED.value
         elif decision.kind == "gray":
             await self._record_pending_pair(label, decision, posting.url)
             posting.org_id = None
-            match["state"] = OrgMatchState.PENDING.value
+            state = OrgMatchState.PENDING.value
         else:
             posting.org_id = None
-            match["state"] = OrgMatchState.REJECTED.value
+            state = OrgMatchState.REJECTED.value
             match["reason"] = decision.reason
+        match["state"] = state
         posting.org_match = match
+        posting.org_match_state = state
         flag_modified(posting, "org_match")
 
     async def backfill_postings(self) -> dict:
@@ -678,6 +681,204 @@ class OrganizationService:
 
     async def org_aliases(self, org_id: UUID) -> list[str]:
         return (await self.alias_strings([org_id])).get(org_id, [])
+
+    async def alias_rows(self, org_id: UUID) -> list[dict]:
+        """The rules surface's alias list (provenance + state visible)."""
+        rows = (
+            (
+                await self.db.execute(
+                    select(OrganizationAlias)
+                    .where(OrganizationAlias.org_id == org_id)
+                    .order_by(OrganizationAlias.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            {
+                "id": str(row.id),
+                "alias": row.alias,
+                "alias_key": row.alias_key,
+                "source": row.source,
+                "state": row.state,
+                "created_by": row.created_by,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+
+    async def _get_alias_row(self, org_id: UUID, alias_id: UUID) -> OrganizationAlias:
+        row = (
+            await self.db.execute(
+                select(OrganizationAlias).where(
+                    OrganizationAlias.id == alias_id,
+                    OrganizationAlias.org_id == org_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise NotFoundError("Alias not found")
+        return row
+
+    async def remove_alias(self, org_id: UUID, alias_id: UUID) -> None:
+        row = await self._get_alias_row(org_id, alias_id)
+        await self.db.delete(row)
+        await self.db.commit()
+
+    async def set_alias_state(self, org_id: UUID, alias_id: UUID, state: str) -> OrganizationAlias:
+        if state not in {OrgAliasState.ACTIVE.value, OrgAliasState.EXCLUDED.value}:
+            raise ValidationError("Unknown alias state")
+        row = await self._get_alias_row(org_id, alias_id)
+        row.state = state
+        await self.db.commit()
+        await self.db.refresh(row)
+        return row
+
+    async def list_exclusions(self, *, kind: str | None = None) -> list[dict]:
+        query = select(OrganizationMatchExclusion).order_by(
+            OrganizationMatchExclusion.created_at.desc()
+        )
+        if kind == "global":
+            query = query.where(OrganizationMatchExclusion.org_id.is_(None))
+        elif kind == "pair":
+            query = query.where(OrganizationMatchExclusion.org_id.is_not(None))
+        rows = (await self.db.execute(query)).scalars().all()
+        org_ids = [row.org_id for row in rows if row.org_id is not None]
+        orgs = {}
+        if org_ids:
+            orgs = {
+                org.id: org
+                for org in (
+                    (
+                        await self.db.execute(
+                            select(Organization).where(Organization.id.in_(org_ids))
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            }
+        return [
+            {
+                "id": str(row.id),
+                "label": row.label,
+                "label_key": row.label_key,
+                "org_id": str(row.org_id) if row.org_id else None,
+                "org": (
+                    {
+                        "id": str(orgs[row.org_id].id),
+                        "key": orgs[row.org_id].key,
+                        "name": orgs[row.org_id].name,
+                    }
+                    if row.org_id in orgs
+                    else None
+                ),
+                "reason": row.reason,
+                "source": row.source,
+                "created_by": row.created_by,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+
+    async def create_exclusion(
+        self,
+        label: str,
+        *,
+        org_id: UUID | None = None,
+        reason: str = "",
+        created_by: str = "admin",
+    ) -> dict:
+        label = (label or "").strip()[:200]
+        if not label:
+            raise ValidationError("Exclusion label is required")
+        reason = (reason or "").strip()[:300]
+        if org_id is not None:
+            await self.get_org(org_id)
+        key = alias_key(label)
+        existing = (
+            await self.db.execute(
+                select(OrganizationMatchExclusion).where(
+                    OrganizationMatchExclusion.label_key == key,
+                    OrganizationMatchExclusion.org_id == org_id
+                    if org_id is not None
+                    else OrganizationMatchExclusion.org_id.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise ValidationError("That exclusion already exists")
+        row = OrganizationMatchExclusion(
+            label=label,
+            label_key=key,
+            org_id=org_id,
+            reason=reason,
+            source="manual",
+            created_by=created_by[:120],
+        )
+        self.db.add(row)
+        await self.db.commit()
+        await self.db.refresh(row)
+        org_id_value = str(row.org_id) if row.org_id else None
+        return {
+            "id": str(row.id),
+            "label": row.label,
+            "org_id": org_id_value,
+        }
+
+    async def delete_exclusion(self, exclusion_id: UUID) -> None:
+        row = (
+            await self.db.execute(
+                select(OrganizationMatchExclusion).where(
+                    OrganizationMatchExclusion.id == exclusion_id
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise NotFoundError("Exclusion not found")
+        await self.db.delete(row)
+        await self.db.commit()
+
+    async def get_thresholds(self) -> dict[str, float]:
+        return await self.thresholds()
+
+    async def set_thresholds(self, data: dict) -> dict[str, float]:
+        current = await self.thresholds()
+        values = dict(current)
+        for key, low, high in (
+            ("match", 0.5, 1.0),
+            ("gray_low", 0.0, 0.99),
+            ("llm_auto", 0.5, 1.0),
+        ):
+            if key not in data or data[key] is None:
+                continue
+            try:
+                value = float(data[key])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(f"{key} must be a number") from exc
+            if not (low <= value <= high):
+                raise ValidationError(f"{key} must be between {low} and {high}")
+            values[key] = value
+        if values["gray_low"] >= values["match"]:
+            raise ValidationError("the gray band must sit below the match threshold")
+        row = (
+            await self.db.execute(
+                select(AppSetting).where(AppSetting.key == THRESHOLDS_SETTING_KEY)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            row = AppSetting(
+                key=THRESHOLDS_SETTING_KEY,
+                value=dict(values),
+                description="Company matcher thresholds",
+            )
+            self.db.add(row)
+        else:
+            row.value = dict(values)
+        await self.db.commit()
+        self._thresholds = dict(values)
+        return dict(values)
 
     async def merge(self, org_id: UUID, target_id: UUID) -> Organization:
         """Re-point references to the target and deprecate the duplicate.

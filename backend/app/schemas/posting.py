@@ -147,6 +147,8 @@ class PostingOut(BaseModel):
     external_id: str
     title: str
     org: str
+    org_key: str | None = None
+    org_match_state: str | None = None
     location: PostingLocationOut
     url: str
     seniority: str | None = None
