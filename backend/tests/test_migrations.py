@@ -2606,9 +2606,22 @@ def _relation_skills() -> tuple[str, str]:
     return asyncio.run(_run())
 
 
-def _relation_insert(from_id: str, to_id: str, relation: str, status: str = "approved") -> bool:
+def _relation_insert(
+    from_id: str,
+    to_id: str,
+    relation: str,
+    status: str = "approved",
+    *,
+    violation: str | tuple[str, ...] | None = None,
+) -> bool:
     """Insert one edge row on a separate engine; False = the schema
-    rejected it (CHECK or unique)."""
+    rejected it (CHECK or unique).
+
+    ``violation`` pins which constraint should have fired, for diagnostic
+    quality: a stray FK error must not read as "the CHECK worked". Postgres
+    names unique constraints in the message; SQLite names only CHECK
+    constraints, so unique violations accept the SQLite marker too.
+    """
 
     async def _run():
         from sqlalchemy.exc import IntegrityError
@@ -2633,8 +2646,13 @@ def _relation_insert(from_id: str, to_id: str, relation: str, status: str = "app
                     )
                     await session.commit()
                     return True
-                except IntegrityError:
+                except IntegrityError as exc:
                     await session.rollback()
+                    if violation is not None:
+                        markers = (violation,) if isinstance(violation, str) else violation
+                        assert any(marker in str(exc.orig) for marker in markers), (
+                            f"expected {markers}, got: {exc.orig}"
+                        )
                     return False
         finally:
             await engine.dispose()
@@ -2681,17 +2699,29 @@ def test_0067_skill_relation_edge_guards():
     config = _configured()
     command.upgrade(config, "head")
     low, high = _relation_skills()
+    duplicate = ("uq_skill_relation_edge", "UNIQUE constraint failed")
     try:
-        assert _relation_insert(low, low, "related_to") is False, "no_self_loop CHECK"
+        assert _relation_insert(low, low, "related_to", violation="no_self_loop") is False, (
+            "no_self_loop CHECK"
+        )
         assert _relation_insert(low, high, "synonym") is True, "canonical synonym edge lands"
-        assert _relation_insert(high, low, "synonym") is False, "symmetric_pair_ordered CHECK"
-        assert _relation_insert(low, high, "synonym") is False, "uq_skill_relation_edge dedup"
+        assert (
+            _relation_insert(high, low, "synonym", violation="symmetric_pair_ordered") is False
+        ), "symmetric_pair_ordered CHECK"
+        assert _relation_insert(low, high, "synonym", violation=duplicate) is False, (
+            "uq_skill_relation_edge dedup"
+        )
         assert _relation_insert(low, high, "is_a") is True, "directed edge lands"
         assert _relation_insert(high, low, "is_a") is True, "directed reverse is its own edge"
-        assert _relation_insert(low, high, "is_a") is False, "(pair, relation) dedup"
-        assert _relation_insert(low, high, "brother_of") is False, "relation_allowed CHECK"
-        assert _relation_insert(low, high, "related_to", status="maybe") is False, (
-            "status_allowed CHECK"
+        assert _relation_insert(low, high, "is_a", violation=duplicate) is False, (
+            "(pair, relation) dedup"
         )
+        assert _relation_insert(low, high, "brother_of", violation="relation_allowed") is False, (
+            "relation_allowed CHECK"
+        )
+        assert (
+            _relation_insert(low, high, "related_to", status="maybe", violation="status_allowed")
+            is False
+        ), "status_allowed CHECK"
     finally:
         _relation_probe_cleanup()

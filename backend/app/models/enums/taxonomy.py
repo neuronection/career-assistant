@@ -50,14 +50,52 @@ class SkillOrigin(StrEnum):
 class SkillRelationType(StrEnum):
     """Edge vocabulary for the skill relation graph (plan 138).
 
-    is_a/part_of are directed (specific→general, component→whole);
-    synonym/related_to are symmetric and stored canonically ordered.
+    ``DIRECTED`` kinds keep their direction (specific→general,
+    component→whole); every other kind is symmetric and stored with
+    canonically ordered endpoints (``from_skill_id`` = the lower UUID) so
+    one unordered pair can never carry two rows. The schema CHECK and the
+    write seam both read this classification — never re-declare it.
     """
 
     IS_A = "is_a"
     SYNONYM = "synonym"
     PART_OF = "part_of"
     RELATED_TO = "related_to"
+
+    @classmethod
+    def directed(cls) -> frozenset["SkillRelationType"]:
+        """Kinds whose stored direction carries meaning."""
+        return frozenset({cls.IS_A, cls.PART_OF})
+
+    @classmethod
+    def directed_sql(cls) -> str:
+        """SQL value list for the directed kinds, for CHECK constraints."""
+        kinds = sorted(cls.directed(), key=lambda kind: kind.value)
+        return ", ".join(f"'{kind.value}'" for kind in kinds)
+
+    @classmethod
+    def allowed_sql(cls) -> str:
+        """SQL value list for the whole vocabulary, for CHECK constraints."""
+        return ", ".join(f"'{kind.value}'" for kind in sorted(cls, key=lambda k: k.value))
+
+    @property
+    def is_directed(self) -> bool:
+        """True when the stored direction is meaningful (asymmetric kind)."""
+        return self in self.directed()
+
+
+class SkillExpandMode(StrEnum):
+    """How a skill filter expands over the graph (plan 138).
+
+    ``off`` matches exactly the selected skills; ``down`` adds the curated
+    tree subtree, synonym identity and hop-capped ``is_a`` children;
+    ``related`` also walks ``part_of``/``related_to`` (opt-in — it is the
+    precision-losing mode, never a default).
+    """
+
+    OFF = "off"
+    DOWN = "down"
+    RELATED = "related"
 
 
 class SkillRelationStatus(StrEnum):

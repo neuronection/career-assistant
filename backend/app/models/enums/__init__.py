@@ -121,6 +121,7 @@ from app.models.enums.taxonomy import JobSkillImportance as JobSkillImportance
 from app.models.enums.taxonomy import PathFlag as PathFlag
 from app.models.enums.taxonomy import PathSource as PathSource
 from app.models.enums.taxonomy import PathStatus as PathStatus
+from app.models.enums.taxonomy import SkillExpandMode as SkillExpandMode
 from app.models.enums.taxonomy import SkillOrigin as SkillOrigin
 from app.models.enums.taxonomy import SkillRelationSource as SkillRelationSource
 from app.models.enums.taxonomy import SkillRelationStatus as SkillRelationStatus
@@ -226,6 +227,7 @@ __all__ = [
     "ScheduleKind",
     "ScheduleStatus",
     "SearchScope",
+    "SkillExpandMode",
     "SkillOrigin",
     "SkillStatus",
     "SourceKind",

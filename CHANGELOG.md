@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill taxonomy graph — expansion engine, 2026-10-27)
+- **Internal groundwork: the skill graph expansion engine and its single
+  write seam** — a pure, dialect-safe walk over the new edge table (curated
+  `parent_id` subtree + synonym identity + hop-capped is-a children, with an
+  opt-in related mode that also follows part-of/related-to), plus the one
+  service every write goes through: canonical endpoint ordering for
+  symmetric kinds, vocabulary + endpoint-matrix guards, cycle rejection on
+  is-a/part-of (tree-aware), propose/approve/reject transitions with
+  reviewer stamping, and rejected rows as permanent negative edges. No
+  user-visible behavior yet; the filter knob that consumes the walk lands
+  next.
+
 ### Added (skill taxonomy graph — schema, 2026-10-27)
 - **Internal groundwork: the skill relation graph schema** — a new
   `skill_relations` table of typed edges between skills (is-a, synonym,

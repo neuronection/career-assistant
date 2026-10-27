@@ -180,6 +180,20 @@ def test_every_mirrored_check_matches_its_enum():
     assert not failures, "enum ↔ CHECK drift:\n" + "\n".join(failures)
 
 
+def test_symmetric_pair_ordering_check_matches_the_enum_directed_set():
+    """`symmetric_pair_ordered` names the directed kinds in its first branch.
+
+    That set must equal ``SkillRelationType.directed()``: if a new symmetric
+    kind were added to the vocabulary without the CHECK, two canonical rows
+    could hold the same pair and a rejection would stop blocking both
+    directions.
+    """
+    expressions = _check_expressions("skill_relations")
+    ordered = expressions["symmetric_pair_ordered"]
+    directed_branch = ordered.split("OR")[0]
+    assert _values(directed_branch) == {kind.value for kind in SkillRelationType.directed()}
+
+
 def test_posting_fit_default_tracks_the_engine_version():
     from app.models.posting_model import current_fit_version
     from app.services.postings.fit.dimensions import FIT_VERSION

@@ -12,7 +12,7 @@ from app.models.base import (
     TZDateTime,
     UUIDPrimaryKeyMixin,
 )
-from app.models.enums import InterestTagKind, SkillRelationStatus
+from app.models.enums import InterestTagKind, SkillRelationStatus, SkillRelationType
 
 # Semantic 1-10 proficiency anchors seeded onto every skill; AI drafts
 # per-skill anchors and admins review overrides (Phase 21).
@@ -99,9 +99,9 @@ class SkillRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     Symmetric kinds (``synonym``, ``related_to``) are stored with
     canonically ordered endpoints — ``from_skill_id`` is the lower UUID —
     so one unordered pair can never carry two rows and a rejection blocks
-    both directions; directed kinds (``is_a``, ``part_of``) keep their
-    direction. ``status='rejected'`` is the negative edge ("never this
-    pair + relation"), not a tombstone.
+    both directions; directed kinds (``SkillRelationType.directed()``)
+    keep their direction. ``status='rejected'`` is the negative edge
+    ("never this pair + relation"), not a tombstone.
     """
 
     __tablename__ = "skill_relations"
@@ -109,7 +109,7 @@ class SkillRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("from_skill_id", "to_skill_id", "relation", name="uq_skill_relation_edge"),
         CheckConstraint("from_skill_id != to_skill_id", name="no_self_loop"),
         CheckConstraint(
-            "relation IN ('is_a', 'synonym', 'part_of', 'related_to')",
+            f"relation IN ({SkillRelationType.allowed_sql()})",
             name="relation_allowed",
         ),
         CheckConstraint(
@@ -124,8 +124,10 @@ class SkillRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
             name="confidence_range",
         ),
+        # Directed kinds are the ones the enum calls directed — one source of
+        # truth, so vocabulary growth can't silently break pair ordering/dedup.
         CheckConstraint(
-            "relation IN ('is_a', 'part_of') OR from_skill_id <= to_skill_id",
+            f"relation IN ({SkillRelationType.directed_sql()}) OR from_skill_id <= to_skill_id",
             name="symmetric_pair_ordered",
         ),
         Index("ix_skill_relations_from", "from_skill_id"),
