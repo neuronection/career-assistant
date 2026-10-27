@@ -339,14 +339,19 @@ class PostingConnector:
                 slots[slot["id"]] = slot.get("purpose") or ""
         return slots
 
-    def validate_config(self, config: dict) -> dict:
+    def validate_config(self, config: dict, *, relax_keys: tuple[str, ...] = ()) -> dict:
         """Config round-trip: validated JSONB for `job_sources.config`.
 
         The x-secret law (ADR-0040 clause 18): a value present for any
         declared secret slot is a registration-time THROW — secrets never
         live in stored config. Model violations surface as the app's
         ValidationError (HTTP 400 at the admin API), never a raw
-        pydantic dump."""
+        pydantic dump.
+
+        ``relax_keys`` makes those config fields optional for the
+        round-trip — the host passes query fields its query overlay
+        supplies per sync (radar mode), where a stored fallback is not
+        required."""
         from app.core.errors import ValidationError
 
         for field in self.secret_slots():
@@ -356,9 +361,19 @@ class PostingConnector:
                     "send it via the source's secrets payload"
                 )
         from pydantic import ValidationError as PydanticValidationError
+        from pydantic import create_model
 
+        model = self.config_model()
+        if relax_keys:
+            overrides = {}
+            for name in relax_keys:
+                field = model.model_fields.get(name)
+                if field is not None:
+                    overrides[name] = (field.annotation | None, None)
+            if overrides:
+                model = create_model(f"{model.__name__}Relaxed", __base__=model, **overrides)
         try:
-            return self.config_model().model_validate(config).model_dump(mode="json")
+            return model.model_validate(config).model_dump(mode="json")
         except PydanticValidationError as exc:
             raise ValidationError(str(exc)) from exc
 

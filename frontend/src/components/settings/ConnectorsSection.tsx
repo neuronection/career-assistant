@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
@@ -131,6 +131,7 @@ export function ConnectorsSection() {
 function JobSourceConnectors() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   useEffect(() => {
     const onChange = () => {
       void refresh();
@@ -311,15 +312,19 @@ function JobSourceConnectors() {
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
   const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
   const managedSchema = draftSource?.managed ? draftSource.tool_config_schema : null;
-  const draftFields = useMemo(
-    () =>
-      managedSchema
-        ? parseIntegrationConfigSchema(managedSchema as IntegrationConfigSchema)
-        : draftEntry
-          ? parseIntegrationConfigSchema(draftEntry.config_schema as IntegrationConfigSchema)
-          : [],
-    [draftEntry, managedSchema],
-  );
+  const draftFields = useMemo(() => {
+    const fields = managedSchema
+      ? parseIntegrationConfigSchema(managedSchema as IntegrationConfigSchema)
+      : draftEntry
+        ? parseIntegrationConfigSchema(draftEntry.config_schema as IntegrationConfigSchema)
+        : [];
+    if (draft?.query_mode !== "radar") return fields;
+    return fields.map((field) =>
+      field.name === "keywords" || field.name === "location"
+        ? { ...field, required: false }
+        : field,
+    );
+  }, [draft, draftEntry, managedSchema]);
 
   const draftSecretSlots = useMemo(() => {
     if (!draft?.id) return {};
@@ -446,7 +451,11 @@ function JobSourceConnectors() {
                 variant="outline"
                 size="sm"
                 data-testid={`manage-source-${source.key}`}
-                onClick={() => navigate(`/sources/${source.id}`)}
+                onClick={() =>
+                  navigate(`/sources/${source.id}`, {
+                    state: { from: `${location.pathname}${location.search}` },
+                  })
+                }
               >
                 {t("toolsSettings.connectors.sources.manage")}
               </Button>

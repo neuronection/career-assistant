@@ -59,8 +59,10 @@ delete, and **Add provider** opens a choose-then-configure wizard. See
 Connectors are grouped by what they feed — **Job boards**, **Market data**,
 **Universities**, **Search** and **Inbound webhooks** — and each row shows a
 health badge (healthy / degraded / failing) with its last successful run.
-**Pause syncing** parks a source without deleting its configuration;
-**Resume syncing** puts it back on the schedule. Market-data sources feed
+Each row carries one **slider toggle** — the row's name is the toggle's
+label, so clicking the name pauses or resumes the source. Pause is folded
+into it: off parks the schedule without deleting the configuration, on
+puts it back. The separate pause button and checkbox are gone. Market-data sources feed
 the demand import (salary and outlook provenance on catalog jobs) rather
 than the posting feed, so they run on the daily demand schedule.
 

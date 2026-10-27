@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui";
@@ -46,6 +46,9 @@ function fmtWhen(value: string | null): string {
 export function SourceDetailPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backTo =
+    (location.state as { from?: string } | null)?.from ?? "/settings/tools";
   const { sourceId = "" } = useParams();
   const [source, setSource] = useState<PostingSource | null>(null);
   const [runs, setRuns] = useState<SourceRun[]>([]);
@@ -136,7 +139,7 @@ export function SourceDetailPage() {
   const remove = () =>
     void act(async () => {
       await deleteSource(sourceId);
-      navigate("/settings/tools");
+      navigate(backTo);
     });
 
   const tabs: { id: Tab; label: string }[] = [
@@ -152,7 +155,7 @@ export function SourceDetailPage() {
         <button
           type="button"
           className="text-sm text-[var(--as-muted-fg)] hover:underline"
-          onClick={() => navigate("/settings/tools")}
+          onClick={() => navigate(backTo)}
         >
           ← {t("sourceDetail.back")}
         </button>

@@ -4,14 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
-### Fixed (re-import after removal, 2026-10-27)
-- **Deleting and re-importing an extension with the same name now
-  works.** Removal parks its install (removal never deletes), and the
-  install guard refused any parked prior with "already installed". A
-  re-import with fresh consent now **re-pins** the same install row
-  (history retained, lands disabled — never silently re-enabled); only a
-  live (enabled) install still refuses, and its error names the remedy
-  ("disable it first, or use Apply update for new content").
+### Changed (one toggle per source row, 2026-10-27)
+- **Source rows carry a single slider toggle** — the row's name is the
+  toggle's label (clicking the name pauses/resumes), and pause is folded
+  into it: off parks the schedule, on resumes. The checkbox and the
+  separate pause button are gone; the remove button stays as the one
+  destructive action. The redundant per-row **Edit** button is gone —
+  **Manage** is the one configuration surface.
+- **Radar-driven sources no longer require manual keywords** — with
+  **Follow my job radar** selected, the keywords and location fields
+  become optional (they are the fallback while the radar is empty).
+- **Back from the source management page returns to where you came
+  from** (the Tools page or Settings), not always to Settings.
 
 
 ### Changed (run history readability, 2026-10-27)

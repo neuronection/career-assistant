@@ -78,8 +78,14 @@ Every source row has a **Manage** button opening its management page
   over a day.
 - **Configuration** — the full bundle settings (keywords, filters, and
   the pacing knobs: pauses between page loads and between batch queries)
-  plus the search-source switch and queries-per-sync. This replaces the
-  old per-row Edit dialog.
+  plus the search-source switch and queries-per-sync. **Fetch detail
+  pages** controls how much of each posting is captured: off (the
+  default) keeps the list-card fields only — title, company, location,
+  workplace type, salary when LinkedIn shows one, and the apply link.
+  On, the first few postings per sync also get their full job
+  description ("About the job"), which is what the AI needs to judge
+  what the role actually is; it costs a detail-page load per posting,
+  so it is capped. This replaces the old per-row Edit dialog.
 - **Run history** — every sync attempt: when it ran, trigger, status,
   duration, items synced, and errors (clamped to three lines; **Details**
   opens the full error with a copy button). Failed runs can be retried
@@ -97,7 +103,9 @@ comes from:
 - **Static config** — the source's own settings (keywords etc. in its
   Tool options) drive every sync.
 - **Follow my job radar** — keywords and location come from the
-  [job radar](job-radar.md) instead. Each sync searches one focused
+  [job radar](job-radar.md) instead, and the source's own keywords and
+  location fields become **optional** (the asterisk disappears) — they
+  serve only as a fallback while the radar is still empty. Each sync searches one focused
   role group and rotates through them, so a wide radar never means more
   traffic. The form shows the current query and rotation position
   (e.g. *Searching 2/3: devops @ Berlin, Germany*). The switch only

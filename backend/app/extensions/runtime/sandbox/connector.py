@@ -97,9 +97,12 @@ class SandboxConnector(PostingConnector):
     def manifest(self) -> dict:
         return dict(self._manifest)
 
-    def validate_config(self, config: dict) -> dict:
+    def validate_config(self, config: dict, *, relax_keys: tuple[str, ...] = ()) -> dict:
         """Config round-trip against the manifest's configSchema (D19 x-secret
-        law included: a value under a declared secret slot throws)."""
+        law included: a value under a declared secret slot throws).
+        ``relax_keys`` drops those fields from the schema's ``required``
+        and constraints — the host's query overlay supplies them per
+        sync (radar mode)."""
         for slot in self.secret_slots():
             if config.get(slot):
                 raise ValidationError(
@@ -107,6 +110,15 @@ class SandboxConnector(PostingConnector):
                     "send it via the source's secrets payload"
                 )
         schema = self._manifest.get("configSchema")
+        if schema and relax_keys:
+            props = {key: dict(value) for key, value in (schema.get("properties") or {}).items()}
+            for key in relax_keys:
+                props.get(key, {}).pop("minLength", None)
+            schema = {
+                **schema,
+                "properties": props,
+                "required": [r for r in (schema.get("required") or []) if r not in relax_keys],
+            }
         if schema:
             err = contract.validate(schema, config, schema)
             if err is not None:

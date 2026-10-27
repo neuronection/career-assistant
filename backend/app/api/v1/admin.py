@@ -651,9 +651,10 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
         connector_key = connector_key or "demand_data"
         validated = validate_market_config(config)
     else:
+        relax = ("keywords", "location") if query_mode == "radar" else ()
         try:
             connector = get_connector(connector_key)
-            validated = connector.validate_config(config)
+            validated = connector.validate_config(config, relax_keys=relax)
         except DomainError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     source = JobSource(
@@ -694,6 +695,8 @@ async def update_posting_source(
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
     if "config" in payload and payload["config"] is not None:
+        effective_mode = str(payload.get("query_mode") or source.query_mode or "static").strip()
+        relax = ("keywords", "location") if effective_mode == "radar" else ()
         try:
             if source.kind == "market":
                 from app.services.postings.demand_import_service import validate_market_config
@@ -703,7 +706,7 @@ async def update_posting_source(
                 from app.extensions.registry import resolve_connector
 
                 connector = await resolve_connector(db, source.connector_key)
-                source.config = connector.validate_config(payload["config"])
+                source.config = connector.validate_config(payload["config"], relax_keys=relax)
         except DomainError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     if "secrets" in payload and payload["secrets"] is not None:
