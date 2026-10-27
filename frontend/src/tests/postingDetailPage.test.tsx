@@ -212,9 +212,12 @@ describe("PostingDetailPage", () => {
     expect(timeline).toHaveTextContent("in 12 days");
   });
 
-  it("collapses long descriptions behind Show more", async () => {
+  it("collapses long raw descriptions behind Show more", async () => {
+    // the raw description is hidden behind the "Show original" toggle
     renderPage();
-    const description = await screen.findByTestId("posting-description");
+    await screen.findByTestId("description-raw-toggle");
+    fireEvent.click(screen.getByTestId("description-raw-toggle"));
+    const description = await screen.findByTestId("posting-description-raw");
     expect(description).toHaveTextContent("We build things.");
     expect(description.className).toContain("line-clamp-6");
     fireEvent.click(screen.getByTestId("description-toggle"));

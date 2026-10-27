@@ -913,6 +913,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/postings/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reextract Postings By Ids
+         * @description Re-run deep extraction for the given postings (admin, bulk — the
+         *     /postings multi-select). Same rules as the per-source bulk: only
+         *     postings WITH a description queue; already-queued ones are skipped;
+         *     unknown ids are reported as missing.
+         */
+        post: operations["reextract_postings_by_ids_api_v1_admin_postings_reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/postings/sources": {
         parameters: {
             query?: never;
@@ -6016,6 +6039,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/posting-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Filter Presets
+         * @description Saved filter presets for the active profile, newest first.
+         */
+        get: operations["list_filter_presets_api_v1_me_posting_filters_get"];
+        put?: never;
+        /**
+         * Create Filter Preset
+         * @description Save (or update by name) a named, tagged filter preset.
+         */
+        post: operations["create_filter_preset_api_v1_me_posting_filters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/posting-filters/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Filter Preset */
+        delete: operations["delete_filter_preset_api_v1_me_posting_filters__preset_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/preferences/ai-setup": {
         parameters: {
             query?: never;
@@ -7258,6 +7322,27 @@ export interface paths {
         get: operations["postings_explore_api_v1_postings_explore_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/filter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Postings Filter
+         * @description The full filter spec search (plan 136): every axis, three-valued
+         *     include/exclude/don't-care, open numeric bounds.
+         */
+        post: operations["postings_filter_api_v1_postings_filter_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13376,6 +13461,8 @@ export interface components {
             /** Benefits */
             benefits?: components["schemas"]["PostingExtractBenefitOut"][];
             contract_type?: components["schemas"]["PostingExtractContractOut"] | null;
+            /** Description Clean */
+            description_clean?: string | null;
             education?: components["schemas"]["PostingExtractEducationOut"] | null;
             /** Employment Type */
             employment_type?: string | null;
@@ -17387,6 +17474,43 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    reextract_postings_by_ids_api_v1_admin_postings_reextract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -26447,6 +26571,94 @@ export interface operations {
             };
         };
     };
+    list_filter_presets_api_v1_me_posting_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    create_filter_preset_api_v1_me_posting_filters_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_filter_preset_api_v1_me_posting_filters__preset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     put_ai_setup_pref_api_v1_me_preferences_ai_setup_put: {
         parameters: {
             query?: never;
@@ -28557,6 +28769,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExploreOut"];
+                };
+            };
+        };
+    };
+    postings_filter_api_v1_postings_filter_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

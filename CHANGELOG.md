@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (clean role descriptions, 2026-10-27)
+- **"About this role" shows a clean, role-only description** — the
+  deep-extraction pass now also writes `description_clean`: the role
+  content with all job-board chrome removed (premium upsells, applicant
+  counts, recruiter blocks, company marketing, job alerts), preserving
+  the text language and structure. The raw scraped text stays for audit
+  behind a "Show original" toggle. No extra AI cost — it rides the
+  existing extraction call.
+
+
 ### Changed (seniority range + skill picker, 2026-10-27)
 - **Seniority is now an ordered range** — pick a "from" level (and up)
   and/or a "to" level (and down), plus per-level exclude chips. The

@@ -39,7 +39,7 @@ def test_empty_spec_is_empty():
 
 
 def test_active_spec_is_not_empty():
-    spec = PostingFilterSpec(seniority={"include": ["senior"]})
+    spec = PostingFilterSpec(seniority={"min": "senior"})
     assert spec.is_empty() is False
 
 
@@ -61,7 +61,7 @@ def test_build_where_empty_spec_yields_no_clauses():
 
 
 def test_build_where_seniority_include():
-    spec = PostingFilterSpec(seniority={"include": ["senior", "lead"]})
+    spec = PostingFilterSpec(seniority={"min": "senior", "max": "lead"})
     clauses = build_where(spec)
     assert len(clauses) == 1
 
@@ -116,7 +116,7 @@ def test_build_where_work_mode_include():
 
 def test_build_where_multiple_axes_compose():
     spec = PostingFilterSpec(
-        seniority={"include": ["senior"]},
+        seniority={"min": "senior"},
         work_mode={"include": ["remote"]},
         salary={"min": 60000},
         posted_within={"days": 30},

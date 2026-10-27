@@ -221,6 +221,11 @@ class PostingExtract(BaseModel):
     """Schema contract for AITaskType.POSTING_EXTRACT."""
 
     title_norm: str | None = Field(default=None, max_length=300)
+    # The role description with board chrome removed (premium upsells,
+    # applicant counts, recruiter/company blocks, job alerts) — what the
+    # user reads as "About this role". None when the text is too noisy
+    # to distill confidently.
+    description_clean: str | None = Field(default=None, max_length=8000)
     seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
     employment_type: (
         Literal["full_time", "part_time", "contract", "temporary", "internship"] | None
@@ -337,6 +342,7 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
             )
     return {
         "title_norm": (ctx.get("title") or None),
+        "description_clean": text[:2000] if text.strip() else None,
         "skills": skills[:40],
         "benefits": _mock_benefits(lowered),
         "contract_type": _mock_contract(lowered),
@@ -496,7 +502,15 @@ async def extract_posting(
             "contract, hours, schedule, travel, onsite) need a verbatim "
             "evidence_quote from the text. Never guess: fields you cannot "
             "support get a field_confidence below 0.6 so the caller drops "
-            "them."
+            "them.\n\n"
+            "Also write `description_clean`: the role description with all "
+            "job-board chrome removed — premium upsells, applicant counts, "
+            "recruiter contact blocks, company marketing, job alerts, "
+            "\"see how you compare\" — keep ONLY what describes the role "
+            "itself (position, responsibilities, requirements, stack, "
+            "benefits). Preserve the text's original language and its "
+            "structure as plain paragraphs and bullets. Leave it null when "
+            "the text is too noisy to distill confidently."
         ),
         user=(
             generated_feature_instructions()

@@ -3038,7 +3038,9 @@
     "skillsDetailed": "Im Detail",
     "skillsCount": "{{count}} Skills",
     "unmappedTooltip": "Noch nicht in deiner Skill-Taxonomie",
-    "mentions": "{{count}}× gefordert"
+    "mentions": "{{count}}× gefordert",
+    "showOriginal": "Original anzeigen",
+    "hideOriginal": "Original ausblenden"
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",

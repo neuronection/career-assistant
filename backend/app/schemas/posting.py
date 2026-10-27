@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import ApplicationStage
 from app.schemas.job import JobOut
@@ -92,13 +92,65 @@ class PostingExtractPrerequisiteOut(BaseModel):
     confidence: float | None = None
 
 
+class PostingExtractBenefitOut(BaseModel):
+    """Typed benefit: `kind` powers display grouping, `raw` keeps the
+    original wording. Stored plain strings (legacy extract rows) coerce
+    to `kind="other"` at read — the extractor's `ExtractBenefit.coerce`
+    precedent."""
+
+    kind: str
+    raw: str
+    confidence: float | None = None
+
+
+class PostingExtractContractOut(BaseModel):
+    contract_type: str
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class PostingExtractHoursOut(BaseModel):
+    pattern: str
+    hours_per_week_min: int | None = None
+    hours_per_week_max: int | None = None
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class PostingExtractScheduleCueOut(BaseModel):
+    cue: str
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class PostingExtractTravelOut(BaseModel):
+    level: str
+    days_per_month: int | None = None
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class PostingExtractOnsiteOut(BaseModel):
+    policy: str
+    office_days_per_week: int | None = None
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
 class PostingExtractOut(BaseModel):
     """The posting's structured extraction payload (pipeline-written
-    JSONB, envelope-typed since plan 123.4)."""
+    JSONB, envelope-typed since plan 123.4).
+
+    Read coercion is part of the contract: ``apply_extract`` suppresses
+    low-confidence fields to ``null`` (``_suppressed_fields`` names
+    them) and legacy rows stored plain-string benefits, so lists
+    normalize to ``[]`` and benefit strings to ``kind="other"`` instead
+    of failing whole postings on read."""
 
     model_config = {"extra": "allow"}
 
     title_norm: str | None = None
+    description_clean: str | None = None
     seniority: str | None = None
     employment_type: str | None = None
     remote_policy: str | None = None
@@ -107,10 +159,49 @@ class PostingExtractOut(BaseModel):
     education: PostingExtractEducationOut | None = None
     languages: list[str] = Field(default_factory=list)
     prerequisites: list[PostingExtractPrerequisiteOut] = Field(default_factory=list)
-    benefits: list[str] = Field(default_factory=list)
+    benefits: list[PostingExtractBenefitOut] = Field(default_factory=list)
     responsibilities: list[PostingExtractResponsibilityOut] = Field(default_factory=list)
     skills: list[PostingExtractSkillOut] = Field(default_factory=list)
+    contract_type: PostingExtractContractOut | None = None
+    work_hours: PostingExtractHoursOut | None = None
+    schedule_cues: list[PostingExtractScheduleCueOut] = Field(default_factory=list)
+    travel_required: PostingExtractTravelOut | None = None
+    onsite_policy: PostingExtractOnsiteOut | None = None
+    values_cues: list[str] = Field(default_factory=list)
     field_confidence: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator(
+        "languages",
+        "prerequisites",
+        "responsibilities",
+        "skills",
+        "schedule_cues",
+        "values_cues",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_lists(cls, value):
+        return [] if value is None else value
+
+    @field_validator("benefits", mode="before")
+    @classmethod
+    def _coerce_benefits(cls, value):
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return value
+        coerced: list = []
+        for item in value:
+            if isinstance(item, str):
+                coerced.append({"kind": "other", "raw": item, "confidence": 0.5})
+            else:
+                coerced.append(item)
+        return coerced
+
+    @field_validator("field_confidence", mode="before")
+    @classmethod
+    def _coerce_confidence(cls, value):
+        return {} if value is None else value
 
 
 class MatchBreakdownAspectOut(BaseModel):
@@ -147,10 +238,17 @@ class PostingOut(BaseModel):
     external_id: str
     title: str
     org: str
+    org_key: str = ""
     location: PostingLocationOut
     url: str
     seniority: str | None = None
     employment_type: str | None = None
+    contract_type: str | None = None
+    work_hours: str | None = None
+    hours_per_week_min: float | None = None
+    hours_per_week_max: float | None = None
+    travel_class: str | None = None
+    education_level: str | None = None
     onsite_policy: str | None = None
     salary_currency: str | None = None
     salary_min: float | None = None
@@ -161,6 +259,8 @@ class PostingOut(BaseModel):
     salary_normalized_max: float | None = None
     posted_at: datetime | None = None
     expires_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     status: str
     catalog_job_id: UUID | None = None
     mapping_method: str | None = None
@@ -187,6 +287,7 @@ class PostingDetailOut(PostingOut):
     """Detail view: full extract, source attribution, the
     match-score card and the similar-postings rail."""
 
+    description: str = ""
     extract: PostingExtractOut | None = None
     source_title: str = ""
     source_connector: str = ""

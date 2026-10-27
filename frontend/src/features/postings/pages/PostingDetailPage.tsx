@@ -71,6 +71,7 @@ export function PostingDetailPage() {
   const [skillsView, setSkillsView] = useState<"compact" | "detailed">("compact");
   const skillGroups = groupByPriority(normalizeSkills(posting?.extract?.skills ?? []));
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [showRawDescription, setShowRawDescription] = useState(false);
   const [trackBusy, setTrackBusy] = useState(false);
   const [trackError, setTrackError] = useState("");
   const [letterBusy, setLetterBusy] = useState(false);
@@ -268,6 +269,7 @@ export function PostingDetailPage() {
 
   const scheduleCues = extract?.schedule_cues ?? [];
   const description = (posting.description ?? "").trim();
+  const descriptionClean = (posting.extract?.description_clean ?? "").trim();
 
   return (
     <div className="ca-workspace max-w-6xl mx-auto space-y-4" data-testid="posting-detail">
@@ -449,16 +451,30 @@ export function PostingDetailPage() {
           </header>
 
           <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
-            <h2 className="text-sm font-semibold text-slate-700">
-              {t("postingDetail.descriptionHeading")}
-            </h2>
-            {description ? (
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-700">
+                {t("postingDetail.descriptionHeading")}
+              </h2>
+              {description ? (
+                <button
+                  type="button"
+                  className="text-xs text-slate-400 hover:text-slate-600"
+                  onClick={() => setShowRawDescription((v) => !v)}
+                  data-testid="description-raw-toggle"
+                >
+                  {showRawDescription
+                    ? t("postingDetail.hideOriginal")
+                    : t("postingDetail.showOriginal")}
+                </button>
+              ) : null}
+            </div>
+            {showRawDescription && description ? (
               <>
                 <p
                   className={`text-sm text-slate-600 whitespace-pre-wrap ${
                     descriptionOpen ? "" : "line-clamp-6"
                   }`}
-                  data-testid="posting-description"
+                  data-testid="posting-description-raw"
                 >
                   {description}
                 </p>
@@ -471,6 +487,13 @@ export function PostingDetailPage() {
                   {descriptionOpen ? t("postingDetail.showLess") : t("postingDetail.showMore")}
                 </button>
               </>
+            ) : descriptionClean ? (
+              <div
+                className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed"
+                data-testid="posting-description"
+              >
+                {descriptionClean}
+              </div>
             ) : (
               <p className="text-sm text-slate-400" data-testid="posting-description">
                 {t("postingDetail.noDescription")}

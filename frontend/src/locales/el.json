@@ -3038,7 +3038,9 @@
     "skillsDetailed": "Αναλυτικά",
     "skillsCount": "{{count}} δεξιότητες",
     "unmappedTooltip": "Δεν υπάρχει ακόμη στην ταξινομία δεξιοτήτων",
-    "mentions": "απαιτείται {{count}}×"
+    "mentions": "απαιτείται {{count}}×",
+    "showOriginal": "Εμφάνιση αρχικού",
+    "hideOriginal": "Απόκρυψη αρχικού"
   },
   "sessionList": {
     "renameChat": "Μετονομασία συνομιλίας",

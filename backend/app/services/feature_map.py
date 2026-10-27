@@ -72,6 +72,17 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             prompt_hint="title_norm: the posting title, cleaned up.",
         ),
         FeatureRow(
+            "description_clean",
+            "Role description with board chrome removed",
+            (),
+            prompt_hint=(
+                "description_clean: the role description with all job-board "
+                "chrome removed (premium upsells, applicant counts, recruiter "
+                "blocks, company marketing, job alerts) — only what describes "
+                "the role itself, preserving language and structure."
+            ),
+        ),
+        FeatureRow(
             "employment_type",
             "Employment type (fast signal)",
             ("column_write",),

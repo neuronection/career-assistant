@@ -14503,6 +14503,17 @@
               }
             ]
           },
+          "description_clean": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Clean"
+          },
           "education": {
             "anyOf": [
               {
