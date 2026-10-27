@@ -82,10 +82,15 @@ Every source row has a **Manage** button opening its management page
   pages** controls how much of each posting is captured: off (the
   default) keeps the list-card fields only — title, company, location,
   workplace type, salary when LinkedIn shows one, and the apply link.
-  On, the first few postings per sync also get their full job
-  description ("About the job"), which is what the AI needs to judge
-  what the role actually is; it costs a detail-page load per posting,
-  so it is capped. This replaces the old per-row Edit dialog.
+  The other modes capture the full job description ("About the job"),
+  which is what the AI needs to judge what the role actually is — it
+  costs one detail-page load per posting, so the modes decide *which*
+  postings pay that cost: **sample** takes the newest few per sync,
+  **smart** fetches descriptions afterwards for the postings worth it
+  (the app ranks candidates by radar match and, when AI is configured, a
+  quick triage; the fetch runs in the background, paced and budgeted),
+  and **all** queues every new posting for a detail fetch. This
+  replaces the old per-row Edit dialog.
 - **Run history** — every sync attempt: when it ran, trigger, status,
   duration, items synced, and errors (clamped to three lines; **Details**
   opens the full error with a copy button). Failed runs can be retried

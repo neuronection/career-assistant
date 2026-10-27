@@ -132,6 +132,14 @@ async def sync_source(
     started = _utcnow()
     report = await _sync_source_inner(db, source, transport=transport)
     await _record_run(db, source, trigger=trigger, started=started, report=report)
+    try:
+        from app.services.postings.detail_service import enqueue_details
+
+        queued = await enqueue_details(db, source)
+        if queued:
+            report["detail_queued"] = queued
+    except Exception:
+        logger.warning("detail enrichment enqueue failed for %s", source.key, exc_info=True)
     return report
 
 

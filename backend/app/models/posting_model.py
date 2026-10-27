@@ -174,6 +174,7 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="salary_basis_allowed",
         ),
         Index("ix_postings_status_posted", "status", "posted_at"),
+        Index("ix_postings_detail", "source_id", "detail_fetched_at"),
         Index("ix_postings_catalog_job", "catalog_job_id"),
         Index("ix_postings_expires_at", "expires_at"),
         Index("ix_postings_salary_min", "salary_min"),
@@ -230,6 +231,11 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     extract_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # A field fell below the confidence threshold — moderation attention.
     needs_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Detail enrichment: NULL = the job description page was never
+    # fetched; attempts counts tried fetches (a permanently failing id
+    # stops being queued).
+    detail_fetched_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    detail_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Only unmapped extras land here (39's declarative feature map consumes).
     posting_facts: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new")

@@ -15,10 +15,17 @@
         "AI-generated jobs map onto the existing taxonomy — no free-text orphans"
       ],
       "links": [
-        { "kind": "guide", "href": "docs/career/user/explore-the-catalog" }
+        {
+          "kind": "guide",
+          "href": "docs/career/user/explore-the-catalog"
+        }
       ],
       "shot": "images/catalog-desktop.png",
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 10
     },
     {
@@ -33,10 +40,17 @@
         "Compare 2–4 jobs side by side, per dimension, in the compare tray"
       ],
       "links": [
-        { "kind": "guide", "href": "docs/career/user/matching-and-rankings" }
+        {
+          "kind": "guide",
+          "href": "docs/career/user/matching-and-rankings"
+        }
       ],
       "shot": "images/rankings-desktop.png",
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 20
     },
     {
@@ -50,13 +64,27 @@
         "Versions carry diff, image-diff and one-click restore for every AI edit",
         "Live ATS lint and a page-count meter run inside the builder"
       ],
-      "metric": { "value": "5", "label": "export formats" },
+      "metric": {
+        "value": "5",
+        "label": "export formats"
+      },
       "links": [
-        { "kind": "guide", "href": "docs/career/user/cv-studio" },
-        { "kind": "source", "href": "https://github.com/neuronection/career-assistant", "label": "GitHub" }
+        {
+          "kind": "guide",
+          "href": "docs/career/user/cv-studio"
+        },
+        {
+          "kind": "source",
+          "href": "https://github.com/neuronection/career-assistant",
+          "label": "GitHub"
+        }
       ],
       "shot": "images/cv-studio-desktop.png",
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 30
     },
     {
@@ -66,11 +94,21 @@
       "category": "integrate",
       "status": "beta",
       "links": [
-        { "kind": "guide", "href": "docs/career/user/postings-and-search" },
-        { "kind": "guide", "href": "docs/career/user/career-autopilot" }
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/career-autopilot"
+        }
       ],
       "shot": "images/postings-desktop.png",
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 40
     },
     {
@@ -83,13 +121,20 @@
         "A source marked Follow my radar takes keywords and location from the Job Radar; the form shows the effective query and rotation position",
         "Role groups rotate round-robin — one focused search per sync; optional batches of 2-3 run strictly sequential with jittered pauses",
         "Keywords are grouped by an AI curator into role groups (deterministic auto-merge fallback; un-curated plans upgrade when AI is configured)",
-        "A management page per source shows the query plan with per-group timing, run history with retry, and all configuration in one place",
-        "Every searched term maps back to the radars that asked for it (provenance kept in the query plan)"
+        "A management page per source shows the query plan (per-group timing, per-term provenance), run history with retry, and all configuration",
+        "Fetch-detail modes (off / sample / smart / all): smart and all queue paced, budgeted description fetches for the best-ranked postings"
       ],
       "links": [
-        { "kind": "guide", "href": "docs/career/user/add-a-job-source" }
+        {
+          "kind": "guide",
+          "href": "docs/career/user/add-a-job-source"
+        }
       ],
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 45
     },
     {
@@ -103,10 +148,17 @@
         "Departments link to jobs with relevance, required subjects and salary bands"
       ],
       "links": [
-        { "kind": "guide", "href": "docs/career/user/universities" }
+        {
+          "kind": "guide",
+          "href": "docs/career/user/universities"
+        }
       ],
       "shot": "images/universities-desktop.png",
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 50
     },
     {
@@ -124,18 +176,48 @@
         "When a source's page layout drifts, ingestion degrades to id+text rows the deep-extraction pass structures — never junk, never a crash"
       ],
       "links": [
-        { "kind": "guide", "href": "https://github.com/neuronection/career-assistant/tree/main/docs/dev/sdk", "label": "Connector SDK docs" },
-        { "kind": "source", "href": "https://github.com/neuronection/career-assistant", "label": "GitHub" }
+        {
+          "kind": "guide",
+          "href": "https://github.com/neuronection/career-assistant/tree/main/docs/dev/sdk",
+          "label": "Connector SDK docs"
+        },
+        {
+          "kind": "source",
+          "href": "https://github.com/neuronection/career-assistant",
+          "label": "GitHub"
+        }
       ],
-      "platforms": ["selfhosted", "web", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
       "order": 60
     }
   ],
   "matrix": [
-    { "row": "offline", "value": false, "note": "core runs local; AI needs a provider (Ollama works)" },
-    { "row": "self-host", "value": "Docker", "note": "prod + standalone compose; bare metal" },
-    { "row": "extension-sdk", "value": "connector SDK", "note": "T0–T3 trust tiers; MCP in and out" },
-    { "row": "platforms", "value": "Linux, Windows, Docker, web" },
-    { "row": "license", "value": "Apache-2.0" }
+    {
+      "row": "offline",
+      "value": false,
+      "note": "core runs local; AI needs a provider (Ollama works)"
+    },
+    {
+      "row": "self-host",
+      "value": "Docker",
+      "note": "prod + standalone compose; bare metal"
+    },
+    {
+      "row": "extension-sdk",
+      "value": "connector SDK",
+      "note": "T0–T3 trust tiers; MCP in and out"
+    },
+    {
+      "row": "platforms",
+      "value": "Linux, Windows, Docker, web"
+    },
+    {
+      "row": "license",
+      "value": "Apache-2.0"
+    }
   ]
 }

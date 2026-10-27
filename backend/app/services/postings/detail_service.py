@@ -1,0 +1,269 @@
+"""Detail enrichment (the smart-fetch funnel): decide app-side which
+postings deserve their job-description page, then fetch it in paced,
+budgeted batches through the connector's ``detail_ids`` contract.
+
+``config.detail_mode``: ``off`` · ``sample`` (inline during sync — the
+connector's own newest-N) · ``smart`` · ``all``. smart/all run this
+pipeline: deterministic Layer 1 ranking (radar match + recency + salary)
+always; the optional LLM re-rank happens only here in the background job
+and falls back to Layer 1's order when AI is unconfigured. The connector
+stays a pure normalizer — it fetches exactly the ids it is given."""
+
+from __future__ import annotations
+
+import logging
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
+
+from app.models.enums import BackgroundJobType
+from app.models.posting_model import JobPosting, JobSource
+
+logger = logging.getLogger(__name__)
+
+MAX_ATTEMPTS = 3
+BATCH = 10
+TRIAGE_WINDOW = 40
+MAX_BATCHES_PER_RUN = 5
+
+_DETAIL_FIELDS = ("seniority", "employment_type", "contract_type", "onsite_policy")
+
+
+def detail_mode(source: JobSource) -> str:
+    """The source's enrichment mode (never trusts free text)."""
+    mode = str((source.config or {}).get("detail_mode") or "off")
+    return mode if mode in ("off", "sample", "smart", "all") else "off"
+
+
+async def _radar_terms(db: AsyncSession) -> tuple[set[str], object | None]:
+    """Merged keyword terms + the first enabled radar (Layer-1 backdrop)."""
+    from app.services.postings.radar_service import list_enabled_radars
+
+    radars = await list_enabled_radars(db)
+    terms: set[str] = set()
+    for radar in radars:
+        for term in radar.keywords or []:
+            text = str(term).strip().lower()
+            if text:
+                terms.add(text)
+    return terms, (radars[0] if radars else None)
+
+
+def score_candidate(posting: JobPosting, terms: set[str], radar) -> float:
+    """Deterministic Layer 1: worth-a-detail-page score in 0..1.
+
+    Radar keyword match is the backbone; seniority/onsite agreement, a
+    stated (and radar-meeting) salary and recency break ties. `all`
+    mode reuses this as the fetch order — better first."""
+    score = 0.0
+    text = f"{posting.title} {posting.org}".lower()
+    if terms:
+        hits = sum(1 for term in terms if term in text)
+        score += 0.6 * (hits / len(terms))
+    if radar is not None:
+        if posting.seniority and posting.seniority in (radar.seniority or []):
+            score += 0.15
+        if (
+            posting.onsite_policy
+            and radar.onsite_policy
+            and posting.onsite_policy == radar.onsite_policy
+        ):
+            score += 0.1
+        if posting.salary_normalized_min is not None or posting.salary_min is not None:
+            score += 0.1
+            floor = getattr(radar, "salary_min_annual", None)
+            if (
+                floor
+                and posting.salary_normalized_min is not None
+                and posting.salary_normalized_min >= floor
+            ):
+                score += 0.05
+    if posting.posted_at is not None:
+        age_days = (datetime.now(UTC) - posting.posted_at).total_seconds() / 86400
+        score += 0.15 * max(0.0, 1.0 - min(max(age_days, 0.0), 30.0) / 30.0)
+    return round(score, 4)
+
+
+async def plan_details(db: AsyncSession, source: JobSource, limit: int = BATCH) -> list[JobPosting]:
+    """One enrichment batch: the queue head, ranked. The queue is the
+    postings still missing their description — retried across runs, with
+    a give-up cutoff at MAX_ATTEMPTS."""
+    rows = await db.execute(
+        select(JobPosting)
+        .where(
+            JobPosting.source_id == source.id,
+            JobPosting.detail_fetched_at.is_(None),
+            JobPosting.detail_attempts < MAX_ATTEMPTS,
+            JobPosting.status.in_(("new", "mapped")),
+        )
+        .order_by(JobPosting.posted_at.desc().nullslast())
+        .limit(TRIAGE_WINDOW)
+    )
+    candidates = list(rows.scalars().all())
+    if not candidates:
+        return []
+    terms, radar = await _radar_terms(db)
+    ranked = sorted(candidates, key=lambda p: score_candidate(p, terms, radar), reverse=True)
+
+    try:
+        from app.ai.agents.detail_triage import triage_candidates
+
+        picks = await triage_candidates(
+            db,
+            None,
+            [
+                {
+                    "external_id": p.external_id,
+                    "title": p.title,
+                    "org": p.org,
+                    "seniority": p.seniority,
+                    "salary": (
+                        f"{p.salary_normalized_min or p.salary_min}"
+                        if p.salary_min is not None or p.salary_normalized_min is not None
+                        else ""
+                    ),
+                }
+                for p in ranked
+            ],
+        )
+    except Exception:
+        picks = None
+    if picks:
+        ranked.sort(
+            key=lambda p: (picks.get(p.external_id, 0.0), score_candidate(p, terms, radar)),
+            reverse=True,
+        )
+    return ranked[:limit]
+
+
+def merge_detail(posting: JobPosting, row) -> bool:
+    """Fold one detail row into its posting. Only fields the detail page
+    actually states are merged — list-derived fields are never wiped;
+    typed fields fill gaps (the detail page wins when the list said
+    nothing). Returns True when anything changed."""
+    detail = dict(row.raw or {})
+    changed = False
+    if detail.get("description"):
+        merged = dict(posting.raw or {})
+        merged["description"] = detail["description"]
+        posting.raw = merged
+        flag_modified(posting, "raw")
+        changed = True
+    for attr in _DETAIL_FIELDS:
+        value = getattr(row, attr, None)
+        if value is not None and getattr(posting, attr) is None:
+            setattr(posting, attr, value)
+            changed = True
+    if row.salary is not None and posting.salary_min is None and posting.salary_max is None:
+        posting.salary_currency = row.salary.currency
+        posting.salary_min = row.salary.min
+        posting.salary_max = row.salary.max
+        posting.salary_period = row.salary.period
+        posting.salary_basis = row.salary.basis
+        changed = True
+    return changed
+
+
+async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
+    """One targeted connector call: (rows, partial errors, error)."""
+    from app.extensions import registry
+    from app.extensions.runtime.http import build_transport
+
+    try:
+        connector = await registry.resolve_connector(db, source.connector_key)
+    except Exception as exc:
+        return [], [], str(exc)
+    from app.extensions.runtime.sandbox.connector import SandboxConnector
+    from app.services.postings.postings_service import resolve_source_secrets
+
+    secrets = resolve_source_secrets(source)
+    transport = build_transport(
+        domains=frozenset(connector.capabilities.network_scopes or []),
+        requests_per_minute=connector.capabilities.max_requests_per_minute,
+    )
+    audit = None
+    if isinstance(connector, SandboxConnector):
+        from app.extensions.runtime.sandbox import sandbox_capability_auditor
+
+        audit = sandbox_capability_auditor(db, source.key)
+    elif getattr(connector, "audits_effects", False):
+        from app.extensions.runtime.mcp import mcp_effect_auditor
+
+        audit = mcp_effect_auditor(db, source.key)
+    call_config = {
+        **dict(source.config or {}),
+        "detail_mode": "off",
+        "detail_ids": ",".join(ids),
+        "detail_limit": len(ids),
+    }
+    try:
+        result = await connector.fetch(
+            call_config, {}, transport=transport, secrets=secrets, audit=audit
+        )
+    except Exception as exc:
+        return [], [], str(exc)
+    return (
+        list(result.items),
+        [entry.model_dump(mode="json") for entry in result.partial_errors],
+        None,
+    )
+
+
+async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -> dict:
+    """DETAIL_ENRICHMENT handler: drain batches under a per-run cap.
+    Never raises — a failing batch is a report line, not a crashed job."""
+    from app.services.postings.postings_service import _record_run
+
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == payload.get("source_id"))))
+        .scalars()
+        .first()
+    )
+    if source is None:
+        return {"skipped": "source gone"}
+    if detail_mode(source) not in ("smart", "all"):
+        return {"skipped": "detail mode is not smart/all"}
+    started = datetime.now(UTC)
+    enriched = 0
+    fetched = 0
+    errors: list[dict] = []
+    for _ in range(MAX_BATCHES_PER_RUN):
+        batch = await plan_details(db, source)
+        if not batch:
+            break
+        ids = [posting.external_id for posting in batch]
+        rows, partials, error = await _fetch_details(db, source, ids)
+        fetched += len(rows)
+        errors.extend(partials)
+        if error:
+            errors.append({"code": "io", "detail": error[:500], "retryable": "yes"})
+        by_id = {row.external_id: row for row in rows}
+        for posting in batch:
+            row = by_id.get(posting.external_id)
+            posting.detail_attempts += 1
+            if row is not None and merge_detail(posting, row):
+                posting.detail_fetched_at = datetime.now(UTC)
+                enriched += 1
+        await db.commit()
+        if error or not rows:
+            break
+    report = {"enriched": enriched, "detail_rows": fetched, "errors": errors[:20]}
+    await _record_run(db, source, trigger="scheduled", started=started, report=report)
+    return report
+
+
+async def enqueue_details(db: AsyncSession, source: JobSource) -> int:
+    """Post-sync hook: smart/all sources queue one enrichment job per
+    sync (the job drains batches). Returns 1 when queued."""
+    if detail_mode(source) not in ("smart", "all"):
+        return 0
+    from app.services.job_worker import enqueue
+
+    await enqueue(
+        db,
+        BackgroundJobType.DETAIL_ENRICHMENT.value,
+        {"source_id": str(source.id)},
+    )
+    return 1

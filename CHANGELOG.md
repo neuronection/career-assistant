@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (fetch-detail modes, 2026-10-27)
+- **Fetch detail pages now has four modes** on the source's
+  Configuration: **off**, **sample** (the newest few per sync get their
+  full job description inline), **smart** and **all**. Smart and all
+  fetch descriptions *after* the sync, for the postings worth it: the
+  app ranks candidates by radar match, recency and salary (with an
+  optional AI triage on top that falls back to the deterministic order
+  when AI is unconfigured) and fetches in paced, budgeted batches. The
+  old on/off setting folds into the modes automatically.
+- Enrichment runs appear in the source's **Run history** like syncs do.
+
+
 ### Changed (one toggle per source row, 2026-10-27)
 - **Source rows carry a single slider toggle** — the row's name is the
   toggle's label (clicking the name pauses/resumes), and pause is folded

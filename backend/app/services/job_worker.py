@@ -593,6 +593,12 @@ async def _run_radar_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
     return await run_radar_digest(db, payload)
 
 
+async def _run_detail_enrichment(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    from app.services.postings.detail_service import run_detail_enrichment
+
+    return await run_detail_enrichment(db, job.payload or {}, user_id=job.user_id)
+
+
 async def _run_posting_extract(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Deep posting extraction: one structured AI call per
     posting, normalized into posting_skills + typed columns."""
@@ -873,6 +879,7 @@ HANDLERS: dict[str, Handler] = {
     "fit_refit": _run_fit_refit,
     "posting_sync": _run_posting_sync,
     "posting_extract": _run_posting_extract,
+    "detail_enrichment": _run_detail_enrichment,
     "digest": _run_digest,
     "followup_sweep": _run_followup_sweep,
     "market_history_capture": _run_market_history_capture,

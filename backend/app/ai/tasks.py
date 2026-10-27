@@ -103,6 +103,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.STRONG.value,
     ),
     TaskDef(
+        AITaskType.DETAIL_TRIAGE.value,
+        "Detail-fetch triage (which postings deserve their description page)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.TARGET_RESOLVE.value,
         "Express target-mode archetype resolution",
         AICapability.TEXT.value,

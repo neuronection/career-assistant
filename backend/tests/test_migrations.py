@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0061"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0062"], (
         "revision chain stays linear on one head"
     )
 
@@ -2219,3 +2219,95 @@ def test_0059_query_mode_roundtrip():
     columns, checks = _job_sources_shape()
     assert "query_mode" in columns and "query_cache" in columns
     assert "query_mode_allowed" in checks
+
+
+def _fold_seed() -> None:
+    """Three sources at the 0061 shape: bool on, bool off, no key."""
+
+    async def _run():
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.posting_model import JobSource
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                from sqlalchemy import delete
+
+                await session.execute(delete(JobSource).where(JobSource.key.like("fold-%")))
+                session.add_all(
+                    [
+                        JobSource(
+                            key="fold-sample",
+                            connector_key="synthetic",
+                            kind="posting",
+                            config={"keywords": "x", "fetch_details": True},
+                        ),
+                        JobSource(
+                            key="fold-off",
+                            connector_key="synthetic",
+                            kind="posting",
+                            config={"keywords": "x", "fetch_details": False},
+                        ),
+                        JobSource(
+                            key="fold-plain",
+                            connector_key="synthetic",
+                            kind="posting",
+                            config={"keywords": "x"},
+                        ),
+                    ]
+                )
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def _fold_read() -> dict[str, dict]:
+    import json
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def _run():
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                rows = (
+                    await conn.execute(
+                        text("SELECT key, config FROM job_sources WHERE key LIKE 'fold-%'")
+                    )
+                ).fetchall()
+        finally:
+            await engine.dispose()
+        out = {}
+        for key, config in rows:
+            if isinstance(config, str):
+                config = json.loads(config)
+            out[key] = dict(config or {})
+        return out
+
+    return asyncio.run(_run())
+
+
+def test_0062_detail_enrichment_fold():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _column_present("job_postings", "detail_fetched_at"), "detail state at head"
+    assert _column_present("job_postings", "detail_attempts"), "detail attempts at head"
+
+    command.downgrade(config, "0061")
+    assert not _column_present("job_postings", "detail_fetched_at"), "downgrade drops the column"
+    _fold_seed()
+
+    command.upgrade(config, "head")
+    configs = _fold_read()
+    assert configs["fold-sample"] == {"keywords": "x", "detail_mode": "sample"}
+    assert configs["fold-off"] == {"keywords": "x", "detail_mode": "off"}
+    assert configs["fold-plain"] == {"keywords": "x"}
