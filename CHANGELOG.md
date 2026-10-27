@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (filter rail is the only filter UI, 2026-10-27)
+- **The old "filter by skill" bar is gone from the feed** — the filter
+  rail's Skills section (with the two-path picker) is now the only
+  filter surface. The redundant skill dropdown, level select, add
+  button, match-mode/priority selects and skill chips are removed.
+
+
 ### Changed (skill picker rides the shared library, 2026-10-27)
 - **The two-path skill picker is promoted into `@neuronection/assistant-ui`**
   as the generic `MultiSelectPicker` (with health-assistant's

@@ -312,8 +312,11 @@ function SkillsSection({ spec, onChange }: { spec: FilterSpec; onChange: (n: Fil
         placeholder={t("filters.skillsPlaceholder")}
       />
       <div className="flex items-center gap-2">
-        <label className="text-xs text-slate-500">{t("filters.minLevel")}</label>
+        <label htmlFor="skill-min-level" className="text-xs text-slate-500">
+          {t("filters.minLevel")}
+        </label>
         <input
+          id="skill-min-level"
           type="number"
           min={1}
           max={10}
