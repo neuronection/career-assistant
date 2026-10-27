@@ -693,7 +693,7 @@ export interface paths {
         put?: never;
         /**
          * Backfill Organizations
-         * @description Run the matcher over postings ingested before it existed.
+         * @description Run the current matcher over unjudged postings + experience items.
          */
         post: operations["backfill_organizations_api_v1_admin_organizations_backfill_post"];
         delete?: never;
@@ -913,6 +913,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/postings/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reextract Postings By Ids
+         * @description Re-run deep extraction for the given postings (admin, bulk — the
+         *     /postings multi-select). Same rules as the per-source bulk: only
+         *     postings WITH a description queue; already-queued ones are skipped;
+         *     unknown ids are reported as missing.
+         */
+        post: operations["reextract_postings_by_ids_api_v1_admin_postings_reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/postings/sources": {
         parameters: {
             query?: never;
@@ -984,6 +1007,30 @@ export interface paths {
          *     needs-secret reports the missing slot instead of fetching.
          */
         post: operations["probe_posting_source_api_v1_admin_postings_sources__source_id__probe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/postings/sources/{source_id}/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reextract Source Postings
+         * @description Re-run the deep extraction for every posting of one source (admin,
+         *     bulk) — AI cost is an explicit admin act. Only postings WITH a
+         *     description queue (extraction on list-card data wastes the call);
+         *     already-queued ones are skipped. Jobs process through the worker
+         *     sequentially, so the AI spend stays bounded and observable.
+         */
+        post: operations["reextract_source_postings_api_v1_admin_postings_sources__source_id__reextract_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13158,19 +13205,8 @@ export interface components {
             catalog_job?: components["schemas"]["JobOut"] | null;
             /** Catalog Job Id */
             catalog_job_id?: string | null;
-            /** Contract Type */
-            contract_type?: string | null;
             /** Coverage */
             coverage?: number | null;
-            /** Created At */
-            created_at?: string | null;
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /** Education Level */
-            education_level?: string | null;
             /** Employment Type */
             employment_type?: string | null;
             /** Expires At */
@@ -13182,10 +13218,6 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
-            /** Hours Per Week Max */
-            hours_per_week_max?: number | null;
-            /** Hours Per Week Min */
-            hours_per_week_min?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13213,11 +13245,6 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
-            /**
-             * Org Key
-             * @default
-             */
-            org_key: string;
             /** Posted At */
             posted_at?: string | null;
             /**
@@ -13281,41 +13308,8 @@ export interface components {
             status: string;
             /** Title */
             title: string;
-            /** Travel Class */
-            travel_class?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
             /** Url */
             url: string;
-            /** Work Hours */
-            work_hours?: string | null;
-        };
-        /**
-         * PostingExtractBenefitOut
-         * @description Typed benefit: `kind` powers display grouping, `raw` keeps the
-         *     original wording. Stored plain strings (legacy extract rows) coerce
-         *     to `kind="other"` at read — the extractor's `ExtractBenefit.coerce`
-         *     precedent.
-         */
-        PostingExtractBenefitOut: {
-            /** Confidence */
-            confidence?: number | null;
-            /** Kind */
-            kind: string;
-            /** Raw */
-            raw: string;
-        };
-        /** PostingExtractContractOut */
-        PostingExtractContractOut: {
-            /** Confidence */
-            confidence?: number | null;
-            /** Contract Type */
-            contract_type: string;
-            /**
-             * Evidence Quote
-             * @default
-             */
-            evidence_quote: string;
         };
         /** PostingExtractEducationOut */
         PostingExtractEducationOut: {
@@ -13324,22 +13318,6 @@ export interface components {
             /** Level */
             level?: string | null;
         };
-        /** PostingExtractHoursOut */
-        PostingExtractHoursOut: {
-            /** Confidence */
-            confidence?: number | null;
-            /**
-             * Evidence Quote
-             * @default
-             */
-            evidence_quote: string;
-            /** Hours Per Week Max */
-            hours_per_week_max?: number | null;
-            /** Hours Per Week Min */
-            hours_per_week_min?: number | null;
-            /** Pattern */
-            pattern: string;
-        };
         /** PostingExtractLocationOut */
         PostingExtractLocationOut: {
             /** City */
@@ -13347,35 +13325,14 @@ export interface components {
             /** Country */
             country?: string | null;
         };
-        /** PostingExtractOnsiteOut */
-        PostingExtractOnsiteOut: {
-            /** Confidence */
-            confidence?: number | null;
-            /**
-             * Evidence Quote
-             * @default
-             */
-            evidence_quote: string;
-            /** Office Days Per Week */
-            office_days_per_week?: number | null;
-            /** Policy */
-            policy: string;
-        };
         /**
          * PostingExtractOut
          * @description The posting's structured extraction payload (pipeline-written
          *     JSONB, envelope-typed since plan 123.4).
-         *
-         *     Read coercion is part of the contract: ``apply_extract`` suppresses
-         *     low-confidence fields to ``null`` (``_suppressed_fields`` names
-         *     them) and legacy rows stored plain-string benefits, so lists
-         *     normalize to ``[]`` and benefit strings to ``kind="other"`` instead
-         *     of failing whole postings on read.
          */
         PostingExtractOut: {
             /** Benefits */
-            benefits?: components["schemas"]["PostingExtractBenefitOut"][];
-            contract_type?: components["schemas"]["PostingExtractContractOut"] | null;
+            benefits?: string[];
             education?: components["schemas"]["PostingExtractEducationOut"] | null;
             /** Employment Type */
             employment_type?: string | null;
@@ -13386,7 +13343,6 @@ export interface components {
             /** Languages */
             languages?: string[];
             location?: components["schemas"]["PostingExtractLocationOut"] | null;
-            onsite_policy?: components["schemas"]["PostingExtractOnsiteOut"] | null;
             /** Prerequisites */
             prerequisites?: components["schemas"]["PostingExtractPrerequisiteOut"][];
             /** Remote Policy */
@@ -13394,18 +13350,12 @@ export interface components {
             /** Responsibilities */
             responsibilities?: components["schemas"]["PostingExtractResponsibilityOut"][];
             salary?: components["schemas"]["PostingExtractSalaryOut"] | null;
-            /** Schedule Cues */
-            schedule_cues?: components["schemas"]["PostingExtractScheduleCueOut"][];
             /** Seniority */
             seniority?: string | null;
             /** Skills */
             skills?: components["schemas"]["PostingExtractSkillOut"][];
             /** Title Norm */
             title_norm?: string | null;
-            travel_required?: components["schemas"]["PostingExtractTravelOut"] | null;
-            /** Values Cues */
-            values_cues?: string[];
-            work_hours?: components["schemas"]["PostingExtractHoursOut"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -13448,18 +13398,6 @@ export interface components {
             /** Period */
             period?: string | null;
         };
-        /** PostingExtractScheduleCueOut */
-        PostingExtractScheduleCueOut: {
-            /** Confidence */
-            confidence?: number | null;
-            /** Cue */
-            cue: string;
-            /**
-             * Evidence Quote
-             * @default
-             */
-            evidence_quote: string;
-        };
         /** PostingExtractSkillOut */
         PostingExtractSkillOut: {
             /** Confidence */
@@ -13476,20 +13414,6 @@ export interface components {
             skill_key?: string | null;
             /** Unresolved */
             unresolved?: boolean | null;
-        };
-        /** PostingExtractTravelOut */
-        PostingExtractTravelOut: {
-            /** Confidence */
-            confidence?: number | null;
-            /** Days Per Month */
-            days_per_month?: number | null;
-            /**
-             * Evidence Quote
-             * @default
-             */
-            evidence_quote: string;
-            /** Level */
-            level: string;
         };
         /** PostingLocationOut */
         PostingLocationOut: {
@@ -13538,14 +13462,8 @@ export interface components {
             catalog_job?: components["schemas"]["JobOut"] | null;
             /** Catalog Job Id */
             catalog_job_id?: string | null;
-            /** Contract Type */
-            contract_type?: string | null;
             /** Coverage */
             coverage?: number | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Education Level */
-            education_level?: string | null;
             /** Employment Type */
             employment_type?: string | null;
             /** Expires At */
@@ -13556,10 +13474,6 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
-            /** Hours Per Week Max */
-            hours_per_week_max?: number | null;
-            /** Hours Per Week Min */
-            hours_per_week_min?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13586,11 +13500,6 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
-            /**
-             * Org Key
-             * @default
-             */
-            org_key: string;
             /** Posted At */
             posted_at?: string | null;
             /**
@@ -13640,14 +13549,8 @@ export interface components {
             status: string;
             /** Title */
             title: string;
-            /** Travel Class */
-            travel_class?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
             /** Url */
             url: string;
-            /** Work Hours */
-            work_hours?: string | null;
         };
         /**
          * PostingSearchOut
@@ -17391,6 +17294,43 @@ export interface operations {
             };
         };
     };
+    reextract_postings_by_ids_api_v1_admin_postings_reextract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     posting_sources_api_v1_admin_postings_sources_get: {
         parameters: {
             query?: never;
@@ -17523,6 +17463,39 @@ export interface operations {
         };
     };
     probe_posting_source_api_v1_admin_postings_sources__source_id__probe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reextract_source_postings_api_v1_admin_postings_sources__source_id__reextract_post: {
         parameters: {
             query?: never;
             header?: never;
